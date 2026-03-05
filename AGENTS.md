@@ -126,7 +126,7 @@ In `src/llm.js`:
 - `chat.js` - Chat list + message display, message sending with SSE parsing
 
 **Authentication State**:
-- Stored in `localStorage`: `auth` object with `access_token`, `refresh_token`, `user`
+- Stored in `localStorage` under key `growchat_auth`: object with `access_token`, `refresh_token`, `user`
 - Auto-refresh on 401 response from API
 - Redirect to `/auth.html` if no valid token
 
@@ -251,7 +251,13 @@ npm run deploy  # Builds CSS and deploys Worker
 
 ### Creating Database Migrations
 
-For schema changes, edit `migrations/001_initial.sql` and redeploy. D1 applies SQL files on first deployment.
+D1 applies `migrations/` SQL files **only on initial database creation**. For schema changes to an existing database, you must apply them manually:
+
+```bash
+wrangler d1 execute <database_id> < migrations/changes.sql
+```
+
+Or via the Cloudflare dashboard SQL editor.
 
 ## Important Notes
 
