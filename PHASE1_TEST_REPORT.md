@@ -131,7 +131,7 @@ data: [DONE]
 - ✅ `/api/auth/refresh` - Token refresh
 - ✅ `/api/auth/logout` - Token revocation (optional)
 - ✅ `/api/users/me` - Current user profile
-- ✅ `/api/users/me` (PUT) - Profile updates
+- ✅ `/api/users/me` (PUT) - Update user profile (name, settings)
 - ✅ `/api/chats` - CRUD for chats
 - ✅ `/api/chats/:id/messages` - Message streaming with SSE
 

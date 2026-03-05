@@ -54,6 +54,7 @@ Open `http://localhost:8787` in your browser.
 2. **Create KV Namespaces**
    ```bash
    wrangler kv:namespace create SESSIONS
+   wrangler kv:namespace create CHAT_SESSIONS
    wrangler kv:namespace create CACHE
    ```
    Update `wrangler.jsonc` with the namespace IDs.
