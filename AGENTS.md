@@ -1,83 +1,263 @@
-# CLAUDE.md
+# GrowChat Architecture Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with the GrowChat repository.
 
-## Project overview
+## Project Overview
 
-This is a lightweight Cloudflare Workers AI chatbot widget project:
-- **Backend API + static hosting**: Cloudflare Worker in `src/index.js`.
-- **Embeddable frontend widget**: plain JS script in `public/widget.js`.
-- **Styling pipeline**: Tailwind input `src/input.css` compiled to `public/styles.css`.
-- **Config/bindings**: `wrangler.jsonc` wires Worker entrypoint, static assets, Workers AI, Vectorize, and KV.
+**GrowChat** is a multi-user Cloudflare Workers chat application with support for multiple LLM providers (Workers AI and OpenAI-compatible APIs).
 
-The `README.md` currently only contains an asset link and no operational docs.
+### Core Components
+- **Backend API**: Cloudflare Worker in `src/index.js` handling all API routes
+- **Database**: SQLite (D1) for persistent user/chat/message storage
+- **Session Management**: KV namespace for refresh token storage with TTL
+- **Frontend**: Vanilla JS SPA in `public/` (auth page + chat app)
+- **Styling**: Tailwind CSS compiled to `public/styles.css`
 
-## Common commands
+## Common Commands
 
 From repository root:
 
-- Install dependencies:
-  - `npm install`
-- Build CSS bundle:
-  - `npm run build:css`
-- Local development (build CSS then run Wrangler dev server):
-  - `npm run dev`
-- Deploy Worker (build CSS then deploy):
-  - `npm run deploy`
+- Install dependencies: `npm install`
+- Build CSS: `npm run build:css`
+- Local dev (CSS build + Wrangler dev): `npm run dev`
+- Deploy to Cloudflare: `npm run deploy`
 
-### Tests/linting status
+### Testing & Linting Status
 
-- No test framework is currently configured in `package.json` (no `test` script).
-- No linter is currently configured in `package.json` (no `lint` script).
-- Because there is no configured test runner, there is currently no single-test command in this repo.
+- **No test framework** currently configured (`package.json` has no `test` script)
+- **No linter** currently configured (`package.json` has no `lint` script)
+- See **Phase 3 Roadmap** for testing infrastructure plans
 
-## Architecture notes
+## Architecture Overview
 
-### Request flow and routing
+### Phase 1: User Authentication & Multi-User Chat (Current)
 
-`src/index.js` is the central runtime:
-- Handles API routes:
-  - `POST /api/chat` (streaming chat completions)
-  - `GET /api/history` (session history from KV)
-  - `POST /api/seed` (seed FAQ vectors)
-  - `GET /api/health`
-- Handles CORS and preflight `OPTIONS`.
-- Falls back to `env.ASSETS.fetch(req)` for static files from `public/`.
+#### Database Schema (D1)
 
-### Chat + memory + RAG pipeline
+```sql
+users (id, email, password_hash, name, role, settings, created_at, updated_at)
+chats (id, user_id, title, model, pinned, tags, created_at, updated_at)
+messages (id, chat_id, role, content, model, citations, created_at)
+refresh_tokens (hash, user_id, expires_at)  -- Reserved for audit trail; tokens stored in KV at runtime
+```
 
-In `src/index.js`:
-1. Reads/sets `chatbot_session` cookie.
-2. Loads/saves session data in `CHAT_SESSIONS` KV namespace.
-3. Builds FAQ context by:
-   - generating embeddings with Workers AI model `@cf/baai/bge-base-en-v1.5`
-   - querying Vectorize index via `env.VECTORIZE.query(...)`
-4. Calls streaming chat model `@cf/meta/llama-3-8b-instruct`.
-5. Streams SSE back to client while reconstructing assistant text server-side, then persists assistant message to KV on stream flush.
+#### Request Flow
 
-### Frontend widget behavior
+`src/index.js` entry point:
+1. Parses request path and HTTP method
+2. Reads `Authorization: Bearer <JWT>` header and verifies JWT with `env.JWT_SECRET`
+3. Routes authenticated requests to API handlers
+4. Falls back to `env.ASSETS.fetch(req)` for static files
 
-`public/widget.js`:
-- Injects `styles.css` and renders floating chat UI into the host page.
-- Uses global config overrides if present (`window.CHATBOT_BASE_URL`, `CHATBOT_TITLE`, etc.).
-- Sends messages to `/api/chat` with `credentials: 'include'` so session cookie persists.
-- Reads prior conversation from `/api/history`.
-- Parses SSE `data:` lines from the chat endpoint and incrementally updates assistant response UI.
+#### API Routes
 
-`public/index.html` is a demo page that sets title/greeting globals and loads `widget.js`.
+**Authentication** (`src/routers/auth.js`):
+- `POST /api/auth/register` - Create account with email/password
+- `POST /api/auth/login` - Get access token + refresh token
+- `POST /api/auth/refresh` - Exchange refresh token for new access token
+- `POST /api/auth/logout` - Revoke refresh token (optional)
 
-### Cloudflare bindings and deployment assumptions
+**Users** (`src/routers/users.js`):
+- `GET /api/users/me` - Get current user profile (requires auth)
+- `PUT /api/users/me` - Update user profile (name, settings)
 
-`wrangler.jsonc` defines:
-- `main: src/index.js`
-- `assets.directory: ./public` (static asset serving)
-- `ai.binding: AI`
-- `vectorize` binding `VECTORIZE` (index `faq-vectors`)
-- KV binding `CHAT_SESSIONS`
+**Chats** (`src/routers/chat.js`):
+- `GET /api/chats` - List all user chats (paginated, limited to 100)
+- `POST /api/chats` - Create new chat with optional title/model
+- `GET /api/chats/:id` - Get chat with message history
+- `PUT /api/chats/:id` - Update chat title/pinned/tags
+- `DELETE /api/chats/:id` - Delete chat (cascade deletes messages)
+- `POST /api/chats/:id/messages` - Send message + stream LLM response via SSE
 
-When changing data or AI flows, keep `wrangler.jsonc` bindings and `src/index.js` usage aligned.
+#### Authentication System
 
-## Repository-specific notes
+**JWT Tokens**:
+- **Access Token**: Signed with `env.JWT_SECRET`, expires in 15 minutes, payload `{ sub, email, role, name }`
+- **Refresh Token**: Opaque 32-byte token hashed with SHA-256, stored in `SESSIONS` KV, expires in 7 days
 
-- `open-webui/` is ignored via `.gitignore` and treated as external reference material, not part of runtime code.
-- Generated CSS artifact (`public/styles.css`) is built from Tailwind input and config (`src/input.css`, `tailwind.config.js`).
+**Password Security**:
+- Hashed with PBKDF2 (100,000 iterations, SHA-256)
+- Uses Web Crypto API for constant-time comparison
+
+#### LLM Model Routing
+
+In `src/llm.js`:
+- If model starts with `@cf/` → use `env.AI.run(model, { messages, stream: true })`
+- Otherwise → call OpenAI-compatible endpoint at `env.OPENAI_BASE_URL/chat/completions`
+
+**Model Selection** (in order of precedence):
+1. User-provided `model` in request body
+2. Chat's stored `model` field
+3. `env.DEFAULT_MODEL` environment variable (set in `wrangler.jsonc` or `wrangler secret`)
+4. Fallback to `@cf/meta/llama-3.1-8b-instruct` (free Workers AI model)
+
+#### Streaming Pipeline
+
+`src/routers/chat.js` + `src/llm.js`:
+1. Inserts user message into D1
+2. Loads chat history (last 30 messages)
+3. Calls `streamLLM()` which returns raw response body stream
+4. Wraps stream in `ReadableStream` with `SseLineParser` for chunk-safe parsing
+5. Parses SSE lines and buffers incomplete JSON across chunk boundaries
+6. On stream end, flushes parser buffer for final token
+7. Inserts complete assistant message into D1
+8. Updates chat's `updated_at` timestamp
+
+**Error Handling**:
+- If LLM setup fails (missing key, bad model, network error), returns SSE error event instead of crashing:
+  ```
+  event: start
+  data: {"event": "start", "chat_id": "..."}
+
+  data: {"error": "llm_unavailable", "message": "LLM setup failed"}
+  data: [DONE]
+  ```
+
+#### Frontend Architecture
+
+**Pages**:
+- `public/auth.html` - Login/register form with tab switcher
+- `public/index.html` - Main app entry point
+
+**Modules** (`public/js/`):
+- `auth.js` - Login/register form handler, token refresh, logout
+- `api.js` - Fetch wrapper with bearer token, automatic token refresh on 401
+- `app.js` - Bootstrap auth check, load chats, initialize chat view
+- `chat.js` - Chat list + message display, message sending with SSE parsing
+
+**Authentication State**:
+- Stored in `localStorage`: `auth` object with `access_token`, `refresh_token`, `user`
+- Auto-refresh on 401 response from API
+- Redirect to `/auth.html` if no valid token
+
+**SSE Parsing** (`public/js/chat.js`):
+- Accumulates chunks in buffer until complete SSE line
+- Parses `data: {"response": "..."}` payloads
+- Handles error payloads: `data: {"error": "...", "message": "..."}`
+- Incremental DOM updates to message UI
+
+### Cloudflare Bindings (wrangler.jsonc)
+
+```jsonc
+{
+  "ai": { "binding": "AI" },  // Workers AI inference
+  "d1_databases": [{ "binding": "DB", "database_id": "..." }],  // SQLite
+  "kv_namespaces": [
+    { "binding": "CHAT_SESSIONS", "id": "..." },  // Legacy session storage (Phase 0)
+    { "binding": "SESSIONS", "id": "..." },  // Refresh token storage
+    { "binding": "CACHE", "id": "..." }  // Future caching layer
+  ],
+  "vars": {
+    "OPENAI_BASE_URL": "https://proxy.tanyongsheng.site/v1",
+    "DEFAULT_MODEL": "gpt-5-mini",
+    "APP_NAME": "GrowChat"
+  }
+}
+```
+
+**Secrets** (set via `wrangler secret`):
+- `JWT_SECRET` - For signing/verifying JWT tokens
+- `OPENAI_API_KEY` - For OpenAI-compatible API calls
+
+### Configuration
+
+**Environment Variables** (`.env` or `wrangler.jsonc` vars):
+- `OPENAI_BASE_URL` - Base URL for OpenAI-compatible endpoint (e.g., `https://api.openai.com/v1`)
+- `OPENAI_API_KEY` - API key for OpenAI-compatible endpoint (set as secret)
+- `DEFAULT_MODEL` - Default LLM model (checked before hardcoded fallback)
+- `JWT_SECRET` - Secret for JWT signing/verification (set as secret)
+
+## Phase 2 Roadmap (Planned)
+
+- [ ] RAG integration with Cloudflare Vectorize
+  - Embed FAQ documents with Workers AI embeddings model
+  - Query vector index before sending to LLM
+  - Include relevant FAQ snippets in system prompt
+- [ ] File uploads with R2
+  - Upload documents/images to R2 bucket
+  - Generate embeddings for uploaded files
+  - Support file references in messages
+- [ ] Admin panel
+  - View user statistics
+  - Manage FAQs and vector index
+  - Monitor API usage
+
+## Phase 3 Roadmap (Planned)
+
+- [ ] Testing infrastructure
+  - Jest or Vitest for unit tests
+  - Playwright E2E tests
+  - Target 80%+ code coverage
+- [ ] Advanced features
+  - Message sharing/public links
+  - Conversation export (PDF/JSON)
+  - Model-specific system prompts
+  - User preferences UI
+
+## Repository Structure
+
+```
+GrowChat/
+├── public/                  # Static assets & frontend
+│   ├── index.html          # Chat app entry point
+│   ├── auth.html           # Login/register page
+│   ├── js/                 # Frontend modules
+│   │   ├── app.js
+│   │   ├── auth.js
+│   │   ├── api.js
+│   │   └── chat.js
+│   └── styles.css          # Compiled Tailwind CSS
+├── src/                     # Backend API
+│   ├── index.js            # Worker entry point & routing
+│   ├── auth.js             # JWT signing/verification
+│   ├── db.js               # D1 database abstraction
+│   ├── llm.js              # LLM streaming & SSE parsing
+│   ├── session.js          # Refresh token management
+│   ├── routers/
+│   │   ├── auth.js         # Auth endpoints
+│   │   ├── chat.js         # Chat & message endpoints
+│   │   └── users.js        # User profile endpoints
+│   ├── utils/
+│   │   └── response.js     # HTTP response helpers
+│   └── input.css           # Tailwind input
+├── migrations/
+│   └── 001_initial.sql     # D1 schema
+├── wrangler.jsonc          # Cloudflare Worker config
+├── tailwind.config.js      # Tailwind configuration
+├── package.json
+└── AGENTS.md               # This file
+
+```
+
+## Development Workflow
+
+### Local Development
+```bash
+npm install
+npm run dev  # Runs wrangler dev with CSS rebuild watch
+```
+
+Visit `http://localhost:8787` to test locally.
+
+### Deployment
+```bash
+# Set secrets (one-time setup)
+wrangler secret put JWT_SECRET
+wrangler secret put OPENAI_API_KEY
+
+# Deploy
+npm run deploy  # Builds CSS and deploys Worker
+```
+
+### Creating Database Migrations
+
+For schema changes, edit `migrations/001_initial.sql` and redeploy. D1 applies SQL files on first deployment.
+
+## Important Notes
+
+1. **Token-based auth**: All API requests (except `/api/auth/*`) require `Authorization: Bearer <token>` header
+2. **SSE format**: Responses stream as `data: <JSON>\n\n` lines; incomplete JSON across chunks is buffered and reconstructed
+3. **Error handling**: LLM failures return SSE error events, not HTTP 500 responses
+4. **Model fallback**: If user doesn't specify a model, the system checks (in order): request body → chat record → `DEFAULT_MODEL` env var → hardcoded Workers AI model
+5. **SESSIONS KV**: Stores hashed refresh tokens only; user records live in D1 for consistency
+6. **Vectorize binding**: Currently commented out in `wrangler.jsonc` (Phase 2 feature); uncomment when ready to implement RAG
