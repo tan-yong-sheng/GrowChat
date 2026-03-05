@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GrowChat Auth</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+  <div class="w-full max-w-md bg-white rounded-xl shadow p-6">
+    <h1 class="text-2xl font-bold mb-4">GrowChat</h1>
+
+    <div class="flex gap-2 mb-4">
+      <button id="tab-login" class="px-4 py-2 rounded bg-gray-900 text-white">Login</button>
+      <button id="tab-register" class="px-4 py-2 rounded bg-gray-200">Register</button>
+    </div>
+
+    <form id="auth-form" class="space-y-3">
+      <div id="name-wrap" class="hidden">
+        <label class="block text-sm mb-1" for="name">Name</label>
+        <input id="name" class="w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm mb-1" for="email">Email</label>
+        <input id="email" type="email" class="w-full border rounded px-3 py-2" required />
+      </div>
+
+      <div>
+        <label class="block text-sm mb-1" for="password">Password</label>
+        <input id="password" type="password" minlength="8" class="w-full border rounded px-3 py-2" required />
+      </div>
+
+      <button class="w-full bg-black text-white rounded py-2">Continue</button>
+    </form>
+
+    <p id="auth-error" class="text-sm text-red-600 mt-3 hidden"></p>
+  </div>
+
+  <script type="module" src="/js/auth.js"></script>
+</body>
+</html>
