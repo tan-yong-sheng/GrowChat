@@ -254,7 +254,7 @@ npm run deploy  # Builds CSS and deploys Worker
 D1 applies `migrations/` SQL files **only on initial database creation**. For schema changes to an existing database, you must apply them manually:
 
 ```bash
-wrangler d1 execute <database_id> < migrations/changes.sql
+wrangler d1 execute growchat --file=./migrations/changes.sql
 ```
 
 Or via the Cloudflare dashboard SQL editor.

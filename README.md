@@ -4,7 +4,7 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 
 ## Features
 
-✅ **Phase 1 (Current)**
+✅ **Phase 1 (Deployed)**
 - User authentication with JWT tokens and refresh token rotation
 - Multi-user chat management with persistent D1 database
 - Streaming LLM responses via Server-Sent Events (SSE)
@@ -12,10 +12,20 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 - PBKDF2 password hashing with Web Crypto
 - Responsive web UI built with vanilla JS and Tailwind CSS
 
-🚀 **Phase 2 (Planned)**
-- RAG with Cloudflare Vectorize for FAQ vector search
-- File uploads with R2
-- Admin panel for managing FAQs and users
+✅ **Phase 2 (In Progress)**
+- RAG with Cloudflare Vectorize for FAQ and document vector search
+- File uploads with R2 cloud storage
+- Document text extraction (plain text, markdown, images with OCR)
+- Semantic chunking for document embeddings
+- Admin panel for managing FAQs and documents
+- Citation tracking for LLM responses
+- Vector index management and reindexing
+
+🚀 **Phase 3 (Planned)**
+- PDF file support
+- Testing infrastructure
+- Chat sharing and exports
+- Advanced analytics dashboard
 
 ## Quick Start
 
@@ -59,15 +69,36 @@ Open `http://localhost:8787` in your browser.
    ```
    Update `wrangler.jsonc` with the namespace IDs.
 
-3. **Set Secrets**
+3. **Create R2 Bucket (Phase 2)**
+   ```bash
+   wrangler r2 bucket create growchat-files
+   ```
+   Update `wrangler.jsonc` with the bucket name and binding.
+
+4. **Create Vectorize Index (Phase 2)**
+   ```bash
+   wrangler vectorize create faq-vectors --dimensions=768 --metric=cosine
+   ```
+   Update `wrangler.jsonc` with the index name and binding.
+
+5. **Set Secrets**
    ```bash
    wrangler secret put JWT_SECRET
    wrangler secret put OPENAI_API_KEY
+   wrangler secret put OPENAI_BASE_URL
    ```
 
-4. **Deploy**
+6. **Deploy**
    ```bash
    npm run deploy
+   ```
+
+7. **Apply D1 Migrations**
+   D1 migrations are applied automatically on first deployment. For manual execution:
+   ```bash
+   wrangler d1 execute growchat --file=./migrations/001_initial.sql
+   wrangler d1 execute growchat --file=./migrations/002_phase2_faqs.sql
+   wrangler d1 execute growchat --file=./migrations/003_phase2_documents.sql
    ```
 
 ## Architecture
@@ -105,7 +136,30 @@ All routes (except auth) require `Authorization: Bearer <token>` header.
 - `GET /api/chats/:id` - Get chat with messages
 - `PUT /api/chats/:id` - Update chat
 - `DELETE /api/chats/:id` - Delete chat
-- `POST /api/chats/:id/messages` - Send message (streams LLM response via SSE)
+- `POST /api/chats/:id/messages` - Send message (streams LLM response via SSE with RAG context)
+
+### FAQs (Admin)
+
+- `POST /api/admin/faqs` - Create FAQ with embedding
+- `GET /api/admin/faqs` - List user's FAQs
+- `PUT /api/admin/faqs/:id` - Update FAQ and embedding
+- `DELETE /api/admin/faqs/:id` - Delete FAQ
+- `GET /api/faqs/search?q=query` - Search FAQs (semantic search, user-accessible)
+
+### Files & Documents
+
+- `POST /api/files/upload` - Upload file to R2 with extraction
+- `GET /api/files` - List user's documents
+- `GET /api/files/:id` - Get document metadata
+- `DELETE /api/files/:id` - Delete document and R2 file
+
+### Admin Panel
+
+- `GET /api/admin/stats` - System statistics
+- `GET /api/admin/faqs/status` - FAQ embedding status
+- `GET /api/admin/documents/status` - Document extraction/embedding status
+- `POST /api/admin/faqs/reindex` - Regenerate all FAQ embeddings
+- `POST /api/admin/documents/reindex` - Regenerate all document embeddings
 
 ## Configuration
 
@@ -153,8 +207,50 @@ messages
   role (user|assistant)
   content
   model
-  citations (JSON)
+  citations (JSON array of FAQ IDs)
   created_at
+
+faqs (Phase 2)
+  id (UUID)
+  user_id (foreign key)
+  question
+  answer
+  category
+  tags (JSON array)
+  vector_id (Vectorize ID)
+  embedding_generated (0=pending, 1=done, -1=failed)
+  created_at, updated_at
+
+documents (Phase 2)
+  id (UUID)
+  user_id (foreign key)
+  chat_id (optional, foreign key)
+  filename
+  content_type (text/plain, text/markdown, image/*, application/pdf)
+  file_size (bytes)
+  r2_key (R2 storage path)
+  r2_url (signed retrieval URL)
+  text_excerpt (first 500 chars of extracted text)
+  extraction_status (0=pending, 1=done, -1=failed)
+  embedding_generated (0=pending, 1=done, -1=failed)
+  created_at, updated_at
+
+document_chunks (Phase 2)
+  id (UUID)
+  document_id (foreign key)
+  chunk_index (order within document)
+  chunk_text (500-char semantic chunks with 50-char overlap)
+  vector_id (Vectorize ID)
+  embedding_generated (0=pending, 1=done, -1=failed)
+  created_at
+
+faq_usage (Phase 2, analytics)
+  id (UUID)
+  user_id (foreign key)
+  chat_id (optional, foreign key)
+  faq_id (foreign key)
+  relevance_score (cosine similarity 0-1)
+  used_at
 ```
 
 ## Development
@@ -198,21 +294,34 @@ Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 
 ## Roadmap
 
-### Phase 1 (Current)
-- ✅ User authentication
-- ✅ Multi-user chat
-- ✅ Streaming LLM
-- ✅ Multi-model support
+### Phase 1 (✅ Deployed)
+- ✅ User authentication with JWT and refresh tokens
+- ✅ Multi-user chat with persistent storage
+- ✅ Streaming LLM responses via SSE
+- ✅ Multi-model support (Workers AI + OpenAI-compatible)
+- ✅ PBKDF2 password hashing
+- ✅ Responsive web UI
 
-### Phase 2
-- [ ] Vector embeddings (Vectorize)
-- [ ] File uploads (R2)
-- [ ] Admin panel
+### Phase 2 (🚀 In Progress)
+- 🚀 Vector embeddings with Cloudflare Vectorize (768-dim, cosine similarity)
+- 🚀 FAQ management with semantic search
+- 🚀 File uploads with R2 storage
+- 🚀 Document text extraction:
+  - Plain text and markdown: direct extraction
+  - Images: OCR via Workers AI @cf/wit/ocr
+  - PDF: deferred to Phase 3
+- 🚀 Semantic chunking (500-char chunks with 50-char overlap)
+- 🚀 RAG context injection into LLM prompts
+- 🚀 Citation tracking in messages
+- 🚀 Admin panel with statistics and vector management
 
-### Phase 3
-- [ ] Testing infrastructure
-- [ ] Chat sharing/exports
-- [ ] Advanced analytics
+### Phase 3 (Planned)
+- [ ] PDF file support with text extraction
+- [ ] Testing infrastructure (unit + E2E)
+- [ ] Chat sharing and export
+- [ ] Advanced analytics dashboard
+- [ ] Prompt templates and workflows
+- [ ] Rate limiting and quotas
 
 ## License
 

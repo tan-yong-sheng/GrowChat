@@ -15,13 +15,13 @@
 	"ai": {
 		"binding": "AI"
 	},
-	// Vectorize for RAG - FAQ vector search (Phase 2 - create index first: wrangler vectorize create faq-vectors --dimensions=768 --metric=cosine)
-	// "vectorize": [
-	// 	{
-	// 		"binding": "VECTORIZE",
-	// 		"index_name": "faq-vectors"
-	// 	}
-	// ],
+	// Vectorize for RAG - FAQ vector search
+	"vectorize": [
+		{
+			"binding": "VECTORIZE",
+			"index_name": "faq-vectors"
+		}
+	],
 	// D1 database for users/chats/messages
 	"d1_databases": [
 		{

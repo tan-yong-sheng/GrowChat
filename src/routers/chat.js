@@ -1,6 +1,7 @@
 import { createDB } from '../db.js';
 import { error, json, sseData, sseHeaders } from '../utils/response.js';
 import { SseLineParser, streamLLM } from '../llm.js';
+import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
 
 const BUILTIN_DEFAULT_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
@@ -135,9 +136,59 @@ export async function chatRouter(req, env, _ctx, user, path) {
       [chatId]
     );
 
+    // Query FAQs and documents for RAG context
+    let ragContext = '';
+    let citations = [];
+
+    try {
+      // Query relevant FAQs
+      const faqResults = await queryFAQs(env, db, content, 3, 0.5);
+      if (faqResults.length > 0) {
+        ragContext += '\n## Relevant FAQs\n';
+        for (const faq of faqResults) {
+          ragContext += `\n**Q: ${faq.question}**\nA: ${faq.answer}\n`;
+          if (faq.id) citations.push(faq.id);
+        }
+      }
+
+      // Query relevant document chunks
+      const chunkResults = await queryDocumentChunks(env, db, content, 5, 0.5);
+      if (chunkResults.length > 0) {
+        ragContext += '\n## Relevant Documents\n';
+        const seenDocs = new Set();
+        for (const chunk of chunkResults) {
+          const docId = chunk.doc_id || chunk.document_id;
+          const docName = chunk.filename || 'Document';
+
+          if (!seenDocs.has(docId)) {
+            ragContext += `\n**${docName}**\n`;
+            seenDocs.add(docId);
+          }
+          ragContext += `${chunk.chunk_text}\n`;
+        }
+      }
+    } catch (err) {
+      console.error('RAG query failed:', err);
+      // Graceful degradation - continue without RAG context
+    }
+
+    // Build RAG-enhanced prompt
+    let enhancedHistory = [...history];
+
+    // Inject RAG context as a system message if we have relevant results
+    if (ragContext) {
+      enhancedHistory = [
+        {
+          role: 'system',
+          content: `You are a helpful assistant. Use the following context to answer the user's question:\n${ragContext}`,
+        },
+        ...history,
+      ];
+    }
+
     let stream;
     try {
-      stream = await streamLLM(env, model, history);
+      stream = await streamLLM(env, model, enhancedHistory);
     } catch (err) {
       // LLM setup failed (missing key, bad model, network error) — return a
       // proper SSE error event instead of crashing the Worker with a 1101.
@@ -182,9 +233,10 @@ export async function chatRouter(req, env, _ctx, user, path) {
 
           if (fullText) {
             const assistantMsgId = crypto.randomUUID();
+            const citationsJson = JSON.stringify(citations);
             await db.run(
-              'INSERT INTO messages (id, chat_id, role, content, model, created_at) VALUES (?, ?, ?, ?, ?, unixepoch())',
-              [assistantMsgId, chatId, 'assistant', fullText, model]
+              'INSERT INTO messages (id, chat_id, role, content, model, citations, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
+              [assistantMsgId, chatId, 'assistant', fullText, model, citationsJson]
             );
           }
 
