@@ -249,6 +249,7 @@ wrangler d1 create growchat
 
 # 4. Create KV namespaces (if new)
 wrangler kv:namespace create SESSIONS
+wrangler kv:namespace create CHAT_SESSIONS
 wrangler kv:namespace create CACHE
 
 # 5. Set secrets

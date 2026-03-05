@@ -2,9 +2,12 @@ import { verifyJWT } from './auth.js';
 import { authRouter } from './routers/auth.js';
 import { chatRouter } from './routers/chat.js';
 import { usersRouter } from './routers/users.js';
+import { faqsRouter } from './routers/faqs.js';
+import { filesRouter } from './routers/files.js';
+import { adminRouter } from './routers/admin.js';
 import { error, preflight } from './utils/response.js';
 
-const API_ROUTES = [authRouter, chatRouter, usersRouter];
+const API_ROUTES = [authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, adminRouter];
 
 function getPath(req) {
   return new URL(req.url).pathname;

@@ -41,7 +41,18 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     const name = body.name !== undefined ? String(body.name).trim() : undefined;
-    const settingsObj = body.settings !== undefined && typeof body.settings === 'object' ? body.settings : undefined;
+
+    let settingsObj;
+    if (body.settings !== undefined) {
+      const isPlainObject =
+        typeof body.settings === 'object' &&
+        body.settings !== null &&
+        !Array.isArray(body.settings);
+      if (!isPlainObject) {
+        return error(req, 'settings must be an object', 400);
+      }
+      settingsObj = body.settings;
+    }
 
     // Build update query
     const updates = [];
@@ -75,6 +86,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       'SELECT id, email, name, role, settings, created_at, updated_at FROM users WHERE id = ?',
       [user.sub]
     );
+    if (!row) return error(req, 'User not found', 404);
 
     let settings = {};
     if (row.settings) {

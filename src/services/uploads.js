@@ -1,0 +1,226 @@
+/**
+ * File Upload Service
+ *
+ * Handles file uploads to R2 and metadata storage in D1
+ */
+
+/**
+ * Validate file before upload
+ * @param {string} filename - Original filename
+ * @param {string} contentType - MIME type
+ * @param {number} fileSize - Size in bytes
+ * @returns {Object} - {valid: boolean, error?: string}
+ */
+export function validateFile(filename, contentType, fileSize) {
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+  // Check file size
+  if (fileSize > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File size ${(fileSize / 1024 / 1024).toFixed(2)}MB exceeds 50MB limit`,
+    };
+  }
+
+  // Check content type
+  const allowedTypes = [
+    'text/plain',
+    'text/markdown',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    // PDF support in Phase 3
+    // 'application/pdf',
+  ];
+
+  if (!allowedTypes.includes(contentType)) {
+    return {
+      valid: false,
+      error: `File type ${contentType} not supported. Supported: text, images`,
+    };
+  }
+
+  // Validate filename
+  if (!filename || filename.length > 255) {
+    return {
+      valid: false,
+      error: 'Invalid filename',
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Get file extension from content type
+ * @param {string} contentType - MIME type
+ * @returns {string} - File extension (without dot)
+ */
+function getExtensionFromContentType(contentType) {
+  const typeMap = {
+    'text/plain': 'txt',
+    'text/markdown': 'md',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'application/pdf': 'pdf',
+  };
+
+  return typeMap[contentType] || 'bin';
+}
+
+/**
+ * Upload file to R2
+ * @param {Object} env - Worker environment with R2 binding
+ * @param {string} userId - User ID
+ * @param {string} filename - Original filename
+ * @param {string} contentType - MIME type
+ * @param {ArrayBuffer} buffer - File buffer
+ * @returns {Promise<Object>} - {r2Key, r2Url}
+ */
+export async function uploadFileToR2(env, userId, filename, contentType, buffer) {
+  if (!env.FILES) throw new Error('R2 binding not configured');
+
+  // Generate unique file key
+  const ext = getExtensionFromContentType(contentType);
+  const fileId = crypto.randomUUID();
+  const r2Key = `/user/${userId}/files/${fileId}.${ext}`;
+
+  try {
+    // Upload to R2
+    const r2Object = await env.FILES.put(r2Key, buffer, {
+      httpMetadata: {
+        contentType,
+        cacheControl: 'max-age=86400', // Cache for 1 day
+      },
+      customMetadata: {
+        originalFilename: filename,
+        uploadedAt: new Date().toISOString(),
+        userId,
+      },
+    });
+
+    // Generate signed URL (valid for 7 days)
+    // Note: In real implementation, you'd use R2 signed URLs
+    // For now, return the key for signed URL generation
+    const r2Url = `https://r2.example.com${r2Key}`;
+
+    return {
+      r2Key,
+      r2Url,
+      objectId: r2Object.id,
+    };
+  } catch (err) {
+    console.error('R2 upload failed:', err);
+    throw new Error(`R2 upload failed: ${err.message}`);
+  }
+}
+
+/**
+ * Delete file from R2
+ * @param {Object} env - Worker environment with R2 binding
+ * @param {string} r2Key - R2 object key
+ */
+export async function deleteFileFromR2(env, r2Key) {
+  if (!env.FILES) return;
+
+  try {
+    await env.FILES.delete(r2Key);
+  } catch (err) {
+    console.error(`Failed to delete R2 object ${r2Key}:`, err);
+    // Non-fatal error
+  }
+}
+
+/**
+ * Store file metadata in D1
+ * @param {Object} db - Database connection
+ * @param {Object} fileMetadata - {userId, chatId?, filename, contentType, fileSize, r2Key, r2Url}
+ * @returns {Promise<string>} - Document ID
+ */
+export async function storeFileMetadata(db, fileMetadata) {
+  const documentId = crypto.randomUUID();
+
+  await db.run(
+    `INSERT INTO documents
+     (id, user_id, chat_id, filename, content_type, file_size, r2_key, r2_url,
+      extraction_status, embedding_generated, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, unixepoch(), unixepoch())`,
+    [
+      documentId,
+      fileMetadata.userId,
+      fileMetadata.chatId || null,
+      fileMetadata.filename,
+      fileMetadata.contentType,
+      fileMetadata.fileSize,
+      fileMetadata.r2Key,
+      fileMetadata.r2Url,
+    ]
+  );
+
+  return documentId;
+}
+
+/**
+ * Get file metadata from D1
+ * @param {Object} db - Database connection
+ * @param {string} documentId - Document ID
+ * @returns {Promise<Object>} - Document metadata
+ */
+export async function getFileMetadata(db, documentId) {
+  return await db.first(
+    `SELECT * FROM documents WHERE id = ?`,
+    [documentId]
+  );
+}
+
+/**
+ * List user's documents
+ * @param {Object} db - Database connection
+ * @param {string} userId - User ID
+ * @param {number} limit - Number of documents to return
+ * @param {number} offset - Pagination offset
+ * @returns {Promise<Array>} - Array of documents
+ */
+export async function listUserDocuments(db, userId, limit = 20, offset = 0) {
+  return await db.all(
+    `SELECT id, filename, content_type, file_size, extraction_status,
+            embedding_generated, created_at, updated_at
+     FROM documents
+     WHERE user_id = ?
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`,
+    [userId, limit, offset]
+  );
+}
+
+/**
+ * Delete document and associated R2 file
+ * @param {Object} env - Worker environment
+ * @param {Object} db - Database connection
+ * @param {string} documentId - Document ID
+ * @param {string} userId - User ID (for authorization)
+ * @returns {Promise<boolean>} - Success status
+ */
+export async function deleteDocument(env, db, documentId, userId) {
+  // Check ownership
+  const doc = await db.first(
+    'SELECT r2_key FROM documents WHERE id = ? AND user_id = ?',
+    [documentId, userId]
+  );
+
+  if (!doc) {
+    throw new Error('Document not found');
+  }
+
+  // Delete from R2
+  await deleteFileFromR2(env, doc.r2_key);
+
+  // Delete from D1 (cascades to chunks and message references)
+  await db.run(
+    'DELETE FROM documents WHERE id = ? AND user_id = ?',
+    [documentId, userId]
+  );
+
+  return true;
+}
