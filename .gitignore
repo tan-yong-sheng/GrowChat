@@ -1,3 +1,7 @@
+open-webui/
+.playwright/
+.claude/
+
 # Logs
 
 logs

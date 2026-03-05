@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "ai-chatbot-widget",
+	"name": "growchat",
 	"main": "src/index.js",
 	"compatibility_date": "2025-12-23",
 	"observability": {
@@ -15,18 +15,46 @@
 	"ai": {
 		"binding": "AI"
 	},
-	// Vectorize for RAG - FAQ vector search
-	"vectorize": [
+	// Vectorize for RAG - FAQ vector search (Phase 2 - create index first: wrangler vectorize create faq-vectors --dimensions=768 --metric=cosine)
+	// "vectorize": [
+	// 	{
+	// 		"binding": "VECTORIZE",
+	// 		"index_name": "faq-vectors"
+	// 	}
+	// ],
+	// D1 database for users/chats/messages
+	"d1_databases": [
 		{
-			"binding": "VECTORIZE",
-			"index_name": "faq-vectors"
+			"binding": "DB",
+			"database_name": "growchat",
+			"database_id": "386a2564-863d-463d-b48c-0cc3d05cc8ae"
 		}
 	],
-	// KV for session storage
+	// R2 bucket (used in Phase 2 - requires R2:Edit token permission to deploy)
+	// "r2_buckets": [
+	// 	{
+	// 		"binding": "FILES",
+	// 		"bucket_name": "growchat-files"
+	// 	}
+	// ],
+	// KV namespaces
 	"kv_namespaces": [
 		{
 			"binding": "CHAT_SESSIONS",
-			"id": "171832355a114988a5daf164a86643c5"
+			"id": "64b2e11c184449369e159d050bd5afcd"
+		},
+		{
+			"binding": "SESSIONS",
+			"id": "4abdd9ccb19d4a0da66c9767629f973b"
+		},
+		{
+			"binding": "CACHE",
+			"id": "5f57cacd947e4fa9954e1c600f8a8170"
 		}
-	]
+	],
+	"vars": {
+		"OPENAI_BASE_URL": "https://proxy.tanyongsheng.site/v1",
+		"DEFAULT_MODEL": "gpt-5-mini",
+		"APP_NAME": "GrowChat"
+	}
 }
