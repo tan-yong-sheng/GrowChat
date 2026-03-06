@@ -26,6 +26,9 @@ import { upsertDocumentChunks } from '../services/embeddings.js';
  *   DELETE /api/files/:id                - Delete document and R2 file
  */
 export async function filesRouter(req, env, ctx, user, path) {
+  const isFilePath = path === '/api/files' || path === '/api/files/upload' || /^\/api\/files\/[^/]+$/.test(path);
+  if (!isFilePath) return null;
+
   if (!user) {
     return error(req, 'Unauthorized', 401);
   }
