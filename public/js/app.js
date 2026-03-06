@@ -1,9 +1,49 @@
-import { apiFetch, clearAuthState, getAuthState } from './api.js';
+import { apiFetch, clearAuthState, fetchPublicSharedChat, getAuthState } from './api.js';
 import { renderChat } from './chat.js';
+import { renderMessageContent } from './utils.js';
 import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
 
+function renderSharedChatPage(container, data) {
+  const chat = data?.chat || {};
+  const messages = data?.messages || [];
+  container.innerHTML = `
+    <div class="min-h-screen bg-[#fafafa] text-gray-900">
+      <div class="max-w-3xl mx-auto px-4 py-6">
+        <div class="flex items-center justify-between mb-6">
+          <a href="/" class="text-sm text-gray-600 hover:text-gray-800">← GrowChat</a>
+          <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">Shared Chat</span>
+        </div>
+        <h1 class="text-2xl font-semibold mb-1">${chat.title || 'Shared Chat'}</h1>
+        <p class="text-sm text-gray-500 mb-6">Read-only view</p>
+        <div class="space-y-5">
+          ${messages.map((m) => `
+            <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
+              <div class="${m.role === 'user' ? 'bg-[#f0f0f0]' : 'bg-white border border-gray-200'} rounded-2xl px-4 py-3 max-w-[85%]">
+                <p class="text-xs uppercase text-gray-400 mb-1">${m.role}</p>
+                <div class="prose prose-sm max-w-none break-words">${renderMessageContent(m.content)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 async function bootstrap() {
+  const path = window.location.pathname;
+  const sharedMatch = path.match(/^\/s\/([^/]+)$/);
+  if (sharedMatch) {
+    try {
+      const data = await fetchPublicSharedChat(sharedMatch[1]);
+      renderSharedChatPage(document.getElementById('app'), data);
+    } catch {
+      document.getElementById('app').innerHTML = '<div class="p-8 text-center text-gray-500">Shared chat not found.</div>';
+    }
+    return;
+  }
+
   const auth = getAuthState();
   if (!auth?.access_token) {
     window.location.href = '/auth.html';

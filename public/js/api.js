@@ -138,3 +138,112 @@ export async function getFileMetadata(id) {
 
   return res.json();
 }
+
+export async function searchFiles({ q = '', limit = 20, offset = 0, signal } = {}) {
+  const params = new URLSearchParams();
+  params.set('q', q.trim());
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+
+  const res = await apiFetch(`/api/files/search?${params.toString()}`, { signal });
+  if (!res.ok) {
+    const err = new Error(`Failed to search files (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+
+  return res.json();
+}
+
+export async function getFileContent(id) {
+  const res = await apiFetch(`/api/files/${id}/content`);
+  if (!res.ok) {
+    const err = new Error(`Failed to get file content (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function shareChat(chatId) {
+  const res = await apiFetch(`/api/chats/${chatId}/share`, { method: 'POST' });
+  if (!res.ok) {
+    const err = new Error(`Failed to share chat (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function unshareChat(chatId) {
+  const res = await apiFetch(`/api/chats/${chatId}/share`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = new Error(`Failed to unshare chat (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchSharedChats() {
+  const res = await apiFetch('/api/chats/shared');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch shared chats (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function toggleArchiveChat(chatId) {
+  const res = await apiFetch(`/api/chats/${chatId}/archive`, { method: 'POST' });
+  if (!res.ok) {
+    const err = new Error(`Failed to archive chat (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchArchivedChats() {
+  const res = await apiFetch('/api/chats/archived');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch archived chats (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchPrompts() {
+  const res = await apiFetch('/api/prompts/list?limit=100&offset=0');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch prompts (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchPromptByCommand(command) {
+  const normalized = String(command || '').trim().toLowerCase();
+  const res = await apiFetch(`/api/prompts/command/${encodeURIComponent(normalized)}`);
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch prompt command (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchPublicSharedChat(shareId) {
+  const res = await fetch(`/s/${encodeURIComponent(shareId)}?format=json`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch shared chat (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}

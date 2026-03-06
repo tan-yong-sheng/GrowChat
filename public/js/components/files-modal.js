@@ -1,5 +1,5 @@
 import { state, setState, subscribe } from '../store.js';
-import { fetchFiles, uploadFile, deleteFile } from '../api.js';
+import { fetchFiles, searchFiles, uploadFile, deleteFile } from '../api.js';
 import { formatBytes, formatDate } from '../utils.js';
 
 export function renderFilesModal(container) {
@@ -15,6 +15,9 @@ export function renderFilesModal(container) {
               <div class="flex flex-col">
                 <h2 class="text-xl font-bold text-gray-800" id="files-modal-title">Files</h2>
                 <p class="text-xs text-gray-400">Manage and attach documents to your chat</p>
+              </div>
+              <div class="hidden md:block flex-grow max-w-xs">
+                <input id="files-search-input" type="text" placeholder="Search files..." class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-gray-300" />
               </div>
               <div class="flex items-center gap-3">
                 <label for="file-upload-input" class="bg-black text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-800 transition cursor-pointer flex items-center gap-2">
@@ -57,6 +60,8 @@ export function renderFilesModal(container) {
     const uploadInput = container.querySelector('#file-upload-input');
     const attachBtn = container.querySelector('#attach-selected-btn');
     const selectedCount = container.querySelector('#selected-count');
+    const searchInput = container.querySelector('#files-search-input');
+    let searchTimer = null;
 
     const close = () => setState({ showFiles: false });
     closeBtn.onclick = close;
@@ -86,10 +91,12 @@ export function renderFilesModal(container) {
       close();
     };
 
-    async function refreshFiles() {
+    async function refreshFiles(query = '') {
       setState({ files: { ...state.files, loading: true } });
       try {
-        const data = await fetchFiles();
+        const data = query.trim()
+          ? await searchFiles({ q: query.trim(), limit: 20, offset: 0 })
+          : await fetchFiles();
         setState({
           files: {
             ...state.files,
@@ -103,6 +110,14 @@ export function renderFilesModal(container) {
         console.error('Fetch files failed:', err);
       }
     }
+
+    searchInput?.addEventListener('input', (e) => {
+      clearTimeout(searchTimer);
+      const q = e.target.value || '';
+      searchTimer = setTimeout(() => {
+        refreshFiles(q);
+      }, 250);
+    });
 
     function renderList() {
       const { items, loading, selectedIds } = state.files;
