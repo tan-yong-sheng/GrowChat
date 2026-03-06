@@ -39,3 +39,12 @@ export function formatTimestamp(dateString) {
   const date = new Date(dateString);
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
+
+export function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exp = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const num = value / Math.pow(1024, exp);
+  return `${num >= 10 ? num.toFixed(0) : num.toFixed(1)} ${units[exp]}`;
+}

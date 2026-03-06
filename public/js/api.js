@@ -77,3 +77,63 @@ export async function fetchChats({ q = '', limit = 20, offset = 0, signal } = {}
 
   return res.json();
 }
+
+export async function fetchFiles({ limit = 20, offset = 0, signal } = {}) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+
+  const path = `/api/files?${params.toString()}`;
+  const res = await apiFetch(path, { signal });
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch files (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+
+  return res.json();
+}
+
+export async function uploadFile(file, chatId = null) {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (chatId) formData.append('chat_id', chatId);
+
+  const res = await apiFetch('/api/files/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = new Error(`Failed to upload file (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+
+  return res.json();
+}
+
+export async function deleteFile(id) {
+  const res = await apiFetch(`/api/files/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!res.ok) {
+    const err = new Error(`Failed to delete file (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+
+  return res.json();
+}
+
+export async function getFileMetadata(id) {
+  const res = await apiFetch(`/api/files/${id}`);
+  if (!res.ok) {
+    const err = new Error(`Failed to get file metadata (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+
+  return res.json();
+}
