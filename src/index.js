@@ -7,10 +7,11 @@ import { filesRouter } from './routers/files.js';
 import { adminRouter } from './routers/admin.js';
 import { modelsRouter } from './routers/models.js';
 import { knowledgeRouter } from './routers/knowledge.js';
+import { promptsRouter } from './routers/prompts.js';
 import { publicRouter } from './routers/public.js';
 import { error, preflight } from './utils/response.js';
 
-const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, adminRouter, modelsRouter];
+const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter];
 let schemaCompatibilityReady = null;
 
 /**
