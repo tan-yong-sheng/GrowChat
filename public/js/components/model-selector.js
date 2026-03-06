@@ -3,6 +3,7 @@ import { state, setState, subscribe } from '../store.js';
 export function renderModelSelector(container) {
   let isRendered = false;
   let unsubscribe;
+  let onDocumentClick;
 
   function init() {
     container.innerHTML = `
@@ -22,10 +23,10 @@ export function renderModelSelector(container) {
   }
 
   function wire() {
-    const btn = document.getElementById('model-selector-btn');
-    const chevron = document.getElementById('model-selector-chevron');
-    const dropdown = document.getElementById('model-selector-dropdown');
-    const nameSpan = document.getElementById('active-model-name');
+    const btn = container.querySelector('#model-selector-btn');
+    const chevron = container.querySelector('#model-selector-chevron');
+    const dropdown = container.querySelector('#model-selector-dropdown');
+    const nameSpan = container.querySelector('#active-model-name');
     let isOpen = false;
 
     const toggle = () => {
@@ -40,16 +41,17 @@ export function renderModelSelector(container) {
       }
     };
 
-    btn.addEventListener('click', (e) => {
+    btn.onclick = (e) => {
       e.stopPropagation();
       toggle();
-    });
+    };
 
-    document.addEventListener('click', (e) => {
+    onDocumentClick = (e) => {
       if (isOpen && !container.contains(e.target)) {
         toggle();
       }
-    });
+    };
+    document.addEventListener('click', onDocumentClick);
 
     unsubscribe = subscribe((currentState) => {
        const activeModel = currentState.models?.find(m => m.id === currentState.activeModelId) || currentState.models?.[0];
@@ -68,11 +70,11 @@ export function renderModelSelector(container) {
           `).join('');
 
           dropdown.querySelectorAll('button').forEach(b => {
-             b.addEventListener('click', (e) => {
+             b.onclick = (e) => {
                 e.stopPropagation();
                 setState({ activeModelId: b.getAttribute('data-model-id') });
                 toggle();
-             });
+             };
           });
        } else {
           dropdown.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">No models available</div>';
@@ -83,5 +85,6 @@ export function renderModelSelector(container) {
   init();
   return () => {
      if (unsubscribe) unsubscribe();
+     if (onDocumentClick) document.removeEventListener('click', onDocumentClick);
   };
 }

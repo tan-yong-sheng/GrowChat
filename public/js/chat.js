@@ -122,8 +122,9 @@ function wireChat(root) {
     return state.models.find((m) => m.id === state.activeModelId) || null;
   }
 
+  let destroyPlaceholder;
   function drawPlaceholder() {
-    renderPlaceholder(welcomeScreenContainer, {
+    destroyPlaceholder = renderPlaceholder(welcomeScreenContainer, {
       model: getActiveModel(),
       onSuggestionClick: (text) => {
         inputComponent.setValue(text);
@@ -365,6 +366,7 @@ function wireChat(root) {
     destroyModelSelector?.();
     destroySidebar?.();
     inputComponent?.destroy?.();
+    destroyPlaceholder?.();
     toggleSidebar.removeEventListener('click', onToggleSidebar);
     openSearchBtn.removeEventListener('click', onOpenSearch);
     newChatBtn.removeEventListener('click', onNewChat);

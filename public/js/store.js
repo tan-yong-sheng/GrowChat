@@ -25,6 +25,7 @@ export const state = {
   
   // Interaction State
   drafts: JSON.parse(localStorage.getItem('drafts') || '{}'), // chatId -> draft text
+  newChatDraft: '',
   ui: {
     loading: false,
     streaming: false

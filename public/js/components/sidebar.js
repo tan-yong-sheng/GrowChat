@@ -3,6 +3,7 @@ import { state, setState, subscribe } from '../store.js';
 export function renderSidebar(aside, container) {
   let isResizing = false;
   let unsubscribe;
+  let cleanupFn;
 
   function init() {
     // Create resize handle
@@ -11,28 +12,34 @@ export function renderSidebar(aside, container) {
     handle.className = 'absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-300 transition-colors z-50 hidden md:block';
     aside.appendChild(handle);
 
-    wire(handle);
+    cleanupFn = wire(handle);
   }
 
   function wire(handle) {
-    handle.addEventListener('mousedown', (e) => {
+    const onMouseDown = () => {
       isResizing = true;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
-    });
+      handle.classList.add('bg-gray-400');
+    };
 
-    document.addEventListener('mousemove', (e) => {
+    const onMouseMove = (e) => {
       if (!isResizing) return;
       const newWidth = Math.max(200, Math.min(window.innerWidth / 2, e.clientX));
       setState({ sidebarWidth: newWidth });
-    });
+    };
 
-    document.addEventListener('mouseup', () => {
+    const onMouseUp = () => {
       if (!isResizing) return;
       isResizing = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-    });
+      handle.classList.remove('bg-gray-400');
+    };
+
+    handle.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
 
     unsubscribe = subscribe((currentState) => {
       if (currentState.showSidebar && !currentState.isMobile) {
@@ -46,10 +53,17 @@ export function renderSidebar(aside, container) {
         aside.style.minWidth = '260px';
       }
     });
+
+    return () => {
+      handle.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      if (unsubscribe) unsubscribe();
+    };
   }
 
   init();
   return () => {
-    if (unsubscribe) unsubscribe();
+    if (cleanupFn) cleanupFn();
   };
 }
