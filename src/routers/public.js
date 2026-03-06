@@ -14,6 +14,16 @@ export async function publicRouter(req, env, _ctx, _user, path) {
   }
 
   const shareId = shareMatch[1];
+  const url = new URL(req.url);
+  const wantsJson = url.searchParams.get('format') === 'json';
+  const accept = req.headers.get('Accept') || '';
+  const wantsHtml = accept.includes('text/html');
+
+  // Browser navigation should render SPA entry; JS app will fetch /s/:id?format=json.
+  if (!wantsJson && wantsHtml && env.ASSETS) {
+    const indexUrl = new URL('/index.html', req.url);
+    return env.ASSETS.fetch(new Request(indexUrl.toString(), req));
+  }
 
   try {
     const db = createDB(env.DB);

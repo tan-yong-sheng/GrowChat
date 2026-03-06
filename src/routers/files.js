@@ -29,7 +29,13 @@ import { upsertDocumentChunks } from '../services/embeddings.js';
  *   DELETE /api/files/:id                - Delete document and R2 file
  */
 export async function filesRouter(req, env, ctx, user, path) {
-  const isFilePath = path === '/api/files' || path === '/api/files/upload' || /^\/api\/files\/[^/]+$/.test(path);
+  const isFilePath =
+    path === '/api/files' ||
+    path === '/api/files/upload' ||
+    path === '/api/files/search' ||
+    /^\/api\/files\/[^/]+$/.test(path) ||
+    /^\/api\/files\/[^/]+\/process\/status$/.test(path) ||
+    /^\/api\/files\/[^/]+\/content$/.test(path);
   if (!isFilePath) return null;
 
   if (!user) {
@@ -139,7 +145,7 @@ export async function filesRouter(req, env, ctx, user, path) {
   }
 
   // GET /api/files/:id - Get document metadata
-  if (req.method === 'GET' && path.match(/^\/api\/files\/[^/]+$/)) {
+  if (req.method === 'GET' && path !== '/api/files/search' && path.match(/^\/api\/files\/[^/]+$/)) {
     const documentId = path.split('/').pop();
     const db = createDB(env.DB);
 

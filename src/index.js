@@ -163,14 +163,15 @@ async function ensureSchemaCompatibility(env) {
 export default {
   async fetch(req, env, ctx) {
     const path = getPath(req);
+    const isPublicSharePath = /^\/s\/[^/]+$/.test(path);
 
     if (req.method === 'OPTIONS') {
       return preflight(req);
     }
 
-    if (path.startsWith('/api/')) {
+    if (path.startsWith('/api/') || isPublicSharePath) {
       if (!env.DB) return error(req, 'DB binding missing', 500);
-      if (!env.SESSIONS) return error(req, 'SESSIONS KV binding missing', 500);
+      if (!env.SESSIONS && path.startsWith('/api/')) return error(req, 'SESSIONS KV binding missing', 500);
       const bindingError = validateRouteBindings(req, env, path);
       if (bindingError) return bindingError;
       await ensureSchemaCompatibility(env);
