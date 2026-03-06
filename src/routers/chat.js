@@ -6,10 +6,13 @@ import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
 const BUILTIN_DEFAULT_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
 function defaultModel(env) {
-  // Prefer the env-configured DEFAULT_MODEL (wrangler var) so operators
-  // can switch the default without a code change. Fall back to the free
-  // Workers AI model when the var is absent or empty.
-  return (env.DEFAULT_MODEL && env.DEFAULT_MODEL.trim()) || BUILTIN_DEFAULT_MODEL;
+  const envDefault = env.DEFAULT_MODELS;
+  if (envDefault && envDefault.trim()) {
+    // If it's a comma-separated list, use the first model
+    const models = envDefault.split(',').map(m => m.trim()).filter(m => m);
+    return models[0] || BUILTIN_DEFAULT_MODEL;
+  }
+  return BUILTIN_DEFAULT_MODEL;
 }
 
 function requireAuth(req, user) {
@@ -22,18 +25,65 @@ async function getOwnedChat(db, chatId, userId) {
 }
 
 export async function chatRouter(req, env, _ctx, user, path) {
+  const isChatPath = path === '/api/chats' || /^\/api\/chats\/[^/]+(?:\/messages)?$/.test(path);
+  if (!isChatPath) return null;
+
   const unauthorized = requireAuth(req, user);
   if (unauthorized) return unauthorized;
 
   const db = createDB(env.DB);
 
   if (req.method === 'GET' && path === '/api/chats') {
-    const chats = await db.all(
-      'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? ORDER BY updated_at DESC LIMIT 100',
-      [user.sub]
-    );
+    const url = new URL(req.url);
 
-    return json(req, { chats });
+    // Strict validation for query parameter 'q'
+    let qRaw = url.searchParams.get('q') || '';
+    qRaw = qRaw.trim();
+
+    // Validate 'q' parameter: 1-200 alphanumeric characters (whitespace allowed)
+    // This prevents SQL injection and ensures predictable search behavior
+    if (qRaw.length > 200) {
+      return error(req, 'Query parameter "q" exceeds 200 characters', 400);
+    }
+    // Ensure q contains only printable characters (basic safety check)
+    if (!/^[^\x00-\x1F\x7F]*$/.test(qRaw)) {
+      return error(req, 'Query parameter "q" contains invalid characters', 400);
+    }
+
+    // Strict validation for 'limit' parameter: positive integer, 1-100
+    const limitParamStr = url.searchParams.get('limit') || '100';
+    if (!/^[1-9]\d{0,2}$/.test(limitParamStr)) {
+      return error(req, 'Query parameter "limit" must be a positive integer between 1 and 100', 400);
+    }
+    const limit = Number.parseInt(limitParamStr, 10);
+    if (limit > 100) {
+      return error(req, 'Query parameter "limit" must be a positive integer between 1 and 100', 400);
+    }
+
+    // Strict validation for 'offset' parameter: non-negative integer
+    const offsetParamStr = url.searchParams.get('offset') || '0';
+    if (!/^\d+$/.test(offsetParamStr)) {
+      return error(req, 'Query parameter "offset" must be a non-negative integer', 400);
+    }
+    const offset = Number.parseInt(offsetParamStr, 10);
+
+    // Execute search with deterministic sorting (updated_at DESC, created_at DESC)
+    // The secondary sort by created_at ensures predictable ordering for ties
+    let chats;
+    if (qRaw) {
+      const like = `%${qRaw}%`;
+      chats = await db.all(
+        'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? AND title LIKE ? ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?',
+        [user.sub, like, limit, offset]
+      );
+    } else {
+      chats = await db.all(
+        'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?',
+        [user.sub, limit, offset]
+      );
+    }
+
+    return json(req, { chats, limit, offset, query: qRaw });
   }
 
   if (req.method === 'POST' && path === '/api/chats') {
@@ -142,7 +192,7 @@ export async function chatRouter(req, env, _ctx, user, path) {
 
     try {
       // Query relevant FAQs
-      const faqResults = await queryFAQs(env, db, content, 3, 0.5);
+      const faqResults = await queryFAQs(env, db, user.sub, content, 3, 0.5);
       if (faqResults.length > 0) {
         ragContext += '\n## Relevant FAQs\n';
         for (const faq of faqResults) {
@@ -152,7 +202,7 @@ export async function chatRouter(req, env, _ctx, user, path) {
       }
 
       // Query relevant document chunks
-      const chunkResults = await queryDocumentChunks(env, db, content, 5, 0.5);
+      const chunkResults = await queryDocumentChunks(env, db, user.sub, content, 5, 0.5);
       if (chunkResults.length > 0) {
         ragContext += '\n## Relevant Documents\n';
         const seenDocs = new Set();
