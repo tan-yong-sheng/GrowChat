@@ -6,6 +6,7 @@ import { renderPlaceholder } from './components/chat-placeholder.js';
 import { renderMessageInput } from './components/message-input.js';
 import { renderModelSelector } from './components/model-selector.js';
 import { renderSidebar } from './components/sidebar.js';
+import { renderFilesModal } from './components/files-modal.js';
 
 export function renderChat(container) {
   if (typeof container.__cleanup === 'function') {
@@ -94,6 +95,7 @@ export function renderChat(container) {
 
     <!-- Modal Container -->
     <div id="search-modal-container"></div>
+    <div id="files-modal-container"></div>
   `;
 
   container.__cleanup = wireChat(container);
@@ -111,12 +113,15 @@ function wireChat(root) {
   const messagesContainer = root.querySelector('#messages-container');
   const openSearchBtn = root.querySelector('#open-search');
   const searchModalContainer = root.querySelector('#search-modal-container');
+  const filesModalContainer = root.querySelector('#files-modal-container');
   const modelSelectorContainer = root.querySelector('#model-selector-container');
 
   // Initialize UI Components
   const destroyModelSelector = renderModelSelector(modelSelectorContainer);
   const destroySidebar = renderSidebar(sidebar, root);
-  const inputComponent = renderMessageInput(messageInputContainer, sendMessage);
+  const inputComponent = renderMessageInput(messageInputContainer, sendMessage, () => {
+    setState({ showFiles: true });
+  });
 
   function getActiveModel() {
     return state.models.find((m) => m.id === state.activeModelId) || null;
@@ -137,6 +142,7 @@ function wireChat(root) {
 
   // Initialize Search Modal
   const destroySearchModal = renderSearchModal(searchModalContainer, createChat, loadMessages);
+  const destroyFilesModal = renderFilesModal(filesModalContainer);
 
   // Subscribe to state changes
   const unsubscribe = subscribe((currentState) => {
@@ -363,6 +369,7 @@ function wireChat(root) {
   return () => {
     unsubscribe();
     destroySearchModal?.();
+    destroyFilesModal?.();
     destroyModelSelector?.();
     destroySidebar?.();
     inputComponent?.destroy?.();

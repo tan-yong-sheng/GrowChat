@@ -19,8 +19,9 @@ export function clearAuthState() {
 export async function apiFetch(path, options = {}) {
   const auth = getAuthState();
   const headers = new Headers(options.headers || {});
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
-  if (!headers.has('Content-Type') && options.body) {
+  if (!headers.has('Content-Type') && options.body && !isFormData) {
     headers.set('Content-Type', 'application/json');
   }
 
