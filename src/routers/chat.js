@@ -25,7 +25,7 @@ async function getOwnedChat(db, chatId, userId) {
 }
 
 export async function chatRouter(req, env, _ctx, user, path) {
-  const isChatPath = path === '/api/chats' || /^\/api\/chats\/[^/]+(?:\/messages)?$/.test(path);
+  const isChatPath = path === '/api/chats' || path === '/api/chats/shared' || path === '/api/chats/archived' || /^\/api\/chats\/[^/]+(?:\/(?:messages|share|archive))?$/.test(path);
   if (!isChatPath) return null;
 
   const unauthorized = requireAuth(req, user);
@@ -107,6 +107,24 @@ export async function chatRouter(req, env, _ctx, user, path) {
     return json(req, { chat }, 201);
   }
 
+  // Route: GET /api/chats/shared - List shared chats
+  if (req.method === 'GET' && path === '/api/chats/shared') {
+    const sharedChats = await db.all(
+      'SELECT id, title, model, pinned, tags, share_id, created_at, updated_at FROM chats WHERE user_id = ? AND share_id IS NOT NULL ORDER BY updated_at DESC',
+      [user.sub]
+    );
+    return json(req, { chats: sharedChats });
+  }
+
+  // Route: GET /api/chats/archived - List archived chats
+  if (req.method === 'GET' && path === '/api/chats/archived') {
+    const archivedChats = await db.all(
+      'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? AND archived = 1 ORDER BY updated_at DESC',
+      [user.sub]
+    );
+    return json(req, { chats: archivedChats });
+  }
+
   const chatIdMatch = path.match(/^\/api\/chats\/([^/]+)$/);
   if (chatIdMatch) {
     const chatId = chatIdMatch[1];
@@ -155,6 +173,64 @@ export async function chatRouter(req, env, _ctx, user, path) {
       await db.run('DELETE FROM chats WHERE id = ? AND user_id = ?', [chatId, user.sub]);
       return json(req, { ok: true });
     }
+  }
+
+  // Route: POST /api/chats/:id/share - Create or get share link
+  const shareMatch = path.match(/^\/api\/chats\/([^/]+)\/share$/);
+  if (shareMatch && req.method === 'POST') {
+    const chatId = shareMatch[1];
+    const chat = await getOwnedChat(db, chatId, user.sub);
+    if (!chat) return error(req, 'Chat not found', 404);
+
+    let shareId = chat.share_id;
+    if (!shareId) {
+      // Generate new share_id if not already set
+      shareId = crypto.randomUUID();
+      await db.run(
+        'UPDATE chats SET share_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+        [shareId, chatId, user.sub]
+      );
+    }
+
+    return json(req, {
+      share_id: shareId,
+      share_url: `/s/${shareId}`,
+      chat_id: chatId,
+    }, 200);
+  }
+
+  // Route: DELETE /api/chats/:id/share - Revoke share link
+  const unshareMatch = path.match(/^\/api\/chats\/([^/]+)\/share$/);
+  if (unshareMatch && req.method === 'DELETE') {
+    const chatId = unshareMatch[1];
+    const chat = await getOwnedChat(db, chatId, user.sub);
+    if (!chat) return error(req, 'Chat not found', 404);
+
+    if (chat.share_id) {
+      await db.run(
+        'UPDATE chats SET share_id = NULL, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+        [chatId, user.sub]
+      );
+    }
+
+    return json(req, { ok: true });
+  }
+
+  // Route: POST /api/chats/:id/archive - Toggle archive state
+  const archiveMatch = path.match(/^\/api\/chats\/([^/]+)\/archive$/);
+  if (archiveMatch && req.method === 'POST') {
+    const chatId = archiveMatch[1];
+    const chat = await getOwnedChat(db, chatId, user.sub);
+    if (!chat) return error(req, 'Chat not found', 404);
+
+    const newArchived = chat.archived ? 0 : 1;
+    await db.run(
+      'UPDATE chats SET archived = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+      [newArchived, chatId, user.sub]
+    );
+
+    const updated = await getOwnedChat(db, chatId, user.sub);
+    return json(req, { chat: updated, archived: newArchived === 1 });
   }
 
   const sendMatch = path.match(/^\/api\/chats\/([^/]+)\/messages$/);

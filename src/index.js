@@ -6,9 +6,10 @@ import { faqsRouter } from './routers/faqs.js';
 import { filesRouter } from './routers/files.js';
 import { adminRouter } from './routers/admin.js';
 import { modelsRouter } from './routers/models.js';
+import { publicRouter } from './routers/public.js';
 import { error, preflight } from './utils/response.js';
 
-const API_ROUTES = [authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, adminRouter, modelsRouter];
+const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, adminRouter, modelsRouter];
 let schemaCompatibilityReady = null;
 
 /**
@@ -29,6 +30,9 @@ const PUBLIC_ROUTES = [
   { method: 'POST', path: '/api/auth/login', description: 'User login' },
   { method: 'POST', path: '/api/auth/refresh', description: 'Token refresh' },
   { method: 'POST', path: '/api/auth/logout', description: 'Logout' },
+
+  // Public chat sharing - read-only shared chats
+  { method: 'GET', path: /^\/s\/[^/]+$/, description: 'View shared chat' },
 ];
 
 function getPath(req) {
