@@ -1,0 +1,142 @@
+import { state, setState, subscribe } from '../store.js';
+
+export function renderMessageInput(container, onSend) {
+  let isRendered = false;
+  let unsubscribe;
+
+  function init() {
+    container.innerHTML = `
+      <form id="composer" class="relative bg-[#f4f4f4] rounded-[24px] p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 focus-within:ring-gray-300 focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-transparent focus-within:border-gray-200">
+         <button type="button" class="flex-shrink-0 p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5 ml-1" title="Attach file" aria-label="Attach file">
+           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+         </button>
+         
+         <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[16px] px-2 py-2.5 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800" style="height: 44px;" aria-label="Message text"></textarea>
+         
+         <div class="flex-shrink-0 flex items-center mb-1 mr-1 gap-1 relative">
+           <div id="loading-spinner" class="hidden absolute inset-0 bg-[#f4f4f4] items-center justify-center rounded-full transition-all z-10" aria-live="polite">
+              <div class="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></div>
+           </div>
+           
+           <button type="button" id="mic-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition" title="Voice input" aria-label="Voice input">
+             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+           </button>
+           <button id="send-btn" class="hidden p-2 bg-black text-white rounded-full hover:bg-gray-800 transition disabled:opacity-50" title="Send message" aria-label="Send message">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+           </button>
+         </div>
+      </form>
+      <div class="mt-2 text-xs text-gray-400 text-center font-medium">GrowChat can make mistakes. Check important info.</div>
+    `;
+    
+    isRendered = true;
+    wire();
+  }
+
+  function wire() {
+    const composer = document.getElementById('composer');
+    const input = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const micBtn = document.getElementById('mic-btn');
+    const loadingSpinner = document.getElementById('loading-spinner');
+    
+    let isSubmitting = false;
+
+    function toggleSendMicBtn() {
+       if (isSubmitting) {
+          micBtn.classList.add('hidden');
+          sendBtn.classList.add('hidden');
+          loadingSpinner.classList.remove('hidden');
+          loadingSpinner.style.display = 'flex';
+          return;
+       }
+       loadingSpinner.classList.add('hidden');
+       loadingSpinner.style.display = 'none';
+
+       if (input.value.trim().length > 0) {
+          micBtn.classList.add('hidden');
+          sendBtn.classList.remove('hidden');
+       } else {
+          micBtn.classList.remove('hidden');
+          sendBtn.classList.add('hidden');
+       }
+    }
+
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+      toggleSendMicBtn();
+      
+      // Save draft
+      if (state.activeChatId) {
+        const drafts = { ...state.drafts, [state.activeChatId]: input.value };
+        setState({ drafts });
+      }
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (input.value.trim() && !isSubmitting) {
+             composer.dispatchEvent(new Event('submit'));
+          }
+      }
+    });
+
+    composer.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (isSubmitting) return;
+      
+      const text = input.value.trim();
+      if (!text) return;
+      
+      isSubmitting = true;
+      toggleSendMicBtn();
+      
+      // Clear draft
+      if (state.activeChatId) {
+         const drafts = { ...state.drafts };
+         delete drafts[state.activeChatId];
+         setState({ drafts });
+      }
+      
+      input.value = '';
+      input.style.height = '44px';
+      input.disabled = true;
+      
+      // Fire callback and allow resetting state once streaming begins
+      onSend(text, () => {
+         isSubmitting = false;
+         input.disabled = false;
+         toggleSendMicBtn();
+         input.focus();
+      });
+    });
+    
+    container.setValue = (text) => {
+        input.value = text;
+        input.dispatchEvent(new Event('input'));
+        input.focus();
+    };
+    
+    container.submit = () => {
+       composer.dispatchEvent(new Event('submit'));
+    };
+
+    unsubscribe = subscribe((currentState) => {
+      // Restore draft when active chat changes
+      if (input !== document.activeElement && !isSubmitting) {
+        const draft = currentState.activeChatId ? (currentState.drafts[currentState.activeChatId] || '') : '';
+        if (input.value !== draft) {
+           input.value = draft;
+           input.dispatchEvent(new Event('input'));
+        }
+      }
+    });
+  }
+
+  init();
+  return () => {
+    if (unsubscribe) unsubscribe();
+  };
+}
