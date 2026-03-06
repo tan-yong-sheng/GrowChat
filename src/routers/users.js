@@ -1,7 +1,14 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
+import { requireAdmin, isValidEmail } from '../utils/rbac.js';
 
 export async function usersRouter(req, env, _ctx, user, path) {
+  const isUsersPath =
+    path === '/api/users/me' ||
+    path === '/api/admin/users' ||
+    /^\/api\/admin\/users\/[^/]+$/.test(path);
+
+  if (!isUsersPath) return null;
   if (!user) return error(req, 'Unauthorized', 401);
 
   if (req.method === 'GET' && path === '/api/users/me') {
@@ -105,5 +112,220 @@ export async function usersRouter(req, env, _ctx, user, path) {
     });
   }
 
+  // GET /api/admin/users - List all users (admin only)
+  if (req.method === 'GET' && path === '/api/admin/users') {
+    if (!user || !requireAdmin(user)) {
+      return error(req, 'Forbidden', 403);
+    }
+
+    const db = createDB(env.DB);
+    const limit = Math.min(parseInt(new URL(req.url).searchParams.get('limit') || '100'), 100);
+    const offset = parseInt(new URL(req.url).searchParams.get('offset') || '0');
+
+    try {
+      const users = await db.all(
+        `SELECT id, email, name, role, settings, created_at, updated_at
+         FROM users
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`,
+        [limit, offset]
+      );
+
+      // Parse settings JSON
+      const parsedUsers = users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        settings: parseSettings(u.settings),
+        created_at: u.created_at,
+        updated_at: u.updated_at,
+      }));
+
+      return json(req, { users: parsedUsers, total: users.length });
+    } catch (err) {
+      console.error('List users failed:', err);
+      return error(req, 'Failed to list users', 500);
+    }
+  }
+
+  // GET /api/admin/users/:id - Get specific user (admin only)
+  if (req.method === 'GET' && path.match(/^\/api\/admin\/users\/[^/]+$/)) {
+    if (!user || !requireAdmin(user)) {
+      return error(req, 'Forbidden', 403);
+    }
+
+    const userId = path.split('/').pop();
+    const db = createDB(env.DB);
+
+    try {
+      const userData = await db.first(
+        'SELECT id, email, name, role, settings, created_at, updated_at FROM users WHERE id = ?',
+        [userId]
+      );
+
+      if (!userData) {
+        return error(req, 'User not found', 404);
+      }
+
+      return json(req, {
+        user: {
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          settings: parseSettings(userData.settings),
+          created_at: userData.created_at,
+          updated_at: userData.updated_at,
+        },
+      });
+    } catch (err) {
+      console.error('Get user failed:', err);
+      return error(req, 'Failed to fetch user', 500);
+    }
+  }
+
+  // PUT /api/admin/users/:id - Update user role/status (admin only)
+  if (req.method === 'PUT' && path.match(/^\/api\/admin\/users\/[^/]+$/)) {
+    if (!user || !requireAdmin(user)) {
+      return error(req, 'Forbidden', 403);
+    }
+
+    const userId = path.split('/').pop();
+    const db = createDB(env.DB);
+
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    // Verify user exists
+    const existing = await db.first('SELECT id, role FROM users WHERE id = ?', [userId]);
+    if (!existing) {
+      return error(req, 'User not found', 404);
+    }
+
+    const updates = [];
+    const values = [];
+
+    // Allow updating role (for admin promotion/promotion)
+    if (body.role !== undefined) {
+      const role = String(body.role).toLowerCase();
+      if (role === 'user' || role === 'admin') {
+        updates.push('role = ?');
+        values.push(role);
+      } else {
+        return error(req, 'Role must be "user" or "admin"', 400);
+      }
+    }
+
+    // Can update name
+    if (body.name !== undefined) {
+      const name = String(body.name).trim();
+      if (name) {
+        updates.push('name = ?');
+        values.push(name);
+      }
+    }
+
+    // Can reset settings
+    if (body.settings !== undefined) {
+      if (typeof body.settings !== 'object' || body.settings === null) {
+        return error(req, 'Settings must be an object', 400);
+      }
+      updates.push('settings = ?');
+      values.push(JSON.stringify(body.settings));
+    }
+
+    // Cannot change email via admin endpoint
+    if (body.email !== undefined) {
+      if (!isValidEmail(body.email)) {
+        return error(req, 'Invalid email format', 400);
+      }
+      return error(req, 'Email cannot be changed via admin endpoint', 400);
+    }
+
+    if (updates.length === 0) {
+      return error(req, 'No valid fields to update', 400);
+    }
+
+    updates.push('updated_at = unixepoch()');
+    values.push(userId);
+
+    try {
+      await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
+
+      // Return updated user
+      const updated = await db.first(
+        'SELECT id, email, name, role, settings, created_at, updated_at FROM users WHERE id = ?',
+        [userId]
+      );
+
+      return json(req, {
+        user: {
+          id: updated.id,
+          email: updated.email,
+          name: updated.name,
+          role: updated.role,
+          settings: parseSettings(updated.settings),
+          created_at: updated.created_at,
+          updated_at: updated.updated_at,
+        },
+      });
+    } catch (err) {
+      console.error('Update user failed:', err);
+      return error(req, 'Failed to update user', 500);
+    }
+  }
+
+  // DELETE /api/admin/users/:id - Deactivate user (admin only)
+  if (req.method === 'DELETE' && path.match(/^\/api\/admin\/users\/[^/]+$/)) {
+    if (!user || !requireAdmin(user)) {
+      return error(req, 'Forbidden', 403);
+    }
+
+    const userId = path.split('/').pop();
+    const db = createDB(env.DB);
+
+    try {
+      // Cannot delete yourself
+      if (userId === user.sub) {
+        return error(req, 'Cannot deactivate your own account', 400);
+      }
+
+      // Verify user exists
+      const existing = await db.first('SELECT id, role FROM users WHERE id = ?', [userId]);
+      if (!existing) {
+        return error(req, 'User not found', 404);
+      }
+
+      // Cannot delete the only admin
+      const allAdmins = await db.all('SELECT id FROM users WHERE role = ?', ['admin']);
+      if (existing.role === 'admin' && allAdmins.length <= 1) {
+        return error(req, 'Cannot delete the last admin', 400);
+      }
+
+      // Soft delete: update role to 'inactive'
+      await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['inactive', userId]);
+
+      return json(req, { success: true, message: 'User deactivated successfully' });
+    } catch (err) {
+      console.error('Deactivate user failed:', err);
+      return error(req, 'Failed to deactivate user', 500);
+    }
+  }
+
   return null;
+}
+
+function parseSettings(raw) {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }

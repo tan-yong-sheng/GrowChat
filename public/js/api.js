@@ -60,3 +60,20 @@ export async function refreshToken(refreshTokenValue) {
   setAuthState(data);
   return data;
 }
+
+export async function fetchChats({ q = '', limit = 20, offset = 0, signal } = {}) {
+  const params = new URLSearchParams();
+  if (q && q.trim()) params.set('q', q.trim());
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+
+  const path = `/api/chats?${params.toString()}`;
+  const res = await apiFetch(path, { signal });
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch chats (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+
+  return res.json();
+}

@@ -3,6 +3,7 @@
 	"name": "growchat",
 	"main": "src/index.js",
 	"compatibility_date": "2025-12-23",
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true
 	},
@@ -27,34 +28,39 @@
 		{
 			"binding": "DB",
 			"database_name": "growchat",
-			"database_id": "386a2564-863d-463d-b48c-0cc3d05cc8ae"
+			"database_id": "386a2564-863d-463d-b48c-0cc3d05cc8ae",
+			"preview_database_id": "386a2564-863d-463d-b48c-0cc3d05cc8ae"
 		}
 	],
 	// R2 bucket (used in Phase 2 - requires R2:Edit token permission to deploy)
-	// "r2_buckets": [
-	// 	{
-	// 		"binding": "FILES",
-	// 		"bucket_name": "growchat-files"
-	// 	}
-	// ],
+	"r2_buckets": [
+		{
+			"binding": "FILES",
+			"bucket_name": "growchat-files",
+			"preview_bucket_name": "growchat-files"
+		}
+	],
 	// KV namespaces
 	"kv_namespaces": [
 		{
 			"binding": "CHAT_SESSIONS",
-			"id": "64b2e11c184449369e159d050bd5afcd"
+			"id": "64b2e11c184449369e159d050bd5afcd",
+			"preview_id": "64b2e11c184449369e159d050bd5afcd"
 		},
 		{
 			"binding": "SESSIONS",
-			"id": "4abdd9ccb19d4a0da66c9767629f973b"
+			"id": "4abdd9ccb19d4a0da66c9767629f973b",
+			"preview_id": "4abdd9ccb19d4a0da66c9767629f973b"
 		},
 		{
 			"binding": "CACHE",
-			"id": "5f57cacd947e4fa9954e1c600f8a8170"
+			"id": "5f57cacd947e4fa9954e1c600f8a8170",
+			"preview_id": "5f57cacd947e4fa9954e1c600f8a8170"
 		}
 	],
 	"vars": {
 		"OPENAI_BASE_URL": "https://proxy.tanyongsheng.site/v1",
-		"DEFAULT_MODEL": "gpt-5-mini",
+		"DEFAULT_MODELS": "gpt-5-mini",
 		"APP_NAME": "GrowChat"
 	}
 }
