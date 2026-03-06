@@ -323,10 +323,11 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
         if (modalRoot.classList.contains('hidden')) {
           previousFocus = document.activeElement;
           document.body.style.overflow = 'hidden';
+          // Flip visibility before state updates to avoid re-entrant open loops.
+          modalRoot.classList.remove('hidden');
           setState({ search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true } });
           runSearch('');
         }
-        modalRoot.classList.remove('hidden');
         setTimeout(() => searchInput.focus(), 50);
       } else {
         if (!modalRoot.classList.contains('hidden')) {
