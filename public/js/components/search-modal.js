@@ -1,10 +1,13 @@
 import { state, setState, subscribe } from '../store.js';
 import { apiFetch, fetchChats } from '../api.js';
 import { escapeHtml, renderMessageContent, formatDate, formatTimestamp } from '../utils.js';
+import { renderSearchInput } from './search-input.js';
 
 function highlightText(text, query) {
   if (!query) return escapeHtml(text);
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const pureQuery = query.replace(/(tag|folder|pinned|shared|archived):\S*/gi, '').trim();
+  if (!pureQuery) return escapeHtml(text);
+  const regex = new RegExp(`(${pureQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   return escapeHtml(text).replace(regex, '<span class="bg-yellow-200 text-yellow-900 rounded-sm">$1</span>');
 }
 
@@ -100,6 +103,7 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
     let debounceTimer;
     let previewAbortController = null;
     let searchAbortController = null;
+    const destroySearchInput = renderSearchInput(searchInput);
 
     const close = () => setState({ showSearch: false });
     closeBtn.onclick = close;
@@ -340,6 +344,7 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
 
     cleanup = () => {
       if (unsubscribe) unsubscribe();
+      destroySearchInput?.();
       document.body.style.overflow = '';
     };
   }

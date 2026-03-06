@@ -34,11 +34,11 @@ export function renderMessageInput(container, onSend) {
   }
 
   function wire() {
-    const composer = document.getElementById('composer');
-    const input = document.getElementById('message-input');
-    const sendBtn = document.getElementById('send-btn');
-    const micBtn = document.getElementById('mic-btn');
-    const loadingSpinner = document.getElementById('loading-spinner');
+    const composer = container.querySelector('#composer');
+    const input = container.querySelector('#message-input');
+    const sendBtn = container.querySelector('#send-btn');
+    const micBtn = container.querySelector('#mic-btn');
+    const loadingSpinner = container.querySelector('#loading-spinner');
     
     let isSubmitting = false;
 
@@ -71,6 +71,8 @@ export function renderMessageInput(container, onSend) {
       if (state.activeChatId) {
         const drafts = { ...state.drafts, [state.activeChatId]: input.value };
         setState({ drafts });
+      } else {
+        setState({ newChatDraft: input.value });
       }
     });
 
@@ -98,6 +100,8 @@ export function renderMessageInput(container, onSend) {
          const drafts = { ...state.drafts };
          delete drafts[state.activeChatId];
          setState({ drafts });
+      } else {
+         setState({ newChatDraft: '' });
       }
       
       input.value = '';
@@ -126,7 +130,9 @@ export function renderMessageInput(container, onSend) {
     unsubscribe = subscribe((currentState) => {
       // Restore draft when active chat changes
       if (input !== document.activeElement && !isSubmitting) {
-        const draft = currentState.activeChatId ? (currentState.drafts[currentState.activeChatId] || '') : '';
+        const draft = currentState.activeChatId
+          ? (currentState.drafts[currentState.activeChatId] || '')
+          : (currentState.newChatDraft || '');
         if (input.value !== draft) {
            input.value = draft;
            input.dispatchEvent(new Event('input'));
@@ -136,7 +142,11 @@ export function renderMessageInput(container, onSend) {
   }
 
   init();
-  return () => {
-    if (unsubscribe) unsubscribe();
+  return {
+    destroy: () => {
+      if (unsubscribe) unsubscribe();
+    },
+    setValue: (text) => container.setValue(text),
+    submit: () => container.submit()
   };
 }
