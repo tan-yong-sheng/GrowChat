@@ -22,6 +22,16 @@ export const state = {
     offset: 0,
     hasMore: true
   },
+
+  // Files Modal State
+  showFiles: false,
+  files: {
+    items: [],
+    loading: false,
+    selectedIds: [],
+    offset: 0,
+    hasMore: true
+  },
   
   // Interaction State
   drafts: JSON.parse(localStorage.getItem('drafts') || '{}'), // chatId -> draft text
