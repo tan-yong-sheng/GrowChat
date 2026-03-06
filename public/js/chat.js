@@ -236,7 +236,7 @@ function wireChat(root) {
       return;
     }
 
-    const res = await apiFetch(\`/api/chats/\${chatId}\`);
+    const res = await apiFetch(`/api/chats/${chatId}`);
     if (!res.ok) return;
     const data = await res.json();
     
@@ -294,7 +294,7 @@ function wireChat(root) {
     setState({ messagesByChat: { ...state.messagesByChat, [chatId]: current } });
     drawMessages(current);
 
-    const res = await apiFetch(\`/api/chats/\${chatId}/messages\`, {
+    const res = await apiFetch(`/api/chats/${chatId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ message: text, model: state.activeModelId || undefined }),
     });
