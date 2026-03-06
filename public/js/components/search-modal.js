@@ -164,26 +164,26 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
       previewAbortController = new AbortController();
 
       try {
-        const res = await apiFetch(\`/api/chats/\${chatId}\`, { signal: previewAbortController.signal });
+        const res = await apiFetch(`/api/chats/${chatId}`, { signal: previewAbortController.signal });
         if (!res.ok) throw new Error();
         const data = await res.json();
         
         previewContent.querySelector('#preview-title').textContent = data.chat.title;
         const messagesBox = previewContent.querySelector('#preview-messages');
         
-        messagesBox.innerHTML = data.messages.map(m => \`
-          <div class="flex flex-col gap-2 \${m.role === 'user' ? 'items-end' : 'items-start'}">
-            <div class="flex items-center gap-2 mb-1 \${m.role === 'user' ? 'flex-row-reverse' : ''}">
-              <div class="w-5 h-5 rounded-full \${m.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-[8px] font-bold">
-                \${m.role === 'user' ? 'U' : 'AI'}
+        messagesBox.innerHTML = data.messages.map(m => `
+          <div class="flex flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}">
+            <div class="flex items-center gap-2 mb-1 ${m.role === 'user' ? 'flex-row-reverse' : ''}">
+              <div class="w-5 h-5 rounded-full ${m.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-[8px] font-bold">
+                ${m.role === 'user' ? 'U' : 'AI'}
               </div>
-              <span class="text-[10px] font-bold uppercase text-gray-400">\${m.role}</span>
+              <span class="text-[10px] font-bold uppercase text-gray-400">${m.role}</span>
             </div>
-            <div class="max-w-[90%] \${m.role === 'user' ? 'bg-gray-100 rounded-[18px]' : 'bg-white border border-gray-100 rounded-[18px]'} px-4 py-2.5 text-xs text-gray-800 shadow-sm prose prose-p:my-1 prose-pre:my-2 prose-sm max-w-none break-words">
-              \${renderMessageContent(m.content)}
+            <div class="max-w-[90%] ${m.role === 'user' ? 'bg-gray-100 rounded-[18px]' : 'bg-white border border-gray-100 rounded-[18px]'} px-4 py-2.5 text-xs text-gray-800 shadow-sm prose prose-p:my-1 prose-pre:my-2 prose-sm max-w-none break-words">
+              ${renderMessageContent(m.content)}
             </div>
           </div>
-        \`).join('');
+        `).join('');
         
         messagesBox.scrollTop = messagesBox.scrollHeight;
       } catch (e) {
@@ -195,39 +195,39 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
     function renderList() {
       const { results, query } = state.search;
       if (results.length === 0 && !state.search.loading) {
-        searchList.innerHTML = \`
+        searchList.innerHTML = `
           <div class="px-3 py-12 text-center">
             <div class="text-gray-300 mb-3 flex justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
-            <p class="text-xs text-gray-400 font-medium">\${query ? 'No results found' : 'No recent chats'}</p>
+            <p class="text-xs text-gray-400 font-medium">${query ? 'No results found' : 'No recent chats'}</p>
           </div>
-        \`;
+        `;
         return;
       }
 
       const groups = groupChatsByDate(results);
-      searchList.innerHTML = Object.entries(groups).map(([label, groupChats]) => \`
+      searchList.innerHTML = Object.entries(groups).map(([label, groupChats]) => `
         <div class="mt-4 first:mt-0">
-          <div class="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">\${label}</div>
+          <div class="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">${label}</div>
           <div class="space-y-0.5">
-            \${groupChats.map(c => {
+            ${groupChats.map(c => {
               const idx = results.findIndex(rc => rc.id === c.id);
-              return \`
-                <button data-search-chat="\${c.id}" data-index="\${idx}" class="search-item w-full text-left px-3 py-3 rounded-2xl transition flex items-center gap-3 text-sm group outline-none focus:bg-gray-100" role="option">
+              return `
+                <button data-search-chat="${c.id}" data-index="${idx}" class="search-item w-full text-left px-3 py-3 rounded-2xl transition flex items-center gap-3 text-sm group outline-none focus:bg-gray-100" role="option">
                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-white transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                    </div>
                    <div class="flex-grow min-w-0 flex flex-col">
-                      <span class="truncate font-medium text-gray-700 group-hover:text-gray-900">\${highlightText(c.title, query)}</span>
-                      <span class="text-[10px] text-gray-400">\${formatTimestamp(c.updated_at || c.created_at)}</span>
+                      <span class="truncate font-medium text-gray-700 group-hover:text-gray-900">${highlightText(c.title, query)}</span>
+                      <span class="text-[10px] text-gray-400">${formatTimestamp(c.updated_at || c.created_at)}</span>
                    </div>
                 </button>
-              \`;
+              `;
             }).join('')}
           </div>
         </div>
-      \`).join('');
+      `).join('');
 
       searchList.querySelectorAll('[data-search-chat]').forEach(btn => {
         btn.onclick = () => {
