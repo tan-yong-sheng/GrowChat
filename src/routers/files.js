@@ -23,6 +23,9 @@ import { upsertDocumentChunks } from '../services/embeddings.js';
  *   POST   /api/files/upload             - Upload file
  *   GET    /api/files                    - List user's documents
  *   GET    /api/files/:id                - Get document metadata
+ *   GET    /api/files/search             - Search user's documents
+ *   GET    /api/files/:id/process/status - Get extraction/embedding status
+ *   GET    /api/files/:id/content        - Get safe content representation
  *   DELETE /api/files/:id                - Delete document and R2 file
  */
 export async function filesRouter(req, env, ctx, user, path) {
@@ -170,6 +173,140 @@ export async function filesRouter(req, env, ctx, user, path) {
       }
 
       return error(req, 'Failed to delete document', 500);
+    }
+  }
+
+  // GET /api/files/search - Search user's documents
+  if (req.method === 'GET' && path === '/api/files/search') {
+    const db = createDB(env.DB);
+    const url = new URL(req.url);
+    const q = (url.searchParams.get('q') || '').trim();
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20'), 1), 100);
+    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0'), 0);
+
+    if (q.length > 200) {
+      return error(req, 'Search query exceeds 200 characters', 400);
+    }
+
+    try {
+      const documents = await db.all(
+        `SELECT
+          id, filename, content_type, file_size, text_excerpt,
+          extraction_status, embedding_generated,
+          created_at, updated_at
+        FROM documents
+        WHERE user_id = ? AND filename LIKE ?
+        ORDER BY updated_at DESC
+        LIMIT ? OFFSET ?`,
+        [user.sub, `%${q}%`, limit, offset]
+      );
+
+      return json(req, { documents, query: q, limit, offset });
+    } catch (err) {
+      console.error('Document search failed:', err);
+      return error(req, 'Search failed', 500);
+    }
+  }
+
+  // GET /api/files/:id/process/status - Get extraction/embedding status
+  const statusMatch = path.match(/^\/api\/files\/([^/]+)\/process\/status$/);
+  if (statusMatch && req.method === 'GET') {
+    const documentId = statusMatch[1];
+    const db = createDB(env.DB);
+
+    try {
+      const doc = await db.first(
+        `SELECT
+          id, filename, extraction_status, extraction_error,
+          embedding_generated, embedding_error, created_at, updated_at
+        FROM documents
+        WHERE id = ? AND user_id = ?`,
+        [documentId, user.sub]
+      );
+
+      if (!doc) {
+        return error(req, 'Document not found', 404);
+      }
+
+      // Map numeric status to human-readable state
+      const extractionState = doc.extraction_status === 1 ? 'done' :
+                             doc.extraction_status === -1 ? 'failed' : 'pending';
+      const embeddingState = doc.embedding_generated === 1 ? 'done' :
+                            doc.embedding_generated === -1 ? 'failed' : 'pending';
+
+      return json(req, {
+        id: doc.id,
+        filename: doc.filename,
+        extraction: {
+          status: extractionState,
+          error: doc.extraction_error || null,
+        },
+        embedding: {
+          status: embeddingState,
+          error: doc.embedding_error || null,
+        },
+        created_at: doc.created_at,
+        updated_at: doc.updated_at,
+      });
+    } catch (err) {
+      console.error('Get process status failed:', err);
+      return error(req, 'Failed to get status', 500);
+    }
+  }
+
+  // GET /api/files/:id/content - Get safe text representation of file
+  const contentMatch = path.match(/^\/api\/files\/([^/]+)\/content$/);
+  if (contentMatch && req.method === 'GET') {
+    const documentId = contentMatch[1];
+    const db = createDB(env.DB);
+
+    try {
+      const doc = await db.first(
+        `SELECT
+          id, filename, content_type, text_excerpt, extraction_status
+        FROM documents
+        WHERE id = ? AND user_id = ?`,
+        [documentId, user.sub]
+      );
+
+      if (!doc) {
+        return error(req, 'Document not found', 404);
+      }
+
+      // Determine safe representation based on content type
+      let responseType = 'text/plain';
+      let content = null;
+
+      if (doc.content_type?.startsWith('application/json')) {
+        responseType = 'application/json';
+        try {
+          content = JSON.parse(doc.text_excerpt || '{}');
+        } catch {
+          content = { error: 'Failed to parse JSON content' };
+        }
+      } else if (doc.content_type?.startsWith('text/')) {
+        // Plain text content
+        content = doc.text_excerpt || '[No text content extracted]';
+      } else {
+        // Other binary formats - return safe metadata only
+        content = {
+          filename: doc.filename,
+          type: doc.content_type,
+          status: doc.extraction_status === 1 ? 'extracted' : 'pending',
+          note: 'Binary file - text excerpt not available',
+        };
+      }
+
+      return json(req, {
+        id: doc.id,
+        filename: doc.filename,
+        type: doc.content_type,
+        content: content,
+        extracted: doc.extraction_status === 1,
+      });
+    } catch (err) {
+      console.error('Get file content failed:', err);
+      return error(req, 'Failed to get content', 500);
     }
   }
 
