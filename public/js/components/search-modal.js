@@ -11,6 +11,10 @@ function highlightText(text, query) {
   return escapeHtml(text).replace(regex, '<span class="bg-yellow-200 text-yellow-900 rounded-sm">$1</span>');
 }
 
+function normalizeBackendQuery(query) {
+  return String(query || '').replace(/(tag|folder|pinned|shared|archived):\S*/gi, '').trim();
+}
+
 function groupChatsByDate(chats) {
   const groups = {};
   chats.forEach(chat => {
@@ -258,7 +262,8 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
       loadingIndicator.classList.remove('hidden');
 
       try {
-        const data = await fetchChats({ q: query, limit: 20, offset, signal: searchAbortController.signal });
+        const backendQuery = normalizeBackendQuery(query);
+        const data = await fetchChats({ q: backendQuery, limit: 20, offset, signal: searchAbortController.signal });
         const newResults = append ? [...state.search.results, ...data.chats] : data.chats;
         setState({ 
           search: { 

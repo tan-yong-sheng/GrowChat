@@ -1,13 +1,13 @@
 import { state, setState, subscribe } from '../store.js';
 
-export function renderMessageInput(container, onSend) {
+export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
   let isRendered = false;
   let unsubscribe;
 
   function init() {
     container.innerHTML = `
       <form id="composer" class="relative bg-[#f4f4f4] rounded-[24px] p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 focus-within:ring-gray-300 focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-transparent focus-within:border-gray-200">
-         <button type="button" class="flex-shrink-0 p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5 ml-1" title="Attach file" aria-label="Attach file">
+         <button type="button" id="open-files-btn" class="flex-shrink-0 p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5 ml-1" title="Attach file" aria-label="Attach file">
            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
          </button>
          
@@ -39,6 +39,7 @@ export function renderMessageInput(container, onSend) {
     const sendBtn = container.querySelector('#send-btn');
     const micBtn = container.querySelector('#mic-btn');
     const loadingSpinner = container.querySelector('#loading-spinner');
+    const openFilesBtn = container.querySelector('#open-files-btn');
     
     let isSubmitting = false;
 
@@ -115,6 +116,10 @@ export function renderMessageInput(container, onSend) {
          toggleSendMicBtn();
          input.focus();
       });
+    });
+
+    openFilesBtn.addEventListener('click', () => {
+      onOpenFiles();
     });
     
     container.setValue = (text) => {
