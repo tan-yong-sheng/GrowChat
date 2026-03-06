@@ -19,6 +19,8 @@ import { requireAdmin } from '../utils/admin.js';
  *   POST /api/admin/documents/reindex   - Regenerate document chunk embeddings
  */
 export async function adminRouter(req, env, ctx, user, path) {
+  if (!path.startsWith('/api/admin/')) return null;
+
   // All admin endpoints require authorization
   if (!user || !requireAdmin(user)) {
     return error(req, 'Forbidden', 403);
