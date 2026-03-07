@@ -14,6 +14,16 @@ import { error, preflight } from './utils/response.js';
 const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter];
 let schemaCompatibilityReady = null;
 
+// Placeholder DO export to preserve compatibility with existing production
+// Durable Object class references during transitional deployment.
+export class MessageQueueDO {
+  constructor(_state, _env) {}
+
+  async fetch() {
+    return new Response('MessageQueueDO is temporarily disabled', { status: 410 });
+  }
+}
+
 /**
  * Public routes that don't require authentication.
  *

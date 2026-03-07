@@ -61,6 +61,7 @@
 	"vars": {
 		"OPENAI_BASE_URL": "https://proxy.tanyongsheng.site/v1",
 		"DEFAULT_MODELS": "gpt-5-mini",
-		"APP_NAME": "GrowChat"
+		"APP_NAME": "GrowChat",
+		"ENABLE_RAG": "false"
 	}
 }

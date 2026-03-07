@@ -1,11 +1,26 @@
 import { createDB } from '../db.js';
-import { error, json } from '../utils/response.js';
+import { error, json, sseHeaders } from '../utils/response.js';
 
 /**
  * Public routes handler for shared chats.
  * Routes: GET /s/:share_id - View a shared chat with messages (read-only, no auth required)
  */
 export async function publicRouter(req, env, _ctx, _user, path) {
+  // Temporary no-op realtime stream endpoint to avoid frontend 404 noise
+  // while realtime worker pipeline is disabled.
+  if (path === '/api/realtime/stream') {
+    if (req.method !== 'GET') {
+      return error(req, 'Method not allowed', 405);
+    }
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(': realtime disabled\n\n'));
+        controller.close();
+      },
+    });
+    return new Response(body, { headers: sseHeaders(req) });
+  }
+
   const shareMatch = path.match(/^\/s\/([^/]+)$/);
   if (!shareMatch) return null;
 

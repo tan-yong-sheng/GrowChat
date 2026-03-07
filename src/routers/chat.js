@@ -15,6 +15,11 @@ function defaultModel(env) {
   return BUILTIN_DEFAULT_MODEL;
 }
 
+function isRagEnabled(env) {
+  const v = String(env.ENABLE_RAG || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
 function requireAuth(req, user) {
   if (!user) return error(req, 'Unauthorized', 401);
   return null;
@@ -50,32 +55,34 @@ async function handleLLMResponse(req, env, db, user, chatId, parentId, content, 
 
   let ragContext = '';
   let citations = [];
-  try {
-    const faqResults = await queryFAQs(env, db, user.sub, content, 3, 0.5);
-    if (faqResults.length > 0) {
-      ragContext += '\n## Relevant FAQs\n';
-      for (const faq of faqResults) {
-        ragContext += `\n**Q: ${faq.question}**\nA: ${faq.answer}\n`;
-        if (faq.id) citations.push(faq.id);
-      }
-    }
-
-    const chunkResults = await queryDocumentChunks(env, db, user.sub, content, 5, 0.5);
-    if (chunkResults.length > 0) {
-      ragContext += '\n## Relevant Documents\n';
-      const seenDocs = new Set();
-      for (const chunk of chunkResults) {
-        const docId = chunk.doc_id || chunk.document_id;
-        const docName = chunk.filename || 'Document';
-        if (!seenDocs.has(docId)) {
-          ragContext += `\n**${docName}**\n`;
-          seenDocs.add(docId);
+  if (isRagEnabled(env)) {
+    try {
+      const faqResults = await queryFAQs(env, db, content, 3, 0.5);
+      if (faqResults.length > 0) {
+        ragContext += '\n## Relevant FAQs\n';
+        for (const faq of faqResults) {
+          ragContext += `\n**Q: ${faq.question}**\nA: ${faq.answer}\n`;
+          if (faq.id) citations.push(faq.id);
         }
-        ragContext += `${chunk.chunk_text}\n`;
       }
+
+      const chunkResults = await queryDocumentChunks(env, db, content, 5, 0.5);
+      if (chunkResults.length > 0) {
+        ragContext += '\n## Relevant Documents\n';
+        const seenDocs = new Set();
+        for (const chunk of chunkResults) {
+          const docId = chunk.doc_id || chunk.document_id;
+          const docName = chunk.filename || 'Document';
+          if (!seenDocs.has(docId)) {
+            ragContext += `\n**${docName}**\n`;
+            seenDocs.add(docId);
+          }
+          ragContext += `${chunk.chunk_text}\n`;
+        }
+      }
+    } catch (err) {
+      console.error('RAG query failed:', err);
     }
-  } catch (err) {
-    console.error('RAG query failed:', err);
   }
 
   let enhancedHistory = [...history];
@@ -160,32 +167,34 @@ async function handleRegenerateResponse(req, env, db, user, chatId, parentUserMs
 
   let ragContext = '';
   let citations = [];
-  try {
-    const faqResults = await queryFAQs(env, db, user.sub, parentUserMsg.content, 3, 0.5);
-    if (faqResults.length > 0) {
-      ragContext += '\n## Relevant FAQs\n';
-      for (const faq of faqResults) {
-        ragContext += `\n**Q: ${faq.question}**\nA: ${faq.answer}\n`;
-        if (faq.id) citations.push(faq.id);
-      }
-    }
-
-    const chunkResults = await queryDocumentChunks(env, db, user.sub, parentUserMsg.content, 5, 0.5);
-    if (chunkResults.length > 0) {
-      ragContext += '\n## Relevant Documents\n';
-      const seenDocs = new Set();
-      for (const chunk of chunkResults) {
-        const docId = chunk.doc_id || chunk.document_id;
-        const docName = chunk.filename || 'Document';
-        if (!seenDocs.has(docId)) {
-          ragContext += `\n**${docName}**\n`;
-          seenDocs.add(docId);
+  if (isRagEnabled(env)) {
+    try {
+      const faqResults = await queryFAQs(env, db, parentUserMsg.content, 3, 0.5);
+      if (faqResults.length > 0) {
+        ragContext += '\n## Relevant FAQs\n';
+        for (const faq of faqResults) {
+          ragContext += `\n**Q: ${faq.question}**\nA: ${faq.answer}\n`;
+          if (faq.id) citations.push(faq.id);
         }
-        ragContext += `${chunk.chunk_text}\n`;
       }
+
+      const chunkResults = await queryDocumentChunks(env, db, parentUserMsg.content, 5, 0.5);
+      if (chunkResults.length > 0) {
+        ragContext += '\n## Relevant Documents\n';
+        const seenDocs = new Set();
+        for (const chunk of chunkResults) {
+          const docId = chunk.doc_id || chunk.document_id;
+          const docName = chunk.filename || 'Document';
+          if (!seenDocs.has(docId)) {
+            ragContext += `\n**${docName}**\n`;
+            seenDocs.add(docId);
+          }
+          ragContext += `${chunk.chunk_text}\n`;
+        }
+      }
+    } catch (err) {
+      console.error('RAG query failed:', err);
     }
-  } catch (err) {
-    console.error('RAG query failed:', err);
   }
 
   let enhancedHistory = [...history];
