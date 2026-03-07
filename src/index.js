@@ -8,12 +8,13 @@ import { adminRouter } from './routers/admin.js';
 import { modelsRouter } from './routers/models.js';
 import { knowledgeRouter } from './routers/knowledge.js';
 import { promptsRouter } from './routers/prompts.js';
+import { rbacRouter } from './routers/rbac.js';
 import { publicRouter } from './routers/public.js';
 import { realtimeRouter } from './routers/realtime.js';
 import { error, preflight } from './utils/response.js';
 import { MessageQueueDO } from './durable/message-queue.js';
 
-const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter, realtimeRouter];
+const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter, rbacRouter, realtimeRouter];
 let schemaCompatibilityReady = null;
 
 /**
