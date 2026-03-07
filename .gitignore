@@ -5,14 +5,16 @@ open-terminal/
 # Ignore all .claude/ contents by default
 .claude/*
 
-# Track these specific directories
+# But track these specific directories - negate dirs FIRST, then contents
 !.claude/skills/
-!.claude/skills/**
 !.claude/rules/
-!.claude/rules/**
 !.claude/memory/
-!.claude/memory/**
 !.claude/plans/
+
+# Now allow all files within those directories
+!.claude/skills/**
+!.claude/rules/**
+!.claude/memory/**
 !.claude/plans/**
 
 # Logs
