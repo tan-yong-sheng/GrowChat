@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'growchat_auth';
+const CLIENT_SESSION_KEY = 'growchat_client_session_id';
 
 export function getAuthState() {
   try {
@@ -16,6 +17,18 @@ export function clearAuthState() {
   localStorage.removeItem(STORAGE_KEY);
 }
 
+export function getClientSessionId() {
+  try {
+    let id = sessionStorage.getItem(CLIENT_SESSION_KEY);
+    if (id) return id;
+    id = `${Date.now().toString(36)}-${crypto.randomUUID()}`;
+    sessionStorage.setItem(CLIENT_SESSION_KEY, id);
+    return id;
+  } catch {
+    return `fallback-${crypto.randomUUID()}`;
+  }
+}
+
 export async function apiFetch(path, options = {}) {
   const auth = getAuthState();
   const headers = new Headers(options.headers || {});
@@ -28,6 +41,7 @@ export async function apiFetch(path, options = {}) {
   if (auth?.access_token) {
     headers.set('Authorization', `Bearer ${auth.access_token}`);
   }
+  headers.set('x-client-session-id', getClientSessionId());
 
   const response = await fetch(path, {
     ...options,
