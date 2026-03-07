@@ -6,6 +6,7 @@
 
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
+import { authorize, logAuditEvent } from '../utils/authorize.js';
 import {
   validateFile,
   uploadFileToR2,
@@ -48,6 +49,16 @@ export async function filesRouter(req, env, ctx, user, path) {
 
   // POST /api/files/upload - Upload file
   if (req.method === 'POST' && path === '/api/files/upload') {
+    // Check authorization
+    const authDecision = await authorize(env, user, {
+      action: 'file.upload',
+      resource: 'file'
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     const db = createDB(env.DB);
 
     try {
@@ -83,6 +94,15 @@ export async function filesRouter(req, env, ctx, user, path) {
         fileSize,
         r2Key: r2Result.r2Key,
         r2Url: r2Result.r2Url,
+      });
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'file_uploaded',
+        resource_type: 'file',
+        resource_id: documentId,
+        metadata: { filename, contentType, fileSize }
       });
 
       // Extract and chunk content asynchronously
@@ -172,11 +192,31 @@ export async function filesRouter(req, env, ctx, user, path) {
 
   // DELETE /api/files/:id - Delete document
   if (req.method === 'DELETE' && path.match(/^\/api\/files\/[^/]+$/)) {
+    // Check authorization
+    const authDecision = await authorize(env, user, {
+      action: 'file.delete',
+      resource: 'file',
+      resourceId: path.split('/').pop()
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     const documentId = path.split('/').pop();
     const db = createDB(env.DB);
 
     try {
       await deleteDocument(env, db, documentId, user.sub);
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'file_deleted',
+        resource_type: 'file',
+        resource_id: documentId
+      });
+
       return json(req, { success: true });
     } catch (err) {
       console.error('Delete document failed:', err);
