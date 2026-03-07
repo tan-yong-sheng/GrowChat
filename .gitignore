@@ -1,11 +1,18 @@
 open-webui/
 .playwright/
 .playwright-cli/
-.claude/
-!.claude/skills
-!.claude/rules
-!.claude/memory
-!.claude/plans
+# Ignore all .claude/ contents by default
+.claude/*
+
+# Track these specific directories
+!.claude/skills/
+!.claude/skills/**
+!.claude/rules/
+!.claude/rules/**
+!.claude/memory/
+!.claude/memory/**
+!.claude/plans/
+!.claude/plans/**
 
 # Logs
 
