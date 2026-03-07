@@ -7,7 +7,7 @@
 
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { requireAdmin } from '../utils/admin.js';
+import { authorize, logAuditEvent } from '../utils/authorize.js';
 
 /**
  * Admin Router Handler
@@ -22,8 +22,13 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (!path.startsWith('/api/admin/')) return null;
 
   // All admin endpoints require authorization
-  if (!user || !requireAdmin(user)) {
-    return error(req, 'Forbidden', 403);
+  const authDecision = await authorize(env, user, {
+    action: 'admin.user.read',
+    resource: 'admin'
+  });
+
+  if (!authDecision.allow) {
+    return error(req, authDecision.reason || 'Forbidden', 403);
   }
 
   const db = createDB(env.DB);
@@ -46,6 +51,14 @@ export async function adminRouter(req, env, ctx, user, path) {
         db.first('SELECT COUNT(*) as count FROM documents WHERE user_id = ?', [user.sub]),
         db.first('SELECT COUNT(*) as count FROM chat_sessions'),
       ]);
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'stats_accessed',
+        resource_type: 'admin',
+        resource_id: 'stats'
+      });
 
       return json(req, {
         stats: {
@@ -166,6 +179,15 @@ export async function adminRouter(req, env, ctx, user, path) {
         return json(req, { queued: 0, message: 'No FAQs to reindex' });
       }
 
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'faq_reindex_started',
+        resource_type: 'faqs',
+        resource_id: null,
+        metadata: { faq_count: faqsToReindex.length }
+      });
+
       // Queue embedding regeneration
       ctx.waitUntil(
         (async () => {
@@ -188,6 +210,15 @@ export async function adminRouter(req, env, ctx, user, path) {
           }
 
           console.log(`FAQ reindexing complete: ${succeeded} succeeded, ${failed} failed`);
+
+          // Log completion
+          await logAuditEvent(env, {
+            actor_id: user.sub,
+            action: 'faq_reindex_completed',
+            resource_type: 'faqs',
+            resource_id: null,
+            metadata: { succeeded, failed }
+          });
         })()
       );
 
