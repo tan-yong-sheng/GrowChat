@@ -152,6 +152,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
           if (abortFn) {
             stopBtn.classList.remove('hidden');
             loadingSpinner.classList.add('hidden');
+            loadingSpinner.style.display = 'none';
           } else {
             stopBtn.classList.add('hidden');
             loadingSpinner.classList.remove('hidden');

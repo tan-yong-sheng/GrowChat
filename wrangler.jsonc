@@ -40,6 +40,14 @@
 			"preview_bucket_name": "growchat-files"
 		}
 	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "MESSAGE_QUEUE",
+				"class_name": "MessageQueueDO"
+			}
+		]
+	},
 	// KV namespaces
 	"kv_namespaces": [
 		{

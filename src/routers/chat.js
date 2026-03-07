@@ -2,6 +2,7 @@ import { createDB } from '../db.js';
 import { error, json, sseData, sseHeaders } from '../utils/response.js';
 import { SseLineParser, streamLLM } from '../llm.js';
 import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
+import { createRealtimeEvent, getOriginSessionId, publishRealtimeEvent } from '../realtime.js';
 
 const BUILTIN_DEFAULT_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
@@ -24,7 +25,24 @@ async function getOwnedChat(db, chatId, userId) {
   return db.first('SELECT * FROM chats WHERE id = ? AND user_id = ?', [chatId, userId]);
 }
 
-export async function chatRouter(req, env, _ctx, user, path) {
+function scheduleRealtimeEvent(ctx, env, event) {
+  const publishPromise = publishRealtimeEvent(env, event);
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(publishPromise.catch(() => false));
+    return;
+  }
+  publishPromise.catch(() => false);
+}
+
+async function publishRealtimeNow(env, event) {
+  try {
+    return await publishRealtimeEvent(env, event);
+  } catch {
+    return false;
+  }
+}
+
+export async function chatRouter(req, env, ctx, user, path) {
   const isChatPath = path === '/api/chats' || path === '/api/chats/shared' || path === '/api/chats/archived' || /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate))?)?|\/(?:share|archive))?$/.test(path);
   if (!isChatPath) return null;
 
@@ -32,6 +50,7 @@ export async function chatRouter(req, env, _ctx, user, path) {
   if (unauthorized) return unauthorized;
 
   const db = createDB(env.DB);
+  const originSessionId = getOriginSessionId(req);
 
   if (req.method === 'GET' && path === '/api/chats') {
     const url = new URL(req.url);
@@ -98,6 +117,13 @@ export async function chatRouter(req, env, _ctx, user, path) {
     );
 
     const chat = await db.first('SELECT * FROM chats WHERE id = ?', [id]);
+    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      type: 'chat.created',
+      userId: user.sub,
+      chatId: id,
+      originSessionId,
+      data: { model },
+    }));
     return json(req, { chat }, 201);
   }
 
@@ -157,6 +183,12 @@ export async function chatRouter(req, env, _ctx, user, path) {
       );
 
       const updated = await getOwnedChat(db, chatId, user.sub);
+      scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+        type: 'chat.updated',
+        userId: user.sub,
+        chatId,
+        originSessionId,
+      }));
       return json(req, { chat: updated });
     }
 
@@ -165,7 +197,21 @@ export async function chatRouter(req, env, _ctx, user, path) {
       if (!chat) return error(req, 'Chat not found', 404);
 
       await db.run('DELETE FROM chats WHERE id = ? AND user_id = ?', [chatId, user.sub]);
-      return json(req, { ok: true });
+      scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+        type: 'chat.deleted',
+        userId: user.sub,
+        chatId,
+        originSessionId,
+      }));
+      scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      type: 'chat.updated',
+      userId: user.sub,
+      chatId,
+      originSessionId,
+      data: { shared: false },
+    }));
+
+    return json(req, { ok: true });
     }
   }
 
@@ -184,6 +230,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
         [shareId, chatId, user.sub]
       );
     }
+
+    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      type: 'chat.updated',
+      userId: user.sub,
+      chatId,
+      originSessionId,
+      data: { shared: true },
+    }));
 
     return json(req, {
       share_id: shareId,
@@ -223,6 +277,13 @@ export async function chatRouter(req, env, _ctx, user, path) {
     );
 
     const updated = await getOwnedChat(db, chatId, user.sub);
+    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      type: 'chat.updated',
+      userId: user.sub,
+      chatId,
+      originSessionId,
+      data: { archived: newArchived === 1 },
+    }));
     return json(req, { chat: updated, archived: newArchived === 1 });
   }
 
@@ -250,6 +311,15 @@ export async function chatRouter(req, env, _ctx, user, path) {
       'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
       [userMsgId, chatId, 'user', content, model, parentId]
     );
+
+    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      type: 'message.created',
+      userId: user.sub,
+      chatId,
+      messageId: userMsgId,
+      originSessionId,
+      data: { role: 'user', model },
+    }));
 
     const history = await db.all(
       'SELECT role, content FROM messages WHERE chat_id = ? ORDER BY created_at ASC LIMIT 30',
@@ -299,6 +369,9 @@ export async function chatRouter(req, env, _ctx, user, path) {
       ];
     }
 
+    const assistantMsgId = crypto.randomUUID();
+
+
     let stream;
     try {
       stream = await streamLLM(env, model, enhancedHistory);
@@ -306,7 +379,7 @@ export async function chatRouter(req, env, _ctx, user, path) {
       const encoder = new TextEncoder();
       const body = new ReadableStream({
         start(controller) {
-          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId })));
+          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId })));
           controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: 'LLM setup failed' })));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
@@ -320,10 +393,11 @@ export async function chatRouter(req, env, _ctx, user, path) {
     const decoder = new TextDecoder();
     const parser = new SseLineParser();
     let fullText = '';
+    let deltaSeq = 0;
 
     const readable = new ReadableStream({
       async start(controller) {
-        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId })));
+        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId })));
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -333,6 +407,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
             if (delta) {
               fullText += delta;
               controller.enqueue(encoder.encode(sseData({ response: delta })));
+              await publishRealtimeNow(env, createRealtimeEvent({
+                type: 'message.delta',
+                userId: user.sub,
+                chatId,
+                messageId: assistantMsgId,
+                originSessionId,
+                data: { delta, model, seq: ++deltaSeq },
+              }));
             }
           }
 
@@ -340,10 +422,17 @@ export async function chatRouter(req, env, _ctx, user, path) {
           if (finalDelta) {
             fullText += finalDelta;
             controller.enqueue(encoder.encode(sseData({ response: finalDelta })));
+            await publishRealtimeNow(env, createRealtimeEvent({
+              type: 'message.delta',
+              userId: user.sub,
+              chatId,
+              messageId: assistantMsgId,
+              originSessionId,
+              data: { delta: finalDelta, model, seq: ++deltaSeq },
+            }));
           }
 
           if (fullText) {
-            const assistantMsgId = crypto.randomUUID();
             const citationsJson = JSON.stringify(citations);
             await db.run(
               'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
@@ -353,6 +442,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
               'UPDATE chats SET current_message_id = ? WHERE id = ? AND user_id = ?',
               [assistantMsgId, chatId, user.sub]
             );
+            await publishRealtimeNow(env, createRealtimeEvent({
+              type: 'message.completed',
+              userId: user.sub,
+              chatId,
+              messageId: assistantMsgId,
+              originSessionId,
+              data: { role: 'assistant', model, citations },
+            }));
           }
 
           await db.run('UPDATE chats SET model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?', [model, chatId, user.sub]);
@@ -470,6 +567,15 @@ export async function chatRouter(req, env, _ctx, user, path) {
         [newAssistantMsgId]
       );
 
+      scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+        type: 'message.completed',
+        userId: user.sub,
+        chatId,
+        messageId: newAssistantMsgId,
+        originSessionId,
+        data: { role: 'assistant', model: sourceMsg.model },
+      }));
+
       return json(req, { message: newMsg }, 200);
     }
 
@@ -482,7 +588,17 @@ export async function chatRouter(req, env, _ctx, user, path) {
       [newUserMsgId, chatId, 'user', content, model, sourceMsg.parent_id]
     );
 
+    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      type: 'message.created',
+      userId: user.sub,
+      chatId,
+      messageId: newUserMsgId,
+      originSessionId,
+      data: { role: 'user', model },
+    }));
+
     const history = await getBranchHistory(newUserMsgId);
+    const assistantMsgId = crypto.randomUUID();
 
     let stream;
     try {
@@ -491,7 +607,7 @@ export async function chatRouter(req, env, _ctx, user, path) {
       const encoder = new TextEncoder();
       const body = new ReadableStream({
         start(controller) {
-          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: newUserMsgId })));
+          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId })));
           controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: 'LLM setup failed' })));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
@@ -505,10 +621,11 @@ export async function chatRouter(req, env, _ctx, user, path) {
     const decoder = new TextDecoder();
     const parser = new SseLineParser();
     let fullText = '';
+    let deltaSeq = 0;
 
     const readable = new ReadableStream({
       async start(controller) {
-        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: newUserMsgId })));
+        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId })));
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -518,6 +635,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
             if (delta) {
               fullText += delta;
               controller.enqueue(encoder.encode(sseData({ response: delta })));
+              await publishRealtimeNow(env, createRealtimeEvent({
+                type: 'message.delta',
+                userId: user.sub,
+                chatId,
+                messageId: assistantMsgId,
+                originSessionId,
+                data: { delta, model, seq: ++deltaSeq },
+              }));
             }
           }
 
@@ -525,10 +650,17 @@ export async function chatRouter(req, env, _ctx, user, path) {
           if (finalDelta) {
             fullText += finalDelta;
             controller.enqueue(encoder.encode(sseData({ response: finalDelta })));
+            await publishRealtimeNow(env, createRealtimeEvent({
+              type: 'message.delta',
+              userId: user.sub,
+              chatId,
+              messageId: assistantMsgId,
+              originSessionId,
+              data: { delta: finalDelta, model, seq: ++deltaSeq },
+            }));
           }
 
           if (fullText) {
-            const assistantMsgId = crypto.randomUUID();
             await db.batch([
               db.prepare(
                 'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
@@ -539,6 +671,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
                 [assistantMsgId, model, chatId, user.sub]
               ),
             ]);
+            await publishRealtimeNow(env, createRealtimeEvent({
+              type: 'message.completed',
+              userId: user.sub,
+              chatId,
+              messageId: assistantMsgId,
+              originSessionId,
+              data: { role: 'assistant', model },
+            }));
           }
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
@@ -600,6 +740,7 @@ export async function chatRouter(req, env, _ctx, user, path) {
     const decoder = new TextDecoder();
     const parser = new SseLineParser();
     let fullText = '';
+    let deltaSeq = 0;
 
     const readable = new ReadableStream({
       async start(controller) {
@@ -613,6 +754,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
             if (delta) {
               fullText += delta;
               controller.enqueue(encoder.encode(sseData({ response: delta })));
+              await publishRealtimeNow(env, createRealtimeEvent({
+                type: 'message.delta',
+                userId: user.sub,
+                chatId,
+                messageId: newAssistantMsgId,
+                originSessionId,
+                data: { delta, model, seq: ++deltaSeq },
+              }));
             }
           }
 
@@ -620,6 +769,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
           if (finalDelta) {
             fullText += finalDelta;
             controller.enqueue(encoder.encode(sseData({ response: finalDelta })));
+            await publishRealtimeNow(env, createRealtimeEvent({
+              type: 'message.delta',
+              userId: user.sub,
+              chatId,
+              messageId: newAssistantMsgId,
+              originSessionId,
+              data: { delta: finalDelta, model, seq: ++deltaSeq },
+            }));
           }
 
           if (fullText) {
@@ -631,6 +788,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
               'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
               [newAssistantMsgId, chatId, user.sub]
             );
+            await publishRealtimeNow(env, createRealtimeEvent({
+              type: 'message.completed',
+              userId: user.sub,
+              chatId,
+              messageId: newAssistantMsgId,
+              originSessionId,
+              data: { role: 'assistant', model },
+            }));
           }
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
@@ -691,6 +856,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
       [msgId, chatId]
     );
 
+    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      type: 'chat.updated',
+      userId: user.sub,
+      chatId,
+      originSessionId,
+      data: { message_id: msgId },
+    }));
+
     return json(req, { message: updatedMessage }, 200);
   }
 
@@ -735,6 +908,14 @@ export async function chatRouter(req, env, _ctx, user, path) {
         [chatId, user.sub]
       );
     }
+
+    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      type: 'chat.updated',
+      userId: user.sub,
+      chatId,
+      originSessionId,
+      data: { deleted_message_id: msgId },
+    }));
 
     return json(req, { ok: true, deleted: msgId });
   }

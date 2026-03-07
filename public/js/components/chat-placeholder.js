@@ -17,15 +17,32 @@ export function renderPlaceholder(container, options = {}) {
   ];
 
   let unsubscribe;
+  let lastQuery = null;
+  let lastModelId = null;
 
   function render(currentState) {
-    if (currentState.activeChatId) {
-      container.innerHTML = '';
+    const hasMessages = currentState.activeChatId && (currentState.messagesByChat[currentState.activeChatId] || []).length > 0;
+    if (hasMessages) {
+      if (container.innerHTML !== '') {
+        container.innerHTML = '';
+        lastQuery = null;
+        lastModelId = null;
+      }
       return;
     }
 
-    const query = (currentState.newChatDraft || '').toLowerCase().trim();
+    const draftKey = currentState.activeChatId ? currentState.activeChatId : 'newChatDraft';
+    const query = (currentState.activeChatId ? (currentState.drafts?.[currentState.activeChatId] || '') : (currentState.newChatDraft || '')).toLowerCase().trim();
     const model = currentState.models.find((m) => m.id === currentState.activeModelId) || opts.model || null;
+    const currentModelId = model?.id || null;
+
+    if (query === lastQuery && currentModelId === lastModelId && container.querySelector('#welcome-screen')) {
+      return; // No need to re-render
+    }
+
+    lastQuery = query;
+    lastModelId = currentModelId;
+
     const modelName = model?.name || 'GrowChat';
     const modelDesc = model?.info?.description || 'The smarter way to chat.';
     const displayed = (query
@@ -33,35 +50,53 @@ export function renderPlaceholder(container, options = {}) {
       : allSuggestions
     ).slice(0, 4);
 
-    container.innerHTML = `
-      <div id="welcome-screen" class="flex flex-col items-center justify-center py-12 text-center h-full mt-[5vh] transition-all duration-500 ease-out">
-         <div class="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-8 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100 ring-4 ring-gray-50/50 overflow-hidden">
-            <img src="/logo.png" alt="GrowChat" class="w-10 h-10 object-contain" />
-         </div>
+    let welcomeScreen = container.querySelector('#welcome-screen');
+    if (!welcomeScreen) {
+      container.innerHTML = `
+        <div id="welcome-screen" class="flex flex-col items-center justify-center text-center min-h-[65vh] px-6">
+           <div class="w-full max-w-[720px] flex flex-col items-center">
+             <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center mb-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden group">
+                <img src="/logo.png" alt="GrowChat" class="w-8 h-8 object-contain" />
+             </div>
 
-         <div class="mb-12">
-           <h1 class="text-3xl font-medium mb-2 text-gray-800 tracking-tight">How can I help you today?</h1>
-           <p class="text-gray-500 text-sm font-medium">Using <span class="text-gray-800">${modelName}</span> &middot; ${modelDesc}</p>
-         </div>
+             <div class="mb-10">
+               <h1 class="text-5xl font-semibold mb-3 text-gray-900 tracking-tight font-primary max-w-[600px]">How can I help you today?</h1>
+               <div class="flex items-center justify-center gap-2 text-gray-500 text-sm font-medium">
+                  <span id="welcome-model-name" class="px-2 py-0.5 rounded-lg bg-gray-100 text-gray-700">${modelName}</span>
+                  <span>&middot;</span>
+                  <span id="welcome-model-desc">${modelDesc}</span>
+               </div>
+             </div>
 
-         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-[640px] px-4">
-            ${displayed.length > 0 ? displayed.map((s) => `
-              <button class="suggestion-btn group p-4 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-2xl text-sm text-left transition-all duration-200 active:scale-[0.98] shadow-sm hover:shadow-md">
-                 <div class="font-medium text-gray-800 group-hover:text-black transition-colors">${s.title}</div>
-                 <div class="text-gray-500 mt-0.5 transition-colors group-hover:text-gray-600">${s.subtitle}</div>
-              </button>
-            `).join('') : `
-              <div class="col-span-full py-8 text-gray-400 text-sm italic">No suggestions matching "${query}"</div>
-            `}
-         </div>
-      </div>
-    `;
-    container.querySelectorAll('.suggestion-btn').forEach((btn) => {
-      btn.onclick = () => {
-        const text = btn.querySelector('div:first-child')?.textContent || '';
-        if (onSuggestionClick) onSuggestionClick(text);
-      };
-    });
+             <div id="welcome-suggestions-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+             </div>
+           </div>
+        </div>
+      `;
+      welcomeScreen = container.querySelector('#welcome-screen');
+    } else {
+      const nameEl = container.querySelector('#welcome-model-name');
+      const descEl = container.querySelector('#welcome-model-desc');
+      if (nameEl && nameEl.textContent !== modelName) nameEl.textContent = modelName;
+      if (descEl && descEl.textContent !== modelDesc) descEl.textContent = modelDesc;
+    }
+
+    const grid = container.querySelector('#welcome-suggestions-grid');
+    if (grid) {
+      grid.innerHTML = displayed.length > 0 ? displayed.map((s) => `
+        <button class="suggestion-btn group p-5 border border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 rounded-2xl text-left transition-all duration-200 active:scale-[0.98] shadow-sm hover:shadow-md bg-white">
+           <div class="font-semibold text-[15px] text-gray-800 group-hover:text-black transition-colors mb-1">${s.title}</div>
+           <div class="text-gray-500 text-sm transition-colors group-hover:text-gray-600 line-clamp-2">${s.subtitle}</div>
+        </button>
+      `).join('') : '';
+      
+      grid.querySelectorAll('.suggestion-btn').forEach((btn) => {
+        btn.onclick = () => {
+          const text = btn.querySelector('div:first-child')?.textContent || '';
+          if (onSuggestionClick) onSuggestionClick(text);
+        };
+      });
+    }
   }
 
   unsubscribe = subscribe((currentState) => {

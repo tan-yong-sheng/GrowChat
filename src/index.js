@@ -11,6 +11,7 @@ import { promptsRouter } from './routers/prompts.js';
 import { publicRouter } from './routers/public.js';
 import { realtimeRouter } from './routers/realtime.js';
 import { error, preflight } from './utils/response.js';
+import { MessageQueueDO } from './durable/message-queue.js';
 
 const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter, realtimeRouter];
 let schemaCompatibilityReady = null;
@@ -121,6 +122,10 @@ function validateRouteBindings(req, env, path) {
       || requireBinding(req, env, 'VECTORIZE', env.VECTORIZE);
   }
 
+  if (path === '/api/realtime/stream') {
+    return requireBinding(req, env, 'MESSAGE_QUEUE', env.MESSAGE_QUEUE);
+  }
+
   return null;
 }
 
@@ -202,3 +207,5 @@ export default {
     return env.ASSETS.fetch(req);
   },
 };
+
+export { MessageQueueDO };

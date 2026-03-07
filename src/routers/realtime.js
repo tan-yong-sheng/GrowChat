@@ -1,10 +1,6 @@
-import { sseHeaders } from '../utils/response.js';
+import { connectRealtimeStream } from '../realtime.js';
 
-/**
- * Realtime placeholder endpoint
- * Supports both GET and POST to be tolerant with different frontend builds.
- */
-export async function realtimeRouter(req, _env, _ctx, user, path) {
+export async function realtimeRouter(req, env, _ctx, user, path) {
   if (path !== '/api/realtime/stream') return null;
 
   if (!user) {
@@ -15,13 +11,5 @@ export async function realtimeRouter(req, _env, _ctx, user, path) {
     return new Response('Method not allowed', { status: 405 });
   }
 
-  const encoder = new TextEncoder();
-  const readable = new ReadableStream({
-    start(controller) {
-      controller.enqueue(encoder.encode(':\n\n'));
-      controller.close();
-    },
-  });
-
-  return new Response(readable, { headers: sseHeaders(req) });
+  return connectRealtimeStream(req, env, user.sub);
 }

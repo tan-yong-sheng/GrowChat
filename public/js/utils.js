@@ -90,3 +90,15 @@ export function formatBytes(bytes) {
   const num = value / Math.pow(1024, exp);
   return `${num >= 10 ? num.toFixed(0) : num.toFixed(1)} ${units[exp]}`;
 }
+
+export function showToast(message, duration = 3000) {
+  const toast = document.createElement('div');
+  toast.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.remove('opacity-0'));
+  setTimeout(() => {
+    toast.classList.add('opacity-0');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}

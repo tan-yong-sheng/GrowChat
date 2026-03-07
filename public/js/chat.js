@@ -9,7 +9,7 @@ import {
   toggleArchiveChat,
   unshareChat,
 } from './api.js';
-import { escapeHtml, renderMessageContent, SseLineParser } from './utils.js';
+import { escapeHtml, renderMessageContent, SseLineParser, showToast } from './utils.js';
 import { state, setState, subscribe } from './store.js';
 import { renderSearchModal } from './components/search-modal.js';
 import { renderPlaceholder } from './components/chat-placeholder.js';
@@ -243,18 +243,6 @@ export function renderChat(container) {
 }
 
 function wireChat(root) {
-  const showToast = (message, duration = 3000) => {
-    const toast = document.createElement('div');
-    toast.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => toast.classList.remove('opacity-0'));
-    setTimeout(() => {
-      toast.classList.add('opacity-0');
-      setTimeout(() => toast.remove(), 300);
-    }, duration);
-  };
-
   const scrollToMessage = (msgId) => {
     const el = messagesList.querySelector(`[data-message-id="${msgId}"]`);
     if (el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
@@ -435,7 +423,6 @@ function wireChat(root) {
       model: getActiveModel(),
       onSuggestionClick: (text) => {
         inputComponent.setValue(text);
-        inputComponent.submit();
       },
     });
   }
@@ -1263,14 +1250,24 @@ function wireChat(root) {
       }
     }
 
+    const isSameSession = !!event.origin_session_id && event.origin_session_id === clientSessionId;
+
     if (type.startsWith('chat.')) {
+      const previousActiveChatId = state.activeChatId;
       await loadChats();
-      if (state.activeChatId && event.chat_id === state.activeChatId) {
+      if (isSameSession && activeStreamAbort && event.chat_id === previousActiveChatId) {
+        return;
+      }
+      if (state.activeChatId && (event.chat_id === state.activeChatId || state.activeChatId !== previousActiveChatId)) {
         await loadMessages(state.activeChatId);
       }
       if (!state.activeChatId) {
         drawMessages([]);
       }
+      return;
+    }
+
+    if ((type === 'message.created' || type === 'message.delta' || type === 'message.completed') && isSameSession && activeStreamAbort) {
       return;
     }
 
