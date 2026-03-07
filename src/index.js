@@ -24,6 +24,14 @@ export class MessageQueueDO {
   }
 }
 
+export class RealtimeHubDO {
+  constructor(_state, _env) {}
+
+  async fetch() {
+    return new Response('RealtimeHubDO is temporarily disabled', { status: 410 });
+  }
+}
+
 /**
  * Public routes that don't require authentication.
  *
