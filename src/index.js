@@ -94,6 +94,22 @@ function isDuplicateColumnError(err) {
   return /duplicate column name|already exists/i.test(message);
 }
 
+async function hasColumn(env, tableName, columnName) {
+  const info = await env.DB.prepare(`PRAGMA table_info(${tableName})`).all();
+  const columns = info?.results || [];
+  return columns.some((col) => col?.name === columnName);
+}
+
+async function ensureColumn(env, tableName, columnName, ddlType) {
+  const exists = await hasColumn(env, tableName, columnName);
+  if (exists) return;
+  try {
+    await env.DB.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${ddlType}`).run();
+  } catch (err) {
+    if (!isDuplicateColumnError(err)) throw err;
+  }
+}
+
 function requireBinding(req, env, name, value) {
   if (value) return null;
   return error(req, `${name} binding missing`, 500);
@@ -131,17 +147,10 @@ async function ensureSchemaCompatibility(env) {
     // messages.citations yet. Fresh installs already include it.
     // Never hard-fail auth/non-chat routes on this compatibility check.
     try {
-      const info = await env.DB.prepare('PRAGMA table_info(messages)').all();
-      const columns = info?.results || [];
-
-      // If messages table does not exist yet, skip here and let specific routes
-      // surface their own table errors.
-      if (!columns.length) return;
-
-      const hasCitations = columns.some((col) => col?.name === 'citations');
-      if (hasCitations) return;
-
-      await env.DB.prepare('ALTER TABLE messages ADD COLUMN citations TEXT').run();
+      await ensureColumn(env, 'messages', 'citations', 'TEXT');
+      await ensureColumn(env, 'messages', 'parent_id', 'TEXT');
+      await ensureColumn(env, 'chats', 'current_message_id', 'TEXT');
+      await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_messages_parent_id ON messages(parent_id)').run();
     } catch (err) {
       if (!isDuplicateColumnError(err)) {
         console.warn('Schema compatibility check skipped:', String(err?.message || err));
