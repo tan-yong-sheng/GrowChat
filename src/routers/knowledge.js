@@ -15,6 +15,7 @@
 
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
+import { authorize, logAuditEvent } from '../utils/authorize.js';
 
 function requireAuth(req, user) {
   if (!user) return error(req, 'Unauthorized', 401);
@@ -61,6 +62,16 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
 
   // POST /api/knowledge - Create knowledge base
   if (req.method === 'POST' && path === '/api/knowledge') {
+    // Check authorization for KB creation
+    const authDecision = await authorize(env, user, {
+      action: 'kb.write',
+      resource: 'knowledge_base'
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     let body = {};
     try {
       body = await req.json();
@@ -83,6 +94,15 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
          VALUES (?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
         [kbId, user.sub, name, description, isPublic]
       );
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'knowledge_base_created',
+        resource_type: 'knowledge_base',
+        resource_id: kbId,
+        metadata: { name, is_public: isPublic }
+      });
 
       const kb = await getOwnedKB(db, kbId, user.sub);
       return json(req, { knowledge_base: kb }, 201);
@@ -118,6 +138,17 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
       return error(req, 'Invalid JSON', 400);
     }
 
+    // Check authorization for KB updates
+    const authDecision = await authorize(env, user, {
+      action: 'kb.write',
+      resource: 'knowledge_base',
+      resourceId: kbId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     try {
       const kb = await getOwnedKB(db, kbId, user.sub);
       if (!kb) return error(req, 'Knowledge base not found', 404);
@@ -136,6 +167,15 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
         [name, description, isPublic, kbId, user.sub]
       );
 
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'knowledge_base_updated',
+        resource_type: 'knowledge_base',
+        resource_id: kbId,
+        metadata: { name, is_public: isPublic }
+      });
+
       const updated = await getOwnedKB(db, kbId, user.sub);
       return json(req, { knowledge_base: updated });
     } catch (err) {
@@ -148,11 +188,33 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
   const delMatch = path.match(/^\/api\/knowledge\/([^/]+)$/);
   if (delMatch && req.method === 'DELETE') {
     const kbId = delMatch[1];
+
+    // Check authorization for KB deletion
+    const authDecision = await authorize(env, user, {
+      action: 'kb.delete',
+      resource: 'knowledge_base',
+      resourceId: kbId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     try {
       const kb = await getOwnedKB(db, kbId, user.sub);
       if (!kb) return error(req, 'Knowledge base not found', 404);
 
       await db.run('DELETE FROM knowledge_bases WHERE id = ? AND user_id = ?', [kbId, user.sub]);
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'knowledge_base_deleted',
+        resource_type: 'knowledge_base',
+        resource_id: kbId,
+        metadata: { name: kb.name }
+      });
+
       return json(req, { ok: true });
     } catch (err) {
       console.error('Delete KB failed:', err);
@@ -196,6 +258,18 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
   const batchAddMatch = path.match(/^\/api\/knowledge\/([^/]+)\/files\/batch\/add$/);
   if (batchAddMatch && req.method === 'POST') {
     const kbId = batchAddMatch[1];
+
+    // Check authorization for adding files to KB
+    const authDecision = await authorize(env, user, {
+      action: 'kb.write',
+      resource: 'knowledge_base',
+      resourceId: kbId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     let body = {};
     try {
       body = await req.json();
@@ -243,6 +317,15 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
         [kbId]
       );
 
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'knowledge_base_files_added',
+        resource_type: 'knowledge_base',
+        resource_id: kbId,
+        metadata: { added_count: addedIds.length, file_count: addedIds.length }
+      });
+
       return json(req, { added_count: addedIds.length, added_ids: addedIds });
     } catch (err) {
       console.error('Batch add files failed:', err);
@@ -254,6 +337,17 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
   const fileDelMatch = path.match(/^\/api\/knowledge\/([^/]+)\/files\/([^/]+)$/);
   if (fileDelMatch && req.method === 'DELETE') {
     const [, kbId, fileId] = fileDelMatch;
+
+    // Check authorization for removing files from KB
+    const authDecision = await authorize(env, user, {
+      action: 'kb.write',
+      resource: 'knowledge_base',
+      resourceId: kbId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
 
     try {
       const kb = await getOwnedKB(db, kbId, user.sub);
@@ -267,6 +361,15 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
       if (result.success && result.meta?.changes === 0) {
         return error(req, 'File not in knowledge base', 404);
       }
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'knowledge_base_file_removed',
+        resource_type: 'knowledge_base',
+        resource_id: kbId,
+        metadata: { file_id: fileId }
+      });
 
       return json(req, { ok: true });
     } catch (err) {

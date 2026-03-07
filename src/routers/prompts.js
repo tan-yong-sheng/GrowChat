@@ -14,14 +14,10 @@
 
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
+import { authorize, logAuditEvent } from '../utils/authorize.js';
 
 function requireAuth(req, user) {
   if (!user) return error(req, 'Unauthorized', 401);
-  return null;
-}
-
-function requireAdmin(req, user) {
-  if (!user || user.role !== 'admin') return error(req, 'Forbidden', 403);
   return null;
 }
 
@@ -106,6 +102,15 @@ export async function promptsRouter(req, env, _ctx, user, path) {
          VALUES (?, ?, ?, ?, ?, ?, 0, 1, unixepoch(), unixepoch())`,
         [promptId, user.sub, title, content, command || null, category]
       );
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'prompt_created',
+        resource_type: 'prompt',
+        resource_id: promptId,
+        metadata: { title, category, has_command: !!command }
+      });
 
       const prompt = await db.first('SELECT * FROM prompts WHERE id = ?', [promptId]);
       return json(req, { prompt }, 201);
