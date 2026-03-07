@@ -86,8 +86,15 @@ export async function chatRouter(req, env, ctx, user, path) {
     if (qRaw) {
       const like = `%${qRaw}%`;
       chats = await db.all(
-        'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? AND title LIKE ? AND archived = 0 ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?',
-        [user.sub, like, limit, offset]
+        `SELECT DISTINCT c.id, c.title, c.model, c.pinned, c.tags, c.created_at, c.updated_at
+         FROM chats c
+         LEFT JOIN messages m ON c.id = m.chat_id
+         WHERE c.user_id = ?
+         AND c.archived = 0
+         AND (c.title LIKE ? OR m.content LIKE ?)
+         ORDER BY c.updated_at DESC, c.created_at DESC
+         LIMIT ? OFFSET ?`,
+        [user.sub, like, like, limit, offset]
       );
     } else {
       chats = await db.all(
