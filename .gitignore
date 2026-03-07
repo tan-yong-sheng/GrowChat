@@ -1,4 +1,5 @@
 open-webui/
+open-terminal/
 .playwright/
 .playwright-cli/
 # Ignore all .claude/ contents by default
