@@ -925,7 +925,10 @@ function wireChat(root) {
               const newEditing = { ...state.ui.editingMessages };
               delete newEditing[id];
               setState({ ui: { ...state.ui, editingMessages: newEditing } });
-              await loadMessages(chatId);
+              await loadMessages(chatId, {
+                draw: state.activeChatId === chatId,
+                updateActiveModel: state.activeChatId === chatId,
+              });
             } else {
               const err = await res.json().catch(() => ({}));
               alert(err.error || err.message || 'Failed to update message');
@@ -972,7 +975,7 @@ function wireChat(root) {
 
         currentLeafByChatId.set(chatId, tempAssistantId);
         setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-        drawMessages(localMessages);
+        if (state.activeChatId === chatId) drawMessages(localMessages);
 
         const controller = new AbortController();
         activeStreamAbort = () => controller.abort();
@@ -1009,7 +1012,7 @@ function wireChat(root) {
                 messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
               }));
             }
-            drawMessages(currentMessages);
+            if (state.activeChatId === chatId) drawMessages(currentMessages);
           };
 
           while (true) {
@@ -1018,7 +1021,10 @@ function wireChat(root) {
               assistantText += parser.flush();
               applyAssistantText();
               streamingOverrideByChat.delete(chatId);
-              await loadMessages(chatId);
+              await loadMessages(chatId, {
+                draw: state.activeChatId === chatId,
+                updateActiveModel: state.activeChatId === chatId,
+              });
               break;
             }
             const chunk = decoder.decode(value, { stream: true });
@@ -1092,7 +1098,7 @@ function wireChat(root) {
 
         currentLeafByChatId.set(chatId, tempAssistantId);
         setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-        drawMessages(localMessages);
+        if (state.activeChatId === chatId) drawMessages(localMessages);
 
         const controller = new AbortController();
         activeStreamAbort = () => controller.abort();
@@ -1128,7 +1134,7 @@ function wireChat(root) {
                 messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
               }));
             }
-            drawMessages(currentMessages);
+            if (state.activeChatId === chatId) drawMessages(currentMessages);
           };
 
           while (true) {
@@ -1137,7 +1143,10 @@ function wireChat(root) {
               assistantText += parser.flush();
               applyAssistantText();
               streamingOverrideByChat.delete(chatId);
-              await loadMessages(chatId);
+              await loadMessages(chatId, {
+                draw: state.activeChatId === chatId,
+                updateActiveModel: state.activeChatId === chatId,
+              });
               break;
             }
             const chunk = decoder.decode(value, { stream: true });
@@ -1201,9 +1210,10 @@ function wireChat(root) {
     setState({ chats, activeChatId: nextActiveChatId });
   }
 
-  async function loadMessages(chatId) {
+  async function loadMessages(chatId, options = {}) {
+    const { draw = true, updateActiveModel = draw } = options;
     if (!chatId) {
-      drawMessages([]);
+      if (draw) drawMessages([]);
       return;
     }
 
@@ -1213,19 +1223,20 @@ function wireChat(root) {
 
     const messages = (data.messages || []).map(m => ({ ...m, done: true }));
 
-    // Initialize the current leaf to the chat's active message or the last message in the list
     const lastMsgId = data.chat?.current_message_id || (messages.length > 0 ? messages[messages.length - 1].id : null);
     if (lastMsgId) {
       currentLeafByChatId.set(chatId, String(lastMsgId));
     }
 
-    const newMessages = { ...state.messagesByChat, [chatId]: messages };
-    setState({
-      messagesByChat: newMessages,
-      activeModelId: data?.chat?.model || state.activeModelId,
-    });
+    const nextState = {
+      messagesByChat: { ...state.messagesByChat, [chatId]: messages },
+    };
+    if (updateActiveModel) {
+      nextState.activeModelId = data?.chat?.model || state.activeModelId;
+    }
+    setState(nextState);
 
-    drawMessages(messages);
+    if (draw) drawMessages(messages);
   }
 
   const onRealtimeEvent = async (evt) => {
@@ -1388,7 +1399,7 @@ function wireChat(root) {
     currentLeafByChatId.set(chatId, tempAssistantId);
 
     setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-    drawMessages(localMessages);
+    if (state.activeChatId === chatId) drawMessages(localMessages);
 
     const controller = new AbortController();
     activeStreamAbort = () => controller.abort();
@@ -1407,7 +1418,7 @@ function wireChat(root) {
         localMessages[localMessages.length - 1].done = true;
         localMessages[localMessages.length - 1].content = isAbort ? 'Stopped.' : 'Failed to connect to the server.';
         setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-        drawMessages(localMessages);
+        if (state.activeChatId === chatId) drawMessages(localMessages);
       }
       return;
     }
@@ -1417,7 +1428,7 @@ function wireChat(root) {
         localMessages[localMessages.length - 1].done = true;
         localMessages[localMessages.length - 1].content = 'Failed to connect to the server.';
         setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-        drawMessages(localMessages);
+        if (state.activeChatId === chatId) drawMessages(localMessages);
       }
       return;
     }
@@ -1445,7 +1456,7 @@ function wireChat(root) {
         }));
       }
 
-      drawMessages(currentMessages);
+      if (state.activeChatId === chatId) drawMessages(currentMessages);
     };
 
     try {
@@ -1455,7 +1466,10 @@ function wireChat(root) {
           assistantText += parser.flush();
           applyAssistantText();
           streamingOverrideByChat.delete(chatId);
-          await loadMessages(chatId);
+          await loadMessages(chatId, {
+            draw: state.activeChatId === chatId,
+            updateActiveModel: state.activeChatId === chatId,
+          });
           break;
         }
         const chunk = decoder.decode(value, { stream: true });

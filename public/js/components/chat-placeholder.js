@@ -55,12 +55,12 @@ export function renderPlaceholder(container, options = {}) {
       container.innerHTML = `
         <div id="welcome-screen" class="flex flex-col items-center justify-center text-center min-h-[65vh] px-6">
            <div class="w-full max-w-[720px] flex flex-col items-center">
-             <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center mb-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden group">
-                <img src="/logo.png" alt="GrowChat" class="w-8 h-8 object-contain" />
+             <div class="w-14 h-14 rounded-xl bg-white flex items-center justify-center mb-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden group">
+                <img src="/logo.png" alt="GrowChat" class="w-9 h-9 object-contain" />
              </div>
 
              <div class="mb-10">
-               <h1 class="text-5xl font-semibold mb-3 text-gray-900 tracking-tight font-primary max-w-[600px]">How can I help you today?</h1>
+               <h1 class="text-4xl font-semibold mb-3 text-gray-900 tracking-tight font-primary max-w-[600px]">How can I help you today?</h1>
                <div class="flex items-center justify-center gap-2 text-gray-500 text-sm font-medium">
                   <span id="welcome-model-name" class="px-2 py-0.5 rounded-lg bg-gray-100 text-gray-700">${modelName}</span>
                   <span>&middot;</span>
