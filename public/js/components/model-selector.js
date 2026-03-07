@@ -22,6 +22,12 @@ export function renderModelSelector(container) {
             </div>
             <div id="model-list-container" class="max-h-80 overflow-y-auto no-scrollbar space-y-0.5">
             </div>
+            <div id="default-model-container" class="border-t border-gray-50 mt-1 pt-1">
+               <button id="set-default-btn" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-50 transition flex items-center gap-2 text-xs text-gray-500 font-medium">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  Set as default
+               </button>
+            </div>
          </div>
       </div>
     `;
@@ -37,6 +43,7 @@ export function renderModelSelector(container) {
     const nameSpan = container.querySelector('#active-model-name');
     const searchInput = container.querySelector('#model-search-input');
     const listContainer = container.querySelector('#model-list-container');
+    const setDefaultBtn = container.querySelector('#set-default-btn');
     let isOpen = false;
     let searchQuery = '';
 
@@ -53,6 +60,36 @@ export function renderModelSelector(container) {
       } else {
         dropdown.classList.add('hidden');
         chevron.classList.remove('rotate-180');
+      }
+    };
+
+    setDefaultBtn.onclick = async (e) => {
+      e.stopPropagation();
+      if (state.activeModelId) {
+        const modelId = state.activeModelId;
+        const currentPreferences = state.user?.preferences || {};
+        const newPreferences = { ...currentPreferences, defaultModelId: modelId };
+        
+        try {
+          const { apiFetch } = await import('../api.js');
+          const res = await apiFetch('/api/users/me', {
+            method: 'PUT',
+            body: JSON.stringify({ preferences: newPreferences })
+          });
+          
+          if (res.ok) {
+            setState({ defaultModelId: modelId });
+            toggle();
+          } else {
+            console.error('Failed to save default model');
+            setState({ defaultModelId: modelId }); // Fallback to local only
+            toggle();
+          }
+        } catch (err) {
+          console.error('Error saving default model:', err);
+          setState({ defaultModelId: modelId });
+          toggle();
+        }
       }
     };
 
@@ -110,6 +147,22 @@ export function renderModelSelector(container) {
           nameSpan.textContent = activeModel.name || activeModel.id;
        } else {
           nameSpan.textContent = currentState.activeModelId || 'Select a Model';
+       }
+
+       if (currentState.defaultModelId === currentState.activeModelId) {
+          setDefaultBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M20 6 9 17l-5-5"/></svg>
+            Default Model
+          `;
+          setDefaultBtn.classList.add('bg-green-50');
+          setDefaultBtn.classList.add('text-green-700');
+       } else {
+          setDefaultBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Set as default
+          `;
+          setDefaultBtn.classList.remove('bg-green-50');
+          setDefaultBtn.classList.remove('text-green-700');
        }
        
        if (isOpen) {

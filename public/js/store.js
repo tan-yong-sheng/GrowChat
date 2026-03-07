@@ -5,6 +5,7 @@ export const state = {
   messagesByChat: {},
   models: [],
   activeModelId: null,
+  defaultModelId: localStorage.getItem('defaultModelId'),
   
   // UI Layout
   showSidebar: window.innerWidth >= 768,
@@ -79,6 +80,7 @@ export function setState(updater) {
     if (changes.sidebarWidth) localStorage.setItem('sidebarWidth', state.sidebarWidth);
     if (changes.sidebarCollapsed !== undefined) localStorage.setItem('sidebarCollapsed', state.sidebarCollapsed);
     if (changes.drafts) localStorage.setItem('drafts', JSON.stringify(state.drafts));
+    if (changes.defaultModelId) localStorage.setItem('defaultModelId', state.defaultModelId);
     
     notifyListeners();
   }

@@ -9,16 +9,47 @@ open-terminal/
 .gemini/*
 
 # But track these specific directories - negate dirs FIRST, then contents
+!.agents/skills/
+!.agents/rules/
+!.agents/memory/
+!.agents/plans/
+
 !.claude/skills/
 !.claude/rules/
 !.claude/memory/
 !.claude/plans/
 
+!.codex/skills/
+!.codex/rules/
+!.codex/memory/
+!.codex/plans/
+
+!.gemini/skills/
+!.gemini/rules/
+!.gemini/memory/
+!.gemini/plans/
+
+
 # Now allow all files within those directories
+!.agents/skills/**
+!.agents/rules/**
+!.agents/memory/**
+!.agents/plans/**
+
 !.claude/skills/**
 !.claude/rules/**
 !.claude/memory/**
 !.claude/plans/**
+
+!.codex/skills/**
+!.codex/rules/**
+!.codex/memory/**
+!.codex/plans/**
+
+!.gemini/skills/**
+!.gemini/rules/**
+!.gemini/memory/**
+!.gemini/plans/**
 
 # Logs
 

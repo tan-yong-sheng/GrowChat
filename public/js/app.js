@@ -57,6 +57,8 @@ async function bootstrap() {
     window.location.href = '/auth.html';
     return;
   }
+  const meData = await meRes.json();
+  const user = meData.user || {};
 
   startRealtimeSync({
     onEvent: (event) => {
@@ -90,18 +92,22 @@ async function bootstrap() {
   const shouldSubmit = urlParams.get('submit') === 'true';
   const modelParam = urlParams.get('model');
 
-  const defaultModelId = modelParam || 
+  const initialModelId = modelParam || 
+                         user.preferences?.defaultModelId ||
+                         localStorage.getItem('defaultModelId') ||
                          chatsData.chats?.[0]?.model || 
                          modelsData.models?.[0]?.id || 
                          null;
   
   // Initialize global state
   setState({
+    user,
     chats: chatsData.chats || [],
     activeChatId: chatsData.chats?.[0]?.id || null,
     messagesByChat: {},
     models: modelsData.models || [],
-    activeModelId: defaultModelId,
+    activeModelId: initialModelId,
+    defaultModelId: user.preferences?.defaultModelId || localStorage.getItem('defaultModelId'),
   });
 
   renderChat(document.getElementById('app'));

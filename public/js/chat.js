@@ -9,7 +9,7 @@ import {
   toggleArchiveChat,
   unshareChat,
 } from './api.js';
-import { escapeHtml, renderMessageContent } from './utils.js';
+import { escapeHtml, renderMessageContent, SseLineParser } from './utils.js';
 import { state, setState, subscribe } from './store.js';
 import { renderSearchModal } from './components/search-modal.js';
 import { renderPlaceholder } from './components/chat-placeholder.js';
@@ -38,6 +38,84 @@ function normalizeCitations(raw) {
     }
   }
   return [];
+}
+
+function safeTime(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function projectConversation(messages, preferredLeafId, branchSelectionMap) {
+  const all = Array.isArray(messages) ? messages.map((m) => ({ ...m })) : [];
+  if (all.length === 0) return { visible: [], roundsByMessageId: new Map() };
+
+  all.sort((a, b) => safeTime(a.created_at) - safeTime(b.created_at));
+
+  // Legacy compatibility: only backfill parent links when the entire chat
+  // has no parent_id data (old linear schema). Do not rewrite valid branch roots.
+  const hasAnyParent = all.some((m) => Boolean(m.parent_id));
+  if (!hasAnyParent) {
+    for (let i = 1; i < all.length; i += 1) {
+      all[i].parent_id = all[i - 1].id || null;
+    }
+  }
+  const byId = new Map(all.map((m) => [String(m.id || ''), m]));
+  const ROOT = '__root__';
+  const childrenByParent = new Map();
+  for (const msg of all) {
+    const parentKey = msg.parent_id ? String(msg.parent_id) : ROOT;
+    if (!childrenByParent.has(parentKey)) childrenByParent.set(parentKey, []);
+    childrenByParent.get(parentKey).push(msg);
+  }
+  for (const siblings of childrenByParent.values()) {
+    siblings.sort((a, b) => safeTime(a.created_at) - safeTime(b.created_at));
+  }
+
+  const fallbackLeaf = all[all.length - 1];
+  const leaf = preferredLeafId && byId.has(String(preferredLeafId))
+    ? byId.get(String(preferredLeafId))
+    : fallbackLeaf;
+  const preferredAncestry = new Set();
+  let cursor = leaf;
+  let guard = 0;
+  while (cursor && guard < all.length + 2) {
+    guard += 1;
+    preferredAncestry.add(String(cursor.id));
+    cursor = cursor.parent_id ? byId.get(String(cursor.parent_id)) : null;
+  }
+
+  const visible = [];
+  let parentKey = ROOT;
+  guard = 0;
+  while (guard < all.length + 2) {
+    guard += 1;
+    const siblings = childrenByParent.get(parentKey) || [];
+    if (!siblings.length) break;
+
+    const selected = branchSelectionMap.get(parentKey);
+    let chosen = selected ? siblings.find((s) => String(s.id) === String(selected)) : null;
+    if (!chosen) {
+      chosen = siblings.find((s) => preferredAncestry.has(String(s.id))) || siblings[siblings.length - 1];
+    }
+    visible.push(chosen);
+    parentKey = String(chosen.id);
+  }
+
+  const roundsByMessageId = new Map();
+  for (const msg of visible) {
+    const parent = msg.parent_id ? String(msg.parent_id) : ROOT;
+    const siblings = childrenByParent.get(parent) || [msg];
+    const index = siblings.findIndex((s) => String(s.id) === String(msg.id));
+    roundsByMessageId.set(String(msg.id), {
+      total: siblings.length,
+      index: index >= 0 ? index + 1 : 1,
+      prevId: index > 0 ? String(siblings[index - 1].id) : null,
+      nextId: index >= 0 && index < siblings.length - 1 ? String(siblings[index + 1].id) : null,
+      parentKey: parent,
+    });
+  }
+
+  return { visible, roundsByMessageId };
 }
 
 export function renderChat(container) {
@@ -141,7 +219,7 @@ export function renderChat(container) {
            </div>
         </header>
 
-        <div id="messages-container" class="flex-grow overflow-y-auto no-scrollbar pb-[148px] pt-3">
+        <div id="messages-container" class="flex-grow overflow-y-auto no-scrollbar pb-[148px] pt-[58px]">
           <div id="messages-inner" class="max-w-4xl mx-auto w-full px-4 flex flex-col gap-6 pb-4">
              <div id="welcome-screen-container"></div>
              <div id="messages-list" class="hidden flex flex-col gap-6"></div>
@@ -165,6 +243,23 @@ export function renderChat(container) {
 }
 
 function wireChat(root) {
+  const showToast = (message, duration = 3000) => {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.remove('opacity-0'));
+    setTimeout(() => {
+      toast.classList.add('opacity-0');
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  };
+
+  const scrollToMessage = (msgId) => {
+    const el = messagesList.querySelector(`[data-message-id="${msgId}"]`);
+    if (el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+  };
+
   const toggleChatsBtn = root.querySelector('#toggle-chats-btn');
   const toggleChatsIcon = root.querySelector('#toggle-chats-icon');
   const chatListContainer = root.querySelector('#chat-list-container');
@@ -192,6 +287,9 @@ function wireChat(root) {
 
   const sharedByChatId = new Map();
   const processedRealtimeEvents = new Map();
+  const currentLeafByChatId = new Map();
+  const branchSelectionByChat = new Map();
+  const streamingOverrideByChat = new Map();
   const clientSessionId = getClientSessionId();
   let activeStreamAbort = null;
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
@@ -558,7 +656,18 @@ function wireChat(root) {
 
   function drawMessages(messages) {
     const welcomeScreen = welcomeScreenContainer.firstElementChild;
-    if (messages.length === 0) {
+    const chatId = state.activeChatId;
+    const rawMessages = Array.isArray(messages) ? messages : [];
+    const branchSelectionMap = chatId ? (branchSelectionByChat.get(chatId) || new Map()) : new Map();
+    const preferredLeafId = chatId ? currentLeafByChatId.get(chatId) : null;
+
+    const { visible: projectedMessages, roundsByMessageId } = projectConversation(
+      rawMessages,
+      preferredLeafId,
+      branchSelectionMap
+    );
+
+    if (projectedMessages.length === 0) {
       if (welcomeScreen) welcomeScreen.classList.remove('hidden');
       messagesList.classList.add('hidden');
       return;
@@ -568,29 +677,67 @@ function wireChat(root) {
     messagesList.classList.remove('hidden');
 
     const editingMessages = state.ui.editingMessages || {};
+    const firstUserMsg = projectedMessages.find((m) => m.role === 'user');
+
+    const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 40;
+    const streamingOverride = chatId ? streamingOverrideByChat.get(chatId) : null;
 
     // Generate HTML for each message
-    const messagesHtml = messages.map((m, i) => {
+    const messagesHtml = projectedMessages.map((m, i) => {
       const msgId = m.id || `idx-${i}`;
-      const isStreaming = m.role === 'assistant' && i === messages.length - 1 && !m.done;
+      const hasOverride = Boolean(
+        streamingOverride &&
+        streamingOverride.targetMsgId &&
+        String(streamingOverride.targetMsgId) === String(msgId)
+      );
+      const displayContent = hasOverride ? (streamingOverride.content || '') : m.content;
+      const isStreaming = hasOverride || (m.role === 'assistant' && i === projectedMessages.length - 1 && !m.done);
       const isEditing = msgId in editingMessages;
       const editingContent = editingMessages[msgId];
       const model = (state.models || []).find(mod => mod.id === m.model);
       const modelName = model?.name || m.model || 'Assistant';
+      const rounds = roundsByMessageId.get(String(msgId));
+      const roundsHtml = rounds && rounds.total > 1 ? `
+        <div class="flex items-center gap-1 text-gray-400 ml-1">
+          <button type="button" data-round-prev="${msgId}" class="px-1 rounded hover:bg-gray-100 ${rounds.prevId ? '' : 'opacity-30 pointer-events-none'}">‹</button>
+          <span class="text-[11px] min-w-[42px] text-center">${rounds.index} / ${rounds.total}</span>
+          <button type="button" data-round-next="${msgId}" class="px-1 rounded hover:bg-gray-100 ${rounds.nextId ? '' : 'opacity-30 pointer-events-none'}">›</button>
+        </div>
+      ` : '';
+      const showDelete = m.role === 'user' && (
+        !firstUserMsg ||
+        String(firstUserMsg.id || '') !== String(msgId) ||
+        ((rounds?.total || 0) > 1)
+      );
 
       if (isEditing) {
-        return `
-          <div class="flex flex-col gap-3 w-full py-4 border-b border-gray-50 last:border-0 message-edit-container" data-message-id="${msgId}">
-            <div class="flex items-center gap-2 mb-1">
-              <div class="w-6 h-6 rounded bg-gray-100 flex items-center justify-center">
-                <span class="text-[10px] font-bold text-gray-400">${m.role === 'user' ? 'U' : 'A'}</span>
+        if (m.role === 'user') {
+          return `
+            <div class="flex justify-end w-full group py-2" data-message-id="${msgId}">
+              <div class="flex flex-col items-end w-full max-w-[85%] gap-2">
+                <textarea class="edit-message-textarea w-full bg-[#f4f4f4] rounded-2xl px-4 py-2 text-[15px] text-gray-800 outline-none focus:ring-2 focus:ring-black/5 resize-none font-sans border-none" data-message-id="${msgId}">${escapeHtml(editingContent)}</textarea>
+                <div class="flex items-center gap-2 justify-end">
+                  <button class="cancel-edit-btn px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50" data-message-id="${msgId}">Cancel</button>
+                  <button class="save-edit-btn px-3 py-1 text-xs font-medium rounded-lg bg-black text-white hover:bg-gray-800" data-message-id="${msgId}" data-index="${i}">Send</button>
+                </div>
               </div>
-              <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Editing Message</span>
             </div>
-            <textarea class="edit-message-textarea w-full min-h-[100px] p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-black focus:border-transparent outline-none text-[15px] leading-[1.6] resize-none font-sans" data-message-id="${msgId}">${escapeHtml(editingContent)}</textarea>
-            <div class="flex items-center gap-2 justify-end">
-              <button class="cancel-edit-btn px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors" data-message-id="${msgId}">Cancel</button>
-              <button class="save-edit-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-black text-white hover:bg-gray-800 transition-colors" data-message-id="${msgId}" data-index="${i}">Send</button>
+          `;
+        }
+
+        return `
+          <div class="flex gap-4 w-full group py-4 first:pt-0 border-b border-gray-50 last:border-0" data-message-id="${msgId}">
+            <div class="flex-shrink-0 w-7 h-7 rounded-lg bg-white border border-gray-100 flex items-center justify-center mt-1 overflow-hidden shadow-sm">
+               <img src="/logo.png" alt="${escapeHtml(modelName)}" class="w-5 h-5 object-contain" />
+            </div>
+            <div class="flex-grow min-w-0 flex flex-col gap-2">
+               <div class="font-bold text-sm text-gray-800 font-primary">${escapeHtml(modelName)}</div>
+               <textarea class="edit-message-textarea w-full p-0 bg-transparent text-[15px] leading-[1.6] text-gray-800 outline-none resize-none font-sans border-none focus:ring-0" data-message-id="${msgId}">${escapeHtml(editingContent)}</textarea>
+               <div class="flex items-center gap-2 justify-start mt-1">
+                  <button class="cancel-edit-btn px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50" data-message-id="${msgId}">Cancel</button>
+                  <button class="save-copy-btn px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50" data-message-id="${msgId}">Save as Copy</button>
+                  <button class="save-edit-btn px-3 py-1 text-xs font-medium rounded-lg bg-black text-white hover:bg-gray-800" data-message-id="${msgId}" data-index="${i}">Save</button>
+               </div>
             </div>
           </div>
         `;
@@ -601,18 +748,21 @@ function wireChat(root) {
           <div class="flex justify-end w-full group py-2" data-message-id="${msgId}">
             <div class="flex flex-col items-end max-w-[85%] gap-1">
               <div class="bg-[#f4f4f4] rounded-2xl px-4 py-2 text-[15px] text-gray-800 transition-colors relative">
-                ${escapeHtml(m.content).replace(/\n/g, '<br/>')}
+                ${escapeHtml(displayContent).replace(/\n/g, '<br/>')}
               </div>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                ${roundsHtml}
                 <button data-edit-message="${msgId}" data-index="${i}" class="p-1 hover:text-gray-600 hover:bg-gray-50 rounded transition text-gray-400" title="Edit">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                 </button>
                 <button data-copy-message="${i}" class="p-1 hover:text-gray-600 hover:bg-gray-50 rounded transition text-gray-400" title="Copy">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                 </button>
+                ${showDelete ? `
                 <button data-delete-message="${msgId}" data-index="${i}" class="p-1 hover:text-red-600 hover:bg-red-50 rounded transition text-gray-400" title="Delete">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                 </button>
+                ` : ''}
               </div>
             </div>
           </div>
@@ -632,10 +782,11 @@ function wireChat(root) {
           <div class="flex-grow min-w-0 flex flex-col">
              <div class="font-bold text-sm mb-1 text-gray-800 font-primary">${escapeHtml(modelName)}</div>
              <div class="text-[15px] leading-[1.6] text-gray-800 prose prose-p:my-1 prose-pre:my-2 prose-headings:font-semibold max-w-none break-words font-sans">
-                ${renderMessageContent(m.content)}
+                ${renderMessageContent(displayContent)}
              </div>
              ${citationHtml}
              <div class="flex items-center gap-1 mt-3 -ml-2 text-gray-400 ${isStreaming ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} transition-opacity">
+                ${roundsHtml}
                 <button data-edit-message="${msgId}" data-index="${i}" class="p-1.5 hover:text-gray-600 hover:bg-gray-50 rounded-md transition" title="Edit">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                 </button>
@@ -654,13 +805,29 @@ function wireChat(root) {
     // Update innerHTML only once to minimize layout shifts
     messagesList.innerHTML = messagesHtml;
 
+    // Auto-resize and focus edit textareas
+    messagesList.querySelectorAll('.edit-message-textarea').forEach(ta => {
+      const resize = () => {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+      };
+      ta.addEventListener('input', resize);
+      resize();
+      ta.focus();
+      // Move cursor to end
+      const val = ta.value;
+      ta.value = '';
+      ta.value = val;
+    });
+
     // Re-attach event listeners
     messagesList.querySelectorAll('[data-copy-message]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const idx = Number(btn.getAttribute('data-copy-message'));
-        const text = messages[idx]?.content || '';
+        const text = projectedMessages[idx]?.content || '';
         try {
           await navigator.clipboard.writeText(text);
+          showToast('Message copied');
         } catch {
           window.prompt('Copy message', text);
         }
@@ -670,12 +837,34 @@ function wireChat(root) {
     messagesList.querySelectorAll('[data-edit-message]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-edit-message');
-        const idx = Number(btn.getAttribute('data-index'));
-        const content = messages[idx]?.content || '';
+        const m = projectedMessages.find(msg => String(msg.id) === String(id));
+        const content = m?.content || '';
         const newEditing = { ...state.ui.editingMessages, [id]: content };
         setState({ ui: { ...state.ui, editingMessages: newEditing } });
         drawMessages(messages);
+        // Removed scrollToMessage to prevent UI jitter/jumps
       });
+    });
+
+    const onRoundSwitch = (targetMsgId, direction) => {
+      const rounds = roundsByMessageId.get(String(targetMsgId));
+      if (!rounds) return;
+      const nextId = direction === 'next' ? rounds.nextId : rounds.prevId;
+      if (!nextId) return;
+
+      const chatMap = branchSelectionByChat.get(chatId) || new Map();
+      chatMap.set(String(rounds.parentKey), String(nextId));
+      branchSelectionByChat.set(chatId, chatMap);
+
+      currentLeafByChatId.set(chatId, String(nextId));
+      drawMessages(messages);
+    };
+
+    messagesList.querySelectorAll('[data-round-prev]').forEach((btn) => {
+      btn.addEventListener('click', () => onRoundSwitch(btn.dataset.roundPrev, 'prev'));
+    });
+    messagesList.querySelectorAll('[data-round-next]').forEach((btn) => {
+      btn.addEventListener('click', () => onRoundSwitch(btn.dataset.roundNext, 'next'));
     });
 
     messagesList.querySelectorAll('.cancel-edit-btn').forEach((btn) => {
@@ -688,45 +877,175 @@ function wireChat(root) {
       });
     });
 
+    messagesList.querySelectorAll('.save-copy-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-message-id');
+        const textarea = messagesList.querySelector(`.edit-message-textarea[data-message-id="${id}"]`);
+        const newContent = textarea.value.trim();
+        if (!newContent) return;
+
+        const chatId = state.activeChatId;
+
+        try {
+          const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/branch`, {
+            method: 'POST',
+            body: JSON.stringify({
+              content: newContent,
+              role: 'assistant',
+              no_reply: true
+            })
+          });
+
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            const newEditing = { ...state.ui.editingMessages };
+            delete newEditing[id];
+            setState({ ui: { ...state.ui, editingMessages: newEditing } });
+            if (data?.message?.id) {
+              currentLeafByChatId.set(chatId, String(data.message.id));
+            }
+            await loadMessages(chatId);
+          } else {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || err.message || 'Failed to copy message');
+          }
+        } catch (e) {
+          console.error('Copy failed', e);
+          alert('An error occurred while copying the message.');
+        }
+      });
+    });
+
     messagesList.querySelectorAll('.save-edit-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-message-id');
-        const idx = Number(btn.getAttribute('data-index'));
         const textarea = messagesList.querySelector(`.edit-message-textarea[data-message-id="${id}"]`);
         const newContent = textarea.value.trim();
+        if (!newContent) return;
+
+        const chatId = state.activeChatId;
+        const sourceMsg = projectedMessages.find(msg => String(msg.id) === String(id));
         
-        if (newContent) {
-          // If we edit a previous message, we create a branch (new chat)
-          const isUser = messages[idx].role === 'user';
-          const chatId = state.activeChatId;
-          
+        if (sourceMsg?.role === 'assistant') {
+          // Assistant Edit: In-place update
           try {
-            // Call branching API
-            const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/branch`, {
-              method: 'POST',
+            const res = await apiFetch(`/api/chats/${chatId}/messages/${id}`, {
+              method: 'PUT',
               body: JSON.stringify({ content: newContent })
             });
-            
+
             if (res.ok) {
-              const data = await res.json();
-              const newChatId = data.chat.id;
-              
-              // Remove from editing state
               const newEditing = { ...state.ui.editingMessages };
               delete newEditing[id];
               setState({ ui: { ...state.ui, editingMessages: newEditing } });
-              
-              // Navigate to new chat
-              setState({ activeChatId: newChatId });
-              await loadMessages(newChatId);
+              await loadMessages(chatId);
             } else {
-              const err = await res.json();
-              alert(err.error || 'Failed to branch chat');
+              const err = await res.json().catch(() => ({}));
+              alert(err.error || err.message || 'Failed to update message');
             }
           } catch (e) {
+            console.error('Update failed', e);
+            alert('An error occurred while updating the message.');
+          }
+          return;
+        }
+
+        // User Edit: Branching (Existing logic)
+        const branchParentId = sourceMsg?.parent_id || null;
+
+        // Remove from editing state immediately to avoid UI shifts
+        const newEditing = { ...state.ui.editingMessages };
+        delete newEditing[id];
+        setState({ ui: { ...state.ui, editingMessages: newEditing } });
+
+        // Optimistic UI
+        const tempUserId = `temp-user-${Date.now()}`;
+        const tempAssistantId = `temp-assistant-${Date.now()}`;
+        const nowTs = Math.floor(Date.now() / 1000);
+        
+        let localMessages = [...(state.messagesByChat[chatId] || [])];
+        localMessages.push({
+          id: tempUserId,
+          role: 'user',
+          content: newContent,
+          model: state.activeModelId,
+          parent_id: branchParentId,
+          created_at: nowTs,
+          done: true,
+        });
+        localMessages.push({
+          id: tempAssistantId,
+          role: 'assistant',
+          content: '',
+          model: state.activeModelId,
+          parent_id: tempUserId,
+          created_at: nowTs + 1,
+          done: false,
+        });
+
+        currentLeafByChatId.set(chatId, tempAssistantId);
+        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
+        drawMessages(localMessages);
+
+        const controller = new AbortController();
+        activeStreamAbort = () => controller.abort();
+
+        try {
+          const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/branch`, {
+            method: 'POST',
+            body: JSON.stringify({ content: newContent, model: state.activeModelId || undefined }),
+            signal: controller.signal
+          });
+
+          if (!res.ok || !res.body) {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || 'backend api not found');
+            return;
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          const parser = new SseLineParser();
+          let assistantText = '';
+
+          const applyAssistantText = () => {
+            streamingOverrideByChat.set(chatId, {
+              targetMsgId: tempAssistantId,
+              content: assistantText,
+            });
+            
+            const currentMessages = [...(state.messagesByChat[chatId] || [])];
+            const targetIdx = currentMessages.findIndex(m => String(m.id) === String(tempAssistantId));
+            if (targetIdx >= 0) {
+              currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
+              setState((prev) => ({ 
+                messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
+              }));
+            }
+            drawMessages(currentMessages);
+          };
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              assistantText += parser.flush();
+              applyAssistantText();
+              streamingOverrideByChat.delete(chatId);
+              await loadMessages(chatId);
+              break;
+            }
+            const chunk = decoder.decode(value, { stream: true });
+            assistantText += parser.push(chunk);
+            applyAssistantText();
+          }
+        } catch (e) {
+          if (e?.name !== 'AbortError') {
             console.error('Branching failed', e);
             alert('An error occurred while branching the chat.');
           }
+        } finally {
+          streamingOverrideByChat.delete(chatId);
+          activeStreamAbort = null;
         }
       });
     });
@@ -743,14 +1062,20 @@ function wireChat(root) {
             method: 'DELETE'
           });
           
+          if (res.status === 404) {
+            alert('backend api not found');
+            return;
+          }
+
           if (res.ok) {
             await loadMessages(chatId);
           } else {
-            const err = await res.json();
+            const err = await res.json().catch(() => ({}));
             alert(err.error || 'Failed to delete message');
           }
         } catch (e) {
           console.error('Delete failed', e);
+          alert('An error occurred while deleting the message.');
         }
       });
     });
@@ -759,24 +1084,86 @@ function wireChat(root) {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-retry-message');
         const chatId = state.activeChatId;
+        const sourceMsg = projectedMessages.find(msg => String(msg.id) === String(id));
+        if (!sourceMsg) return;
+        const branchParentId = sourceMsg.parent_id || null;
+
+        // Optimistic UI
+        const tempAssistantId = `temp-assistant-${Date.now()}`;
+        const nowTs = Math.floor(Date.now() / 1000);
         
-        // Retry logic: branch from the parent user message
+        let localMessages = [...(state.messagesByChat[chatId] || [])];
+        localMessages.push({
+          id: tempAssistantId,
+          role: 'assistant',
+          content: '',
+          model: state.activeModelId,
+          parent_id: branchParentId,
+          created_at: nowTs,
+          done: false,
+        });
+
+        currentLeafByChatId.set(chatId, tempAssistantId);
+        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
+        drawMessages(localMessages);
+
+        const controller = new AbortController();
+        activeStreamAbort = () => controller.abort();
+
         try {
           const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/regenerate`, {
-            method: 'POST'
+            method: 'POST',
+            signal: controller.signal
           });
           
-          if (res.ok) {
-            const data = await res.json();
-            const newChatId = data.chat.id;
-            setState({ activeChatId: newChatId });
-            await loadMessages(newChatId);
-          } else {
-            const err = await res.json();
-            alert(err.error || 'Failed to regenerate response');
+          if (!res.ok || !res.body) {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || 'backend api not found');
+            return;
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          const parser = new SseLineParser();
+          let assistantText = '';
+
+          const applyAssistantText = () => {
+            streamingOverrideByChat.set(chatId, {
+              targetMsgId: tempAssistantId,
+              content: assistantText,
+            });
+            
+            const currentMessages = [...(state.messagesByChat[chatId] || [])];
+            const targetIdx = currentMessages.findIndex(m => String(m.id) === String(tempAssistantId));
+            if (targetIdx >= 0) {
+              currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
+              setState((prev) => ({ 
+                messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
+              }));
+            }
+            drawMessages(currentMessages);
+          };
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              assistantText += parser.flush();
+              applyAssistantText();
+              streamingOverrideByChat.delete(chatId);
+              await loadMessages(chatId);
+              break;
+            }
+            const chunk = decoder.decode(value, { stream: true });
+            assistantText += parser.push(chunk);
+            applyAssistantText();
           }
         } catch (e) {
-          console.error('Regeneration failed', e);
+          if (e?.name !== 'AbortError') {
+            console.error('Regeneration failed', e);
+          }
+        } finally {
+          streamingOverrideByChat.delete(chatId);
+          activeStreamAbort = null;
         }
       });
     });
@@ -788,9 +1175,11 @@ function wireChat(root) {
       });
     });
 
-    setTimeout(() => {
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }, 10);
+    if (isAtBottom) {
+      setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }, 10);
+    }
   }
 
   async function refreshShareState() {
@@ -836,6 +1225,12 @@ function wireChat(root) {
     const data = await res.json();
 
     const messages = (data.messages || []).map(m => ({ ...m, done: true }));
+
+    // Initialize the current leaf to the chat's active message or the last message in the list
+    const lastMsgId = data.chat?.current_message_id || (messages.length > 0 ? messages[messages.length - 1].id : null);
+    if (lastMsgId) {
+      currentLeafByChatId.set(chatId, String(lastMsgId));
+    }
 
     const newMessages = { ...state.messagesByChat, [chatId]: messages };
     setState({
@@ -949,7 +1344,8 @@ function wireChat(root) {
   async function sendSingleMessage(text, hooks = {}) {
     let chatId = state.activeChatId;
     if (!chatId) {
-      const payload = state.activeModelId ? { model: state.activeModelId } : {};
+      const modelToUse = state.defaultModelId || state.activeModelId;
+      const payload = modelToUse ? { model: modelToUse } : {};
       const res = await apiFetch('/api/chats', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -967,9 +1363,32 @@ function wireChat(root) {
       }));
     }
 
+    const branchParentId = currentLeafByChatId.get(chatId) || null;
+    const tempUserId = `temp-user-${Date.now()}`;
+    const tempAssistantId = `temp-assistant-${Date.now()}`;
+    const nowTs = Math.floor(Date.now() / 1000);
     let localMessages = [...(state.messagesByChat[chatId] || [])];
-    localMessages.push({ role: 'user', content: text, model: state.activeModelId, done: true });
-    localMessages.push({ role: 'assistant', content: '', done: false, model: state.activeModelId });
+    localMessages.push({
+      id: tempUserId,
+      role: 'user',
+      content: text,
+      model: state.activeModelId,
+      parent_id: branchParentId,
+      created_at: nowTs,
+      done: true,
+    });
+    localMessages.push({
+      id: tempAssistantId,
+      role: 'assistant',
+      content: '',
+      model: state.activeModelId,
+      parent_id: tempUserId,
+      created_at: nowTs + 1,
+      done: false,
+    });
+
+    // Ensure branch projection follows the optimistic in-flight path.
+    currentLeafByChatId.set(chatId, tempAssistantId);
 
     setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
     drawMessages(localMessages);
@@ -1008,73 +1427,50 @@ function wireChat(root) {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let sseBuffer = '';
+    const parser = new SseLineParser();
     let assistantText = '';
 
     const applyAssistantText = () => {
-      if (localMessages.length > 0) {
-        localMessages[localMessages.length - 1] = { 
-          ...localMessages[localMessages.length - 1], 
-          content: assistantText, 
-          done: false 
-        };
-        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-        drawMessages(localMessages);
-      }
-    };
+      // 1. Update streaming override for immediate projection rendering
+      streamingOverrideByChat.set(chatId, {
+        targetMsgId: tempAssistantId,
+        content: assistantText,
+      });
 
-    const applySseLine = (line) => {
-      if (!line.startsWith('data: ')) return;
-      const payload = line.slice(6).trim();
-      if (!payload || payload === '[DONE]') return;
-      try {
-        const parsed = JSON.parse(payload);
-        if (parsed?.error) {
-          assistantText = String(parsed.message || parsed.error || 'Stream failed');
-          applyAssistantText();
-          return;
-        }
-        if (parsed.response) {
-          assistantText += parsed.response;
-          applyAssistantText();
-        }
-      } catch {
-        // Ignore malformed chunks and continue stream parsing.
+      // 2. ALSO update global state so drawMessages(messagesByChat[chatId]) sees the new content
+      // and keeps other messages visible.
+      const currentMessages = [...(state.messagesByChat[chatId] || [])];
+      const targetIdx = currentMessages.findIndex(m => String(m.id) === String(tempAssistantId));
+      if (targetIdx >= 0) {
+        currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
+        setState((prev) => ({ 
+          messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
+        }));
       }
+
+      drawMessages(currentMessages);
     };
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          if (localMessages.length > 0) {
-            localMessages[localMessages.length - 1].done = true;
-            setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-            drawMessages(localMessages);
-          }
+          assistantText += parser.flush();
+          applyAssistantText();
+          streamingOverrideByChat.delete(chatId);
           await loadMessages(chatId);
           break;
         }
-        sseBuffer += decoder.decode(value, { stream: true });
-        let newlineIdx;
-        while ((newlineIdx = sseBuffer.indexOf('\n')) !== -1) {
-          const line = sseBuffer.slice(0, newlineIdx);
-          sseBuffer = sseBuffer.slice(newlineIdx + 1);
-          applySseLine(line);
-        }
+        const chunk = decoder.decode(value, { stream: true });
+        assistantText += parser.push(chunk);
+        applyAssistantText();
       }
     } catch (err) {
-      const isAbort = err?.name === 'AbortError';
-      if (localMessages.length > 0) {
-        localMessages[localMessages.length - 1].done = true;
-        if (isAbort && !assistantText) {
-          localMessages[localMessages.length - 1].content = 'Stopped.';
-        }
-        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-        drawMessages(localMessages);
+      if (err?.name !== 'AbortError') {
+        console.error('Stream error:', err);
       }
     } finally {
-      reader.releaseLock();
+      streamingOverrideByChat.delete(chatId);
       activeStreamAbort = null;
       hooks.onFinished?.();
     }

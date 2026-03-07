@@ -9,26 +9,27 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
   function init() {
     container.innerHTML = `
       <div id="pending-queue" class="hidden mb-2 space-y-1"></div>
-      <form id="composer" class="relative bg-white/80 backdrop-blur-md rounded-[24px] p-1.5 flex items-end transition border border-gray-200/50 shadow-lg focus-within:border-gray-300 focus-within:shadow-xl">
-         <button type="button" id="open-files-btn" class="flex-shrink-0 p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition mb-0.5 ml-1" title="Attach file" aria-label="Attach file">
-           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      <form id="composer" class="relative bg-[#f4f4f4] rounded-[24px] p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 focus-within:ring-gray-300 focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-transparent focus-within:border-gray-200">
+         <button type="button" id="open-files-btn" class="flex-shrink-0 p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5 ml-1" title="Attach file" aria-label="Attach file">
+           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
          </button>
          
-         <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[15px] px-3 py-3 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800 placeholder:text-gray-400" style="height: 48px;" aria-label="Message text"></textarea>
+         <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[16px] px-2 py-2.5 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800" style="height: 44px;" aria-label="Message text"></textarea>
          
          <div class="flex-shrink-0 flex items-center mb-1 mr-1 gap-1 relative">
-           <button type="button" id="mic-btn" class="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition" title="Voice input" aria-label="Voice input">
+           <div id="loading-spinner" class="hidden absolute inset-0 bg-[#f4f4f4] items-center justify-center rounded-full transition-all z-10" aria-live="polite">
+              <div class="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></div>
+           </div>
+           
+           <button type="button" id="stop-btn" class="hidden p-2 text-red-500 hover:bg-red-50 rounded-full transition" title="Stop generating" aria-label="Stop generating">
+             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="5" y="5" rx="2" ry="2"/></svg>
+           </button>
+
+           <button type="button" id="mic-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition" title="Voice input" aria-label="Voice input">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
            </button>
-           <button id="send-btn" class="hidden p-1.5 bg-black text-white rounded-full hover:bg-gray-800 transition disabled:opacity-50" title="Send message" aria-label="Send message">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
-                <path fill-rule="evenodd" d="M8 14a.75.75 0 0 1-.75-.75V4.56L4.03 7.78a.75.75 0 0 1-1.06-1.06l4.5-4.5a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1-1.06 1.06L8.75 4.56v8.69A.75.75 0 0 1 8 14Z" clip-rule="evenodd" />
-              </svg>
-           </button>
-           <button type="button" id="stop-btn" class="hidden p-1.5 bg-white text-gray-800 border border-gray-100 rounded-full hover:bg-gray-50 transition items-center justify-center" title="Stop generating" aria-label="Stop generating">
-             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-               <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm6-2.438c0-.724.588-1.312 1.313-1.312h4.874c.725 0 1.313.588 1.313 1.313v4.874c0 .725-.588 1.313-1.313 1.313H9.564a1.312 1.312 0 01-1.313-1.313V9.564z" clip-rule="evenodd" />
-             </svg>
+           <button id="send-btn" class="hidden p-2 bg-black text-white rounded-full hover:bg-gray-800 transition disabled:opacity-50" title="Send message" aria-label="Send message">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
            </button>
          </div>
       </form>
@@ -46,6 +47,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     const sendBtn = container.querySelector('#send-btn');
     const stopBtn = container.querySelector('#stop-btn');
     const micBtn = container.querySelector('#mic-btn');
+    const loadingSpinner = container.querySelector('#loading-spinner');
     const openFilesBtn = container.querySelector('#open-files-btn');
     const promptPicker = container.querySelector('#prompt-picker');
     const pendingQueueEl = container.querySelector('#pending-queue');
@@ -54,7 +56,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     let promptOptions = [];
     
     let isSubmitting = false;
-    let cancelStreaming = null;
+    let abortFn = null;
     let lastActiveChatId = state.activeChatId;
     let queueNextId = 1;
     let pendingQueue = [];
@@ -143,42 +145,24 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       });
     }
 
-    function runSend(text) {
-      onSend(text, {
-        onAbortable: (abortFn) => {
-          cancelStreaming = typeof abortFn === 'function' ? abortFn : null;
-        },
-        onFinished: () => {
-          cancelStreaming = null;
-          if (pendingQueue.length > 0) {
-            const next = pendingQueue.shift();
-            renderPendingQueue();
-            if (next?.text) {
-              runSend(next.text);
-              return;
-            }
-          }
-          isSubmitting = false;
-          toggleSendMicBtn();
-          input.focus();
-        },
-      });
-    }
-
     function toggleSendMicBtn() {
        if (isSubmitting) {
-          if (input.value.trim().length > 0) {
-            sendBtn.classList.remove('hidden');
-          } else {
-            sendBtn.classList.add('hidden');
-          }
           micBtn.classList.add('hidden');
-          stopBtn.classList.remove('hidden');
-          stopBtn.style.display = 'flex';
+          sendBtn.classList.add('hidden');
+          if (abortFn) {
+            stopBtn.classList.remove('hidden');
+            loadingSpinner.classList.add('hidden');
+          } else {
+            stopBtn.classList.add('hidden');
+            loadingSpinner.classList.remove('hidden');
+            loadingSpinner.style.display = 'flex';
+          }
           return;
        }
+       
        stopBtn.classList.add('hidden');
-       stopBtn.style.display = 'none';
+       loadingSpinner.classList.add('hidden');
+       loadingSpinner.style.display = 'none';
 
        if (input.value.trim().length > 0) {
           micBtn.classList.add('hidden');
@@ -187,6 +171,40 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
           micBtn.classList.remove('hidden');
           sendBtn.classList.add('hidden');
        }
+    }
+
+    stopBtn.onclick = (e) => {
+      e.preventDefault();
+      if (abortFn) {
+        abortFn();
+        abortFn = null;
+        finishSubmission();
+      }
+    };
+
+    function finishSubmission() {
+      if (pendingQueue.length > 0) {
+        const next = pendingQueue.shift();
+        renderPendingQueue();
+        if (next?.text) {
+          // Restart submission with next in queue
+          isSubmitting = true;
+          toggleSendMicBtn();
+          onSend(next.text, {
+            onAbortable: (fn) => {
+              abortFn = fn;
+              toggleSendMicBtn();
+            },
+            onFinished: () => {
+              finishSubmission();
+            }
+          });
+          return;
+        }
+      }
+      isSubmitting = false;
+      abortFn = null;
+      toggleSendMicBtn();
     }
 
     function extractVariables(text) {
@@ -330,6 +348,16 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       const text = input.value.trim();
       if (!text) return;
 
+      if (isSubmitting) {
+        pendingQueue.push({ id: queueNextId++, text });
+        renderPendingQueue();
+        input.value = '';
+        input.style.height = '44px';
+        input.dispatchEvent(new Event('input'));
+        input.focus();
+        return;
+      }
+
       // Clear draft
       if (state.activeChatId) {
          const drafts = { ...state.drafts };
@@ -342,24 +370,21 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       input.value = '';
       input.style.height = '44px';
       input.dispatchEvent(new Event('input'));
-
-      if (isSubmitting) {
-        pendingQueue.push({ id: queueNextId++, text });
-        renderPendingQueue();
-        input.focus();
-        return;
-      }
+      input.focus();
 
       isSubmitting = true;
       toggleSendMicBtn();
-      runSend(text);
-      input.focus();
-    });
-
-    stopBtn.addEventListener('click', () => {
-      if (typeof cancelStreaming === 'function') {
-        cancelStreaming();
-      }
+      
+      // Fire callback with hooks
+      onSend(text, {
+        onAbortable: (fn) => {
+          abortFn = fn;
+          toggleSendMicBtn();
+        },
+        onFinished: () => {
+          finishSubmission();
+        }
+      });
     });
 
     openFilesBtn.addEventListener('click', () => {
@@ -398,8 +423,9 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
         pendingQueue = [];
         renderPendingQueue();
       }
+      
       // Always restore on chat change; otherwise restore only when input is not focused.
-      if (!isSubmitting && (chatChanged || input !== document.activeElement)) {
+      if (!isSubmitting && (chatChanged || (input !== document.activeElement && !input.value))) {
         const draft = currentState.activeChatId
           ? (currentState.drafts[currentState.activeChatId] || '')
           : (currentState.newChatDraft || '');

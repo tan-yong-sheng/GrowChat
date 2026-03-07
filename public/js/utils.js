@@ -13,6 +13,48 @@ export function renderMessageContent(content) {
   return escapeHtml(content).replace(/\n/g, '<br/>');
 }
 
+export class SseLineParser {
+  constructor() {
+    this._buf = '';
+  }
+
+  push(rawText) {
+    this._buf += rawText;
+    let text = '';
+    let newlineIdx;
+    while ((newlineIdx = this._buf.indexOf('\n')) !== -1) {
+      const line = this._buf.slice(0, newlineIdx).replace(/\r$/, '');
+      this._buf = this._buf.slice(newlineIdx + 1);
+
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (!payload || payload === '[DONE]') continue;
+
+      try {
+        const parsed = JSON.parse(payload);
+        text += parsed.response || parsed.choices?.[0]?.delta?.content || '';
+      } catch {
+        // Incomplete JSON
+      }
+    }
+    return text;
+  }
+
+  flush() {
+    const line = this._buf.replace(/\r$/, '');
+    this._buf = '';
+    if (!line.startsWith('data: ')) return '';
+    const payload = line.slice(6).trim();
+    if (!payload || payload === '[DONE]') return '';
+    try {
+      const parsed = JSON.parse(payload);
+      return parsed.response || parsed.choices?.[0]?.delta?.content || '';
+    } catch {
+      return '';
+    }
+  }
+}
+
 export function formatDate(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
