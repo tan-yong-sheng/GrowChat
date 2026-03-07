@@ -209,3 +209,4 @@ export default {
 };
 
 export { MessageQueueDO };
+export class RealtimeHubDO extends MessageQueueDO {}
