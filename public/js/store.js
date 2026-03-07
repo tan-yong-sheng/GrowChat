@@ -8,6 +8,7 @@ export const state = {
   
   // UI Layout
   showSidebar: window.innerWidth >= 768,
+  sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
   sidebarWidth: parseInt(localStorage.getItem('sidebarWidth')) || 260,
   isMobile: window.innerWidth < 768,
   
@@ -38,7 +39,8 @@ export const state = {
   newChatDraft: '',
   ui: {
     loading: false,
-    streaming: false
+    streaming: false,
+    editingMessages: {} // { messageId: content }
   }
 };
 
@@ -47,9 +49,17 @@ const listeners = new Set();
 export function setState(updater) {
   const changes = typeof updater === 'function' ? updater(state) : updater;
   let hasChanges = false;
+  const replaceObjectKeys = new Set(['drafts']);
   
   for (const key in changes) {
     if (typeof changes[key] === 'object' && changes[key] !== null && !Array.isArray(changes[key])) {
+      if (replaceObjectKeys.has(key)) {
+        if (state[key] !== changes[key]) {
+          state[key] = changes[key];
+          hasChanges = true;
+        }
+        continue;
+      }
       // Nested update for search/ui objects
       if (!state[key]) state[key] = {};
       for (const subKey in changes[key]) {
@@ -67,6 +77,7 @@ export function setState(updater) {
   if (hasChanges) {
     // Persist certain state fields
     if (changes.sidebarWidth) localStorage.setItem('sidebarWidth', state.sidebarWidth);
+    if (changes.sidebarCollapsed !== undefined) localStorage.setItem('sidebarCollapsed', state.sidebarCollapsed);
     if (changes.drafts) localStorage.setItem('drafts', JSON.stringify(state.drafts));
     
     notifyListeners();

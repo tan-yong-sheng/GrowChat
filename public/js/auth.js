@@ -6,17 +6,27 @@ const nameInput = document.getElementById('name');
 const emailInput = document.getElementById('email');
 const passwordInput = document.getElementById('password');
 const err = document.getElementById('auth-error');
-const tabLogin = document.getElementById('tab-login');
-const tabRegister = document.getElementById('tab-register');
+const toggleModeBtn = document.getElementById('toggle-mode');
+const toggleText = document.getElementById('toggle-text');
+const authTitle = document.getElementById('auth-title');
+const authSubmit = document.getElementById('auth-submit');
 
 let mode = 'login';
 
 function setMode(next) {
   mode = next;
   const isRegister = mode === 'register';
+  
+  // Toggle visibility of name field
   nameWrap.classList.toggle('hidden', !isRegister);
-  tabLogin.className = `px-4 py-2 rounded ${isRegister ? 'bg-gray-200' : 'bg-gray-900 text-white'}`;
-  tabRegister.className = `px-4 py-2 rounded ${isRegister ? 'bg-gray-900 text-white' : 'bg-gray-200'}`;
+  
+  // Update text content based on mode
+  authTitle.textContent = isRegister ? 'Create an account' : 'Sign in to GrowChat';
+  authSubmit.textContent = isRegister ? 'Sign up' : 'Sign in';
+  toggleText.textContent = isRegister ? 'Already have an account?' : "Don't have an account?";
+  toggleModeBtn.textContent = isRegister ? 'Sign in' : 'Sign up';
+  
+  // Reset error message
   err.classList.add('hidden');
 }
 
@@ -51,7 +61,9 @@ async function submit(e) {
   window.location.href = '/';
 }
 
-tabLogin.addEventListener('click', () => setMode('login'));
-tabRegister.addEventListener('click', () => setMode('register'));
+toggleModeBtn.addEventListener('click', () => {
+  setMode(mode === 'login' ? 'register' : 'login');
+});
+
 form.addEventListener('submit', submit);
 setMode('login');

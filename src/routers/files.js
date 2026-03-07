@@ -42,6 +42,10 @@ export async function filesRouter(req, env, ctx, user, path) {
     return error(req, 'Unauthorized', 401);
   }
 
+  function isMissingDocumentsTable(err) {
+    return /no such table:\s*documents/i.test(String(err?.message || ''));
+  }
+
   // POST /api/files/upload - Upload file
   if (req.method === 'POST' && path === '/api/files/upload') {
     const db = createDB(env.DB);
@@ -139,6 +143,9 @@ export async function filesRouter(req, env, ctx, user, path) {
       const documents = await listUserDocuments(db, user.sub, limit, offset);
       return json(req, { documents });
     } catch (err) {
+      if (isMissingDocumentsTable(err)) {
+        return json(req, { documents: [] });
+      }
       console.error('File list failed:', err);
       return error(req, 'Failed to list documents', 500);
     }
@@ -209,6 +216,9 @@ export async function filesRouter(req, env, ctx, user, path) {
 
       return json(req, { documents, query: q, limit, offset });
     } catch (err) {
+      if (isMissingDocumentsTable(err)) {
+        return json(req, { documents: [], query: q, limit, offset });
+      }
       console.error('Document search failed:', err);
       return error(req, 'Search failed', 500);
     }

@@ -8,23 +8,27 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
 
   function init() {
     container.innerHTML = `
-      <form id="composer" class="relative bg-[#f4f4f4] rounded-[24px] p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 focus-within:ring-gray-300 focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-transparent focus-within:border-gray-200">
-         <button type="button" id="open-files-btn" class="flex-shrink-0 p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5 ml-1" title="Attach file" aria-label="Attach file">
-           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      <div id="pending-queue" class="hidden mb-2 space-y-1"></div>
+      <form id="composer" class="relative bg-white/80 backdrop-blur-md rounded-[24px] p-1.5 flex items-end transition border border-gray-200/50 shadow-lg focus-within:border-gray-300 focus-within:shadow-xl">
+         <button type="button" id="open-files-btn" class="flex-shrink-0 p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition mb-0.5 ml-1" title="Attach file" aria-label="Attach file">
+           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
          </button>
          
-         <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[16px] px-2 py-2.5 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800" style="height: 44px;" aria-label="Message text"></textarea>
+         <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[15px] px-3 py-3 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800 placeholder:text-gray-400" style="height: 48px;" aria-label="Message text"></textarea>
          
          <div class="flex-shrink-0 flex items-center mb-1 mr-1 gap-1 relative">
-           <div id="loading-spinner" class="hidden absolute inset-0 bg-[#f4f4f4] items-center justify-center rounded-full transition-all z-10" aria-live="polite">
-              <div class="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></div>
-           </div>
-           
-           <button type="button" id="mic-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition" title="Voice input" aria-label="Voice input">
+           <button type="button" id="mic-btn" class="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition" title="Voice input" aria-label="Voice input">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
            </button>
-           <button id="send-btn" class="hidden p-2 bg-black text-white rounded-full hover:bg-gray-800 transition disabled:opacity-50" title="Send message" aria-label="Send message">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+           <button id="send-btn" class="hidden p-1.5 bg-black text-white rounded-full hover:bg-gray-800 transition disabled:opacity-50" title="Send message" aria-label="Send message">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
+                <path fill-rule="evenodd" d="M8 14a.75.75 0 0 1-.75-.75V4.56L4.03 7.78a.75.75 0 0 1-1.06-1.06l4.5-4.5a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1-1.06 1.06L8.75 4.56v8.69A.75.75 0 0 1 8 14Z" clip-rule="evenodd" />
+              </svg>
+           </button>
+           <button type="button" id="stop-btn" class="hidden p-1.5 bg-white text-gray-800 border border-gray-100 rounded-full hover:bg-gray-50 transition items-center justify-center" title="Stop generating" aria-label="Stop generating">
+             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+               <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm6-2.438c0-.724.588-1.312 1.313-1.312h4.874c.725 0 1.313.588 1.313 1.313v4.874c0 .725-.588 1.313-1.313 1.313H9.564a1.312 1.312 0 01-1.313-1.313V9.564z" clip-rule="evenodd" />
+             </svg>
            </button>
          </div>
       </form>
@@ -40,26 +44,141 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     const composer = container.querySelector('#composer');
     const input = container.querySelector('#message-input');
     const sendBtn = container.querySelector('#send-btn');
+    const stopBtn = container.querySelector('#stop-btn');
     const micBtn = container.querySelector('#mic-btn');
-    const loadingSpinner = container.querySelector('#loading-spinner');
     const openFilesBtn = container.querySelector('#open-files-btn');
     const promptPicker = container.querySelector('#prompt-picker');
+    const pendingQueueEl = container.querySelector('#pending-queue');
     let promptIndex = 0;
     let promptQuery = '';
     let promptOptions = [];
     
     let isSubmitting = false;
+    let cancelStreaming = null;
+    let lastActiveChatId = state.activeChatId;
+    let queueNextId = 1;
+    let pendingQueue = [];
+
+    function renderPendingQueue() {
+      if (!pendingQueue.length) {
+        pendingQueueEl.innerHTML = '';
+        pendingQueueEl.classList.add('hidden');
+        return;
+      }
+
+      pendingQueueEl.classList.remove('hidden');
+      pendingQueueEl.innerHTML = pendingQueue.map((item, idx) => `
+        <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
+          <span class="text-[11px] text-gray-400 font-semibold">#${idx + 1}</span>
+          <span class="flex-1 truncate text-gray-700">${item.text.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</span>
+          <button type="button" data-q-send-now="${item.id}" class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded" title="Send next">
+            ↟
+          </button>
+          <button type="button" data-q-up="${item.id}" class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded ${idx === 0 ? 'opacity-30 pointer-events-none' : ''}" title="Move up">
+            ↑
+          </button>
+          <button type="button" data-q-down="${item.id}" class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded ${idx === pendingQueue.length - 1 ? 'opacity-30 pointer-events-none' : ''}" title="Move down">
+            ↓
+          </button>
+          <button type="button" data-q-edit="${item.id}" class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded" title="Edit">
+            ✎
+          </button>
+          <button type="button" data-q-delete="${item.id}" class="p-1 text-red-500 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
+            ✕
+          </button>
+        </div>
+      `).join('');
+
+      pendingQueueEl.querySelectorAll('[data-q-send-now]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-q-send-now'));
+          const idx = pendingQueue.findIndex((q) => q.id === id);
+          if (idx <= 0) return;
+          const [item] = pendingQueue.splice(idx, 1);
+          pendingQueue.unshift(item);
+          renderPendingQueue();
+        });
+      });
+
+      pendingQueueEl.querySelectorAll('[data-q-up]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-q-up'));
+          const idx = pendingQueue.findIndex((q) => q.id === id);
+          if (idx <= 0) return;
+          [pendingQueue[idx - 1], pendingQueue[idx]] = [pendingQueue[idx], pendingQueue[idx - 1]];
+          renderPendingQueue();
+        });
+      });
+
+      pendingQueueEl.querySelectorAll('[data-q-down]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-q-down'));
+          const idx = pendingQueue.findIndex((q) => q.id === id);
+          if (idx < 0 || idx >= pendingQueue.length - 1) return;
+          [pendingQueue[idx], pendingQueue[idx + 1]] = [pendingQueue[idx + 1], pendingQueue[idx]];
+          renderPendingQueue();
+        });
+      });
+
+      pendingQueueEl.querySelectorAll('[data-q-edit]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-q-edit'));
+          const idx = pendingQueue.findIndex((q) => q.id === id);
+          if (idx < 0) return;
+          const next = window.prompt('Edit queued message:', pendingQueue[idx].text);
+          if (next === null) return;
+          const trimmed = String(next).trim();
+          if (!trimmed) return;
+          pendingQueue[idx].text = trimmed;
+          renderPendingQueue();
+        });
+      });
+
+      pendingQueueEl.querySelectorAll('[data-q-delete]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = Number(btn.getAttribute('data-q-delete'));
+          pendingQueue = pendingQueue.filter((q) => q.id !== id);
+          renderPendingQueue();
+        });
+      });
+    }
+
+    function runSend(text) {
+      onSend(text, {
+        onAbortable: (abortFn) => {
+          cancelStreaming = typeof abortFn === 'function' ? abortFn : null;
+        },
+        onFinished: () => {
+          cancelStreaming = null;
+          if (pendingQueue.length > 0) {
+            const next = pendingQueue.shift();
+            renderPendingQueue();
+            if (next?.text) {
+              runSend(next.text);
+              return;
+            }
+          }
+          isSubmitting = false;
+          toggleSendMicBtn();
+          input.focus();
+        },
+      });
+    }
 
     function toggleSendMicBtn() {
        if (isSubmitting) {
+          if (input.value.trim().length > 0) {
+            sendBtn.classList.remove('hidden');
+          } else {
+            sendBtn.classList.add('hidden');
+          }
           micBtn.classList.add('hidden');
-          sendBtn.classList.add('hidden');
-          loadingSpinner.classList.remove('hidden');
-          loadingSpinner.style.display = 'flex';
+          stopBtn.classList.remove('hidden');
+          stopBtn.style.display = 'flex';
           return;
        }
-       loadingSpinner.classList.add('hidden');
-       loadingSpinner.style.display = 'none';
+       stopBtn.classList.add('hidden');
+       stopBtn.style.display = 'none';
 
        if (input.value.trim().length > 0) {
           micBtn.classList.add('hidden');
@@ -199,7 +318,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
 
       if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          if (input.value.trim() && !isSubmitting) {
+          if (input.value.trim()) {
              composer.dispatchEvent(new Event('submit'));
           }
       }
@@ -207,14 +326,10 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
 
     composer.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (isSubmitting) return;
       
       const text = input.value.trim();
       if (!text) return;
-      
-      isSubmitting = true;
-      toggleSendMicBtn();
-      
+
       // Clear draft
       if (state.activeChatId) {
          const drafts = { ...state.drafts };
@@ -226,15 +341,25 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       
       input.value = '';
       input.style.height = '44px';
-      input.disabled = true;
-      
-      // Fire callback and allow resetting state once streaming begins
-      onSend(text, () => {
-         isSubmitting = false;
-         input.disabled = false;
-         toggleSendMicBtn();
-         input.focus();
-      });
+      input.dispatchEvent(new Event('input'));
+
+      if (isSubmitting) {
+        pendingQueue.push({ id: queueNextId++, text });
+        renderPendingQueue();
+        input.focus();
+        return;
+      }
+
+      isSubmitting = true;
+      toggleSendMicBtn();
+      runSend(text);
+      input.focus();
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (typeof cancelStreaming === 'function') {
+        cancelStreaming();
+      }
     });
 
     openFilesBtn.addEventListener('click', () => {
@@ -259,8 +384,22 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     };
 
     unsubscribe = subscribe((currentState) => {
-      // Restore draft when active chat changes
-      if (input !== document.activeElement && !isSubmitting) {
+      // Update placeholder and footer based on active model
+      const model = currentState.models.find(m => m.id === currentState.activeModelId);
+      const modelName = model?.name || 'GrowChat';
+      input.placeholder = `Message ${modelName}`;
+      const footer = container.querySelector('.mt-2.text-xs.text-gray-400');
+      if (footer) {
+        footer.textContent = `${modelName} can make mistakes. Check important info.`;
+      }
+
+      const chatChanged = currentState.activeChatId !== lastActiveChatId;
+      if (chatChanged && pendingQueue.length > 0) {
+        pendingQueue = [];
+        renderPendingQueue();
+      }
+      // Always restore on chat change; otherwise restore only when input is not focused.
+      if (!isSubmitting && (chatChanged || input !== document.activeElement)) {
         const draft = currentState.activeChatId
           ? (currentState.drafts[currentState.activeChatId] || '')
           : (currentState.newChatDraft || '');
@@ -269,6 +408,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
            input.dispatchEvent(new Event('input'));
         }
       }
+      lastActiveChatId = currentState.activeChatId;
     });
   }
 

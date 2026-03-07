@@ -3,7 +3,10 @@ open-terminal/
 .playwright/
 .playwright-cli/
 # Ignore all .claude/ contents by default
+.agents/*
 .claude/*
+.codex/*
+.gemini/*
 
 # But track these specific directories - negate dirs FIRST, then contents
 !.claude/skills/

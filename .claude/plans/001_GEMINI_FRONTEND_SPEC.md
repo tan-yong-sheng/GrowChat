@@ -23,6 +23,30 @@ Deliver stable OpenWebUI-like conversation UX in GrowChat without breaking exist
 5. Keep model selector and default model behavior compatible with current store.
 6. Ensure no blank-page regressions from missing imports/exports.
 
+## Frontend Integration Notice (API Contract Guardrails)
+- Use existing backend APIs only; do not invent request/response shapes in frontend code.
+- Before wiring a feature, verify endpoint existence from `src/routers/*.js` in the checked-out branch.
+- Stable endpoints Gemini may use directly:
+  - `GET /api/models`
+  - `GET /api/users/me`
+  - `GET/POST /api/chats`
+  - `GET/PUT/DELETE /api/chats/:id`
+  - `POST /api/chats/:id/messages`
+  - `POST/DELETE /api/chats/:id/share`
+  - `POST /api/chats/:id/archive`
+  - `GET /api/chats/shared`
+  - `GET /api/chats/archived`
+- New/additive backend endpoints (use only if they exist in current backend branch):
+  - `POST /api/chats/:id/messages/:msgId/branch` (edited user branch)
+  - `POST /api/chats/:id/messages/:msgId/regenerate` (assistant sibling regenerate)
+  - `DELETE /api/chats/:id/messages/:msgId` (subtree delete)
+  - `GET|POST /api/realtime/stream` (realtime placeholder/stream channel)
+- If an endpoint is missing or returns `404/405`:
+  - Do not break the UI.
+  - Show a user-facing alert/toast: `Feature unavailable: backend API missing`.
+  - Keep the UI interactive and preserve local state/drafts.
+  - Do not repeatedly retry in a tight loop.
+
 ## Frontend State Contract Requirements
 - `chat.js` send path and `message-input.js` callback contract must match.
 - If hook-based send is used (`onFinished`, `onAbortable`), input component must consume same contract.

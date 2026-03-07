@@ -24,7 +24,7 @@ export function renderSidebar(aside, container) {
     };
 
     const onMouseMove = (e) => {
-      if (!isResizing) return;
+      if (!isResizing || state.sidebarCollapsed) return;
       const newWidth = Math.max(200, Math.min(window.innerWidth / 2, e.clientX));
       setState({ sidebarWidth: newWidth });
     };
@@ -42,15 +42,76 @@ export function renderSidebar(aside, container) {
     document.addEventListener('mouseup', onMouseUp);
 
     unsubscribe = subscribe((currentState) => {
-      if (currentState.showSidebar && !currentState.isMobile) {
-        aside.style.width = `${currentState.sidebarWidth}px`;
-        aside.style.minWidth = `${currentState.sidebarWidth}px`;
-      } else if (!currentState.showSidebar) {
+      const { showSidebar, sidebarCollapsed, sidebarWidth, isMobile } = currentState;
+
+      if (!showSidebar) {
         aside.style.width = '0px';
         aside.style.minWidth = '0px';
-      } else if (currentState.isMobile) {
-        aside.style.width = '260px';
-        aside.style.minWidth = '260px';
+        aside.classList.add('-ml-[260px]');
+        handle.classList.add('hidden');
+      } else {
+        aside.classList.remove('-ml-[260px]');
+        if (isMobile) {
+          aside.style.width = '260px';
+          aside.style.minWidth = '260px';
+          handle.classList.add('hidden');
+          aside.classList.remove('sidebar-slim');
+        } else {
+          if (sidebarCollapsed) {
+            aside.style.width = '68px';
+            aside.style.minWidth = '68px';
+            handle.classList.add('hidden');
+            aside.classList.add('sidebar-slim');
+          } else {
+            aside.style.width = `${sidebarWidth}px`;
+            aside.style.minWidth = `${sidebarWidth}px`;
+            handle.classList.remove('hidden');
+            aside.classList.remove('sidebar-slim');
+          }
+        }
+      }
+
+      // Toggle visibility of specific elements based on slim state
+      const fullOnly = aside.querySelectorAll('.sidebar-full-only');
+      const slimOnly = aside.querySelectorAll('.sidebar-collapsed-only');
+      const footer = aside.querySelector('.user-profile-footer');
+      
+      const isSlim = showSidebar && !isMobile && sidebarCollapsed;
+
+      if (footer) {
+        if (isSlim) {
+          footer.classList.add('flex', 'justify-center');
+          footer.classList.remove('p-4');
+          footer.classList.add('p-2');
+        } else {
+          footer.classList.remove('flex', 'justify-center');
+          footer.classList.remove('p-2');
+          footer.classList.add('p-4');
+        }
+      }
+
+      fullOnly.forEach(el => {
+        if (isSlim) el.classList.add('hidden');
+        else el.classList.remove('hidden');
+      });
+
+      slimOnly.forEach(el => {
+        if (isSlim) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      });
+
+      // Scale icons in slim mode
+      const icons = aside.querySelectorAll('.sidebar-collapsed-scale');
+      icons.forEach(icon => {
+        if (isSlim) icon.classList.add('scale-110');
+        else icon.classList.remove('scale-110');
+      });
+
+      // Center chat list items in slim mode
+      const chatList = aside.querySelector('#chat-list');
+      if (chatList) {
+        if (isSlim) chatList.classList.add('flex', 'flex-col', 'items-center');
+        else chatList.classList.remove('flex', 'flex-col', 'items-center');
       }
     });
 

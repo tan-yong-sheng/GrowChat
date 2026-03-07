@@ -3,6 +3,7 @@ import { renderChat } from './chat.js';
 import { renderMessageContent } from './utils.js';
 import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
+import { startRealtimeSync, stopRealtimeSync } from './realtime.js';
 
 function renderSharedChatPage(container, data) {
   const chat = data?.chat || {};
@@ -56,6 +57,13 @@ async function bootstrap() {
     window.location.href = '/auth.html';
     return;
   }
+
+  startRealtimeSync({
+    onEvent: (event) => {
+      window.dispatchEvent(new CustomEvent('growchat:realtime', { detail: event }));
+    },
+  });
+  window.addEventListener('beforeunload', stopRealtimeSync, { once: true });
 
   // Initialize global shortcuts
   initShortcuts();
