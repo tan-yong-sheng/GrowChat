@@ -134,21 +134,36 @@ async function ensureSchemaCompatibility(env) {
   if (schemaCompatibilityReady) return schemaCompatibilityReady;
 
   schemaCompatibilityReady = (async () => {
-    // Legacy DB compatibility: some older Phase 1 databases may not have
-    // messages.citations yet. Fresh installs already include it.
-    // Never hard-fail auth/non-chat routes on this compatibility check.
     try {
+      // Check for legacy Phase 1 schema: messages.citations column
       const info = await env.DB.prepare('PRAGMA table_info(messages)').all();
       const columns = info?.results || [];
 
       // If messages table does not exist yet, skip here and let specific routes
       // surface their own table errors.
-      if (!columns.length) return;
+      if (columns.length) {
+        const hasCitations = columns.some((col) => col?.name === 'citations');
+        if (!hasCitations) {
+          await env.DB.prepare('ALTER TABLE messages ADD COLUMN citations TEXT').run();
+        }
+      }
 
-      const hasCitations = columns.some((col) => col?.name === 'citations');
-      if (hasCitations) return;
-
-      await env.DB.prepare('ALTER TABLE messages ADD COLUMN citations TEXT').run();
+      // Check for RBAC schema: verify roles table exists (Phase 2)
+      // If missing, the RBAC migration (008_rbac_core.sql) has not been applied yet.
+      // Warn but don't fail - allows graceful degradation on first deploy.
+      try {
+        const rolesCheck = await env.DB.prepare('SELECT COUNT(*) as count FROM roles').first();
+        if (rolesCheck === undefined) {
+          console.warn('RBAC schema not found: roles table missing. Run migrations/008_rbac_core.sql');
+        }
+      } catch (err) {
+        // Table doesn't exist yet - this is expected on first deploy before migrations run
+        if (/no such table/i.test(String(err?.message || ''))) {
+          console.warn('RBAC schema initialization pending: Run migrations/008_rbac_core.sql');
+        } else {
+          throw err;
+        }
+      }
     } catch (err) {
       if (!isDuplicateColumnError(err)) {
         console.warn('Schema compatibility check skipped:', String(err?.message || err));
