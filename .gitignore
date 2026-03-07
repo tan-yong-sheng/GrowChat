@@ -1,6 +1,16 @@
 open-webui/
+open-terminal/
+
 .playwright/
+.playwright-cli/
+.agents/
 .claude/
+.codex/
+.gemini/
+
+!.claude/memory/**
+!.claude/plans/**
+!.claude/rules/**
 
 # Logs
 
