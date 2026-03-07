@@ -1,6 +1,11 @@
 open-webui/
 .playwright/
+.playwright-cli/
 .claude/
+!.claude/skills
+!.claude/rules
+!.claude/memory
+!.claude/plans
 
 # Logs
 
