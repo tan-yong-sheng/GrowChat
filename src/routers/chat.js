@@ -69,12 +69,19 @@ export async function chatRouter(req, env, _ctx, user, path) {
 
     // Execute search with deterministic sorting (updated_at DESC, created_at DESC)
     // The secondary sort by created_at ensures predictable ordering for ties
+    // Phase 1: Search includes both chat titles AND message content for better results
     let chats;
     if (qRaw) {
       const like = `%${qRaw}%`;
       chats = await db.all(
-        'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? AND title LIKE ? ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?',
-        [user.sub, like, limit, offset]
+        `SELECT DISTINCT c.id, c.title, c.model, c.pinned, c.tags, c.created_at, c.updated_at
+         FROM chats c
+         LEFT JOIN messages m ON c.id = m.chat_id
+         WHERE c.user_id = ?
+         AND (c.title LIKE ? OR m.content LIKE ?)
+         ORDER BY c.updated_at DESC, c.created_at DESC
+         LIMIT ? OFFSET ?`,
+        [user.sub, like, like, limit, offset]
       );
     } else {
       chats = await db.all(
