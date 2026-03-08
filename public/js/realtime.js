@@ -3,7 +3,7 @@ import { getAuthState, getClientSessionId, refreshToken } from './api.js';
 class RealtimeClient {
   constructor(onEvent) {
     this.onEvent = onEvent;
-    this.abortController = null;
+    this.eventSource = null;
     this.closedManually = false;
     this.reconnectDelayMs = 1000;
     this.reconnectTimer = null;
@@ -35,7 +35,7 @@ class RealtimeClient {
 
         if (res.status === 401 && auth?.refresh_token) {
           const refreshed = await refreshToken(auth.refresh_token);
-          this.abortController = null;
+          this.eventSource = null;
           if (refreshed) {
             this.scheduleReconnect(200);
             return;
@@ -53,7 +53,7 @@ class RealtimeClient {
           console.warn('Realtime client error:', String(err?.message || err));
         }
       } finally {
-        this.abortController = null;
+        this.eventSource = null;
         this.connectingPromise = null;
         if (!this.closedManually) this.scheduleReconnect();
       }
@@ -161,7 +161,7 @@ class RealtimeClient {
       this.reconnectTimer = null;
     }
     this.abortController?.abort();
-    this.abortController = null;
+    this.eventSource = null;
   }
 }
 

@@ -48,6 +48,12 @@
 			}
 		]
 	},
+	"migrations": [
+		{
+			"tag": "message-queue-v1",
+			"new_sqlite_classes": ["MessageQueueDO"]
+		}
+	],
 	// KV namespaces
 	"kv_namespaces": [
 		{

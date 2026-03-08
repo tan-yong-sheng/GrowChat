@@ -28,6 +28,7 @@ const PUBLIC_ROUTES = [
   // Model discovery - read-only, safe to expose
   { method: 'GET', path: '/api/models', description: 'List available models' },
   { method: 'GET', path: /^\/api\/models\/[^/]+$/, description: 'Get model by ID' },
+  { method: 'GET', path: '/api/health', description: 'Health check' },
 
   // Authentication - these endpoints are explicitly public
   { method: 'POST', path: '/api/auth/register', description: 'User registration' },
@@ -66,8 +67,17 @@ function isPublicRoute(req, path) {
 
 function readBearer(req) {
   const auth = req.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  return auth.slice('Bearer '.length).trim();
+  if (auth?.startsWith('Bearer ')) {
+    return auth.slice('Bearer '.length).trim();
+  }
+
+  const url = new URL(req.url);
+  if (url.pathname === '/api/realtime/stream') {
+    const queryToken = url.searchParams.get('access_token');
+    if (queryToken) return queryToken.trim();
+  }
+
+  return null;
 }
 
 async function resolveAuthUser(req, env) {

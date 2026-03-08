@@ -6,6 +6,23 @@ import { error, json } from '../utils/response.js';
  * Routes: GET /s/:share_id - View a shared chat with messages (read-only, no auth required)
  */
 export async function publicRouter(req, env, _ctx, _user, path) {
+  if (path === '/api/health') {
+    if (req.method !== 'GET') {
+      return error(req, 'Method not allowed', 405);
+    }
+
+    return json(req, {
+      ok: true,
+      service: env.APP_NAME || 'GrowChat',
+      timestamp: new Date().toISOString(),
+      bindings: {
+        db: !!env.DB,
+        sessions: !!env.SESSIONS,
+        realtime: !!env.MESSAGE_QUEUE,
+      },
+    });
+  }
+
   const shareMatch = path.match(/^\/s\/([^/]+)$/);
   if (!shareMatch) return null;
 

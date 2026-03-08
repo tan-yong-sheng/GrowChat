@@ -17,7 +17,11 @@ function getRealtimeStub(env, userId) {
 }
 
 export function getOriginSessionId(req) {
-  return sanitizeSessionId(req.headers.get('x-client-session-id'));
+  const url = new URL(req.url);
+  return sanitizeSessionId(
+    req.headers.get('x-client-session-id')
+      || url.searchParams.get('client_session_id')
+  );
 }
 
 export function createRealtimeEvent({ type, userId, chatId = null, messageId = null, originSessionId = '', data = null }) {
@@ -29,6 +33,22 @@ export function createRealtimeEvent({ type, userId, chatId = null, messageId = n
     origin_session_id: sanitizeSessionId(originSessionId),
     ts: Date.now(),
     data: data && typeof data === 'object' ? data : data ?? null,
+  };
+}
+
+function normalizeRealtimeEvent(event) {
+  const input = event && typeof event === 'object' ? event : {};
+  const type = String(input.type || '').trim();
+  const userId = String(input.user_id || input.userId || '').trim();
+
+  return {
+    type,
+    user_id: userId,
+    chat_id: input.chat_id || input.chatId ? String(input.chat_id || input.chatId) : null,
+    message_id: input.message_id || input.messageId ? String(input.message_id || input.messageId) : null,
+    origin_session_id: sanitizeSessionId(input.origin_session_id || input.originSessionId),
+    ts: Number(input.ts || Date.now()),
+    data: input.data && typeof input.data === 'object' ? input.data : input.data ?? null,
   };
 }
 
@@ -52,19 +72,23 @@ export async function connectRealtimeStream(req, env, userId) {
 }
 
 export async function publishRealtimeEvent(env, event) {
-  const normalized = createRealtimeEvent(event || {});
+  const normalized = normalizeRealtimeEvent(event);
   if (!normalized.type || !normalized.user_id) return false;
 
   const stub = getRealtimeStub(env, normalized.user_id);
   if (!stub) return false;
 
-  const response = await stub.fetch(`${INTERNAL_REALTIME_ORIGIN}/publish`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(normalized),
-  });
+  try {
+    const response = await stub.fetch(`${INTERNAL_REALTIME_ORIGIN}/publish`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(normalized),
+    });
 
-  return response.ok;
+    return response.ok;
+  } catch (err) {
+    return false;
+  }
 }

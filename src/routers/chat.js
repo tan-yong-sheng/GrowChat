@@ -25,6 +25,14 @@ async function getOwnedChat(db, chatId, userId) {
   return db.first('SELECT * FROM chats WHERE id = ? AND user_id = ?', [chatId, userId]);
 }
 
+async function getMessageSnapshot(db, messageId) {
+  if (!messageId) return null;
+  return db.first(
+    'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ?',
+    [messageId]
+  );
+}
+
 function scheduleRealtimeEvent(ctx, env, event) {
   const publishPromise = publishRealtimeEvent(env, event);
   if (ctx?.waitUntil) {
@@ -43,7 +51,7 @@ async function publishRealtimeNow(env, event) {
 }
 
 export async function chatRouter(req, env, ctx, user, path) {
-  const isChatPath = path === '/api/chats' || path === '/api/chats/shared' || path === '/api/chats/archived' || /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate))?)?|\/(?:share|archive))?$/.test(path);
+  const isChatPath = path === '/api/chats' || path === '/api/chats/shared' || path === '/api/chats/archived' || /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate))?)?|\/(?:share|archive|pin|clone))?$/.test(path);
   if (!isChatPath) return null;
 
   const unauthorized = requireAuth(req, user);
@@ -124,12 +132,12 @@ export async function chatRouter(req, env, ctx, user, path) {
     );
 
     const chat = await db.first('SELECT * FROM chats WHERE id = ?', [id]);
-    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+    await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.created',
       userId: user.sub,
       chatId: id,
       originSessionId,
-      data: { model },
+      data: { model, chat },
     }));
     return json(req, { chat }, 201);
   }
@@ -190,11 +198,12 @@ export async function chatRouter(req, env, ctx, user, path) {
       );
 
       const updated = await getOwnedChat(db, chatId, user.sub);
-      scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      await publishRealtimeNow(env, createRealtimeEvent({
         type: 'chat.updated',
         userId: user.sub,
         chatId,
         originSessionId,
+        data: { chat: updated },
       }));
       return json(req, { chat: updated });
     }
@@ -204,22 +213,121 @@ export async function chatRouter(req, env, ctx, user, path) {
       if (!chat) return error(req, 'Chat not found', 404);
 
       await db.run('DELETE FROM chats WHERE id = ? AND user_id = ?', [chatId, user.sub]);
-      scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      await publishRealtimeNow(env, createRealtimeEvent({
         type: 'chat.deleted',
         userId: user.sub,
         chatId,
         originSessionId,
       }));
-      scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.updated',
       userId: user.sub,
       chatId,
       originSessionId,
-      data: { shared: false },
+      data: { shared: false, chat: await getOwnedChat(db, chatId, user.sub) },
     }));
 
     return json(req, { ok: true });
     }
+  }
+
+  // Route: POST /api/chats/:id/pin - Toggle pinned state
+  const pinMatch = path.match(/^\/api\/chats\/([^/]+)\/pin$/);
+  if (pinMatch && req.method === 'POST') {
+    const chatId = pinMatch[1];
+    const chat = await getOwnedChat(db, chatId, user.sub);
+    if (!chat) return error(req, 'Chat not found', 404);
+
+    const nextPinned = chat.pinned ? 0 : 1;
+    await db.run(
+      'UPDATE chats SET pinned = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+      [nextPinned, chatId, user.sub]
+    );
+
+    const updated = await getOwnedChat(db, chatId, user.sub);
+    await publishRealtimeNow(env, createRealtimeEvent({
+      type: 'chat.updated',
+      userId: user.sub,
+      chatId,
+      originSessionId,
+      data: { chat: updated },
+    }));
+
+    return json(req, { chat: updated });
+  }
+
+  // Route: POST /api/chats/:id/clone - Duplicate chat and messages
+  const cloneMatch = path.match(/^\/api\/chats\/([^/]+)\/clone$/);
+  if (cloneMatch && req.method === 'POST') {
+    const sourceChatId = cloneMatch[1];
+    const sourceChat = await getOwnedChat(db, sourceChatId, user.sub);
+    if (!sourceChat) return error(req, 'Chat not found', 404);
+
+    const sourceMessages = await db.all(
+      'SELECT id, role, content, model, citations, parent_id, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
+      [sourceChatId]
+    );
+
+    const newChatId = crypto.randomUUID();
+    const newTitle = `${String(sourceChat.title || 'New Chat').trim() || 'New Chat'} (Copy)`;
+
+    const statements = [
+      db.prepare(
+        'INSERT INTO chats (id, user_id, title, model, tags, pinned, share_id, archived, current_message_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, 0, NULL, unixepoch(), unixepoch())'
+      ).bind(
+        newChatId,
+        user.sub,
+        newTitle,
+        sourceChat.model || defaultModel(env),
+        sourceChat.tags || '[]'
+      ),
+    ];
+
+    const messageIdMap = new Map();
+    for (const message of sourceMessages) {
+      messageIdMap.set(String(message.id), crypto.randomUUID());
+    }
+
+    for (const message of sourceMessages) {
+      const mappedParentId = message.parent_id ? messageIdMap.get(String(message.parent_id)) || null : null;
+      statements.push(
+        db.prepare(
+          'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())'
+        ).bind(
+          messageIdMap.get(String(message.id)),
+          newChatId,
+          message.role,
+          message.content,
+          message.model,
+          message.citations || null,
+          mappedParentId
+        )
+      );
+    }
+
+    const mappedCurrentMessageId = sourceChat.current_message_id
+      ? messageIdMap.get(String(sourceChat.current_message_id)) || null
+      : null;
+    if (mappedCurrentMessageId) {
+      statements.push(
+        db.prepare(
+          'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
+        ).bind(mappedCurrentMessageId, newChatId, user.sub)
+      );
+    }
+
+    await db.batch(statements);
+
+    const createdChat = await getOwnedChat(db, newChatId, user.sub);
+    await publishRealtimeNow(env, createRealtimeEvent({
+      type: 'chat.created',
+      userId: user.sub,
+      chatId: newChatId,
+      originSessionId,
+      data: { model: createdChat?.model, chat: createdChat },
+    }));
+
+    return json(req, { chat: createdChat }, 201);
   }
 
   // Route: POST /api/chats/:id/share - Create or get share link
@@ -238,12 +346,12 @@ export async function chatRouter(req, env, ctx, user, path) {
       );
     }
 
-    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+    await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.updated',
       userId: user.sub,
       chatId,
       originSessionId,
-      data: { shared: true },
+      data: { shared: true, chat: await getOwnedChat(db, chatId, user.sub) },
     }));
 
     return json(req, {
@@ -284,7 +392,7 @@ export async function chatRouter(req, env, ctx, user, path) {
     );
 
     const updated = await getOwnedChat(db, chatId, user.sub);
-    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+    await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.updated',
       userId: user.sub,
       chatId,
@@ -314,18 +422,25 @@ export async function chatRouter(req, env, ctx, user, path) {
 
     const userMsgId = crypto.randomUUID();
     const parentId = chat.current_message_id || null;
-    await db.run(
-      'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
-      [userMsgId, chatId, 'user', content, model, parentId]
-    );
+    await db.batch([
+      db.prepare(
+        'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
+      ).bind(userMsgId, chatId, 'user', content, model, parentId),
+      db.prepare(
+        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
+      ).bind(userMsgId, chatId, user.sub),
+    ]);
 
-    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+    const createdUserMessage = await getMessageSnapshot(db, userMsgId);
+    const updatedChatAfterUserMessage = await getOwnedChat(db, chatId, user.sub);
+
+    await publishRealtimeNow(env, createRealtimeEvent({
       type: 'message.created',
       userId: user.sub,
       chatId,
       messageId: userMsgId,
       originSessionId,
-      data: { role: 'user', model },
+      data: { role: 'user', model, message: createdUserMessage, chat: updatedChatAfterUserMessage },
     }));
 
     const history = await db.all(
@@ -449,13 +564,21 @@ export async function chatRouter(req, env, ctx, user, path) {
               'UPDATE chats SET current_message_id = ? WHERE id = ? AND user_id = ?',
               [assistantMsgId, chatId, user.sub]
             );
+            const completedAssistantMessage = await getMessageSnapshot(db, assistantMsgId);
+            const updatedChatAfterAssistantMessage = await getOwnedChat(db, chatId, user.sub);
             await publishRealtimeNow(env, createRealtimeEvent({
               type: 'message.completed',
               userId: user.sub,
               chatId,
               messageId: assistantMsgId,
               originSessionId,
-              data: { role: 'assistant', model, citations },
+              data: {
+                role: 'assistant',
+                model,
+                citations,
+                message: completedAssistantMessage,
+                chat: updatedChatAfterAssistantMessage,
+              },
             }));
           }
 
@@ -573,14 +696,15 @@ export async function chatRouter(req, env, ctx, user, path) {
         'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ?',
         [newAssistantMsgId]
       );
+      const updatedChat = await getOwnedChat(db, chatId, user.sub);
 
-      scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+      await publishRealtimeNow(env, createRealtimeEvent({
         type: 'message.completed',
         userId: user.sub,
         chatId,
         messageId: newAssistantMsgId,
         originSessionId,
-        data: { role: 'assistant', model: sourceMsg.model },
+        data: { role: 'assistant', model: sourceMsg.model, message: newMsg, chat: updatedChat },
       }));
 
       return json(req, { message: newMsg }, 200);
@@ -590,18 +714,25 @@ export async function chatRouter(req, env, ctx, user, path) {
     const model = String(body.model || chat.model || defaultModel(env)).trim() || defaultModel(env);
 
     const newUserMsgId = crypto.randomUUID();
-    await db.run(
-      'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
-      [newUserMsgId, chatId, 'user', content, model, sourceMsg.parent_id]
-    );
+    await db.batch([
+      db.prepare(
+        'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
+      ).bind(newUserMsgId, chatId, 'user', content, model, sourceMsg.parent_id),
+      db.prepare(
+        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
+      ).bind(newUserMsgId, chatId, user.sub),
+    ]);
 
-    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+    const createdBranchUserMessage = await getMessageSnapshot(db, newUserMsgId);
+    const updatedBranchChat = await getOwnedChat(db, chatId, user.sub);
+
+    await publishRealtimeNow(env, createRealtimeEvent({
       type: 'message.created',
       userId: user.sub,
       chatId,
       messageId: newUserMsgId,
       originSessionId,
-      data: { role: 'user', model },
+      data: { role: 'user', model, message: createdBranchUserMessage, chat: updatedBranchChat },
     }));
 
     const history = await getBranchHistory(newUserMsgId);
@@ -678,13 +809,20 @@ export async function chatRouter(req, env, ctx, user, path) {
                 [assistantMsgId, model, chatId, user.sub]
               ),
             ]);
+            const completedBranchAssistantMessage = await getMessageSnapshot(db, assistantMsgId);
+            const updatedBranchAssistantChat = await getOwnedChat(db, chatId, user.sub);
             await publishRealtimeNow(env, createRealtimeEvent({
               type: 'message.completed',
               userId: user.sub,
               chatId,
               messageId: assistantMsgId,
               originSessionId,
-              data: { role: 'assistant', model },
+              data: {
+                role: 'assistant',
+                model,
+                message: completedBranchAssistantMessage,
+                chat: updatedBranchAssistantChat,
+              },
             }));
           }
 
@@ -795,13 +933,20 @@ export async function chatRouter(req, env, ctx, user, path) {
               'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
               [newAssistantMsgId, chatId, user.sub]
             );
+            const completedRegeneratedMessage = await getMessageSnapshot(db, newAssistantMsgId);
+            const updatedRegeneratedChat = await getOwnedChat(db, chatId, user.sub);
             await publishRealtimeNow(env, createRealtimeEvent({
               type: 'message.completed',
               userId: user.sub,
               chatId,
               messageId: newAssistantMsgId,
               originSessionId,
-              data: { role: 'assistant', model },
+              data: {
+                role: 'assistant',
+                model,
+                message: completedRegeneratedMessage,
+                chat: updatedRegeneratedChat,
+              },
             }));
           }
 
@@ -863,7 +1008,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       [msgId, chatId]
     );
 
-    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+    await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.updated',
       userId: user.sub,
       chatId,
@@ -916,7 +1061,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       );
     }
 
-    scheduleRealtimeEvent(ctx, env, createRealtimeEvent({
+    await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.updated',
       userId: user.sub,
       chatId,

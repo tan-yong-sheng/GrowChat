@@ -140,13 +140,10 @@ export function renderChat(container) {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
             <div id="sidebar-logo-slim" class="sidebar-collapsed-only flex justify-center w-full cursor-pointer" title="Open Sidebar">
-               <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden hover:bg-gray-50 transition-colors">
-                 <img src="/logo.png" alt="GrowChat" class="w-6 h-6 object-contain" />
+               <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-gray-100 shadow-sm hover:bg-gray-50 transition-colors text-gray-600">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                </div>
             </div>
-            <button id="close-sidebar-mobile" class="md:hidden p-1 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors ml-auto">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
           </div>
 
           <div class="space-y-1">
@@ -170,12 +167,12 @@ export function renderChat(container) {
           </div>
         </div>
 
-        <div class="flex-grow flex flex-col min-h-0 overflow-hidden px-3 pb-4">
+        <div class="flex-grow flex flex-col min-h-0 overflow-hidden px-3 pb-4 sidebar-full-only">
           <button id="toggle-chats-btn" class="flex items-center justify-between w-full text-[11px] font-semibold text-gray-400 px-3 py-2 mt-2 uppercase tracking-wider sidebar-full-only hover:text-gray-600 transition-colors group">
             <span>Chats</span>
             <svg id="toggle-chats-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-200"><polyline points="18 15 12 9 6 15"></polyline></svg>
           </button>
-          <div class="flex-grow overflow-y-auto no-scrollbar" id="chat-list-container">
+          <div class="flex-grow overflow-y-auto no-scrollbar sidebar-full-only" id="chat-list-container">
             <ul id="chat-list" class="space-y-0.5"></ul>
           </div>
         </div>
@@ -1232,11 +1229,45 @@ function wireChat(root) {
       messagesByChat: { ...state.messagesByChat, [chatId]: messages },
     };
     if (updateActiveModel) {
-      nextState.activeModelId = data?.chat?.model || state.activeModelId;
+      const preferredModelId = state.defaultModelId || data?.chat?.model || state.activeModelId;
+      nextState.activeModelId = preferredModelId;
     }
     setState(nextState);
 
     if (draw) drawMessages(messages);
+  }
+
+  function upsertChatFromEvent(chat) {
+    if (!chat?.id) return;
+    const nextChats = [...state.chats];
+    const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
+    if (index >= 0) {
+      nextChats[index] = { ...nextChats[index], ...chat };
+    } else {
+      nextChats.unshift(chat);
+    }
+    nextChats.sort((a, b) => {
+      const updatedDelta = Number(b?.updated_at || 0) - Number(a?.updated_at || 0);
+      if (updatedDelta !== 0) return updatedDelta;
+      return Number(b?.created_at || 0) - Number(a?.created_at || 0);
+    });
+    setState({ chats: nextChats });
+  }
+
+  function upsertMessageFromEvent(chatId, message, { draw = true } = {}) {
+    if (!chatId || !message?.id) return;
+    const existingMessages = [...(state.messagesByChat[chatId] || [])];
+    const index = existingMessages.findIndex((item) => String(item?.id) === String(message.id));
+    const normalized = { ...message, done: true };
+    if (index >= 0) {
+      existingMessages[index] = { ...existingMessages[index], ...normalized };
+    } else {
+      existingMessages.push(normalized);
+      existingMessages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
+    }
+    currentLeafByChatId.set(chatId, String(message.id));
+    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: existingMessages } });
+    if (draw && state.activeChatId === chatId) drawMessages(existingMessages);
   }
 
   const onRealtimeEvent = async (evt) => {
@@ -1262,8 +1293,23 @@ function wireChat(root) {
     }
 
     const isSameSession = !!event.origin_session_id && event.origin_session_id === clientSessionId;
+    const eventChat = event?.data?.chat || null;
+    const eventMessage = event?.data?.message || null;
 
     if (type.startsWith('chat.')) {
+      if (type === 'chat.deleted') {
+        const nextChats = state.chats.filter((chat) => String(chat?.id) !== String(event.chat_id || ''));
+        const nextActiveChatId = state.activeChatId === event.chat_id ? (nextChats[0]?.id || null) : state.activeChatId;
+        setState({ chats: nextChats, activeChatId: nextActiveChatId });
+        if (!nextActiveChatId) drawMessages([]);
+        return;
+      }
+
+      if (eventChat) {
+        upsertChatFromEvent(eventChat);
+        return;
+      }
+
       const previousActiveChatId = state.activeChatId;
       await loadChats();
       if (isSameSession && activeStreamAbort && event.chat_id === previousActiveChatId) {
@@ -1323,7 +1369,17 @@ function wireChat(root) {
     }
 
     if (type === 'message.created' || type === 'message.completed') {
-      await loadChats();
+      if (eventChat) {
+        upsertChatFromEvent(eventChat);
+      } else {
+        await loadChats();
+      }
+
+      if (eventMessage) {
+        upsertMessageFromEvent(event.chat_id, eventMessage, { draw: event.chat_id === state.activeChatId });
+        return;
+      }
+
       if (event.chat_id && event.chat_id === state.activeChatId) {
         await loadMessages(event.chat_id);
       }
@@ -1332,7 +1388,8 @@ function wireChat(root) {
   window.addEventListener('growchat:realtime', onRealtimeEvent);
 
   async function createChat() {
-    const payload = state.activeModelId ? { model: state.activeModelId } : {};
+    const modelToUse = state.defaultModelId || state.activeModelId;
+    const payload = modelToUse ? { model: modelToUse } : {};
     const res = await apiFetch('/api/chats', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -1343,7 +1400,7 @@ function wireChat(root) {
     setState((prev) => ({
       chats: [data.chat, ...prev.chats],
       activeChatId: data.chat.id,
-      activeModelId: data.chat.model || prev.activeModelId,
+      activeModelId: prev.defaultModelId || data.chat.model || prev.activeModelId,
     }));
 
     await loadMessages(data.chat.id);
@@ -1367,7 +1424,7 @@ function wireChat(root) {
       setState((prev) => ({
         chats: [data.chat, ...prev.chats],
         activeChatId: chatId,
-        activeModelId: data.chat.model || prev.activeModelId,
+        activeModelId: prev.defaultModelId || data.chat.model || prev.activeModelId,
       }));
     }
 
