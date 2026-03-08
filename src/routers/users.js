@@ -1,7 +1,7 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { isValidEmail } from '../utils/rbac.js';
-import { authorize, logAuditEvent, isLastOwnerOfRole } from '../utils/authorize.js';
+import { authorize, logAuditEvent, isLastOwnerOfRole, resolvePermissions, getUserRoles } from '../utils/authorize.js';
 
 async function upsertGlobalRoleBinding(db, userId, role) {
   await db.run(
@@ -24,11 +24,23 @@ export async function usersRouter(req, env, _ctx, user, path) {
   const isUsersPath =
     path === '/api/users/me' ||
     path === '/api/users/me/update' ||
+    path === '/api/users/me/permissions' ||
+    path === '/api/users/me/roles' ||
     path === '/api/admin/users' ||
     /^\/api\/admin\/users\/[^/]+$/.test(path);
 
   if (!isUsersPath) return null;
   if (!user) return error(req, 'Unauthorized', 401);
+
+  if (req.method === 'GET' && path === '/api/users/me/permissions') {
+    const permissions = await resolvePermissions(env, user);
+    return json(req, { permissions });
+  }
+
+  if (req.method === 'GET' && path === '/api/users/me/roles') {
+    const roles = await getUserRoles(env, user.sub);
+    return json(req, { roles });
+  }
 
   if (req.method === 'GET' && path === '/api/users/me') {
     const db = createDB(env.DB);

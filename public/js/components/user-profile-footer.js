@@ -18,6 +18,8 @@ export async function createUserProfileFooter() {
   element.className = 'user-profile-footer border-t border-gray-100 p-4 mt-auto sticky bottom-0 bg-[#f9f9f9] z-20 transition-all';
   
   const updateUI = (userData) => {
+    const hasAdminPerm = state.permissions?.includes('admin.rbac.admin') || false;
+    
     element.innerHTML = `
       <div class="relative w-full">
         <button class="user-profile-btn w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white transition-all text-left group/user">
@@ -34,6 +36,12 @@ export async function createUserProfileFooter() {
         </button>
 
         <div class="user-menu-dropdown hidden absolute bottom-full left-0 w-full mb-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+          ${hasAdminPerm ? `
+            <button data-action="admin" class="menu-item flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors text-gray-700">
+              <span>🛡️</span> Admin Panel
+            </button>
+            <hr class="border-gray-100">
+          ` : ''}
           <button data-action="profile" class="menu-item flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors text-gray-700">
             <span>👤</span> Profile
           </button>
@@ -61,7 +69,9 @@ export async function createUserProfileFooter() {
       if (!actionBtn) return;
       
       const action = actionBtn.dataset.action;
-      if (action === 'profile') {
+      if (action === 'admin') {
+          showAdminModal();
+      } else if (action === 'profile') {
           // Implement profile modal
           console.log('Profile action');
       } else if (action === 'preferences') {
@@ -85,6 +95,38 @@ export async function createUserProfileFooter() {
   });
 
   return element;
+}
+
+function showAdminModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4';
+  modal.innerHTML = `
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
+      <div class="modal-header flex items-center justify-between mb-6">
+        <h3 class="text-xl font-bold text-gray-900 dark:text-white">Admin Panel</h3>
+        <button class="modal-close p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500">✕</button>
+      </div>
+
+      <div class="flex flex-col items-center justify-center py-10">
+        <div class="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4 text-orange-600">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-2">Backend api not found</h3>
+        <p class="text-sm text-gray-500 text-center">The RBAC admin interface is currently being integrated with the backend.</p>
+      </div>
+
+      <div class="mt-8">
+        <button class="modal-close w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-bold transition-all active:scale-[0.98]">
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+
+  const close = () => modal.remove();
+  modal.querySelectorAll('.modal-close').forEach(b => b.onclick = close);
+  modal.onclick = (e) => { if (e.target === modal) close(); };
+  document.body.appendChild(modal);
 }
 
 function getStatusColor(status) {

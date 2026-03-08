@@ -25,7 +25,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: 'tests/e2e/fixtures/auth-state.json',
       },
-      testMatch: [/chat\.spec\.ts/, /realtime\.spec\.ts/, /ui-logic\.spec\.ts/, /visual\.spec\.ts/],
+      testMatch: [/chat\.spec\.ts/, /realtime\.spec\.ts/, /ui-logic\.spec\.ts/, /visual\.spec\.ts/, /rbac\.spec\.ts/],
     },
     {
       name: 'mobile-auth',

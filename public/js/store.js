@@ -38,6 +38,10 @@ export const state = {
   // Interaction State
   drafts: JSON.parse(localStorage.getItem('drafts') || '{}'), // chatId -> draft text
   newChatDraft: '',
+  // RBAC State
+  permissions: [],
+  userRoles: [],
+  rbacLoading: false,
   ui: {
     loading: false,
     streaming: false,

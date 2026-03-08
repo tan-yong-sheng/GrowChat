@@ -261,3 +261,111 @@ export async function fetchPublicSharedChat(shareId) {
   }
   return res.json();
 }
+
+// RBAC API Functions
+export async function fetchMyPermissions() {
+  const res = await apiFetch('/api/users/me/permissions');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch permissions (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchMyRoles() {
+  const res = await apiFetch('/api/users/me/roles');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch roles (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchAdminRoles() {
+  const res = await apiFetch('/api/admin/rbac/roles');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch admin roles (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchAdminPermissions() {
+  const res = await apiFetch('/api/admin/rbac/permissions');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch admin permissions (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchAuditLog({ limit = 50, offset = 0 } = {}) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  const res = await apiFetch(`/api/admin/audit?${params.toString()}`);
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch audit log (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+// RBAC API Functions
+export async function fetchMyPermissions() {
+  const res = await apiFetch('/api/users/me/permissions');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch permissions (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchMyRoles() {
+  const res = await apiFetch('/api/users/me/roles');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch roles (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchAdminRoles() {
+  const res = await apiFetch('/api/admin/rbac/roles');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch admin roles (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchAdminPermissions() {
+  const res = await apiFetch('/api/admin/rbac/permissions');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch admin permissions (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchAuditLog({ limit = 50, offset = 0 } = {}) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  const res = await apiFetch(`/api/admin/audit?${params.toString()}`);
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch audit log (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
