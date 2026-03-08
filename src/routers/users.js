@@ -1,7 +1,24 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { isValidEmail } from '../utils/rbac.js';
-import { authorize, logAuditEvent, isLastOwnerOfRole, getUserRoles } from '../utils/authorize.js';
+import { authorize, logAuditEvent, isLastOwnerOfRole } from '../utils/authorize.js';
+
+async function upsertGlobalRoleBinding(db, userId, role) {
+  await db.run(
+    'DELETE FROM user_roles WHERE user_id = ? AND scope_type IS NULL AND scope_id IS NULL',
+    [userId]
+  );
+
+  if (role === 'inactive') return;
+  const mappedRole = role === 'admin' ? 'admin' : 'member';
+  await db.run(
+    `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, scope_type, scope_id, created_at)
+     SELECT ?, ?, r.id, NULL, NULL, unixepoch()
+     FROM roles r
+     WHERE r.name = ?`,
+    [crypto.randomUUID(), userId, mappedRole]
+  );
+}
 
 export async function usersRouter(req, env, _ctx, user, path) {
   const isUsersPath =
@@ -507,6 +524,9 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     try {
       await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
+      if (oldRole !== newRole) {
+        await upsertGlobalRoleBinding(db, userId, newRole);
+      }
 
       // Log audit event for role change
       if (oldRole !== newRole) {
@@ -589,6 +609,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       // Soft delete: update role to 'inactive'
       const oldRole = existing.role;
       await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['inactive', userId]);
+      await upsertGlobalRoleBinding(db, userId, 'inactive');
 
       // Log audit event
       await logAuditEvent(env, {

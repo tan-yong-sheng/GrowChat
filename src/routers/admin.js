@@ -21,11 +21,11 @@ import { authorize, logAuditEvent } from '../utils/authorize.js';
 export async function adminRouter(req, env, ctx, user, path) {
   if (!path.startsWith('/api/admin/')) return null;
 
-  // All admin endpoints require authorization
-  const authDecision = await authorize(env, user, {
-    action: 'admin.user.read',
-    resource: 'admin'
-  });
+  let requiredPermission = 'admin.user.read';
+  if (path === '/api/admin/faqs/reindex' || path === '/api/admin/documents/reindex') {
+    requiredPermission = 'kb.reindex';
+  }
+  const authDecision = await authorize(env, user, { action: requiredPermission });
 
   if (!authDecision.allow) {
     return error(req, authDecision.reason || 'Forbidden', 403);

@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
 -- Append-only audit log for all admin mutations
 CREATE TABLE IF NOT EXISTS audit_log (
   id TEXT PRIMARY KEY,
-  actor_id TEXT NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   action TEXT NOT NULL,
   resource_type TEXT NOT NULL,
   resource_id TEXT,
@@ -166,7 +166,9 @@ INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, created_at) 
   ('rp-member-chat-share', 'role-member', 'perm-chat-share', unixepoch()),
   ('rp-member-model-use', 'role-member', 'perm-model-use', unixepoch()),
   ('rp-member-kb-read', 'role-member', 'perm-kb-read', unixepoch()),
-  ('rp-member-file-upload', 'role-member', 'perm-file-upload', unixepoch());
+  ('rp-member-kb-write', 'role-member', 'perm-kb-write', unixepoch()),
+  ('rp-member-file-upload', 'role-member', 'perm-file-upload', unixepoch()),
+  ('rp-member-file-delete', 'role-member', 'perm-file-delete', unixepoch());
 
 -- VIEWER: Read-only access
 INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, created_at) VALUES
@@ -176,3 +178,28 @@ INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, created_at) 
 -- SERVICE: AI service account (write-only for responses)
 INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, created_at) VALUES
   ('rp-service-chat-write', 'role-service', 'perm-chat-write', unixepoch());
+
+-- ============================================================================
+-- LEGACY USER BOOTSTRAP
+-- ============================================================================
+
+-- Backfill global role bindings for existing users.
+-- admin -> admin role, user -> member role, inactive -> no binding
+INSERT OR IGNORE INTO user_roles (id, user_id, role_id, scope_type, scope_id, created_at)
+SELECT
+  'ur-' || u.id || '-' || r.id,
+  u.id,
+  r.id,
+  NULL,
+  NULL,
+  unixepoch()
+FROM users u
+INNER JOIN roles r ON r.name = CASE WHEN u.role = 'admin' THEN 'admin' ELSE 'member' END
+WHERE u.role IN ('admin', 'user')
+  AND NOT EXISTS (
+    SELECT 1
+    FROM user_roles ur
+    WHERE ur.user_id = u.id
+      AND ur.scope_type IS NULL
+      AND ur.scope_id IS NULL
+  );

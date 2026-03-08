@@ -191,7 +191,7 @@ export async function knowledgeRouter(req, env, _ctx, user, path) {
 
     // Check authorization for KB deletion
     const authDecision = await authorize(env, user, {
-      action: 'kb.delete',
+      action: 'kb.write',
       resource: 'knowledge_base',
       resourceId: kbId
     });

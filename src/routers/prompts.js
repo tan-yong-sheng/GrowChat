@@ -159,8 +159,9 @@ export async function promptsRouter(req, env, _ctx, user, path) {
       if (!prompt) return error(req, 'Prompt not found', 404);
 
       // Don't allow updating global prompts unless admin
-      if (prompt.is_global && user.role !== 'admin') {
-        return error(req, 'Cannot modify global prompt', 403);
+      if (prompt.is_global) {
+        const authDecision = await authorize(env, user, { action: 'admin.user.write' });
+        if (!authDecision.allow) return error(req, 'Cannot modify global prompt', 403);
       }
 
       const title = body.title !== undefined ? String(body.title).trim() : prompt.title;
@@ -179,6 +180,12 @@ export async function promptsRouter(req, env, _ctx, user, path) {
          WHERE id = ? AND user_id = ?`,
         [title, content, category, promptId, user.sub]
       );
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'prompt_updated',
+        resource_type: 'prompt',
+        resource_id: promptId,
+      });
 
       const updated = await getOwnedPrompt(db, promptId, user.sub, true);
       return json(req, { prompt: updated });
@@ -199,8 +206,9 @@ export async function promptsRouter(req, env, _ctx, user, path) {
       if (!prompt) return error(req, 'Prompt not found', 404);
 
       // Don't allow deleting global prompts unless admin
-      if (prompt.is_global && user.role !== 'admin') {
-        return error(req, 'Cannot delete global prompt', 403);
+      if (prompt.is_global) {
+        const authDecision = await authorize(env, user, { action: 'admin.user.write' });
+        if (!authDecision.allow) return error(req, 'Cannot delete global prompt', 403);
       }
 
       // Soft delete by setting is_active = 0
@@ -208,6 +216,12 @@ export async function promptsRouter(req, env, _ctx, user, path) {
         `UPDATE prompts SET is_active = 0, updated_at = unixepoch() WHERE id = ? AND user_id = ?`,
         [promptId, user.sub]
       );
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'prompt_deleted',
+        resource_type: 'prompt',
+        resource_id: promptId,
+      });
 
       return json(req, { ok: true });
     } catch (err) {
@@ -253,8 +267,9 @@ export async function promptsRouter(req, env, _ctx, user, path) {
       if (!prompt) return error(req, 'Prompt not found', 404);
 
       // Don't allow toggling global prompts unless admin
-      if (prompt.is_global && user.role !== 'admin') {
-        return error(req, 'Cannot modify global prompt', 403);
+      if (prompt.is_global) {
+        const authDecision = await authorize(env, user, { action: 'admin.user.write' });
+        if (!authDecision.allow) return error(req, 'Cannot modify global prompt', 403);
       }
 
       const newActive = prompt.is_active ? 0 : 1;
@@ -262,6 +277,13 @@ export async function promptsRouter(req, env, _ctx, user, path) {
         `UPDATE prompts SET is_active = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?`,
         [newActive, promptId, user.sub]
       );
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'prompt_toggled',
+        resource_type: 'prompt',
+        resource_id: promptId,
+        metadata: { is_active: newActive === 1 },
+      });
 
       const updated = await getOwnedPrompt(db, promptId, user.sub, true);
       return json(req, { prompt: updated, is_active: newActive === 1 });

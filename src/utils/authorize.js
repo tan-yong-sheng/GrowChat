@@ -17,6 +17,66 @@ export const DENIAL_REASONS = {
   INVALID_REQUEST: 'invalid_request',
 };
 
+const LEGACY_ROLE_PERMISSION_MAP = {
+  admin: [
+    'chat.read',
+    'chat.write',
+    'chat.delete',
+    'chat.share',
+    'model.use',
+    'model.admin',
+    'kb.read',
+    'kb.write',
+    'kb.reindex',
+    'file.upload',
+    'file.delete',
+    'admin.user.read',
+    'admin.user.write',
+    'admin.audit.read',
+    'admin.rbac.admin',
+  ],
+  user: [
+    'chat.read',
+    'chat.write',
+    'chat.delete',
+    'chat.share',
+    'model.use',
+    'kb.read',
+    'kb.write',
+    'file.upload',
+    'file.delete',
+  ],
+  inactive: [],
+};
+
+function getLegacyFallbackPermissions(role) {
+  return LEGACY_ROLE_PERMISSION_MAP[role] || LEGACY_ROLE_PERMISSION_MAP.user;
+}
+
+async function loadUserRoleFromUsersTable(env, userId) {
+  try {
+    const row = await env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(userId).first();
+    return row?.role || null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveRolePermissionsByRoleName(env, roleName) {
+  try {
+    const result = await env.DB.prepare(
+      `SELECT DISTINCT p.key
+       FROM permissions p
+       INNER JOIN role_permissions rp ON p.id = rp.permission_id
+       INNER JOIN roles r ON rp.role_id = r.id
+       WHERE r.name = ?`
+    ).bind(roleName).all();
+    return (result.results || []).map((row) => row.key);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Resolve user's permissions from database
  *
@@ -41,13 +101,27 @@ export async function resolvePermissions(env, user, context = {}) {
         AND (ur.scope_type IS NULL OR (ur.scope_type = ? AND ur.scope_id = ?))
     `;
 
-    const bindings = [user.sub, context.scope_type || null, context.scope_id || null];
-    const result = await env.DB.prepare(query).bind(bindings).all();
+    const result = await env.DB.prepare(query).bind(
+      user.sub,
+      context.scope_type || null,
+      context.scope_id || null
+    ).all();
 
-    return (result.results || []).map((row) => row.key);
+    const resolved = (result.results || []).map((row) => row.key);
+    if (resolved.length > 0) return resolved;
+
+    // Compatibility fallback for legacy records without user_roles entries.
+    const persistedRole = await loadUserRoleFromUsersTable(env, user.sub);
+    if (!persistedRole || persistedRole === 'inactive') return [];
+
+    const mappedRole = persistedRole === 'admin' ? 'admin' : 'member';
+    const mappedPermissions = await resolveRolePermissionsByRoleName(env, mappedRole);
+    if (mappedPermissions.length > 0) return mappedPermissions;
+
+    return getLegacyFallbackPermissions(persistedRole);
   } catch (err) {
     console.error('Permission resolution failed:', err);
-    return [];
+    return getLegacyFallbackPermissions(user.role);
   }
 }
 
@@ -65,7 +139,7 @@ export async function resolvePermissions(env, user, context = {}) {
  */
 export async function authorize(env, user, options = {}) {
   // Default deny
-  const { action, resource, resourceId, context } = options;
+  const { action, context } = options;
 
   // Validate inputs
   if (!action || typeof action !== 'string') {
@@ -147,7 +221,7 @@ export async function logAuditEvent(env, event) {
       `INSERT INTO audit_log (id, actor_id, action, resource_type, resource_id, metadata, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-      .bind([id, actor_id, action, resource_type, resource_id, metadataJson, created_at])
+      .bind(id, actor_id, action, resource_type, resource_id, metadataJson, created_at)
       .run();
   } catch (err) {
     console.error('Failed to log audit event:', err);
@@ -229,7 +303,7 @@ export async function getRoleUserCount(env, roleName, excludeUserId) {
       bindings.push(excludeUserId);
     }
 
-    const result = await env.DB.prepare(query).bind(bindings).first();
+    const result = await env.DB.prepare(query).bind(...bindings).first();
     return result?.count || 0;
   } catch (err) {
     console.error('Failed to get role user count:', err);
@@ -307,7 +381,7 @@ export async function getAuditLog(env, options = {}) {
 
     // Get total count
     const countQuery = `SELECT COUNT(*) as count FROM audit_log${whereClause}`;
-    const countResult = await env.DB.prepare(countQuery).bind(bindings).first();
+    const countResult = await env.DB.prepare(countQuery).bind(...bindings).first();
     const total = countResult?.count || 0;
 
     // Get entries
@@ -320,12 +394,19 @@ export async function getAuditLog(env, options = {}) {
     `;
 
     const allBindings = [...bindings, safeLimit, safeOffset];
-    const entriesResult = await env.DB.prepare(entriesQuery).bind(allBindings).all();
+    const entriesResult = await env.DB.prepare(entriesQuery).bind(...allBindings).all();
 
     // Parse metadata JSON
     const entries = (entriesResult.results || []).map((entry) => ({
       ...entry,
-      metadata: entry.metadata ? JSON.parse(entry.metadata) : null,
+      metadata: (() => {
+        if (!entry.metadata) return null;
+        try {
+          return JSON.parse(entry.metadata);
+        } catch {
+          return null;
+        }
+      })(),
     }));
 
     return {
@@ -362,7 +443,7 @@ export async function getUserRoles(env, userId) {
       ORDER BY r.name ASC
     `;
 
-    const result = await env.DB.prepare(query).bind([userId]).all();
+    const result = await env.DB.prepare(query).bind(userId).all();
     return result.results || [];
   } catch (err) {
     console.error('Failed to get user roles:', err);
@@ -381,7 +462,7 @@ export async function getRoleDetails(env, roleName) {
   try {
     // Get role
     const roleQuery = 'SELECT * FROM roles WHERE name = ?';
-    const role = await env.DB.prepare(roleQuery).bind([roleName]).first();
+    const role = await env.DB.prepare(roleQuery).bind(roleName).first();
 
     if (!role) return null;
 
@@ -394,7 +475,7 @@ export async function getRoleDetails(env, roleName) {
       ORDER BY p.key ASC
     `;
 
-    const permResult = await env.DB.prepare(permQuery).bind([role.id]).all();
+    const permResult = await env.DB.prepare(permQuery).bind(role.id).all();
 
     return {
       ...role,

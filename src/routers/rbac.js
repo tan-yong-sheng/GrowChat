@@ -14,7 +14,7 @@
 
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { authorize, logAuditEvent } from '../utils/authorize.js';
+import { authorize, getAuditLog, logAuditEvent } from '../utils/authorize.js';
 
 /**
  * RBAC Admin Router Handler
@@ -24,11 +24,10 @@ export async function rbacRouter(req, env, _ctx, user, path) {
   const isRbacPath = path.startsWith('/api/admin/rbac/') || path === '/api/admin/audit';
   if (!isRbacPath) return null;
 
-  // All RBAC admin endpoints require admin authorization
-  const authDecision = await authorize(env, user, {
-    action: 'admin.user.read',
-    resource: 'admin'
-  });
+  const requiredPermission = path === '/api/admin/audit'
+    ? 'admin.audit.read'
+    : 'admin.rbac.admin';
+  const authDecision = await authorize(env, user, { action: requiredPermission });
 
   if (!authDecision.allow) {
     return error(req, authDecision.reason || 'Forbidden', 403);
@@ -40,9 +39,9 @@ export async function rbacRouter(req, env, _ctx, user, path) {
   if (req.method === 'GET' && path === '/api/admin/rbac/roles') {
     try {
       const roles = await db.all(
-        `SELECT id, name, description, is_system, created_at, updated_at
+        `SELECT id, name, system, created_at
          FROM roles
-         ORDER BY is_system DESC, name ASC`
+         ORDER BY system DESC, name ASC`
       );
 
       return json(req, { roles });
@@ -62,8 +61,6 @@ export async function rbacRouter(req, env, _ctx, user, path) {
     }
 
     const name = (body.name || '').trim();
-    const description = (body.description || '').trim().slice(0, 500);
-
     if (!name || name.length > 100) {
       return error(req, 'Name required (1-100 chars)', 400);
     }
@@ -71,9 +68,9 @@ export async function rbacRouter(req, env, _ctx, user, path) {
     try {
       const roleId = crypto.randomUUID();
       await db.run(
-        `INSERT INTO roles (id, name, description, is_system, created_at, updated_at)
-         VALUES (?, ?, ?, 0, unixepoch(), unixepoch())`,
-        [roleId, name, description]
+        `INSERT INTO roles (id, name, system, created_at)
+         VALUES (?, ?, 0, unixepoch())`,
+        [roleId, name]
       );
 
       // Log audit event
@@ -82,7 +79,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         action: 'role_created',
         resource_type: 'role',
         resource_id: roleId,
-        metadata: { name, is_system: 0 }
+        metadata: { name, system: 0 }
       });
 
       const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
@@ -109,23 +106,20 @@ export async function rbacRouter(req, env, _ctx, user, path) {
       if (!role) return error(req, 'Role not found', 404);
 
       // Prevent modification of system roles
-      if (role.is_system) {
+      if (role.system) {
         return error(req, 'Cannot modify system role', 403);
       }
 
       const name = body.name !== undefined ? String(body.name).trim() : role.name;
-      const description = body.description !== undefined
-        ? String(body.description).trim().slice(0, 500)
-        : role.description;
 
       if (!name || name.length > 100) {
         return error(req, 'Name required (1-100 chars)', 400);
       }
 
       await db.run(
-        `UPDATE roles SET name = ?, description = ?, updated_at = unixepoch()
-         WHERE id = ? AND is_system = 0`,
-        [name, description, roleId]
+        `UPDATE roles SET name = ?
+         WHERE id = ? AND system = 0`,
+        [name, roleId]
       );
 
       // Log audit event
@@ -149,18 +143,19 @@ export async function rbacRouter(req, env, _ctx, user, path) {
   if (req.method === 'GET' && path === '/api/admin/rbac/permissions') {
     try {
       const permissions = await db.all(
-        `SELECT id, action, resource, description, category, created_at
+        `SELECT id, key, description, created_at
          FROM permissions
-         ORDER BY category ASC, action ASC`
+         ORDER BY key ASC`
       );
 
       // Group by category for better organization
       const grouped = {};
       for (const perm of permissions) {
-        if (!grouped[perm.category]) {
-          grouped[perm.category] = [];
+        const category = String(perm.key || '').split('.')[0] || 'misc';
+        if (!grouped[category]) {
+          grouped[category] = [];
         }
-        grouped[perm.category].push(perm);
+        grouped[category].push(perm);
       }
 
       return json(req, { permissions, grouped_by_category: grouped });
@@ -191,7 +186,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
       const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
       if (!role) return error(req, 'Role not found', 404);
 
-      if (role.is_system) {
+      if (role.system) {
         return error(req, 'Cannot modify system role permissions', 403);
       }
 
@@ -217,7 +212,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         action: 'role_permission_added',
         resource_type: 'role',
         resource_id: roleId,
-        metadata: { permission_id: permissionId, permission_action: permission.action }
+        metadata: { permission_id: permissionId, permission_key: permission.key }
       });
 
       return json(req, {
@@ -225,7 +220,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
           role_id: roleId,
           permission_id: permissionId,
           role_name: role.name,
-          permission_action: permission.action
+          permission_key: permission.key
         }
       }, 201);
     } catch (err) {
@@ -244,56 +239,19 @@ export async function rbacRouter(req, env, _ctx, user, path) {
     const action = url.searchParams.get('action') || '';
 
     try {
-      let query = 'SELECT * FROM audit_log WHERE 1=1';
-      const params = [];
-
-      if (actorId && actorId.length <= 255) {
-        query += ' AND actor_id = ?';
-        params.push(actorId);
-      }
-
-      if (resourceType && resourceType.length <= 100) {
-        query += ' AND resource_type = ?';
-        params.push(resourceType);
-      }
-
-      if (action && action.length <= 100) {
-        query += ' AND action = ?';
-        params.push(action);
-      }
-
-      query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-      params.push(limit, offset);
-
-      const entries = await db.all(query, params);
-
-      // Get total count (without limit/offset)
-      let countQuery = 'SELECT COUNT(*) as count FROM audit_log WHERE 1=1';
-      const countParams = [];
-
-      if (actorId && actorId.length <= 255) {
-        countQuery += ' AND actor_id = ?';
-        countParams.push(actorId);
-      }
-
-      if (resourceType && resourceType.length <= 100) {
-        countQuery += ' AND resource_type = ?';
-        countParams.push(resourceType);
-      }
-
-      if (action && action.length <= 100) {
-        countQuery += ' AND action = ?';
-        countParams.push(action);
-      }
-
-      const countResult = await db.first(countQuery, countParams);
-      const total = countResult?.count || 0;
-
-      return json(req, {
-        audit_log: entries,
-        total,
+      const result = await getAuditLog(env, {
+        actor_id: actorId && actorId.length <= 255 ? actorId : undefined,
+        resource_type: resourceType && resourceType.length <= 100 ? resourceType : undefined,
+        action: action && action.length <= 100 ? action : undefined,
         limit,
         offset,
+      });
+
+      return json(req, {
+        audit_log: result.entries,
+        total: result.total,
+        limit: result.limit,
+        offset: result.offset,
         filters: { actor_id: actorId, resource_type: resourceType, action }
       });
     } catch (err) {
