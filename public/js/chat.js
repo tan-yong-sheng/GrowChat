@@ -139,11 +139,6 @@ export function renderChat(container) {
             <button id="toggle-sidebar-desktop" class="sidebar-full-only hidden md:block p-1 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors ml-auto" title="Close Sidebar">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
-            <div id="sidebar-logo-slim" class="sidebar-collapsed-only flex justify-center w-full cursor-pointer" title="Open Sidebar">
-               <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-gray-100 shadow-sm hover:bg-gray-50 transition-colors text-gray-600">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-               </div>
-            </div>
           </div>
 
           <div class="space-y-1">
@@ -262,7 +257,6 @@ function wireChat(root) {
   const sidebarBackdrop = root.querySelector('#sidebar-backdrop');
   const messagesContainer = root.querySelector('#messages-container');
   const openSearchBtn = root.querySelector('#open-search');
-  const sidebarLogoSlim = root.querySelector('#sidebar-logo-slim');
   const searchModalContainer = root.querySelector('#search-modal-container');
   const filesModalContainer = root.querySelector('#files-modal-container');
   const shareModalContainer = root.querySelector('#share-modal-container');
@@ -1571,7 +1565,6 @@ function wireChat(root) {
 
   toggleSidebarMobile.addEventListener('click', onToggleSidebar);
   toggleSidebarDesktop.addEventListener('click', onToggleSidebar);
-  sidebarLogoSlim.addEventListener('click', () => setState({ sidebarCollapsed: false }));
   openSearchBtn.addEventListener('click', onOpenSearch);
   newChatBtn.addEventListener('click', onNewChat);
   openArchivedBtn.addEventListener('click', openArchivedModal);
