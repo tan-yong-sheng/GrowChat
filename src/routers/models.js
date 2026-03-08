@@ -7,7 +7,7 @@
 
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { requireAdmin } from '../utils/rbac.js';
+import { authorize, logAuditEvent } from '../utils/authorize.js';
 
 function splitEnvList(value) {
   if (!value) return [];
@@ -225,8 +225,14 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
   // POST /api/models - Add custom model config (admin only)
   if (req.method === 'POST' && path === '/api/models') {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
+    // Check authorization
+    const authDecision = await authorize(env, user, {
+      action: 'model.admin',
+      resource: 'model'
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
     }
 
     let body;
@@ -278,7 +284,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       }
 
       // Add new model
-      customModels.push({
+      const newModel = {
         id: body.id,
         name: body.name,
         provider: body.provider,
@@ -287,13 +293,24 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         max_tokens: body.max_tokens || 4096,
         temperature: body.temperature || 0.7,
         created_at: Math.floor(Date.now() / 1000),
-      });
+      };
+
+      customModels.push(newModel);
 
       // Save back to KV
       await env.CACHE.put(customKey, JSON.stringify(customModels), { expirationTtl: 31536000 });
 
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'model_created',
+        resource_type: 'model',
+        resource_id: body.id,
+        metadata: { provider: body.provider, name: body.name }
+      });
+
       return json(req, {
-        model: customModels[customModels.length - 1],
+        model: newModel,
         message: 'Model configured successfully',
       }, 201);
     } catch (err) {
@@ -341,11 +358,19 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
   // PUT /api/models/:id - Update model config (admin only)
   if (req.method === 'PUT' && path.match(/^\/api\/models\/[^/]+$/)) {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
+    const modelId = path.split('/').pop();
+
+    // Check authorization
+    const authDecision = await authorize(env, user, {
+      action: 'model.admin',
+      resource: 'model',
+      resourceId: modelId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
     }
 
-    const modelId = path.split('/').pop();
     let body;
     try {
       body = await req.json();
@@ -374,6 +399,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         return error(req, 'Model not found', 404);
       }
 
+      // Track changes for audit
+      const oldModel = { ...customModels[modelIndex] };
+
       // Apply updates
       if (body.name !== undefined) {
         customModels[modelIndex].name = body.name;
@@ -401,6 +429,15 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       // Save back to KV
       await env.CACHE.put(customKey, JSON.stringify(customModels), { expirationTtl: 31536000 });
 
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'model_updated',
+        resource_type: 'model',
+        resource_id: modelId,
+        metadata: { fields_changed: Object.keys(body) }
+      });
+
       return json(req, {
         model: customModels[modelIndex],
         message: 'Model updated successfully',
@@ -413,11 +450,18 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
   // DELETE /api/models/:id - Remove model config (admin only)
   if (req.method === 'DELETE' && path.match(/^\/api\/models\/[^/]+$/)) {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
-    }
-
     const modelId = path.split('/').pop();
+
+    // Check authorization
+    const authDecision = await authorize(env, user, {
+      action: 'model.admin',
+      resource: 'model',
+      resourceId: modelId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
 
     try {
       // Cannot delete discovered base models.
@@ -440,11 +484,23 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         return error(req, 'Model not found', 404);
       }
 
+      // Track model being deleted
+      const deletedModel = customModels[modelIndex];
+
       // Remove model
       customModels.splice(modelIndex, 1);
 
       // Save back to KV
       await env.CACHE.put(customKey, JSON.stringify(customModels), { expirationTtl: 31536000 });
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'model_deleted',
+        resource_type: 'model',
+        resource_id: modelId,
+        metadata: { provider: deletedModel.provider, name: deletedModel.name }
+      });
 
       return json(req, { success: true, message: 'Model removed successfully' });
     } catch (err) {

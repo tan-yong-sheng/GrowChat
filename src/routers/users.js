@@ -1,6 +1,24 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { requireAdmin, isValidEmail } from '../utils/rbac.js';
+import { isValidEmail } from '../utils/rbac.js';
+import { authorize, logAuditEvent, isLastOwnerOfRole } from '../utils/authorize.js';
+
+async function upsertGlobalRoleBinding(db, userId, role) {
+  await db.run(
+    'DELETE FROM user_roles WHERE user_id = ? AND scope_type IS NULL AND scope_id IS NULL',
+    [userId]
+  );
+
+  if (role === 'inactive') return;
+  const mappedRole = role === 'admin' ? 'admin' : 'member';
+  await db.run(
+    `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, scope_type, scope_id, created_at)
+     SELECT ?, ?, r.id, NULL, NULL, unixepoch()
+     FROM roles r
+     WHERE r.name = ?`,
+    [crypto.randomUUID(), userId, mappedRole]
+  );
+}
 
 export async function usersRouter(req, env, _ctx, user, path) {
   const isUsersPath =
@@ -317,8 +335,14 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
   // GET /api/admin/users - List all users (admin only)
   if (req.method === 'GET' && path === '/api/admin/users') {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
+    // Check authorization
+    const authDecision = await authorize(env, user, {
+      action: 'admin.user.read',
+      resource: 'users'
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
     }
 
     const db = createDB(env.DB);
@@ -345,6 +369,15 @@ export async function usersRouter(req, env, _ctx, user, path) {
         updated_at: u.updated_at,
       }));
 
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'user_list_accessed',
+        resource_type: 'users',
+        resource_id: null,
+        metadata: { limit, offset, count: parsedUsers.length }
+      });
+
       return json(req, { users: parsedUsers, total: users.length });
     } catch (err) {
       console.error('List users failed:', err);
@@ -354,11 +387,18 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
   // GET /api/admin/users/:id - Get specific user (admin only)
   if (req.method === 'GET' && path.match(/^\/api\/admin\/users\/[^/]+$/)) {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
+    // Check authorization
+    const userId = path.split('/').pop();
+    const authDecision = await authorize(env, user, {
+      action: 'admin.user.read',
+      resource: 'user',
+      resourceId: userId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
     }
 
-    const userId = path.split('/').pop();
     const db = createDB(env.DB);
 
     try {
@@ -370,6 +410,14 @@ export async function usersRouter(req, env, _ctx, user, path) {
       if (!userData) {
         return error(req, 'User not found', 404);
       }
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'user_read',
+        resource_type: 'user',
+        resource_id: userId
+      });
 
       return json(req, {
         user: {
@@ -390,11 +438,19 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
   // PUT /api/admin/users/:id - Update user role/status (admin only)
   if (req.method === 'PUT' && path.match(/^\/api\/admin\/users\/[^/]+$/)) {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
+    const userId = path.split('/').pop();
+
+    // Check authorization
+    const authDecision = await authorize(env, user, {
+      action: 'admin.user.write',
+      resource: 'user',
+      resourceId: userId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
     }
 
-    const userId = path.split('/').pop();
     const db = createDB(env.DB);
 
     let body;
@@ -412,13 +468,22 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     const updates = [];
     const values = [];
+    let oldRole = existing.role;
+    let newRole = oldRole;
 
-    // Allow updating role (for admin promotion/promotion)
+    // Allow updating role (for admin promotion/demotion)
     if (body.role !== undefined) {
-      const role = String(body.role).toLowerCase();
-      if (role === 'user' || role === 'admin') {
+      newRole = String(body.role).toLowerCase();
+      if (newRole === 'user' || newRole === 'admin') {
+        // Check last-owner protection for admin role
+        if (oldRole === 'admin' && newRole !== 'admin') {
+          const isLastAdmin = await isLastOwnerOfRole(env, userId, 'admin');
+          if (isLastAdmin) {
+            return error(req, 'Cannot demote last admin', 409);
+          }
+        }
         updates.push('role = ?');
-        values.push(role);
+        values.push(newRole);
       } else {
         return error(req, 'Role must be "user" or "admin"', 400);
       }
@@ -459,6 +524,29 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     try {
       await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
+      if (oldRole !== newRole) {
+        await upsertGlobalRoleBinding(db, userId, newRole);
+      }
+
+      // Log audit event for role change
+      if (oldRole !== newRole) {
+        await logAuditEvent(env, {
+          actor_id: user.sub,
+          action: 'role_change',
+          resource_type: 'user',
+          resource_id: userId,
+          metadata: { old_role: oldRole, new_role: newRole }
+        });
+      }
+
+      // Log generic user update
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'user_updated',
+        resource_type: 'user',
+        resource_id: userId,
+        metadata: { fields_updated: updates.length }
+      });
 
       // Return updated user
       const updated = await db.first(
@@ -485,11 +573,19 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
   // DELETE /api/admin/users/:id - Deactivate user (admin only)
   if (req.method === 'DELETE' && path.match(/^\/api\/admin\/users\/[^/]+$/)) {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
+    const userId = path.split('/').pop();
+
+    // Check authorization
+    const authDecision = await authorize(env, user, {
+      action: 'admin.user.write',
+      resource: 'user',
+      resourceId: userId
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
     }
 
-    const userId = path.split('/').pop();
     const db = createDB(env.DB);
 
     try {
@@ -505,13 +601,24 @@ export async function usersRouter(req, env, _ctx, user, path) {
       }
 
       // Cannot delete the only admin
-      const allAdmins = await db.all('SELECT id FROM users WHERE role = ?', ['admin']);
-      if (existing.role === 'admin' && allAdmins.length <= 1) {
-        return error(req, 'Cannot delete the last admin', 400);
+      const isLastAdmin = await isLastOwnerOfRole(env, userId, 'admin');
+      if (existing.role === 'admin' && isLastAdmin) {
+        return error(req, 'Cannot deactivate last admin', 400);
       }
 
       // Soft delete: update role to 'inactive'
+      const oldRole = existing.role;
       await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['inactive', userId]);
+      await upsertGlobalRoleBinding(db, userId, 'inactive');
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'user_deactivated',
+        resource_type: 'user',
+        resource_id: userId,
+        metadata: { previous_role: oldRole }
+      });
 
       return json(req, { success: true, message: 'User deactivated successfully' });
     } catch (err) {

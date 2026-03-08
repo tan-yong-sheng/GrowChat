@@ -7,7 +7,7 @@
 
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { requireAdmin } from '../utils/admin.js';
+import { authorize, logAuditEvent } from '../utils/authorize.js';
 import {
   generateEmbedding,
   upsertFAQ,
@@ -25,12 +25,20 @@ import {
  *   GET    /api/faqs/search              - Search FAQs (user-accessible)
  */
 export async function faqsRouter(req, env, ctx, user, path) {
+  // Check admin authorization for all admin endpoints
+  if ((path === '/api/admin/faqs' || path.match(/^\/api\/admin\/faqs\/[^/]+$/)) && req.method !== 'GET') {
+    const authDecision = await authorize(env, user, {
+      action: 'kb.write',
+      resource: 'faq'
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+  }
+
   // POST /api/admin/faqs - Create new FAQ
   if (req.method === 'POST' && path === '/api/admin/faqs') {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
-    }
-
     const db = createDB(env.DB);
 
     let body;
@@ -59,6 +67,15 @@ export async function faqsRouter(req, env, ctx, user, path) {
          VALUES (?, ?, ?, ?, ?, ?, 0, unixepoch(), unixepoch())`,
         [faqId, user.sub, question.trim(), answer.trim(), category || null, tagsJson]
       );
+
+      // Log audit event
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'faq_created',
+        resource_type: 'faq',
+        resource_id: faqId,
+        metadata: { category, tags_count: Array.isArray(tags) ? tags.length : 0 }
+      });
 
       // Generate embedding asynchronously
       ctx.waitUntil(
@@ -91,8 +108,14 @@ export async function faqsRouter(req, env, ctx, user, path) {
 
   // GET /api/admin/faqs - List FAQs
   if (req.method === 'GET' && path === '/api/admin/faqs') {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
+    // Check authorization for reading admin FAQs
+    const authDecision = await authorize(env, user, {
+      action: 'kb.read',
+      resource: 'faq'
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
     }
 
     const db = createDB(env.DB);
@@ -123,10 +146,6 @@ export async function faqsRouter(req, env, ctx, user, path) {
 
   // PUT /api/admin/faqs/:id - Update FAQ
   if (req.method === 'PUT' && path.match(/^\/api\/admin\/faqs\/[^/]+$/)) {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
-    }
-
     const faqId = path.split('/').pop();
     const db = createDB(env.DB);
 
@@ -206,6 +225,19 @@ export async function faqsRouter(req, env, ctx, user, path) {
         [faqId]
       );
 
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'faq_updated',
+        resource_type: 'faq',
+        resource_id: faqId,
+        metadata: {
+          question_changed: question !== undefined,
+          answer_changed: answer !== undefined,
+          category_changed: category !== undefined,
+          tags_changed: tags !== undefined,
+        }
+      });
+
       return json(req, {
         ...faq,
         tags: parseTags(faq.tags),
@@ -218,10 +250,6 @@ export async function faqsRouter(req, env, ctx, user, path) {
 
   // DELETE /api/admin/faqs/:id - Delete FAQ
   if (req.method === 'DELETE' && path.match(/^\/api\/admin\/faqs\/[^/]+$/)) {
-    if (!user || !requireAdmin(user)) {
-      return error(req, 'Forbidden', 403);
-    }
-
     const faqId = path.split('/').pop();
     const db = createDB(env.DB);
 
@@ -237,6 +265,13 @@ export async function faqsRouter(req, env, ctx, user, path) {
 
       // Delete from D1
       await db.run('DELETE FROM faqs WHERE id = ?', [faqId]);
+
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'faq_deleted',
+        resource_type: 'faq',
+        resource_id: faqId
+      });
 
       return json(req, { success: true });
     } catch (err) {

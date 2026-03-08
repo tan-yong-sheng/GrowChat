@@ -3,6 +3,19 @@ import { error, json } from '../utils/response.js';
 import { hashPassword, signJWT, verifyPassword } from '../auth.js';
 import { createRefreshToken, consumeRefreshToken, revokeRefreshToken } from '../session.js';
 
+async function ensureUserRoleBinding(db, userId, role) {
+  if (!userId || !role || role === 'inactive') return;
+  const mappedRole = role === 'admin' ? 'admin' : 'member';
+
+  await db.run(
+    `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, scope_type, scope_id, created_at)
+     SELECT ?, ?, r.id, NULL, NULL, unixepoch()
+     FROM roles r
+     WHERE r.name = ?`,
+    [crypto.randomUUID(), userId, mappedRole]
+  );
+}
+
 function sanitizeUser(user) {
   let settings = {};
   try {
@@ -73,6 +86,7 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       'INSERT INTO users (id, email, password_hash, name, role, settings, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())',
       [id, email, passwordHash, name, role, '{}']
     );
+    await ensureUserRoleBinding(db, id, role);
 
     const user = await db.first('SELECT * FROM users WHERE id = ?', [id]);
     const accessToken = await createAccessToken(env, user);
@@ -104,6 +118,7 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const user = await db.first('SELECT * FROM users WHERE email = ?', [email]);
     if (!user) return error(req, 'Invalid credentials', 401);
+    await ensureUserRoleBinding(db, user.id, user.role);
 
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
@@ -136,6 +151,7 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const user = await db.first('SELECT * FROM users WHERE id = ?', [session.userId]);
     if (!user) return error(req, 'User not found', 404);
+    await ensureUserRoleBinding(db, user.id, user.role);
 
     const accessToken = await createAccessToken(env, user);
     const refresh = await createRefreshToken(env, user.id);
