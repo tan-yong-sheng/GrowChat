@@ -24,3 +24,46 @@
 
 - First-user admin behavior is implemented with post-insert check in signup flow (insert user, then promote to admin if total users == 1), mirroring Open WebUI’s safer pattern.
 
+## RBAC Revisit Backlog vs `claude/backend-rbac` (2026-03-08)
+
+This list tracks RBAC-related deltas that are still not fully merged from `claude/backend-rbac` into `main`.
+
+### Candidate Features Not Fully Merged Yet
+
+- `src/routers/faqs.js`
+  - Branch has broader `authorize()` usage and admin checks across FAQ mutation routes.
+  - `main` already logs `faq_updated` and `faq_deleted`, but authorization parity should be re-verified endpoint-by-endpoint.
+- `src/routers/knowledge.js`
+  - Branch uses `kb.delete` permission for KB delete path.
+  - `main` should confirm `kb.delete` exists in schema before adopting this permission gate.
+- `src/routers/rbac.js`
+  - Branch includes alternate role/permission response shapes and direct audit query code.
+  - If we want richer RBAC admin APIs, cherry-pick carefully and keep `main` permission gates unchanged.
+
+### Intentionally Deferred (Risky if Merged As-Is)
+
+- `src/utils/authorize.js`
+  - Branch removes legacy fallback permission behavior for partially migrated DBs.
+  - Keep `main` fallback until RBAC migration is guaranteed everywhere.
+- `src/routers/users.js`
+  - Branch removes `upsertGlobalRoleBinding()` calls on role change/deactivation.
+  - Keep `main` behavior to avoid `users.role` vs `user_roles` drift during transition.
+- `src/routers/rbac.js`
+  - Branch weakens admin gate (`admin.user.read` used broadly in branch variant seen during review).
+  - Keep `main` split permissions (`admin.rbac.admin` and `admin.audit.read`).
+
+### Migration Delta to Revisit
+
+- `migrations/008_rbac_core.sql`
+  - Branch variant drops legacy `user_roles` bootstrap insert.
+  - Keep `main` bootstrap until all existing users are confirmed backfilled.
+  - Branch variant also changes `audit_log.actor_id` to `NOT NULL`; evaluate only after confirming delete semantics and audit retention policy.
+
+### Safe Revisit Preconditions
+
+- Apply `migrations/008_rbac_core.sql` consistently across all local/dev/prod DB targets.
+- Run a parity test matrix for:
+  - login/register/refresh under migrated + non-migrated local DBs
+  - admin role change/deactivate flows
+  - RBAC admin endpoints (`/api/admin/rbac/*`, `/api/admin/audit`)
+- Only cherry-pick branch commits/file hunks that improve behavior without removing current compatibility guards.
