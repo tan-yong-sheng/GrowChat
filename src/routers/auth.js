@@ -7,13 +7,22 @@ async function ensureUserRoleBinding(db, userId, role) {
   if (!userId || !role || role === 'inactive') return;
   const mappedRole = role === 'admin' ? 'admin' : 'member';
 
-  await db.run(
-    `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, scope_type, scope_id, created_at)
-     SELECT ?, ?, r.id, NULL, NULL, unixepoch()
-     FROM roles r
-     WHERE r.name = ?`,
-    [crypto.randomUUID(), userId, mappedRole]
-  );
+  try {
+    await db.run(
+      `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, scope_type, scope_id, created_at)
+       SELECT ?, ?, r.id, NULL, NULL, unixepoch()
+       FROM roles r
+       WHERE r.name = ?`,
+      [crypto.randomUUID(), userId, mappedRole]
+    );
+  } catch (err) {
+    // Temporary safety net: do not block auth when RBAC tables are not migrated yet.
+    if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
+      console.warn('RBAC role binding skipped: run migrations/008_rbac_core.sql');
+      return;
+    }
+    throw err;
+  }
 }
 
 function sanitizeUser(user) {

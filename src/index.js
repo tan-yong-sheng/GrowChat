@@ -162,11 +162,6 @@ async function ensureSchemaCompatibility(env) {
 
       // RBAC schema diagnostics: log local DB details + missing tables once.
       try {
-        const dbList = await env.DB.prepare('PRAGMA database_list').all();
-        const locationHint = (dbList?.results || [])
-          .map((row) => `${row.name || 'db'}=${row.file || '(unknown)'}`)
-          .join(', ');
-
         const placeholders = REQUIRED_RBAC_TABLES.map(() => '?').join(', ');
         const existingRows = await env.DB.prepare(
           `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${placeholders})`
@@ -177,17 +172,13 @@ async function ensureSchemaCompatibility(env) {
         if (missingTables.length > 0) {
           console.warn(
             `RBAC schema missing tables [${missingTables.join(', ')}]. ` +
-            `Run: wrangler d1 execute growchat --local --file=./migrations/008_rbac_core.sql. ` +
-            `D1 database_list: ${locationHint || '(unavailable)'}`
+            `Run: wrangler d1 execute growchat --local --file=./migrations/008_rbac_core.sql`
           );
         } else if (!schemaDiagnosticsLogged) {
-          console.info(
-            `RBAC schema ready. Required tables present. ` +
-            `D1 database_list: ${locationHint || '(unavailable)'}`
-          );
+          console.info('RBAC schema ready. Required tables present.');
         }
       } catch (err) {
-        if (/no such table/i.test(String(err?.message || ''))) {
+        if (/no such table|SQLITE_AUTH|not authorized/i.test(String(err?.message || ''))) {
           console.warn('RBAC schema initialization pending: run migrations/008_rbac_core.sql');
         } else {
           throw err;
