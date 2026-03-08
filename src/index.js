@@ -16,6 +16,8 @@ import { MessageQueueDO } from './durable/message-queue.js';
 
 const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter, rbacRouter, realtimeRouter];
 let schemaCompatibilityReady = null;
+let schemaDiagnosticsLogged = false;
+const REQUIRED_RBAC_TABLES = ['roles', 'permissions', 'role_permissions', 'user_roles', 'audit_log'];
 
 /**
  * Public routes that don't require authentication.
@@ -158,22 +160,40 @@ async function ensureSchemaCompatibility(env) {
         }
       }
 
-      // Check for RBAC schema: verify roles table exists (Phase 2)
-      // If missing, the RBAC migration (008_rbac_core.sql) has not been applied yet.
-      // Warn but don't fail - allows graceful degradation on first deploy.
+      // RBAC schema diagnostics: log local DB details + missing tables once.
       try {
-        const rolesCheck = await env.DB.prepare('SELECT COUNT(*) as count FROM roles').first();
-        if (rolesCheck === undefined) {
-          console.warn('RBAC schema not found: roles table missing. Run migrations/008_rbac_core.sql');
+        const dbList = await env.DB.prepare('PRAGMA database_list').all();
+        const locationHint = (dbList?.results || [])
+          .map((row) => `${row.name || 'db'}=${row.file || '(unknown)'}`)
+          .join(', ');
+
+        const placeholders = REQUIRED_RBAC_TABLES.map(() => '?').join(', ');
+        const existingRows = await env.DB.prepare(
+          `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${placeholders})`
+        ).bind(...REQUIRED_RBAC_TABLES).all();
+        const existingSet = new Set((existingRows?.results || []).map((row) => row.name));
+        const missingTables = REQUIRED_RBAC_TABLES.filter((name) => !existingSet.has(name));
+
+        if (missingTables.length > 0) {
+          console.warn(
+            `RBAC schema missing tables [${missingTables.join(', ')}]. ` +
+            `Run: wrangler d1 execute growchat --local --file=./migrations/008_rbac_core.sql. ` +
+            `D1 database_list: ${locationHint || '(unavailable)'}`
+          );
+        } else if (!schemaDiagnosticsLogged) {
+          console.info(
+            `RBAC schema ready. Required tables present. ` +
+            `D1 database_list: ${locationHint || '(unavailable)'}`
+          );
         }
       } catch (err) {
-        // Table doesn't exist yet - this is expected on first deploy before migrations run
         if (/no such table/i.test(String(err?.message || ''))) {
-          console.warn('RBAC schema initialization pending: Run migrations/008_rbac_core.sql');
+          console.warn('RBAC schema initialization pending: run migrations/008_rbac_core.sql');
         } else {
           throw err;
         }
       }
+      schemaDiagnosticsLogged = true;
     } catch (err) {
       if (!isDuplicateColumnError(err)) {
         console.warn('Schema compatibility check skipped:', String(err?.message || err));

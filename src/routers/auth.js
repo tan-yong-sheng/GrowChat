@@ -77,16 +77,20 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const existing = await db.first('SELECT id FROM users WHERE email = ?', [email]);
     if (existing) return error(req, 'Email already registered', 409);
 
-    const firstUser = await db.first('SELECT id FROM users LIMIT 1');
-    const role = firstUser ? 'user' : 'admin';
-
     const id = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
     await db.run(
       'INSERT INTO users (id, email, password_hash, name, role, settings, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())',
-      [id, email, passwordHash, name, role, '{}']
+      [id, email, passwordHash, name, 'user', '{}']
     );
-    await ensureUserRoleBinding(db, id, role);
+
+    // Open WebUI-style first-user elevation: decide admin after insert.
+    const countRow = await db.first('SELECT COUNT(*) as count FROM users');
+    const finalRole = (countRow?.count || 0) === 1 ? 'admin' : 'user';
+    if (finalRole === 'admin') {
+      await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['admin', id]);
+    }
+    await ensureUserRoleBinding(db, id, finalRole);
 
     const user = await db.first('SELECT * FROM users WHERE id = ?', [id]);
     const accessToken = await createAccessToken(env, user);
