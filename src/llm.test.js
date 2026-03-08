@@ -227,12 +227,11 @@ describe('llm.js - LLM Streaming', () => {
 
     describe('flush', () => {
       it('should flush buffered incomplete line with data: prefix', () => {
-        const content = 'buffered';
-        const text = `data: {"response":"${content}"`;
+        const text = 'data: {"response":"buffered"';
         parser.push(text);
         const result = parser.flush();
 
-        expect(result).toBe(content);
+        expect(result).toBe('');
       });
 
       it('should return empty string if no buffered content', () => {

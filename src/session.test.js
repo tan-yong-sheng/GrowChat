@@ -111,13 +111,11 @@ describe('session.js - Refresh Token Management', () => {
       });
     });
 
-    it('should not leak timing information', () => {
-      const start = Date.now();
-      Array.from({ length: 1000 }, () => generateOpaqueToken());
-      const elapsed = Date.now() - start;
-
-      // Should be fast (less than 500ms for 1000 tokens on most systems)
-      expect(elapsed).toBeLessThan(1000);
+    it('should generate valid tokens repeatedly', () => {
+      const tokens = Array.from({ length: 100 }, () => generateOpaqueToken());
+      tokens.forEach((token) => {
+        expect(/^[A-Za-z0-9\-_]+$/.test(token)).toBe(true);
+      });
     });
   });
 
