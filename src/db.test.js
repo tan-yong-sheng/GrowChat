@@ -87,6 +87,8 @@ describe('db.js - Database Abstraction', () => {
       const sql = 'DELETE FROM users WHERE id = ?';
       const params = ['user-123'];
       const mockStatement = { bind: vi.fn(), run: vi.fn().mockResolvedValue({ changes: 1 }) };
+      // bind() must return the statement object for chaining
+      mockStatement.bind.mockReturnValue(mockStatement);
       mockD1.prepare.mockReturnValue(mockStatement);
 
       const result = await db.run(sql, params);
@@ -100,6 +102,8 @@ describe('db.js - Database Abstraction', () => {
       const sql = 'INSERT INTO users (id, email) VALUES (?, ?)';
       const params = ['123', 'new@example.com'];
       const mockStatement = { bind: vi.fn(), run: vi.fn().mockResolvedValue({ success: true, meta: { changes: 1 } }) };
+      // bind() must return the statement object for chaining
+      mockStatement.bind.mockReturnValue(mockStatement);
       mockD1.prepare.mockReturnValue(mockStatement);
 
       const result = await db.run(sql, params);
@@ -112,6 +116,8 @@ describe('db.js - Database Abstraction', () => {
       const sql = 'UPDATE users SET name = ? WHERE id = ?';
       const params = ['John', 'user-123'];
       const mockStatement = { bind: vi.fn(), run: vi.fn().mockResolvedValue({ changes: 1 }) };
+      // bind() must return the statement object for chaining
+      mockStatement.bind.mockReturnValue(mockStatement);
       mockD1.prepare.mockReturnValue(mockStatement);
 
       const result = await db.run(sql, params);
@@ -126,6 +132,8 @@ describe('db.js - Database Abstraction', () => {
       const params = ['test@example.com'];
       const expectedRow = { id: '123', email: 'test@example.com', name: 'Test User' };
       const mockStatement = { bind: vi.fn(), first: vi.fn().mockResolvedValue(expectedRow) };
+      // bind() must return the statement object for chaining
+      mockStatement.bind.mockReturnValue(mockStatement);
       mockD1.prepare.mockReturnValue(mockStatement);
 
       const result = await db.first(sql, params);
@@ -139,6 +147,8 @@ describe('db.js - Database Abstraction', () => {
       const sql = 'SELECT * FROM users WHERE id = ?';
       const params = ['nonexistent'];
       const mockStatement = { bind: vi.fn(), first: vi.fn().mockResolvedValue(null) };
+      // bind() must return the statement object for chaining
+      mockStatement.bind.mockReturnValue(mockStatement);
       mockD1.prepare.mockReturnValue(mockStatement);
 
       const result = await db.first(sql, params);
@@ -178,6 +188,8 @@ describe('db.js - Database Abstraction', () => {
       const sql = 'SELECT * FROM users WHERE id = ?';
       const params = ['nonexistent'];
       const mockStatement = { bind: vi.fn(), all: vi.fn().mockResolvedValue({ results: [] }) };
+      // bind() must return the statement object for chaining
+      mockStatement.bind.mockReturnValue(mockStatement);
       mockD1.prepare.mockReturnValue(mockStatement);
 
       const result = await db.all(sql, params);
