@@ -1,5 +1,11 @@
 # 002 - GEMINI FRONTEND RBAC PLAN (GrowChat)
 
+## Split Plan Files
+This plan is now split into execution slices:
+- `002a_GEMINI_FRONTEND_RBAC_PLAN.md` for `/admin/users/overview` and `/admin/users/groups`
+- `002b_GEMINI_FRONTEND_RBAC_PLAN.md` for `/admin/settings/general`, `/admin/settings/connections`, `/admin/settings/integrations`
+- `002c_GEMINI_FRONTEND_RBAC_PLAN.md` for `/admin/settings/documents`, `/admin/settings/web`, `/admin/settings/images`, `/admin/settings/audio`
+
 ## Owner
 - Primary agent: Gemini
 - Scope: admin UI, permission-aware affordances, mobile UX stability, frontend guardrails

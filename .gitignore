@@ -2,6 +2,7 @@ open-webui/
 open-terminal/
 .playwright/
 .playwright-cli/
+.playwright-artifacts/
 # Ignore all .claude/ contents by default
 .agents/*
 .claude/*
