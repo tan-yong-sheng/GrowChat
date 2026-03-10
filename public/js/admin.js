@@ -327,7 +327,7 @@ export async function renderAdminPage(container) {
     container.innerHTML = `
       <div class="flex h-screen w-full bg-white overflow-hidden font-primary text-gray-900">
         <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
-        <aside id="sidebar" class="fixed md:relative h-full flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
+        <aside id="sidebar" class="fixed md:relative h-full flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar pb-24" style="width: 260px; min-width: 260px;">
           <div class="p-3 flex-shrink-0">
             <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
               <div class="flex items-center gap-3 sidebar-full-only">
@@ -364,7 +364,7 @@ export async function renderAdminPage(container) {
               <ul id="chat-list" class="space-y-0.5"></ul>
             </div>
           </div>
-          <div id="sidebar-footer" class="mt-auto"></div>
+          <div id="sidebar-footer" class="absolute bottom-0 left-0 w-full bg-[#f9f9f9]"></div>
         </aside>
         <div class="flex-1 flex flex-col min-w-0">
           <nav class="px-4 pt-2 border-b border-gray-50 bg-white/80 backdrop-blur-md sticky top-0 z-20">
