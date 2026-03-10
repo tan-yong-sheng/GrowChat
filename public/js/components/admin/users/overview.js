@@ -541,6 +541,7 @@ export function renderUserOverview(container, data, actions) {
         if (!res.ok) {
           throw new Error(getActionError(payload, `Failed to import users (${res.status})`));
         }
+        actions.invalidateCache();
         await actions.reload({ preserveContent: true });
         if (csvResultBox) {
           csvResultBox.textContent = payload.results

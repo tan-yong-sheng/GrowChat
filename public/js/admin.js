@@ -161,6 +161,42 @@ export async function renderAdminPage(container) {
     subTab = path.includes('/groups') ? 'groups' : 'overview';
   };
 
+  const sortUsers = (users) => users
+    .slice()
+    .sort((a, b) => {
+      const roleOrder = { admin: 0, user: 1, inactive: 2 };
+      const roleDiff = (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3);
+      if (roleDiff !== 0) return roleDiff;
+      const nameDiff = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+      if (nameDiff !== 0) return nameDiff;
+      return String(a.email || '').localeCompare(String(b.email || ''), undefined, { sensitivity: 'base' });
+    });
+
+  const clearUsersCache = () => {
+    data.usersCache = {};
+  };
+
+  const updateCachedUser = (updatedUser) => {
+    Object.keys(data.usersCache).forEach((key) => {
+      const cached = data.usersCache[key];
+      const hasUser = cached.users.some((user) => user.id === updatedUser.id);
+      if (!hasUser) return;
+      cached.users = sortUsers(cached.users.map((user) => user.id === updatedUser.id ? { ...user, ...updatedUser } : user));
+    });
+  };
+
+  const removeCachedUser = (userId) => {
+    clearUsersCache();
+    data.users = data.users.filter((user) => user.id !== userId);
+    data.total = Math.max(0, data.total - 1);
+  };
+
+  const prependCachedUser = (user) => {
+    clearUsersCache();
+    data.users = sortUsers([user, ...data.users]).slice(0, data.pagination.pageSize);
+    data.total += 1;
+  };
+
   const renderSubContent = () => {
     const mainContentEl = container.querySelector('#admin-main-content');
     if (!mainContentEl) return;
@@ -205,29 +241,24 @@ export async function renderAdminPage(container) {
         setUsers(nextUsers, total = nextUsers.length) {
           data.users = nextUsers;
           data.total = total;
+          clearUsersCache();
           renderSubContent();
         },
         updateUser(updatedUser) {
-          data.users = data.users.map((user) => user.id === updatedUser.id ? { ...user, ...updatedUser } : user);
+          updateCachedUser(updatedUser);
+          data.users = sortUsers(data.users.map((user) => user.id === updatedUser.id ? { ...user, ...updatedUser } : user));
           renderSubContent();
         },
         removeUser(userId) {
-          data.users = data.users.filter((user) => user.id !== userId);
-          data.total = Math.max(0, data.total - 1);
+          removeCachedUser(userId);
           renderSubContent();
         },
         prependUser(user) {
-          data.users = [user, ...data.users]
-            .sort((a, b) => {
-              const roleOrder = { admin: 0, user: 1, inactive: 2 };
-              const roleDiff = (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3);
-              if (roleDiff !== 0) return roleDiff;
-              const nameDiff = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
-              if (nameDiff !== 0) return nameDiff;
-              return String(a.email || '').localeCompare(String(b.email || ''), undefined, { sensitivity: 'base' });
-            })
-            .slice(0, data.pagination.pageSize);
-          data.total += 1;
+          prependCachedUser(user);
+          renderSubContent();
+        },
+        invalidateCache() {
+          clearUsersCache();
           renderSubContent();
         },
       });
