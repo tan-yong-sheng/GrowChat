@@ -54,6 +54,12 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
   if (req.method === 'GET' && path === '/api/users/me') {
     const db = createDB(env.DB);
+    const url = new URL(req.url);
+    const includeParam = url.searchParams.get('include') || '';
+    const include = new Set(includeParam.split(',').map((val) => val.trim()).filter(Boolean));
+    const includePermissions = include.has('permissions') || include.has('all');
+    const includeRoles = include.has('roles') || include.has('all');
+
     const row = await db.first(
       'SELECT id, email, name, role, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at, last_active_at FROM users WHERE id = ?',
       [user.sub]
@@ -79,7 +85,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       }
     }
 
-    return json(req, {
+    const payload = {
       user: {
         id: row.id,
         email: row.email,
@@ -94,7 +100,16 @@ export async function usersRouter(req, env, _ctx, user, path) {
         last_active_at: row.last_active_at || null,
         updated_at: row.updated_at,
       },
-    });
+    };
+
+    if (includePermissions) {
+      payload.permissions = await resolvePermissions(env, user);
+    }
+    if (includeRoles) {
+      payload.roles = await getUserRoles(env, user.sub);
+    }
+
+    return json(req, payload);
   }
 
   if (req.method === 'PUT' && path === '/api/users/me') {

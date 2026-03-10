@@ -1,5 +1,4 @@
 import { apiFetch, clearAuthState, fetchChats, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState } from './api.js';
-import { renderChat } from './chat.js';
 import { renderMessageContent } from './utils.js';
 import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
@@ -10,6 +9,14 @@ const INITIAL_CHAT_LIMIT = 30;
 async function renderAdminRoute(container) {
   const { renderAdminPage } = await import('./admin.js');
   return renderAdminPage(container);
+}
+
+let renderChatFn = null;
+async function ensureRenderChat() {
+  if (renderChatFn) return renderChatFn;
+  const mod = await import('./chat.js');
+  renderChatFn = mod.renderChat;
+  return renderChatFn;
 }
 
 const FALLBACK_PERMISSIONS = {
@@ -48,13 +55,13 @@ function ensureRealtime() {
   realtimeStarted = true;
 }
 
-function scheduleDeferredBootstrap(user) {
+function scheduleDeferredBootstrap(user, preloadedRBAC = null) {
   if (deferredBootstrapPromise) return deferredBootstrapPromise;
 
   deferredBootstrapPromise = (async () => {
     await Promise.resolve();
 
-    await initRBAC(user);
+    await initRBAC(user, preloadedRBAC);
     ensureRealtime();
 
   })().catch((err) => {
@@ -64,9 +71,20 @@ function scheduleDeferredBootstrap(user) {
   return deferredBootstrapPromise;
 }
 
-async function initRBAC(user) {
+async function initRBAC(user, preloaded = null) {
   setState({ rbacLoading: true });
   try {
+    const hasPreloadedPermissions = Array.isArray(preloaded?.permissions);
+    const hasPreloadedRoles = Array.isArray(preloaded?.roles);
+    if (hasPreloadedPermissions || hasPreloadedRoles) {
+      setState({
+        permissions: hasPreloadedPermissions ? preloaded.permissions : [],
+        userRoles: hasPreloadedRoles ? preloaded.roles : [],
+        rbacLoading: false
+      });
+      return;
+    }
+
     const [permData, roleData] = await Promise.all([
       fetchMyPermissions().catch(() => ({ permissions: FALLBACK_PERMISSIONS[user.role] || FALLBACK_PERMISSIONS.user })),
       fetchMyRoles().catch(() => ({ roles: [{ role_name: user.role }] }))
@@ -128,7 +146,7 @@ async function ensureSession() {
     return false;
   }
 
-  const meRes = await apiFetch('/api/users/me');
+  const meRes = await apiFetch('/api/users/me?include=permissions,roles');
   if (!meRes.ok) {
     clearAuthState();
     window.location.href = '/auth.html';
@@ -178,7 +196,7 @@ async function ensureSession() {
   });
 
   bootstrapped = true;
-  scheduleDeferredBootstrap(user);
+  scheduleDeferredBootstrap(user, { permissions: meData.permissions, roles: meData.roles });
   return true;
 }
 
@@ -213,6 +231,7 @@ export async function renderCurrentRoute() {
     return;
   }
 
+  const renderChat = await ensureRenderChat();
   renderChat(app);
 
   const urlParams = new URLSearchParams(window.location.search);

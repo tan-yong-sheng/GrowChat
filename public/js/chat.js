@@ -12,20 +12,26 @@ import {
 } from './api.js';
 import { escapeHtml, renderMessageContent, SseLineParser, showToast } from './utils.js';
 import { state, setState, subscribe } from './store.js';
-import { renderSearchModal } from './components/search-modal.js';
 import { renderPlaceholder } from './components/chat-placeholder.js';
 import { renderMessageInput } from './components/message-input.js';
 import { renderModelSelector } from './components/model-selector.js';
 import { renderSidebar } from './components/sidebar.js';
-import { renderFilesModal } from './components/files-modal.js';
 import { createChatRow } from './components/chat-row.js';
 import { groupChatsByTime } from './utils/time-grouping.js';
-import { showIconPickerModal } from './components/icon-picker-modal.js';
-import { showTagModal } from './components/tag-modal.js';
-import { createUserProfileFooter } from './components/user-profile-footer.js';
-import { createFolderSidebar } from './components/folder-sidebar.js';
-import { renderChatControlsPanel } from './components/chat-controls-panel.js';
-import { showChatInfoModal } from './components/chat-info-modal.js';
+// Lazy-loaded components to reduce initial network requests.
+let searchModalPromise = null;
+let filesModalPromise = null;
+let iconPickerPromise = null;
+let tagModalPromise = null;
+let userProfileFooterPromise = null;
+let folderSidebarPromise = null;
+
+const loadSearchModal = () => (searchModalPromise ??= import('./components/search-modal.js'));
+const loadFilesModal = () => (filesModalPromise ??= import('./components/files-modal.js'));
+const loadIconPickerModal = () => (iconPickerPromise ??= import('./components/icon-picker-modal.js'));
+const loadTagModal = () => (tagModalPromise ??= import('./components/tag-modal.js'));
+const loadUserProfileFooter = () => (userProfileFooterPromise ??= import('./components/user-profile-footer.js'));
+const loadFolderSidebar = () => (folderSidebarPromise ??= import('./components/folder-sidebar.js'));
 
 function normalizeCitations(raw) {
   if (!raw) return [];
@@ -321,6 +327,7 @@ function wireChat(root) {
       }
     },
     setIcon: async (id) => {
+      const { showIconPickerModal } = await loadIconPickerModal();
       await showIconPickerModal(id, chat.icon);
     },
     pin: async (id) => {
@@ -352,6 +359,7 @@ function wireChat(root) {
       }
     },
     tag: async (id) => {
+      const { showTagModal } = await loadTagModal();
       await showTagModal(id, chat.tags);
     },
     moveFolder: async (id) => {
@@ -367,6 +375,7 @@ function wireChat(root) {
       syncChatUrl(id);
       setState({ activeChatId: id });
       await loadMessages(id);
+      await refreshShareState();
       const existing = sharedByChatId.get(id) || null;
       renderShareModal(existing);
     },
@@ -419,20 +428,56 @@ function wireChat(root) {
     }
   });
 
-  createFolderSidebar(getChatHandlers).then((folderContainer) => {
-    chatList.parentNode.insertBefore(folderContainer, chatList);
-  });
+  function scheduleSidebarEnhancements() {
+    const run = () => {
+      loadFolderSidebar()
+        .then(({ createFolderSidebar }) => createFolderSidebar(getChatHandlers))
+        .then((folderContainer) => {
+          if (!folderContainer || !chatList?.parentNode) return;
+          chatList.parentNode.insertBefore(folderContainer, chatList);
+        })
+        .catch(() => {});
 
-  createUserProfileFooter().then(footer => {
-    const footerMount = root.querySelector('#sidebar-footer');
-    if (footerMount) {
-      footerMount.replaceChildren(footer);
+      loadUserProfileFooter()
+        .then(({ createUserProfileFooter }) => createUserProfileFooter())
+        .then((footer) => {
+          if (!footer) return;
+          const footerMount = root.querySelector('#sidebar-footer');
+          if (footerMount) {
+            footerMount.replaceChildren(footer);
+          } else if (sidebar) {
+            sidebar.appendChild(footer);
+          }
+        })
+        .catch(() => {});
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run, { timeout: 2000 });
     } else {
-      sidebar.appendChild(footer);
+      setTimeout(run, 0);
     }
-  });
+  }
 
-  const inputComponent = renderMessageInput(messageInputContainer, sendMessage, () => {
+  scheduleSidebarEnhancements();
+
+  let destroySearchModal;
+  let destroyFilesModal;
+
+  async function ensureSearchModal() {
+    if (destroySearchModal) return;
+    const { renderSearchModal } = await loadSearchModal();
+    destroySearchModal = renderSearchModal(searchModalContainer, createChat, loadMessages);
+  }
+
+  async function ensureFilesModal() {
+    if (destroyFilesModal) return;
+    const { renderFilesModal } = await loadFilesModal();
+    destroyFilesModal = renderFilesModal(filesModalContainer);
+  }
+
+  const inputComponent = renderMessageInput(messageInputContainer, sendMessage, async () => {
+    await ensureFilesModal();
     setState({ showFiles: true });
   });
 
@@ -451,9 +496,6 @@ function wireChat(root) {
   }
 
   drawPlaceholder();
-
-  const destroySearchModal = renderSearchModal(searchModalContainer, createChat, loadMessages);
-  const destroyFilesModal = renderFilesModal(filesModalContainer);
 
   function renderShareModal(shareData = null) {
     const hasShare = Boolean(shareData?.share_id);
@@ -1795,7 +1837,10 @@ function wireChat(root) {
       }
     }
   };
-  const onOpenSearch = () => setState({ showSearch: true });
+  const onOpenSearch = async () => {
+    await ensureSearchModal();
+    setState({ showSearch: true });
+  };
   const onNewChat = () => createChat();
   const onOpenArchivedEvent = () => openArchivedModal();
   const onPopState = async () => {
@@ -1860,6 +1905,12 @@ function wireChat(root) {
   });
 
   const unsubscribe = subscribe((currentState) => {
+    if (currentState.showSearch) {
+      ensureSearchModal();
+    }
+    if (currentState.showFiles) {
+      ensureFilesModal();
+    }
     if (currentState.showSidebar && currentState.isMobile) {
       sidebarBackdrop.classList.remove('hidden');
       document.body.style.overflow = 'hidden';
@@ -1886,7 +1937,6 @@ function wireChat(root) {
 
   drawChats(state.chats, state.activeChatId);
   refreshChatListObserver();
-  refreshShareState().catch(() => {});
 
   requestAnimationFrame(() => {
     drawChats(state.chats, state.activeChatId);
