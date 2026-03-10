@@ -154,11 +154,6 @@ export function renderChat(container) {
                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-collapsed-scale transition-transform duration-300"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                <span class="sidebar-full-only">Search</span>
             </button>
-
-            <button id="open-archived" class="flex items-center gap-3 px-3 py-2 w-full hover:bg-white rounded-xl transition text-sm font-semibold text-gray-700 font-primary group/archive">
-               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-collapsed-scale transition-transform duration-300"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><polyline points="14 2 14 8 20 8"/><path d="M3 15h6"/><path d="M3 18h6"/></svg>
-               <span class="sidebar-full-only">Archived Chats</span>
-            </button>
           </div>
         </div>
 
@@ -250,7 +245,6 @@ function wireChat(root) {
   const newChatBtn = root.querySelector('#new-chat');
   const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
   const toggleSidebarDesktop = root.querySelector('#toggle-sidebar-desktop');
-  const openArchivedBtn = root.querySelector('#open-archived');
   const headerMenuBtn = root.querySelector('#header-menu-btn');
   const headerMenuDropdown = root.querySelector('#header-menu-dropdown');
   const sidebar = root.querySelector('#sidebar');
@@ -1562,12 +1556,13 @@ function wireChat(root) {
   };
   const onOpenSearch = () => setState({ showSearch: true });
   const onNewChat = () => createChat();
+  const onOpenArchivedEvent = () => openArchivedModal();
 
   toggleSidebarMobile.addEventListener('click', onToggleSidebar);
   toggleSidebarDesktop.addEventListener('click', onToggleSidebar);
   openSearchBtn.addEventListener('click', onOpenSearch);
   newChatBtn.addEventListener('click', onNewChat);
-  openArchivedBtn.addEventListener('click', openArchivedModal);
+  window.addEventListener('growchat:open-archived', onOpenArchivedEvent);
 
   let isChatsCollapsed = false;
   toggleChatsBtn.addEventListener('click', () => {
@@ -1644,7 +1639,7 @@ function wireChat(root) {
     toggleSidebarDesktop.removeEventListener('click', onToggleSidebar);
     openSearchBtn.removeEventListener('click', onOpenSearch);
     newChatBtn.removeEventListener('click', onNewChat);
-    openArchivedBtn.removeEventListener('click', openArchivedModal);
+    window.removeEventListener('growchat:open-archived', onOpenArchivedEvent);
     window.removeEventListener('growchat:realtime', onRealtimeEvent);
     root.__cleanup = null;
   };
