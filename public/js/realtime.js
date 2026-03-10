@@ -5,6 +5,7 @@ class RealtimeClient {
     this.onEvent = onEvent;
     this.eventSource = null;
     this.closedManually = false;
+    this.disabled = false;
     this.reconnectDelayMs = 1000;
     this.reconnectTimer = null;
     this.connectingPromise = null;
@@ -13,7 +14,7 @@ class RealtimeClient {
   }
 
   async connect() {
-    if (this.abortController || this.closedManually) return;
+    if (this.abortController || this.closedManually || this.disabled) return;
     if (this.connectingPromise) return this.connectingPromise;
 
     this.connectingPromise = (async () => {
@@ -44,6 +45,15 @@ class RealtimeClient {
         }
 
         if (!res.ok || !res.body) {
+          if (res.status === 500) {
+            const errorText = await res.text().catch(() => '');
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            if (errorText.includes('Realtime binding missing') || isLocalhost) {
+              this.disabled = true;
+              this.closedManually = true;
+              return;
+            }
+          }
           this.failureCount += 1;
           throw new Error(`Realtime stream failed (${res.status})`);
         }
@@ -60,7 +70,7 @@ class RealtimeClient {
       } finally {
         this.eventSource = null;
         this.connectingPromise = null;
-        if (!this.closedManually) this.scheduleReconnect();
+        if (!this.closedManually && !this.disabled) this.scheduleReconnect();
       }
     })();
 

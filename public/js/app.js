@@ -38,6 +38,15 @@ let shortcutsInitialized = false;
 let realtimeStarted = false;
 let deferredBootstrapPromise = null;
 
+function shouldStartRealtime() {
+  const url = new URL(window.location.href);
+  const path = url.pathname || '/';
+  const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  if (isLocal && url.searchParams.get('realtime') !== '1') return false;
+  if (path.startsWith('/auth') || path.startsWith('/admin') || path.startsWith('/s/')) return false;
+  return path === '/' || path.startsWith('/c/');
+}
+
 function ensureShortcuts() {
   if (shortcutsInitialized) return;
   initShortcuts();
@@ -45,6 +54,7 @@ function ensureShortcuts() {
 }
 
 function ensureRealtime() {
+  if (!shouldStartRealtime()) return;
   if (realtimeStarted) return;
   startRealtimeSync({
     onEvent: (event) => {
