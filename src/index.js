@@ -241,7 +241,19 @@ export default {
       return error(req, 'Not found', 404);
     }
 
-    return env.ASSETS.fetch(req);
+    const response = await env.ASSETS.fetch(req);
+    if (response.status === 404 && !path.startsWith('/api/')) {
+      if (path === '/auth' || path === '/auth.html') {
+        const authReq = new Request(new URL('/auth.html', req.url));
+        const authRes = await env.ASSETS.fetch(authReq);
+        if (authRes.status !== 404) return authRes;
+      }
+
+      const indexReq = new Request(new URL('/index.html', req.url));
+      return env.ASSETS.fetch(indexReq);
+    }
+
+    return response;
   },
 };
 

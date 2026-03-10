@@ -261,3 +261,23 @@ export async function fetchPublicSharedChat(shareId) {
   }
   return res.json();
 }
+
+export async function fetchMyPermissions() {
+  const res = await apiFetch('/api/users/me/permissions');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch permissions (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchMyRoles() {
+  const res = await apiFetch('/api/users/me/roles');
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch roles (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}

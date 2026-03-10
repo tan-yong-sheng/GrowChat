@@ -1,9 +1,46 @@
-import { apiFetch, clearAuthState, fetchPublicSharedChat, getAuthState } from './api.js';
+import { apiFetch, clearAuthState, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState } from './api.js';
 import { renderChat } from './chat.js';
 import { renderMessageContent } from './utils.js';
 import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
 import { startRealtimeSync, stopRealtimeSync } from './realtime.js';
+
+const FALLBACK_PERMISSIONS = {
+  admin: [
+    'chat.read', 'chat.write', 'chat.delete', 'chat.share',
+    'model.use', 'model.admin', 'kb.read', 'kb.write', 'kb.reindex',
+    'file.upload', 'file.delete', 'admin.user.read', 'admin.user.write',
+    'admin.audit.read', 'admin.rbac.admin'
+  ],
+  user: [
+    'chat.read', 'chat.write', 'chat.delete', 'chat.share',
+    'model.use', 'kb.read', 'kb.write', 'file.upload', 'file.delete'
+  ],
+  inactive: []
+};
+
+async function initRBAC(user) {
+  setState({ rbacLoading: true });
+  try {
+    const [permData, roleData] = await Promise.all([
+      fetchMyPermissions().catch(() => ({ permissions: FALLBACK_PERMISSIONS[user.role] || FALLBACK_PERMISSIONS.user })),
+      fetchMyRoles().catch(() => ({ roles: [{ role_name: user.role }] }))
+    ]);
+
+    setState({
+      permissions: permData.permissions || [],
+      userRoles: roleData.roles || [],
+      rbacLoading: false
+    });
+  } catch (err) {
+    console.warn('RBAC initialization fallback:', err);
+    setState({
+      permissions: FALLBACK_PERMISSIONS[user.role] || FALLBACK_PERMISSIONS.user,
+      userRoles: [{ role_name: user.role }],
+      rbacLoading: false
+    });
+  }
+}
 
 function renderSharedChatPage(container, data) {
   const chat = data?.chat || {};
@@ -59,6 +96,8 @@ async function bootstrap() {
   }
   const meData = await meRes.json();
   const user = meData.user || {};
+
+  await initRBAC(user);
 
   startRealtimeSync({
     onEvent: (event) => {
