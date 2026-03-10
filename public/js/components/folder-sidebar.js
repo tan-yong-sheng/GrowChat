@@ -1,18 +1,8 @@
-import { setState, state, subscribe } from '../store.js';
-import { apiFetch } from '../api.js';
+import { setState, state } from '../store.js';
 import { createChatRow } from './chat-row.js';
 
 export async function createFolderSidebar(chatHandlers) {
-  let folders = [];
-  try {
-    const res = await apiFetch('/api/folders');
-    if (res.ok) {
-      const data = await res.json();
-      folders = data.folders || [];
-    }
-  } catch (err) {
-    console.error('Failed to fetch folders:', err);
-  }
+  const folders = [];
 
   const container = document.createElement('div');
   container.className = 'folder-list-container mb-4';

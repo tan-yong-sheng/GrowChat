@@ -46,6 +46,33 @@ export function renderModelSelector(container) {
     const headerSetDefaultBtn = container.querySelector('#header-set-default-btn');
     let isOpen = false;
     let searchQuery = '';
+    let loadingPromise = null;
+
+    const ensureModelsLoaded = async () => {
+      if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
+      setState({ modelsLoading: true });
+      loadingPromise = (async () => {
+        try {
+          const { fetchModels } = await import('../api.js');
+          const data = await fetchModels();
+          const models = data.models || [];
+          const currentId = state.activeModelId;
+          const hasCurrent = currentId && models.some((m) => m.id === currentId);
+          const nextActiveModelId = hasCurrent ? currentId : (models[0]?.id || null);
+          setState({
+            models,
+            activeModelId: nextActiveModelId,
+            modelsLoading: false,
+          });
+        } catch (err) {
+          console.error('Failed to load models:', err);
+          setState({ modelsLoading: false });
+        } finally {
+          loadingPromise = null;
+        }
+      })();
+      return loadingPromise;
+    };
 
     const toggle = () => {
       isOpen = !isOpen;
@@ -56,6 +83,7 @@ export function renderModelSelector(container) {
         chevron.classList.add('rotate-180');
         searchInput.value = '';
         searchQuery = '';
+        ensureModelsLoaded();
         setTimeout(() => searchInput.focus(), 10);
         renderList(state);
       } else {
@@ -119,6 +147,10 @@ export function renderModelSelector(container) {
     document.addEventListener('click', onDocumentClick);
 
     function renderList(currentState) {
+       if (currentState.modelsLoading) {
+          listContainer.innerHTML = '<div class="px-3 py-6 text-center text-sm text-gray-400 italic">Loading models...</div>';
+          return;
+       }
        const filteredModels = (currentState.models || []).filter(m => 
           (m.name || m.id).toLowerCase().includes(searchQuery)
        );

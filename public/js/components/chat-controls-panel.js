@@ -39,7 +39,7 @@ export function renderChatControlsPanel(container) {
           <div class="control-group">
             <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Default Model</label>
             <select class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" data-setting="default_model">
-              ${state.models.map(m => `<option value="${m.id}" ${state.activeModelId === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
+              ${(state.models || []).map(m => `<option value="${m.id}" ${state.activeModelId === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
             </select>
           </div>
         </div>

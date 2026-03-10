@@ -1,6 +1,5 @@
 import { apiFetch } from '../api.js';
-import { renderAdminPage } from '../admin.js';
-import { state } from '../store.js';
+import { state, subscribe } from '../store.js';
 
 const PRESENCE_IDLE_MS = 5 * 60 * 1000;
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'focus', 'visibilitychange'];
@@ -10,6 +9,11 @@ function computePresence(lastActiveAt) {
     return 'away';
   }
   return Date.now() - lastActiveAt <= PRESENCE_IDLE_MS ? 'online' : 'away';
+}
+
+async function renderAdminRoute() {
+  const { renderAdminPage } = await import('../admin.js');
+  return renderAdminPage(document.getElementById('app'));
 }
 
 function getStoredAuthUser() {
@@ -133,12 +137,13 @@ export async function createUserProfileFooter() {
   const hasAdminPerm = state.permissions?.includes('admin.rbac.admin') || false;
   element.innerHTML = buildFooterMarkup(user, hasAdminPerm);
 
-  const menu = element.querySelector('.user-menu-dropdown');
-  const profileBtn = element.querySelector('.user-profile-btn');
-  const presenceLabel = element.querySelector('[data-presence-label]');
-  const presenceDot = element.querySelector('[data-presence-dot]');
-  const menuPresenceLabel = element.querySelector('[data-menu-presence-label]');
-  const menuPresenceDot = element.querySelector('[data-menu-presence-dot]');
+  let menu = element.querySelector('.user-menu-dropdown');
+  let profileBtn = element.querySelector('.user-profile-btn');
+  let presenceLabel = element.querySelector('[data-presence-label]');
+  let presenceDot = element.querySelector('[data-presence-dot]');
+  let menuPresenceLabel = element.querySelector('[data-menu-presence-label]');
+  let menuPresenceDot = element.querySelector('[data-menu-presence-dot]');
+  let unsubscribe = null;
 
   const updatePresenceUi = () => {
     const presence = manualStatus || computePresence(lastActiveAt);
@@ -149,11 +154,30 @@ export async function createUserProfileFooter() {
     if (menuPresenceDot) menuPresenceDot.className = `w-2 h-2 rounded-full ${color}`;
   };
 
-  profileBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    menu.classList.toggle('hidden');
-  });
+  function bindFooterNodes() {
+    menu = element.querySelector('.user-menu-dropdown');
+    profileBtn = element.querySelector('.user-profile-btn');
+    presenceLabel = element.querySelector('[data-presence-label]');
+    presenceDot = element.querySelector('[data-presence-dot]');
+    menuPresenceLabel = element.querySelector('[data-menu-presence-label]');
+    menuPresenceDot = element.querySelector('[data-menu-presence-dot]');
+
+    profileBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      menu?.classList.toggle('hidden');
+    });
+
+    updatePresenceUi();
+  }
+
+  function rerenderFooter() {
+    const hasAdminPerm = state.permissions?.includes('admin.rbac.admin') || false;
+    element.innerHTML = buildFooterMarkup(user, hasAdminPerm);
+    bindFooterNodes();
+  }
+
+  bindFooterNodes();
 
   element.addEventListener('click', async (e) => {
     const actionBtn = e.target.closest('button[data-action]');
@@ -162,7 +186,7 @@ export async function createUserProfileFooter() {
     const action = actionBtn.dataset.action;
     if (action === 'admin') {
       window.history.pushState({}, '', '/admin/users/overview');
-      renderAdminPage(document.getElementById('app'));
+      await renderAdminRoute();
     } else if (action === 'status' || action === 'profile' || action === 'preferences') {
       await showPreferencesModal({ ...user, status: computePresence(lastActiveAt) });
     } else if (action === 'archived') {
@@ -193,32 +217,14 @@ export async function createUserProfileFooter() {
   presenceTimer = window.setInterval(updatePresenceUi, 30000);
   updatePresenceUi();
 
-  apiFetch('/api/users/me')
-    .then(async (res) => {
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data?.user || null;
-    })
-    .then((freshUser) => {
-      if (!freshUser) return;
-      user = { ...user, ...freshUser };
-      manualStatus = user.status && user.status !== 'online' && user.status !== 'away'
-        ? user.status
-        : null;
-
-      const nextName = user.name || 'User';
-      const nextAvatar = getAvatarLabel(user);
-      element.querySelectorAll('.user-name').forEach((node) => {
-        node.textContent = nextName;
-      });
-      element.querySelectorAll('.user-avatar').forEach((node) => {
-        node.textContent = nextAvatar;
-      });
-      updatePresenceUi();
-    })
-    .catch((err) => {
-      console.error('Failed to fetch user profile:', err);
-    });
+  let lastAdminPerm = state.permissions?.includes('admin.rbac.admin') || false;
+  unsubscribe = subscribe((currentState) => {
+    const nextAdminPerm = currentState.permissions?.includes('admin.rbac.admin') || false;
+    if (nextAdminPerm !== lastAdminPerm) {
+      lastAdminPerm = nextAdminPerm;
+      rerenderFooter();
+    }
+  });
 
   element.__cleanup = () => {
     if (presenceTimer) window.clearInterval(presenceTimer);
@@ -226,6 +232,7 @@ export async function createUserProfileFooter() {
       window.removeEventListener(eventName, markActive);
     });
     document.removeEventListener('click', onDocumentClick);
+    unsubscribe?.();
   };
 
   return element;

@@ -101,6 +101,7 @@ describe('chatRouter', () => {
     expect(body.chats).toEqual([{ id: 'c1', title: 'Chat 1' }]);
     expect(body.limit).toBe(10);
     expect(body.offset).toBe(0);
+    expect(body.has_more).toBe(false);
     expect(mocks.db.all).toHaveBeenCalled();
   });
 

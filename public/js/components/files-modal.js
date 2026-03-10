@@ -69,23 +69,25 @@ export function renderFilesModal(container) {
     closeBtn.onclick = close;
     overlay.onclick = close;
 
-    uploadInput.onchange = async (e) => {
-      const files = e.target.files;
-      if (!files.length) return;
+    if (uploadInput) {
+      uploadInput.onchange = async (e) => {
+        const files = e.target.files;
+        if (!files.length) return;
 
-      setState({ files: { ...state.files, loading: true } });
-      try {
-        for (const file of files) {
-          await uploadFile(file, state.activeChatId);
+        setState({ files: { ...state.files, loading: true } });
+        try {
+          for (const file of files) {
+            await uploadFile(file, state.activeChatId);
+          }
+          await refreshFiles();
+        } catch (err) {
+          console.error('Upload failed:', err);
+        } finally {
+          setState({ files: { ...state.files, loading: false } });
+          uploadInput.value = '';
         }
-        await refreshFiles();
-      } catch (err) {
-        console.error('Upload failed:', err);
-      } finally {
-        setState({ files: { ...state.files, loading: false } });
-        uploadInput.value = '';
-      }
-    };
+      };
+    }
 
     attachBtn.onclick = () => {
       const selectedFiles = state.files.items.filter((f) => state.files.selectedIds.includes(f.id));

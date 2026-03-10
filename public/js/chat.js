@@ -1,6 +1,7 @@
 import {
   apiFetch,
   fetchArchivedChats,
+  fetchChats,
   fetchSharedChats,
   getFileContent,
   getFileMetadata,
@@ -43,6 +44,21 @@ function normalizeCitations(raw) {
 function safeTime(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function buildChatRows(list, activeId, models, getChatHandlers) {
+  const fragment = document.createDocumentFragment();
+  list.forEach((chat) => {
+    const handlers = getChatHandlers(chat);
+    const model = (models || []).find((m) => m.id === chat.model);
+    const chatWithModelName = { ...chat, modelName: model?.name || chat.model || 'Default' };
+    const row = createChatRow(chatWithModelName, handlers);
+    if (chat.id === activeId) {
+      row.classList.add('active');
+    }
+    fragment.appendChild(row);
+  });
+  return fragment;
 }
 
 function projectConversation(messages, preferredLeafId, branchSelectionMap) {
@@ -249,6 +265,7 @@ function wireChat(root) {
   const toggleChatsIcon = root.querySelector('#toggle-chats-icon');
   const chatListContainer = root.querySelector('#chat-list-container');
   const chatList = root.querySelector('#chat-list');
+  const chatListContainerEl = root.querySelector('#chat-list-container');
   const messagesList = root.querySelector('#messages-list');
   const welcomeScreenContainer = root.querySelector('#welcome-screen-container');
   const messageInputContainer = root.querySelector('#message-input-container');
@@ -300,11 +317,7 @@ function wireChat(root) {
           method: 'PUT',
           body: JSON.stringify({ title: newTitle })
         });
-        const res = await apiFetch('/api/chats');
-        if (res.ok) {
-          const refreshed = await res.json();
-          setState({ chats: refreshed.chats || [] });
-        }
+        await loadChats();
       }
     },
     setIcon: async (id) => {
@@ -318,11 +331,7 @@ function wireChat(root) {
         return;
       }
 
-      const refreshedRes = await apiFetch('/api/chats');
-      if (refreshedRes.ok) {
-        const refreshed = await refreshedRes.json();
-        setState({ chats: refreshed.chats || [] });
-      }
+      await loadChats();
     },
     duplicate: async (id) => {
       const res = await apiFetch(`/api/chats/${id}/clone`, { method: 'POST' });
@@ -334,15 +343,12 @@ function wireChat(root) {
 
       const data = await res.json().catch(() => ({}));
       const clonedChatId = data?.chat?.id || null;
-      const refreshedRes = await apiFetch('/api/chats');
-      if (refreshedRes.ok) {
-        const refreshed = await refreshedRes.json();
-        const nextId = clonedChatId || state.activeChatId;
-        syncChatUrl(nextId);
-        setState({ chats: refreshed.chats || [], activeChatId: nextId });
-        if (nextId) {
-          await loadMessages(nextId);
-        }
+      await loadChats();
+      const nextId = clonedChatId || state.activeChatId;
+      syncChatUrl(nextId);
+      setState({ activeChatId: nextId });
+      if (nextId) {
+        await loadMessages(nextId);
       }
     },
     tag: async (id) => {
@@ -355,11 +361,7 @@ function wireChat(root) {
             method: 'PATCH',
             body: JSON.stringify({ folder_id: folderId || null })
         });
-        const res = await apiFetch('/api/chats');
-        if (res.ok) {
-            const refreshed = await res.json();
-            setState({ chats: refreshed.chats || [] });
-        }
+        await loadChats();
     },
     share: async (id) => {
       syncChatUrl(id);
@@ -370,12 +372,10 @@ function wireChat(root) {
     },
     archive: async (id) => {
       await toggleArchiveChat(id);
-      const res = await apiFetch('/api/chats');
-      if (!res.ok) return;
-      const refreshed = await res.json();
-      const nextId = id === state.activeChatId ? refreshed.chats?.[0]?.id || null : state.activeChatId;
+      await loadChats();
+      const nextId = id === state.activeChatId ? state.chats?.[0]?.id || null : state.activeChatId;
       syncChatUrl(nextId, { replace: true });
-      setState({ chats: refreshed.chats || [], activeChatId: nextId });
+      setState({ activeChatId: nextId });
       if (nextId) {
         await loadMessages(nextId);
       } else {
@@ -384,24 +384,42 @@ function wireChat(root) {
     },
     delete: async (id) => {
       if (window.confirm('Are you sure you want to delete this chat?')) {
-        await apiFetch(`/api/chats/${id}`, { method: 'DELETE' });
-        const res = await apiFetch('/api/chats');
-        if (res.ok) {
-          const refreshed = await res.json();
-          const nextId = id === state.activeChatId ? refreshed.chats?.[0]?.id || null : state.activeChatId;
-          syncChatUrl(nextId, { replace: true });
-          setState({ chats: refreshed.chats || [], activeChatId: nextId });
-          if (nextId) {
-            await loadMessages(nextId);
-          } else {
-            drawMessages([]);
+        const wasActive = id === state.activeChatId;
+        const prevChats = state.chats.slice();
+        const removedChat = prevChats.find((chat) => String(chat.id) === String(id)) || null;
+        const nextChatsSnapshot = prevChats.filter((chat) => String(chat.id) !== String(id));
+        const nextId = wasActive ? (nextChatsSnapshot[0]?.id || null) : state.activeChatId;
+        setState((prev) => {
+          const nextChats = prev.chats.filter((chat) => String(chat.id) !== String(id));
+          const nextActiveChatId = wasActive ? (nextChats[0]?.id || null) : prev.activeChatId;
+          const nextMessagesByChat = { ...prev.messagesByChat };
+          delete nextMessagesByChat[id];
+          return { chats: nextChats, activeChatId: nextActiveChatId, messagesByChat: nextMessagesByChat };
+        });
+
+        currentLeafByChatId.delete(id);
+        streamingOverrideByChat.delete(id);
+
+        syncChatUrl(nextId, { replace: true });
+        if (nextId) {
+          await loadMessages(nextId);
+        } else {
+          drawMessages([]);
+        }
+
+        const res = await apiFetch(`/api/chats/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          // Roll back optimistic delete on failure.
+          if (removedChat) {
+            setState((prev) => ({ chats: [removedChat, ...prev.chats] }));
           }
+          await loadChats();
         }
       }
     }
   });
 
-  createFolderSidebar(getChatHandlers).then(folderContainer => {
+  createFolderSidebar(getChatHandlers).then((folderContainer) => {
     chatList.parentNode.insertBefore(folderContainer, chatList);
   });
 
@@ -565,22 +583,16 @@ function wireChat(root) {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-restore-chat');
         await toggleArchiveChat(id);
-        const res = await apiFetch('/api/chats');
-        if (res.ok) {
-          const refreshed = await res.json();
-          setState({ chats: refreshed.chats || [] });
-        }
+        await loadChats();
         close();
       });
     });
   }
 
   function drawChats(chats, activeId) {
-    // Filter out chats that are in folders for the main list
-    const mainListChats = chats.filter(c => !c.folder_id);
+    const mainListChats = chats.filter((c) => !c.folder_id);
     const pinnedChats = mainListChats.filter((c) => Number(c.pinned) === 1);
     const regularChats = mainListChats.filter((c) => Number(c.pinned) !== 1);
-    
     const groups = groupChatsByTime(regularChats);
     const groupLabels = {
       today: 'Today',
@@ -589,36 +601,20 @@ function wireChat(root) {
       older: 'Older'
     };
 
-    chatList.innerHTML = '';
+    const fragment = document.createDocumentFragment();
 
-    const appendChatRows = (list) => {
-      const itemsContainer = document.createElement('div');
-      itemsContainer.className = 'chat-group-items';
-
-      list.forEach(chat => {
-        const handlers = getChatHandlers(chat);
-        const model = (state.models || []).find(m => m.id === chat.model);
-        const chatWithModelName = { ...chat, modelName: model?.name || chat.model || 'Default' };
-        const row = createChatRow(chatWithModelName, handlers);
-        if (chat.id === activeId) {
-          row.classList.add('active');
-        }
-        itemsContainer.appendChild(row);
-      });
-
-      chatList.appendChild(itemsContainer);
-    };
+    if (mainListChats.length === 0 && !state.chatsPagination?.loading) {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'px-3 py-4 text-sm text-gray-400 sidebar-full-only';
+      emptyState.textContent = 'No chat sessions yet.';
+      fragment.appendChild(emptyState);
+    }
 
     if (pinnedChats.length > 0) {
       const pinnedHeader = document.createElement('button');
       pinnedHeader.type = 'button';
       pinnedHeader.className = 'chat-group-header sidebar-full-only pinned flex items-center gap-1.5 cursor-pointer select-none hover:text-gray-600 transition-colors';
-      pinnedHeader.innerHTML = `
-        <svg class="w-3.5 h-3.5 transition-transform ${pinnedSectionCollapsed ? '-rotate-90' : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.1 1.02l-4.25 4.5a.75.75 0 0 1-1.1 0l-4.25-4.5a.75.75 0 0 1 .02-1.04Z" clip-rule="evenodd" />
-        </svg>
-        <span>Pinned</span>
-      `;
+      pinnedHeader.innerHTML = '<svg class="w-3.5 h-3.5 transition-transform ' + (pinnedSectionCollapsed ? '-rotate-90' : '') + '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.1 1.02l-4.25 4.5a.75.75 0 0 1-1.1 0l-4.25-4.5a.75.75 0 0 1 .02-1.04Z" clip-rule="evenodd" /></svg><span>Pinned</span>';
       pinnedHeader.addEventListener('click', () => {
         pinnedSectionCollapsed = !pinnedSectionCollapsed;
         try {
@@ -628,10 +624,13 @@ function wireChat(root) {
         }
         drawChats(state.chats, state.activeChatId);
       });
-      chatList.appendChild(pinnedHeader);
+      fragment.appendChild(pinnedHeader);
 
       if (!pinnedSectionCollapsed) {
-        appendChatRows(pinnedChats);
+        const pinnedContainer = document.createElement('div');
+        pinnedContainer.className = 'chat-group-items';
+        pinnedContainer.appendChild(buildChatRows(pinnedChats, activeId, state.models, getChatHandlers));
+        fragment.appendChild(pinnedContainer);
       }
     }
 
@@ -639,11 +638,91 @@ function wireChat(root) {
       if (groupChats.length === 0) return;
 
       const header = document.createElement('div');
-      header.className = `chat-group-header sidebar-full-only ${key}`;
+      header.className = 'chat-group-header sidebar-full-only ' + key;
       header.textContent = groupLabels[key];
-      chatList.appendChild(header);
-      appendChatRows(groupChats);
+      fragment.appendChild(header);
+
+      const itemsContainer = document.createElement('div');
+      itemsContainer.className = 'chat-group-items';
+      itemsContainer.appendChild(buildChatRows(groupChats, activeId, state.models, getChatHandlers));
+      fragment.appendChild(itemsContainer);
     });
+
+    if (state.chatsPagination?.loading) {
+      const loadingRow = document.createElement('div');
+      loadingRow.className = 'px-3 py-3 text-xs text-gray-400';
+      loadingRow.textContent = 'Loading more chats...';
+      fragment.appendChild(loadingRow);
+    } else if (state.chatsPagination?.hasMore) {
+      const sentinel = document.createElement('div');
+      sentinel.id = 'chat-list-load-more';
+      sentinel.className = 'h-6';
+      fragment.appendChild(sentinel);
+    }
+
+    chatList.innerHTML = '';
+    chatList.appendChild(fragment);
+  }
+
+  let loadMoreChatsPromise = null;
+
+  async function loadMoreChats() {
+    if (loadMoreChatsPromise || !state.chatsPagination?.hasMore || state.chatsPagination?.loading) {
+      return loadMoreChatsPromise;
+    }
+
+    setState({ chatsPagination: { loading: true } });
+    const { limit, offset } = state.chatsPagination;
+    loadMoreChatsPromise = fetchChats({ limit, offset })
+      .then((data) => {
+        const nextChats = data.chats || [];
+        const existingIds = new Set(state.chats.map((chat) => chat.id));
+        const mergedChats = state.chats.concat(nextChats.filter((chat) => !existingIds.has(chat.id)));
+        setState({
+          chats: mergedChats,
+          chatsPagination: {
+            limit: data.limit || limit,
+            offset: (data.offset || offset) + nextChats.length,
+            hasMore: data.has_more === true,
+            loading: false,
+          },
+        });
+      })
+      .catch((err) => {
+        console.error('Failed to load more chats:', err);
+        setState({ chatsPagination: { loading: false } });
+      })
+      .finally(() => {
+        loadMoreChatsPromise = null;
+      });
+
+    return loadMoreChatsPromise;
+  }
+
+  let chatListLoadObserver = null;
+  function refreshChatListObserver() {
+    if (chatListLoadObserver) {
+      chatListLoadObserver.disconnect();
+      chatListLoadObserver = null;
+    }
+
+    if (!state.chatsPagination?.hasMore || !chatListContainerEl) return;
+    const sentinel = root.querySelector('#chat-list-load-more');
+    if (!sentinel) return;
+
+    chatListLoadObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          loadMoreChats();
+        }
+      });
+    }, {
+      root: chatListContainerEl,
+      rootMargin: '120px 0px',
+      threshold: 0.1,
+    });
+
+    chatListLoadObserver.observe(sentinel);
   }
 
   function drawMessages(messages) {
@@ -1202,9 +1281,8 @@ function wireChat(root) {
   }
 
   async function loadChats() {
-    const res = await apiFetch('/api/chats');
-    if (!res.ok) return;
-    const data = await res.json();
+    const limit = state.chatsPagination?.offset || state.chatsPagination?.limit || 30;
+    const data = await fetchChats({ limit, offset: 0 });
     const chats = data.chats || [];
 
     let nextActiveChatId = state.activeChatId;
@@ -1212,7 +1290,16 @@ function wireChat(root) {
       nextActiveChatId = chats[0]?.id || null;
     }
 
-    setState({ chats, activeChatId: nextActiveChatId });
+    setState({
+      chats,
+      chatsPagination: {
+        limit: data.limit || limit,
+        offset: (data.offset || 0) + chats.length,
+        hasMore: data.has_more === true,
+        loading: false,
+      },
+      activeChatId: nextActiveChatId,
+    });
   }
 
   async function loadMessages(chatId, options = {}) {
@@ -1250,7 +1337,12 @@ function wireChat(root) {
     const nextChats = [...state.chats];
     const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
     if (index >= 0) {
-      nextChats[index] = { ...nextChats[index], ...chat };
+      const existing = nextChats[index];
+      const merged = { ...existing, ...chat };
+      if (existing?.title && existing.title !== 'New Chat' && chat.title === 'New Chat') {
+        merged.title = existing.title;
+      }
+      nextChats[index] = merged;
     } else {
       nextChats.unshift(chat);
     }
@@ -1260,6 +1352,16 @@ function wireChat(root) {
       return Number(b?.created_at || 0) - Number(a?.created_at || 0);
     });
     setState({ chats: nextChats });
+  }
+
+  function updateChatTitleLocal(chatId, title) {
+    setState((prev) => ({
+      chats: prev.chats.map((chat) => (
+        String(chat.id) === String(chatId)
+          ? { ...chat, title, updated_at: Math.floor(Date.now() / 1000) }
+          : chat
+      )),
+    }));
   }
 
   function upsertMessageFromEvent(chatId, message, { draw = true } = {}) {
@@ -1418,25 +1520,40 @@ function wireChat(root) {
 
   async function sendSingleMessage(text, hooks = {}) {
     let chatId = state.activeChatId;
+    let tempChatId = null;
+    let autoTitle = null;
+
     if (!chatId) {
       const modelToUse = state.defaultModelId || state.activeModelId;
-      const payload = modelToUse ? { model: modelToUse } : {};
-      const res = await apiFetch('/api/chats', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        hooks.onFinished?.();
-        return;
-      }
-      const data = await res.json();
-      chatId = data.chat.id;
+      const nowTs = Math.floor(Date.now() / 1000);
+      tempChatId = `temp-${nowTs}-${Math.random().toString(36).slice(2, 8)}`;
+      const tempChat = {
+        id: tempChatId,
+        title: 'New Chat',
+        model: modelToUse || null,
+        pinned: 0,
+        tags: '[]',
+        created_at: nowTs,
+        updated_at: nowTs,
+      };
+
       setState((prev) => ({
-        chats: [data.chat, ...prev.chats],
-        activeChatId: chatId,
-        activeModelId: prev.defaultModelId || data.chat.model || prev.activeModelId,
+        chats: [tempChat, ...prev.chats],
+        activeChatId: tempChatId,
+        activeModelId: prev.defaultModelId || tempChat.model || prev.activeModelId,
       }));
-      syncChatUrl(chatId);
+
+      chatId = tempChatId;
+
+      const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
+      const hadMessagesBefore = (state.messagesByChat[chatId] || []).length > 0;
+      if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
+        const snippet = String(text).trim().replace(/\s+/g, ' ').slice(0, 60);
+        if (snippet) {
+          autoTitle = snippet;
+          updateChatTitleLocal(chatId, snippet);
+        }
+      }
     }
 
     const branchParentId = currentLeafByChatId.get(chatId) || null;
@@ -1468,6 +1585,107 @@ function wireChat(root) {
 
     setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
     if (state.activeChatId === chatId) drawMessages(localMessages);
+
+    if (tempChatId) {
+      const modelToUse = state.defaultModelId || state.activeModelId;
+      const payload = modelToUse ? { model: modelToUse } : {};
+      const res = await apiFetch('/api/chats', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        // Roll back optimistic chat on failure.
+        setState((prev) => {
+          const nextChats = prev.chats.filter((c) => String(c.id) !== String(tempChatId));
+          const nextActiveChatId = prev.activeChatId === tempChatId ? (nextChats[0]?.id || null) : prev.activeChatId;
+          const nextMessagesByChat = { ...prev.messagesByChat };
+          delete nextMessagesByChat[tempChatId];
+          return { chats: nextChats, activeChatId: nextActiveChatId, messagesByChat: nextMessagesByChat };
+        });
+        hooks.onFinished?.();
+        return;
+      }
+      const data = await res.json();
+      const realChatId = data.chat.id;
+
+      setState((prev) => {
+        let replaced = false;
+        let nextChats = prev.chats.map((c) => {
+          if (String(c.id) === String(tempChatId)) {
+            replaced = true;
+            const nextChat = { ...data.chat };
+            if (c.title && c.title !== 'New Chat' && data.chat.title === 'New Chat') {
+              nextChat.title = c.title;
+            }
+            return nextChat;
+          }
+          return c;
+        });
+        if (!replaced) {
+          nextChats = [data.chat, ...nextChats];
+        }
+        // De-dupe by id (realtime chat.created can arrive before this response).
+        const seen = new Set();
+        const deduped = [];
+        for (const chat of nextChats) {
+          const key = String(chat.id);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(chat);
+        }
+
+        const nextMessagesByChat = { ...prev.messagesByChat };
+        if (nextMessagesByChat[tempChatId]) {
+          nextMessagesByChat[realChatId] = nextMessagesByChat[tempChatId];
+          delete nextMessagesByChat[tempChatId];
+        }
+        return {
+          chats: deduped,
+          activeChatId: realChatId,
+          activeModelId: prev.defaultModelId || data.chat.model || prev.activeModelId,
+          messagesByChat: nextMessagesByChat,
+        };
+      });
+
+      if (currentLeafByChatId.has(tempChatId)) {
+        const leafId = currentLeafByChatId.get(tempChatId);
+        currentLeafByChatId.delete(tempChatId);
+        currentLeafByChatId.set(realChatId, leafId);
+      }
+      if (streamingOverrideByChat.has(tempChatId)) {
+        const override = streamingOverrideByChat.get(tempChatId);
+        streamingOverrideByChat.delete(tempChatId);
+        streamingOverrideByChat.set(realChatId, override);
+      }
+
+      chatId = realChatId;
+      syncChatUrl(realChatId);
+
+      if (autoTitle) {
+        apiFetch(`/api/chats/${realChatId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ title: autoTitle })
+        }).catch(() => {});
+      }
+    }
+
+    if (!autoTitle) {
+      const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
+      const hadMessagesBefore = (state.messagesByChat[chatId] || []).length > 0;
+      if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
+        const snippet = String(text).trim().replace(/\s+/g, ' ').slice(0, 60);
+        if (snippet) {
+          autoTitle = snippet;
+          updateChatTitleLocal(chatId, snippet);
+          if (!String(chatId).startsWith('temp-')) {
+            apiFetch(`/api/chats/${chatId}`, {
+              method: 'PUT',
+              body: JSON.stringify({ title: snippet })
+            }).catch(() => {});
+          }
+        }
+      }
+    }
 
     const controller = new AbortController();
     activeStreamAbort = () => controller.abort();
@@ -1654,6 +1872,7 @@ function wireChat(root) {
 
     headerMenuBtn.disabled = !currentState.activeChatId;
     drawChats(currentState.chats, currentState.activeChatId);
+    refreshChatListObserver();
   });
 
   sidebarBackdrop.addEventListener('click', () => setState({ showSidebar: false }));
@@ -1665,12 +1884,25 @@ function wireChat(root) {
   };
   document.addEventListener('click', onDocumentClickForHeaderMenu);
 
-  refreshShareState().then(() => drawChats(state.chats, state.activeChatId));
+  drawChats(state.chats, state.activeChatId);
+  refreshChatListObserver();
+  refreshShareState().catch(() => {});
 
-  if (state.activeChatId) loadMessages(state.activeChatId);
+  requestAnimationFrame(() => {
+    drawChats(state.chats, state.activeChatId);
+    refreshChatListObserver();
+  });
+
+  if (state.activeChatId) {
+    loadMessages(state.activeChatId).finally(() => {
+      drawChats(state.chats, state.activeChatId);
+      refreshChatListObserver();
+    });
+  }
 
   return () => {
     if (activeStreamAbort) activeStreamAbort();
+    if (chatListLoadObserver) chatListLoadObserver.disconnect();
     unsubscribe();
     destroySearchModal?.();
     destroyFilesModal?.();

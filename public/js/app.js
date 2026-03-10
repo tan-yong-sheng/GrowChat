@@ -1,10 +1,16 @@
-import { apiFetch, clearAuthState, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState } from './api.js';
-import { renderAdminPage } from './admin.js';
+import { apiFetch, clearAuthState, fetchChats, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState } from './api.js';
 import { renderChat } from './chat.js';
 import { renderMessageContent } from './utils.js';
 import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
 import { startRealtimeSync, stopRealtimeSync } from './realtime.js';
+
+const INITIAL_CHAT_LIMIT = 30;
+
+async function renderAdminRoute(container) {
+  const { renderAdminPage } = await import('./admin.js');
+  return renderAdminPage(container);
+}
 
 const FALLBACK_PERMISSIONS = {
   admin: [
@@ -23,6 +29,40 @@ const FALLBACK_PERMISSIONS = {
 let bootstrapped = false;
 let shortcutsInitialized = false;
 let realtimeStarted = false;
+let deferredBootstrapPromise = null;
+
+function ensureShortcuts() {
+  if (shortcutsInitialized) return;
+  initShortcuts();
+  shortcutsInitialized = true;
+}
+
+function ensureRealtime() {
+  if (realtimeStarted) return;
+  startRealtimeSync({
+    onEvent: (event) => {
+      window.dispatchEvent(new CustomEvent('growchat:realtime', { detail: event }));
+    },
+  });
+  window.addEventListener('beforeunload', stopRealtimeSync, { once: true });
+  realtimeStarted = true;
+}
+
+function scheduleDeferredBootstrap(user) {
+  if (deferredBootstrapPromise) return deferredBootstrapPromise;
+
+  deferredBootstrapPromise = (async () => {
+    await Promise.resolve();
+
+    await initRBAC(user);
+    ensureRealtime();
+
+  })().catch((err) => {
+    console.warn('Deferred bootstrap failed:', err);
+  });
+
+  return deferredBootstrapPromise;
+}
 
 async function initRBAC(user) {
   setState({ rbacLoading: true });
@@ -97,64 +137,48 @@ async function ensureSession() {
   const meData = await meRes.json();
   const user = meData.user || {};
 
-  await initRBAC(user);
+  ensureShortcuts();
 
-  if (!realtimeStarted) {
-    startRealtimeSync({
-      onEvent: (event) => {
-        window.dispatchEvent(new CustomEvent('growchat:realtime', { detail: event }));
-      },
-    });
-    window.addEventListener('beforeunload', stopRealtimeSync, { once: true });
-    realtimeStarted = true;
-  }
-
-  if (!shortcutsInitialized) {
-    initShortcuts();
-    shortcutsInitialized = true;
-  }
-
-  const [chatsRes, modelsRes] = await Promise.all([
-    apiFetch('/api/chats'),
-    apiFetch('/api/models'),
-  ]);
-
-  if (!chatsRes.ok) {
+  let chatsData;
+  try {
+    chatsData = await fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 });
+  } catch {
     document.getElementById('app').innerHTML = '<div class="p-6 text-center mt-20 text-gray-500">Failed to load chats. Please refresh.</div>';
     return false;
-  }
-
-  const chatsData = await chatsRes.json();
-  let modelsData = { models: [] };
-  if (modelsRes.ok) {
-    modelsData = await modelsRes.json();
   }
 
   const path = window.location.pathname;
   const routeChatId = getChatIdFromPath(path);
   const urlParams = new URLSearchParams(window.location.search);
   const modelParam = urlParams.get('model');
+  const isHomeRoute = path === '/' || path === '';
 
   const initialModelId = modelParam ||
     user.preferences?.defaultModelId ||
     localStorage.getItem('defaultModelId') ||
     chatsData.chats?.[0]?.model ||
-    modelsData.models?.[0]?.id ||
     null;
 
   setState({
     user,
     chats: chatsData.chats || [],
+    chatsPagination: {
+      limit: chatsData.limit || INITIAL_CHAT_LIMIT,
+      offset: (chatsData.offset || 0) + (chatsData.chats?.length || 0),
+      hasMore: chatsData.has_more === true,
+      loading: false,
+    },
     activeChatId: (routeChatId && chatsData.chats?.some((chat) => chat.id === routeChatId))
       ? routeChatId
-      : (chatsData.chats?.[0]?.id || null),
+      : (isHomeRoute ? null : (chatsData.chats?.[0]?.id || null)),
     messagesByChat: {},
-    models: modelsData.models || [],
+    models: [],
     activeModelId: initialModelId,
     defaultModelId: user.preferences?.defaultModelId || localStorage.getItem('defaultModelId'),
   });
 
   bootstrapped = true;
+  scheduleDeferredBootstrap(user);
   return true;
 }
 
@@ -185,7 +209,7 @@ export async function renderCurrentRoute() {
   }
 
   if (path.startsWith('/admin')) {
-    renderAdminPage(app);
+    await renderAdminRoute(app);
     return;
   }
 

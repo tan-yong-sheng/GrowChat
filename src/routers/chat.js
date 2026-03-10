@@ -89,7 +89,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       return error(req, 'Query parameter "offset" must be a non-negative integer', 400);
     }
     const offset = Number.parseInt(offsetParamStr, 10);
-
+    const queryLimit = limit + 1;
     let chats;
     if (qRaw) {
       const like = `%${qRaw}%`;
@@ -102,16 +102,19 @@ export async function chatRouter(req, env, ctx, user, path) {
          AND (c.title LIKE ? OR m.content LIKE ?)
          ORDER BY c.updated_at DESC, c.created_at DESC
          LIMIT ? OFFSET ?`,
-        [user.sub, like, like, limit, offset]
+        [user.sub, like, like, queryLimit, offset]
       );
     } else {
       chats = await db.all(
         'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? AND archived = 0 ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?',
-        [user.sub, limit, offset]
+        [user.sub, queryLimit, offset]
       );
     }
 
-    return json(req, { chats, limit, offset, query: qRaw });
+    const has_more = chats.length > limit;
+    const items = has_more ? chats.slice(0, limit) : chats;
+
+    return json(req, { chats: items, limit, offset, query: qRaw, has_more });
   }
 
   if (req.method === 'POST' && path === '/api/chats') {

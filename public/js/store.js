@@ -1,9 +1,16 @@
 export const state = {
   // App Core
   chats: [],
+  chatsPagination: {
+    limit: 30,
+    offset: 0,
+    hasMore: false,
+    loading: false
+  },
   activeChatId: null,
   messagesByChat: {},
   models: [],
+  modelsLoading: false,
   activeModelId: null,
   defaultModelId: localStorage.getItem('defaultModelId'),
   

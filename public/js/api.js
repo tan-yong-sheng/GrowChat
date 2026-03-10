@@ -93,6 +93,16 @@ export async function fetchChats({ q = '', limit = 20, offset = 0, signal } = {}
   return res.json();
 }
 
+export async function fetchModels({ signal } = {}) {
+  const res = await apiFetch('/api/models', { signal });
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch models (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
 export async function fetchFiles({ limit = 20, offset = 0, signal } = {}) {
   const params = new URLSearchParams();
   params.set('limit', String(limit));
