@@ -12,34 +12,42 @@ function computePresence(lastActiveAt) {
   return Date.now() - lastActiveAt <= PRESENCE_IDLE_MS ? 'online' : 'away';
 }
 
-export async function createUserProfileFooter() {
-  let user = { name: 'User', status: 'away', avatar_emoji: 'U' };
-  let lastActiveAt = Date.now();
-  let presenceTimer = null;
-
+function getStoredAuthUser() {
   try {
-    const res = await apiFetch('/api/users/me');
-    if (res.ok) {
-      const data = await res.json();
-      user = { ...user, ...data?.user };
-    }
-  } catch (err) {
-    console.error('Failed to fetch user profile:', err);
+    const raw = localStorage.getItem('growchat_auth');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.user || null;
+  } catch {
+    return null;
   }
+}
 
-  const element = document.createElement('div');
-  element.className = 'user-profile-footer border-t border-gray-100 p-4 bg-[#f9f9f9] z-20';
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
-  const hasAdminPerm = state.permissions?.includes('admin.rbac.admin') || false;
+function getAvatarLabel(user) {
+  return user.avatar_emoji || (user.name ? user.name[0] : 'U');
+}
 
-  element.innerHTML = `
+function buildFooterMarkup(user, hasAdminPerm) {
+  const avatar = escapeHtml(getAvatarLabel(user));
+  const name = escapeHtml(user.name || 'User');
+
+  return `
     <div class="relative w-full">
       <button class="user-profile-btn w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white transition-all text-left group/user">
         <span class="user-avatar flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-gray-700 font-semibold text-sm flex-shrink-0 shadow-sm transition-all group-hover/user:scale-105 border border-white">
-          ${user.avatar_emoji || (user.name ? user.name[0] : 'U')}
+          ${avatar}
         </span>
         <div class="user-info flex-1 min-w-0 sidebar-full-only">
-          <span class="user-name block font-semibold text-sm text-gray-900 truncate">${user.name}</span>
+          <span class="user-name block font-semibold text-sm text-gray-900 truncate">${name}</span>
           <div class="flex items-center gap-1.5">
             <span data-presence-dot class="status-indicator w-2 h-2 rounded-full"></span>
             <span data-presence-label class="user-status block text-xs text-gray-500 capitalize"></span>
@@ -50,10 +58,10 @@ export async function createUserProfileFooter() {
       <div class="user-menu-dropdown hidden absolute bottom-full left-0 w-full mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden p-1">
         <div class="flex gap-3 w-full p-2.5 items-center border-b border-gray-50">
           <div class="user-avatar flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 text-gray-700 font-semibold text-sm flex-shrink-0 shadow-sm">
-            ${user.avatar_emoji || (user.name ? user.name[0] : 'U')}
+            ${avatar}
           </div>
           <div class="flex flex-col flex-1 min-w-0">
-            <div class="font-medium text-sm text-gray-900 truncate">${user.name}</div>
+            <div class="font-medium text-sm text-gray-900 truncate">${name}</div>
             <div class="flex items-center gap-1.5">
               <span data-menu-presence-dot class="w-2 h-2 rounded-full"></span>
               <span data-menu-presence-label class="text-xs text-gray-500 capitalize"></span>
@@ -104,6 +112,26 @@ export async function createUserProfileFooter() {
       </div>
     </div>
   `;
+}
+
+export async function createUserProfileFooter() {
+  const storedUser = getStoredAuthUser();
+  let user = {
+    name: storedUser?.name || 'User',
+    status: storedUser?.status || 'away',
+    avatar_emoji: storedUser?.avatar_emoji || (storedUser?.name ? storedUser.name[0] : 'U')
+  };
+  let lastActiveAt = Date.now();
+  let presenceTimer = null;
+  let manualStatus = user.status && user.status !== 'online' && user.status !== 'away'
+    ? user.status
+    : null;
+
+  const element = document.createElement('div');
+  element.className = 'user-profile-footer border-t border-gray-100 p-4 bg-[#f9f9f9] z-20';
+
+  const hasAdminPerm = state.permissions?.includes('admin.rbac.admin') || false;
+  element.innerHTML = buildFooterMarkup(user, hasAdminPerm);
 
   const menu = element.querySelector('.user-menu-dropdown');
   const profileBtn = element.querySelector('.user-profile-btn');
@@ -113,7 +141,7 @@ export async function createUserProfileFooter() {
   const menuPresenceDot = element.querySelector('[data-menu-presence-dot]');
 
   const updatePresenceUi = () => {
-    const presence = computePresence(lastActiveAt);
+    const presence = manualStatus || computePresence(lastActiveAt);
     const color = getStatusColor(presence);
     if (presenceLabel) presenceLabel.textContent = presence;
     if (presenceDot) presenceDot.className = `status-indicator w-2 h-2 rounded-full ${color}`;
@@ -164,6 +192,33 @@ export async function createUserProfileFooter() {
 
   presenceTimer = window.setInterval(updatePresenceUi, 30000);
   updatePresenceUi();
+
+  apiFetch('/api/users/me')
+    .then(async (res) => {
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.user || null;
+    })
+    .then((freshUser) => {
+      if (!freshUser) return;
+      user = { ...user, ...freshUser };
+      manualStatus = user.status && user.status !== 'online' && user.status !== 'away'
+        ? user.status
+        : null;
+
+      const nextName = user.name || 'User';
+      const nextAvatar = getAvatarLabel(user);
+      element.querySelectorAll('.user-name').forEach((node) => {
+        node.textContent = nextName;
+      });
+      element.querySelectorAll('.user-avatar').forEach((node) => {
+        node.textContent = nextAvatar;
+      });
+      updatePresenceUi();
+    })
+    .catch((err) => {
+      console.error('Failed to fetch user profile:', err);
+    });
 
   element.__cleanup = () => {
     if (presenceTimer) window.clearInterval(presenceTimer);

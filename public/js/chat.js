@@ -127,7 +127,7 @@ export function renderChat(container) {
     <div class="flex h-full w-full bg-white overflow-hidden text-[#171717] font-sans">
       <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
 
-      <aside id="sidebar" class="fixed md:relative h-full flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 -ml-[260px] md:ml-0 overflow-visible group/sidebar">
+      <aside id="sidebar" class="fixed md:relative h-screen md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 -ml-[260px] md:ml-0 overflow-visible group/sidebar">
         <div class="p-3">
           <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
             <div class="flex items-center gap-3 sidebar-full-only">
@@ -166,6 +166,8 @@ export function renderChat(container) {
             <ul id="chat-list" class="space-y-0.5"></ul>
           </div>
         </div>
+
+        <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]"></div>
       </aside>
 
       <main class="flex-grow flex flex-col relative min-w-0 bg-white h-full">
@@ -230,6 +232,14 @@ export function renderChat(container) {
 }
 
 function wireChat(root) {
+  const pathForChat = (chatId) => (chatId ? `/c/${encodeURIComponent(chatId)}` : '/');
+  const syncChatUrl = (chatId, { replace = false } = {}) => {
+    const nextPath = pathForChat(chatId);
+    if (window.location.pathname === nextPath) return;
+    const method = replace ? 'replaceState' : 'pushState';
+    window.history[method]({}, '', nextPath);
+  };
+
   const scrollToMessage = (msgId) => {
     const el = messagesList.querySelector(`[data-message-id="${msgId}"]`);
     if (el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
@@ -278,6 +288,7 @@ function wireChat(root) {
 
   const getChatHandlers = (chat) => ({
     onClick: (id) => {
+      syncChatUrl(id);
       setState({ activeChatId: id });
       loadMessages(id);
       if (state.isMobile) setState({ showSidebar: false });
@@ -327,6 +338,7 @@ function wireChat(root) {
       if (refreshedRes.ok) {
         const refreshed = await refreshedRes.json();
         const nextId = clonedChatId || state.activeChatId;
+        syncChatUrl(nextId);
         setState({ chats: refreshed.chats || [], activeChatId: nextId });
         if (nextId) {
           await loadMessages(nextId);
@@ -350,6 +362,7 @@ function wireChat(root) {
         }
     },
     share: async (id) => {
+      syncChatUrl(id);
       setState({ activeChatId: id });
       await loadMessages(id);
       const existing = sharedByChatId.get(id) || null;
@@ -361,6 +374,7 @@ function wireChat(root) {
       if (!res.ok) return;
       const refreshed = await res.json();
       const nextId = id === state.activeChatId ? refreshed.chats?.[0]?.id || null : state.activeChatId;
+      syncChatUrl(nextId, { replace: true });
       setState({ chats: refreshed.chats || [], activeChatId: nextId });
       if (nextId) {
         await loadMessages(nextId);
@@ -375,6 +389,7 @@ function wireChat(root) {
         if (res.ok) {
           const refreshed = await res.json();
           const nextId = id === state.activeChatId ? refreshed.chats?.[0]?.id || null : state.activeChatId;
+          syncChatUrl(nextId, { replace: true });
           setState({ chats: refreshed.chats || [], activeChatId: nextId });
           if (nextId) {
             await loadMessages(nextId);
@@ -391,7 +406,12 @@ function wireChat(root) {
   });
 
   createUserProfileFooter().then(footer => {
-    sidebar.appendChild(footer);
+    const footerMount = root.querySelector('#sidebar-footer');
+    if (footerMount) {
+      footerMount.replaceChildren(footer);
+    } else {
+      sidebar.appendChild(footer);
+    }
   });
 
   const inputComponent = renderMessageInput(messageInputContainer, sendMessage, () => {
@@ -1391,6 +1411,8 @@ function wireChat(root) {
       activeModelId: prev.defaultModelId || data.chat.model || prev.activeModelId,
     }));
 
+    syncChatUrl(data.chat.id);
+
     await loadMessages(data.chat.id);
   }
 
@@ -1414,6 +1436,7 @@ function wireChat(root) {
         activeChatId: chatId,
         activeModelId: prev.defaultModelId || data.chat.model || prev.activeModelId,
       }));
+      syncChatUrl(chatId);
     }
 
     const branchParentId = currentLeafByChatId.get(chatId) || null;
@@ -1557,12 +1580,32 @@ function wireChat(root) {
   const onOpenSearch = () => setState({ showSearch: true });
   const onNewChat = () => createChat();
   const onOpenArchivedEvent = () => openArchivedModal();
+  const onPopState = async () => {
+    const match = window.location.pathname.match(/^\/c\/([^/]+)$/);
+    const routeChatId = match ? decodeURIComponent(match[1]) : null;
+
+    if (!routeChatId) {
+      setState({ activeChatId: null });
+      drawMessages([]);
+      return;
+    }
+
+    const exists = state.chats.some((chat) => chat.id === routeChatId);
+    if (!exists) {
+      syncChatUrl(state.activeChatId, { replace: true });
+      return;
+    }
+
+    setState({ activeChatId: routeChatId });
+    await loadMessages(routeChatId);
+  };
 
   toggleSidebarMobile.addEventListener('click', onToggleSidebar);
   toggleSidebarDesktop.addEventListener('click', onToggleSidebar);
   openSearchBtn.addEventListener('click', onOpenSearch);
   newChatBtn.addEventListener('click', onNewChat);
   window.addEventListener('growchat:open-archived', onOpenArchivedEvent);
+  window.addEventListener('popstate', onPopState);
 
   let isChatsCollapsed = false;
   toggleChatsBtn.addEventListener('click', () => {
@@ -1641,6 +1684,7 @@ function wireChat(root) {
     newChatBtn.removeEventListener('click', onNewChat);
     window.removeEventListener('growchat:open-archived', onOpenArchivedEvent);
     window.removeEventListener('growchat:realtime', onRealtimeEvent);
+    window.removeEventListener('popstate', onPopState);
     root.__cleanup = null;
   };
 }

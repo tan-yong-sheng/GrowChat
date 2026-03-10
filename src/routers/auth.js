@@ -39,8 +39,21 @@ function sanitizeUser(user) {
     role: user.role,
     settings,
     created_at: user.created_at,
+    last_active_at: user.last_active_at,
     updated_at: user.updated_at,
   };
+}
+
+async function touchLastActive(db, userId) {
+  if (!userId) return;
+  try {
+    await db.run('UPDATE users SET last_active_at = unixepoch() WHERE id = ?', [userId]);
+  } catch (err) {
+    if (/no such column:\s*last_active_at/i.test(String(err?.message || ''))) {
+      return;
+    }
+    throw err;
+  }
 }
 
 function readBearerToken(req) {
@@ -136,11 +149,14 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
 
-    const accessToken = await createAccessToken(env, user);
-    const refresh = await createRefreshToken(env, user.id);
+    await touchLastActive(db, user.id);
+    const freshUser = await db.first('SELECT * FROM users WHERE id = ?', [user.id]);
+
+    const accessToken = await createAccessToken(env, freshUser);
+    const refresh = await createRefreshToken(env, freshUser.id);
 
     return json(req, {
-      user: sanitizeUser(user),
+      user: sanitizeUser(freshUser),
       access_token: accessToken,
       refresh_token: refresh.token,
       expires_in: 900,
@@ -166,11 +182,14 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     if (!user) return error(req, 'User not found', 404);
     await ensureUserRoleBinding(db, user.id, user.role);
 
-    const accessToken = await createAccessToken(env, user);
-    const refresh = await createRefreshToken(env, user.id);
+    await touchLastActive(db, user.id);
+    const freshUser = await db.first('SELECT * FROM users WHERE id = ?', [user.id]);
+
+    const accessToken = await createAccessToken(env, freshUser);
+    const refresh = await createRefreshToken(env, freshUser.id);
 
     return json(req, {
-      user: sanitizeUser(user),
+      user: sanitizeUser(freshUser),
       access_token: accessToken,
       refresh_token: refresh.token,
       expires_in: 900,

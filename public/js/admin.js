@@ -1,20 +1,13 @@
 import { state, setState, subscribe } from './store.js';
-import { apiFetch, toggleArchiveChat } from './api.js';
+import { apiFetch } from './api.js';
 import { renderSidebar } from './components/sidebar.js';
 import { createUserProfileFooter } from './components/user-profile-footer.js';
-import { createFolderSidebar } from './components/folder-sidebar.js';
-import { createChatRow } from './components/chat-row.js';
-import { groupChatsByTime } from './utils/time-grouping.js';
 import { renderSearchModal } from './components/search-modal.js';
 import { renderFilesModal } from './components/files-modal.js';
 import { renderUserOverview } from './components/admin/users/overview.js';
 import { renderGroupsOverview } from './components/admin/users/groups.js';
 
 function wireSidebar(root) {
-  const toggleChatsBtn = root.querySelector('#toggle-chats-btn');
-  const toggleChatsIcon = root.querySelector('#toggle-chats-icon');
-  const chatListContainer = root.querySelector('#chat-list-container');
-  const chatList = root.querySelector('#chat-list');
   const newChatBtn = root.querySelector('#new-chat');
   const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
   const toggleSidebarDesktop = root.querySelector('#toggle-sidebar-desktop');
@@ -24,68 +17,7 @@ function wireSidebar(root) {
   const searchModalContainer = root.querySelector('#search-modal-container');
   const filesModalContainer = root.querySelector('#files-modal-container');
 
-  const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
-  let pinnedSectionCollapsed = false;
-  try {
-    pinnedSectionCollapsed = localStorage.getItem(PINNED_COLLAPSED_KEY) === '1';
-  } catch {
-    pinnedSectionCollapsed = false;
-  }
-
   const destroySidebar = renderSidebar(sidebar, root);
-
-  const getChatHandlers = (chat) => ({
-    onClick: (id) => {
-      setState({ activeChatId: id });
-      window.location.href = `/?chat=${id}`;
-    },
-    rename: async (id) => {
-      const newTitle = window.prompt('Enter new title:', chat.title);
-      if (newTitle && newTitle !== chat.title) {
-        await apiFetch(`/api/chats/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ title: newTitle })
-        });
-        const res = await apiFetch('/api/chats');
-        if (res.ok) {
-          const refreshed = await res.json();
-          setState({ chats: refreshed.chats || [] });
-        }
-      }
-    },
-    pin: async (id) => {
-      const res = await apiFetch(`/api/chats/${id}/pin`, { method: 'POST' });
-      if (res.ok) {
-        const refreshedRes = await apiFetch('/api/chats');
-        if (refreshedRes.ok) {
-          const refreshed = await refreshedRes.json();
-          setState({ chats: refreshed.chats || [] });
-        }
-      }
-    },
-    archive: async (id) => {
-      await toggleArchiveChat(id);
-      const res = await apiFetch('/api/chats');
-      if (res.ok) {
-        const refreshed = await res.json();
-        setState({ chats: refreshed.chats || [] });
-      }
-    },
-    delete: async (id) => {
-      if (window.confirm('Are you sure you want to delete this chat?')) {
-        await apiFetch(`/api/chats/${id}`, { method: 'DELETE' });
-        const res = await apiFetch('/api/chats');
-        if (res.ok) {
-          const refreshed = await res.json();
-          setState({ chats: refreshed.chats || [] });
-        }
-      }
-    }
-  });
-
-  createFolderSidebar(getChatHandlers).then((folderContainer) => {
-    chatList.parentNode.insertBefore(folderContainer, chatList);
-  });
 
   createUserProfileFooter().then((footer) => {
     const footerMount = root.querySelector('#sidebar-footer');
@@ -95,71 +27,6 @@ function wireSidebar(root) {
       sidebar.appendChild(footer);
     }
   });
-
-  function drawChats(chats, activeId) {
-    const mainListChats = chats.filter((c) => !c.folder_id);
-    const pinnedChats = mainListChats.filter((c) => Number(c.pinned) === 1);
-    const regularChats = mainListChats.filter((c) => Number(c.pinned) !== 1);
-    const groups = groupChatsByTime(regularChats);
-    const groupLabels = {
-      today: 'Today',
-      yesterday: 'Yesterday',
-      lastWeek: 'Last 7 Days',
-      older: 'Older'
-    };
-
-    chatList.innerHTML = '';
-
-    const appendChatRows = (list) => {
-      const itemsContainer = document.createElement('div');
-      itemsContainer.className = 'chat-group-items';
-
-      list.forEach((chatItem) => {
-        const handlers = getChatHandlers(chatItem);
-        const row = createChatRow(chatItem, handlers);
-        if (chatItem.id === activeId) {
-          row.classList.add('active');
-        }
-        itemsContainer.appendChild(row);
-      });
-
-      chatList.appendChild(itemsContainer);
-    };
-
-    if (pinnedChats.length > 0) {
-      const pinnedHeader = document.createElement('button');
-      pinnedHeader.type = 'button';
-      pinnedHeader.className = 'chat-group-header sidebar-full-only pinned flex items-center gap-1.5 cursor-pointer select-none hover:text-gray-600 transition-colors';
-      pinnedHeader.innerHTML = `
-        <svg class="w-3.5 h-3.5 transition-transform ${pinnedSectionCollapsed ? '-rotate-90' : ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.1 1.02l-4.25 4.5a.75.75 0 0 1-1.1 0l-4.25-4.5a.75.75 0 0 1 .02-1.04Z" clip-rule="evenodd" />
-        </svg>
-        <span>Pinned</span>
-      `;
-      pinnedHeader.addEventListener('click', () => {
-        pinnedSectionCollapsed = !pinnedSectionCollapsed;
-        try {
-          localStorage.setItem(PINNED_COLLAPSED_KEY, pinnedSectionCollapsed ? '1' : '0');
-        } catch {}
-        drawChats(state.chats, state.activeChatId);
-      });
-      chatList.appendChild(pinnedHeader);
-
-      if (!pinnedSectionCollapsed) {
-        appendChatRows(pinnedChats);
-      }
-    }
-
-    Object.entries(groups).forEach(([key, groupedChats]) => {
-      if (groupedChats.length === 0) return;
-
-      const header = document.createElement('div');
-      header.className = `chat-group-header sidebar-full-only ${key}`;
-      header.textContent = groupLabels[key];
-      chatList.appendChild(header);
-      appendChatRows(groupedChats);
-    });
-  }
 
   const destroySearchModal = renderSearchModal(searchModalContainer, () => window.location.href = '/', () => window.location.href = '/');
   const destroyFilesModal = renderFilesModal(filesModalContainer);
@@ -183,18 +50,6 @@ function wireSidebar(root) {
   openSearchBtn.addEventListener('click', onOpenSearch);
   newChatBtn.addEventListener('click', onNewChat);
 
-  let isChatsCollapsed = false;
-  toggleChatsBtn.addEventListener('click', () => {
-    isChatsCollapsed = !isChatsCollapsed;
-    if (isChatsCollapsed) {
-      chatListContainer.classList.add('hidden');
-      toggleChatsIcon.classList.add('rotate-180');
-    } else {
-      chatListContainer.classList.remove('hidden');
-      toggleChatsIcon.classList.remove('rotate-180');
-    }
-  });
-
   const unsubscribe = subscribe((currentState) => {
     if (currentState.showSidebar && currentState.isMobile) {
       sidebarBackdrop.classList.remove('hidden');
@@ -204,12 +59,9 @@ function wireSidebar(root) {
       document.body.style.overflow = '';
     }
 
-    drawChats(currentState.chats, currentState.activeChatId);
   });
 
   sidebarBackdrop.addEventListener('click', () => setState({ showSidebar: false }));
-
-  drawChats(state.chats, state.activeChatId);
 
   root.__cleanup = () => {
     unsubscribe();
@@ -256,10 +108,15 @@ export async function renderAdminPage(container) {
   let subTab = 'overview';
   let data = {
     users: [],
+    total: 0,
     groups: [],
     loading: false,
     error: null,
     groupsError: null,
+    pagination: {
+      page: 1,
+      pageSize: 20,
+    },
   };
 
   const updateRouteInfo = () => {
@@ -278,7 +135,8 @@ export async function renderAdminPage(container) {
     data.error = null;
     render();
     try {
-      const res = await apiFetch('/api/admin/users');
+      const offset = (data.pagination.page - 1) * data.pagination.pageSize;
+      const res = await apiFetch(`/api/admin/users?limit=${data.pagination.pageSize}&offset=${offset}`);
       if (res.status === 403) {
         data.error = 'You do not have permission to manage users.';
       } else if (!res.ok) {
@@ -286,6 +144,7 @@ export async function renderAdminPage(container) {
       } else {
         const payload = await res.json();
         data.users = payload.users || [];
+        data.total = payload.total || 0;
       }
     } catch (err) {
       data.error = err.message || 'Failed to fetch users.';
@@ -315,7 +174,7 @@ export async function renderAdminPage(container) {
           <span>Groups</span>
         </a>
       </div>
-      <div id="admin-sub-content" class="flex-1 flex flex-col overflow-hidden p-6">${data.loading ? renderLoadingState() : ''}</div>
+      <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden p-6">${data.loading ? renderLoadingState() : ''}</div>
     `;
   }
 
@@ -327,15 +186,15 @@ export async function renderAdminPage(container) {
     container.innerHTML = `
       <div class="flex h-screen w-full bg-white overflow-hidden font-primary text-gray-900">
         <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
-        <aside id="sidebar" class="fixed md:relative h-full flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar pb-24" style="width: 260px; min-width: 260px;">
+        <aside id="sidebar" class="fixed md:relative h-screen md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
           <div class="p-3 flex-shrink-0">
             <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
-              <div class="flex items-center gap-3 sidebar-full-only">
+              <a href="/" class="flex items-center gap-3 sidebar-full-only rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300">
                 <div class="w-7 h-7 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
                   <img src="/logo.png" alt="GrowChat" class="w-5 h-5 object-contain" />
                 </div>
                 <span class="font-bold text-lg text-gray-800 font-primary">GrowChat</span>
-              </div>
+              </a>
               <button id="toggle-sidebar-desktop" class="sidebar-full-only md:block p-1 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors ml-auto" title="Close Sidebar">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
               </button>
@@ -355,16 +214,7 @@ export async function renderAdminPage(container) {
             </div>
           </div>
           <div class="flex-1 min-h-0"></div>
-          <div class="hidden px-3 pb-4 sidebar-full-only">
-            <button id="toggle-chats-btn" class="flex items-center justify-between w-full text-[11px] font-semibold text-gray-400 px-3 py-2 mt-2 uppercase tracking-wider sidebar-full-only hover:text-gray-600 transition-colors group">
-              <span>Chats</span>
-              <svg id="toggle-chats-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-200"><polyline points="18 15 12 9 6 15"></polyline></svg>
-            </button>
-            <div class="hidden flex-grow overflow-y-auto no-scrollbar sidebar-full-only" id="chat-list-container">
-              <ul id="chat-list" class="space-y-0.5"></ul>
-            </div>
-          </div>
-          <div id="sidebar-footer" class="absolute bottom-0 left-0 w-full bg-[#f9f9f9]"></div>
+          <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]"></div>
         </aside>
         <div class="flex-1 flex flex-col min-w-0">
           <nav class="px-4 pt-2 border-b border-gray-50 bg-white/80 backdrop-blur-md sticky top-0 z-20">
@@ -376,11 +226,6 @@ export async function renderAdminPage(container) {
                 <div class="flex gap-1 scrollbar-none overflow-x-auto w-fit text-center text-sm font-medium pt-1">
                   <a href="/admin/users/overview" data-nav="users" class="min-w-fit p-1.5 transition select-none ${mainTab === 'users' ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}">Users</a>
                   <a href="/admin/settings" data-nav="settings" class="min-w-fit p-1.5 transition select-none ${mainTab === 'settings' ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}">Settings</a>
-                </div>
-                <div class="ml-auto flex items-center">
-                  <a href="/" class="p-1.5 text-gray-400 hover:text-gray-600 transition-colors" title="Close">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </a>
                 </div>
               </div>
             </div>

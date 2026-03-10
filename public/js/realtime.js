@@ -9,6 +9,7 @@ class RealtimeClient {
     this.reconnectTimer = null;
     this.connectingPromise = null;
     this.seenEventKeys = new Map();
+    this.failureCount = 0;
   }
 
   async connect() {
@@ -43,14 +44,18 @@ class RealtimeClient {
         }
 
         if (!res.ok || !res.body) {
+          this.failureCount += 1;
           throw new Error(`Realtime stream failed (${res.status})`);
         }
 
         this.reconnectDelayMs = 1000;
+        this.failureCount = 0;
         await this.readSse(res.body);
       } catch (err) {
         if (err?.name !== 'AbortError') {
-          console.warn('Realtime client error:', String(err?.message || err));
+          if (this.failureCount <= 3 || this.failureCount % 10 === 0) {
+            console.warn('Realtime client error:', String(err?.message || err));
+          }
         }
       } finally {
         this.eventSource = null;
@@ -146,7 +151,9 @@ class RealtimeClient {
   scheduleReconnect(forceDelayMs = null) {
     if (this.closedManually || this.reconnectTimer) return;
 
-    const delay = forceDelayMs ?? this.reconnectDelayMs;
+    const delay = forceDelayMs ?? (this.failureCount > 0
+      ? Math.min(this.reconnectDelayMs * Math.max(this.failureCount, 1), 60000)
+      : this.reconnectDelayMs);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, 30000);

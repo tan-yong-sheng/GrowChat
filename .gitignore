@@ -1,5 +1,7 @@
 open-webui/
 open-terminal/
+bolt.new/
+.ona/
 .playwright/
 .playwright-cli/
 .playwright-artifacts/

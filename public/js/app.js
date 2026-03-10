@@ -70,9 +70,15 @@ function renderSharedChatPage(container, data) {
   `;
 }
 
+function getChatIdFromPath(pathname) {
+  const match = pathname.match(/^\/c\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function bootstrap() {
   const path = window.location.pathname;
   const sharedMatch = path.match(/^\/s\/([^/]+)$/);
+  const routeChatId = getChatIdFromPath(path);
   if (sharedMatch) {
     try {
       const data = await fetchPublicSharedChat(sharedMatch[1]);
@@ -143,7 +149,9 @@ async function bootstrap() {
   setState({
     user,
     chats: chatsData.chats || [],
-    activeChatId: chatsData.chats?.[0]?.id || null,
+    activeChatId: (routeChatId && chatsData.chats?.some((chat) => chat.id === routeChatId))
+      ? routeChatId
+      : (chatsData.chats?.[0]?.id || null),
     messagesByChat: {},
     models: modelsData.models || [],
     activeModelId: initialModelId,

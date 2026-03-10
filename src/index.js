@@ -11,10 +11,11 @@ import { promptsRouter } from './routers/prompts.js';
 import { rbacRouter } from './routers/rbac.js';
 import { publicRouter } from './routers/public.js';
 import { realtimeRouter } from './routers/realtime.js';
+import { foldersRouter } from './routers/folders.js';
 import { error, preflight } from './utils/response.js';
 import { MessageQueueDO } from './durable/message-queue.js';
 
-const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter, rbacRouter, realtimeRouter];
+const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter, rbacRouter, realtimeRouter, foldersRouter];
 let schemaCompatibilityReady = null;
 let schemaDiagnosticsLogged = false;
 const REQUIRED_RBAC_TABLES = ['roles', 'permissions', 'role_permissions', 'user_roles', 'audit_log'];
@@ -109,6 +110,18 @@ function isDuplicateColumnError(err) {
   return /duplicate column name|already exists/i.test(message);
 }
 
+async function touchLastActive(env, userId) {
+  if (!userId || !env?.DB) return;
+  try {
+    await env.DB.prepare('UPDATE users SET last_active_at = unixepoch() WHERE id = ?').bind(userId).run();
+  } catch (err) {
+    if (/no such column:\s*last_active_at/i.test(String(err?.message || ''))) {
+      return;
+    }
+    console.warn('last_active_at update skipped:', String(err?.message || err));
+  }
+}
+
 function requireBinding(req, env, name, value) {
   if (value) return null;
   return error(req, `${name} binding missing`, 500);
@@ -157,6 +170,22 @@ async function ensureSchemaCompatibility(env) {
         const hasCitations = columns.some((col) => col?.name === 'citations');
         if (!hasCitations) {
           await env.DB.prepare('ALTER TABLE messages ADD COLUMN citations TEXT').run();
+        }
+      }
+
+      try {
+        const userInfo = await env.DB.prepare('PRAGMA table_info(users)').all();
+        const userColumns = userInfo?.results || [];
+        if (userColumns.length) {
+          const hasLastActiveAt = userColumns.some((col) => col?.name === 'last_active_at');
+          if (!hasLastActiveAt) {
+            await env.DB.prepare('ALTER TABLE users ADD COLUMN last_active_at INTEGER').run();
+            await env.DB.prepare('UPDATE users SET last_active_at = COALESCE(updated_at, created_at) WHERE last_active_at IS NULL').run();
+          }
+        }
+      } catch (err) {
+        if (!isDuplicateColumnError(err)) {
+          throw err;
         }
       }
 
@@ -230,6 +259,7 @@ export default {
             return error(req, 'Account deactivated', 403);
           }
           user = { ...user, role };
+          ctx.waitUntil(touchLastActive(env, user.sub));
         }
       }
 
