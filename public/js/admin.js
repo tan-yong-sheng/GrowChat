@@ -88,7 +88,12 @@ function wireSidebar(root) {
   });
 
   createUserProfileFooter().then((footer) => {
-    sidebar.appendChild(footer);
+    const footerMount = root.querySelector('#sidebar-footer');
+    if (footerMount) {
+      footerMount.replaceChildren(footer);
+    } else {
+      sidebar.appendChild(footer);
+    }
   });
 
   function drawChats(chats, activeId) {
@@ -350,7 +355,7 @@ export async function renderAdminPage(container) {
             </div>
           </div>
           <div class="flex-1 min-h-0"></div>
-          <div class="px-3 pb-4 mt-auto">
+          <div class="hidden px-3 pb-4 sidebar-full-only">
             <button id="toggle-chats-btn" class="flex items-center justify-between w-full text-[11px] font-semibold text-gray-400 px-3 py-2 mt-2 uppercase tracking-wider sidebar-full-only hover:text-gray-600 transition-colors group">
               <span>Chats</span>
               <svg id="toggle-chats-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-200"><polyline points="18 15 12 9 6 15"></polyline></svg>
@@ -359,6 +364,7 @@ export async function renderAdminPage(container) {
               <ul id="chat-list" class="space-y-0.5"></ul>
             </div>
           </div>
+          <div id="sidebar-footer" class="mt-auto"></div>
         </aside>
         <div class="flex-1 flex flex-col min-w-0">
           <nav class="px-4 pt-2 border-b border-gray-50 bg-white/80 backdrop-blur-md sticky top-0 z-20">
