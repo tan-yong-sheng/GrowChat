@@ -2,14 +2,27 @@ import { setState, state, subscribe } from '../store.js';
 import { apiFetch } from '../api.js';
 import { renderAdminPage } from '../admin.js';
 
+const PRESENCE_IDLE_MS = 5 * 60 * 1000;
+const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'focus', 'visibilitychange'];
+
+function computePresence(lastActiveAt) {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    return 'away';
+  }
+  return Date.now() - lastActiveAt <= PRESENCE_IDLE_MS ? 'online' : 'away';
+}
+
 export async function createUserProfileFooter() {
-  let user = { name: 'User', status: 'online', avatar_emoji: 'U' };
+  let user = { name: 'User', status: 'away', avatar_emoji: 'U' };
+  let lastActiveAt = Date.now();
+  let presenceTimer = null;
+  let removeActivityListeners = () => {};
+
   try {
     const res = await apiFetch('/api/users/me');
     if (res.ok) {
       const data = await res.json();
       user = { ...user, ...data?.user };
-      user.status = user.status || 'online';
     }
   } catch (err) {
     console.error('Failed to fetch user profile:', err);
@@ -18,8 +31,9 @@ export async function createUserProfileFooter() {
   const element = document.createElement('div');
   element.className = 'user-profile-footer border-t border-gray-100 p-4 mt-auto sticky bottom-0 bg-[#f9f9f9] z-20 transition-all';
 
-  const updateUI = (userData) => {
+  const renderMenu = (userData) => {
     const hasAdminPerm = state.permissions?.includes('admin.rbac.admin') || false;
+    const presence = computePresence(lastActiveAt);
 
     element.innerHTML = `
       <div class="relative w-full">
@@ -30,8 +44,8 @@ export async function createUserProfileFooter() {
           <div class="user-info flex-1 min-w-0 sidebar-full-only">
             <span class="user-name block font-semibold text-sm text-gray-900 truncate">${userData.name}</span>
             <div class="flex items-center gap-1.5">
-              <span class="status-indicator w-2 h-2 rounded-full ${getStatusColor(userData.status)}"></span>
-              <span class="user-status block text-xs text-gray-500 capitalize">${userData.status || 'online'}</span>
+              <span class="status-indicator w-2 h-2 rounded-full ${getStatusColor(presence)}"></span>
+              <span class="user-status block text-xs text-gray-500 capitalize">${presence}</span>
             </div>
           </div>
         </button>
@@ -44,8 +58,8 @@ export async function createUserProfileFooter() {
             <div class="flex flex-col flex-1 min-w-0">
               <div class="font-medium text-sm text-gray-900 truncate">${userData.name}</div>
               <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full ${getStatusColor(userData.status)}"></span>
-                <span class="text-xs text-gray-500 capitalize">${userData.status || 'Active'}</span>
+                <span class="w-2 h-2 rounded-full ${getStatusColor(presence)}"></span>
+                <span class="text-xs text-gray-500 capitalize">${presence}</span>
               </div>
             </div>
           </div>
@@ -77,7 +91,7 @@ export async function createUserProfileFooter() {
                 <div class="text-gray-400 group-hover:text-gray-600 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
-                <span>Admin Users</span>
+                <span>Admin Settings</span>
               </button>
             ` : ''}
 
@@ -111,9 +125,9 @@ export async function createUserProfileFooter() {
         window.history.pushState({}, '', '/admin/users/overview');
         renderAdminPage(document.getElementById('app'));
       } else if (action === 'status' || action === 'profile') {
-        await showPreferencesModal(userData);
+        await showPreferencesModal({ ...userData, status: computePresence(lastActiveAt) });
       } else if (action === 'preferences') {
-        await showPreferencesModal(userData);
+        await showPreferencesModal({ ...userData, status: computePresence(lastActiveAt) });
       } else if (action === 'archived') {
         window.dispatchEvent(new CustomEvent('growchat:open-archived'));
       } else if (action === 'logout') {
@@ -124,7 +138,26 @@ export async function createUserProfileFooter() {
     });
   };
 
-  updateUI(user);
+  const renderPresence = () => {
+    renderMenu(user);
+  };
+
+  const markActive = () => {
+    lastActiveAt = Date.now();
+    renderPresence();
+  };
+
+  ACTIVITY_EVENTS.forEach((eventName) => {
+    window.addEventListener(eventName, markActive, { passive: true });
+  });
+  removeActivityListeners = () => {
+    ACTIVITY_EVENTS.forEach((eventName) => {
+      window.removeEventListener(eventName, markActive);
+    });
+  };
+
+  presenceTimer = window.setInterval(renderPresence, 30000);
+  renderPresence();
 
   document.addEventListener('click', (e) => {
     if (!element.contains(e.target)) {
@@ -132,6 +165,11 @@ export async function createUserProfileFooter() {
       if (menu) menu.classList.add('hidden');
     }
   });
+
+  element.__cleanup = () => {
+    if (presenceTimer) window.clearInterval(presenceTimer);
+    removeActivityListeners();
+  };
 
   return element;
 }
