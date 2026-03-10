@@ -279,3 +279,16 @@ When optimizing frontend lag in GrowChat, prefer fixing render and request patte
 5. Use lazy loading only after measuring whether interaction lag is caused by bundle size rather than DOM churn or redundant network calls.
 6. For admin tables, prefer partial updates, optimistic row replacement/removal, and scoped loading indicators over page-wide reload spinners.
 7. When debugging route-transition lag, first distinguish between SPA state swaps and full document navigations; full navigations re-run bootstrap, auth/profile fetches, RBAC init, realtime startup, and primary data loads.
+
+## Network & Latency Reduction Architecture
+
+1. **Bootstrap consolidation**: Keep `/api/users/me` as the single bootstrap call by supporting `include=permissions,roles` and passing the data directly into `initRBAC` to eliminate separate permissions/roles requests.
+2. **Route-aware boot**: Skip chat list/message fetches when visiting `/admin` or other non-chat routes; avoid loading chat modules until the route needs them.
+3. **On-demand modules**: Lazy-load non-critical UI modules (search modal, files modal, icon picker, tag modal, folder sidebar, profile footer) and only initialize when the user opens those features.
+4. **Optimistic UI**: Render new chats and deletes optimistically in the sidebar and message list to avoid latency gaps while the API call completes.
+5. **Avoid duplicate fetches**: Keep a per-route cache (in-memory) of chats/messages and re-use when navigating back; only refetch when data is stale or a mutation occurred.
+6. **Realtime guard**: Defer realtime stream connect until after first paint and guard against repeated 500 reconnect loops; disable realtime for routes that do not need it.
+7. **Incremental payloads**: Prefer paging and deltas over full list reloads after each mutation; update local state in place on success.
+8. **Server-side pruning**: Limit initial `/api/chats` payload (default 30) and return `has_more`; load more only on scroll or user request.
+9. **Asset discipline**: Keep third-party scripts `defer`/`async` and load markdown/rendering libraries only when the first assistant message is rendered.
+10. **Shared chat route**: Resolve shared chat metadata without pulling the full chat list; avoid bootstrapping the whole app if landing directly on `/s/:id`.

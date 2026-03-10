@@ -7,6 +7,10 @@ function roleBadgeClass(role) {
   return 'bg-gray-100 text-gray-700';
 }
 
+function roleDisplayName(role) {
+  return role === 'inactive' ? 'pending' : role;
+}
+
 function timeSince(timestampMs) {
   if (!timestampMs) return 'N/A';
   const seconds = Math.floor((Date.now() - timestampMs) / 1000);
@@ -33,7 +37,7 @@ function renderUserRows(users) {
     <tr class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
       <td class="px-3 py-4 whitespace-nowrap">
         <button class="btn-change-role" data-user-id="${u.id}" data-user-role="${u.role}" data-user-name="${u.name}">
-          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${roleBadgeClass(u.role)} uppercase">${u.role}</span>
+          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${roleBadgeClass(u.role)} uppercase">${roleDisplayName(u.role)}</span>
         </button>
       </td>
       <td class="px-3 py-4 font-medium text-gray-900 overflow-hidden">
@@ -55,11 +59,13 @@ function renderUserRows(users) {
               <path d="M15.53 3.47a.75.75 0 0 1 1.06 0l1.44 1.44a.75.75 0 0 1 0 1.06l-1.44 1.44-2.5-2.5 1.44-1.44Z" />
             </svg>
           </button>
+          ${u.role === 'admin' ? '' : `
           <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors btn-delete-user" data-user-id="${u.id}" data-user-name="${u.name}" title="Delete User">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
             </svg>
           </button>
+          `}
         </div>
       </td>
     </tr>
@@ -102,7 +108,7 @@ function renderAddUserModal() {
               <select name="role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
-                <option value="inactive">Inactive</option>
+                <option value="inactive">Pending</option>
               </select>
             </label>
             <label class="block">
@@ -160,7 +166,7 @@ function renderEditUserModal(user) {
             <select name="role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
               <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
               <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
-              <option value="inactive" ${user.role === 'inactive' ? 'selected' : ''}>Inactive</option>
+              <option value="inactive" ${user.role === 'inactive' ? 'selected' : ''}>Pending</option>
             </select>
           </label>
           <label class="block">
