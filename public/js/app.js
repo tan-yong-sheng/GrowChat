@@ -1,4 +1,5 @@
 import { apiFetch, clearAuthState, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState } from './api.js';
+import { renderAdminPage } from './admin.js';
 import { renderChat } from './chat.js';
 import { renderMessageContent } from './utils.js';
 import { state, setState } from './store.js';
@@ -149,7 +150,11 @@ async function bootstrap() {
     defaultModelId: user.preferences?.defaultModelId || localStorage.getItem('defaultModelId'),
   });
 
-  renderChat(document.getElementById('app'));
+  if (path.startsWith('/admin')) {
+    renderAdminPage(document.getElementById('app'));
+  } else {
+    renderChat(document.getElementById('app'));
+  }
 
   // Handle URL-driven prefill/submit
   if (q) {

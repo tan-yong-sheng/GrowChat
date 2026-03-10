@@ -34,6 +34,11 @@ export const state = {
     offset: 0,
     hasMore: true
   },
+
+  // RBAC State
+  permissions: [],
+  userRoles: [],
+  rbacLoading: false,
   
   // Interaction State
   drafts: JSON.parse(localStorage.getItem('drafts') || '{}'), // chatId -> draft text
