@@ -267,3 +267,15 @@ Or via the Cloudflare dashboard SQL editor.
 4. **Model fallback**: If user doesn't specify a model, the system checks (in order): request body → chat record → `DEFAULT_MODEL` env var → hardcoded Workers AI model
 5. **SESSIONS KV**: Stores hashed refresh tokens only; user records live in D1 for consistency
 6. **Vectorize binding**: Currently commented out in `wrangler.jsonc` (Phase 2 feature); uncomment when ready to implement RAG
+
+## UI Performance Notes
+
+When optimizing frontend lag in GrowChat, prefer fixing render and request patterns before adding complexity like code splitting.
+
+1. Avoid full-shell rerenders for subview data refreshes.
+2. Keep persistent UI mounted once: sidebar, nav, footer, modal roots.
+3. Update local state in place after row-level mutations instead of refetching the entire view by default.
+4. Do not recreate components that trigger their own fetches during unrelated content updates.
+5. Use lazy loading only after measuring whether interaction lag is caused by bundle size rather than DOM churn or redundant network calls.
+6. For admin tables, prefer partial updates, optimistic row replacement/removal, and scoped loading indicators over page-wide reload spinners.
+7. When debugging route-transition lag, first distinguish between SPA state swaps and full document navigations; full navigations re-run bootstrap, auth/profile fetches, RBAC init, realtime startup, and primary data loads.

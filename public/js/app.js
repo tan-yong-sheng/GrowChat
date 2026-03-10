@@ -20,6 +20,10 @@ const FALLBACK_PERMISSIONS = {
   inactive: []
 };
 
+let bootstrapped = false;
+let shortcutsInitialized = false;
+let realtimeStarted = false;
+
 async function initRBAC(user) {
   setState({ rbacLoading: true });
   try {
@@ -75,46 +79,40 @@ function getChatIdFromPath(pathname) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function bootstrap() {
-  const path = window.location.pathname;
-  const sharedMatch = path.match(/^\/s\/([^/]+)$/);
-  const routeChatId = getChatIdFromPath(path);
-  if (sharedMatch) {
-    try {
-      const data = await fetchPublicSharedChat(sharedMatch[1]);
-      renderSharedChatPage(document.getElementById('app'), data);
-    } catch {
-      document.getElementById('app').innerHTML = '<div class="p-8 text-center text-gray-500">Shared chat not found.</div>';
-    }
-    return;
-  }
+async function ensureSession() {
+  if (bootstrapped) return true;
 
   const auth = getAuthState();
   if (!auth?.access_token) {
     window.location.href = '/auth.html';
-    return;
+    return false;
   }
 
   const meRes = await apiFetch('/api/users/me');
   if (!meRes.ok) {
     clearAuthState();
     window.location.href = '/auth.html';
-    return;
+    return false;
   }
   const meData = await meRes.json();
   const user = meData.user || {};
 
   await initRBAC(user);
 
-  startRealtimeSync({
-    onEvent: (event) => {
-      window.dispatchEvent(new CustomEvent('growchat:realtime', { detail: event }));
-    },
-  });
-  window.addEventListener('beforeunload', stopRealtimeSync, { once: true });
+  if (!realtimeStarted) {
+    startRealtimeSync({
+      onEvent: (event) => {
+        window.dispatchEvent(new CustomEvent('growchat:realtime', { detail: event }));
+      },
+    });
+    window.addEventListener('beforeunload', stopRealtimeSync, { once: true });
+    realtimeStarted = true;
+  }
 
-  // Initialize global shortcuts
-  initShortcuts();
+  if (!shortcutsInitialized) {
+    initShortcuts();
+    shortcutsInitialized = true;
+  }
 
   const [chatsRes, modelsRes] = await Promise.all([
     apiFetch('/api/chats'),
@@ -123,7 +121,7 @@ async function bootstrap() {
 
   if (!chatsRes.ok) {
     document.getElementById('app').innerHTML = '<div class="p-6 text-center mt-20 text-gray-500">Failed to load chats. Please refresh.</div>';
-    return;
+    return false;
   }
 
   const chatsData = await chatsRes.json();
@@ -132,20 +130,18 @@ async function bootstrap() {
     modelsData = await modelsRes.json();
   }
 
-  // Parse URL parameters for initial state
+  const path = window.location.pathname;
+  const routeChatId = getChatIdFromPath(path);
   const urlParams = new URLSearchParams(window.location.search);
-  const q = urlParams.get('q');
-  const shouldSubmit = urlParams.get('submit') === 'true';
   const modelParam = urlParams.get('model');
 
-  const initialModelId = modelParam || 
-                         user.preferences?.defaultModelId ||
-                         localStorage.getItem('defaultModelId') ||
-                         chatsData.chats?.[0]?.model || 
-                         modelsData.models?.[0]?.id || 
-                         null;
-  
-  // Initialize global state
+  const initialModelId = modelParam ||
+    user.preferences?.defaultModelId ||
+    localStorage.getItem('defaultModelId') ||
+    chatsData.chats?.[0]?.model ||
+    modelsData.models?.[0]?.id ||
+    null;
+
   setState({
     user,
     chats: chatsData.chats || [],
@@ -158,13 +154,46 @@ async function bootstrap() {
     defaultModelId: user.preferences?.defaultModelId || localStorage.getItem('defaultModelId'),
   });
 
-  if (path.startsWith('/admin')) {
-    renderAdminPage(document.getElementById('app'));
-  } else {
-    renderChat(document.getElementById('app'));
+  bootstrapped = true;
+  return true;
+}
+
+export async function renderCurrentRoute() {
+  const path = window.location.pathname;
+  const app = document.getElementById('app');
+  const sharedMatch = path.match(/^\/s\/([^/]+)$/);
+  const routeChatId = getChatIdFromPath(path);
+
+  if (sharedMatch) {
+    try {
+      const data = await fetchPublicSharedChat(sharedMatch[1]);
+      renderSharedChatPage(app, data);
+    } catch {
+      app.innerHTML = '<div class="p-8 text-center text-gray-500">Shared chat not found.</div>';
+    }
+    return;
   }
 
-  // Handle URL-driven prefill/submit
+  const ok = await ensureSession();
+  if (!ok) return;
+
+  if (routeChatId) {
+    const exists = state.chats.some((chat) => chat.id === routeChatId);
+    if (exists && state.activeChatId !== routeChatId) {
+      setState({ activeChatId: routeChatId });
+    }
+  }
+
+  if (path.startsWith('/admin')) {
+    renderAdminPage(app);
+    return;
+  }
+
+  renderChat(app);
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const q = urlParams.get('q');
+  const shouldSubmit = urlParams.get('submit') === 'true';
   if (q) {
     const input = document.getElementById('message-input');
     if (input) {
@@ -175,6 +204,10 @@ async function bootstrap() {
       }
     }
   }
+}
+
+async function bootstrap() {
+  await renderCurrentRoute();
 }
 
 bootstrap();
