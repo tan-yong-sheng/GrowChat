@@ -323,7 +323,7 @@ export async function renderAdminPage(container) {
       <div class="flex h-screen w-full bg-white overflow-hidden font-primary text-gray-900">
         <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
         <aside id="sidebar" class="fixed md:relative h-full flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
-          <div class="p-3">
+          <div class="p-3 flex-shrink-0">
             <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
               <div class="flex items-center gap-3 sidebar-full-only">
                 <div class="w-7 h-7 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
@@ -349,12 +349,13 @@ export async function renderAdminPage(container) {
               </button>
             </div>
           </div>
-          <div class="flex-grow flex flex-col min-h-0 overflow-hidden px-3 pb-4 sidebar-full-only" style="display:none;">
+          <div class="flex-1 min-h-0"></div>
+          <div class="px-3 pb-4 mt-auto">
             <button id="toggle-chats-btn" class="flex items-center justify-between w-full text-[11px] font-semibold text-gray-400 px-3 py-2 mt-2 uppercase tracking-wider sidebar-full-only hover:text-gray-600 transition-colors group">
               <span>Chats</span>
               <svg id="toggle-chats-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-200"><polyline points="18 15 12 9 6 15"></polyline></svg>
             </button>
-            <div class="flex-grow overflow-y-auto no-scrollbar sidebar-full-only" id="chat-list-container">
+            <div class="hidden flex-grow overflow-y-auto no-scrollbar sidebar-full-only" id="chat-list-container">
               <ul id="chat-list" class="space-y-0.5"></ul>
             </div>
           </div>
