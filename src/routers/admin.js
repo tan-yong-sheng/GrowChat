@@ -11,6 +11,41 @@ import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { buildEnvOpenAIConnections } from '../utils/openai-connections.js';
 
+function isValidHttpUrl(value) {
+  if (!value) return false;
+  return /^https?:\/\//i.test(value);
+}
+
+function normalizeHeaders(input) {
+  const trimmed = String(input || '').trim();
+  if (!trimmed) return '';
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error('Headers must be valid JSON');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Headers must be a JSON object');
+  }
+  const normalized = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    const headerKey = String(key || '').trim();
+    if (!headerKey) {
+      throw new Error('Header names cannot be empty');
+    }
+    if (/[\r\n]/.test(headerKey)) {
+      throw new Error('Header names cannot contain newline characters');
+    }
+    const headerValue = String(value ?? '').trim();
+    if (/[\r\n]/.test(headerValue)) {
+      throw new Error('Header values cannot contain newline characters');
+    }
+    normalized[headerKey] = headerValue;
+  }
+  return JSON.stringify(normalized);
+}
+
 /**
  * Admin Router Handler
  * Routes:
@@ -178,19 +213,43 @@ export async function adminRouter(req, env, ctx, user, path) {
     const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
     const connections = Array.isArray(body.connections) ? body.connections : [];
 
-    const sanitized = connections
-      .filter((conn) => !conn?.readOnly && conn?.source !== 'env')
-      .map((conn) => ({
-        id: conn.id || crypto.randomUUID(),
-        name: String(conn.name || 'OpenAI Compatible').slice(0, 120),
-        url: String(conn.url || '').trim(),
-        key: String(conn.key || '').trim(),
-        headers: String(conn.headers || '').trim(),
-        providerType: 'openai',
-        apiType: 'chat-completions',
-        enabled: conn.enabled !== false,
-      }))
-      .filter((conn) => conn.url);
+    if (connections.length > 100) {
+      return error(req, 'Too many connections (max 100)', 400);
+    }
+
+    let sanitized;
+    try {
+      sanitized = connections
+        .filter((conn) => !conn?.readOnly && conn?.source !== 'env')
+        .map((conn) => {
+          const url = String(conn.url || '').trim();
+          if (!url) return null;
+          if (!isValidHttpUrl(url)) {
+            throw new Error('Connection URL must start with http:// or https://');
+          }
+          const key = String(conn.key || '').trim();
+          if (key.length > 4096) {
+            throw new Error('API key is too long');
+          }
+          const headers = normalizeHeaders(conn.headers);
+          if (headers.length > 4096) {
+            throw new Error('Headers are too long');
+          }
+          return {
+            id: conn.id || crypto.randomUUID(),
+            name: String(conn.name || 'OpenAI Compatible').slice(0, 120),
+            url,
+            key,
+            headers,
+            providerType: 'openai',
+            apiType: 'chat-completions',
+            enabled: conn.enabled !== false,
+          };
+        })
+        .filter(Boolean);
+    } catch (err) {
+      return error(req, err.message || 'Invalid connection data', 400);
+    }
 
     try {
       await setConfigValue(db, 'openai_connections', JSON.stringify(sanitized));

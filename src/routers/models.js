@@ -10,6 +10,14 @@ import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool } from '../utils/app-config.js';
 
+function isValidModelId(value) {
+  const id = String(value || '').trim();
+  if (!id) return false;
+  if (id.length > 200) return false;
+  if (/\s/.test(id)) return false;
+  return true;
+}
+
 async function ensureModelAccessTable(db) {
   try {
     await db.run(
@@ -413,12 +421,19 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     }
 
     const updates = Array.isArray(body.updates) ? body.updates : [];
+    if (updates.length > 500) {
+      return error(req, 'Too many updates (max 500)', 400);
+    }
     const sanitized = updates
       .map((item) => ({
         id: String(item?.id || '').trim(),
         enabled: item?.enabled !== false,
       }))
-      .filter((item) => item.id);
+      .filter((item) => isValidModelId(item.id));
+
+    if (sanitized.length !== updates.length) {
+      return error(req, 'Invalid model id in updates', 400);
+    }
 
     try {
       const db = createDB(env.DB);
