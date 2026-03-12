@@ -8,6 +8,43 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
+import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
+import { buildEnvOpenAIConnections } from '../utils/openai-connections.js';
+
+function isValidHttpUrl(value) {
+  if (!value) return false;
+  return /^https?:\/\//i.test(value);
+}
+
+function normalizeHeaders(input) {
+  const trimmed = String(input || '').trim();
+  if (!trimmed) return '';
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error('Headers must be valid JSON');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Headers must be a JSON object');
+  }
+  const normalized = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    const headerKey = String(key || '').trim();
+    if (!headerKey) {
+      throw new Error('Header names cannot be empty');
+    }
+    if (/[\r\n]/.test(headerKey)) {
+      throw new Error('Header names cannot contain newline characters');
+    }
+    const headerValue = String(value ?? '').trim();
+    if (/[\r\n]/.test(headerValue)) {
+      throw new Error('Header values cannot contain newline characters');
+    }
+    normalized[headerKey] = headerValue;
+  }
+  return JSON.stringify(normalized);
+}
 
 /**
  * Admin Router Handler
@@ -25,6 +62,15 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (path === '/api/admin/faqs/reindex' || path === '/api/admin/documents/reindex') {
     requiredPermission = 'kb.reindex';
   }
+  if (path === '/api/admin/config' && req.method === 'PUT') {
+    requiredPermission = 'admin.user.write';
+  }
+  if (path === '/api/admin/openai/connections') {
+    requiredPermission = 'admin.rbac.admin';
+  }
+  if (path === '/api/admin/tool-servers') {
+    requiredPermission = 'admin.rbac.admin';
+  }
   const authDecision = await authorize(env, user, { action: requiredPermission });
 
   if (!authDecision.allow) {
@@ -32,6 +78,194 @@ export async function adminRouter(req, env, ctx, user, path) {
   }
 
   const db = createDB(env.DB);
+
+  // GET /api/admin/config - Fetch admin configuration
+  if (req.method === 'GET' && path === '/api/admin/config') {
+    try {
+      const publicRegistration = await getConfigBool(db, 'public_registration', true);
+      return json(req, {
+        public_registration: publicRegistration
+      });
+    } catch (err) {
+      console.error('Admin config fetch failed:', err);
+      return error(req, 'Failed to fetch admin config', 500);
+    }
+  }
+
+  // PUT /api/admin/config - Update admin configuration
+  if (req.method === 'PUT' && path === '/api/admin/config') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    if (typeof body.public_registration !== 'boolean') {
+      return error(req, 'public_registration must be a boolean', 400);
+    }
+
+    try {
+      await setConfigValue(db, 'public_registration', body.public_registration ? 'true' : 'false');
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'admin_config_updated',
+        resource_type: 'admin',
+        resource_id: 'config'
+      });
+      return json(req, {
+        public_registration: body.public_registration
+      });
+    } catch (err) {
+      console.error('Admin config update failed:', err);
+      return error(req, 'Failed to update admin config', 500);
+    }
+  }
+
+  // GET /api/admin/openai/connections - List OpenAI connections
+  if (req.method === 'GET' && path === '/api/admin/openai/connections') {
+    try {
+      const envConnections = buildEnvOpenAIConnections(env);
+      let manualConnections = [];
+      const raw = await getConfigValue(db, 'openai_connections', '[]');
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) manualConnections = parsed;
+      } catch {
+        manualConnections = [];
+      }
+      const enabledRaw = await getConfigValue(db, 'openai_enabled', 'true');
+      const enabled = String(enabledRaw).toLowerCase() !== 'false';
+
+      return json(req, {
+        enabled,
+        connections: [...envConnections, ...manualConnections]
+      });
+    } catch (err) {
+      console.error('OpenAI connections fetch failed:', err);
+      return error(req, 'Failed to fetch connections', 500);
+    }
+  }
+
+  // GET /api/admin/tool-servers - List tool servers
+  if (req.method === 'GET' && path === '/api/admin/tool-servers') {
+    try {
+      let servers = [];
+      const raw = await getConfigValue(db, 'tool_servers', '[]');
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) servers = parsed;
+      } catch {
+        servers = [];
+      }
+      return json(req, { servers });
+    } catch (err) {
+      console.error('Tool servers fetch failed:', err);
+      return error(req, 'Failed to fetch tool servers', 500);
+    }
+  }
+
+  // PUT /api/admin/tool-servers - Update tool servers
+  if (req.method === 'PUT' && path === '/api/admin/tool-servers') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const servers = Array.isArray(body.servers) ? body.servers : [];
+    const sanitized = servers
+      .map((server) => ({
+        id: server.id || crypto.randomUUID(),
+        name: String(server.name || 'Tool Server').slice(0, 120),
+        url: String(server.url || '').trim(),
+        key: String(server.key || '').trim(),
+        headers: String(server.headers || '').trim(),
+        enabled: server.enabled !== false,
+      }))
+      .filter((server) => server.url);
+
+    try {
+      await setConfigValue(db, 'tool_servers', JSON.stringify(sanitized));
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'tool_servers_updated',
+        resource_type: 'admin',
+        resource_id: 'tool-servers',
+      });
+      return json(req, { ok: true });
+    } catch (err) {
+      console.error('Tool servers update failed:', err);
+      return error(req, 'Failed to update tool servers', 500);
+    }
+  }
+
+  // PUT /api/admin/openai/connections - Update OpenAI connections
+  if (req.method === 'PUT' && path === '/api/admin/openai/connections') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
+    const connections = Array.isArray(body.connections) ? body.connections : [];
+
+    if (connections.length > 100) {
+      return error(req, 'Too many connections (max 100)', 400);
+    }
+
+    let sanitized;
+    try {
+      sanitized = connections
+        .filter((conn) => !conn?.readOnly && conn?.source !== 'env')
+        .map((conn) => {
+          const url = String(conn.url || '').trim();
+          if (!url) return null;
+          if (!isValidHttpUrl(url)) {
+            throw new Error('Connection URL must start with http:// or https://');
+          }
+          const key = String(conn.key || '').trim();
+          if (key.length > 4096) {
+            throw new Error('API key is too long');
+          }
+          const headers = normalizeHeaders(conn.headers);
+          if (headers.length > 4096) {
+            throw new Error('Headers are too long');
+          }
+          return {
+            id: conn.id || crypto.randomUUID(),
+            name: String(conn.name || 'OpenAI Compatible').slice(0, 120),
+            url,
+            key,
+            headers,
+            providerType: 'openai',
+            apiType: 'chat-completions',
+            enabled: conn.enabled !== false,
+          };
+        })
+        .filter(Boolean);
+    } catch (err) {
+      return error(req, err.message || 'Invalid connection data', 400);
+    }
+
+    try {
+      await setConfigValue(db, 'openai_connections', JSON.stringify(sanitized));
+      await setConfigValue(db, 'openai_enabled', enabled ? 'true' : 'false');
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'openai_connections_updated',
+        resource_type: 'admin',
+        resource_id: 'openai-connections',
+      });
+      return json(req, { ok: true });
+    } catch (err) {
+      console.error('OpenAI connections update failed:', err);
+      return error(req, 'Failed to update connections', 500);
+    }
+  }
 
   // GET /api/admin/stats - System statistics
   if (req.method === 'GET' && path === '/api/admin/stats') {

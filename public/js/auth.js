@@ -12,6 +12,7 @@ const authTitle = document.getElementById('auth-title');
 const authSubmit = document.getElementById('auth-submit');
 
 let mode = 'login';
+let isSubmitting = false;
 
 function setMode(next) {
   mode = next;
@@ -22,7 +23,9 @@ function setMode(next) {
   
   // Update text content based on mode
   authTitle.textContent = isRegister ? 'Create an account' : 'Sign in to GrowChat';
-  authSubmit.textContent = isRegister ? 'Sign up' : 'Sign in';
+  if (!isSubmitting) {
+    authSubmit.textContent = isRegister ? 'Sign up' : 'Sign in';
+  }
   toggleText.textContent = isRegister ? 'Already have an account?' : "Don't have an account?";
   toggleModeBtn.textContent = isRegister ? 'Sign in' : 'Sign up';
   
@@ -32,6 +35,7 @@ function setMode(next) {
 
 async function submit(e) {
   e.preventDefault();
+  if (isSubmitting) return;
   err.classList.add('hidden');
 
   const payload = {
@@ -44,21 +48,41 @@ async function submit(e) {
   }
 
   const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  const label = mode === 'register' ? 'Signing up…' : 'Signing in…';
+  const originalText = authSubmit.textContent;
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    err.textContent = data.error || 'Authentication failed';
+  isSubmitting = true;
+  authSubmit.textContent = label;
+  authSubmit.disabled = true;
+  authSubmit.classList.add('opacity-60', 'cursor-not-allowed');
+  toggleModeBtn.disabled = true;
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      err.textContent = data.error || 'Authentication failed';
+      err.classList.remove('hidden');
+      return;
+    }
+
+    setAuthState(data);
+    window.location.href = '/';
+  } catch (error) {
+    err.textContent = 'Network error. Please try again.';
     err.classList.remove('hidden');
-    return;
+  } finally {
+    isSubmitting = false;
+    authSubmit.textContent = originalText;
+    authSubmit.disabled = false;
+    authSubmit.classList.remove('opacity-60', 'cursor-not-allowed');
+    toggleModeBtn.disabled = false;
   }
-
-  setAuthState(data);
-  window.location.href = '/';
 }
 
 toggleModeBtn.addEventListener('click', () => {

@@ -12,7 +12,7 @@ export const state = {
   models: [],
   modelsLoading: false,
   activeModelId: null,
-  defaultModelId: localStorage.getItem('defaultModelId'),
+  defaultModelId: null,
   
   // UI Layout
   showSidebar: window.innerWidth >= 768,
@@ -53,6 +53,8 @@ export const state = {
   ui: {
     loading: false,
     streaming: false,
+    streamingChatId: null,
+    loadingChatId: null,
     editingMessages: {} // { messageId: content }
   }
 };
@@ -92,7 +94,9 @@ export function setState(updater) {
     if (changes.sidebarWidth) localStorage.setItem('sidebarWidth', state.sidebarWidth);
     if (changes.sidebarCollapsed !== undefined) localStorage.setItem('sidebarCollapsed', state.sidebarCollapsed);
     if (changes.drafts) localStorage.setItem('drafts', JSON.stringify(state.drafts));
-    if (changes.defaultModelId) localStorage.setItem('defaultModelId', state.defaultModelId);
+    if (changes.defaultModelId) {
+      // defaultModelId is stored server-side; avoid persisting stale local values.
+    }
     
     notifyListeners();
   }

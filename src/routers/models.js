@@ -8,6 +8,70 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
+import { getConfigBool } from '../utils/app-config.js';
+
+function isValidModelId(value) {
+  const id = String(value || '').trim();
+  if (!id) return false;
+  if (id.length > 200) return false;
+  if (/\s/.test(id)) return false;
+  return true;
+}
+
+async function ensureModelAccessTable(db) {
+  try {
+    await db.run(
+      `CREATE TABLE IF NOT EXISTS model_access (
+        model_id TEXT PRIMARY KEY,
+        is_enabled INTEGER NOT NULL DEFAULT 1,
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )`
+    );
+    await db.run(
+      'CREATE INDEX IF NOT EXISTS idx_model_access_enabled ON model_access (is_enabled)'
+    );
+  } catch (err) {
+    console.warn('Failed to ensure model_access table:', err.message);
+  }
+}
+
+async function getDisabledModelSet(db) {
+  try {
+    await ensureModelAccessTable(db);
+    const rows = await db.all('SELECT model_id FROM model_access WHERE is_enabled = 0');
+    return new Set(rows.map((row) => row.model_id));
+  } catch (err) {
+    console.warn('Failed to read model_access disabled set:', err.message);
+    return new Set();
+  }
+}
+
+async function getModelAccessMap(db) {
+  try {
+    await ensureModelAccessTable(db);
+    const rows = await db.all('SELECT model_id, is_enabled FROM model_access');
+    const map = new Map();
+    rows.forEach((row) => {
+      map.set(row.model_id, row.is_enabled === 1);
+    });
+    return map;
+  } catch (err) {
+    console.warn('Failed to read model_access map:', err.message);
+    return new Map();
+  }
+}
+
+async function upsertModelAccess(db, updates) {
+  if (!updates.length) return;
+  await ensureModelAccessTable(db);
+  const stmt = db.prepare(
+    `INSERT INTO model_access (model_id, is_enabled, updated_at)
+     VALUES (?, ?, unixepoch())
+     ON CONFLICT(model_id) DO UPDATE SET is_enabled = excluded.is_enabled, updated_at = unixepoch()`
+  );
+  const batch = updates.map((item) => stmt.bind(item.id, item.enabled ? 1 : 0));
+  await db.batch(batch);
+}
 
 function splitEnvList(value) {
   if (!value) return [];
@@ -196,8 +260,23 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     // No auth required - everyone should see available models
     // Gracefully degrade: return what we can, don't fail entirely on optional binding issues
     try {
+      const url = new URL(req.url);
+      const limit = parseInt(url.searchParams.get('limit') || '0', 10);
+      const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+
       let customModels = [];
       let baseModels = [];
+      let openaiEnabled = true;
+      let db = null;
+
+      if (env.DB) {
+        try {
+          db = createDB(env.DB);
+          openaiEnabled = await getConfigBool(db, 'openai_enabled', true);
+        } catch (err) {
+          console.warn('Failed to read openai_enabled config:', err.message);
+        }
+      }
 
       // Load base models from OpenAI-compatible env configuration.
       // If this fails, log but continue with baseModels = []
@@ -215,11 +294,161 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         console.warn('Failed to load custom models:', err.message);
       }
 
-      const allModels = [...baseModels, ...customModels].map(toPublicModel);
-      return json(req, { models: allModels });
+      let allModels = [...baseModels, ...customModels];
+      if (!openaiEnabled) {
+        allModels = allModels.filter((model) => model.provider !== 'openai-compatible');
+      }
+      let publicModels = allModels.map(toPublicModel);
+      if (db) {
+        const disabledSet = await getDisabledModelSet(db);
+        if (disabledSet.size > 0) {
+          publicModels = publicModels.filter((model) => !disabledSet.has(model.id));
+        }
+      }
+      const total = publicModels.length;
+
+      let paginatedModels = publicModels;
+      if (limit > 0) {
+        paginatedModels = publicModels.slice(offset, offset + limit);
+      }
+
+      return json(req, { 
+        models: paginatedModels,
+        total: total,
+        limit: limit,
+        offset: offset
+      });
     } catch (err) {
       console.error('Unexpected error listing models:', err);
       return error(req, 'Failed to list models', 500);
+    }
+  }
+
+  // GET /api/admin/models - List models with enabled state (admin only)
+  if (req.method === 'GET' && path === '/api/admin/models') {
+    const authDecision = await authorize(env, user, {
+      action: 'model.admin',
+      resource: 'model',
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    try {
+      const url = new URL(req.url);
+      const limit = parseInt(url.searchParams.get('limit') || '0', 10);
+      const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+
+      let customModels = [];
+      let baseModels = [];
+      let openaiEnabled = true;
+      let db = null;
+
+      if (env.DB) {
+        db = createDB(env.DB);
+        try {
+          openaiEnabled = await getConfigBool(db, 'openai_enabled', true);
+        } catch (err) {
+          console.warn('Failed to read openai_enabled config:', err.message);
+        }
+      } else {
+        return error(req, 'Database unavailable', 500);
+      }
+
+      try {
+        baseModels = await fetchBaseModelsFromOpenAI(env);
+      } catch (err) {
+        console.warn('Failed to fetch base models from OpenAI-compatible sources:', err.message);
+      }
+
+      try {
+        customModels = await loadCustomModels(env);
+      } catch (err) {
+        console.warn('Failed to load custom models:', err.message);
+      }
+
+      let allModels = [...baseModels, ...customModels];
+      if (!openaiEnabled) {
+        allModels = allModels.filter((model) => model.provider !== 'openai-compatible');
+      }
+
+      const accessMap = await getModelAccessMap(db);
+      const adminModels = allModels.map((model) => {
+        const publicModel = toPublicModel(model);
+        const enabled = accessMap.has(model.id) ? accessMap.get(model.id) : true;
+        return { ...publicModel, enabled };
+      });
+
+      const total = adminModels.length;
+      let paginatedModels = adminModels;
+      if (limit > 0) {
+        paginatedModels = adminModels.slice(offset, offset + limit);
+      }
+
+      return json(req, {
+        models: paginatedModels,
+        total,
+        limit,
+        offset,
+      });
+    } catch (err) {
+      console.error('Unexpected error listing admin models:', err);
+      return error(req, 'Failed to list models', 500);
+    }
+  }
+
+  // PUT /api/admin/models - Update model enabled state (admin only)
+  if (req.method === 'PUT' && path === '/api/admin/models') {
+    const authDecision = await authorize(env, user, {
+      action: 'model.admin',
+      resource: 'model',
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    if (!env.DB) {
+      return error(req, 'Database unavailable', 500);
+    }
+
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const updates = Array.isArray(body.updates) ? body.updates : [];
+    if (updates.length > 500) {
+      return error(req, 'Too many updates (max 500)', 400);
+    }
+    const sanitized = updates
+      .map((item) => ({
+        id: String(item?.id || '').trim(),
+        enabled: item?.enabled !== false,
+      }))
+      .filter((item) => isValidModelId(item.id));
+
+    if (sanitized.length !== updates.length) {
+      return error(req, 'Invalid model id in updates', 400);
+    }
+
+    try {
+      const db = createDB(env.DB);
+      await upsertModelAccess(db, sanitized);
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'model_access_updated',
+        resource_type: 'model',
+        resource_id: 'model-access',
+        metadata: { count: sanitized.length },
+      });
+      return json(req, { ok: true });
+    } catch (err) {
+      console.error('Model access update failed:', err);
+      return error(req, 'Failed to update model access', 500);
     }
   }
 

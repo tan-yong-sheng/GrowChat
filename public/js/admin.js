@@ -6,6 +6,10 @@ import { renderSearchModal } from './components/search-modal.js';
 import { renderFilesModal } from './components/files-modal.js';
 import { renderUserOverview } from './components/admin/users/overview.js';
 import { renderGroupsOverview } from './components/admin/users/groups.js';
+import { renderGeneralSettings } from './components/admin/settings/general.js';
+import { renderConnectionsSettings } from './components/admin/settings/connections.js';
+import { renderModelsSettings } from './components/admin/settings/models.js';
+import { renderIntegrationsSettings } from './components/admin/settings/integrations.js';
 import { renderCurrentRoute } from './app.js';
 
 function wireSidebar(root) {
@@ -83,51 +87,100 @@ function renderLoadingState() {
   return '<div class="flex items-center justify-center h-64"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 dark:border-white"></div></div>';
 }
 
+function renderSettingsSkeleton() {
+  return `
+    <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-150 w-full">
+      <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
+        <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
+          <div class="h-6 w-32 bg-gray-100 rounded animate-pulse"></div>
+        </div>
+      </div>
+      <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden">
+        <div class="max-w-2xl mx-auto w-full space-y-6 pb-6">
+          <div class="space-y-3">
+            <div class="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
+            <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+            <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+          </div>
+          <div class="space-y-3">
+            <div class="h-4 w-28 bg-gray-100 rounded animate-pulse"></div>
+            <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+      <div class="shrink-0 flex justify-end pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white">
+        <div class="h-9 w-24 bg-gray-100 rounded-full animate-pulse"></div>
+      </div>
+    </div>
+  `;
+}
+
 function renderErrorState(message) {
   return `
     <div class="flex items-center justify-center h-full p-6">
       <div class="max-w-md w-full rounded-3xl border border-red-100 bg-red-50/60 p-6 text-center">
-        <div class="text-sm font-semibold text-red-700">Unable to load admin users</div>
+        <div class="text-sm font-semibold text-red-700">Unable to load admin content</div>
         <div class="mt-2 text-sm text-red-600">${message}</div>
       </div>
     </div>
   `;
 }
 
-function renderSettingsState() {
+function renderSettingsLayout(subTab) {
   return `
-    <div class="flex-1 flex flex-col overflow-y-auto p-10 max-w-3xl mx-auto w-full">
-      <h2 class="text-2xl font-medium mb-8">Admin Settings</h2>
-      <div class="space-y-6">
-        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
-          <div>
-            <div class="font-medium">Public Registration</div>
-            <div class="text-xs text-gray-500">Allow anyone to create an account.</div>
-          </div>
-          <div class="text-xs text-gray-400">Pending backend wiring</div>
-        </div>
+    <div class="flex flex-col md:flex-row h-full w-full">
+      <div id="settings-tabs-container" class="w-full md:w-52 flex-none flex flex-row md:flex-col p-2 md:p-4 gap-1 text-sm font-medium border-b md:border-b-0 md:border-r border-gray-50 overflow-x-auto">
+      <a href="/admin/settings/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+          <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
+        </svg>
+        <span class="whitespace-nowrap">General</span>
+      </a>
+      <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+          <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
+        </svg>
+        <span class="whitespace-nowrap">Connections</span>
+      </a>
+      <a href="/admin/settings/models" data-subnav="models" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'models' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+          <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
+          <path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" />
+        </svg>
+        <span class="whitespace-nowrap">Models</span>
+      </a>
+      <a href="/admin/settings/integrations" data-subnav="integrations" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'integrations' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+          <path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" />
+          <path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" />
+        </svg>
+        <span class="whitespace-nowrap">Integrations</span>
+      </a>
       </div>
+      <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden p-4 md:p-6"></div>
     </div>
   `;
 }
 
 function renderUsersLayout(subTab) {
   return `
-    <div id="users-tabs-container" class="w-52 flex-none flex flex-col p-4 gap-1 text-sm font-medium border-r border-gray-50">
+    <div class="flex flex-col md:flex-row h-full w-full">
+      <div id="users-tabs-container" class="w-full md:w-52 flex-none flex flex-row md:flex-col p-2 md:p-4 gap-1 text-sm font-medium border-b md:border-b-0 md:border-r border-gray-50 overflow-x-auto">
       <a href="/admin/users/overview" data-subnav="overview" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'overview' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
           <path d="M8.5 4.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10.9 12.006c.11.542-.348.994-.9.994H2c-.553 0-1.01-.452-.902-.994a5.002 5.002 0 0 1 9.803 0ZM14.002 12h-1.59a2.556 2.556 0 0 0-.04-.29 6.476 6.476 0 0 0-1.167-2.603 3.002 3.002 0 0 1 3.633 1.911c.18.522-.283.982-.836.982ZM12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>
         </svg>
-        <span>Overview</span>
+        <span class="whitespace-nowrap">Overview</span>
       </a>
       <a href="/admin/users/groups" data-subnav="groups" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'groups' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
           <path d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.156 11.763c.16-.629.44-1.21.813-1.72a2.5 2.5 0 0 0-2.725 1.377c-.136.287.102.58.418.58h1.449c.01-.077.025-.156.045-.237ZM12.847 11.763c.02.08.036.16.046.237h1.446c.316 0 .554-.293.417-.579a2.5 2.5 0 0 0-2.722-1.378c.374.51.653 1.09.813 1.72ZM14 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 13c-.552 0-1.013-.455-.876-.99a4.002 4.002 0 0 1 7.753 0c.136.535-.324.99-.877.99H5Z"/>
         </svg>
-        <span>Groups</span>
+        <span class="whitespace-nowrap">Groups</span>
       </a>
+      </div>
+      <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden p-4 md:p-6"></div>
     </div>
-    <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden p-6"></div>
   `;
 }
 
@@ -152,8 +205,27 @@ export async function renderAdminPage(container) {
 
   const updateRouteInfo = () => {
     const path = window.location.pathname;
+    
+    if (path === '/admin/users' || path === '/admin/users/') {
+      window.history.replaceState({}, '', '/admin/users/overview');
+      mainTab = 'users';
+      subTab = 'overview';
+      return;
+    }
+
+    if (path === '/admin/settings' || path === '/admin/settings/') {
+      window.history.replaceState({}, '', '/admin/settings/general');
+      mainTab = 'settings';
+      subTab = 'general';
+      return;
+    }
+
     if (path.startsWith('/admin/settings')) {
       mainTab = 'settings';
+      if (path.includes('/connections')) subTab = 'connections';
+      else if (path.includes('/integrations')) subTab = 'integrations';
+      else if (path.includes('/models')) subTab = 'models';
+      else subTab = 'general';
       return;
     }
 
@@ -201,39 +273,96 @@ export async function renderAdminPage(container) {
     const mainContentEl = container.querySelector('#admin-main-content');
     if (!mainContentEl) return;
 
-    if (mainTab === 'settings') {
-      mainContentEl.innerHTML = renderSettingsState();
-      return;
-    }
-
-    const tabsContainer = container.querySelector('#users-tabs-container');
+    const tabsContainer = container.querySelector('#users-tabs-container') || container.querySelector('#settings-tabs-container');
+    
     if (!tabsContainer) {
-      mainContentEl.innerHTML = renderUsersLayout(subTab);
+      if (mainTab === 'users') {
+        mainContentEl.innerHTML = renderUsersLayout(subTab);
+      } else {
+        mainContentEl.innerHTML = renderSettingsLayout(subTab);
+      }
       bindSubnav();
     } else {
-      tabsContainer.innerHTML = `
-        <a href="/admin/users/overview" data-subnav="overview" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'overview' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path d="M8.5 4.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10.9 12.006c.11.542-.348.994-.9.994H2c-.553 0-1.01-.452-.902-.994a5.002 5.002 0 0 1 9.803 0ZM14.002 12h-1.59a2.556 2.556 0 0 0-.04-.29 6.476 6.476 0 0 0-1.167-2.603 3.002 3.002 0 0 1 3.633 1.911c.18.522-.283.982-.836.982ZM12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>
-          </svg>
-          <span>Overview</span>
-        </a>
-        <a href="/admin/users/groups" data-subnav="groups" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'groups' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.156 11.763c.16-.629.44-1.21.813-1.72a2.5 2.5 0 0 0-2.725 1.377c-.136.287.102.58.418.58h1.449c.01-.077.025-.156.045-.237ZM12.847 11.763c.02.08.036.16.046.237h1.446c.316 0 .554-.293.417-.579a2.5 2.5 0 0 0-2.722-1.378c.374.51.653 1.09.813 1.72ZM14 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 13c-.552 0-1.013-.455-.876-.99a4.002 4.002 0 0 1 7.753 0c.136.535-.324.99-.877.99H5Z"/>
-          </svg>
-          <span>Groups</span>
-        </a>
-      `;
+      if (mainTab === 'users') {
+        tabsContainer.id = 'users-tabs-container';
+        tabsContainer.innerHTML = `
+          <a href="/admin/users/overview" data-subnav="overview" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'overview' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path d="M8.5 4.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10.9 12.006c.11.542-.348.994-.9.994H2c-.553 0-1.01-.452-.902-.994a5.002 5.002 0 0 1 9.803 0ZM14.002 12h-1.59a2.556 2.556 0 0 0-.04-.29 6.476 6.476 0 0 0-1.167-2.603 3.002 3.002 0 0 1 3.633 1.911c.18.522-.283.982-.836.982ZM12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>
+            </svg>
+            <span>Overview</span>
+          </a>
+          <a href="/admin/users/groups" data-subnav="groups" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'groups' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.156 11.763c.16-.629.44-1.21.813-1.72a2.5 2.5 0 0 0-2.725 1.377c-.136.287.102.58.418.58h1.449c.01-.077.025-.156.045-.237ZM12.847 11.763c.02.08.036.16.046.237h1.446c.316 0 .554-.293.417-.579a2.5 2.5 0 0 0-2.722-1.378c.374.51.653 1.09.813 1.72ZM14 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 13c-.552 0-1.013-.455-.876-.99a4.002 4.002 0 0 1 7.753 0c.136.535-.324.99-.877.99H5Z"/>
+            </svg>
+            <span>Groups</span>
+          </a>
+        `;
+      } else {
+        tabsContainer.id = 'settings-tabs-container';
+        tabsContainer.innerHTML = `
+          <a href="/admin/settings/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
+            </svg>
+            <span>General</span>
+          </a>
+          <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
+            </svg>
+            <span>Connections</span>
+          </a>
+          <a href="/admin/settings/models" data-subnav="models" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'models' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
+              <path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" />
+            </svg>
+            <span>Models</span>
+          </a>
+          <a href="/admin/settings/integrations" data-subnav="integrations" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'integrations' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" />
+              <path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" />
+            </svg>
+            <span>Integrations</span>
+          </a>
+        `;
+      }
       bindSubnav();
     }
 
     const subContentEl = container.querySelector('#admin-sub-content');
     if (!subContentEl) return;
 
-    if (data.loading) {
-      subContentEl.innerHTML = renderLoadingState();
-    } else if (data.error) {
+    if (mainTab === 'settings') {
+      subContentEl.dataset.settingsTab = subTab;
+      if (subTab === 'general') {
+        renderGeneralSettings(subContentEl, data);
+      } else if (subTab === 'connections') {
+        renderConnectionsSettings(subContentEl, data);
+      } else if (subTab === 'models') {
+        renderModelsSettings(subContentEl, data);
+      } else if (subTab === 'integrations') {
+        renderIntegrationsSettings(subContentEl, data);
+      } else {
+        subContentEl.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-full text-center p-10">
+            <div class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 text-gray-300">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.978 2.978 0 01-3.34-3.34L15 2.25 10.5 2.25l-4.5 4.5v1.5a1.5 1.5 0 001.5 1.5h1.5l3.93 3.93m2.856 2.856l1.5 1.5a1.5 1.5 0 001.5-1.5V10.5l-4.5-4.5H6" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-1">${subTab.charAt(0).toUpperCase() + subTab.slice(1)} Settings</h3>
+            <p class="text-sm text-gray-500 max-w-xs">This section is currently under development.</p>
+          </div>
+        `;
+      }
+      return;
+    }
+
+    if (data.error) {
       subContentEl.innerHTML = renderErrorState(data.error);
     } else if (subTab === 'overview') {
       renderUserOverview(subContentEl, data, {
@@ -262,6 +391,8 @@ export async function renderAdminPage(container) {
           renderSubContent();
         },
       });
+    } else if (data.loading && data.loadingMode === 'initial') {
+      subContentEl.innerHTML = renderLoadingState();
     } else {
       renderGroupsOverview(subContentEl, data);
     }
@@ -284,14 +415,7 @@ export async function renderAdminPage(container) {
     data.loading = true;
     data.loadingMode = preserveContent ? 'table' : 'initial';
     data.error = null;
-    if (!preserveContent) {
-      renderSubContent();
-    } else {
-      const subContentEl = container.querySelector('#admin-sub-content');
-      if (subContentEl && !data.users.length) {
-        subContentEl.innerHTML = renderLoadingState();
-      }
-    }
+    renderSubContent();
 
     try {
       const offset = (data.pagination.page - 1) * data.pagination.pageSize;
@@ -323,7 +447,7 @@ export async function renderAdminPage(container) {
       link.onclick = async (e) => {
         e.preventDefault();
         const nav = link.dataset.nav;
-        const newPath = nav === 'users' ? '/admin/users/overview' : '/admin/settings';
+        const newPath = nav === 'users' ? '/admin/users/overview' : '/admin/settings/general';
         window.history.pushState({}, '', newPath);
         updateRouteInfo();
 
@@ -332,6 +456,7 @@ export async function renderAdminPage(container) {
           navLink.className = `min-w-fit p-1.5 transition select-none ${active ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}`;
         });
 
+        mountShell();
         renderSubContent();
         if (mainTab === 'users' && data.users.length === 0 && !data.loading) {
           await loadUsers({ preserveContent: false });
@@ -345,8 +470,15 @@ export async function renderAdminPage(container) {
       link.onclick = (e) => {
         e.preventDefault();
         const nav = link.dataset.subnav;
-        window.history.pushState({}, '', `/admin/users/${nav}`);
+        const basePath = mainTab === 'users' ? '/admin/users' : '/admin/settings';
+        window.history.pushState({}, '', `${basePath}/${nav}`);
         updateRouteInfo();
+        const subContentEl = container.querySelector('#admin-sub-content');
+        if (subContentEl && mainTab === 'settings') {
+          subContentEl.innerHTML = renderSettingsSkeleton();
+          requestAnimationFrame(() => renderSubContent());
+          return;
+        }
         renderSubContent();
       };
     });
@@ -398,7 +530,7 @@ export async function renderAdminPage(container) {
               </button>
               <div class="flex w-full">
                 <div class="flex gap-1 scrollbar-none overflow-x-auto w-fit text-center text-sm font-medium pt-1">
-                  <a href="/admin/users/overview" data-nav="users" class="min-w-fit p-1.5 transition select-none ${mainTab === 'users' ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}">Users</a>
+                  <a href="/admin/users" data-nav="users" class="min-w-fit p-1.5 transition select-none ${mainTab === 'users' ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}">Users</a>
                   <a href="/admin/settings" data-nav="settings" class="min-w-fit p-1.5 transition select-none ${mainTab === 'settings' ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}">Settings</a>
                 </div>
               </div>

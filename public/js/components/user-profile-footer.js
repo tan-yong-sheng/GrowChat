@@ -59,7 +59,7 @@ function buildFooterMarkup(user, hasAdminPerm) {
         </div>
       </button>
 
-      <div class="user-menu-dropdown hidden absolute bottom-full left-0 w-full mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden p-1">
+      <div class="user-menu-dropdown hidden absolute bottom-full left-0 w-64 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden p-1">
         <div class="flex gap-3 w-full p-2.5 items-center border-b border-gray-50">
           <div class="user-avatar flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 text-gray-700 font-semibold text-sm flex-shrink-0 shadow-sm">
             ${avatar}
@@ -112,6 +112,37 @@ function buildFooterMarkup(user, hasAdminPerm) {
             </div>
             <span>Sign Out</span>
           </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAdminSkeleton() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.innerHTML = `
+    <div class="min-h-screen bg-[#fafafa] text-gray-900">
+      <div class="max-w-6xl mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
+          <div class="bg-white border border-gray-100 rounded-2xl p-4 animate-pulse">
+            <div class="h-4 w-28 bg-gray-200 rounded mb-4"></div>
+            <div class="space-y-3">
+              <div class="h-3 w-32 bg-gray-200 rounded"></div>
+              <div class="h-3 w-36 bg-gray-200 rounded"></div>
+              <div class="h-3 w-24 bg-gray-200 rounded"></div>
+            </div>
+            <div class="mt-6 h-3 w-20 bg-gray-200 rounded"></div>
+          </div>
+          <div class="bg-white border border-gray-100 rounded-2xl p-6 animate-pulse">
+            <div class="h-5 w-44 bg-gray-200 rounded mb-4"></div>
+            <div class="space-y-3">
+              <div class="h-3 w-full bg-gray-200 rounded"></div>
+              <div class="h-3 w-11/12 bg-gray-200 rounded"></div>
+              <div class="h-3 w-10/12 bg-gray-200 rounded"></div>
+            </div>
+            <div class="mt-6 h-3 w-32 bg-gray-200 rounded"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -186,6 +217,7 @@ export async function createUserProfileFooter() {
     const action = actionBtn.dataset.action;
     if (action === 'admin') {
       window.history.pushState({}, '', '/admin/users/overview');
+      renderAdminSkeleton();
       await renderAdminRoute();
     } else if (action === 'status' || action === 'profile' || action === 'preferences') {
       await showPreferencesModal({ ...user, status: computePresence(lastActiveAt) });

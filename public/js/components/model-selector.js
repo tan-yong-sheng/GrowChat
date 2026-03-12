@@ -1,5 +1,5 @@
 import { state, setState, subscribe } from '../store.js';
-import { showToast } from '../utils.js';
+import { showToast, showToastProgress } from '../utils.js';
 
 export function renderModelSelector(container) {
   let isRendered = false;
@@ -46,7 +46,20 @@ export function renderModelSelector(container) {
     const headerSetDefaultBtn = container.querySelector('#header-set-default-btn');
     let isOpen = false;
     let searchQuery = '';
+    let activeIndex = -1;
+    let visibleModels = [];
+    let allFilteredModels = [];
+    let visibleCount = 10;
+    const PAGE_SIZE = 10;
     let loadingPromise = null;
+    let sortedModels = [];
+    let lastModelsRef = null;
+    let lastModelsLoading = null;
+    let lastActiveModelId = null;
+    let renderedCount = 0;
+    let searchDebounce = null;
+
+    const getLabel = (model) => String(model?.name || model?.id || '');
 
     const ensureModelsLoaded = async () => {
       if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
@@ -83,13 +96,16 @@ export function renderModelSelector(container) {
         chevron.classList.add('rotate-180');
         searchInput.value = '';
         searchQuery = '';
+        activeIndex = -1;
+        visibleCount = PAGE_SIZE;
         ensureModelsLoaded();
         setTimeout(() => searchInput.focus(), 10);
-        renderList(state);
+        renderList(state, { reset: true, rebuild: true });
       } else {
         dropdown.classList.add('hidden');
         dropdown.classList.remove('flex');
         chevron.classList.remove('rotate-180');
+        activeIndex = -1;
       }
     };
 
@@ -97,8 +113,13 @@ export function renderModelSelector(container) {
       e.stopPropagation();
       if (state.activeModelId) {
         const modelId = state.activeModelId;
+        if (state.defaultModelId === modelId) {
+          showToast('Already the default model');
+          return;
+        }
         const currentPreferences = state.user?.preferences || {};
         const newPreferences = { ...currentPreferences, defaultModelId: modelId };
+        const progressToast = showToastProgress('Setting default model...');
         
         try {
           const { apiFetch } = await import('../api.js');
@@ -109,18 +130,19 @@ export function renderModelSelector(container) {
           
           if (res.ok) {
             setState({ defaultModelId: modelId });
-            showToast('Default model set');
+            localStorage.setItem('defaultModelId', modelId);
+            progressToast.update('Default model set');
             if (isOpen) toggle();
           } else {
             console.error('Failed to save default model');
-            setState({ defaultModelId: modelId }); // Fallback to local only
-            showToast('Default model set locally');
+            setState({ defaultModelId: modelId }); // Session-only fallback
+            progressToast.update('Default model set for this session');
             if (isOpen) toggle();
           }
         } catch (err) {
           console.error('Error saving default model:', err);
           setState({ defaultModelId: modelId });
-          showToast('Default model set locally');
+          progressToast.update('Default model set for this session');
           if (isOpen) toggle();
         }
       }
@@ -135,8 +157,57 @@ export function renderModelSelector(container) {
 
     searchInput.onclick = (e) => e.stopPropagation();
     searchInput.oninput = (e) => {
-      searchQuery = e.target.value.toLowerCase();
-      renderList(state);
+      const nextQuery = e.target.value.toLowerCase();
+      if (searchDebounce) clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        searchQuery = nextQuery;
+        activeIndex = -1;
+        visibleCount = PAGE_SIZE;
+        renderList(state, { reset: true, rebuild: true });
+      }, 120);
+    };
+    searchInput.onkeydown = (e) => {
+      if (!isOpen) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!allFilteredModels.length) return;
+        if (activeIndex < 0) {
+          activeIndex = 0;
+        } else if (activeIndex + 1 < visibleModels.length) {
+          activeIndex += 1;
+        } else if (visibleCount < allFilteredModels.length) {
+          visibleCount = Math.min(visibleCount + PAGE_SIZE, allFilteredModels.length);
+          activeIndex += 1;
+          renderList(state, { reset: false, rebuild: false });
+          applyActiveHighlight(true);
+          return;
+        }
+        applyActiveHighlight(true);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!allFilteredModels.length) return;
+        if (activeIndex < 0) {
+          activeIndex = Math.max(visibleModels.length - 1, 0);
+        } else {
+          activeIndex = Math.max(activeIndex - 1, 0);
+        }
+        applyActiveHighlight(true);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const model = visibleModels[activeIndex];
+        if (!model) return;
+        setState({ activeModelId: model.id });
+        toggle();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (isOpen) toggle();
+      }
     };
 
     onDocumentClick = (e) => {
@@ -146,40 +217,135 @@ export function renderModelSelector(container) {
     };
     document.addEventListener('click', onDocumentClick);
 
-    function renderList(currentState) {
-       if (currentState.modelsLoading) {
-          listContainer.innerHTML = '<div class="px-3 py-6 text-center text-sm text-gray-400 italic">Loading models...</div>';
+    listContainer.addEventListener('click', (e) => {
+      const button = e.target.closest('button[data-model-id]');
+      if (!button) return;
+      const newModelId = button.getAttribute('data-model-id');
+      setState({ activeModelId: newModelId });
+      toggle();
+    });
+
+    function applyActiveHighlight(scroll = false) {
+      const buttons = listContainer.querySelectorAll('button[data-model-id]');
+      if (!buttons.length) return;
+      buttons.forEach((btn) => {
+        btn.classList.remove('ring-2', 'ring-black/40', 'bg-gray-100', 'text-gray-900');
+        btn.removeAttribute('data-active');
+      });
+      const activeModel = visibleModels[activeIndex];
+      if (!activeModel) return;
+      const activeEl = listContainer.querySelector(`button[data-model-id="${activeModel.id}"]`);
+      if (!activeEl) return;
+      activeEl.classList.add('ring-2', 'ring-black/40', 'bg-gray-100', 'text-gray-900');
+      activeEl.setAttribute('data-active', 'true');
+      if (scroll) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function rebuildFilter() {
+       if (!sortedModels.length) {
+          allFilteredModels = [];
           return;
        }
-       const filteredModels = (currentState.models || []).filter(m => 
-          (m.name || m.id).toLowerCase().includes(searchQuery)
-       );
+       const query = searchQuery.trim().toLowerCase();
+       if (!query) {
+          allFilteredModels = sortedModels;
+          return;
+       }
+       allFilteredModels = sortedModels.filter((m) => getLabel(m).toLowerCase().includes(query));
+    }
 
-       if (filteredModels.length > 0) {
-          listContainer.innerHTML = filteredModels.map(m => `
-             <button class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${currentState.activeModelId === m.id ? 'bg-gray-50 text-gray-900 font-bold' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${m.id}" role="option" aria-selected="${currentState.activeModelId === m.id}">
-                <div class="flex items-center gap-2">
-                   <div class="w-6 h-6 rounded-lg bg-white border border-gray-100 flex items-center justify-center overflow-hidden shadow-sm">
-                      <img src="/logo.png" alt="" class="w-4 h-4 object-contain opacity-70" />
-                   </div>
-                   <span>${m.name || m.id}</span>
+    function updateVisibleModels() {
+       visibleCount = Math.min(visibleCount, allFilteredModels.length);
+       visibleModels = allFilteredModels.slice(0, visibleCount);
+    }
+
+    function buildModelButton(m, currentState) {
+       const isSelected = currentState.activeModelId === m.id;
+       return `
+          <button class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${isSelected ? 'bg-gray-50 text-gray-900 font-bold' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${m.id}" role="option" aria-selected="${isSelected}">
+             <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-lg bg-white border border-gray-100 flex items-center justify-center overflow-hidden shadow-sm">
+                   <img src="/logo.png" alt="" class="w-4 h-4 object-contain opacity-70" />
                 </div>
-                ${currentState.activeModelId === m.id ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
-             </button>
-          `).join('');
+                <span>${getLabel(m)}</span>
+             </div>
+             ${isSelected ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
+          </button>
+       `;
+    }
 
-          listContainer.querySelectorAll('button').forEach(b => {
-             b.onclick = (e) => {
-                e.stopPropagation();
-                const newModelId = b.getAttribute('data-model-id');
-                setState({ activeModelId: newModelId });
-                toggle();
-             };
-          });
-       } else {
-          listContainer.innerHTML = `<div class="px-3 py-8 text-center text-sm text-gray-400 italic">No models found for "${searchQuery}"</div>`;
+    function updateSelectedModel(currentState, previousId) {
+       if (!isOpen) return;
+       if (previousId) {
+          const oldEl = listContainer.querySelector(`button[data-model-id="${previousId}"]`);
+          if (oldEl) {
+             oldEl.classList.remove('bg-gray-50', 'text-gray-900', 'font-bold');
+             oldEl.classList.add('hover:bg-gray-50', 'text-gray-700');
+             oldEl.setAttribute('aria-selected', 'false');
+             const icon = oldEl.querySelector('svg');
+             if (icon) icon.remove();
+          }
+       }
+       const nextId = currentState.activeModelId;
+       if (!nextId) return;
+       const newEl = listContainer.querySelector(`button[data-model-id="${nextId}"]`);
+       if (newEl) {
+          newEl.classList.add('bg-gray-50', 'text-gray-900', 'font-bold');
+          newEl.classList.remove('hover:bg-gray-50', 'text-gray-700');
+          newEl.setAttribute('aria-selected', 'true');
+          if (!newEl.querySelector('svg')) {
+             newEl.insertAdjacentHTML('beforeend', '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>');
+          }
        }
     }
+
+    function renderList(currentState, { reset = false, rebuild = false } = {}) {
+       if (currentState.modelsLoading) {
+          listContainer.innerHTML = '<div class="px-3 py-6 text-center text-sm text-gray-400 italic">Loading models...</div>';
+          renderedCount = 0;
+          return;
+       }
+       if (rebuild) {
+          rebuildFilter();
+       }
+       if (!allFilteredModels.length) {
+          visibleModels = [];
+          renderedCount = 0;
+          listContainer.innerHTML = searchQuery
+            ? `<div class="px-3 py-8 text-center text-sm text-gray-400 italic">No models found for "${searchQuery}"</div>`
+            : '<div class="px-3 py-6 text-center text-sm text-gray-400 italic">No models available</div>';
+          return;
+       }
+
+       if (reset) {
+          listContainer.innerHTML = '';
+          renderedCount = 0;
+       }
+
+       updateVisibleModels();
+
+       if (renderedCount < visibleCount) {
+          const chunk = allFilteredModels
+             .slice(renderedCount, visibleCount)
+             .map((m) => buildModelButton(m, currentState))
+             .join('');
+          listContainer.insertAdjacentHTML('beforeend', chunk);
+          renderedCount = visibleCount;
+       }
+
+       applyActiveHighlight(false);
+    }
+
+    listContainer.addEventListener('scroll', () => {
+      if (!isOpen || !allFilteredModels.length) return;
+      const nearBottom = listContainer.scrollTop + listContainer.clientHeight >= listContainer.scrollHeight - 40;
+      if (!nearBottom) return;
+      if (visibleCount >= allFilteredModels.length) return;
+      visibleCount = Math.min(visibleCount + PAGE_SIZE, allFilteredModels.length);
+      renderList(state, { reset: false, rebuild: false });
+    });
 
     unsubscribe = subscribe((currentState) => {
        const activeModel = currentState.models?.find(m => m.id === currentState.activeModelId) || currentState.models?.[0];
@@ -189,25 +355,32 @@ export function renderModelSelector(container) {
           nameSpan.textContent = currentState.activeModelId || 'Select a Model';
        }
 
-       const isDefault = currentState.defaultModelId === currentState.activeModelId;
-
-       // Ensure header button stays static, small, and grey, but disables clicks if already default
+       // Keep header button always clickable
        headerSetDefaultBtn.textContent = 'Set as default';
-       headerSetDefaultBtn.className = 'text-gray-400 font-primary'; // Reset to purely grey and static
-       
-       if (isDefault) {
-          headerSetDefaultBtn.disabled = true;
-          headerSetDefaultBtn.style.cursor = 'default';
-          headerSetDefaultBtn.classList.add('opacity-50');
-       } else {
-          headerSetDefaultBtn.disabled = false;
-          headerSetDefaultBtn.style.cursor = 'pointer';
-          headerSetDefaultBtn.classList.add('hover:text-gray-500', 'transition-colors');
+       headerSetDefaultBtn.className = 'text-gray-400 font-primary hover:text-gray-500 transition-colors';
+       headerSetDefaultBtn.disabled = false;
+       headerSetDefaultBtn.style.cursor = 'pointer';
+
+       const modelsChanged = currentState.models !== lastModelsRef || currentState.modelsLoading !== lastModelsLoading;
+       if (modelsChanged) {
+          sortedModels = (currentState.models || [])
+             .slice()
+             .sort((a, b) => getLabel(a).toLowerCase().localeCompare(getLabel(b).toLowerCase()));
+          lastModelsRef = currentState.models;
+          lastModelsLoading = currentState.modelsLoading;
+          rebuildFilter();
+          visibleCount = PAGE_SIZE;
+          activeIndex = -1;
+          if (isOpen) {
+             renderList(currentState, { reset: true, rebuild: false });
+          }
        }
-       
-       if (isOpen) {
-          renderList(currentState);
+
+       if (currentState.activeModelId !== lastActiveModelId) {
+          updateSelectedModel(currentState, lastActiveModelId);
+          lastActiveModelId = currentState.activeModelId;
        }
+
     });
   }
 

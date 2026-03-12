@@ -427,7 +427,9 @@ export function renderUserOverview(container, data, actions) {
     const pageEnd = Math.min(page * pageSize, total);
 
     totalCount.textContent = String(total);
-    tbody.innerHTML = data.loading && data.loadingMode === 'table'
+    const isTableLoading = data.loading && (data.loadingMode === 'table' || data.loadingMode === 'initial');
+
+    tbody.innerHTML = isTableLoading
       ? renderLoadingRows(Math.min(pageSize, 10))
       : renderUserRows(users);
     pageRange.textContent = `${pageStart}-${pageEnd} of ${total}`;
@@ -437,7 +439,7 @@ export function renderUserOverview(container, data, actions) {
     pageSizeSelect.disabled = data.loading;
     pageSizeSelect.value = String(pageSize);
     searchInput.value = uiState.query;
-    if (!(data.loading && data.loadingMode === 'table')) {
+    if (!isTableLoading) {
       bindRowActions();
       applySearchFilter();
       syncPendingState();
