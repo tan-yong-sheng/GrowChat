@@ -58,6 +58,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     let isSubmitting = false;
     let abortFn = null;
     let lastActiveChatId = state.activeChatId;
+    let isStreamBlocked = false;
     let queueNextId = 1;
     let pendingQueue = [];
 
@@ -183,29 +184,32 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       }
     };
 
-    function finishSubmission() {
-      if (pendingQueue.length > 0) {
-        const next = pendingQueue.shift();
-        renderPendingQueue();
-        if (next?.text) {
-          // Restart submission with next in queue
-          isSubmitting = true;
+    function startQueuedSend() {
+      if (isSubmitting || isStreamBlocked || pendingQueue.length === 0) return false;
+      const next = pendingQueue.shift();
+      renderPendingQueue();
+      if (!next?.text) return false;
+      isSubmitting = true;
+      toggleSendMicBtn();
+      onSend(next.text, {
+        onAbortable: (fn) => {
+          abortFn = fn;
           toggleSendMicBtn();
-          onSend(next.text, {
-            onAbortable: (fn) => {
-              abortFn = fn;
-              toggleSendMicBtn();
-            },
-            onFinished: () => {
-              finishSubmission();
-            }
-          });
-          return;
+        },
+        onFinished: () => {
+          finishSubmission();
         }
-      }
+      });
+      return true;
+    }
+
+    function finishSubmission() {
       isSubmitting = false;
       abortFn = null;
       toggleSendMicBtn();
+      if (pendingQueue.length > 0) {
+        startQueuedSend();
+      }
     }
 
     function extractVariables(text) {
@@ -349,7 +353,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       const text = input.value.trim();
       if (!text) return;
 
-      if (isSubmitting) {
+      if (isSubmitting || isStreamBlocked) {
         pendingQueue.push({ id: queueNextId++, text });
         renderPendingQueue();
         input.value = '';
@@ -423,6 +427,18 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       if (chatChanged && pendingQueue.length > 0) {
         pendingQueue = [];
         renderPendingQueue();
+      }
+
+      const nextStreamBlocked = Boolean(
+        currentState.ui?.streaming &&
+        currentState.ui?.streamingChatId &&
+        String(currentState.ui.streamingChatId) === String(currentState.activeChatId || '')
+      );
+      if (nextStreamBlocked !== isStreamBlocked) {
+        isStreamBlocked = nextStreamBlocked;
+        if (!isStreamBlocked && pendingQueue.length > 0 && !isSubmitting) {
+          startQueuedSend();
+        }
       }
       
       // Always restore on chat change; otherwise restore only when input is not focused.

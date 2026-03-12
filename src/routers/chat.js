@@ -504,7 +504,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       const encoder = new TextEncoder();
       const body = new ReadableStream({
         start(controller) {
-          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId })));
+          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
           controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: 'LLM setup failed' })));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
@@ -522,7 +522,7 @@ export async function chatRouter(req, env, ctx, user, path) {
 
     const readable = new ReadableStream({
       async start(controller) {
-        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId })));
+        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -748,7 +748,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       const encoder = new TextEncoder();
       const body = new ReadableStream({
         start(controller) {
-          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId })));
+          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: newUserMsgId })));
           controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: 'LLM setup failed' })));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
@@ -766,7 +766,7 @@ export async function chatRouter(req, env, ctx, user, path) {
 
     const readable = new ReadableStream({
       async start(controller) {
-        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId })));
+        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: newUserMsgId })));
         try {
           while (true) {
             const { done, value } = await reader.read();

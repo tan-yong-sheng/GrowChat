@@ -47,6 +47,8 @@ function normalizeCitations(raw) {
   return [];
 }
 
+const isTempMessageId = (id) => String(id || '').startsWith('temp-');
+
 function safeTime(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -152,12 +154,12 @@ export function renderChat(container) {
       <aside id="sidebar" class="fixed md:relative h-screen md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 -ml-[260px] md:ml-0 overflow-visible group/sidebar">
         <div class="p-3">
           <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
-            <div class="flex items-center gap-3 sidebar-full-only">
-               <div class="w-7 h-7 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
-                 <img src="/logo.png" alt="GrowChat" class="w-5 h-5 object-contain" />
-               </div>
-               <span class="font-bold text-lg text-gray-800 font-primary">GrowChat</span>
-            </div>
+            <button type="button" id="sidebar-home-btn" class="flex items-center gap-3 sidebar-full-only hover:opacity-90 transition-opacity" title="Home">
+              <div class="w-7 h-7 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
+                <img src="/logo.png" alt="GrowChat" class="w-5 h-5 object-contain" />
+              </div>
+              <span class="font-bold text-lg text-gray-800 font-primary">GrowChat</span>
+            </button>
             <button id="toggle-sidebar-desktop" class="sidebar-full-only hidden md:block p-1 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors ml-auto" title="Close Sidebar">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
@@ -275,6 +277,7 @@ function wireChat(root) {
   const messagesList = root.querySelector('#messages-list');
   const welcomeScreenContainer = root.querySelector('#welcome-screen-container');
   const messageInputContainer = root.querySelector('#message-input-container');
+  const sidebarHomeBtn = root.querySelector('#sidebar-home-btn');
   const newChatBtn = root.querySelector('#new-chat');
   const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
   const toggleSidebarDesktop = root.querySelector('#toggle-sidebar-desktop');
@@ -295,7 +298,22 @@ function wireChat(root) {
   const processedRealtimeEvents = new Map();
   const currentLeafByChatId = new Map();
   const branchSelectionByChat = new Map();
+  const setStreamingState = (chatId, streaming) => {
+    if (!chatId) return;
+    setState((prev) => ({
+      ui: {
+        ...prev.ui,
+        streaming,
+        streamingChatId: streaming
+          ? String(chatId)
+          : (prev.ui.streamingChatId === String(chatId) ? null : prev.ui.streamingChatId),
+      }
+    }));
+  };
   const streamingOverrideByChat = new Map();
+  const tempMessageIdMapByChat = new Map();
+  const pendingTempMessagesByChat = new Map();
+  const pendingTempResolversByChat = new Map();
   const clientSessionId = getClientSessionId();
   let activeStreamAbort = null;
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
@@ -309,14 +327,213 @@ function wireChat(root) {
   const destroyModelSelector = renderModelSelector(modelSelectorContainer);
   const destroySidebar = renderSidebar(sidebar, root);
 
+  const mapTempMessageId = (chatId, tempId, realId) => {
+    if (!chatId || !tempId || !realId || tempId === realId) return;
+    const key = String(chatId);
+    const map = tempMessageIdMapByChat.get(key) || new Map();
+    map.set(String(tempId), String(realId));
+    tempMessageIdMapByChat.set(key, map);
+  };
+
+  const resolveTempMessageId = (chatId, id) => {
+    if (!chatId || !id) return id;
+    const map = tempMessageIdMapByChat.get(String(chatId));
+    if (!map) return id;
+    return map.get(String(id)) || id;
+  };
+
+  const replaceTempMessageId = (chatId, tempId, realId) => {
+    if (!chatId || !tempId || !realId || tempId === realId) return;
+    mapTempMessageId(chatId, tempId, realId);
+    const chatKey = String(chatId);
+    setState((prev) => {
+      const existing = prev.messagesByChat[chatKey] || [];
+      if (!existing.length) return {};
+
+      let replaced = false;
+      const nextMessages = existing.map((msg) => {
+        const next = { ...msg };
+        if (String(next.id) === String(tempId)) {
+          next.id = realId;
+          replaced = true;
+        }
+        if (String(next.parent_id || '') === String(tempId)) {
+          next.parent_id = realId;
+          replaced = true;
+        }
+        return next;
+      });
+
+      const nextEditing = { ...(prev.ui?.editingMessages || {}) };
+      if (nextEditing[tempId]) {
+        nextEditing[realId] = nextEditing[tempId];
+        delete nextEditing[tempId];
+      }
+
+      if (currentLeafByChatId.get(chatKey) === String(tempId)) {
+        currentLeafByChatId.set(chatKey, String(realId));
+      }
+      if (streamingOverrideByChat.has(chatKey)) {
+        const override = streamingOverrideByChat.get(chatKey);
+        if (override?.targetMsgId && String(override.targetMsgId) === String(tempId)) {
+          streamingOverrideByChat.set(chatKey, { ...override, targetMsgId: realId });
+        }
+      }
+      const branchMap = branchSelectionByChat.get(chatKey);
+      if (branchMap && branchMap.size) {
+        const nextMap = new Map();
+        for (const [k, v] of branchMap.entries()) {
+          const nextKey = String(k) === String(tempId) ? String(realId) : k;
+          const nextVal = String(v) === String(tempId) ? String(realId) : v;
+          nextMap.set(nextKey, nextVal);
+        }
+        branchSelectionByChat.set(chatKey, nextMap);
+      }
+
+      return replaced
+        ? { messagesByChat: { ...prev.messagesByChat, [chatKey]: nextMessages }, ui: { ...prev.ui, editingMessages: nextEditing } }
+        : {};
+    });
+
+    if (state.activeChatId === chatId && messagesList) {
+      const updateAttr = (selector, attr) => {
+        messagesList.querySelectorAll(selector).forEach((el) => {
+          if (el.getAttribute(attr) === String(tempId)) {
+            el.setAttribute(attr, String(realId));
+          }
+        });
+      };
+      updateAttr(`[data-message-id="${tempId}"]`, 'data-message-id');
+      updateAttr(`[data-message-content="${tempId}"]`, 'data-message-content');
+      updateAttr(`[data-edit-message="${tempId}"]`, 'data-edit-message');
+      updateAttr(`[data-delete-message="${tempId}"]`, 'data-delete-message');
+      updateAttr(`[data-retry-message="${tempId}"]`, 'data-retry-message');
+      updateAttr(`[data-round-prev="${tempId}"]`, 'data-round-prev');
+      updateAttr(`[data-round-next="${tempId}"]`, 'data-round-next');
+      updateAttr(`.edit-message-textarea[data-message-id="${tempId}"]`, 'data-message-id');
+    }
+
+    const resolverMap = pendingTempResolversByChat.get(chatKey);
+    if (resolverMap && resolverMap.has(String(tempId))) {
+      const resolvers = resolverMap.get(String(tempId)) || [];
+      resolverMap.delete(String(tempId));
+      if (resolverMap.size === 0) pendingTempResolversByChat.delete(chatKey);
+      resolvers.forEach((fn) => {
+        try {
+          fn(String(realId));
+        } catch {
+          // ignore resolver errors
+        }
+      });
+    }
+  };
+
+  const registerPendingTempMessage = (chatId, message) => {
+    if (!chatId || !message?.id) return;
+    const key = String(chatId);
+    const list = pendingTempMessagesByChat.get(key) || [];
+    list.push({
+      id: String(message.id),
+      role: String(message.role || ''),
+      content: String(message.content || ''),
+      parent_id: message.parent_id ? String(message.parent_id) : null,
+      created_at: Number(message.created_at || 0),
+    });
+    pendingTempMessagesByChat.set(key, list);
+  };
+
+  const matchPendingTempMessage = (chatId, message) => {
+    if (!chatId || !message?.id) return;
+    const key = String(chatId);
+    const list = pendingTempMessagesByChat.get(key) || [];
+    if (!list.length) return;
+    const msgContent = String(message.content || '');
+    const msgRole = String(message.role || '');
+    const msgParent = message.parent_id ? String(message.parent_id) : null;
+    const msgCreated = Number(message.created_at || 0);
+
+    let bestIdx = -1;
+    let bestScore = Infinity;
+    list.forEach((candidate, idx) => {
+      if (candidate.role !== msgRole) return;
+      if (candidate.content !== msgContent) return;
+      if (String(candidate.parent_id || '') !== String(msgParent || '')) return;
+      const delta = Math.abs((candidate.created_at || 0) - msgCreated);
+      if (delta < bestScore) {
+        bestScore = delta;
+        bestIdx = idx;
+      }
+    });
+
+    if (bestIdx >= 0) {
+      const [candidate] = list.splice(bestIdx, 1);
+      pendingTempMessagesByChat.set(key, list);
+      replaceTempMessageId(chatId, candidate.id, message.id);
+    }
+  };
+
+  const waitForResolvedMessageId = (chatId, id, timeoutMs = 5000) => {
+    const resolved = resolveTempMessageId(chatId, id);
+    if (!isTempMessageId(resolved)) return Promise.resolve(resolved);
+    const chatKey = String(chatId);
+    const tempKey = String(resolved);
+    return new Promise((resolve) => {
+      const resolverMap = pendingTempResolversByChat.get(chatKey) || new Map();
+      const list = resolverMap.get(tempKey) || [];
+      list.push(resolve);
+      resolverMap.set(tempKey, list);
+      pendingTempResolversByChat.set(chatKey, resolverMap);
+
+      const timer = setTimeout(() => {
+        const current = resolverMap.get(tempKey) || [];
+        const idx = current.indexOf(resolve);
+        if (idx >= 0) current.splice(idx, 1);
+        if (current.length === 0) resolverMap.delete(tempKey);
+        if (resolverMap.size === 0) pendingTempResolversByChat.delete(chatKey);
+        resolve(null);
+      }, timeoutMs);
+
+      // If resolved before timeout, clear the timer.
+      const wrappedResolve = (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      };
+      list[list.length - 1] = wrappedResolve;
+      resolverMap.set(tempKey, list);
+    });
+  };
+
+  const setBranchSelection = (chatId, parentId, messageId) => {
+    if (!chatId || !messageId) return;
+    const key = String(chatId);
+    const parentKey = parentId ? String(parentId) : '__root__';
+    const map = branchSelectionByChat.get(key) || new Map();
+    map.set(parentKey, String(messageId));
+    branchSelectionByChat.set(key, map);
+  };
+
+  const getMessageById = (chatId, messageId) => {
+    if (!chatId || !messageId) return null;
+    const list = state.messagesByChat[chatId] || [];
+    return list.find((msg) => String(msg.id) === String(messageId)) || null;
+  };
+
   const getChatHandlers = (chat) => ({
     onClick: (id) => {
+      if (isTempChatId(id)) {
+        setState({ activeChatId: id });
+        syncChatUrl(null);
+        drawMessages([]);
+        if (state.isMobile) setState({ showSidebar: false });
+        return;
+      }
       syncChatUrl(id);
       setState({ activeChatId: id });
-      loadMessages(id);
+      loadMessages(id, { modelMode: 'default' });
       if (state.isMobile) setState({ showSidebar: false });
     },
     rename: async (id) => {
+      if (isTempChatId(id)) return;
       const newTitle = window.prompt('Enter new title:', chat.title);
       if (newTitle && newTitle !== chat.title) {
         await apiFetch(`/api/chats/${id}`, {
@@ -327,10 +544,12 @@ function wireChat(root) {
       }
     },
     setIcon: async (id) => {
+      if (isTempChatId(id)) return;
       const { showIconPickerModal } = await loadIconPickerModal();
       await showIconPickerModal(id, chat.icon);
     },
     pin: async (id) => {
+      if (isTempChatId(id)) return;
       const res = await apiFetch(`/api/chats/${id}/pin`, { method: 'POST' });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
@@ -341,6 +560,7 @@ function wireChat(root) {
       await loadChats();
     },
     duplicate: async (id) => {
+      if (isTempChatId(id)) return;
       const res = await apiFetch(`/api/chats/${id}/clone`, { method: 'POST' });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
@@ -355,14 +575,16 @@ function wireChat(root) {
       syncChatUrl(nextId);
       setState({ activeChatId: nextId });
       if (nextId) {
-        await loadMessages(nextId);
+        await loadMessages(nextId, { modelMode: 'default' });
       }
     },
     tag: async (id) => {
+      if (isTempChatId(id)) return;
       const { showTagModal } = await loadTagModal();
       await showTagModal(id, chat.tags);
     },
     moveFolder: async (id) => {
+        if (isTempChatId(id)) return;
         // Implement folder picker modal
         const folderId = window.prompt('Enter folder ID (or empty to remove):', chat.folder_id || '');
         await apiFetch(`/api/chats/${id}/folder`, {
@@ -372,26 +594,29 @@ function wireChat(root) {
         await loadChats();
     },
     share: async (id) => {
+      if (isTempChatId(id)) return;
       syncChatUrl(id);
       setState({ activeChatId: id });
-      await loadMessages(id);
+      await loadMessages(id, { modelMode: 'default' });
       await refreshShareState();
       const existing = sharedByChatId.get(id) || null;
       renderShareModal(existing);
     },
     archive: async (id) => {
+      if (isTempChatId(id)) return;
       await toggleArchiveChat(id);
       await loadChats();
       const nextId = id === state.activeChatId ? state.chats?.[0]?.id || null : state.activeChatId;
       syncChatUrl(nextId, { replace: true });
       setState({ activeChatId: nextId });
       if (nextId) {
-        await loadMessages(nextId);
+        await loadMessages(nextId, { modelMode: 'default' });
       } else {
         drawMessages([]);
       }
     },
     delete: async (id) => {
+      if (isTempChatId(id)) return;
       if (window.confirm('Are you sure you want to delete this chat?')) {
         const wasActive = id === state.activeChatId;
         const prevChats = state.chats.slice();
@@ -411,7 +636,7 @@ function wireChat(root) {
 
         syncChatUrl(nextId, { replace: true });
         if (nextId) {
-          await loadMessages(nextId);
+          await loadMessages(nextId, { modelMode: 'default' });
         } else {
           drawMessages([]);
         }
@@ -427,6 +652,23 @@ function wireChat(root) {
       }
     }
   });
+
+  const isTempChatId = (id) => String(id || '').startsWith('temp-');
+  const pruneTempChats = (list) => (Array.isArray(list) ? list.filter((c) => !isTempChatId(c?.id)) : []);
+  const buildTempChat = (id = null) => {
+    const nowTs = Math.floor(Date.now() / 1000);
+    const modelToUse = state.defaultModelId || state.activeModelId;
+    const tempChatId = id || `temp-${nowTs}-${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      id: tempChatId,
+      title: 'New Chat',
+      model: modelToUse || null,
+      pinned: 0,
+      tags: '[]',
+      created_at: nowTs,
+      updated_at: nowTs,
+    };
+  };
 
   function scheduleSidebarEnhancements() {
     const run = () => {
@@ -467,7 +709,7 @@ function wireChat(root) {
   async function ensureSearchModal() {
     if (destroySearchModal) return;
     const { renderSearchModal } = await loadSearchModal();
-    destroySearchModal = renderSearchModal(searchModalContainer, createChat, loadMessages);
+    destroySearchModal = renderSearchModal(searchModalContainer, startNewChat, loadMessages);
   }
 
   async function ensureFilesModal() {
@@ -767,12 +1009,21 @@ function wireChat(root) {
     chatListLoadObserver.observe(sentinel);
   }
 
+  function updateMessageContentDom(messageId, content) {
+    if (!messageId) return false;
+    const el = messagesList.querySelector(`[data-message-content="${messageId}"]`);
+    if (!el) return false;
+    el.innerHTML = renderMessageContent(content);
+    return true;
+  }
+
   function drawMessages(messages) {
     const welcomeScreen = welcomeScreenContainer.firstElementChild;
     const chatId = state.activeChatId;
     const rawMessages = Array.isArray(messages) ? messages : [];
     const branchSelectionMap = chatId ? (branchSelectionByChat.get(chatId) || new Map()) : new Map();
     const preferredLeafId = chatId ? currentLeafByChatId.get(chatId) : null;
+    const isLoading = !!chatId && state.ui?.loadingChatId === chatId;
 
     const { visible: projectedMessages, roundsByMessageId } = projectConversation(
       rawMessages,
@@ -781,8 +1032,39 @@ function wireChat(root) {
     );
 
     if (projectedMessages.length === 0) {
-      if (welcomeScreen) welcomeScreen.classList.remove('hidden');
-      messagesList.classList.add('hidden');
+      if (isLoading) {
+        if (welcomeScreen) welcomeScreen.classList.add('hidden');
+        messagesList.classList.remove('hidden');
+        messagesList.innerHTML = `
+          <div class="flex flex-col gap-5 py-6">
+            <div class="flex justify-end">
+              <div class="h-8 w-2/3 rounded-2xl bg-gray-100 animate-pulse"></div>
+            </div>
+            <div class="flex gap-4">
+              <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
+              <div class="flex-1 space-y-2">
+                <div class="h-3 w-32 bg-gray-100 rounded animate-pulse"></div>
+                <div class="h-4 w-3/4 bg-gray-100 rounded animate-pulse"></div>
+                <div class="h-4 w-2/3 bg-gray-100 rounded animate-pulse"></div>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <div class="h-8 w-1/2 rounded-2xl bg-gray-100 animate-pulse"></div>
+            </div>
+            <div class="flex gap-4">
+              <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
+              <div class="flex-1 space-y-2">
+                <div class="h-3 w-40 bg-gray-100 rounded animate-pulse"></div>
+                <div class="h-4 w-5/6 bg-gray-100 rounded animate-pulse"></div>
+                <div class="h-4 w-2/3 bg-gray-100 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        if (welcomeScreen) welcomeScreen.classList.remove('hidden');
+        messagesList.classList.add('hidden');
+      }
       return;
     }
 
@@ -822,6 +1104,7 @@ function wireChat(root) {
         String(firstUserMsg.id || '') !== String(msgId) ||
         ((rounds?.total || 0) > 1)
       );
+      const showDeleteAssistant = m.role === 'assistant' && ((rounds?.total || 0) > 1);
 
       if (isEditing) {
         if (m.role === 'user') {
@@ -887,6 +1170,7 @@ function wireChat(root) {
         ? `<div class="mt-3 flex flex-wrap gap-2">${citations.map((id) => `<button data-citation-id="${escapeHtml(id)}" class="text-xs px-2 py-1 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-100">Source: ${escapeHtml(id.slice(0, 8))}</button>`).join('')}</div>`
         : '';
 
+      const showRoundNav = (rounds?.total || 0) > 1;
       return `
         <div class="flex gap-4 w-full group py-4 first:pt-0 border-b border-gray-50 last:border-0" data-message-id="${msgId}">
           <div class="flex-shrink-0 w-7 h-7 rounded-lg bg-white border border-gray-100 flex items-center justify-center mt-1 overflow-hidden shadow-sm">
@@ -894,21 +1178,30 @@ function wireChat(root) {
           </div>
           <div class="flex-grow min-w-0 flex flex-col">
              <div class="font-bold text-sm mb-1 text-gray-800 font-primary">${escapeHtml(modelName)}</div>
-             <div class="text-[15px] leading-[1.6] text-gray-800 prose prose-p:my-1 prose-pre:my-2 prose-headings:font-semibold max-w-none break-words font-sans">
+             <div class="text-[15px] leading-[1.6] text-gray-800 prose prose-p:my-1 prose-pre:my-2 prose-headings:font-semibold max-w-none break-words font-sans" data-message-content="${msgId}">
                 ${renderMessageContent(displayContent)}
              </div>
              ${citationHtml}
-             <div class="flex items-center gap-1 mt-3 -ml-2 text-gray-400 ${isStreaming ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} transition-opacity">
-                ${roundsHtml}
-                <button data-edit-message="${msgId}" data-index="${i}" class="p-1.5 hover:text-gray-600 hover:bg-gray-50 rounded-md transition" title="Edit">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                </button>
-                <button data-copy-message="${i}" class="p-1.5 hover:text-gray-600 hover:bg-gray-50 rounded-md transition" title="Copy">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                </button>
-                <button data-retry-message="${msgId}" data-index="${i}" class="p-1.5 hover:text-gray-600 hover:bg-gray-50 rounded-md transition" title="Regenerate">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-                </button>
+             <div class="flex items-center gap-1 mt-3 -ml-2 text-gray-400">
+                <div class="${showRoundNav ? 'opacity-100' : 'opacity-0'} transition-opacity">
+                  ${roundsHtml}
+                </div>
+                <div class="flex items-center gap-1 ${isStreaming ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'} transition-opacity">
+                  <button data-edit-message="${msgId}" data-index="${i}" class="p-1.5 hover:text-gray-600 hover:bg-gray-50 rounded-md transition" title="Edit">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                  </button>
+                  <button data-copy-message="${i}" class="p-1.5 hover:text-gray-600 hover:bg-gray-50 rounded-md transition" title="Copy">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                  </button>
+                  <button data-retry-message="${msgId}" data-index="${i}" class="p-1.5 hover:text-gray-600 hover:bg-gray-50 rounded-md transition" title="Regenerate">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+                  </button>
+                  ${showDeleteAssistant ? `
+                  <button data-delete-message="${msgId}" data-index="${i}" class="p-1.5 hover:text-red-600 hover:bg-red-50 rounded-md transition" title="Delete">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  </button>
+                  ` : ''}
+                </div>
              </div>
           </div>
         </div>
@@ -960,7 +1253,8 @@ function wireChat(root) {
     });
 
     const onRoundSwitch = (targetMsgId, direction) => {
-      const rounds = roundsByMessageId.get(String(targetMsgId));
+      const resolvedId = resolveTempMessageId(chatId, targetMsgId);
+      const rounds = roundsByMessageId.get(String(resolvedId));
       if (!rounds) return;
       const nextId = direction === 'next' ? rounds.nextId : rounds.prevId;
       if (!nextId) return;
@@ -992,12 +1286,22 @@ function wireChat(root) {
 
     messagesList.querySelectorAll('.save-copy-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-message-id');
-        const textarea = messagesList.querySelector(`.edit-message-textarea[data-message-id="${id}"]`);
-        const newContent = textarea.value.trim();
+        const originalId = btn.getAttribute('data-message-id');
+        let id = originalId;
+        const textarea = messagesList.querySelector(`.edit-message-textarea[data-message-id="${originalId}"]`);
+        const newContent = textarea?.value.trim() || '';
+        if (isTempMessageId(id)) {
+          const resolved = await waitForResolvedMessageId(state.activeChatId, id);
+          if (!resolved) {
+            showToast('Message still saving. Please wait.');
+            return;
+          }
+          id = resolved;
+        }
         if (!newContent) return;
 
         const chatId = state.activeChatId;
+        const sourceMsg = getMessageById(chatId, originalId) || projectedMessages.find(msg => String(msg.id) === String(originalId));
 
         try {
           const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/branch`, {
@@ -1012,10 +1316,12 @@ function wireChat(root) {
           if (res.ok) {
             const data = await res.json().catch(() => ({}));
             const newEditing = { ...state.ui.editingMessages };
+            delete newEditing[originalId];
             delete newEditing[id];
             setState({ ui: { ...state.ui, editingMessages: newEditing } });
             if (data?.message?.id) {
               currentLeafByChatId.set(chatId, String(data.message.id));
+              setBranchSelection(chatId, sourceMsg?.parent_id || null, data.message.id);
             }
             await loadMessages(chatId);
           } else {
@@ -1031,15 +1337,25 @@ function wireChat(root) {
 
     messagesList.querySelectorAll('.save-edit-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-message-id');
-        const textarea = messagesList.querySelector(`.edit-message-textarea[data-message-id="${id}"]`);
-        const newContent = textarea.value.trim();
+        const originalId = btn.getAttribute('data-message-id');
+        const textarea = messagesList.querySelector(`.edit-message-textarea[data-message-id="${originalId}"]`);
+        const newContent = textarea?.value.trim() || '';
         if (!newContent) return;
 
         const chatId = state.activeChatId;
-        const sourceMsg = projectedMessages.find(msg => String(msg.id) === String(id));
+        const sourceMsg = getMessageById(chatId, originalId) || projectedMessages.find(msg => String(msg.id) === String(originalId));
+        if (!sourceMsg) return;
         
         if (sourceMsg?.role === 'assistant') {
+          let id = originalId;
+          if (isTempMessageId(id)) {
+            const resolved = await waitForResolvedMessageId(state.activeChatId, id);
+            if (!resolved) {
+              showToast('Message still saving. Please wait.');
+              return;
+            }
+            id = resolved;
+          }
           // Assistant Edit: In-place update
           try {
             const res = await apiFetch(`/api/chats/${chatId}/messages/${id}`, {
@@ -1049,6 +1365,7 @@ function wireChat(root) {
 
             if (res.ok) {
               const newEditing = { ...state.ui.editingMessages };
+              delete newEditing[originalId];
               delete newEditing[id];
               setState({ ui: { ...state.ui, editingMessages: newEditing } });
               await loadMessages(chatId, {
@@ -1071,7 +1388,7 @@ function wireChat(root) {
 
         // Remove from editing state immediately to avoid UI shifts
         const newEditing = { ...state.ui.editingMessages };
-        delete newEditing[id];
+        delete newEditing[originalId];
         setState({ ui: { ...state.ui, editingMessages: newEditing } });
 
         // Optimistic UI
@@ -1080,7 +1397,7 @@ function wireChat(root) {
         const nowTs = Math.floor(Date.now() / 1000);
         
         let localMessages = [...(state.messagesByChat[chatId] || [])];
-        localMessages.push({
+        const tempUserMessage = {
           id: tempUserId,
           role: 'user',
           content: newContent,
@@ -1088,7 +1405,10 @@ function wireChat(root) {
           parent_id: branchParentId,
           created_at: nowTs,
           done: true,
-        });
+        };
+        localMessages.push(tempUserMessage);
+        registerPendingTempMessage(chatId, tempUserMessage);
+        setBranchSelection(chatId, branchParentId, tempUserId);
         localMessages.push({
           id: tempAssistantId,
           role: 'assistant',
@@ -1106,65 +1426,93 @@ function wireChat(root) {
         const controller = new AbortController();
         activeStreamAbort = () => controller.abort();
 
-        try {
-          const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/branch`, {
-            method: 'POST',
-            body: JSON.stringify({ content: newContent, model: state.activeModelId || undefined }),
-            signal: controller.signal
-          });
+        const runBranchRequest = async (sourceId) => {
+          try {
+            setStreamingState(chatId, true);
+            const res = await apiFetch(`/api/chats/${chatId}/messages/${sourceId}/branch`, {
+              method: 'POST',
+              body: JSON.stringify({ content: newContent, model: state.activeModelId || undefined }),
+              signal: controller.signal
+            });
 
-          if (!res.ok || !res.body) {
-            const err = await res.json().catch(() => ({}));
-            alert(err.error || 'backend api not found');
-            return;
-          }
+            if (!res.ok || !res.body) {
+              const err = await res.json().catch(() => ({}));
+              alert(err.error || 'backend api not found');
+              return;
+            }
 
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          const parser = new SseLineParser();
-          let assistantText = '';
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let assistantMessageId = tempAssistantId;
+            const parser = new SseLineParser((payload) => {
+              if (payload?.event === 'start' && payload?.user_message_id) {
+                replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
+              }
+              if (payload?.event === 'start' && payload?.message_id) {
+                assistantMessageId = String(payload.message_id);
+                replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+              }
+            });
+            let assistantText = '';
 
           const applyAssistantText = () => {
             streamingOverrideByChat.set(chatId, {
-              targetMsgId: tempAssistantId,
+              targetMsgId: assistantMessageId,
               content: assistantText,
             });
             
             const currentMessages = [...(state.messagesByChat[chatId] || [])];
-            const targetIdx = currentMessages.findIndex(m => String(m.id) === String(tempAssistantId));
+            const targetIdx = currentMessages.findIndex(m => String(m.id) === String(assistantMessageId));
             if (targetIdx >= 0) {
               currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
               setState((prev) => ({ 
                 messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
               }));
             }
-            if (state.activeChatId === chatId) drawMessages(currentMessages);
+            if (state.activeChatId === chatId) {
+              updateMessageContentDom(assistantMessageId, assistantText);
+            }
           };
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              assistantText += parser.flush();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                assistantText += parser.flush();
+                applyAssistantText();
+                streamingOverrideByChat.delete(chatId);
+                await loadMessages(chatId, {
+                  draw: state.activeChatId === chatId,
+                  updateActiveModel: state.activeChatId === chatId,
+                });
+                break;
+              }
+              const chunk = decoder.decode(value, { stream: true });
+              assistantText += parser.push(chunk);
               applyAssistantText();
-              streamingOverrideByChat.delete(chatId);
-              await loadMessages(chatId, {
-                draw: state.activeChatId === chatId,
-                updateActiveModel: state.activeChatId === chatId,
-              });
-              break;
             }
-            const chunk = decoder.decode(value, { stream: true });
-            assistantText += parser.push(chunk);
-            applyAssistantText();
+          } catch (e) {
+            if (e?.name !== 'AbortError') {
+              console.error('Branching failed', e);
+              alert('An error occurred while branching the chat.');
+            }
+          } finally {
+            streamingOverrideByChat.delete(chatId);
+            activeStreamAbort = null;
+            setStreamingState(chatId, false);
           }
-        } catch (e) {
-          if (e?.name !== 'AbortError') {
-            console.error('Branching failed', e);
-            alert('An error occurred while branching the chat.');
-          }
-        } finally {
-          streamingOverrideByChat.delete(chatId);
-          activeStreamAbort = null;
+        };
+
+        const sourceId = originalId;
+        if (isTempMessageId(sourceId)) {
+          waitForResolvedMessageId(chatId, sourceId).then((resolved) => {
+            if (!resolved) {
+              showToast('Message still saving. Please wait.');
+              return;
+            }
+            runBranchRequest(resolved);
+          });
+        } else {
+          runBranchRequest(sourceId);
         }
       });
     });
@@ -1173,37 +1521,128 @@ function wireChat(root) {
       btn.addEventListener('click', async () => {
         if (!confirm('Are you sure you want to delete this message and all subsequent messages?')) return;
         
-        const id = btn.getAttribute('data-delete-message');
         const chatId = state.activeChatId;
+        const originalId = btn.getAttribute('data-delete-message');
+        let id = originalId;
         
-        try {
-          const res = await apiFetch(`/api/chats/${chatId}/messages/${id}`, {
-            method: 'DELETE'
-          });
-          
-          if (res.status === 404) {
-            alert('backend api not found');
-            return;
+        const prevMessages = state.messagesByChat[chatId] || [];
+        const prevLeaf = currentLeafByChatId.get(chatId) || null;
+        const prevBranchMap = branchSelectionByChat.get(chatId)
+          ? new Map(branchSelectionByChat.get(chatId))
+          : null;
+
+        const byParent = new Map();
+        prevMessages.forEach((msg) => {
+          const parentKey = msg.parent_id ? String(msg.parent_id) : '__root__';
+          if (!byParent.has(parentKey)) byParent.set(parentKey, []);
+          byParent.get(parentKey).push(String(msg.id));
+        });
+        const idsToDelete = new Set();
+        const stack = [String(id)];
+        while (stack.length) {
+          const current = stack.pop();
+          if (!current || idsToDelete.has(current)) continue;
+          idsToDelete.add(current);
+          const children = byParent.get(String(current)) || [];
+          children.forEach((child) => stack.push(String(child)));
+        }
+
+        const rollbackDelete = () => {
+          if (!prevMessages.length) return;
+          setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: prevMessages } }));
+          if (prevLeaf) currentLeafByChatId.set(chatId, String(prevLeaf));
+          else currentLeafByChatId.delete(chatId);
+          if (prevBranchMap) branchSelectionByChat.set(chatId, prevBranchMap);
+          if (state.activeChatId === chatId) drawMessages(prevMessages);
+        };
+
+        if (idsToDelete.size > 0) {
+          const streamingTarget = streamingOverrideByChat.get(chatId)?.targetMsgId;
+          const streamingId = streamingTarget ? resolveTempMessageId(chatId, streamingTarget) : null;
+          if (streamingId && idsToDelete.has(String(streamingId))) {
+            activeStreamAbort?.();
+            activeStreamAbort = null;
+            streamingOverrideByChat.delete(chatId);
           }
 
-          if (res.ok) {
-            await loadMessages(chatId);
-          } else {
-            const err = await res.json().catch(() => ({}));
-            alert(err.error || 'Failed to delete message');
+          const remaining = prevMessages.filter((msg) => !idsToDelete.has(String(msg.id)));
+          const nextLeaf = remaining.length ? remaining[remaining.length - 1].id : null;
+          if (nextLeaf) currentLeafByChatId.set(chatId, String(nextLeaf));
+          else currentLeafByChatId.delete(chatId);
+
+          if (prevBranchMap) {
+            const nextMap = new Map();
+            for (const [k, v] of prevBranchMap.entries()) {
+              if (idsToDelete.has(String(k)) || idsToDelete.has(String(v))) continue;
+              nextMap.set(k, v);
+            }
+            branchSelectionByChat.set(chatId, nextMap);
           }
-        } catch (e) {
-          console.error('Delete failed', e);
-          alert('An error occurred while deleting the message.');
+
+          setState((prev) => ({
+            messagesByChat: { ...prev.messagesByChat, [chatId]: remaining }
+          }));
+          if (state.activeChatId === chatId) {
+            requestAnimationFrame(() => {
+              drawMessages(remaining);
+            });
+          }
         }
+
+        const runDelete = async (resolvedId) => {
+          try {
+            const res = await apiFetch(`/api/chats/${chatId}/messages/${resolvedId}`, {
+              method: 'DELETE'
+            });
+            
+            if (res.status === 404) {
+              alert('backend api not found');
+              rollbackDelete();
+              return;
+            }
+
+            if (res.ok) {
+              await loadMessages(chatId);
+            } else {
+              const err = await res.json().catch(() => ({}));
+              alert(err.error || 'Failed to delete message');
+              rollbackDelete();
+            }
+          } catch (e) {
+            console.error('Delete failed', e);
+            alert('An error occurred while deleting the message.');
+            rollbackDelete();
+          }
+        };
+
+        if (isTempMessageId(id)) {
+          waitForResolvedMessageId(chatId, id).then((resolved) => {
+            if (!resolved) {
+              showToast('Delete queued while message saves.');
+              return;
+            }
+            runDelete(resolved);
+          });
+          return;
+        }
+
+        runDelete(id);
       });
     });
 
     messagesList.querySelectorAll('[data-retry-message]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-retry-message');
+        let id = btn.getAttribute('data-retry-message');
+        if (isTempMessageId(id)) {
+          const resolved = await waitForResolvedMessageId(state.activeChatId, id);
+          if (!resolved) {
+            showToast('Message still saving. Please wait.');
+            return;
+          }
+          id = resolved;
+        }
         const chatId = state.activeChatId;
-        const sourceMsg = projectedMessages.find(msg => String(msg.id) === String(id));
+        const sourceMsg = getMessageById(chatId, id) || projectedMessages.find(msg => String(msg.id) === String(id));
         if (!sourceMsg) return;
         const branchParentId = sourceMsg.parent_id || null;
 
@@ -1223,6 +1662,7 @@ function wireChat(root) {
         });
 
         currentLeafByChatId.set(chatId, tempAssistantId);
+        setBranchSelection(chatId, branchParentId, tempAssistantId);
         setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
         if (state.activeChatId === chatId) drawMessages(localMessages);
 
@@ -1230,12 +1670,14 @@ function wireChat(root) {
         activeStreamAbort = () => controller.abort();
 
         try {
+          setStreamingState(chatId, true);
           const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/regenerate`, {
             method: 'POST',
             signal: controller.signal
           });
           
           if (!res.ok || !res.body) {
+            setStreamingState(chatId, false);
             const err = await res.json().catch(() => ({}));
             alert(err.error || 'backend api not found');
             return;
@@ -1243,24 +1685,32 @@ function wireChat(root) {
 
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
-          const parser = new SseLineParser();
+          let assistantMessageId = tempAssistantId;
+          const parser = new SseLineParser((payload) => {
+            if (payload?.event === 'start' && payload?.message_id) {
+              assistantMessageId = String(payload.message_id);
+              replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+            }
+          });
           let assistantText = '';
 
           const applyAssistantText = () => {
             streamingOverrideByChat.set(chatId, {
-              targetMsgId: tempAssistantId,
+              targetMsgId: assistantMessageId,
               content: assistantText,
             });
             
             const currentMessages = [...(state.messagesByChat[chatId] || [])];
-            const targetIdx = currentMessages.findIndex(m => String(m.id) === String(tempAssistantId));
+            const targetIdx = currentMessages.findIndex(m => String(m.id) === String(assistantMessageId));
             if (targetIdx >= 0) {
               currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
               setState((prev) => ({ 
                 messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
               }));
             }
-            if (state.activeChatId === chatId) drawMessages(currentMessages);
+            if (state.activeChatId === chatId) {
+              updateMessageContentDom(assistantMessageId, assistantText);
+            }
           };
 
           while (true) {
@@ -1286,6 +1736,7 @@ function wireChat(root) {
         } finally {
           streamingOverrideByChat.delete(chatId);
           activeStreamAbort = null;
+          setStreamingState(chatId, false);
         }
       });
     });
@@ -1325,7 +1776,10 @@ function wireChat(root) {
   async function loadChats() {
     const limit = state.chatsPagination?.offset || state.chatsPagination?.limit || 30;
     const data = await fetchChats({ limit, offset: 0 });
-    const chats = data.chats || [];
+    const serverChats = data.chats || [];
+    const tempChats = state.chats.filter((chat) => isTempChatId(chat?.id));
+    const tempIds = new Set(tempChats.map((chat) => String(chat.id)));
+    const chats = [...tempChats, ...serverChats.filter((chat) => !tempIds.has(String(chat.id)))];
 
     let nextActiveChatId = state.activeChatId;
     if (nextActiveChatId && !chats.some((chat) => chat.id === nextActiveChatId)) {
@@ -1345,10 +1799,16 @@ function wireChat(root) {
   }
 
   async function loadMessages(chatId, options = {}) {
-    const { draw = true, updateActiveModel = draw } = options;
+    const { draw = true, updateActiveModel = draw, modelMode = 'keep' } = options;
     if (!chatId) {
       if (draw) drawMessages([]);
       return;
+    }
+
+    if (draw) {
+      setState({ ui: { loadingChatId: chatId } });
+      const existing = state.messagesByChat[chatId] || [];
+      drawMessages(existing);
     }
 
     const res = await apiFetch(`/api/chats/${chatId}`);
@@ -1366,9 +1826,15 @@ function wireChat(root) {
       messagesByChat: { ...state.messagesByChat, [chatId]: messages },
     };
     if (updateActiveModel) {
-      const preferredModelId = state.defaultModelId || data?.chat?.model || state.activeModelId;
+      let preferredModelId = state.activeModelId;
+      if (modelMode === 'default') {
+        preferredModelId = state.defaultModelId || data?.chat?.model || state.activeModelId;
+      } else if (modelMode === 'chat') {
+        preferredModelId = data?.chat?.model || state.activeModelId || state.defaultModelId;
+      }
       nextState.activeModelId = preferredModelId;
     }
+    nextState.ui = { loadingChatId: null };
     setState(nextState);
 
     if (draw) drawMessages(messages);
@@ -1528,6 +1994,9 @@ function wireChat(root) {
       }
 
       if (eventMessage) {
+        if (isSameSession && eventMessage?.role === 'user') {
+          matchPendingTempMessage(event.chat_id, eventMessage);
+        }
         upsertMessageFromEvent(event.chat_id, eventMessage, { draw: event.chat_id === state.activeChatId });
         return;
       }
@@ -1539,56 +2008,59 @@ function wireChat(root) {
   };
   window.addEventListener('growchat:realtime', onRealtimeEvent);
 
-  async function createChat() {
-    const modelToUse = state.defaultModelId || state.activeModelId;
-    const payload = modelToUse ? { model: modelToUse } : {};
-    const res = await apiFetch('/api/chats', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) return;
-    const data = await res.json();
+  function startNewChat() {
+    const activeTempId = state.activeChatId && isTempChatId(state.activeChatId) ? state.activeChatId : null;
+    if (activeTempId && (state.messagesByChat[activeTempId] || []).length === 0) {
+      setState({ activeChatId: activeTempId, newChatDraft: '' });
+      syncChatUrl(null);
+      drawMessages([]);
+      return;
+    }
 
+    const tempChat = buildTempChat();
     setState((prev) => ({
-      chats: [data.chat, ...prev.chats],
-      activeChatId: data.chat.id,
-      activeModelId: prev.defaultModelId || data.chat.model || prev.activeModelId,
+      chats: [tempChat, ...pruneTempChats(prev.chats)],
+      activeChatId: tempChat.id,
+      activeModelId: prev.defaultModelId || tempChat.model || prev.activeModelId,
+      newChatDraft: '',
     }));
-
-    syncChatUrl(data.chat.id);
-
-    await loadMessages(data.chat.id);
+    syncChatUrl(null);
+    drawMessages([]);
   }
 
   async function sendSingleMessage(text, hooks = {}) {
     let chatId = state.activeChatId;
     let tempChatId = null;
     let autoTitle = null;
+    const isTempChat = chatId && isTempChatId(chatId);
+    const hadMessagesBefore = chatId ? (state.messagesByChat[chatId] || []).length > 0 : false;
 
     if (!chatId) {
-      const modelToUse = state.defaultModelId || state.activeModelId;
-      const nowTs = Math.floor(Date.now() / 1000);
-      tempChatId = `temp-${nowTs}-${Math.random().toString(36).slice(2, 8)}`;
-      const tempChat = {
-        id: tempChatId,
-        title: 'New Chat',
-        model: modelToUse || null,
-        pinned: 0,
-        tags: '[]',
-        created_at: nowTs,
-        updated_at: nowTs,
-      };
+      const tempChat = buildTempChat();
+      tempChatId = tempChat.id;
 
       setState((prev) => ({
-        chats: [tempChat, ...prev.chats],
+        chats: [tempChat, ...pruneTempChats(prev.chats)],
         activeChatId: tempChatId,
         activeModelId: prev.defaultModelId || tempChat.model || prev.activeModelId,
       }));
 
       chatId = tempChatId;
+    } else if (isTempChat) {
+      tempChatId = chatId;
+      const exists = state.chats.some((chat) => String(chat.id) === String(chatId));
+      if (!exists) {
+        const tempChat = buildTempChat(chatId);
+        setState((prev) => ({
+          chats: [tempChat, ...pruneTempChats(prev.chats)],
+          activeChatId: chatId,
+          activeModelId: prev.defaultModelId || tempChat.model || prev.activeModelId,
+        }));
+      }
+    }
 
+    if (tempChatId) {
       const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
-      const hadMessagesBefore = (state.messagesByChat[chatId] || []).length > 0;
       if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
         const snippet = String(text).trim().replace(/\s+/g, ' ').slice(0, 60);
         if (snippet) {
@@ -1603,7 +2075,7 @@ function wireChat(root) {
     const tempAssistantId = `temp-assistant-${Date.now()}`;
     const nowTs = Math.floor(Date.now() / 1000);
     let localMessages = [...(state.messagesByChat[chatId] || [])];
-    localMessages.push({
+    const tempUserMessage = {
       id: tempUserId,
       role: 'user',
       content: text,
@@ -1611,7 +2083,10 @@ function wireChat(root) {
       parent_id: branchParentId,
       created_at: nowTs,
       done: true,
-    });
+    };
+    localMessages.push(tempUserMessage);
+    registerPendingTempMessage(chatId, tempUserMessage);
+    setBranchSelection(chatId, branchParentId, tempUserId);
     localMessages.push({
       id: tempAssistantId,
       role: 'assistant',
@@ -1713,7 +2188,6 @@ function wireChat(root) {
 
     if (!autoTitle) {
       const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
-      const hadMessagesBefore = (state.messagesByChat[chatId] || []).length > 0;
       if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
         const snippet = String(text).trim().replace(/\s+/g, ' ').slice(0, 60);
         if (snippet) {
@@ -1734,6 +2208,7 @@ function wireChat(root) {
     hooks.onAbortable?.(activeStreamAbort);
 
     let res;
+    setStreamingState(chatId, true);
     try {
       res = await apiFetch(`/api/chats/${chatId}/messages`, {
         method: 'POST',
@@ -1741,6 +2216,7 @@ function wireChat(root) {
         signal: controller.signal,
       });
     } catch (err) {
+      setStreamingState(chatId, false);
       const isAbort = err?.name === 'AbortError';
       if (localMessages.length > 0) {
         localMessages[localMessages.length - 1].done = true;
@@ -1752,6 +2228,7 @@ function wireChat(root) {
     }
 
     if (!res.ok || !res.body) {
+      setStreamingState(chatId, false);
       if (localMessages.length > 0) {
         localMessages[localMessages.length - 1].done = true;
         localMessages[localMessages.length - 1].content = 'Failed to connect to the server.';
@@ -1763,20 +2240,29 @@ function wireChat(root) {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    const parser = new SseLineParser();
+    let assistantMessageId = tempAssistantId;
+    const parser = new SseLineParser((payload) => {
+      if (payload?.event === 'start' && payload?.user_message_id) {
+        replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
+      }
+      if (payload?.event === 'start' && payload?.message_id) {
+        assistantMessageId = String(payload.message_id);
+        replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+      }
+    });
     let assistantText = '';
 
     const applyAssistantText = () => {
       // 1. Update streaming override for immediate projection rendering
       streamingOverrideByChat.set(chatId, {
-        targetMsgId: tempAssistantId,
+        targetMsgId: assistantMessageId,
         content: assistantText,
       });
 
       // 2. ALSO update global state so drawMessages(messagesByChat[chatId]) sees the new content
       // and keeps other messages visible.
       const currentMessages = [...(state.messagesByChat[chatId] || [])];
-      const targetIdx = currentMessages.findIndex(m => String(m.id) === String(tempAssistantId));
+      const targetIdx = currentMessages.findIndex(m => String(m.id) === String(assistantMessageId));
       if (targetIdx >= 0) {
         currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
         setState((prev) => ({ 
@@ -1784,7 +2270,9 @@ function wireChat(root) {
         }));
       }
 
-      if (state.activeChatId === chatId) drawMessages(currentMessages);
+      if (state.activeChatId === chatId) {
+        updateMessageContentDom(assistantMessageId, assistantText);
+      }
     };
 
     try {
@@ -1811,6 +2299,7 @@ function wireChat(root) {
     } finally {
       streamingOverrideByChat.delete(chatId);
       activeStreamAbort = null;
+      setStreamingState(chatId, false);
       hooks.onFinished?.();
     }
   }
@@ -1841,7 +2330,13 @@ function wireChat(root) {
     await ensureSearchModal();
     setState({ showSearch: true });
   };
-  const onNewChat = () => createChat();
+  const onNewChat = () => startNewChat();
+  const onHome = () => {
+    window.history.pushState({}, '', '/');
+    setState({ activeChatId: null });
+    syncChatUrl(null);
+    drawMessages([]);
+  };
   const onOpenArchivedEvent = () => openArchivedModal();
   const onPopState = async () => {
     const match = window.location.pathname.match(/^\/c\/([^/]+)$/);
@@ -1860,9 +2355,10 @@ function wireChat(root) {
     }
 
     setState({ activeChatId: routeChatId });
-    await loadMessages(routeChatId);
+    await loadMessages(routeChatId, { modelMode: 'default' });
   };
 
+  sidebarHomeBtn?.addEventListener('click', onHome);
   toggleSidebarMobile.addEventListener('click', onToggleSidebar);
   toggleSidebarDesktop.addEventListener('click', onToggleSidebar);
   openSearchBtn.addEventListener('click', onOpenSearch);
@@ -1921,7 +2417,7 @@ function wireChat(root) {
       }
     }
 
-    headerMenuBtn.disabled = !currentState.activeChatId;
+    headerMenuBtn.disabled = !currentState.activeChatId || isTempChatId(currentState.activeChatId);
     drawChats(currentState.chats, currentState.activeChatId);
     refreshChatListObserver();
   });
@@ -1944,7 +2440,7 @@ function wireChat(root) {
   });
 
   if (state.activeChatId) {
-    loadMessages(state.activeChatId).finally(() => {
+    loadMessages(state.activeChatId, { modelMode: 'default' }).finally(() => {
       drawChats(state.chats, state.activeChatId);
       refreshChatListObserver();
     });
@@ -1960,6 +2456,7 @@ function wireChat(root) {
     destroySidebar?.();
     inputComponent?.destroy?.();
     destroyPlaceholder?.();
+    sidebarHomeBtn?.removeEventListener('click', onHome);
     toggleSidebarMobile.removeEventListener('click', onToggleSidebar);
     toggleSidebarDesktop.removeEventListener('click', onToggleSidebar);
     openSearchBtn.removeEventListener('click', onOpenSearch);

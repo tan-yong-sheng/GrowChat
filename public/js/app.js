@@ -8,6 +8,7 @@ const INITIAL_CHAT_LIMIT = 30;
 
 async function renderAdminRoute(container) {
   const { renderAdminPage } = await import('./admin.js');
+  container.dataset.view = 'admin';
   return renderAdminPage(container);
 }
 
@@ -142,6 +143,70 @@ function renderSharedChatPage(container, data) {
   `;
 }
 
+function renderAdminSkeleton(container) {
+  container.innerHTML = `
+    <div class="min-h-screen bg-[#fafafa] text-gray-900">
+      <div class="max-w-6xl mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
+          <div class="bg-white border border-gray-100 rounded-2xl p-4 animate-pulse">
+            <div class="h-4 w-28 bg-gray-200 rounded mb-4"></div>
+            <div class="space-y-3">
+              <div class="h-3 w-32 bg-gray-200 rounded"></div>
+              <div class="h-3 w-36 bg-gray-200 rounded"></div>
+              <div class="h-3 w-24 bg-gray-200 rounded"></div>
+            </div>
+            <div class="mt-6 h-3 w-20 bg-gray-200 rounded"></div>
+          </div>
+          <div class="bg-white border border-gray-100 rounded-2xl p-6 animate-pulse">
+            <div class="h-5 w-44 bg-gray-200 rounded mb-4"></div>
+            <div class="space-y-3">
+              <div class="h-3 w-full bg-gray-200 rounded"></div>
+              <div class="h-3 w-11/12 bg-gray-200 rounded"></div>
+              <div class="h-3 w-10/12 bg-gray-200 rounded"></div>
+            </div>
+            <div class="mt-6 h-3 w-32 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderChatSkeleton(container) {
+  container.innerHTML = `
+    <div class="h-full w-full bg-white overflow-hidden">
+      <div class="flex h-full">
+        <aside class="hidden md:flex w-[260px] flex-shrink-0 border-r border-gray-100 bg-[#f9f9f9] p-4">
+          <div class="w-full space-y-4 animate-pulse">
+            <div class="h-6 w-32 bg-gray-200 rounded"></div>
+            <div class="h-10 w-full bg-gray-200 rounded-xl"></div>
+            <div class="h-10 w-full bg-gray-200 rounded-xl"></div>
+            <div class="mt-6 space-y-2">
+              <div class="h-3 w-20 bg-gray-200 rounded"></div>
+              <div class="h-8 w-full bg-gray-200 rounded-lg"></div>
+              <div class="h-8 w-full bg-gray-200 rounded-lg"></div>
+              <div class="h-8 w-full bg-gray-200 rounded-lg"></div>
+            </div>
+          </div>
+        </aside>
+        <main class="flex-1 flex flex-col min-w-0">
+          <div class="h-[58px] border-b border-gray-100 bg-white/95 flex items-center px-4">
+            <div class="h-6 w-40 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <div class="flex-1 p-6">
+            <div class="max-w-3xl space-y-4 animate-pulse">
+              <div class="h-4 w-64 bg-gray-200 rounded"></div>
+              <div class="h-24 w-full bg-gray-200 rounded-2xl"></div>
+              <div class="h-24 w-11/12 bg-gray-200 rounded-2xl"></div>
+              <div class="h-24 w-10/12 bg-gray-200 rounded-2xl"></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  `;
+}
+
 function getChatIdFromPath(pathname) {
   const match = pathname.match(/^\/c\/([^/]+)$/);
   return match ? decodeURIComponent(match[1]) : null;
@@ -181,9 +246,11 @@ async function ensureSession() {
   const modelParam = urlParams.get('model');
   const isHomeRoute = path === '/' || path === '';
 
+  const cachedDefaultModelId = localStorage.getItem('defaultModelId');
+  const serverDefaultModelId = user.preferences?.defaultModelId || null;
   const initialModelId = modelParam ||
-    user.preferences?.defaultModelId ||
-    localStorage.getItem('defaultModelId') ||
+    serverDefaultModelId ||
+    cachedDefaultModelId ||
     chatsData.chats?.[0]?.model ||
     null;
 
@@ -202,8 +269,11 @@ async function ensureSession() {
     messagesByChat: {},
     models: [],
     activeModelId: initialModelId,
-    defaultModelId: user.preferences?.defaultModelId || localStorage.getItem('defaultModelId'),
+    defaultModelId: serverDefaultModelId || cachedDefaultModelId || null,
   });
+  if (serverDefaultModelId && serverDefaultModelId !== cachedDefaultModelId) {
+    localStorage.setItem('defaultModelId', serverDefaultModelId);
+  }
 
   bootstrapped = true;
   scheduleDeferredBootstrap(user, { permissions: meData.permissions, roles: meData.roles });
@@ -226,6 +296,10 @@ export async function renderCurrentRoute() {
     return;
   }
 
+  if (!path.startsWith('/admin') && !sharedMatch && (!bootstrapped || app.dataset.view === 'admin')) {
+    renderChatSkeleton(app);
+  }
+
   const ok = await ensureSession();
   if (!ok) return;
 
@@ -243,6 +317,7 @@ export async function renderCurrentRoute() {
 
   const renderChat = await ensureRenderChat();
   renderChat(app);
+  app.dataset.view = 'chat';
 
   const urlParams = new URLSearchParams(window.location.search);
   const q = urlParams.get('q');

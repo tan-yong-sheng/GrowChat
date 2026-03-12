@@ -2,6 +2,7 @@ import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { hashPassword, signJWT, verifyPassword } from '../auth.js';
 import { createRefreshToken, consumeRefreshToken, revokeRefreshToken } from '../session.js';
+import { getConfigBool, setConfigValue } from '../utils/app-config.js';
 
 async function ensureUserRoleBinding(db, userId, role) {
   if (!userId || !role || role === 'inactive') return;
@@ -85,6 +86,13 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
+    const hasUsersRow = await db.first('SELECT COUNT(*) as count FROM users');
+    const hasUsers = (hasUsersRow?.count || 0) > 0;
+    const publicRegistrationEnabled = await getConfigBool(db, 'public_registration', true);
+    if (!publicRegistrationEnabled && hasUsers) {
+      return error(req, 'Public registration is disabled', 403);
+    }
+
     const email = String(body.email || '').trim().toLowerCase();
     const name = String(body.name || '').trim();
     const password = String(body.password || '');
@@ -111,6 +119,8 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const finalRole = (countRow?.count || 0) === 1 ? 'admin' : 'user';
     if (finalRole === 'admin') {
       await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['admin', id]);
+      // Disable public registration after first admin is created.
+      await setConfigValue(db, 'public_registration', 'false');
     }
     await ensureUserRoleBinding(db, id, finalRole);
 
