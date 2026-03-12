@@ -6,7 +6,8 @@
 	"scripts": {
 		"build:css": "npx tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
 		"deploy": "npm run build:css && wrangler deploy",
-		"dev": "npm run build:css && wrangler dev",
+		"dev": "npm run build:css && wrangler dev --ip 0.0.0.0",
+		"dev:remote": "npm run build:css && wrangler dev --remote --ip 0.0.0.0",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
