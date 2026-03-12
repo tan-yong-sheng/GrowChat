@@ -32,6 +32,68 @@ export function renderIntegrationsSettings(container, data) {
     return buildSnapshot() !== integrationsState.originalSnapshot;
   };
 
+  const updateButtons = () => {
+    const dirty = hasChanges();
+    const dirtyBadge = container.querySelector('#integrations-dirty');
+    const saveBtn = container.querySelector('#save-integrations');
+    if (dirtyBadge) {
+      dirtyBadge.classList.toggle('invisible', !dirty);
+    }
+    if (saveBtn) {
+      const disabled = !dirty || integrationsState.saving;
+      saveBtn.disabled = disabled;
+      saveBtn.classList.toggle('bg-gray-200', disabled);
+      saveBtn.classList.toggle('text-gray-400', disabled);
+      saveBtn.classList.toggle('cursor-not-allowed', disabled);
+      saveBtn.classList.toggle('bg-black', !disabled);
+      saveBtn.classList.toggle('text-white', !disabled);
+      saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
+      saveBtn.textContent = integrationsState.saving ? 'Saving...' : 'Save';
+    }
+  };
+
+  const updateServerToggle = (btn, enabled) => {
+    if (!btn) return;
+    btn.classList.toggle('bg-black', enabled);
+    btn.classList.toggle('bg-gray-200', !enabled);
+    const knob = btn.querySelector('span');
+    if (knob) {
+      knob.classList.toggle('translate-x-4', enabled);
+      knob.classList.toggle('translate-x-0', !enabled);
+    }
+  };
+
+  const getToolServersMarkup = () => {
+    if (integrationsState.toolServers.length === 0) {
+      return '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
+    }
+    return integrationsState.toolServers.map(server => `
+      <div class="py-2.5 flex items-center justify-between pr-2 border-b border-gray-50 last:border-0">
+        <div class="flex flex-col">
+          <div class="text-xs font-medium text-gray-900">${server.name}</div>
+          <div class="text-[10px] text-gray-400 font-mono">${server.url}</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button data-id="${server.id}" class="edit-server-btn p-1 text-gray-400 hover:text-gray-600 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+          </button>
+          <button data-id="${server.id}" class="server-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${server.enabled ? 'bg-black' : 'bg-gray-200'}">
+            <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${server.enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  };
+
+  const renderToolServersList = () => {
+    const list = container.querySelector('#tool-servers-list');
+    if (!list) return;
+    list.innerHTML = getToolServersMarkup();
+  };
+
   const render = () => {
     if (!isActiveTab()) return;
     const dirty = hasChanges();
@@ -59,27 +121,7 @@ export function renderIntegrationsSettings(container, data) {
               <hr class="border-gray-100/30 my-2" />
               
               <div id="tool-servers-list" class="space-y-2">
-                ${integrationsState.toolServers.length === 0 ? `
-                  <div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>
-                ` : integrationsState.toolServers.map(server => `
-                  <div class="py-2.5 flex items-center justify-between pr-2 border-b border-gray-50 last:border-0">
-                    <div class="flex flex-col">
-                      <div class="text-xs font-medium text-gray-900">${server.name}</div>
-                      <div class="text-[10px] text-gray-400 font-mono">${server.url}</div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                      <button data-id="${server.id}" class="edit-server-btn p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                        </svg>
-                      </button>
-                      <button data-id="${server.id}" class="server-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${server.enabled ? 'bg-black' : 'bg-gray-200'}">
-                        <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${server.enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
-                      </button>
-                    </div>
-                  </div>
-                `).join('')}
+                ${getToolServersMarkup()}
               </div>
             </section>
 
@@ -87,9 +129,9 @@ export function renderIntegrationsSettings(container, data) {
           </div>
         </div>
 
-        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white">
-          ${dirty ? '<div class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full">Unsaved changes</div>' : '<div></div>'}
-          <button id="save-integrations" class="px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || integrationsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || integrationsState.saving) ? 'disabled' : ''}>
+        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
+          <div id="integrations-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
+          <button id="save-integrations" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || integrationsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || integrationsState.saving) ? 'disabled' : ''}>
             ${integrationsState.saving ? 'Saving...' : 'Save'}
           </button>
         </div>
@@ -100,7 +142,7 @@ export function renderIntegrationsSettings(container, data) {
         <div class="fixed inset-0 bg-black/20 backdrop-blur-sm"></div>
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center">
-            <h3 class="text-lg font-medium text-gray-900">${integrationsState.selectedServer ? 'Edit Server' : 'Add Server'}</h3>
+            <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${integrationsState.selectedServer ? 'Edit Server' : 'Add Server'}</h3>
             <button id="close-modal" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -162,36 +204,69 @@ export function renderIntegrationsSettings(container, data) {
     bindEvents();
   };
 
+  const fillModalFields = (server) => {
+    const nameInput = container.querySelector('#server-name');
+    const urlInput = container.querySelector('#server-url');
+    const keyInput = container.querySelector('#server-key');
+    const headersInput = container.querySelector('#server-headers');
+    if (nameInput) nameInput.value = server?.name || '';
+    if (urlInput) urlInput.value = server?.url || '';
+    if (keyInput) keyInput.value = server?.key || '';
+    if (headersInput) headersInput.value = server?.headers || '';
+    const title = container.querySelector('#server-modal-title');
+    if (title) title.textContent = server ? 'Edit Server' : 'Add Server';
+    const deleteBtn = container.querySelector('#delete-server');
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', !server);
+  };
+
+  const openModal = (server) => {
+    integrationsState.selectedServer = server ? { ...server } : null;
+    integrationsState.showModal = true;
+    const modal = container.querySelector('#edit-connection-modal');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('fixed');
+    }
+    fillModalFields(integrationsState.selectedServer);
+  };
+
+  const closeModal = () => {
+    integrationsState.showModal = false;
+    const modal = container.querySelector('#edit-connection-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('fixed');
+    }
+  };
+
   const bindEvents = () => {
     container.querySelector('#add-tool-server')?.addEventListener('click', () => {
-      integrationsState.selectedServer = null;
-      integrationsState.showModal = true;
-      render();
+      openModal(null);
     });
 
-    container.querySelectorAll('.edit-server-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.id;
-        integrationsState.selectedServer = { ...integrationsState.toolServers.find(s => s.id === id) };
-        integrationsState.showModal = true;
-        render();
-      });
-    });
-
-    container.querySelectorAll('.server-toggle').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.id;
+    const list = container.querySelector('#tool-servers-list');
+    list?.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.server-toggle');
+      if (toggle) {
+        const id = toggle.dataset.id;
         const server = integrationsState.toolServers.find(s => s.id === id);
         if (server) {
           server.enabled = !server.enabled;
-          render();
+          updateServerToggle(toggle, server.enabled);
+          updateButtons();
         }
-      });
+        return;
+      }
+      const editBtn = e.target.closest('.edit-server-btn');
+      if (editBtn) {
+        const id = editBtn.dataset.id;
+        const server = integrationsState.toolServers.find(s => s.id === id);
+        openModal(server || null);
+      }
     });
 
     container.querySelector('#close-modal')?.addEventListener('click', () => {
-      integrationsState.showModal = false;
-      render();
+      closeModal();
     });
 
     container.querySelector('#save-modal')?.addEventListener('click', () => {
@@ -222,15 +297,16 @@ export function renderIntegrationsSettings(container, data) {
         });
       }
 
-      integrationsState.showModal = false;
-      render();
+      closeModal();
+      renderToolServersList();
+      updateButtons();
     });
 
     container.querySelector('#save-integrations')?.addEventListener('click', async () => {
       if (integrationsState.saving) return;
       const feedback = container.querySelector('#integrations-feedback');
       integrationsState.saving = true;
-      render();
+      updateButtons();
       try {
         const sanitized = integrationsState.toolServers.map((server) => ({
           id: server.id || '',
@@ -266,7 +342,7 @@ export function renderIntegrationsSettings(container, data) {
         }
       } finally {
         integrationsState.saving = false;
-        render();
+        updateButtons();
       }
     });
 
@@ -274,8 +350,9 @@ export function renderIntegrationsSettings(container, data) {
       if (integrationsState.selectedServer) {
         integrationsState.toolServers = integrationsState.toolServers.filter(s => s.id !== integrationsState.selectedServer.id);
         integrationsState.selectedServer = null;
-        integrationsState.showModal = false;
-        render();
+        closeModal();
+        renderToolServersList();
+        updateButtons();
       }
     });
 

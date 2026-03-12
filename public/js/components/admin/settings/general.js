@@ -36,6 +36,21 @@ export function renderGeneralSettings(container, data) {
     return JSON.stringify(settingsState.initialValues) !== JSON.stringify(settingsState.currentValues);
   };
 
+  const updatePublicRegToggle = () => {
+    const regToggle = container.querySelector('#public-reg-toggle');
+    if (!regToggle) return;
+    const isPublicRegOn = Boolean(settingsState.currentValues.publicRegistration);
+    regToggle.setAttribute('aria-pressed', String(isPublicRegOn));
+    regToggle.classList.toggle('bg-black', isPublicRegOn);
+    regToggle.classList.toggle('bg-gray-200', !isPublicRegOn);
+    const knob = regToggle.querySelector('span');
+    if (knob) {
+      knob.style.transform = isPublicRegOn ? 'translateX(16px)' : 'translateX(0px)';
+    }
+    const status = container.querySelector('#public-reg-status');
+    if (status) status.textContent = isPublicRegOn ? 'On' : 'Off';
+  };
+
   const render = () => {
     if (!isActiveTab()) return;
     const dirty = isDirty();
@@ -65,7 +80,10 @@ export function renderGeneralSettings(container, data) {
               </div>
 
               <div class="py-2.5 flex items-center justify-between pr-2">
-                <div class="text-xs font-medium">Public Registration</div>
+                <div class="flex flex-col">
+                  <div class="text-xs font-medium">Public Registration</div>
+                  <div id="public-reg-status" class="text-[10px] text-gray-400">${isPublicRegOn ? 'On' : 'Off'}</div>
+                </div>
                 <button id="public-reg-toggle" aria-pressed="${isPublicRegOn}" class="relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isPublicRegOn ? 'bg-black' : 'bg-gray-200'}">
                   <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${knobTranslate};"></span>
                 </button>
@@ -79,11 +97,12 @@ export function renderGeneralSettings(container, data) {
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">Default Model</div>
                 <div class="relative">
-                  <select id="default-model" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 appearance-none pr-8">
+                  <select id="default-model" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 appearance-none pr-8 transition">
                     <option value="">Select a model</option>
                     ${settingsState.models.map((m) => `<option value="${m.id}" ${settingsState.currentValues.defaultModelId === m.id ? 'selected' : ''}>${m.name || m.id}</option>`).join('')}
                   </select>
                 </div>
+                <div id="default-model-hint" class="text-[10px] text-amber-600 mt-1 hidden">Unsaved change</div>
               </div>
             </section>
 
@@ -91,9 +110,9 @@ export function renderGeneralSettings(container, data) {
           </div>
         </div>
 
-        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white">
-          ${dirty ? '<div class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full">Unsaved changes</div>' : '<div></div>'}
-          <button id="save-settings" class="px-5 py-1.5 text-sm font-medium transition rounded-full ${!dirty || settingsState.loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${!dirty || settingsState.loading ? 'disabled' : ''}>
+        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
+          <div id="settings-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
+          <button id="save-settings" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${!dirty || settingsState.loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${!dirty || settingsState.loading ? 'disabled' : ''}>
             ${settingsState.loading ? 'Saving...' : 'Save'}
           </button>
         </div>
@@ -112,21 +131,19 @@ export function renderGeneralSettings(container, data) {
     regToggle?.addEventListener('click', () => {
       settingsState.currentValues.publicRegistration = !settingsState.currentValues.publicRegistration;
       settingsState.dirtyFields.publicRegistration = true;
-      render();
+      updatePublicRegToggle();
+      updateButtons();
     });
 
     modelSelect?.addEventListener('change', (e) => {
       settingsState.currentValues.defaultModelId = e.target.value;
       settingsState.dirtyFields.defaultModelId = true;
-      render();
+      updateButtons();
     });
 
     saveBtn?.addEventListener('click', async () => {
       settingsState.loading = true;
-      if (saveBtn) {
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving...';
-      }
+      updateButtons();
       await new Promise((resolve) => requestAnimationFrame(resolve));
 
       const nextDefault = settingsState.currentValues.defaultModelId || '';
@@ -170,6 +187,7 @@ export function renderGeneralSettings(container, data) {
           settingsState.dirtyFields.defaultModelId = false;
           localStorage.setItem('defaultModelId', nextDefault);
           setState({ defaultModelId: nextDefault });
+          updateButtons();
         }
 
         settingsState.loading = false;
@@ -187,7 +205,7 @@ export function renderGeneralSettings(container, data) {
           feedback.classList.remove('hidden');
           setTimeout(() => feedback.classList.add('hidden'), 3000);
         }
-        render();
+        updateButtons();
       } catch (err) {
         settingsState.loading = false;
         if (feedback) {
@@ -196,16 +214,37 @@ export function renderGeneralSettings(container, data) {
           feedback.classList.remove('hidden');
           setTimeout(() => feedback.classList.add('hidden'), 3000);
         }
-        render();
+        updateButtons();
       }
     });
   };
 
   const updateButtons = () => {
     const dirty = isDirty();
+    const dirtyBadge = container.querySelector('#settings-dirty');
     const saveBtn = container.querySelector('#save-settings');
+    const modelSelect = container.querySelector('#default-model');
+    const modelHint = container.querySelector('#default-model-hint');
+    const modelDirty = settingsState.currentValues.defaultModelId !== settingsState.initialValues.defaultModelId;
+    if (dirtyBadge) {
+      dirtyBadge.classList.toggle('invisible', !dirty);
+    }
+    if (modelSelect) {
+      modelSelect.classList.toggle('bg-amber-50', modelDirty);
+      modelSelect.classList.toggle('text-amber-700', modelDirty);
+    }
+    if (modelHint) {
+      modelHint.classList.toggle('hidden', !modelDirty);
+    }
     if (saveBtn) {
       saveBtn.disabled = !dirty || settingsState.loading;
+      saveBtn.classList.toggle('bg-gray-200', !dirty || settingsState.loading);
+      saveBtn.classList.toggle('text-gray-400', !dirty || settingsState.loading);
+      saveBtn.classList.toggle('cursor-not-allowed', !dirty || settingsState.loading);
+      saveBtn.classList.toggle('bg-black', dirty && !settingsState.loading);
+      saveBtn.classList.toggle('text-white', dirty && !settingsState.loading);
+      saveBtn.classList.toggle('hover:bg-gray-900', dirty && !settingsState.loading);
+      saveBtn.textContent = settingsState.loading ? 'Saving...' : 'Save';
     }
   };
 

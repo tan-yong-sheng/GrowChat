@@ -35,6 +35,37 @@ export function renderModelsSettings(container, data) {
     return false;
   };
 
+  const updateButtons = () => {
+    const dirty = hasChanges();
+    const dirtyBadge = container.querySelector('#models-dirty');
+    const saveBtn = container.querySelector('#save-models-top');
+    if (dirtyBadge) {
+      dirtyBadge.classList.toggle('invisible', !dirty);
+    }
+    if (saveBtn) {
+      const disabled = !dirty || modelsState.saving;
+      saveBtn.disabled = disabled;
+      saveBtn.classList.toggle('bg-gray-200', disabled);
+      saveBtn.classList.toggle('text-gray-400', disabled);
+      saveBtn.classList.toggle('cursor-not-allowed', disabled);
+      saveBtn.classList.toggle('bg-black', !disabled);
+      saveBtn.classList.toggle('text-white', !disabled);
+      saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
+      saveBtn.textContent = modelsState.saving ? 'Saving...' : 'Save';
+    }
+  };
+
+  const updateModelToggle = (btn, enabled) => {
+    if (!btn) return;
+    btn.classList.toggle('bg-black', enabled);
+    btn.classList.toggle('bg-gray-200', !enabled);
+    const knob = btn.querySelector('span');
+    if (knob) {
+      knob.classList.toggle('translate-x-4', enabled);
+      knob.classList.toggle('translate-x-0', !enabled);
+    }
+  };
+
   const render = () => {
     if (!isActiveTab()) return;
     const dirty = hasChanges();
@@ -135,9 +166,9 @@ export function renderModelsSettings(container, data) {
           <div id="models-feedback" class="hidden mt-2 rounded-xl border px-4 py-3 text-sm"></div>
         </div>
 
-        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white">
-          ${dirty ? '<div class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full">Unsaved changes</div>' : '<div></div>'}
-          <button id="save-models-top" class="px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || modelsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || modelsState.saving) ? 'disabled' : ''}>
+        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
+          <div id="models-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
+          <button id="save-models-top" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || modelsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || modelsState.saving) ? 'disabled' : ''}>
             ${modelsState.saving ? 'Saving...' : 'Save'}
           </button>
         </div>
@@ -150,12 +181,17 @@ export function renderModelsSettings(container, data) {
   const bindEvents = () => {
     const searchInput = container.querySelector('#model-search-input');
     if (searchInput) {
+      let searchDebounce = null;
       searchInput.oninput = (e) => {
-        modelsState.query = e.target.value;
-        render();
-        const input = container.querySelector('#model-search-input');
-        input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
+        const nextValue = e.target.value;
+        if (searchDebounce) clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+          modelsState.query = nextValue;
+          render();
+          const input = container.querySelector('#model-search-input');
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }, 120);
       };
     }
 
@@ -164,10 +200,12 @@ export function renderModelsSettings(container, data) {
         const modelId = btn.dataset.modelId;
         if (modelsState.disabledModels.has(modelId)) {
           modelsState.disabledModels.delete(modelId);
+          updateModelToggle(btn, true);
         } else {
           modelsState.disabledModels.add(modelId);
+          updateModelToggle(btn, false);
         }
-        render();
+        updateButtons();
       };
     });
 
@@ -204,7 +242,7 @@ export function renderModelsSettings(container, data) {
       }
 
       modelsState.saving = true;
-      render();
+      updateButtons();
       try {
         const res = await apiFetch('/api/admin/models', {
           method: 'PUT',
@@ -233,7 +271,7 @@ export function renderModelsSettings(container, data) {
         }
       } finally {
         modelsState.saving = false;
-        render();
+        updateButtons();
       }
     });
   };
