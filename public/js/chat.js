@@ -657,7 +657,7 @@ function wireChat(root) {
   const pruneTempChats = (list) => (Array.isArray(list) ? list.filter((c) => !isTempChatId(c?.id)) : []);
   const buildTempChat = (id = null) => {
     const nowTs = Math.floor(Date.now() / 1000);
-    const modelToUse = state.defaultModelId || state.activeModelId;
+    const modelToUse = state.activeModelId || state.defaultModelId;
     const tempChatId = id || `temp-${nowTs}-${Math.random().toString(36).slice(2, 8)}`;
     return {
       id: tempChatId,
@@ -1009,11 +1009,29 @@ function wireChat(root) {
     chatListLoadObserver.observe(sentinel);
   }
 
-  function updateMessageContentDom(messageId, content) {
+  function renderAssistantContent(content, isError) {
+    const rendered = renderMessageContent(content);
+    if (!isError) return rendered;
+    return `<div class="rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-sans">${rendered}</div>`;
+  }
+
+  function formatModelDisplayName(modelId) {
+    const raw = String(modelId || '').trim();
+    if (!raw) return 'Assistant';
+    const idx = raw.indexOf(':');
+    if (idx > 0) return raw.slice(idx + 1);
+    return raw;
+  }
+
+  function updateMessageContentDom(messageId, content, isError = false) {
     if (!messageId) return false;
     const el = messagesList.querySelector(`[data-message-content="${messageId}"]`);
     if (!el) return false;
-    el.innerHTML = renderMessageContent(content);
+    const forceError = isError || el.dataset.messageError === '1';
+    if (forceError) {
+      el.dataset.messageError = '1';
+    }
+    el.innerHTML = renderAssistantContent(content, forceError);
     return true;
   }
 
@@ -1090,7 +1108,7 @@ function wireChat(root) {
       const isEditing = msgId in editingMessages;
       const editingContent = editingMessages[msgId];
       const model = (state.models || []).find(mod => mod.id === m.model);
-      const modelName = model?.name || m.model || 'Assistant';
+      const modelName = model?.name || formatModelDisplayName(m.model) || 'Assistant';
       const rounds = roundsByMessageId.get(String(msgId));
       const roundsHtml = rounds && rounds.total > 1 ? `
         <div class="flex items-center gap-1 text-gray-400 ml-1">
@@ -1166,6 +1184,7 @@ function wireChat(root) {
       }
 
       const citations = normalizeCitations(m.citations);
+      const isError = m.status === 'error' || Boolean(m.error_message);
       const citationHtml = citations.length
         ? `<div class="mt-3 flex flex-wrap gap-2">${citations.map((id) => `<button data-citation-id="${escapeHtml(id)}" class="text-xs px-2 py-1 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-100">Source: ${escapeHtml(id.slice(0, 8))}</button>`).join('')}</div>`
         : '';
@@ -1178,8 +1197,8 @@ function wireChat(root) {
           </div>
           <div class="flex-grow min-w-0 flex flex-col">
              <div class="font-bold text-sm mb-1 text-gray-800 font-primary">${escapeHtml(modelName)}</div>
-             <div class="text-[15px] leading-[1.6] text-gray-800 prose prose-p:my-1 prose-pre:my-2 prose-headings:font-semibold max-w-none break-words font-sans" data-message-content="${msgId}">
-                ${renderMessageContent(displayContent)}
+             <div class="text-[15px] leading-[1.6] text-gray-800 prose prose-p:my-1 prose-pre:my-2 prose-headings:font-semibold max-w-none break-words font-sans" data-message-content="${msgId}" ${isError ? 'data-message-error="1"' : ''}>
+                ${renderAssistantContent(displayContent, isError)}
              </div>
              ${citationHtml}
              <div class="flex items-center gap-1 mt-3 -ml-2 text-gray-400">
@@ -1444,15 +1463,24 @@ function wireChat(root) {
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let assistantMessageId = tempAssistantId;
-            const parser = new SseLineParser((payload) => {
-              if (payload?.event === 'start' && payload?.user_message_id) {
-                replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
-              }
-              if (payload?.event === 'start' && payload?.message_id) {
-                assistantMessageId = String(payload.message_id);
-                replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
-              }
-            });
+          let errorMessage = null;
+          let errorActive = false;
+          const parser = new SseLineParser((payload) => {
+            if (payload?.event === 'start' && payload?.user_message_id) {
+              replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
+            }
+            if (payload?.event === 'start' && payload?.message_id) {
+              assistantMessageId = String(payload.message_id);
+              replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+            }
+            if (payload?.error) {
+              errorMessage = payload.message || payload.error || 'LLM request failed';
+              errorActive = true;
+              const label = `Error: ${errorMessage}`;
+              assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
+              applyAssistantText();
+            }
+          });
             let assistantText = '';
 
           const applyAssistantText = () => {
@@ -1464,13 +1492,18 @@ function wireChat(root) {
             const currentMessages = [...(state.messagesByChat[chatId] || [])];
             const targetIdx = currentMessages.findIndex(m => String(m.id) === String(assistantMessageId));
             if (targetIdx >= 0) {
-              currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
+              currentMessages[targetIdx] = { 
+                ...currentMessages[targetIdx], 
+                content: assistantText,
+                status: errorActive ? 'error' : currentMessages[targetIdx].status,
+                error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
+              };
               setState((prev) => ({ 
                 messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
               }));
             }
             if (state.activeChatId === chatId) {
-              updateMessageContentDom(assistantMessageId, assistantText);
+              updateMessageContentDom(assistantMessageId, assistantText, errorActive);
             }
           };
 
@@ -1686,10 +1719,19 @@ function wireChat(root) {
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let assistantMessageId = tempAssistantId;
+          let errorMessage = null;
+          let errorActive = false;
           const parser = new SseLineParser((payload) => {
             if (payload?.event === 'start' && payload?.message_id) {
               assistantMessageId = String(payload.message_id);
               replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+            }
+            if (payload?.error) {
+              errorMessage = payload.message || payload.error || 'LLM request failed';
+              errorActive = true;
+              const label = `Error: ${errorMessage}`;
+              assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
+              applyAssistantText();
             }
           });
           let assistantText = '';
@@ -1703,13 +1745,18 @@ function wireChat(root) {
             const currentMessages = [...(state.messagesByChat[chatId] || [])];
             const targetIdx = currentMessages.findIndex(m => String(m.id) === String(assistantMessageId));
             if (targetIdx >= 0) {
-              currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
+              currentMessages[targetIdx] = { 
+                ...currentMessages[targetIdx], 
+                content: assistantText,
+                status: errorActive ? 'error' : currentMessages[targetIdx].status,
+                error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
+              };
               setState((prev) => ({ 
                 messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
               }));
             }
             if (state.activeChatId === chatId) {
-              updateMessageContentDom(assistantMessageId, assistantText);
+              updateMessageContentDom(assistantMessageId, assistantText, errorActive);
             }
           };
 
@@ -1828,7 +1875,7 @@ function wireChat(root) {
     if (updateActiveModel) {
       let preferredModelId = state.activeModelId;
       if (modelMode === 'default') {
-        preferredModelId = state.defaultModelId || data?.chat?.model || state.activeModelId;
+        preferredModelId = data?.chat?.model || state.activeModelId || state.defaultModelId;
       } else if (modelMode === 'chat') {
         preferredModelId = data?.chat?.model || state.activeModelId || state.defaultModelId;
       }
@@ -2021,7 +2068,7 @@ function wireChat(root) {
     setState((prev) => ({
       chats: [tempChat, ...pruneTempChats(prev.chats)],
       activeChatId: tempChat.id,
-      activeModelId: prev.defaultModelId || tempChat.model || prev.activeModelId,
+      activeModelId: prev.activeModelId || prev.defaultModelId || tempChat.model,
       newChatDraft: '',
     }));
     syncChatUrl(null);
@@ -2042,7 +2089,7 @@ function wireChat(root) {
       setState((prev) => ({
         chats: [tempChat, ...pruneTempChats(prev.chats)],
         activeChatId: tempChatId,
-        activeModelId: prev.defaultModelId || tempChat.model || prev.activeModelId,
+        activeModelId: prev.activeModelId || prev.defaultModelId || tempChat.model,
       }));
 
       chatId = tempChatId;
@@ -2054,7 +2101,7 @@ function wireChat(root) {
         setState((prev) => ({
           chats: [tempChat, ...pruneTempChats(prev.chats)],
           activeChatId: chatId,
-          activeModelId: prev.defaultModelId || tempChat.model || prev.activeModelId,
+          activeModelId: prev.activeModelId || prev.defaultModelId || tempChat.model,
         }));
       }
     }
@@ -2104,7 +2151,7 @@ function wireChat(root) {
     if (state.activeChatId === chatId) drawMessages(localMessages);
 
     if (tempChatId) {
-      const modelToUse = state.defaultModelId || state.activeModelId;
+      const modelToUse = state.activeModelId || state.defaultModelId;
       const payload = modelToUse ? { model: modelToUse } : {};
       const res = await apiFetch('/api/chats', {
         method: 'POST',
@@ -2159,7 +2206,7 @@ function wireChat(root) {
         return {
           chats: deduped,
           activeChatId: realChatId,
-          activeModelId: prev.defaultModelId || data.chat.model || prev.activeModelId,
+          activeModelId: prev.activeModelId || data.chat.model || prev.defaultModelId,
           messagesByChat: nextMessagesByChat,
         };
       });
@@ -2241,6 +2288,8 @@ function wireChat(root) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let assistantMessageId = tempAssistantId;
+    let errorMessage = null;
+    let errorActive = false;
     const parser = new SseLineParser((payload) => {
       if (payload?.event === 'start' && payload?.user_message_id) {
         replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
@@ -2248,6 +2297,13 @@ function wireChat(root) {
       if (payload?.event === 'start' && payload?.message_id) {
         assistantMessageId = String(payload.message_id);
         replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+      }
+      if (payload?.error) {
+        errorMessage = payload.message || payload.error || 'LLM request failed';
+        errorActive = true;
+        const label = `Error: ${errorMessage}`;
+        assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
+        applyAssistantText();
       }
     });
     let assistantText = '';
@@ -2264,14 +2320,19 @@ function wireChat(root) {
       const currentMessages = [...(state.messagesByChat[chatId] || [])];
       const targetIdx = currentMessages.findIndex(m => String(m.id) === String(assistantMessageId));
       if (targetIdx >= 0) {
-        currentMessages[targetIdx] = { ...currentMessages[targetIdx], content: assistantText };
+        currentMessages[targetIdx] = { 
+          ...currentMessages[targetIdx], 
+          content: assistantText,
+          status: errorActive ? 'error' : currentMessages[targetIdx].status,
+          error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
+        };
         setState((prev) => ({ 
           messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
         }));
       }
 
       if (state.activeChatId === chatId) {
-        updateMessageContentDom(assistantMessageId, assistantText);
+        updateMessageContentDom(assistantMessageId, assistantText, errorActive);
       }
     };
 

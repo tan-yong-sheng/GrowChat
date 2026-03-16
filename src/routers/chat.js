@@ -27,10 +27,76 @@ async function getOwnedChat(db, chatId, userId) {
 
 async function getMessageSnapshot(db, messageId) {
   if (!messageId) return null;
-  return db.first(
-    'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ?',
-    [messageId]
-  );
+  try {
+    return await db.first(
+      'SELECT id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, created_at FROM messages WHERE id = ?',
+      [messageId]
+    );
+  } catch (err) {
+    return db.first(
+      'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ?',
+      [messageId]
+    );
+  }
+}
+
+async function getChatMessages(db, chatId) {
+  try {
+    return await db.all(
+      'SELECT id, role, content, model, citations, parent_id, status, error_code, error_message, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
+      [chatId]
+    );
+  } catch (err) {
+    return db.all(
+      'SELECT id, role, content, model, citations, parent_id, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
+      [chatId]
+    );
+  }
+}
+
+function normalizeErrorMessage(err, fallback = 'LLM request failed') {
+  const raw = String(err?.message || err || fallback || '').trim();
+  if (!raw) return fallback;
+  return raw.slice(0, 500);
+}
+
+async function persistAssistantErrorMessage(db, {
+  messageId,
+  chatId,
+  userId,
+  model,
+  parentId,
+  errorCode,
+  errorMessage,
+  content,
+  citations,
+}) {
+  const displayContent = String(content || errorMessage || 'LLM request failed').trim();
+  const safeErrorMessage = String(errorMessage || 'LLM request failed').trim().slice(0, 500);
+  const safeErrorCode = String(errorCode || 'llm_error').trim().slice(0, 80);
+  const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : (citations || null);
+
+  try {
+    await db.run(
+      `INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, created_at)
+       VALUES (?, ?, 'assistant', ?, ?, ?, ?, 'error', ?, ?, unixepoch())`,
+      [messageId, chatId, displayContent, model, citationsJson, parentId, safeErrorCode, safeErrorMessage]
+    );
+  } catch (err) {
+    await db.run(
+      'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
+      [messageId, chatId, 'assistant', displayContent, model, citationsJson, parentId]
+    );
+  }
+
+  try {
+    await db.run(
+      'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+      [messageId, chatId, userId]
+    );
+  } catch {}
+
+  return getMessageSnapshot(db, messageId);
 }
 
 function scheduleRealtimeEvent(ctx, env, event) {
@@ -171,10 +237,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       const chat = await getOwnedChat(db, chatId, user.sub);
       if (!chat) return error(req, 'Chat not found', 404);
 
-      const messages = await db.all(
-        'SELECT id, role, content, model, citations, parent_id, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
-        [chatId]
-      );
+      const messages = await getChatMessages(db, chatId);
 
       return json(req, { chat, messages });
     }
@@ -501,11 +564,37 @@ export async function chatRouter(req, env, ctx, user, path) {
     try {
       stream = await streamLLM(env, model, enhancedHistory);
     } catch (err) {
+      const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
+      const assistantError = await persistAssistantErrorMessage(db, {
+        messageId: assistantMsgId,
+        chatId,
+        userId: user.sub,
+        model,
+        parentId: userMsgId,
+        errorCode: 'llm_unavailable',
+        errorMessage,
+        citations,
+      });
+      await publishRealtimeNow(env, createRealtimeEvent({
+        type: 'message.completed',
+        userId: user.sub,
+        chatId,
+        messageId: assistantMsgId,
+        originSessionId,
+        data: {
+          role: 'assistant',
+          model,
+          error: true,
+          message: assistantError,
+          chat: await getOwnedChat(db, chatId, user.sub),
+        },
+      }));
+
       const encoder = new TextEncoder();
       const body = new ReadableStream({
         start(controller) {
           controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
-          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: 'LLM setup failed' })));
+          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: errorMessage })));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         },
@@ -588,8 +677,37 @@ export async function chatRouter(req, env, ctx, user, path) {
           await db.run('UPDATE chats SET model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?', [model, chatId, user.sub]);
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
-        } catch {
-          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: 'Stream failed' })));
+        } catch (err) {
+          const errorMessage = normalizeErrorMessage(err, 'Stream failed');
+          const errorContent = fullText
+            ? `${fullText}\n\n[Error] ${errorMessage}`
+            : errorMessage;
+          const assistantError = await persistAssistantErrorMessage(db, {
+            messageId: assistantMsgId,
+            chatId,
+            userId: user.sub,
+            model,
+            parentId: userMsgId,
+            errorCode: 'stream_failed',
+            errorMessage,
+            content: errorContent,
+            citations,
+          });
+          await publishRealtimeNow(env, createRealtimeEvent({
+            type: 'message.completed',
+            userId: user.sub,
+            chatId,
+            messageId: assistantMsgId,
+            originSessionId,
+            data: {
+              role: 'assistant',
+              model,
+              error: true,
+              message: assistantError,
+              chat: await getOwnedChat(db, chatId, user.sub),
+            },
+          }));
+          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: errorMessage })));
           controller.close();
         } finally {
           reader.releaseLock();
@@ -745,11 +863,36 @@ export async function chatRouter(req, env, ctx, user, path) {
     try {
       stream = await streamLLM(env, model, history);
     } catch (err) {
+      const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
+      const assistantError = await persistAssistantErrorMessage(db, {
+        messageId: assistantMsgId,
+        chatId,
+        userId: user.sub,
+        model,
+        parentId: newUserMsgId,
+        errorCode: 'llm_unavailable',
+        errorMessage,
+      });
+      await publishRealtimeNow(env, createRealtimeEvent({
+        type: 'message.completed',
+        userId: user.sub,
+        chatId,
+        messageId: assistantMsgId,
+        originSessionId,
+        data: {
+          role: 'assistant',
+          model,
+          error: true,
+          message: assistantError,
+          chat: await getOwnedChat(db, chatId, user.sub),
+        },
+      }));
+
       const encoder = new TextEncoder();
       const body = new ReadableStream({
         start(controller) {
           controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: newUserMsgId })));
-          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: 'LLM setup failed' })));
+          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: errorMessage })));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         },
@@ -831,8 +974,36 @@ export async function chatRouter(req, env, ctx, user, path) {
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
-        } catch {
-          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: 'Stream failed' })));
+        } catch (err) {
+          const errorMessage = normalizeErrorMessage(err, 'Stream failed');
+          const errorContent = fullText
+            ? `${fullText}\n\n[Error] ${errorMessage}`
+            : errorMessage;
+          const assistantError = await persistAssistantErrorMessage(db, {
+            messageId: assistantMsgId,
+            chatId,
+            userId: user.sub,
+            model,
+            parentId: newUserMsgId,
+            errorCode: 'stream_failed',
+            errorMessage,
+            content: errorContent,
+          });
+          await publishRealtimeNow(env, createRealtimeEvent({
+            type: 'message.completed',
+            userId: user.sub,
+            chatId,
+            messageId: assistantMsgId,
+            originSessionId,
+            data: {
+              role: 'assistant',
+              model,
+              error: true,
+              message: assistantError,
+              chat: await getOwnedChat(db, chatId, user.sub),
+            },
+          }));
+          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: errorMessage })));
           controller.close();
         } finally {
           reader.releaseLock();
@@ -871,11 +1042,36 @@ export async function chatRouter(req, env, ctx, user, path) {
     try {
       stream = await streamLLM(env, model, history);
     } catch (err) {
+      const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
+      const assistantError = await persistAssistantErrorMessage(db, {
+        messageId: newAssistantMsgId,
+        chatId,
+        userId: user.sub,
+        model,
+        parentId: sourceMsg.parent_id,
+        errorCode: 'llm_unavailable',
+        errorMessage,
+      });
+      await publishRealtimeNow(env, createRealtimeEvent({
+        type: 'message.completed',
+        userId: user.sub,
+        chatId,
+        messageId: newAssistantMsgId,
+        originSessionId,
+        data: {
+          role: 'assistant',
+          model,
+          error: true,
+          message: assistantError,
+          chat: await getOwnedChat(db, chatId, user.sub),
+        },
+      }));
+
       const encoder = new TextEncoder();
       const body = new ReadableStream({
         start(controller) {
           controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: newAssistantMsgId })));
-          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: 'LLM setup failed' })));
+          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: errorMessage })));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         },
@@ -955,8 +1151,36 @@ export async function chatRouter(req, env, ctx, user, path) {
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
-        } catch {
-          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: 'Stream failed' })));
+        } catch (err) {
+          const errorMessage = normalizeErrorMessage(err, 'Stream failed');
+          const errorContent = fullText
+            ? `${fullText}\n\n[Error] ${errorMessage}`
+            : errorMessage;
+          const assistantError = await persistAssistantErrorMessage(db, {
+            messageId: newAssistantMsgId,
+            chatId,
+            userId: user.sub,
+            model,
+            parentId: sourceMsg.parent_id,
+            errorCode: 'stream_failed',
+            errorMessage,
+            content: errorContent,
+          });
+          await publishRealtimeNow(env, createRealtimeEvent({
+            type: 'message.completed',
+            userId: user.sub,
+            chatId,
+            messageId: newAssistantMsgId,
+            originSessionId,
+            data: {
+              role: 'assistant',
+              model,
+              error: true,
+              message: assistantError,
+              chat: await getOwnedChat(db, chatId, user.sub),
+            },
+          }));
+          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: errorMessage })));
           controller.close();
         } finally {
           reader.releaseLock();

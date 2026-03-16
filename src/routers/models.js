@@ -9,6 +9,8 @@ import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool } from '../utils/app-config.js';
+import { getAllOpenAIConnectionConfigs } from '../utils/openai-connections.js';
+import { buildProviderId, formatModelId } from '../utils/provider-registry.js';
 
 function isValidModelId(value) {
   const id = String(value || '').trim();
@@ -73,14 +75,6 @@ async function upsertModelAccess(db, updates) {
   await db.batch(batch);
 }
 
-function splitEnvList(value) {
-  if (!value) return [];
-  return String(value)
-    .split(';')
-    .map((v) => v.trim())
-    .filter(Boolean);
-}
-
 function splitModelList(value) {
   if (!value) return [];
   return String(value)
@@ -89,39 +83,19 @@ function splitModelList(value) {
     .filter(Boolean);
 }
 
-function normalizeBaseUrl(url) {
-  return String(url || '').trim().replace(/\/$/, '');
-}
-
-function getOpenAIConnections(env) {
-  const baseUrls = splitEnvList(env.OPENAI_API_BASE_URLS);
-  if (baseUrls.length === 0 && env.OPENAI_BASE_URL) {
-    baseUrls.push(env.OPENAI_BASE_URL);
-  }
-  if (baseUrls.length === 0) {
-    baseUrls.push('https://api.openai.com/v1');
-  }
-
-  const keys = splitEnvList(env.OPENAI_API_KEYS);
-  if (keys.length === 0 && env.OPENAI_API_KEY) {
-    keys.push(env.OPENAI_API_KEY);
-  }
-
-  return baseUrls.map((baseUrl, idx) => ({
-    baseUrl: normalizeBaseUrl(baseUrl),
-    key: keys[idx] || keys[0] || '',
-  }));
-}
-
-async function fetchBaseModelsFromOpenAI(env) {
+async function fetchBaseModelsFromOpenAI(env, connections = []) {
   const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
-  const connections = getOpenAIConnections(env);
+  const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
   const discovered = [];
+  const discoveredIds = new Set();
 
   for (const conn of connections) {
     try {
-      const headers = {};
-      if (conn.key) headers.Authorization = `Bearer ${conn.key}`;
+      const providerId = buildProviderId(conn);
+      const headers = { ...(conn.headers || {}) };
+      if (conn.key && !headers.Authorization) {
+        headers.Authorization = `Bearer ${conn.key}`;
+      }
 
       const res = await fetch(`${conn.baseUrl}/models`, { headers });
       if (!res.ok) {
@@ -132,12 +106,19 @@ async function fetchBaseModelsFromOpenAI(env) {
       const payload = await res.json();
       const items = Array.isArray(payload?.data) ? payload.data : [];
       for (const item of items) {
-        const id = String(item?.id || '').trim();
-        if (!id) continue;
+        const rawId = String(item?.id || '').trim();
+        if (!rawId) continue;
+        if (allowSet && !allowSet.has(rawId)) continue;
+        const fullId = formatModelId(providerId, rawId);
+        if (discoveredIds.has(fullId)) continue;
+        discoveredIds.add(fullId);
         discovered.push({
-          id,
-          name: id,
-          provider: 'openai-compatible',
+          id: fullId,
+          name: rawId,
+          provider: conn.providerType || 'openai-compatible',
+          provider_id: providerId,
+          connection_id: conn.id,
+          connection_name: conn.name || null,
           free: false,
           description: `Model discovered from ${conn.baseUrl}`,
         });
@@ -147,24 +128,20 @@ async function fetchBaseModelsFromOpenAI(env) {
     }
   }
 
-  const deduped = [];
-  const seen = new Set();
-  for (const model of discovered) {
-    if (seen.has(model.id)) continue;
-    seen.add(model.id);
-    deduped.push(model);
-  }
-
-  let models = deduped;
-  if (allowedFromEnv.length > 0) {
-    const allow = new Set(allowedFromEnv);
-    models = deduped.filter((m) => allow.has(m.id));
-    for (const id of allowedFromEnv) {
-      if (!models.find((m) => m.id === id)) {
-        models.push({
-          id,
-          name: id,
-          provider: 'openai-compatible',
+  if (allowSet && connections.length > 0) {
+    for (const conn of connections) {
+      const providerId = buildProviderId(conn);
+      for (const rawId of allowSet) {
+        const fullId = formatModelId(providerId, rawId);
+        if (discoveredIds.has(fullId)) continue;
+        discoveredIds.add(fullId);
+        discovered.push({
+          id: fullId,
+          name: rawId,
+          provider: conn.providerType || 'openai-compatible',
+          provider_id: providerId,
+          connection_id: conn.id,
+          connection_name: conn.name || null,
           free: false,
           description: 'Configured via OPENAI_MODELS',
         });
@@ -172,21 +149,25 @@ async function fetchBaseModelsFromOpenAI(env) {
     }
   }
 
-  if (models.length === 0 && env.DEFAULT_MODELS) {
+  if (discovered.length === 0 && env.DEFAULT_MODELS && connections.length > 0) {
     const defaults = splitModelList(env.DEFAULT_MODELS);
     const fallbackModel = defaults[0];
     if (fallbackModel) {
-      models.push({
-        id: fallbackModel,
+      const providerId = buildProviderId(connections[0]);
+      discovered.push({
+        id: formatModelId(providerId, fallbackModel),
         name: fallbackModel,
-        provider: 'openai-compatible',
+        provider: connections[0].providerType || 'openai-compatible',
+        provider_id: providerId,
+        connection_id: connections[0].id,
+        connection_name: connections[0].name || null,
         free: false,
         description: 'Configured via DEFAULT_MODELS environment variable',
       });
     }
   }
 
-  return models;
+  return discovered;
 }
 
 function toPublicModel(model) {
@@ -194,6 +175,9 @@ function toPublicModel(model) {
     id: model.id,
     name: model.name,
     provider: model.provider,
+    provider_id: model.provider_id,
+    connection_id: model.connection_id,
+    connection_name: model.connection_name,
     free: Boolean(model.free),
     description: model.description || '',
     suggestion_prompts: Array.isArray(model.suggestion_prompts) ? model.suggestion_prompts : [],
@@ -201,6 +185,10 @@ function toPublicModel(model) {
     temperature: model.temperature ?? 0.7,
     created_at: model.created_at,
   };
+}
+
+function isOpenAIProvider(model) {
+  return model?.provider === 'openai' || model?.provider === 'openai-compatible';
 }
 
 async function loadCustomModels(env) {
@@ -268,6 +256,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       let baseModels = [];
       let openaiEnabled = true;
       let db = null;
+      let modelConnections = [];
 
       if (env.DB) {
         try {
@@ -281,7 +270,8 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       // Load base models from OpenAI-compatible env configuration.
       // If this fails, log but continue with baseModels = []
       try {
-        baseModels = await fetchBaseModelsFromOpenAI(env);
+        modelConnections = await getAllOpenAIConnectionConfigs(env);
+        baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
         console.warn('Failed to fetch base models from OpenAI-compatible sources:', err.message);
       }
@@ -296,7 +286,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
       let allModels = [...baseModels, ...customModels];
       if (!openaiEnabled) {
-        allModels = allModels.filter((model) => model.provider !== 'openai-compatible');
+        allModels = allModels.filter((model) => !isOpenAIProvider(model));
       }
       let publicModels = allModels.map(toPublicModel);
       if (db) {
@@ -344,6 +334,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       let baseModels = [];
       let openaiEnabled = true;
       let db = null;
+      let modelConnections = [];
 
       if (env.DB) {
         db = createDB(env.DB);
@@ -357,7 +348,8 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       }
 
       try {
-        baseModels = await fetchBaseModelsFromOpenAI(env);
+        modelConnections = await getAllOpenAIConnectionConfigs(env);
+        baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
         console.warn('Failed to fetch base models from OpenAI-compatible sources:', err.message);
       }
@@ -370,7 +362,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
       let allModels = [...baseModels, ...customModels];
       if (!openaiEnabled) {
-        allModels = allModels.filter((model) => model.provider !== 'openai-compatible');
+        allModels = allModels.filter((model) => !isOpenAIProvider(model));
       }
 
       const accessMap = await getModelAccessMap(db);
@@ -557,7 +549,8 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       // Degrade gracefully if upstream discovery is unavailable.
       let baseModels = [];
       try {
-        baseModels = await fetchBaseModelsFromOpenAI(env);
+        const modelConnections = await getAllOpenAIConnectionConfigs(env);
+        baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
         console.warn('Failed to discover base models for GET /api/models/:id:', err?.message || err);
       }
@@ -609,7 +602,8 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
     try {
       // Cannot update discovered base models.
-      const baseModels = await fetchBaseModelsFromOpenAI(env);
+      const modelConnections = await getAllOpenAIConnectionConfigs(env);
+      const baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       if (baseModels.find((m) => m.id === modelId)) {
         return error(req, 'Cannot update base model', 400);
       }
@@ -694,7 +688,8 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
     try {
       // Cannot delete discovered base models.
-      const baseModels = await fetchBaseModelsFromOpenAI(env);
+      const modelConnections = await getAllOpenAIConnectionConfigs(env);
+      const baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       if (baseModels.find((m) => m.id === modelId)) {
         return error(req, 'Cannot delete base model', 400);
       }

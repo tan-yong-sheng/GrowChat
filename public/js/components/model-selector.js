@@ -70,8 +70,7 @@ export function renderModelSelector(container) {
           const data = await fetchModels();
           const models = data.models || [];
           const currentId = state.activeModelId;
-          const hasCurrent = currentId && models.some((m) => m.id === currentId);
-          const nextActiveModelId = hasCurrent ? currentId : (models[0]?.id || null);
+          const nextActiveModelId = currentId || (models[0]?.id || null);
           setState({
             models,
             activeModelId: nextActiveModelId,
@@ -348,7 +347,7 @@ export function renderModelSelector(container) {
     });
 
     unsubscribe = subscribe((currentState) => {
-       const activeModel = currentState.models?.find(m => m.id === currentState.activeModelId) || currentState.models?.[0];
+       const activeModel = currentState.models?.find(m => m.id === currentState.activeModelId) || null;
        if (activeModel) {
           nameSpan.textContent = activeModel.name || activeModel.id;
        } else {

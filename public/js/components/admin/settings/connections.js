@@ -49,9 +49,18 @@ export function renderConnectionsSettings(container, data) {
         enabled: conn.enabled !== false,
       }))
       .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const envOverrides = {};
+    connectionsState.openai.connections
+      .filter((conn) => conn?.source === 'env')
+      .forEach((conn) => {
+        if (conn?.enabled === false) {
+          envOverrides[conn.id] = false;
+        }
+      });
     return JSON.stringify({
       enabled: connectionsState.openai.enabled !== false,
       connections: manualConnections,
+      envOverrides,
     });
   };
 
@@ -64,7 +73,12 @@ export function renderConnectionsSettings(container, data) {
     if (connectionsState.openai.connections.length === 0) {
       return '<div class="py-10 text-center text-sm text-gray-400">No connections configured</div>';
     }
-    return connectionsState.openai.connections.map(conn => `
+    const deduped = new Map();
+    connectionsState.openai.connections.forEach((conn) => {
+      const key = `${conn?.source || 'manual'}::${conn?.id || ''}::${conn?.url || ''}`;
+      if (!deduped.has(key)) deduped.set(key, conn);
+    });
+    return Array.from(deduped.values()).map(conn => `
       <div class="py-2.5 flex items-center justify-between pr-2 border-b border-gray-50 last:border-0">
         <div class="flex flex-col">
           <div class="text-xs font-medium text-gray-900">${conn.name || 'OpenAI Compatible'}</div>
@@ -72,13 +86,15 @@ export function renderConnectionsSettings(container, data) {
           ${conn.readOnly ? '<div class="text-[10px] text-gray-400 mt-0.5">From env (read-only)</div>' : ''}
         </div>
         <div class="flex items-center gap-3">
-          <button data-id="${conn.id}" class="edit-connection-btn p-1 text-gray-400 hover:text-gray-600 transition-colors ${conn.readOnly ? 'hidden' : ''}">
+          <button data-id="${conn.id}" class="edit-connection-btn p-1 text-gray-400 hover:text-gray-600 transition-colors ${(conn.readOnly && conn.source !== 'env') ? 'hidden' : ''}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
             </svg>
           </button>
-          <span class="text-[10px] text-gray-400 ${conn.readOnly ? '' : 'hidden'}">Locked</span>
+          <button data-id="${conn.id}" class="connection-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${conn.enabled === false ? 'bg-gray-200' : 'bg-black'}">
+            <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${conn.enabled === false ? 'translate-x-0' : 'translate-x-4'}"></span>
+          </button>
         </div>
       </div>
     `).join('');
@@ -205,13 +221,13 @@ export function renderConnectionsSettings(container, data) {
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">URL</label>
               <div class="flex items-center gap-2">
                 <input id="modal-conn-url" type="text" value="${connectionsState.selectedConnection?.url || ''}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="https://api.openai.com/v1">
-                <button class="p-1 text-gray-400 hover:text-gray-600">
+                <button id="test-connection" class="p-1 text-gray-400 hover:text-gray-600" title="Test connection">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                   </svg>
                 </button>
-                <div class="h-4 w-4 rounded-full bg-green-500"></div>
               </div>
+              <div id="connection-test-message" class="text-[11px] text-gray-400 hidden"></div>
             </div>
 
             <div class="space-y-1">
@@ -237,7 +253,10 @@ export function renderConnectionsSettings(container, data) {
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Provider Type</label>
-                <div class="text-sm text-gray-900">OpenAI</div>
+                <select id="modal-conn-provider" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900">
+                  <option value="openai">OpenAI</option>
+                  <option value="openai-compatible">OpenAI Compatible</option>
+                </select>
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">API Type</label>
@@ -276,30 +295,73 @@ export function renderConnectionsSettings(container, data) {
     }
   };
 
-  const fillModalFields = (connection) => {
-    const nameInput = container.querySelector('#modal-conn-name');
-    const urlInput = container.querySelector('#modal-conn-url');
-    const keyInput = container.querySelector('#modal-conn-key');
-    const headersInput = container.querySelector('#modal-conn-headers');
+  const setTestStatus = (status, message = '', scope = container) => {
+    const messageEl = scope.querySelector('#connection-test-message');
+    if (messageEl) {
+      messageEl.textContent = message || '';
+      messageEl.classList.toggle('hidden', !message);
+      messageEl.classList.toggle('text-red-500', status === 'error');
+      messageEl.classList.toggle('text-gray-900', status === 'success');
+      messageEl.classList.toggle('text-gray-400', status === 'idle' || status === 'testing');
+    }
+  };
+
+  const updateConnectionToggle = (btn, enabled) => {
+    if (!btn) return;
+    btn.classList.toggle('bg-black', enabled);
+    btn.classList.toggle('bg-gray-200', !enabled);
+    const knob = btn.querySelector('span');
+    if (knob) {
+      knob.classList.toggle('translate-x-4', enabled);
+      knob.classList.toggle('translate-x-0', !enabled);
+    }
+  };
+
+  const fillModalFields = (connection, scope = container) => {
+    const nameInput = scope.querySelector('#modal-conn-name');
+    const urlInput = scope.querySelector('#modal-conn-url');
+    const keyInput = scope.querySelector('#modal-conn-key');
+    const headersInput = scope.querySelector('#modal-conn-headers');
+    const providerSelect = scope.querySelector('#modal-conn-provider');
+    const isEnv = connection?.source === 'env';
     if (nameInput) nameInput.value = connection?.name || '';
     if (urlInput) urlInput.value = connection?.url || '';
-    if (keyInput) keyInput.value = connection?.key || '';
+    if (keyInput) keyInput.value = connection?.key || connection?.keyMasked || '';
     if (headersInput) headersInput.value = connection?.headers || '';
-    const title = container.querySelector('#modal-title');
+    if (providerSelect) providerSelect.value = connection?.providerType || 'openai';
+    if (nameInput) nameInput.disabled = isEnv;
+    if (urlInput) urlInput.disabled = isEnv;
+    if (keyInput) keyInput.disabled = isEnv;
+    if (headersInput) headersInput.disabled = isEnv;
+    if (providerSelect) providerSelect.disabled = isEnv;
+    if (nameInput) nameInput.classList.toggle('text-gray-400', isEnv);
+    if (urlInput) urlInput.classList.toggle('text-gray-400', isEnv);
+    if (keyInput) keyInput.classList.toggle('text-gray-400', isEnv);
+    if (headersInput) headersInput.classList.toggle('text-gray-400', isEnv);
+    if (providerSelect) providerSelect.classList.toggle('text-gray-400', isEnv);
+    const title = scope.querySelector('#modal-title');
     if (title) title.textContent = connection ? 'Edit Connection' : 'Add Connection';
-    const deleteBtn = container.querySelector('#delete-connection');
-    if (deleteBtn) deleteBtn.classList.toggle('hidden', !connection);
+    const deleteBtn = scope.querySelector('#delete-connection');
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', !connection || isEnv);
+    setTestStatus('idle', '', scope);
   };
 
   const openModal = (connection) => {
-    connectionsState.selectedConnection = connection ? { ...connection } : null;
+    if (connection) {
+      connectionsState.selectedConnection = { ...connection };
+      if (connectionsState.selectedConnection.enabled === undefined) {
+        connectionsState.selectedConnection.enabled = true;
+      }
+    } else {
+      connectionsState.selectedConnection = { enabled: true };
+    }
     connectionsState.showModal = true;
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.remove('hidden');
       modal.classList.add('fixed');
     }
-    fillModalFields(connectionsState.selectedConnection);
+    fillModalFields(connectionsState.selectedConnection, modal || container);
   };
 
   const closeModal = () => {
@@ -324,6 +386,17 @@ export function renderConnectionsSettings(container, data) {
 
     const list = container.querySelector('#connections-list');
     list?.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.connection-toggle');
+      if (toggle) {
+        const id = toggle.dataset.id;
+        const connection = connectionsState.openai.connections.find(c => c.id === id);
+        if (connection) {
+          connection.enabled = connection.enabled === false;
+          updateConnectionToggle(toggle, connection.enabled !== false);
+          updateButtons();
+        }
+        return;
+      }
       const btn = e.target.closest('.edit-connection-btn');
       if (!btn) return;
       const id = btn.dataset.id;
@@ -335,21 +408,60 @@ export function renderConnectionsSettings(container, data) {
       closeModal();
     });
 
+    let testInFlight = false;
+    container.querySelector('#test-connection')?.addEventListener('click', async () => {
+      if (testInFlight) return;
+      const modalRoot = container.querySelector('#edit-connection-modal') || container;
+      const url = modalRoot.querySelector('#modal-conn-url')?.value || '';
+      const key = modalRoot.querySelector('#modal-conn-key')?.value || '';
+      const headers = modalRoot.querySelector('#modal-conn-headers')?.value || '';
+      if (!url.trim()) {
+        setTestStatus('error', 'URL is required', modalRoot);
+        return;
+      }
+
+      testInFlight = true;
+      setTestStatus('testing', 'Testing connection...', modalRoot);
+      try {
+        const res = await apiFetch('/api/admin/openai/connections/test', {
+          method: 'POST',
+          body: JSON.stringify({ url, key, headers })
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload.error || payload.message || 'Connection failed');
+        }
+        setTestStatus('success', payload.message || 'Connection successful', modalRoot);
+      } catch (err) {
+        setTestStatus('error', err.message || 'Connection failed', modalRoot);
+      } finally {
+        testInFlight = false;
+      }
+    });
+
     container.querySelector('#save-modal')?.addEventListener('click', () => {
       const name = container.querySelector('#modal-conn-name').value;
       const url = container.querySelector('#modal-conn-url').value;
       const key = container.querySelector('#modal-conn-key').value;
       const headers = container.querySelector('#modal-conn-headers').value;
-      const providerType = 'openai';
+      const providerType = container.querySelector('#modal-conn-provider')?.value || 'openai';
       const apiType = 'chat-completions';
+      const enabled = connectionsState.selectedConnection?.enabled !== false;
 
       if (connectionsState.selectedConnection) {
         const index = connectionsState.openai.connections.findIndex(c => c.id === connectionsState.selectedConnection.id);
         if (index !== -1) {
-          connectionsState.openai.connections[index] = { 
-            ...connectionsState.openai.connections[index], 
-            name, url, key, headers, providerType, apiType 
-          };
+          if (connectionsState.selectedConnection.source === 'env') {
+            connectionsState.openai.connections[index] = {
+              ...connectionsState.openai.connections[index],
+              enabled
+            };
+          } else {
+            connectionsState.openai.connections[index] = { 
+              ...connectionsState.openai.connections[index], 
+              name, url, key, headers, providerType, apiType, enabled
+            };
+          }
         }
       } else {
         connectionsState.openai.connections.push({
@@ -359,7 +471,8 @@ export function renderConnectionsSettings(container, data) {
           key,
           headers,
           providerType,
-          apiType
+          apiType,
+          enabled
         });
       }
 
@@ -383,11 +496,20 @@ export function renderConnectionsSettings(container, data) {
       updateButtons();
       try {
         const manualConnections = connectionsState.openai.connections.filter(c => !c.readOnly && c.source !== 'env');
+        const envOverrides = {};
+        connectionsState.openai.connections
+          .filter((conn) => conn?.source === 'env')
+          .forEach((conn) => {
+            if (conn?.enabled === false) {
+              envOverrides[conn.id] = false;
+            }
+          });
         const res = await apiFetch('/api/admin/openai/connections', {
           method: 'PUT',
           body: JSON.stringify({
             enabled: connectionsState.openai.enabled,
-            connections: manualConnections
+            connections: manualConnections,
+            env_overrides: envOverrides
           })
         });
         if (!res.ok) {

@@ -9,7 +9,7 @@ import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
-import { buildEnvOpenAIConnections } from '../utils/openai-connections.js';
+import { buildEnvOpenAIConnections, ensureConnectionId, getEnvOpenAIOverrides } from '../utils/openai-connections.js';
 
 function isValidHttpUrl(value) {
   if (!value) return false;
@@ -46,6 +46,19 @@ function normalizeHeaders(input) {
   return JSON.stringify(normalized);
 }
 
+function parseHeadersForRequest(input) {
+  if (input && typeof input === 'object' && !Array.isArray(input)) {
+    return input;
+  }
+  const normalized = normalizeHeaders(input);
+  if (!normalized) return {};
+  return JSON.parse(normalized);
+}
+
+function normalizeBaseUrl(url) {
+  return String(url || '').trim().replace(/\/$/, '');
+}
+
 /**
  * Admin Router Handler
  * Routes:
@@ -65,10 +78,10 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (path === '/api/admin/config' && req.method === 'PUT') {
     requiredPermission = 'admin.user.write';
   }
-  if (path === '/api/admin/openai/connections') {
+  if (path === '/api/admin/openai/connections' || path === '/api/admin/openai/connections/test' || path === '/api/admin/openai/env') {
     requiredPermission = 'admin.rbac.admin';
   }
-  if (path === '/api/admin/tool-servers') {
+  if (path === '/api/admin/tool-servers' || path === '/api/admin/tool-servers/test') {
     requiredPermission = 'admin.rbac.admin';
   }
   const authDecision = await authorize(env, user, { action: requiredPermission });
@@ -126,11 +139,25 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (req.method === 'GET' && path === '/api/admin/openai/connections') {
     try {
       const envConnections = buildEnvOpenAIConnections(env);
+      const envOverrides = await getEnvOpenAIOverrides(env);
+      envConnections.forEach((conn) => {
+        const override = envOverrides.get(conn.id);
+        if (override === false) conn.enabled = false;
+      });
       let manualConnections = [];
       const raw = await getConfigValue(db, 'openai_connections', '[]');
       try {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) manualConnections = parsed;
+        if (Array.isArray(parsed)) {
+          manualConnections = parsed.map((conn, index) => ({
+            ...conn,
+            id: ensureConnectionId(conn, index),
+            providerType: String(conn?.providerType || 'openai-compatible').toLowerCase(),
+            readOnly: false,
+            source: 'config',
+            enabled: conn?.enabled !== false,
+          }));
+        }
       } catch {
         manualConnections = [];
       }
@@ -145,6 +172,66 @@ export async function adminRouter(req, env, ctx, user, path) {
       console.error('OpenAI connections fetch failed:', err);
       return error(req, 'Failed to fetch connections', 500);
     }
+  }
+
+  // POST /api/admin/openai/connections/test - Test OpenAI connection
+  if (req.method === 'POST' && path === '/api/admin/openai/connections/test') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const url = String(body.url || '').trim();
+    if (!url || !isValidHttpUrl(url)) {
+      return error(req, 'Connection URL must start with http:// or https://', 400);
+    }
+
+    const key = String(body.key || '').trim();
+    let headers = {};
+    try {
+      headers = parseHeadersForRequest(body.headers);
+    } catch (err) {
+      return error(req, err.message || 'Headers must be valid JSON', 400);
+    }
+
+    if (key && !headers.Authorization) {
+      headers.Authorization = `Bearer ${key}`;
+    }
+
+    const baseUrl = normalizeBaseUrl(url);
+    try {
+      const res = await fetch(`${baseUrl}/models`, { headers });
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => '');
+        return error(
+          req,
+          `Connection failed (${res.status})`,
+          502,
+          { message: bodyText.slice(0, 200) }
+        );
+      }
+
+      return json(req, { ok: true, message: 'Connection successful' });
+    } catch (err) {
+      return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
+    }
+  }
+
+  // GET /api/admin/openai/env - Inspect OpenAI env configuration (admin only)
+  if (req.method === 'GET' && path === '/api/admin/openai/env') {
+    const baseUrl = env.OPENAI_BASE_URL || '';
+    const baseUrls = env.OPENAI_API_BASE_URLS || '';
+    const hasKey = Boolean(env.OPENAI_API_KEY);
+    const hasKeys = Boolean(env.OPENAI_API_KEYS);
+
+    return json(req, {
+      openai_base_url: baseUrl || null,
+      openai_api_base_urls: baseUrls || null,
+      openai_api_key_present: hasKey,
+      openai_api_keys_present: hasKeys,
+    });
   }
 
   // GET /api/admin/tool-servers - List tool servers
@@ -163,6 +250,58 @@ export async function adminRouter(req, env, ctx, user, path) {
       console.error('Tool servers fetch failed:', err);
       return error(req, 'Failed to fetch tool servers', 500);
     }
+  }
+
+  // POST /api/admin/tool-servers/test - Test tool server connection
+  if (req.method === 'POST' && path === '/api/admin/tool-servers/test') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const url = String(body.url || '').trim();
+    if (!url || !isValidHttpUrl(url)) {
+      return error(req, 'Server URL must start with http:// or https://', 400);
+    }
+
+    const key = String(body.key || '').trim();
+    let headers = {};
+    try {
+      headers = parseHeadersForRequest(body.headers);
+    } catch (err) {
+      return error(req, err.message || 'Headers must be valid JSON', 400);
+    }
+
+    if (key && !headers.Authorization) {
+      headers.Authorization = `Bearer ${key}`;
+    }
+
+    const baseUrl = normalizeBaseUrl(url);
+    const candidates = ['/openapi.json', '/openapi.yaml', '/openapi.yml'];
+    let lastStatus = null;
+    let lastBody = '';
+
+    for (const pathSuffix of candidates) {
+      try {
+        const res = await fetch(`${baseUrl}${pathSuffix}`, { headers });
+        if (res.ok) {
+          return json(req, { ok: true, message: 'Connection successful' });
+        }
+        lastStatus = res.status;
+        lastBody = await res.text().catch(() => '');
+      } catch (err) {
+        return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
+      }
+    }
+
+    return error(
+      req,
+      `Connection failed${lastStatus ? ` (${lastStatus})` : ''}`,
+      502,
+      lastBody ? { message: lastBody.slice(0, 200) } : undefined
+    );
   }
 
   // PUT /api/admin/tool-servers - Update tool servers
@@ -212,6 +351,9 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
     const connections = Array.isArray(body.connections) ? body.connections : [];
+    const envOverridesInput = body.env_overrides && typeof body.env_overrides === 'object'
+      ? body.env_overrides
+      : {};
 
     if (connections.length > 100) {
       return error(req, 'Too many connections (max 100)', 400);
@@ -235,13 +377,17 @@ export async function adminRouter(req, env, ctx, user, path) {
           if (headers.length > 4096) {
             throw new Error('Headers are too long');
           }
+          const providerType = String(conn.providerType || 'openai').toLowerCase();
+          if (!['openai', 'openai-compatible'].includes(providerType)) {
+            throw new Error('Provider type must be openai or openai-compatible');
+          }
           return {
             id: conn.id || crypto.randomUUID(),
             name: String(conn.name || 'OpenAI Compatible').slice(0, 120),
             url,
             key,
             headers,
-            providerType: 'openai',
+            providerType,
             apiType: 'chat-completions',
             enabled: conn.enabled !== false,
           };
@@ -254,6 +400,14 @@ export async function adminRouter(req, env, ctx, user, path) {
     try {
       await setConfigValue(db, 'openai_connections', JSON.stringify(sanitized));
       await setConfigValue(db, 'openai_enabled', enabled ? 'true' : 'false');
+      const envOverrides = {};
+      for (const [key, value] of Object.entries(envOverridesInput)) {
+        if (!/^env-\d+$/.test(String(key))) continue;
+        if (value === false) {
+          envOverrides[String(key)] = false;
+        }
+      }
+      await setConfigValue(db, 'openai_env_overrides', JSON.stringify(envOverrides));
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'openai_connections_updated',

@@ -63,6 +63,16 @@ export function renderIntegrationsSettings(container, data) {
     }
   };
 
+  const setTestStatus = (status, message = '') => {
+    const messageEl = container.querySelector('#server-test-message');
+    if (!messageEl) return;
+    messageEl.textContent = message || '';
+    messageEl.classList.toggle('hidden', !message);
+    messageEl.classList.toggle('text-red-500', status === 'error');
+    messageEl.classList.toggle('text-gray-900', status === 'success');
+    messageEl.classList.toggle('text-gray-400', status === 'idle' || status === 'testing');
+  };
+
   const getToolServersMarkup = () => {
     if (integrationsState.toolServers.length === 0) {
       return '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
@@ -160,13 +170,13 @@ export function renderIntegrationsSettings(container, data) {
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">URL</label>
               <div class="flex items-center gap-2">
                 <input id="server-url" type="text" value="${integrationsState.selectedServer?.url || ''}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="http://localhost:5000">
-                <button class="p-1 text-gray-400 hover:text-gray-600">
+                <button id="test-server" class="p-1 text-gray-400 hover:text-gray-600" title="Test server">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                   </svg>
                 </button>
-                <div class="h-4 w-4 rounded-full bg-green-500"></div>
               </div>
+              <div id="server-test-message" class="text-[11px] text-gray-400 hidden"></div>
             </div>
 
             <div class="space-y-1">
@@ -217,6 +227,7 @@ export function renderIntegrationsSettings(container, data) {
     if (title) title.textContent = server ? 'Edit Server' : 'Add Server';
     const deleteBtn = container.querySelector('#delete-server');
     if (deleteBtn) deleteBtn.classList.toggle('hidden', !server);
+    setTestStatus('idle', '');
   };
 
   const openModal = (server) => {
@@ -267,6 +278,35 @@ export function renderIntegrationsSettings(container, data) {
 
     container.querySelector('#close-modal')?.addEventListener('click', () => {
       closeModal();
+    });
+
+    let testInFlight = false;
+    container.querySelector('#test-server')?.addEventListener('click', async () => {
+      if (testInFlight) return;
+      const url = container.querySelector('#server-url')?.value || '';
+      const key = container.querySelector('#server-key')?.value || '';
+      const headers = container.querySelector('#server-headers')?.value || '';
+      if (!url.trim()) {
+        setTestStatus('error', 'URL is required');
+        return;
+      }
+      testInFlight = true;
+      setTestStatus('testing', 'Testing connection...');
+      try {
+        const res = await apiFetch('/api/admin/tool-servers/test', {
+          method: 'POST',
+          body: JSON.stringify({ url, key, headers }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload.error || payload.message || 'Connection failed');
+        }
+        setTestStatus('success', payload.message || 'Connection successful');
+      } catch (err) {
+        setTestStatus('error', err.message || 'Connection failed');
+      } finally {
+        testInFlight = false;
+      }
     });
 
     container.querySelector('#save-modal')?.addEventListener('click', () => {

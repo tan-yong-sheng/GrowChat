@@ -1,3 +1,6 @@
+import { getAllOpenAIConnectionConfigs } from './utils/openai-connections.js';
+import { buildProviderId, parseModelId, parseProviderId } from './utils/provider-registry.js';
+
 export async function streamLLM(env, model, messages) {
   if (!model) throw new Error('Model is required');
 
@@ -5,17 +8,53 @@ export async function streamLLM(env, model, messages) {
     return env.AI.run(model, { messages, stream: true });
   }
 
-  const baseUrl = (env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
-  const apiKey = env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
+  let parsed = parseModelId(model);
+  let primaryConn = null;
+  let providerInfo = null;
+
+  if (!parsed) {
+    const enabledConnections = await getAllOpenAIConnectionConfigs(env);
+    if (enabledConnections.length === 0) {
+      throw new Error('No provider connection configured');
+    }
+    if (enabledConnections.length > 1) {
+      throw new Error('Model id must include provider prefix when multiple providers are enabled');
+    }
+    primaryConn = enabledConnections[0];
+    parsed = { providerId: buildProviderId(primaryConn), modelId: model };
+  } else {
+    providerInfo = parseProviderId(parsed.providerId);
+    if (!providerInfo?.connectionId) {
+      throw new Error('Invalid provider id');
+    }
+
+    const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+    primaryConn = allConnections.find((conn) => {
+      if (String(conn.id) !== providerInfo.connectionId) return false;
+      const type = String(conn.providerType || 'openai-compatible').toLowerCase();
+      return type === providerInfo.providerType;
+    });
+  }
+
+  if (!primaryConn) {
+    throw new Error('No matching provider connection configured');
+  }
+  if (primaryConn.enabled === false) {
+    throw new Error('Provider connection is disabled');
+  }
+
+  const baseUrl = (primaryConn.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
+  const apiKey = primaryConn.key;
+  const headers = { ...(primaryConn.headers || {}) };
+  if (apiKey && !headers.Authorization) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  headers['Content-Type'] = 'application/json';
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ model, messages, stream: true }),
+    headers,
+    body: JSON.stringify({ model: parsed.modelId, messages, stream: true }),
   });
 
   if (!response.ok || !response.body) {

@@ -1,3 +1,4 @@
+ai/
 open-webui/
 open-terminal/
 bolt.new/
@@ -6,6 +7,9 @@ bolt.new/
 .playwright-cli/
 .playwright-artifacts/
 # Ignore all .claude/ contents by default
+
+package-lock.json
+
 .agents/*
 .claude/*
 .codex/*

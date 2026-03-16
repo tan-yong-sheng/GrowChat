@@ -3,7 +3,9 @@
 	"name": "growchat",
 	"main": "src/index.js",
 	"compatibility_date": "2025-12-23",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"observability": {
 		"enabled": true
 	},
@@ -51,7 +53,9 @@
 	"migrations": [
 		{
 			"tag": "message-queue-v1",
-			"new_sqlite_classes": ["MessageQueueDO"]
+			"new_sqlite_classes": [
+				"MessageQueueDO"
+			]
 		}
 	],
 	// KV namespaces
@@ -73,8 +77,6 @@
 		}
 	],
 	"vars": {
-		"OPENAI_BASE_URL": "https://proxy.tanyongsheng.site/v1",
-		"DEFAULT_MODELS": "gpt-5-mini",
 		"APP_NAME": "GrowChat"
 	}
 }
