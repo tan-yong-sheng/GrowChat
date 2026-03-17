@@ -58,6 +58,21 @@
 			]
 		}
 	],
+	"queues": {
+		"producers": [
+			{
+				"binding": "TOOL_QUEUE",
+				"queue": "tool-runner"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "tool-runner",
+				"max_batch_size": 1,
+				"max_batch_timeout": 30
+			}
+		]
+	},
 	// KV namespaces
 	"kv_namespaces": [
 		{
@@ -77,6 +92,19 @@
 		}
 	],
 	"vars": {
-		"APP_NAME": "GrowChat"
+		"APP_NAME": "GrowChat",
+		"TOOL_RUNNER_MODE": "auto",
+		"ENVIRONMENT": "dev",
+		"DISABLE_VECTORIZE": "1"
+	},
+	"env": {
+		"production": {
+			"vars": {
+				"APP_NAME": "GrowChat",
+				"TOOL_RUNNER_MODE": "auto",
+				"ENVIRONMENT": "production",
+				"DISABLE_VECTORIZE": "0"
+			}
+		}
 	}
 }

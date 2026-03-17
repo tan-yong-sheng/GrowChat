@@ -2,6 +2,8 @@ ai/
 open-webui/
 open-terminal/
 bolt.new/
+codex/
+
 .ona/
 .playwright/
 .playwright-cli/

@@ -316,10 +316,12 @@ function wireChat(root) {
   const pendingTempResolversByChat = new Map();
   const thinkingStartByMessageId = new Map();
   const thinkingDurationByMessageId = new Map();
-  const thinkingCollapsedByMessageId = new Map();
-  const thinkingContentByMessageId = new Map();
+  const thinkingCollapsedByKey = new Map();
   const thinkingActiveByMessageId = new Map();
   const errorExpandedByMessageId = new Map();
+  const toolCallsByMessageId = new Map();
+  const toolExpandedByKey = new Map();
+  const messageBlocksById = new Map();
   const clientSessionId = getClientSessionId();
   let activeStreamAbort = null;
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
@@ -351,18 +353,88 @@ function wireChat(root) {
       thinkingDurationByMessageId.set(String(realId), thinkingDurationByMessageId.get(String(tempId)));
       thinkingDurationByMessageId.delete(String(tempId));
     }
-    if (thinkingCollapsedByMessageId.has(String(tempId))) {
-      thinkingCollapsedByMessageId.set(String(realId), thinkingCollapsedByMessageId.get(String(tempId)));
-      thinkingCollapsedByMessageId.delete(String(tempId));
-    }
-    if (thinkingContentByMessageId.has(String(tempId))) {
-      thinkingContentByMessageId.set(String(realId), thinkingContentByMessageId.get(String(tempId)));
-      thinkingContentByMessageId.delete(String(tempId));
-    }
     if (thinkingActiveByMessageId.has(String(tempId))) {
       thinkingActiveByMessageId.set(String(realId), thinkingActiveByMessageId.get(String(tempId)));
       thinkingActiveByMessageId.delete(String(tempId));
     }
+  };
+
+  const remapToolCalls = (tempId, realId) => {
+    if (!tempId || !realId || tempId === realId) return;
+    const tempKey = String(tempId);
+    const realKey = String(realId);
+    if (toolCallsByMessageId.has(tempKey)) {
+      toolCallsByMessageId.set(realKey, toolCallsByMessageId.get(tempKey));
+      toolCallsByMessageId.delete(tempKey);
+    }
+    if (toolExpandedByKey.size) {
+      const entries = Array.from(toolExpandedByKey.entries());
+      entries.forEach(([key, value]) => {
+        if (key.startsWith(`${tempKey}:`)) {
+          toolExpandedByKey.delete(key);
+          const suffix = key.slice(tempKey.length);
+          toolExpandedByKey.set(`${realKey}${suffix}`, value);
+        }
+      });
+    }
+  };
+
+  const remapThinkingCollapsed = (tempId, realId) => {
+    if (!tempId || !realId || tempId === realId) return;
+    const tempKey = String(tempId);
+    const realKey = String(realId);
+    if (thinkingCollapsedByKey.size) {
+      const entries = Array.from(thinkingCollapsedByKey.entries());
+      entries.forEach(([key, value]) => {
+        if (key.startsWith(`${tempKey}:`)) {
+          thinkingCollapsedByKey.delete(key);
+          const suffix = key.slice(tempKey.length);
+          thinkingCollapsedByKey.set(`${realKey}${suffix}`, value);
+        }
+      });
+    }
+  };
+
+  const remapBlocks = (tempId, realId) => {
+    if (!tempId || !realId || tempId === realId) return;
+    const tempKey = String(tempId);
+    const realKey = String(realId);
+    if (messageBlocksById.has(tempKey)) {
+      messageBlocksById.set(realKey, messageBlocksById.get(tempKey));
+      messageBlocksById.delete(tempKey);
+    }
+  };
+
+  const buildFallbackAssistantMessage = (chatId, messageId, options = {}) => {
+    if (!chatId || !messageId) return null;
+    const { content, errorActive, errorMessage, model, parentId } = options;
+    const messages = state.messagesByChat[chatId] || [];
+    const existing = messages.find((msg) => String(msg.id) === String(messageId));
+    const safeError = String(errorMessage || 'LLM request failed');
+    let nextContent = content ?? existing?.content ?? '';
+    if (errorActive && !nextContent) {
+      nextContent = `Error: ${safeError}`;
+    }
+    if (existing) {
+      return {
+        ...existing,
+        content: nextContent,
+        status: errorActive ? 'error' : existing.status,
+        error_message: errorActive ? safeError : existing.error_message,
+        done: true,
+      };
+    }
+    return {
+      id: messageId,
+      role: 'assistant',
+      content: nextContent,
+      model: model || state.activeModelId,
+      parent_id: parentId || null,
+      status: errorActive ? 'error' : undefined,
+      error_message: errorActive ? safeError : undefined,
+      created_at: Math.floor(Date.now() / 1000),
+      done: true,
+    };
   };
 
   const resolveTempMessageId = (chatId, id) => {
@@ -376,6 +448,9 @@ function wireChat(root) {
     if (!chatId || !tempId || !realId || tempId === realId) return;
     mapTempMessageId(chatId, tempId, realId);
     remapThinkingTiming(tempId, realId);
+    remapToolCalls(tempId, realId);
+    remapThinkingCollapsed(tempId, realId);
+    remapBlocks(tempId, realId);
     const chatKey = String(chatId);
     setState((prev) => {
       const existing = prev.messagesByChat[chatKey] || [];
@@ -1088,20 +1163,20 @@ function wireChat(root) {
     return `Thought for ${seconds} seconds`;
   }
 
-  function renderThinkingBlock({ messageId, label, thinking, collapsed }) {
+  function renderThinkingBlock({ messageId, label, thinking, collapsed, toggleKey }) {
     if (!label) return '';
     const hasContent = Boolean(thinking);
     const contentHtml = hasContent
-      ? `<div data-thinking-body="${messageId}" class="${collapsed ? 'hidden' : ''} mt-2 border-l-2 border-gray-200 pl-3 text-[13px] leading-[1.6] text-gray-500 italic">
+      ? `<div data-thinking-body="${toggleKey}" class="${collapsed ? 'hidden' : ''} mt-2 border-l-2 border-gray-200 pl-3 text-[13px] leading-[1.6] text-gray-500 italic">
           ${renderMessageContent(thinking)}
         </div>`
       : '';
     const chevronClass = collapsed ? '-rotate-90' : 'rotate-0';
     return `
       <div class="mt-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2">
-        <button type="button" data-thinking-toggle="${messageId}" class="w-full flex items-center justify-between text-xs font-medium text-gray-500 hover:text-gray-700 transition">
+        <button type="button" data-thinking-toggle="${toggleKey}" class="w-full flex items-center justify-between text-xs font-medium text-gray-500 hover:text-gray-700 transition">
           <span>${escapeHtml(label)}</span>
-          <svg data-thinking-chevron="${messageId}" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform ${chevronClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg data-thinking-chevron="${toggleKey}" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform ${chevronClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="6 9 12 15 18 9"></polyline>
           </svg>
         </button>
@@ -1110,23 +1185,325 @@ function wireChat(root) {
     `;
   }
 
+  function normalizeToolCalls(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function normalizeMessageBlocks(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function normalizeMessageBlockRecord(raw, index = 0) {
+    if (!raw) return null;
+    const type = String(raw.type || '').trim();
+    if (!type) return null;
+    const content = raw.content == null ? '' : String(raw.content);
+    const toolCallId = raw.tool_call_id || raw.toolCallId || raw.tool_callId || null;
+    return {
+      id: String(raw.id || `${type}-${index + 1}`),
+      type,
+      content,
+      toolCallId: toolCallId ? String(toolCallId) : null,
+    };
+  }
+
+  function normalizeToolCallRecord(raw) {
+    if (!raw) return null;
+    const id = raw.id || raw.tool_call_id || raw.toolCallId;
+    if (!id) return null;
+    const name = String(raw.name || raw.tool_name || raw.toolName || 'Tool').trim() || 'Tool';
+    const input = raw.input ?? raw.arguments ?? raw.args ?? '';
+    const output = raw.output ?? raw.result ?? '';
+    const error = raw.error ?? null;
+    const status = raw.status || raw.state || (error ? 'error' : (output ? 'completed' : 'running'));
+    return {
+      id: String(id),
+      name,
+      input: input == null ? '' : String(input),
+      output: output == null ? '' : String(output),
+      error: error == null ? null : String(error),
+      status: String(status),
+    };
+  }
+
+  function getMessageBlocks(messageId) {
+    const key = String(messageId || '');
+    if (!key) return [];
+    const existing = messageBlocksById.get(key);
+    if (existing) return existing;
+    const created = [];
+    messageBlocksById.set(key, created);
+    return created;
+  }
+
+  function appendBlock(messageId, type, delta) {
+    if (!messageId) return;
+    const blocks = getMessageBlocks(messageId);
+    const last = blocks.length ? blocks[blocks.length - 1] : null;
+    const text = String(delta || '');
+    if (last && last.type === type) {
+      last.content = `${last.content || ''}${text}`;
+      return;
+    }
+    const index = blocks.filter((block) => block.type === type).length + 1;
+    blocks.push({ id: `${type}-${index}`, type, content: text });
+  }
+
+  function ensureThinkingBlock(messageId) {
+    if (!messageId) return;
+    const blocks = getMessageBlocks(messageId);
+    const last = blocks.length ? blocks[blocks.length - 1] : null;
+    if (last && last.type === 'thinking') return;
+    const index = blocks.filter((block) => block.type === 'thinking').length + 1;
+    blocks.push({ id: `thinking-${index}`, type: 'thinking', content: '' });
+  }
+
+  function ensureToolBlock(messageId, toolCallId) {
+    if (!messageId || !toolCallId) return;
+    const blocks = getMessageBlocks(messageId);
+    const id = `tool:${toolCallId}`;
+    if (blocks.some((block) => block.id === id)) return;
+    blocks.push({ id, type: 'tool', toolCallId });
+  }
+
+  function getToolCallsForMessage(messageId) {
+    const key = String(messageId);
+    return toolCallsByMessageId.get(key) || [];
+  }
+
+  function syncToolCallsForMessage(messageId, rawToolCalls, { isStreaming } = {}) {
+    const key = String(messageId);
+    const normalized = normalizeToolCalls(rawToolCalls)
+      .map(normalizeToolCallRecord)
+      .filter(Boolean);
+    if (!normalized.length) {
+      if (!isStreaming) toolCallsByMessageId.delete(key);
+      return;
+    }
+    toolCallsByMessageId.set(key, normalized);
+  }
+
+  function syncMessageBlocksForMessage(messageId, rawBlocks, { isStreaming } = {}) {
+    const key = String(messageId);
+    const normalized = normalizeMessageBlocks(rawBlocks)
+      .map(normalizeMessageBlockRecord)
+      .filter(Boolean);
+    if (!normalized.length) {
+      if (!isStreaming) messageBlocksById.delete(key);
+      return;
+    }
+    if (isStreaming && messageBlocksById.has(key)) return;
+    messageBlocksById.set(key, normalized.map((block, index) => ({
+      id: block.id || `${block.type}-${index + 1}`,
+      type: block.type,
+      content: block.content || '',
+      toolCallId: block.toolCallId || null,
+    })));
+  }
+
+  function updateToolCallState(messageId, payload) {
+    const key = String(messageId || '');
+    if (!key) return;
+    const list = toolCallsByMessageId.get(key) ? [...toolCallsByMessageId.get(key)] : [];
+    const record = normalizeToolCallRecord(payload);
+    if (!record) return;
+    const idx = list.findIndex((item) => String(item.id) === String(record.id));
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...record };
+    } else {
+      list.push(record);
+    }
+    toolCallsByMessageId.set(key, list);
+    ensureToolBlock(key, record.id);
+  }
+
+  function buildToolToggleKey(messageId, toolCallId) {
+    return `${messageId}:${toolCallId}`;
+  }
+
+  function renderToolCallItem(messageId, call) {
+    if (!call) return '';
+      const key = buildToolToggleKey(messageId, call.id);
+      const expanded = toolExpandedByKey.get(key) === true;
+      const collapsed = !expanded;
+      const status = String(call.status || '').toLowerCase();
+      const isRunning = status === 'running';
+      const isError = status === 'error';
+      const label = isRunning
+        ? `Executing ${call.name}...`
+        : (isError ? `Tool error from ${call.name}` : `View Result from ${call.name}`);
+      const dotClass = isError
+        ? 'bg-red-500'
+        : (isRunning ? 'bg-gray-400' : 'bg-green-500');
+      const chevronClass = collapsed ? '-rotate-90' : 'rotate-0';
+      const bodyClass = collapsed ? 'hidden' : '';
+      const inputValue = call.input ? escapeHtml(call.input) : '<span class="text-gray-400">No input.</span>';
+      const outputValue = call.output
+        ? escapeHtml(call.output)
+        : (isRunning ? '<span class="text-gray-400">Waiting for result...</span>' : '<span class="text-gray-400">No output.</span>');
+      const statusIcon = isRunning
+        ? `<svg class="h-3.5 w-3.5 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity="0.25"></circle>
+            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor"></path>
+          </svg>`
+        : `<span class="inline-flex h-2 w-2 rounded-full ${dotClass}"></span>`;
+      return `
+        <div class="mt-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
+          <button type="button" data-tool-toggle="${buildToolToggleKey(messageId, call.id)}" class="w-full flex items-center justify-between text-xs font-semibold text-gray-600 hover:text-gray-900 transition">
+            <span class="flex items-center gap-2">
+              ${statusIcon}
+              <span>${escapeHtml(label)}</span>
+            </span>
+            <svg data-tool-chevron="${buildToolToggleKey(messageId, call.id)}" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform ${chevronClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div data-tool-body="${buildToolToggleKey(messageId, call.id)}" class="${bodyClass} mt-3 space-y-3 text-[12px] text-gray-600">
+            <div>
+              <div class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Input</div>
+              <pre class="mt-1 whitespace-pre-wrap rounded-lg bg-[#111827] px-2 py-2 text-[12px] text-gray-100 border border-gray-900/10 font-mono">${inputValue}</pre>
+            </div>
+            <div>
+              <div class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Output</div>
+              <pre class="mt-1 whitespace-pre-wrap rounded-lg bg-[#111827] px-2 py-2 text-[12px] text-gray-100 border border-gray-900/10 font-mono">${outputValue}</pre>
+            </div>
+          </div>
+        </div>
+      `;
+  }
+
+  function splitThinkingSegments(raw) {
+    const source = String(raw || '');
+    if (!source) return [];
+    const segments = [];
+    const tagNames = ['thinking', 'thoughts', 'think', 'reasoning', 'reason'];
+    let cursor = 0;
+    const lower = source.toLowerCase();
+    while (cursor < source.length) {
+      let nextTag = null;
+      for (const tag of tagNames) {
+        const openToken = `<${tag}`;
+        const idx = lower.indexOf(openToken, cursor);
+        if (idx !== -1 && (nextTag === null || idx < nextTag.index)) {
+          nextTag = { tag, index: idx };
+        }
+      }
+      if (!nextTag) {
+        const text = source.slice(cursor);
+        if (text.trim()) segments.push({ type: 'text', text });
+        break;
+      }
+      if (nextTag.index > cursor) {
+        const text = source.slice(cursor, nextTag.index);
+        if (text.trim()) segments.push({ type: 'text', text });
+      }
+      const openEnd = source.indexOf('>', nextTag.index);
+      if (openEnd === -1) break;
+      const closeToken = `</${nextTag.tag}>`;
+      const closeIdx = lower.indexOf(closeToken, openEnd + 1);
+      if (closeIdx === -1) {
+        const remainder = source.slice(openEnd + 1);
+        if (remainder.trim()) segments.push({ type: 'thinking', text: remainder });
+        break;
+      }
+      const inner = source.slice(openEnd + 1, closeIdx);
+      if (inner.trim()) segments.push({ type: 'thinking', text: inner });
+      cursor = closeIdx + closeToken.length;
+    }
+    return segments;
+  }
+
+  function ensureBlocksFromContent(messageId, content) {
+    const blocks = getMessageBlocks(messageId);
+    if (blocks.length) return blocks;
+    const segments = splitThinkingSegments(content);
+    if (!segments.length) {
+      blocks.push({ id: 'text-1', type: 'text', content: String(content || '') });
+      return blocks;
+    }
+    let textCount = 0;
+    let thinkingCount = 0;
+    segments.forEach((segment) => {
+      if (segment.type === 'thinking') {
+        thinkingCount += 1;
+        blocks.push({ id: `thinking-${thinkingCount}`, type: 'thinking', content: segment.text });
+      } else {
+        textCount += 1;
+        blocks.push({ id: `text-${textCount}`, type: 'text', content: segment.text });
+      }
+    });
+    return blocks;
+  }
+
   function renderAssistantMessageBody({ messageId, content, isError, isStreaming }) {
-    const { cleaned, thinking: tagThinking, hasTag } = extractThinkingBlocks(content);
-    const storedThinking = thinkingContentByMessageId.get(String(messageId));
-    const hasStoredThinking = thinkingContentByMessageId.has(String(messageId));
-    const thinking = (storedThinking ?? tagThinking) || '';
-    const hasThinking = hasStoredThinking || Boolean(tagThinking) || hasTag;
     const isThinkingActive = thinkingActiveByMessageId.get(String(messageId)) === true;
     const duration = thinkingDurationByMessageId.get(String(messageId));
-    const label = isStreaming
-      ? (hasThinking || isThinkingActive ? 'Thinking…' : '')
-      : (hasThinking ? formatThoughtDuration(duration) : '');
-    const collapsed = thinkingCollapsedByMessageId.get(String(messageId)) ?? false;
-    const thinkingHtml = label ? renderThinkingBlock({ messageId, label, thinking, collapsed }) : '';
-    const renderedAnswer = renderAssistantContent(cleaned || content);
-    if (!isError) return `${thinkingHtml}${renderedAnswer}`;
+    const toolCalls = getToolCallsForMessage(messageId);
+    const blocks = ensureBlocksFromContent(String(messageId), content);
+    const hasThinking = blocks.some((block) => block?.type === 'thinking') || isThinkingActive;
+    const hasRunningTools = toolCalls.some((call) => String(call?.status || '').toLowerCase() === 'running');
+    if (toolCalls.length) {
+      const existingToolIds = new Set(
+        blocks.filter((block) => block?.type === 'tool').map((block) => String(block.toolCallId || block.id || ''))
+      );
+      toolCalls.forEach((call) => {
+        const id = String(call.id || '');
+        if (!id || existingToolIds.has(id)) return;
+        blocks.push({ id: `tool:${id}`, type: 'tool', toolCallId: id });
+      });
+    }
+    const toolMap = new Map(toolCalls.map((call) => [String(call.id), call]));
+    const blocksHtml = blocks.map((block) => {
+      if (!block) return '';
+      if (block.type === 'tool') {
+        return renderToolCallItem(String(messageId), toolMap.get(block.toolCallId || block.id.slice(5)));
+      }
+      if (block.type === 'thinking') {
+        const label = isStreaming
+          ? (hasThinking || isThinkingActive ? 'Thinking…' : '')
+          : (hasThinking ? formatThoughtDuration(duration) : '');
+        const toggleKey = `${messageId}:${block.id}`;
+        const collapsed = thinkingCollapsedByKey.get(toggleKey) ?? false;
+        return label ? renderThinkingBlock({ messageId, label, thinking: block.content, collapsed, toggleKey }) : '';
+      }
+      if (block.type === 'text') {
+        if (!block.content) return '';
+        return renderAssistantContent(block.content);
+      }
+      return '';
+    }).join('');
+    const textBlocks = blocks.filter((block) => block?.type === 'text');
+    const textContent = textBlocks.map((block) => block.content || '').join('');
+    const hasTextBlocks = textBlocks.length > 0;
+    const renderedAnswer = hasTextBlocks ? '' : renderAssistantContent(content);
+    const asyncNotice = !isStreaming && hasRunningTools
+      ? `<div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+          Tools are still running in the background. Results will appear when ready.
+        </div>`
+      : '';
+    if (!isError) return `${asyncNotice}${blocksHtml}${renderedAnswer}`;
 
-    const raw = String(cleaned || content || '');
+    const raw = String(textContent || content || '');
     const shouldToggle = raw.length > 240 || raw.includes('\n');
     const expanded = errorExpandedByMessageId.get(String(messageId)) ?? false;
     const bodyClass = expanded ? '' : 'max-h-24 overflow-hidden';
@@ -1142,13 +1519,13 @@ function wireChat(root) {
     const errorBlock = `
       <div class="relative rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-sans">
         <div data-error-body="${messageId}" class="${bodyClass}">
-          ${renderedAnswer}
+          ${renderAssistantContent(raw)}
         </div>
         ${overlayHtml}
         ${toggleHtml}
       </div>
     `;
-    return `${thinkingHtml}${errorBlock}`;
+    return `${asyncNotice}${blocksHtml}${errorBlock}`;
   }
 
   function formatModelDisplayName(modelId) {
@@ -1247,6 +1624,8 @@ function wireChat(root) {
       );
       const displayContent = hasOverride ? (streamingOverride.content || '') : m.content;
       const isStreaming = hasOverride || (m.role === 'assistant' && i === projectedMessages.length - 1 && !m.done);
+      syncMessageBlocksForMessage(msgId, m.message_blocks, { isStreaming });
+      syncToolCallsForMessage(msgId, m.tool_calls, { isStreaming });
       const isEditing = msgId in editingMessages;
       const editingContent = editingMessages[msgId];
       const model = (state.models || []).find(mod => mod.id === m.model);
@@ -1393,23 +1772,6 @@ function wireChat(root) {
     });
 
     // Re-attach event listeners
-    messagesList.querySelectorAll('[data-thinking-toggle]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-thinking-toggle');
-        if (!id) return;
-        const isCollapsed = thinkingCollapsedByMessageId.get(String(id)) ?? false;
-        const next = !isCollapsed;
-        thinkingCollapsedByMessageId.set(String(id), next);
-        const body = messagesList.querySelector(`[data-thinking-body="${id}"]`);
-        const chevron = messagesList.querySelector(`[data-thinking-chevron="${id}"]`);
-        if (body) body.classList.toggle('hidden', next);
-        if (chevron) {
-          chevron.classList.toggle('-rotate-90', next);
-          chevron.classList.toggle('rotate-0', !next);
-        }
-      });
-    });
-
     messagesList.querySelectorAll('[data-error-toggle]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-error-toggle');
@@ -1668,17 +2030,14 @@ function wireChat(root) {
               if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
                 thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
               }
-              if (!thinkingContentByMessageId.has(String(assistantMessageId))) {
-                thinkingContentByMessageId.set(String(assistantMessageId), '');
-              }
               thinkingActiveByMessageId.set(String(assistantMessageId), true);
+              ensureThinkingBlock(assistantMessageId);
               applyAssistantText();
             }
             if (payload?.event === 'reasoning_delta') {
               const delta = String(payload.delta || '');
               if (delta) {
-                const prev = thinkingContentByMessageId.get(String(assistantMessageId)) || '';
-                thinkingContentByMessageId.set(String(assistantMessageId), prev + delta);
+                appendBlock(assistantMessageId, 'thinking', delta);
                 thinkingActiveByMessageId.set(String(assistantMessageId), true);
                 applyAssistantText();
               }
@@ -1689,6 +2048,11 @@ function wireChat(root) {
                 thinkingDurationByMessageId.set(String(assistantMessageId), duration);
               }
               thinkingActiveByMessageId.delete(String(assistantMessageId));
+            }
+            if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
+              const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
+              updateToolCallState(targetId, payload);
+              applyAssistantText();
             }
             if (payload?.error) {
               errorMessage = payload.message || payload.error || 'LLM request failed';
@@ -1727,7 +2091,11 @@ function wireChat(root) {
             while (true) {
               const { done, value } = await reader.read();
               if (done) {
-                assistantText += parser.flush();
+                const finalDelta = parser.flush();
+                if (finalDelta) {
+                  assistantText += finalDelta;
+                  appendBlock(assistantMessageId, 'text', finalDelta);
+                }
                 const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
                 if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
                   thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
@@ -1735,20 +2103,50 @@ function wireChat(root) {
                 thinkingActiveByMessageId.delete(String(assistantMessageId));
                 applyAssistantText(false);
                 streamingOverrideByChat.delete(chatId);
+                const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+                  content: assistantText,
+                  errorActive,
+                  errorMessage,
+                  model: state.activeModelId,
+                  parentId: resolveTempMessageId(chatId, tempUserId),
+                });
                 await loadMessages(chatId, {
                   draw: state.activeChatId === chatId,
                   updateActiveModel: state.activeChatId === chatId,
+                  fallbackMessage: fallback,
                 });
                 break;
               }
               const chunk = decoder.decode(value, { stream: true });
-              assistantText += parser.push(chunk);
+              const delta = parser.push(chunk);
+              if (delta) {
+                assistantText += delta;
+                appendBlock(assistantMessageId, 'text', delta);
+              }
               applyAssistantText();
             }
           } catch (e) {
             if (e?.name !== 'AbortError') {
               console.error('Branching failed', e);
               alert('An error occurred while branching the chat.');
+              if (!errorActive) {
+                errorMessage = String(e?.message || 'LLM request failed');
+                errorActive = true;
+                assistantText = assistantText || `Error: ${errorMessage}`;
+                applyAssistantText(false);
+              }
+              const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+                content: assistantText,
+                errorActive,
+                errorMessage,
+                model: state.activeModelId,
+                parentId: resolveTempMessageId(chatId, tempUserId),
+              });
+              await loadMessages(chatId, {
+                draw: state.activeChatId === chatId,
+                updateActiveModel: state.activeChatId === chatId,
+                fallbackMessage: fallback,
+              });
             }
           } finally {
             streamingOverrideByChat.delete(chatId);
@@ -1959,17 +2357,14 @@ function wireChat(root) {
               if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
                 thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
               }
-              if (!thinkingContentByMessageId.has(String(assistantMessageId))) {
-                thinkingContentByMessageId.set(String(assistantMessageId), '');
-              }
               thinkingActiveByMessageId.set(String(assistantMessageId), true);
+              ensureThinkingBlock(assistantMessageId);
               applyAssistantText();
             }
             if (payload?.event === 'reasoning_delta') {
               const delta = String(payload.delta || '');
               if (delta) {
-                const prev = thinkingContentByMessageId.get(String(assistantMessageId)) || '';
-                thinkingContentByMessageId.set(String(assistantMessageId), prev + delta);
+                appendBlock(assistantMessageId, 'thinking', delta);
                 thinkingActiveByMessageId.set(String(assistantMessageId), true);
                 applyAssistantText();
               }
@@ -1980,6 +2375,11 @@ function wireChat(root) {
                 thinkingDurationByMessageId.set(String(assistantMessageId), duration);
               }
               thinkingActiveByMessageId.delete(String(assistantMessageId));
+            }
+            if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
+              const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
+              updateToolCallState(targetId, payload);
+              applyAssistantText();
             }
             if (payload?.error) {
               errorMessage = payload.message || payload.error || 'LLM request failed';
@@ -2018,7 +2418,11 @@ function wireChat(root) {
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
-              assistantText += parser.flush();
+              const finalDelta = parser.flush();
+              if (finalDelta) {
+                assistantText += finalDelta;
+                appendBlock(assistantMessageId, 'text', finalDelta);
+              }
               const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
               if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
                 thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
@@ -2026,19 +2430,49 @@ function wireChat(root) {
               thinkingActiveByMessageId.delete(String(assistantMessageId));
               applyAssistantText(false);
               streamingOverrideByChat.delete(chatId);
+              const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+                content: assistantText,
+                errorActive,
+                errorMessage,
+                model: state.activeModelId,
+                parentId: branchParentId,
+              });
               await loadMessages(chatId, {
                 draw: state.activeChatId === chatId,
                 updateActiveModel: state.activeChatId === chatId,
+                fallbackMessage: fallback,
               });
               break;
             }
             const chunk = decoder.decode(value, { stream: true });
-            assistantText += parser.push(chunk);
+            const delta = parser.push(chunk);
+            if (delta) {
+              assistantText += delta;
+              appendBlock(assistantMessageId, 'text', delta);
+            }
             applyAssistantText();
           }
         } catch (e) {
           if (e?.name !== 'AbortError') {
             console.error('Regeneration failed', e);
+            if (!errorActive) {
+              errorMessage = String(e?.message || 'LLM request failed');
+              errorActive = true;
+              assistantText = assistantText || `Error: ${errorMessage}`;
+              applyAssistantText(false);
+            }
+            const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+              content: assistantText,
+              errorActive,
+              errorMessage,
+              model: state.activeModelId,
+              parentId: branchParentId,
+            });
+            await loadMessages(chatId, {
+              draw: state.activeChatId === chatId,
+              updateActiveModel: state.activeChatId === chatId,
+              fallbackMessage: fallback,
+            });
           }
         } finally {
           streamingOverrideByChat.delete(chatId);
@@ -2106,7 +2540,7 @@ function wireChat(root) {
   }
 
   async function loadMessages(chatId, options = {}) {
-    const { draw = true, updateActiveModel = draw, modelMode = 'keep' } = options;
+    const { draw = true, updateActiveModel = draw, modelMode = 'keep', fallbackMessage = null } = options;
     if (!chatId) {
       if (draw) drawMessages([]);
       return;
@@ -2122,12 +2556,44 @@ function wireChat(root) {
     if (!res.ok) return;
     const data = await res.json();
 
-    const messages = (data.messages || []).map(m => ({ ...m, done: true }));
+    let messages = (data.messages || []).map((m) => {
+      const status = String(m?.status || '');
+      const isRunning = m?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+      return { ...m, done: !isRunning };
+    });
+    let appliedFallbackId = null;
+    if (fallbackMessage?.id) {
+      let resolvedFallback = fallbackMessage;
+      const fallbackId = String(resolvedFallback.id);
+      const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
+      const fallbackParent = resolvedFallback.parent_id ? String(resolvedFallback.parent_id) : '';
+      const hasSibling = fallbackParent
+        ? messages.some((msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent)
+        : false;
+      if (!hasExact && !hasSibling) {
+        const parentExists = fallbackParent && messages.some((msg) => String(msg.id) === fallbackParent);
+        if (!parentExists) {
+          const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
+          resolvedFallback = { ...resolvedFallback, parent_id: lastUser ? lastUser.id : null };
+        }
+        messages = [...messages, { ...resolvedFallback, done: true }];
+        messages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
+        appliedFallbackId = String(resolvedFallback.id);
+      }
+    }
 
     const lastMsgId = data.chat?.current_message_id || (messages.length > 0 ? messages[messages.length - 1].id : null);
     if (lastMsgId) {
       currentLeafByChatId.set(chatId, String(lastMsgId));
     }
+    if (appliedFallbackId) {
+      currentLeafByChatId.set(chatId, String(appliedFallbackId));
+    }
+
+    const hasRunning = messages.some((m) => {
+      const status = String(m?.status || '');
+      return m?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+    });
 
     const nextState = {
       messagesByChat: { ...state.messagesByChat, [chatId]: messages },
@@ -2149,7 +2615,11 @@ function wireChat(root) {
       }
       nextState.activeModelId = preferredModelId;
     }
-    nextState.ui = { loadingChatId: null };
+    nextState.ui = {
+      loadingChatId: null,
+      streaming: hasRunning,
+      streamingChatId: hasRunning ? String(chatId) : null,
+    };
     setState(nextState);
 
     if (draw) drawMessages(messages);
@@ -2253,6 +2723,22 @@ function wireChat(root) {
       }
       if (!state.activeChatId) {
         drawMessages([]);
+      }
+      return;
+    }
+
+    if (type === 'tool.status' || type === 'tool.result') {
+      const chatId = event.chat_id;
+      if (!chatId) return;
+      const messageId = String(event.message_id || '');
+      if (!messageId) return;
+      const payload = event?.data || {};
+      updateToolCallState(messageId, payload);
+      if (state.activeChatId === chatId) {
+        updateMessageContentDom(messageId, state.messagesByChat[chatId]?.find((m) => String(m.id) === messageId)?.content || '', {
+          isError: false,
+          isStreaming: true,
+        });
       }
       return;
     }
@@ -2577,17 +3063,14 @@ function wireChat(root) {
         if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
           thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
         }
-        if (!thinkingContentByMessageId.has(String(assistantMessageId))) {
-          thinkingContentByMessageId.set(String(assistantMessageId), '');
-        }
         thinkingActiveByMessageId.set(String(assistantMessageId), true);
+        ensureThinkingBlock(assistantMessageId);
         applyAssistantText(true);
       }
       if (payload?.event === 'reasoning_delta') {
         const delta = String(payload.delta || '');
         if (delta) {
-          const prev = thinkingContentByMessageId.get(String(assistantMessageId)) || '';
-          thinkingContentByMessageId.set(String(assistantMessageId), prev + delta);
+          appendBlock(assistantMessageId, 'thinking', delta);
           thinkingActiveByMessageId.set(String(assistantMessageId), true);
           applyAssistantText(true);
         }
@@ -2598,6 +3081,11 @@ function wireChat(root) {
           thinkingDurationByMessageId.set(String(assistantMessageId), duration);
         }
         thinkingActiveByMessageId.delete(String(assistantMessageId));
+      }
+      if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
+        const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
+        updateToolCallState(targetId, payload);
+        applyAssistantText();
       }
       if (payload?.error) {
         errorMessage = payload.message || payload.error || 'LLM request failed';
@@ -2641,7 +3129,11 @@ function wireChat(root) {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          assistantText += parser.flush();
+          const finalDelta = parser.flush();
+          if (finalDelta) {
+            assistantText += finalDelta;
+            appendBlock(assistantMessageId, 'text', finalDelta);
+          }
           const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
           if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
             thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
@@ -2649,19 +3141,49 @@ function wireChat(root) {
           thinkingActiveByMessageId.delete(String(assistantMessageId));
           applyAssistantText(false);
           streamingOverrideByChat.delete(chatId);
+          const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+            content: assistantText,
+            errorActive,
+            errorMessage,
+            model: state.activeModelId,
+            parentId: resolveTempMessageId(chatId, tempUserId),
+          });
           await loadMessages(chatId, {
             draw: state.activeChatId === chatId,
             updateActiveModel: state.activeChatId === chatId,
+            fallbackMessage: fallback,
           });
           break;
         }
         const chunk = decoder.decode(value, { stream: true });
-        assistantText += parser.push(chunk);
+        const delta = parser.push(chunk);
+        if (delta) {
+          assistantText += delta;
+          appendBlock(assistantMessageId, 'text', delta);
+        }
         applyAssistantText(true);
       }
     } catch (err) {
       if (err?.name !== 'AbortError') {
         console.error('Stream error:', err);
+        if (!errorActive) {
+          errorMessage = String(err?.message || 'LLM request failed');
+          errorActive = true;
+          assistantText = assistantText || `Error: ${errorMessage}`;
+          applyAssistantText(false);
+        }
+        const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+          content: assistantText,
+          errorActive,
+          errorMessage,
+          model: state.activeModelId,
+          parentId: resolveTempMessageId(chatId, tempUserId),
+        });
+        await loadMessages(chatId, {
+          draw: state.activeChatId === chatId,
+          updateActiveModel: state.activeChatId === chatId,
+          fallbackMessage: fallback,
+        });
       }
     } finally {
       streamingOverrideByChat.delete(chatId);
@@ -2730,6 +3252,39 @@ function wireChat(root) {
   toggleSidebarDesktop.addEventListener('click', onToggleSidebar);
   openSearchBtn.addEventListener('click', onOpenSearch);
   newChatBtn.addEventListener('click', onNewChat);
+
+  messagesList.addEventListener('click', (event) => {
+    const thinkingTarget = event.target?.closest?.('[data-thinking-toggle]');
+    if (thinkingTarget) {
+      const key = thinkingTarget.getAttribute('data-thinking-toggle');
+      if (!key) return;
+      const isCollapsed = thinkingCollapsedByKey.get(key) ?? false;
+      const next = !isCollapsed;
+      thinkingCollapsedByKey.set(key, next);
+      const body = messagesList.querySelector(`[data-thinking-body="${key}"]`);
+      const chevron = messagesList.querySelector(`[data-thinking-chevron="${key}"]`);
+      if (body) body.classList.toggle('hidden', next);
+      if (chevron) {
+        chevron.classList.toggle('-rotate-90', next);
+        chevron.classList.toggle('rotate-0', !next);
+      }
+      return;
+    }
+    const target = event.target?.closest?.('[data-tool-toggle]');
+    if (!target) return;
+    const key = target.getAttribute('data-tool-toggle');
+    if (!key) return;
+    const expanded = toolExpandedByKey.get(key) === true;
+    const next = !expanded;
+    toolExpandedByKey.set(key, next);
+    const body = messagesList.querySelector(`[data-tool-body="${key}"]`);
+    const chevron = messagesList.querySelector(`[data-tool-chevron="${key}"]`);
+    if (body) body.classList.toggle('hidden', !next);
+    if (chevron) {
+      chevron.classList.toggle('-rotate-90', !next);
+      chevron.classList.toggle('rotate-0', next);
+    }
+  });
   window.addEventListener('growchat:open-archived', onOpenArchivedEvent);
   window.addEventListener('popstate', onPopState);
 

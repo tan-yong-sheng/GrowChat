@@ -1,11 +1,12 @@
 import { getAllOpenAIConnectionConfigs } from './utils/openai-connections.js';
 import { buildProviderId, parseModelId, parseProviderId } from './utils/provider-registry.js';
 
-export async function streamLLM(env, model, messages) {
+export async function streamLLM(env, model, messages, options = {}) {
   if (!model) throw new Error('Model is required');
+  const { tools, toolChoice, stream = true } = options || {};
 
   if (model.startsWith('@cf/')) {
-    return env.AI.run(model, { messages, stream: true });
+    return env.AI.run(model, { messages, stream: stream !== false });
   }
 
   let parsed = parseModelId(model);
@@ -51,15 +52,25 @@ export async function streamLLM(env, model, messages) {
   }
   headers['Content-Type'] = 'application/json';
 
+  const payload = { model: parsed.modelId, messages, stream: stream !== false };
+  if (Array.isArray(tools) && tools.length) {
+    payload.tools = tools;
+    if (toolChoice) payload.tool_choice = toolChoice;
+  }
+
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ model: parsed.modelId, messages, stream: true }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok || !response.body) {
     const body = await response.text().catch(() => '');
     throw new Error(`LLM request failed (${response.status}): ${body.slice(0, 200)}`);
+  }
+
+  if (stream === false) {
+    return response.json();
   }
 
   return response.body;
@@ -185,6 +196,7 @@ export class SseLineParser {
   _handleParsed(parsed) {
     let text = '';
     const delta = parsed?.choices?.[0]?.delta || {};
+    const finishReason = parsed?.choices?.[0]?.finish_reason;
     const reasoningField =
       delta.reasoning ??
       delta.thinking ??
@@ -207,6 +219,15 @@ export class SseLineParser {
           text += segment.text;
         }
       }
+    }
+
+    const toolCalls = delta.tool_calls;
+    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+      this._emit({ type: 'tool_call_delta', tool_calls: toolCalls });
+    }
+
+    if (finishReason) {
+      this._emit({ type: 'finish_reason', reason: finishReason });
     }
 
     return text;

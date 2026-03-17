@@ -15,6 +15,7 @@ import { realtimeRouter } from './routers/realtime.js';
 import { foldersRouter } from './routers/folders.js';
 import { error, preflight } from './utils/response.js';
 import { MessageQueueDO } from './durable/message-queue.js';
+import { runToolJob } from './tool-runner.js';
 
 const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRouter, filesRouter, knowledgeRouter, promptsRouter, adminRouter, modelsRouter, rbacRouter, realtimeRouter, foldersRouter];
 let schemaCompatibilityReady = null;
@@ -131,6 +132,11 @@ function requireBinding(req, env, name, value) {
   return error(req, `${name} binding missing`, 500);
 }
 
+function isVectorizeDisabled(env) {
+  const raw = String(env?.DISABLE_VECTORIZE || '').toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
 function validateRouteBindings(req, env, path) {
   // R2 upload endpoint requires FILES bucket.
   if (req.method === 'POST' && path === '/api/files/upload') {
@@ -139,6 +145,7 @@ function validateRouteBindings(req, env, path) {
 
   // FAQ semantic search requires embedding + vector indexes.
   if (req.method === 'GET' && path === '/api/faqs/search') {
+    if (isVectorizeDisabled(env)) return null;
     return requireBinding(req, env, 'AI', env.AI)
       || requireBinding(req, env, 'VECTORIZE', env.VECTORIZE);
   }
@@ -148,6 +155,7 @@ function validateRouteBindings(req, env, path) {
     req.method === 'POST' &&
     (path === '/api/admin/faqs/reindex' || path === '/api/admin/documents/reindex')
   ) {
+    if (isVectorizeDisabled(env)) return null;
     return requireBinding(req, env, 'AI', env.AI)
       || requireBinding(req, env, 'VECTORIZE', env.VECTORIZE);
   }
@@ -316,6 +324,24 @@ export default {
     }
 
     return response;
+  },
+
+  async queue(batch, env, ctx) {
+    if (!batch?.messages?.length) return;
+    for (const message of batch.messages) {
+      try {
+        const payload = typeof message.body === 'string'
+          ? JSON.parse(message.body)
+          : message.body;
+        await runToolJob(env, payload);
+      } catch (err) {
+        if (message.retry) {
+          message.retry();
+        } else {
+          throw err;
+        }
+      }
+    }
   },
 };
 

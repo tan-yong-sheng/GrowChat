@@ -31,6 +31,11 @@ export async function generateEmbedding(env, text) {
   }
 }
 
+function isVectorizeDisabled(env) {
+  const raw = String(env?.DISABLE_VECTORIZE || '').toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
 /**
  * Insert or update an FAQ with embedding
  * @param {Object} env - Worker environment
@@ -41,7 +46,7 @@ export async function generateEmbedding(env, text) {
  * @returns {Promise<Object>} - Inserted FAQ with vector_id
  */
 export async function upsertFAQ(env, db, faqId, question, answer, metadata = {}) {
-  if (!env.VECTORIZE) throw new Error('VECTORIZE binding not configured');
+  if (!env.VECTORIZE || isVectorizeDisabled(env)) throw new Error('VECTORIZE binding not configured');
 
   try {
     // Combine question + answer for embedding
@@ -100,7 +105,7 @@ export async function upsertFAQ(env, db, faqId, question, answer, metadata = {})
  * @returns {Promise<Array>} - Array of similar FAQs with similarity scores
  */
 export async function queryFAQs(env, db, query, topK = 3, minSimilarity = 0.5) {
-  if (!env.VECTORIZE) throw new Error('VECTORIZE binding not configured');
+  if (!env.VECTORIZE || isVectorizeDisabled(env)) return [];
 
   try {
     // Generate embedding for query
@@ -150,7 +155,7 @@ export async function queryFAQs(env, db, query, topK = 3, minSimilarity = 0.5) {
  * @param {string} faqId - FAQ ID to delete
  */
 export async function deleteFAQEmbedding(env, faqId) {
-  if (!env.VECTORIZE) return;
+  if (!env.VECTORIZE || isVectorizeDisabled(env)) return;
 
   try {
     await env.VECTORIZE.deleteByIds([faqId]);
@@ -167,7 +172,7 @@ export async function deleteFAQEmbedding(env, faqId) {
  * @param {Array} chunks - Array of {id, text, documentId, chunkIndex}
  */
 export async function upsertDocumentChunks(env, db, chunks) {
-  if (!env.VECTORIZE) throw new Error('VECTORIZE binding not configured');
+  if (!env.VECTORIZE || isVectorizeDisabled(env)) return;
   if (!chunks.length) return;
 
   try {
@@ -238,7 +243,7 @@ export async function upsertDocumentChunks(env, db, chunks) {
  * @returns {Promise<Array>} - Array of similar chunks with documents
  */
 export async function queryDocumentChunks(env, db, query, topK = 5, minSimilarity = 0.5) {
-  if (!env.VECTORIZE) throw new Error('VECTORIZE binding not configured');
+  if (!env.VECTORIZE || isVectorizeDisabled(env)) return [];
 
   try {
     // Generate query embedding

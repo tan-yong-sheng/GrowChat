@@ -637,11 +637,17 @@ export async function adminRouter(req, env, ctx, user, path) {
         ? toolsResult.result.tools
         : [];
       const toolSummaries = tools
-        .map((tool) => ({
-          name: String(tool?.name || '').trim(),
-          title: String(tool?.title || '').trim(),
-          description: String(tool?.description || '').trim(),
-        }))
+        .map((tool) => {
+          const parameters = tool?.inputSchema && typeof tool.inputSchema === 'object'
+            ? tool.inputSchema
+            : (tool?.parameters && typeof tool.parameters === 'object' ? tool.parameters : {});
+          return {
+            name: String(tool?.name || '').trim(),
+            title: String(tool?.title || '').trim(),
+            description: String(tool?.description || '').trim(),
+            parameters,
+          };
+        })
         .filter((tool) => tool.name);
 
       if (body.id) {

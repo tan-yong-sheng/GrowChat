@@ -64,12 +64,12 @@ async function getMessageSnapshot(db, messageId) {
   if (!messageId) return null;
   try {
     return await db.first(
-      'SELECT id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, created_at FROM messages WHERE id = ?',
+      'SELECT id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, message_blocks, created_at FROM messages WHERE id = ?',
       [messageId]
     );
   } catch (err) {
     return db.first(
-      'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ?',
+      'SELECT id, chat_id, role, content, model, citations, parent_id, message_blocks, created_at FROM messages WHERE id = ?',
       [messageId]
     );
   }
@@ -78,12 +78,12 @@ async function getMessageSnapshot(db, messageId) {
 async function getChatMessages(db, chatId) {
   try {
     return await db.all(
-      'SELECT id, role, content, model, citations, parent_id, status, error_code, error_message, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
+      'SELECT id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, message_blocks, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
       [chatId]
     );
   } catch (err) {
     return db.all(
-      'SELECT id, role, content, model, citations, parent_id, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
+      'SELECT id, role, content, model, citations, parent_id, message_blocks, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
       [chatId]
     );
   }
@@ -105,6 +105,7 @@ async function persistAssistantErrorMessage(db, {
   errorMessage,
   content,
   citations,
+  toolCalls,
 }) {
   const displayContent = String(content || errorMessage || 'LLM request failed').trim();
   const MAX_ERROR_CONTENT = 8000;
@@ -114,12 +115,32 @@ async function persistAssistantErrorMessage(db, {
   const safeErrorMessage = String(errorMessage || 'LLM request failed').trim().slice(0, 500);
   const safeErrorCode = String(errorCode || 'llm_error').trim().slice(0, 80);
   const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : (citations || null);
+  const toolCallsJson = Array.isArray(toolCalls) && toolCalls.length ? JSON.stringify(toolCalls) : null;
+
+  try {
+    const update = await db.run(
+      `UPDATE messages
+       SET content = ?, model = ?, citations = ?, parent_id = ?, status = 'error',
+           error_code = ?, error_message = ?, tool_calls = ?
+       WHERE id = ?`,
+      [truncatedContent, model, citationsJson, parentId, safeErrorCode, safeErrorMessage, toolCallsJson, messageId]
+    );
+    if (update?.meta?.changes) {
+      await db.run(
+        'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+        [messageId, model, chatId, userId]
+      );
+      return getMessageSnapshot(db, messageId);
+    }
+  } catch (err) {
+    // fall through to insert
+  }
 
   try {
     await db.run(
-      `INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, created_at)
-       VALUES (?, ?, 'assistant', ?, ?, ?, ?, 'error', ?, ?, unixepoch())`,
-      [messageId, chatId, truncatedContent, model, citationsJson, parentId, safeErrorCode, safeErrorMessage]
+      `INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, created_at)
+       VALUES (?, ?, 'assistant', ?, ?, ?, ?, 'error', ?, ?, ?, unixepoch())`,
+      [messageId, chatId, truncatedContent, model, citationsJson, parentId, safeErrorCode, safeErrorMessage, toolCallsJson]
     );
   } catch (err) {
     await db.run(
@@ -160,6 +181,792 @@ async function publishRealtimeNow(env, event) {
   } catch {
     return false;
   }
+}
+
+const MCP_PROTOCOL_VERSION = '2025-11-25';
+const MAX_TOOL_STEPS = 3;
+const MAX_FOLLOW_UPS = 2;
+const FOLLOW_UP_PROMPT = 'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
+
+function shouldUseToolRunner(env) {
+  const mode = String(env?.TOOL_RUNNER_MODE || 'auto').toLowerCase();
+  if (mode === 'inline') return false;
+  if (mode === 'queue') return Boolean(env?.TOOL_QUEUE);
+  const envName = String(env?.ENVIRONMENT || env?.CF_ENV || '').toLowerCase();
+  if (envName && envName !== 'production') return false;
+  return Boolean(env?.TOOL_QUEUE);
+}
+
+async function enqueueToolRunner(env, payload) {
+  if (!env?.TOOL_QUEUE) return false;
+  try {
+    await env.TOOL_QUEUE.send(payload);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function loadToolServers(db) {
+  const raw = await getConfigValue(db, 'tool_servers', '[]');
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeHeadersInput(input) {
+  if (!input) return {};
+  if (input && typeof input === 'object' && !Array.isArray(input)) return input;
+  try {
+    const parsed = JSON.parse(String(input));
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+  } catch {}
+  return {};
+}
+
+function buildMcpHeaders(base, sessionId) {
+  const headers = {
+    ...base,
+    'mcp-protocol-version': MCP_PROTOCOL_VERSION,
+    Accept: 'application/json, text/event-stream',
+    'Content-Type': 'application/json',
+  };
+  if (sessionId) headers['mcp-session-id'] = sessionId;
+  return headers;
+}
+
+function parseSseMessages(body) {
+  const blocks = String(body || '').split('\n\n');
+  const messages = [];
+  for (const block of blocks) {
+    const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+    let data = '';
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        data += line.slice(5).trim();
+      }
+    }
+    if (!data) continue;
+    try {
+      messages.push(JSON.parse(data));
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return messages;
+}
+
+const MCP_RETRY_STATUSES = new Set([429, 500, 503, 504]);
+const MCP_MAX_RETRIES = 3;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function mcpFetchWithRetry({ url, headers, sessionId, body }) {
+  let attempt = 0;
+  while (true) {
+    attempt += 1;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: buildMcpHeaders(headers, sessionId),
+      body,
+    });
+
+    if (!MCP_RETRY_STATUSES.has(response.status) || attempt >= MCP_MAX_RETRIES) {
+      return response;
+    }
+
+    const retryAfter = Number(response.headers.get('retry-after') || '');
+    const baseDelay = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1000
+      : (500 * Math.pow(2, attempt - 1));
+    const jitter = Math.floor(Math.random() * 250);
+    await sleep(baseDelay + jitter);
+  }
+}
+
+async function mcpRequest({ url, headers, sessionId, id, method, params }) {
+  const response = await mcpFetchWithRetry({
+    url,
+    headers,
+    sessionId,
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id,
+      method,
+      ...(params ? { params } : {}),
+    }),
+  });
+
+  const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
+
+  if (response.status === 202) {
+    return { result: null, sessionId: nextSessionId };
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`MCP request failed (${response.status}): ${text || response.statusText}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const payload = await response.json();
+    const message = Array.isArray(payload)
+      ? payload.find((item) => String(item?.id) === String(id)) || payload[0]
+      : payload;
+    if (message?.error) {
+      throw new Error(message.error.message || 'MCP error');
+    }
+    return { result: message?.result, sessionId: nextSessionId };
+  }
+
+  if (contentType.includes('text/event-stream')) {
+    const text = await response.text();
+    const messages = parseSseMessages(text);
+    const message = messages.find((item) => String(item?.id) === String(id)) || messages[0];
+    if (message?.error) {
+      throw new Error(message.error.message || 'MCP error');
+    }
+    return { result: message?.result, sessionId: nextSessionId };
+  }
+
+  throw new Error(`Unexpected MCP response content type: ${contentType}`);
+}
+
+async function mcpNotify({ url, headers, sessionId, method, params }) {
+  const response = await mcpFetchWithRetry({
+    url,
+    headers,
+    sessionId,
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method,
+      ...(params ? { params } : {}),
+    }),
+  });
+  const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
+  if (response.status === 202 || response.status === 204) {
+    return { sessionId: nextSessionId };
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`MCP notification failed (${response.status}): ${text || response.statusText}`);
+  }
+  return { sessionId: nextSessionId };
+}
+
+function normalizeToolParameters(input) {
+  if (input && typeof input === 'object' && !Array.isArray(input)) return input;
+  return {};
+}
+
+function buildMcpToolName(serverId, toolName) {
+  const safe = String(toolName || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `mcp__${serverId}__${safe}`;
+}
+
+function buildMcpTools(servers = []) {
+  const tools = [];
+  const toolMap = new Map();
+  const serversById = new Map();
+  servers.forEach((server) => {
+    if (server?.enabled === false) return;
+    if (!server?.id || !server?.url) return;
+    serversById.set(String(server.id), server);
+    const toolSpecs = Array.isArray(server.tools) ? server.tools : [];
+    toolSpecs.forEach((tool) => {
+      const toolName = String(tool?.name || '').trim();
+      if (!toolName) return;
+      const modelToolName = buildMcpToolName(server.id, toolName);
+      toolMap.set(modelToolName, {
+        serverId: String(server.id),
+        toolName,
+        displayName: toolName,
+      });
+      tools.push({
+        type: 'function',
+        function: {
+          name: modelToolName,
+          description: String(tool?.description || tool?.title || '').trim() || undefined,
+          parameters: normalizeToolParameters(tool?.parameters),
+        },
+      });
+    });
+  });
+  return { tools, toolMap, serversById };
+}
+
+function buildMcpAuthHeaders(server) {
+  const headers = { ...normalizeHeadersInput(server?.headers) };
+  const authType = String(server?.auth_type || 'none').toLowerCase();
+  if (authType === 'bearer') {
+    const token = String(server?.auth_bearer_token || '').trim();
+    if (token) headers.Authorization = headers.Authorization || `Bearer ${token}`;
+  } else if (authType === 'basic') {
+    const user = String(server?.auth_basic_username || '').trim();
+    const pass = String(server?.auth_basic_password || '');
+    if (user) headers.Authorization = headers.Authorization || `Basic ${btoa(`${user}:${pass}`)}`;
+  } else if (authType === 'oauth') {
+    const token = String(server?.oauth_tokens?.access_token || '').trim();
+    if (token) headers.Authorization = headers.Authorization || `Bearer ${token}`;
+  }
+  return headers;
+}
+
+function parseToolArguments(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(String(raw));
+  } catch {
+    throw new Error('Tool arguments must be valid JSON');
+  }
+}
+
+async function executeMcpToolCall({ server, toolName, args }) {
+  const headers = buildMcpAuthHeaders(server);
+  let sessionId;
+  const init = await mcpRequest({
+    url: server.url,
+    headers,
+    sessionId,
+    id: 0,
+    method: 'initialize',
+    params: {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: { name: 'GrowChat', version: '1.0.0' },
+    },
+  });
+  sessionId = init.sessionId;
+
+  const notified = await mcpNotify({
+    url: server.url,
+    headers,
+    sessionId,
+    method: 'notifications/initialized',
+  });
+  sessionId = notified.sessionId;
+
+  const result = await mcpRequest({
+    url: server.url,
+    headers,
+    sessionId,
+    id: 2,
+    method: 'tools/call',
+    params: {
+      name: toolName,
+      arguments: args,
+    },
+  });
+
+  return result?.result;
+}
+
+function stringifyToolPayload(payload) {
+  if (payload == null) return '';
+  if (typeof payload === 'string') return payload;
+  try {
+    return JSON.stringify(payload, null, 2);
+  } catch {
+    return String(payload);
+  }
+}
+
+function applyToolCallDelta(target, deltas) {
+  if (!Array.isArray(deltas)) return;
+  deltas.forEach((delta) => {
+    if (!delta) return;
+    const index = Number.isFinite(delta.index) ? delta.index : 0;
+    if (!target[index]) {
+      target[index] = { id: null, name: '', arguments: '' };
+    }
+    if (delta.id) target[index].id = delta.id;
+    if (delta.function?.name) target[index].name += delta.function.name;
+    if (delta.function?.arguments) target[index].arguments += delta.function.arguments;
+  });
+}
+
+function normalizeToolCalls(stepToolCalls, toolMap) {
+  return stepToolCalls
+    .filter((call) => call && call.name)
+    .map((call) => {
+      const toolCallId = call.id || crypto.randomUUID();
+      const mapping = toolMap.get(call.name);
+      if (!mapping) {
+        throw new Error(`Unknown tool called: ${call.name}`);
+      }
+      return {
+        toolCallId,
+        modelToolName: call.name,
+        serverId: mapping.serverId,
+        toolName: mapping.toolName,
+        displayName: mapping.displayName || mapping.toolName,
+        arguments: call.arguments || '',
+      };
+    });
+}
+
+async function streamAssistantWithTools({
+  req,
+  env,
+  ctx,
+  db,
+  user,
+  chatId,
+  userMsgId,
+  parentId,
+  model,
+  history,
+  citations,
+}) {
+  const assistantMsgId = crypto.randomUUID();
+  const servers = await loadToolServers(db);
+  const { tools, toolMap, serversById } = buildMcpTools(servers);
+  const toolsEnabled = tools.length > 0;
+
+  const encoder = new TextEncoder();
+  let fullText = '';
+  let fullReasoning = '';
+  let reasoningStartedAt = null;
+  let deltaSeq = 0;
+  const toolCallRecords = [];
+  const messageBlocks = [];
+
+  const appendMessageBlock = (type, content = '', toolCallId = null) => {
+    if (!type) return;
+    const last = messageBlocks.length ? messageBlocks[messageBlocks.length - 1] : null;
+    if (type === 'tool') {
+      const existing = messageBlocks.find((block) => block.type === 'tool' && block.tool_call_id === toolCallId);
+      if (existing) return;
+      messageBlocks.push({
+        type: 'tool',
+        tool_call_id: String(toolCallId || ''),
+      });
+      return;
+    }
+    if (last && last.type === type && !last.tool_call_id) {
+      last.content = `${last.content || ''}${content}`;
+      return;
+    }
+    messageBlocks.push({ type, content: String(content || '') });
+  };
+
+  const readable = new ReadableStream({
+    async start(controller) {
+      const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : (citations || null);
+      let lastPersistAt = 0;
+      let lastPersistSize = 0;
+
+      const ensureAssistantRow = async () => {
+        try {
+          await db.run(
+            `INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, created_at)
+             VALUES (?, ?, 'assistant', ?, ?, ?, ?, 'streaming', unixepoch())`,
+            [assistantMsgId, chatId, '', model, citationsJson, userMsgId]
+          );
+        } catch (err) {
+          try {
+            await db.run(
+              'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
+              [assistantMsgId, chatId, 'assistant', '', model, citationsJson, userMsgId]
+            );
+          } catch {}
+        }
+        try {
+          await db.run(
+            'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+            [assistantMsgId, model, chatId, user.sub]
+          );
+        } catch {}
+      };
+
+      const buildPersistedContent = () => {
+        const reasoningSuffix = fullReasoning.trim();
+        return reasoningSuffix
+          ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
+          : fullText;
+      };
+
+      const persistToolCalls = async () => {
+        try {
+          const toolCallsJson = toolCallRecords.length ? JSON.stringify(toolCallRecords) : null;
+          await db.run('UPDATE messages SET tool_calls = ? WHERE id = ?', [toolCallsJson, assistantMsgId]);
+        } catch {}
+      };
+
+      const persistAssistantContent = async (force = false) => {
+        const now = Date.now();
+        const size = fullText.length + fullReasoning.length;
+        if (!force && now - lastPersistAt < 1200 && size - lastPersistSize < 200) return;
+        lastPersistAt = now;
+        lastPersistSize = size;
+        const content = buildPersistedContent();
+        const blocksJson = messageBlocks.length ? JSON.stringify(messageBlocks) : null;
+        try {
+          await db.run(
+            'UPDATE messages SET content = ?, citations = ?, message_blocks = ? WHERE id = ?',
+            [content, citationsJson, blocksJson, assistantMsgId]
+          );
+        } catch {}
+      };
+
+      const sendErrorAndClose = async (errorCode, err) => {
+        const errorMessage = normalizeErrorMessage(err, 'LLM request failed');
+        const errorDetails = normalizeErrorMessage(err, 'LLM request failed', 8000);
+        const assistantError = await persistAssistantErrorMessage(db, {
+          messageId: assistantMsgId,
+          chatId,
+          userId: user.sub,
+          model,
+          parentId: userMsgId,
+          errorCode,
+          errorMessage,
+          content: errorDetails,
+          citations,
+          toolCalls: toolCallRecords,
+        });
+        await publishRealtimeNow(env, createRealtimeEvent({
+          type: 'message.completed',
+          userId: user.sub,
+          chatId,
+          messageId: assistantMsgId,
+          originSessionId: getOriginSessionId(req),
+          data: {
+            role: 'assistant',
+            model,
+            error: true,
+            message: assistantError,
+            chat: await getOwnedChat(db, chatId, user.sub),
+          },
+        }));
+        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
+        controller.enqueue(encoder.encode(sseData({ error: errorCode, message: errorMessage })));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      };
+
+      await ensureAssistantRow();
+      controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
+
+      let messagesForModel = [...history];
+      let steps = 0;
+      let followUps = 0;
+      try {
+        while (steps <= MAX_TOOL_STEPS) {
+          let stepTextOutput = false;
+          let stepReasoningOutput = false;
+          let stream;
+          try {
+            stream = await streamLLM(env, model, messagesForModel, {
+              tools: toolsEnabled ? tools : undefined,
+            });
+          } catch (err) {
+            await sendErrorAndClose('llm_unavailable', err);
+            return;
+          }
+
+          const reader = stream.getReader();
+          const decoder = new TextDecoder();
+          const stepToolCalls = [];
+          let finishReason = null;
+
+          let emitEvent = () => {};
+          const parser = new SseLineParser({
+            onEvent: (event) => emitEvent(event),
+          });
+
+          emitEvent = (event) => {
+            if (!event) return;
+            if (event.type === 'reasoning_start') {
+              if (!reasoningStartedAt) reasoningStartedAt = Date.now();
+              controller.enqueue(encoder.encode(sseData({ event: 'reasoning_start' })));
+              return;
+            }
+            if (event.type === 'reasoning_delta') {
+              const delta = String(event.delta || '');
+              if (!delta) return;
+              stepReasoningOutput = true;
+              appendMessageBlock('thinking', delta);
+              fullReasoning += delta;
+              persistAssistantContent();
+              controller.enqueue(encoder.encode(sseData({ event: 'reasoning_delta', delta })));
+              return;
+            }
+            if (event.type === 'reasoning_end') {
+              const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
+              controller.enqueue(encoder.encode(sseData({ event: 'reasoning_end', duration_ms: duration })));
+              persistAssistantContent(true);
+              return;
+            }
+            if (event.type === 'tool_call_delta') {
+              applyToolCallDelta(stepToolCalls, event.tool_calls);
+              return;
+            }
+            if (event.type === 'finish_reason') {
+              finishReason = event.reason;
+            }
+          };
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const delta = parser.push(decoder.decode(value, { stream: true }));
+            if (delta) {
+              fullText += delta;
+              stepTextOutput = true;
+              appendMessageBlock('text', delta);
+              persistAssistantContent();
+              controller.enqueue(encoder.encode(sseData({ response: delta })));
+              await publishRealtimeNow(env, createRealtimeEvent({
+                type: 'message.delta',
+                userId: user.sub,
+                chatId,
+                messageId: assistantMsgId,
+                originSessionId: getOriginSessionId(req),
+                data: { delta, model, seq: ++deltaSeq },
+              }));
+            }
+          }
+
+          const finalDelta = parser.flush();
+          if (finalDelta) {
+            fullText += finalDelta;
+            stepTextOutput = true;
+            appendMessageBlock('text', finalDelta);
+            await persistAssistantContent();
+            controller.enqueue(encoder.encode(sseData({ response: finalDelta })));
+            await publishRealtimeNow(env, createRealtimeEvent({
+              type: 'message.delta',
+              userId: user.sub,
+              chatId,
+              messageId: assistantMsgId,
+              originSessionId: getOriginSessionId(req),
+              data: { delta: finalDelta, model, seq: ++deltaSeq },
+            }));
+          }
+          parser.finalize();
+          reader.releaseLock();
+
+          const hasToolCalls = stepToolCalls.some((call) => call && call.name);
+          if (hasToolCalls && finishReason === 'tool_calls') {
+            if (steps >= MAX_TOOL_STEPS) {
+              throw new Error('Too many tool calls in a single request');
+            }
+
+            const normalizedCalls = normalizeToolCalls(stepToolCalls, toolMap);
+            const toolCallsForModel = normalizedCalls.map((call) => ({
+              id: call.toolCallId,
+              type: 'function',
+              function: {
+                name: call.modelToolName,
+                arguments: call.arguments,
+              },
+            }));
+
+            if (shouldUseToolRunner(env)) {
+              for (const call of normalizedCalls) {
+                const record = {
+                  id: call.toolCallId,
+                  name: call.displayName,
+                  input: call.arguments,
+                  output: '',
+                  error: null,
+                  status: 'running',
+                };
+                toolCallRecords.push(record);
+                appendMessageBlock('tool', '', call.toolCallId);
+                await persistToolCalls();
+                controller.enqueue(encoder.encode(sseData({
+                  event: 'tool_status',
+                  message_id: assistantMsgId,
+                  tool_call_id: call.toolCallId,
+                  tool_name: call.displayName,
+                  state: 'running',
+                  input: call.arguments,
+                })));
+              }
+
+              try {
+                await db.run('UPDATE messages SET status = ? WHERE id = ?', ['tool_running', assistantMsgId]);
+              } catch {}
+
+              await persistAssistantContent(true);
+              const queued = await enqueueToolRunner(env, {
+                userId: user.sub,
+                chatId,
+                assistantMsgId,
+                userMsgId,
+                model,
+                history: messagesForModel,
+                citations,
+                toolCalls: normalizedCalls,
+                originSessionId: getOriginSessionId(req),
+                fullText,
+                fullReasoning,
+                step: steps,
+              });
+              if (queued) {
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                controller.close();
+                return;
+              }
+            }
+
+            const toolResultMessages = [];
+
+            for (const call of normalizedCalls) {
+              controller.enqueue(encoder.encode(sseData({
+                event: 'tool_status',
+                message_id: assistantMsgId,
+                tool_call_id: call.toolCallId,
+                tool_name: call.displayName,
+                state: 'running',
+                input: call.arguments,
+              })));
+
+              const server = serversById.get(call.serverId);
+              let outputText = '';
+              let errorText = '';
+              let status = 'completed';
+              const record = {
+                id: call.toolCallId,
+                name: call.displayName,
+                input: call.arguments,
+                output: '',
+                error: null,
+                status: 'running',
+              };
+              toolCallRecords.push(record);
+              appendMessageBlock('tool', '', call.toolCallId);
+              await persistToolCalls();
+
+              try {
+                const args = parseToolArguments(call.arguments);
+                const output = await executeMcpToolCall({
+                  server,
+                  toolName: call.toolName,
+                  args,
+                });
+                outputText = stringifyToolPayload(output);
+              } catch (err) {
+                status = 'error';
+                errorText = normalizeErrorMessage(err, 'Tool call failed', 8000);
+                outputText = errorText;
+              }
+
+              record.output = outputText;
+              record.error = errorText || null;
+              record.status = status;
+              await persistToolCalls();
+              await persistAssistantContent();
+
+              controller.enqueue(encoder.encode(sseData({
+                event: 'tool_result',
+                message_id: assistantMsgId,
+                tool_call_id: call.toolCallId,
+                tool_name: call.displayName,
+                input: call.arguments,
+                output: outputText,
+                error: errorText || null,
+                status,
+              })));
+
+              toolResultMessages.push({
+                role: 'tool',
+                tool_call_id: call.toolCallId,
+                content: outputText,
+              });
+            }
+
+            messagesForModel = [
+              ...messagesForModel,
+              { role: 'assistant', content: '', tool_calls: toolCallsForModel },
+              ...toolResultMessages,
+            ];
+            steps += 1;
+            continue;
+          }
+
+          if (!hasToolCalls && !stepTextOutput && stepReasoningOutput) {
+            if (followUps < MAX_FOLLOW_UPS) {
+              followUps += 1;
+              messagesForModel = [
+                ...messagesForModel,
+                { role: 'system', content: FOLLOW_UP_PROMPT },
+              ];
+              continue;
+            }
+          }
+
+          break;
+        }
+
+        const reasoningSuffix = fullReasoning.trim();
+        let persistedText = reasoningSuffix
+          ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
+          : fullText;
+        if (!String(persistedText || '').trim()) {
+          persistedText = 'I could not produce a final response for this request.';
+        }
+        const toolCallsJson = toolCallRecords.length ? JSON.stringify(toolCallRecords) : null;
+        const blocksJson = messageBlocks.length ? JSON.stringify(messageBlocks) : null;
+
+        try {
+          const update = await db.run(
+            `UPDATE messages
+             SET content = ?, model = ?, citations = ?, parent_id = ?, status = NULL,
+                 error_code = NULL, error_message = NULL, tool_calls = ?, message_blocks = ?
+             WHERE id = ?`,
+            [persistedText, model, citationsJson, userMsgId, toolCallsJson, blocksJson, assistantMsgId]
+          );
+          if (!update?.meta?.changes) {
+            await db.run(
+              'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, tool_calls, message_blocks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
+              [assistantMsgId, chatId, 'assistant', persistedText, model, citationsJson, userMsgId, toolCallsJson, blocksJson]
+            );
+          }
+        } catch (err) {
+          await db.run(
+            'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, tool_calls, message_blocks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
+            [assistantMsgId, chatId, 'assistant', persistedText, model, citationsJson, userMsgId, toolCallsJson, blocksJson]
+          );
+        }
+        await db.run(
+          'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+          [assistantMsgId, model, chatId, user.sub]
+        );
+
+        const completedAssistantMessage = await getMessageSnapshot(db, assistantMsgId);
+        const updatedChatAfterAssistantMessage = await getOwnedChat(db, chatId, user.sub);
+        await publishRealtimeNow(env, createRealtimeEvent({
+          type: 'message.completed',
+          userId: user.sub,
+          chatId,
+          messageId: assistantMsgId,
+          originSessionId: getOriginSessionId(req),
+          data: {
+            role: 'assistant',
+            model,
+            citations,
+            message: completedAssistantMessage,
+            chat: updatedChatAfterAssistantMessage,
+          },
+        }));
+
+        await db.run('UPDATE chats SET model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?', [model, chatId, user.sub]);
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      } catch (err) {
+        await sendErrorAndClose('stream_failed', err);
+      }
+    },
+  });
+
+  return { response: new Response(readable, { headers: sseHeaders(req) }), assistantMsgId };
 }
 
 export async function chatRouter(req, env, ctx, user, path) {
@@ -607,197 +1414,21 @@ export async function chatRouter(req, env, ctx, user, path) {
       ];
     }
 
-    const assistantMsgId = crypto.randomUUID();
-
-
-    let stream;
-    try {
-      stream = await streamLLM(env, model, enhancedHistory);
-    } catch (err) {
-      const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
-      const errorDetails = normalizeErrorMessage(err, 'LLM setup failed', 8000);
-      const assistantError = await persistAssistantErrorMessage(db, {
-        messageId: assistantMsgId,
-        chatId,
-        userId: user.sub,
-        model,
-        parentId: userMsgId,
-        errorCode: 'llm_unavailable',
-        errorMessage,
-        content: errorDetails,
-        citations,
-      });
-      await publishRealtimeNow(env, createRealtimeEvent({
-        type: 'message.completed',
-        userId: user.sub,
-        chatId,
-        messageId: assistantMsgId,
-        originSessionId,
-        data: {
-          role: 'assistant',
-          model,
-          error: true,
-          message: assistantError,
-          chat: await getOwnedChat(db, chatId, user.sub),
-        },
-      }));
-
-      const encoder = new TextEncoder();
-      const body = new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
-          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: errorMessage })));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        },
-      });
-      return new Response(body, { headers: sseHeaders(req) });
-    }
-
-    const reader = stream.getReader();
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-    let fullText = '';
-    let fullReasoning = '';
-    let reasoningStartedAt = null;
-    let deltaSeq = 0;
-
-    const readable = new ReadableStream({
-      async start(controller) {
-        let emitReasoningEvent = () => {};
-        const parser = new SseLineParser({
-          onEvent: (event) => emitReasoningEvent(event),
-        });
-        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
-        emitReasoningEvent = (event) => {
-          if (!event) return;
-          if (event.type === 'reasoning_start') {
-            if (!reasoningStartedAt) reasoningStartedAt = Date.now();
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_start' })));
-            return;
-          }
-          if (event.type === 'reasoning_delta') {
-            const delta = String(event.delta || '');
-            if (!delta) return;
-            fullReasoning += delta;
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_delta', delta })));
-            return;
-          }
-          if (event.type === 'reasoning_end') {
-            const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_end', duration_ms: duration })));
-          }
-        };
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const delta = parser.push(decoder.decode(value, { stream: true }));
-            if (delta) {
-              fullText += delta;
-              controller.enqueue(encoder.encode(sseData({ response: delta })));
-              await publishRealtimeNow(env, createRealtimeEvent({
-                type: 'message.delta',
-                userId: user.sub,
-                chatId,
-                messageId: assistantMsgId,
-                originSessionId,
-                data: { delta, model, seq: ++deltaSeq },
-              }));
-            }
-          }
-
-          const finalDelta = parser.flush();
-          if (finalDelta) {
-            fullText += finalDelta;
-            controller.enqueue(encoder.encode(sseData({ response: finalDelta })));
-            await publishRealtimeNow(env, createRealtimeEvent({
-              type: 'message.delta',
-              userId: user.sub,
-              chatId,
-              messageId: assistantMsgId,
-              originSessionId,
-              data: { delta: finalDelta, model, seq: ++deltaSeq },
-            }));
-          }
-          parser.finalize();
-
-          const reasoningSuffix = fullReasoning.trim();
-          const persistedText = reasoningSuffix
-            ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
-            : fullText;
-          if (persistedText) {
-            const citationsJson = JSON.stringify(citations);
-            await db.run(
-              'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
-              [assistantMsgId, chatId, 'assistant', persistedText, model, citationsJson, userMsgId]
-            );
-            await db.run(
-              'UPDATE chats SET current_message_id = ? WHERE id = ? AND user_id = ?',
-              [assistantMsgId, chatId, user.sub]
-            );
-            const completedAssistantMessage = await getMessageSnapshot(db, assistantMsgId);
-            const updatedChatAfterAssistantMessage = await getOwnedChat(db, chatId, user.sub);
-            await publishRealtimeNow(env, createRealtimeEvent({
-              type: 'message.completed',
-              userId: user.sub,
-              chatId,
-              messageId: assistantMsgId,
-              originSessionId,
-              data: {
-                role: 'assistant',
-                model,
-                citations,
-                message: completedAssistantMessage,
-                chat: updatedChatAfterAssistantMessage,
-              },
-            }));
-          }
-
-          await db.run('UPDATE chats SET model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?', [model, chatId, user.sub]);
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        } catch (err) {
-          const errorMessage = normalizeErrorMessage(err, 'Stream failed');
-          const errorDetails = normalizeErrorMessage(err, 'Stream failed', 8000);
-          const errorContent = fullText
-            ? `${fullText}\n\n[Error] ${errorDetails}`
-            : errorDetails;
-          const assistantError = await persistAssistantErrorMessage(db, {
-            messageId: assistantMsgId,
-            chatId,
-            userId: user.sub,
-            model,
-            parentId: userMsgId,
-            errorCode: 'stream_failed',
-            errorMessage,
-            content: errorContent,
-            citations,
-          });
-          await publishRealtimeNow(env, createRealtimeEvent({
-            type: 'message.completed',
-            userId: user.sub,
-            chatId,
-            messageId: assistantMsgId,
-            originSessionId,
-            data: {
-              role: 'assistant',
-              model,
-              error: true,
-              message: assistantError,
-              chat: await getOwnedChat(db, chatId, user.sub),
-            },
-          }));
-          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: errorMessage })));
-          controller.close();
-        } finally {
-          reader.releaseLock();
-        }
-      },
+    const { response } = await streamAssistantWithTools({
+      req,
+      env,
+      ctx,
+      db,
+      user,
+      chatId,
+      userMsgId,
+      parentId: userMsgId,
+      model,
+      history: enhancedHistory,
+      citations,
     });
 
-    return new Response(readable, { headers: sseHeaders(req) });
+    return response;
   }
 
   // Route: POST /api/chats/:id/messages/:msgId/branch
@@ -942,193 +1573,21 @@ export async function chatRouter(req, env, ctx, user, path) {
     }));
 
     const history = await getBranchHistory(newUserMsgId);
-    const assistantMsgId = crypto.randomUUID();
-
-    let stream;
-    try {
-      stream = await streamLLM(env, model, history);
-    } catch (err) {
-      const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
-      const errorDetails = normalizeErrorMessage(err, 'LLM setup failed', 8000);
-      const assistantError = await persistAssistantErrorMessage(db, {
-        messageId: assistantMsgId,
-        chatId,
-        userId: user.sub,
-        model,
-        parentId: newUserMsgId,
-        errorCode: 'llm_unavailable',
-        errorMessage,
-        content: errorDetails,
-      });
-      await publishRealtimeNow(env, createRealtimeEvent({
-        type: 'message.completed',
-        userId: user.sub,
-        chatId,
-        messageId: assistantMsgId,
-        originSessionId,
-        data: {
-          role: 'assistant',
-          model,
-          error: true,
-          message: assistantError,
-          chat: await getOwnedChat(db, chatId, user.sub),
-        },
-      }));
-
-      const encoder = new TextEncoder();
-      const body = new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: newUserMsgId })));
-          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: errorMessage })));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        },
-      });
-      return new Response(body, { headers: sseHeaders(req) });
-    }
-
-    const reader = stream.getReader();
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-    let fullText = '';
-    let fullReasoning = '';
-    let reasoningStartedAt = null;
-    let deltaSeq = 0;
-
-    const readable = new ReadableStream({
-      async start(controller) {
-        let emitReasoningEvent = () => {};
-        const parser = new SseLineParser({
-          onEvent: (event) => emitReasoningEvent(event),
-        });
-        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: newUserMsgId })));
-        emitReasoningEvent = (event) => {
-          if (!event) return;
-          if (event.type === 'reasoning_start') {
-            if (!reasoningStartedAt) reasoningStartedAt = Date.now();
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_start' })));
-            return;
-          }
-          if (event.type === 'reasoning_delta') {
-            const delta = String(event.delta || '');
-            if (!delta) return;
-            fullReasoning += delta;
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_delta', delta })));
-            return;
-          }
-          if (event.type === 'reasoning_end') {
-            const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_end', duration_ms: duration })));
-          }
-        };
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const delta = parser.push(decoder.decode(value, { stream: true }));
-            if (delta) {
-              fullText += delta;
-              controller.enqueue(encoder.encode(sseData({ response: delta })));
-              await publishRealtimeNow(env, createRealtimeEvent({
-                type: 'message.delta',
-                userId: user.sub,
-                chatId,
-                messageId: assistantMsgId,
-                originSessionId,
-                data: { delta, model, seq: ++deltaSeq },
-              }));
-            }
-          }
-
-          const finalDelta = parser.flush();
-          if (finalDelta) {
-            fullText += finalDelta;
-            controller.enqueue(encoder.encode(sseData({ response: finalDelta })));
-            await publishRealtimeNow(env, createRealtimeEvent({
-              type: 'message.delta',
-              userId: user.sub,
-              chatId,
-              messageId: assistantMsgId,
-              originSessionId,
-              data: { delta: finalDelta, model, seq: ++deltaSeq },
-            }));
-          }
-          parser.finalize();
-
-          const reasoningSuffix = fullReasoning.trim();
-          const persistedText = reasoningSuffix
-            ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
-            : fullText;
-          if (persistedText) {
-            await db.batch([
-              db.prepare(
-                'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
-                [assistantMsgId, chatId, 'assistant', persistedText, model, newUserMsgId]
-              ),
-              db.prepare(
-                'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-                [assistantMsgId, model, chatId, user.sub]
-              ),
-            ]);
-            const completedBranchAssistantMessage = await getMessageSnapshot(db, assistantMsgId);
-            const updatedBranchAssistantChat = await getOwnedChat(db, chatId, user.sub);
-            await publishRealtimeNow(env, createRealtimeEvent({
-              type: 'message.completed',
-              userId: user.sub,
-              chatId,
-              messageId: assistantMsgId,
-              originSessionId,
-              data: {
-                role: 'assistant',
-                model,
-                message: completedBranchAssistantMessage,
-                chat: updatedBranchAssistantChat,
-              },
-            }));
-          }
-
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        } catch (err) {
-          const errorMessage = normalizeErrorMessage(err, 'Stream failed');
-          const errorDetails = normalizeErrorMessage(err, 'Stream failed', 8000);
-          const errorContent = fullText
-            ? `${fullText}\n\n[Error] ${errorDetails}`
-            : errorDetails;
-          const assistantError = await persistAssistantErrorMessage(db, {
-            messageId: assistantMsgId,
-            chatId,
-            userId: user.sub,
-            model,
-            parentId: newUserMsgId,
-            errorCode: 'stream_failed',
-            errorMessage,
-            content: errorContent,
-          });
-          await publishRealtimeNow(env, createRealtimeEvent({
-            type: 'message.completed',
-            userId: user.sub,
-            chatId,
-            messageId: assistantMsgId,
-            originSessionId,
-            data: {
-              role: 'assistant',
-              model,
-              error: true,
-              message: assistantError,
-              chat: await getOwnedChat(db, chatId, user.sub),
-            },
-          }));
-          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: errorMessage })));
-          controller.close();
-        } finally {
-          reader.releaseLock();
-        }
-      },
+    const { response } = await streamAssistantWithTools({
+      req,
+      env,
+      ctx,
+      db,
+      user,
+      chatId,
+      userMsgId: newUserMsgId,
+      parentId: sourceMsg.parent_id,
+      model,
+      history,
+      citations: null,
     });
 
-    return new Response(readable, { headers: sseHeaders(req) });
+    return response;
   }
 
   // Route: POST /api/chats/:id/messages/:msgId/regenerate
@@ -1151,196 +1610,27 @@ export async function chatRouter(req, env, ctx, user, path) {
     if (!model) {
       model = await resolveDefaultModel(env, db, user.sub);
     }
-    const newAssistantMsgId = crypto.randomUUID();
 
     const history = await db.all(
       'SELECT role, content FROM messages WHERE chat_id = ? AND created_at <= (SELECT created_at FROM messages WHERE id = ?) ORDER BY created_at ASC LIMIT 30',
       [chatId, sourceMsg.parent_id || msgId]
     );
 
-    let stream;
-    try {
-      stream = await streamLLM(env, model, history);
-    } catch (err) {
-      const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
-      const errorDetails = normalizeErrorMessage(err, 'LLM setup failed', 8000);
-      const assistantError = await persistAssistantErrorMessage(db, {
-        messageId: newAssistantMsgId,
-        chatId,
-        userId: user.sub,
-        model,
-        parentId: sourceMsg.parent_id,
-        errorCode: 'llm_unavailable',
-        errorMessage,
-        content: errorDetails,
-      });
-      await publishRealtimeNow(env, createRealtimeEvent({
-        type: 'message.completed',
-        userId: user.sub,
-        chatId,
-        messageId: newAssistantMsgId,
-        originSessionId,
-        data: {
-          role: 'assistant',
-          model,
-          error: true,
-          message: assistantError,
-          chat: await getOwnedChat(db, chatId, user.sub),
-        },
-      }));
-
-      const encoder = new TextEncoder();
-      const body = new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: newAssistantMsgId })));
-          controller.enqueue(encoder.encode(sseData({ error: 'llm_unavailable', message: errorMessage })));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        },
-      });
-      return new Response(body, { headers: sseHeaders(req) });
-    }
-
-    const reader = stream.getReader();
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-    let fullText = '';
-    let fullReasoning = '';
-    let reasoningStartedAt = null;
-    let deltaSeq = 0;
-
-    const readable = new ReadableStream({
-      async start(controller) {
-        let emitReasoningEvent = () => {};
-        const parser = new SseLineParser({
-          onEvent: (event) => emitReasoningEvent(event),
-        });
-        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: newAssistantMsgId })));
-        emitReasoningEvent = (event) => {
-          if (!event) return;
-          if (event.type === 'reasoning_start') {
-            if (!reasoningStartedAt) reasoningStartedAt = Date.now();
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_start' })));
-            return;
-          }
-          if (event.type === 'reasoning_delta') {
-            const delta = String(event.delta || '');
-            if (!delta) return;
-            fullReasoning += delta;
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_delta', delta })));
-            return;
-          }
-          if (event.type === 'reasoning_end') {
-            const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
-            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_end', duration_ms: duration })));
-          }
-        };
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const delta = parser.push(decoder.decode(value, { stream: true }));
-            if (delta) {
-              fullText += delta;
-              controller.enqueue(encoder.encode(sseData({ response: delta })));
-              await publishRealtimeNow(env, createRealtimeEvent({
-                type: 'message.delta',
-                userId: user.sub,
-                chatId,
-                messageId: newAssistantMsgId,
-                originSessionId,
-                data: { delta, model, seq: ++deltaSeq },
-              }));
-            }
-          }
-
-          const finalDelta = parser.flush();
-          if (finalDelta) {
-            fullText += finalDelta;
-            controller.enqueue(encoder.encode(sseData({ response: finalDelta })));
-            await publishRealtimeNow(env, createRealtimeEvent({
-              type: 'message.delta',
-              userId: user.sub,
-              chatId,
-              messageId: newAssistantMsgId,
-              originSessionId,
-              data: { delta: finalDelta, model, seq: ++deltaSeq },
-            }));
-          }
-          parser.finalize();
-
-          const reasoningSuffix = fullReasoning.trim();
-          const persistedText = reasoningSuffix
-            ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
-            : fullText;
-          if (persistedText) {
-            await db.run(
-              'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
-              [newAssistantMsgId, chatId, 'assistant', persistedText, model, sourceMsg.parent_id]
-            );
-            await db.run(
-              'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-              [newAssistantMsgId, chatId, user.sub]
-            );
-            const completedRegeneratedMessage = await getMessageSnapshot(db, newAssistantMsgId);
-            const updatedRegeneratedChat = await getOwnedChat(db, chatId, user.sub);
-            await publishRealtimeNow(env, createRealtimeEvent({
-              type: 'message.completed',
-              userId: user.sub,
-              chatId,
-              messageId: newAssistantMsgId,
-              originSessionId,
-              data: {
-                role: 'assistant',
-                model,
-                message: completedRegeneratedMessage,
-                chat: updatedRegeneratedChat,
-              },
-            }));
-          }
-
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        } catch (err) {
-          const errorMessage = normalizeErrorMessage(err, 'Stream failed');
-          const errorDetails = normalizeErrorMessage(err, 'Stream failed', 8000);
-          const errorContent = fullText
-            ? `${fullText}\n\n[Error] ${errorDetails}`
-            : errorDetails;
-          const assistantError = await persistAssistantErrorMessage(db, {
-            messageId: newAssistantMsgId,
-            chatId,
-            userId: user.sub,
-            model,
-            parentId: sourceMsg.parent_id,
-            errorCode: 'stream_failed',
-            errorMessage,
-            content: errorContent,
-          });
-          await publishRealtimeNow(env, createRealtimeEvent({
-            type: 'message.completed',
-            userId: user.sub,
-            chatId,
-            messageId: newAssistantMsgId,
-            originSessionId,
-            data: {
-              role: 'assistant',
-              model,
-              error: true,
-              message: assistantError,
-              chat: await getOwnedChat(db, chatId, user.sub),
-            },
-          }));
-          controller.enqueue(encoder.encode(sseData({ error: 'stream_failed', message: errorMessage })));
-          controller.close();
-        } finally {
-          reader.releaseLock();
-        }
-      },
+    const { response } = await streamAssistantWithTools({
+      req,
+      env,
+      ctx,
+      db,
+      user,
+      chatId,
+      userMsgId: sourceMsg.parent_id,
+      parentId: sourceMsg.parent_id,
+      model,
+      history,
+      citations: null,
     });
 
-    return new Response(readable, { headers: sseHeaders(req) });
+    return response;
   }
 
   // Route: PUT /api/chats/:id/messages/:msgId
