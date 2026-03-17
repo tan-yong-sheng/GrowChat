@@ -128,10 +128,17 @@ async function persistAssistantErrorMessage(db, {
 
   try {
     await db.run(
-      'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-      [messageId, chatId, userId]
+      'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+      [messageId, model, chatId, userId]
     );
-  } catch {}
+  } catch (err) {
+    try {
+      await db.run(
+        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+        [messageId, chatId, userId]
+      );
+    } catch {}
+  }
 
   return getMessageSnapshot(db, messageId);
 }

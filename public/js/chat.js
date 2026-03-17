@@ -2419,7 +2419,7 @@ function wireChat(root) {
     if (state.activeChatId === chatId) drawMessages(localMessages);
 
     if (tempChatId) {
-    const modelToUse = state.defaultModelId || state.globalDefaultModelId || state.activeModelId;
+    const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
       const payload = modelToUse ? { model: modelToUse } : {};
       const res = await apiFetch('/api/chats', {
         method: 'POST',
