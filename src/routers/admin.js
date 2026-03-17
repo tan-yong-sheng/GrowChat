@@ -59,6 +59,273 @@ function normalizeBaseUrl(url) {
   return String(url || '').trim().replace(/\/$/, '');
 }
 
+const MCP_PROTOCOL_VERSION = '2025-11-25';
+
+function base64UrlEncode(bytes) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function randomString(length = 43) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  return Array.from(array, (x) => chars[x % chars.length]).join('');
+}
+
+async function sha256Base64Url(input) {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return base64UrlEncode(new Uint8Array(digest));
+}
+
+async function loadToolServers(db) {
+  let servers = [];
+  const raw = await getConfigValue(db, 'tool_servers', '[]');
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) servers = parsed;
+  } catch {
+    servers = [];
+  }
+  return servers;
+}
+
+async function saveToolServers(db, servers) {
+  await setConfigValue(db, 'tool_servers', JSON.stringify(servers));
+}
+
+function normalizeAuthType(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (['none', 'bearer', 'basic', 'oauth'].includes(normalized)) return normalized;
+  return 'none';
+}
+
+function normalizeTokenAuthMethod(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (['client_secret_basic', 'client_secret_post', 'none'].includes(normalized)) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function redactToolServer(server) {
+  const { oauth_tokens, oauth_state, oauth_code_verifier, ...rest } = server || {};
+  return {
+    ...rest,
+    oauth_connected: Boolean(oauth_tokens?.access_token),
+    oauth_connected_at: oauth_tokens?.connected_at || server?.oauth_connected_at || null,
+  };
+}
+
+function mergeToolServer(existing, incoming) {
+  const authType = normalizeAuthType(incoming.auth_type);
+  const normalizeTools = (value) => {
+    if (!Array.isArray(value)) return existing?.tools || [];
+    return value
+      .map((tool) => ({
+        name: String(tool?.name || '').trim(),
+        title: String(tool?.title || '').trim(),
+        description: String(tool?.description || '').trim(),
+      }))
+      .filter((tool) => tool.name);
+  };
+  const merged = {
+    ...(existing || {}),
+    id: incoming.id || existing?.id || crypto.randomUUID(),
+    name: String(incoming.name || existing?.name || 'Tool Server').slice(0, 120),
+    url: String(incoming.url || existing?.url || '').trim(),
+    headers: String(incoming.headers || existing?.headers || '').trim(),
+    enabled: incoming.enabled !== false,
+    auth_type: authType,
+    auth_bearer_token: String(incoming.auth_bearer_token || existing?.auth_bearer_token || '').trim(),
+    auth_basic_username: String(incoming.auth_basic_username || existing?.auth_basic_username || '').trim(),
+    auth_basic_password: String(incoming.auth_basic_password || existing?.auth_basic_password || '').trim(),
+    oauth_client_name: String(incoming.oauth_client_name || existing?.oauth_client_name || '').trim(),
+    oauth_scope: String(incoming.oauth_scope || existing?.oauth_scope || '').trim(),
+    oauth_client_id: String(incoming.oauth_client_id || existing?.oauth_client_id || '').trim(),
+    oauth_client_secret: String(incoming.oauth_client_secret || existing?.oauth_client_secret || '').trim(),
+    oauth_token_auth_method: normalizeTokenAuthMethod(incoming.oauth_token_auth_method || existing?.oauth_token_auth_method) || '',
+    oauth_authorization_server: String(incoming.oauth_authorization_server || existing?.oauth_authorization_server || '').trim(),
+    oauth_token_endpoint: String(incoming.oauth_token_endpoint || existing?.oauth_token_endpoint || '').trim(),
+    oauth_registration_endpoint: String(incoming.oauth_registration_endpoint || existing?.oauth_registration_endpoint || '').trim(),
+    tools: normalizeTools(incoming.tools),
+    tools_error: incoming.tools_error || existing?.tools_error || '',
+    tools_verified_at: incoming.tools_verified_at || existing?.tools_verified_at || null,
+  };
+
+  if (authType !== 'oauth') {
+    delete merged.oauth_tokens;
+    delete merged.oauth_state;
+    delete merged.oauth_code_verifier;
+    delete merged.oauth_connected_at;
+  } else {
+    if (existing?.oauth_tokens && !incoming.oauth_tokens) {
+      merged.oauth_tokens = existing.oauth_tokens;
+    }
+    if (existing?.oauth_connected_at && !incoming.oauth_connected_at) {
+      merged.oauth_connected_at = existing.oauth_connected_at;
+    }
+  }
+
+  return merged;
+}
+
+function buildMcpHeaders(base, sessionId) {
+  const headers = {
+    ...base,
+    'mcp-protocol-version': MCP_PROTOCOL_VERSION,
+    Accept: 'application/json, text/event-stream',
+    'Content-Type': 'application/json',
+  };
+  if (sessionId) headers['mcp-session-id'] = sessionId;
+  return headers;
+}
+
+function parseSseMessages(body) {
+  const blocks = body.split('\n\n');
+  const messages = [];
+  for (const block of blocks) {
+    const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+    let data = '';
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        data += line.slice(5).trim();
+      }
+    }
+    if (!data) continue;
+    try {
+      messages.push(JSON.parse(data));
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return messages;
+}
+
+async function mcpRequest({ url, headers, sessionId, id, method, params }) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: buildMcpHeaders(headers, sessionId),
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id,
+      method,
+      ...(params ? { params } : {}),
+    }),
+  });
+
+  const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
+
+  if (response.status === 202) {
+    return { result: null, sessionId: nextSessionId };
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`MCP request failed (${response.status}): ${text || response.statusText}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const payload = await response.json();
+    const message = Array.isArray(payload)
+      ? payload.find((item) => String(item?.id) === String(id)) || payload[0]
+      : payload;
+    if (message?.error) {
+      throw new Error(message.error.message || 'MCP error');
+    }
+    return { result: message?.result, sessionId: nextSessionId };
+  }
+
+  if (contentType.includes('text/event-stream')) {
+    const text = await response.text();
+    const messages = parseSseMessages(text);
+    const message = messages.find((item) => String(item?.id) === String(id)) || messages[0];
+    if (message?.error) {
+      throw new Error(message.error.message || 'MCP error');
+    }
+    return { result: message?.result, sessionId: nextSessionId };
+  }
+
+  throw new Error(`Unexpected MCP response content type: ${contentType}`);
+}
+
+async function mcpNotify({ url, headers, sessionId, method, params }) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: buildMcpHeaders(headers, sessionId),
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method,
+      ...(params ? { params } : {}),
+    }),
+  });
+  const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
+  if (response.status === 202 || response.status === 204) {
+    return { sessionId: nextSessionId };
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`MCP notification failed (${response.status}): ${text || response.statusText}`);
+  }
+  return { sessionId: nextSessionId };
+}
+
+async function discoverAuthorizationMetadata(authorizationServerUrl) {
+  const url = new URL(authorizationServerUrl);
+  const hasPath = url.pathname && url.pathname !== '/';
+  const path = hasPath ? url.pathname.replace(/\/$/, '') : '';
+  const candidates = [];
+
+  if (!hasPath) {
+    candidates.push(new URL('/.well-known/oauth-authorization-server', url.origin));
+    candidates.push(new URL('/.well-known/openid-configuration', url.origin));
+  } else {
+    candidates.push(new URL(`/.well-known/oauth-authorization-server${path}`, url.origin));
+    candidates.push(new URL('/.well-known/oauth-authorization-server', url.origin));
+    candidates.push(new URL(`/.well-known/openid-configuration${path}`, url.origin));
+    candidates.push(new URL(`${path}/.well-known/openid-configuration`, url.origin));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(candidate, { headers: { 'MCP-Protocol-Version': MCP_PROTOCOL_VERSION } });
+      if (!res.ok) continue;
+      return await res.json();
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function buildAuthorizationUrl({ authorizationEndpoint, clientId, redirectUri, scope, state, codeChallenge }) {
+  const url = new URL(authorizationEndpoint);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('code_challenge', codeChallenge);
+  url.searchParams.set('code_challenge_method', 'S256');
+  if (scope) url.searchParams.set('scope', scope);
+  if (state) url.searchParams.set('state', state);
+  return url;
+}
+
+function selectTokenAuthMethod(supported, hasSecret) {
+  if (Array.isArray(supported)) {
+    if (hasSecret && supported.includes('client_secret_basic')) return 'client_secret_basic';
+    if (hasSecret && supported.includes('client_secret_post')) return 'client_secret_post';
+    if (supported.includes('none')) return 'none';
+  }
+  return hasSecret ? 'client_secret_post' : 'none';
+}
+
 /**
  * Admin Router Handler
  * Routes:
@@ -81,13 +348,20 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (path === '/api/admin/openai/connections' || path === '/api/admin/openai/connections/test' || path === '/api/admin/openai/env') {
     requiredPermission = 'admin.rbac.admin';
   }
-  if (path === '/api/admin/tool-servers' || path === '/api/admin/tool-servers/test') {
+  if (
+    path === '/api/admin/tool-servers' ||
+    path === '/api/admin/tool-servers/test' ||
+    path === '/api/admin/tool-servers/oauth/start' ||
+    path === '/api/admin/tool-servers/oauth/callback'
+  ) {
     requiredPermission = 'admin.rbac.admin';
   }
-  const authDecision = await authorize(env, user, { action: requiredPermission });
-
-  if (!authDecision.allow) {
-    return error(req, authDecision.reason || 'Forbidden', 403);
+  const skipAuth = path === '/api/admin/tool-servers/oauth/callback';
+  if (!skipAuth) {
+    const authDecision = await authorize(env, user, { action: requiredPermission });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
   }
 
   const db = createDB(env.DB);
@@ -96,8 +370,11 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (req.method === 'GET' && path === '/api/admin/config') {
     try {
       const publicRegistration = await getConfigBool(db, 'public_registration', true);
+      const defaultModelIdRaw = await getConfigValue(db, 'default_model_id', null);
+      const defaultModelId = defaultModelIdRaw ? String(defaultModelIdRaw).trim() : null;
       return json(req, {
-        public_registration: publicRegistration
+        public_registration: publicRegistration,
+        default_model_id: defaultModelId || null
       });
     } catch (err) {
       console.error('Admin config fetch failed:', err);
@@ -114,12 +391,39 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    if (typeof body.public_registration !== 'boolean') {
+    const hasPublicRegistration = body.public_registration !== undefined;
+    const hasDefaultModel = body.default_model_id !== undefined;
+
+    if (!hasPublicRegistration && !hasDefaultModel) {
+      return error(req, 'No config changes provided', 400);
+    }
+
+    if (hasPublicRegistration && typeof body.public_registration !== 'boolean') {
       return error(req, 'public_registration must be a boolean', 400);
     }
 
+    let normalizedDefaultModel = null;
+    if (hasDefaultModel) {
+      if (body.default_model_id === null || body.default_model_id === '') {
+        normalizedDefaultModel = '';
+      } else if (typeof body.default_model_id !== 'string') {
+        return error(req, 'default_model_id must be a string or null', 400);
+      } else {
+        normalizedDefaultModel = String(body.default_model_id).trim();
+        if (!normalizedDefaultModel) normalizedDefaultModel = '';
+        if (normalizedDefaultModel.length > 200 || /\s/.test(normalizedDefaultModel)) {
+          return error(req, 'default_model_id is invalid', 400);
+        }
+      }
+    }
+
     try {
-      await setConfigValue(db, 'public_registration', body.public_registration ? 'true' : 'false');
+      if (hasPublicRegistration) {
+        await setConfigValue(db, 'public_registration', body.public_registration ? 'true' : 'false');
+      }
+      if (hasDefaultModel) {
+        await setConfigValue(db, 'default_model_id', normalizedDefaultModel);
+      }
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'admin_config_updated',
@@ -127,7 +431,8 @@ export async function adminRouter(req, env, ctx, user, path) {
         resource_id: 'config'
       });
       return json(req, {
-        public_registration: body.public_registration
+        public_registration: hasPublicRegistration ? body.public_registration : undefined,
+        default_model_id: hasDefaultModel ? (normalizedDefaultModel || null) : undefined
       });
     } catch (err) {
       console.error('Admin config update failed:', err);
@@ -237,22 +542,15 @@ export async function adminRouter(req, env, ctx, user, path) {
   // GET /api/admin/tool-servers - List tool servers
   if (req.method === 'GET' && path === '/api/admin/tool-servers') {
     try {
-      let servers = [];
-      const raw = await getConfigValue(db, 'tool_servers', '[]');
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) servers = parsed;
-      } catch {
-        servers = [];
-      }
-      return json(req, { servers });
+      const servers = await loadToolServers(db);
+      return json(req, { servers: servers.map(redactToolServer) });
     } catch (err) {
       console.error('Tool servers fetch failed:', err);
       return error(req, 'Failed to fetch tool servers', 500);
     }
   }
 
-  // POST /api/admin/tool-servers/test - Test tool server connection
+  // POST /api/admin/tool-servers/test - Test MCP tool server connection + list tools
   if (req.method === 'POST' && path === '/api/admin/tool-servers/test') {
     let body;
     try {
@@ -266,7 +564,6 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Server URL must start with http:// or https://', 400);
     }
 
-    const key = String(body.key || '').trim();
     let headers = {};
     try {
       headers = parseHeadersForRequest(body.headers);
@@ -274,34 +571,312 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, err.message || 'Headers must be valid JSON', 400);
     }
 
-    if (key && !headers.Authorization) {
-      headers.Authorization = `Bearer ${key}`;
-    }
-
-    const baseUrl = normalizeBaseUrl(url);
-    const candidates = ['/openapi.json', '/openapi.yaml', '/openapi.yml'];
-    let lastStatus = null;
-    let lastBody = '';
-
-    for (const pathSuffix of candidates) {
-      try {
-        const res = await fetch(`${baseUrl}${pathSuffix}`, { headers });
-        if (res.ok) {
-          return json(req, { ok: true, message: 'Connection successful' });
-        }
-        lastStatus = res.status;
-        lastBody = await res.text().catch(() => '');
-      } catch (err) {
-        return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
+    const authType = normalizeAuthType(body.auth_type);
+    if (authType === 'bearer') {
+      const token = String(body.auth_bearer_token || '').trim();
+      if (token && !headers.Authorization) {
+        headers.Authorization = `Bearer ${token}`;
       }
     }
 
-    return error(
-      req,
-      `Connection failed${lastStatus ? ` (${lastStatus})` : ''}`,
-      502,
-      lastBody ? { message: lastBody.slice(0, 200) } : undefined
-    );
+    if (authType === 'basic') {
+      const user = String(body.auth_basic_username || '').trim();
+      const pass = String(body.auth_basic_password || '');
+      if (user && !headers.Authorization) {
+        headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`;
+      }
+    }
+
+    if (authType === 'oauth') {
+      const serverId = String(body.id || '').trim();
+      if (!serverId) {
+        return error(req, 'Server must be saved before OAuth verification', 400);
+      }
+      const servers = await loadToolServers(db);
+      const server = servers.find((entry) => String(entry.id) === serverId);
+      const accessToken = server?.oauth_tokens?.access_token;
+      if (!accessToken) {
+        return error(req, 'OAuth not connected yet. Click Connect OAuth first.', 400);
+      }
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    try {
+      let sessionId;
+      const init = await mcpRequest({
+        url,
+        headers,
+        sessionId,
+        id: 0,
+        method: 'initialize',
+        params: {
+          protocolVersion: MCP_PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: 'GrowChat', version: '1.0.0' },
+        },
+      });
+      sessionId = init.sessionId;
+
+      const notified = await mcpNotify({
+        url,
+        headers,
+        sessionId,
+        method: 'notifications/initialized',
+      });
+      sessionId = notified.sessionId;
+
+      const toolsResult = await mcpRequest({
+        url,
+        headers,
+        sessionId,
+        id: 2,
+        method: 'tools/list',
+      });
+
+      const tools = Array.isArray(toolsResult.result?.tools)
+        ? toolsResult.result.tools
+        : [];
+      const toolSummaries = tools
+        .map((tool) => ({
+          name: String(tool?.name || '').trim(),
+          title: String(tool?.title || '').trim(),
+          description: String(tool?.description || '').trim(),
+        }))
+        .filter((tool) => tool.name);
+
+      if (body.id) {
+        const servers = await loadToolServers(db);
+        const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
+        if (index !== -1) {
+          servers[index] = {
+            ...servers[index],
+            tools: toolSummaries,
+            tools_error: '',
+            tools_verified_at: new Date().toISOString(),
+          };
+          await saveToolServers(db, servers);
+        }
+      }
+
+      return json(req, {
+        ok: true,
+        message: 'Connection successful',
+        tools: toolSummaries,
+      });
+    } catch (err) {
+      if (body?.id) {
+        try {
+          const servers = await loadToolServers(db);
+          const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
+          if (index !== -1) {
+            servers[index] = {
+              ...servers[index],
+              tools: [],
+              tools_error: err?.message || 'Connection failed',
+              tools_verified_at: new Date().toISOString(),
+            };
+            await saveToolServers(db, servers);
+          }
+        } catch (persistErr) {
+          console.warn('Failed to persist tool server error:', persistErr?.message || persistErr);
+        }
+      }
+      return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
+    }
+  }
+
+  // POST /api/admin/tool-servers/oauth/start - Begin OAuth flow for MCP server
+  if (req.method === 'POST' && path === '/api/admin/tool-servers/oauth/start') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const serverId = String(body.id || '').trim();
+    if (!serverId) {
+      return error(req, 'Server must be saved before OAuth connect', 400);
+    }
+
+    const servers = await loadToolServers(db);
+    const serverIndex = servers.findIndex((entry) => String(entry.id) === serverId);
+    if (serverIndex === -1) {
+      return error(req, 'Server must be saved before OAuth connect', 400);
+    }
+
+    const server = servers[serverIndex];
+    const serverUrl = String(body.url || server.url || '').trim();
+    if (!serverUrl || !isValidHttpUrl(serverUrl)) {
+      return error(req, 'Server URL must start with http:// or https://', 400);
+    }
+
+    const oauthClientName = String(body.oauth_client_name || server.oauth_client_name || 'GrowChat MCP Client').trim();
+    const oauthScope = String(body.oauth_scope || server.oauth_scope || '').trim();
+    const authServerUrl = String(body.oauth_authorization_server || server.oauth_authorization_server || serverUrl).trim();
+
+    const redirectUri = new URL(req.url).origin + '/api/admin/tool-servers/oauth/callback';
+
+    let metadata = null;
+    try {
+      metadata = await discoverAuthorizationMetadata(authServerUrl);
+    } catch {
+      metadata = null;
+    }
+
+    let clientId = String(body.oauth_client_id || server.oauth_client_id || '').trim();
+    let clientSecret = String(body.oauth_client_secret || server.oauth_client_secret || '').trim();
+    let registrationEndpoint = metadata?.registration_endpoint || server.oauth_registration_endpoint || '';
+
+    if (!clientId) {
+      if (!registrationEndpoint) {
+        return error(req, 'Authorization server does not support dynamic client registration', 400);
+      }
+      try {
+        const registrationPayload = {
+          client_name: oauthClientName,
+          redirect_uris: [redirectUri],
+          grant_types: ['authorization_code', 'refresh_token'],
+          response_types: ['code'],
+        };
+        const registrationRes = await fetch(registrationEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(registrationPayload),
+        });
+        if (!registrationRes.ok) {
+          const text = await registrationRes.text().catch(() => '');
+          return error(req, 'Client registration failed', 502, { message: text });
+        }
+        const registrationData = await registrationRes.json();
+        clientId = String(registrationData.client_id || '').trim();
+        clientSecret = String(registrationData.client_secret || '').trim();
+      } catch (err) {
+        return error(req, 'Client registration failed', 502, { message: err?.message || String(err) });
+      }
+    }
+
+    if (!clientId) {
+      return error(req, 'OAuth client ID is required', 400);
+    }
+
+    const tokenAuthMethod = normalizeTokenAuthMethod(
+      body.oauth_token_auth_method || server.oauth_token_auth_method
+    ) || selectTokenAuthMethod(metadata?.token_endpoint_auth_methods_supported || [], Boolean(clientSecret));
+
+    const codeVerifier = randomString(64);
+    const codeChallenge = await sha256Base64Url(codeVerifier);
+    const state = randomString(32);
+    const authorizationEndpoint = metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
+    const tokenEndpoint = metadata?.token_endpoint || new URL('/token', authServerUrl).toString();
+
+    const authorizationUrl = buildAuthorizationUrl({
+      authorizationEndpoint,
+      clientId,
+      redirectUri,
+      scope: oauthScope,
+      state,
+      codeChallenge,
+    });
+
+    servers[serverIndex] = {
+      ...server,
+      auth_type: 'oauth',
+      oauth_client_name: oauthClientName,
+      oauth_scope: oauthScope,
+      oauth_client_id: clientId,
+      oauth_client_secret: clientSecret,
+      oauth_authorization_server: authServerUrl,
+      oauth_token_endpoint: tokenEndpoint,
+      oauth_registration_endpoint: registrationEndpoint,
+      oauth_token_auth_method: tokenAuthMethod,
+      oauth_state: state,
+      oauth_code_verifier: codeVerifier,
+    };
+
+    await saveToolServers(db, servers);
+
+    return json(req, { ok: true, authorization_url: authorizationUrl.toString() });
+  }
+
+  // GET /api/admin/tool-servers/oauth/callback - OAuth redirect handler
+  if (req.method === 'GET' && path === '/api/admin/tool-servers/oauth/callback') {
+    const url = new URL(req.url);
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+    const errParam = url.searchParams.get('error');
+    if (errParam) {
+      return new Response(`Authorization failed: ${errParam}`, { status: 400 });
+    }
+    if (!code || !state) {
+      return new Response('Missing authorization code or state', { status: 400 });
+    }
+
+    const servers = await loadToolServers(db);
+    const serverIndex = servers.findIndex((entry) => entry?.oauth_state === state);
+    if (serverIndex === -1) {
+      return new Response('OAuth session not found or expired', { status: 400 });
+    }
+
+    const server = servers[serverIndex];
+    const tokenEndpoint = server.oauth_token_endpoint || new URL('/token', server.oauth_authorization_server || server.url).toString();
+    const clientId = server.oauth_client_id;
+    const clientSecret = server.oauth_client_secret;
+    const codeVerifier = server.oauth_code_verifier;
+    const tokenAuthMethod = normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
+
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      code_verifier: codeVerifier,
+      redirect_uri: new URL(req.url).origin + '/api/admin/tool-servers/oauth/callback',
+      client_id: clientId,
+    });
+
+    const headers = new Headers({
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    });
+
+    if (tokenAuthMethod === 'client_secret_basic' && clientSecret) {
+      headers.set('Authorization', `Basic ${btoa(`${clientId}:${clientSecret}`)}`);
+      params.delete('client_id');
+    } else if (tokenAuthMethod === 'client_secret_post' && clientSecret) {
+      params.set('client_secret', clientSecret);
+    }
+
+    try {
+      const tokenRes = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers,
+        body: params,
+      });
+      if (!tokenRes.ok) {
+        const text = await tokenRes.text().catch(() => '');
+        return new Response(`Token exchange failed: ${text}`, { status: 400 });
+      }
+      const tokenData = await tokenRes.json();
+
+      servers[serverIndex] = {
+        ...server,
+        oauth_tokens: {
+          ...tokenData,
+          connected_at: new Date().toISOString(),
+        },
+        oauth_connected_at: new Date().toISOString(),
+        oauth_state: null,
+        oauth_code_verifier: null,
+      };
+
+      await saveToolServers(db, servers);
+
+      return new Response(
+        '<html><body><h2>OAuth connected.</h2><p>You can return to GrowChat and click Verify.</p></body></html>',
+        { headers: { 'Content-Type': 'text/html' } }
+      );
+    } catch (err) {
+      return new Response(`Token exchange failed: ${err?.message || String(err)}`, { status: 400 });
+    }
   }
 
   // PUT /api/admin/tool-servers - Update tool servers
@@ -314,26 +889,24 @@ export async function adminRouter(req, env, ctx, user, path) {
     }
 
     const servers = Array.isArray(body.servers) ? body.servers : [];
+    const existing = await loadToolServers(db);
+    const existingById = new Map(existing.map((entry) => [String(entry.id), entry]));
     const sanitized = servers
-      .map((server) => ({
-        id: server.id || crypto.randomUUID(),
-        name: String(server.name || 'Tool Server').slice(0, 120),
-        url: String(server.url || '').trim(),
-        key: String(server.key || '').trim(),
-        headers: String(server.headers || '').trim(),
-        enabled: server.enabled !== false,
-      }))
+      .map((server) => {
+        const merged = mergeToolServer(existingById.get(String(server.id)), server);
+        return merged;
+      })
       .filter((server) => server.url);
 
     try {
-      await setConfigValue(db, 'tool_servers', JSON.stringify(sanitized));
+      await saveToolServers(db, sanitized);
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'tool_servers_updated',
         resource_type: 'admin',
         resource_id: 'tool-servers',
       });
-      return json(req, { ok: true });
+      return json(req, { ok: true, servers: sanitized.map(redactToolServer) });
     } catch (err) {
       console.error('Tool servers update failed:', err);
       return error(req, 'Failed to update tool servers', 500);

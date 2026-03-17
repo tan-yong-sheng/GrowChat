@@ -347,11 +347,15 @@ export function renderModelSelector(container) {
     });
 
     unsubscribe = subscribe((currentState) => {
-       const activeModel = currentState.models?.find(m => m.id === currentState.activeModelId) || null;
-       if (activeModel) {
+       const models = Array.isArray(currentState.models) ? currentState.models : [];
+       const hasModels = models.length > 0;
+       const activeModel = hasModels ? (models.find(m => m.id === currentState.activeModelId) || null) : null;
+       if (!hasModels) {
+          nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'Select a Model';
+       } else if (activeModel) {
           nameSpan.textContent = activeModel.name || activeModel.id;
        } else {
-          nameSpan.textContent = currentState.activeModelId || 'Select a Model';
+          nameSpan.textContent = currentState.activeModelId ? 'Unknown model' : 'Select a Model';
        }
 
        // Keep header button always clickable

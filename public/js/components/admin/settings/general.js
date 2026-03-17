@@ -17,7 +17,6 @@ export function renderGeneralSettings(container, data) {
       defaultModelId: '',
     },
     models: [],
-    defaultModelLoaded: false,
     adminConfigLoaded: false,
     modelsInvalidateToken: null,
     dirtyFields: {
@@ -95,7 +94,7 @@ export function renderGeneralSettings(container, data) {
               <hr class="border-gray-100/30 my-2" />
               
               <div class="py-2.5">
-                <div class="text-xs font-medium mb-1">Default Model</div>
+                <div class="text-xs font-medium mb-1">Global Default Model</div>
                 <div class="relative">
                   <select id="default-model" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 appearance-none pr-8 transition">
                     <option value="">Select a model</option>
@@ -155,39 +154,32 @@ export function renderGeneralSettings(container, data) {
       const shouldUpdatePublicReg = nextPublicReg !== prevPublicReg;
 
       try {
-        if (shouldUpdatePublicReg) {
+        if (shouldUpdatePublicReg || shouldUpdateDefault) {
+          const adminUpdates = {};
+          if (shouldUpdatePublicReg) adminUpdates.public_registration = nextPublicReg;
+          if (shouldUpdateDefault) adminUpdates.default_model_id = nextDefault || null;
+
           const res = await apiFetch('/api/admin/config', {
             method: 'PUT',
-            body: JSON.stringify({ public_registration: nextPublicReg })
+            body: JSON.stringify(adminUpdates)
           });
 
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err?.error || err?.message || 'Failed to update public registration');
+            throw new Error(err?.error || err?.message || 'Failed to update settings');
           }
 
-          settingsState.initialValues.publicRegistration = nextPublicReg;
-          settingsState.dirtyFields.publicRegistration = false;
-        }
-
-        if (shouldUpdateDefault) {
-          const res = await apiFetch('/api/users/me', {
-            method: 'PUT',
-            body: JSON.stringify({
-              preferences: { defaultModelId: nextDefault || null }
-            })
-          });
-
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err?.error || err?.message || 'Failed to save default model');
+          if (shouldUpdatePublicReg) {
+            settingsState.initialValues.publicRegistration = nextPublicReg;
+            settingsState.dirtyFields.publicRegistration = false;
           }
 
-          settingsState.initialValues.defaultModelId = nextDefault;
-          settingsState.dirtyFields.defaultModelId = false;
-          localStorage.setItem('defaultModelId', nextDefault);
-          setState({ defaultModelId: nextDefault });
-          updateButtons();
+          if (shouldUpdateDefault) {
+            settingsState.initialValues.defaultModelId = nextDefault;
+            settingsState.dirtyFields.defaultModelId = false;
+            setState({ globalDefaultModelId: nextDefault || null });
+            updateButtons();
+          }
         }
 
         settingsState.loading = false;
@@ -277,49 +269,20 @@ export function renderGeneralSettings(container, data) {
         if (!settingsState.dirtyFields.publicRegistration) {
           settingsState.currentValues.publicRegistration = next;
           settingsState.initialValues.publicRegistration = next;
-          if (isActiveTab()) render();
         }
+        const defaultId = payload?.default_model_id || '';
+        if (!settingsState.dirtyFields.defaultModelId) {
+          settingsState.currentValues.defaultModelId = defaultId;
+          settingsState.initialValues.defaultModelId = defaultId;
+        }
+        if (isActiveTab()) render();
       }
     } catch (err) {
       console.warn('Failed to load admin config', err);
     }
   };
 
-  const loadDefaultModel = async () => {
-    if (settingsState.defaultModelLoaded) return;
-    settingsState.defaultModelLoaded = true;
-
-    if (settingsState.dirtyFields.defaultModelId) return;
-
-    const cached = localStorage.getItem('defaultModelId');
-      if (cached) {
-        if (settingsState.currentValues.defaultModelId !== cached) {
-          settingsState.currentValues.defaultModelId = cached;
-          settingsState.initialValues.defaultModelId = cached;
-          if (isActiveTab()) render();
-        }
-        return;
-      }
-
-    try {
-      const res = await apiFetch('/api/users/me');
-      if (res.ok) {
-        const data = await res.json();
-        const defaultId = data?.user?.preferences?.defaultModelId || '';
-        if (defaultId && settingsState.currentValues.defaultModelId !== defaultId) {
-          settingsState.currentValues.defaultModelId = defaultId;
-          settingsState.initialValues.defaultModelId = defaultId;
-          localStorage.setItem('defaultModelId', defaultId);
-          if (isActiveTab()) render();
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to load default model for settings', err);
-    }
-  };
-
   render();
   loadModels();
   loadAdminConfig();
-  loadDefaultModel();
 }

@@ -3,6 +3,7 @@ import { error, json } from '../utils/response.js';
 import { hashPassword, signJWT, verifyPassword } from '../auth.js';
 import { createRefreshToken, consumeRefreshToken, revokeRefreshToken } from '../session.js';
 import { getConfigBool, setConfigValue } from '../utils/app-config.js';
+import { getJwtSecret } from '../utils/jwt-secret.js';
 
 async function ensureUserRoleBinding(db, userId, role) {
   if (!userId || !role || role === 'inactive') return;
@@ -63,18 +64,19 @@ function readBearerToken(req) {
   return header.slice('Bearer '.length).trim();
 }
 
-async function createAccessToken(env, user) {
+async function createAccessToken(secret, user) {
   return signJWT(
     { sub: user.id, email: user.email, role: user.role, name: user.name },
-    env.JWT_SECRET,
+    secret,
     60 * 15
   );
 }
 
 export async function authRouter(req, env, _ctx, _authUser, path) {
   const db = createDB(env.DB);
+  const jwtSecret = getJwtSecret(env, req);
 
-  if (path.startsWith('/api/auth/') && !env.JWT_SECRET) {
+  if (path.startsWith('/api/auth/') && !jwtSecret) {
     return error(req, 'JWT_SECRET is not configured', 500);
   }
 
@@ -125,7 +127,7 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     await ensureUserRoleBinding(db, id, finalRole);
 
     const user = await db.first('SELECT * FROM users WHERE id = ?', [id]);
-    const accessToken = await createAccessToken(env, user);
+    const accessToken = await createAccessToken(jwtSecret, user);
     const refresh = await createRefreshToken(env, user.id);
 
     return json(req, {
@@ -162,7 +164,7 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     await touchLastActive(db, user.id);
     const freshUser = await db.first('SELECT * FROM users WHERE id = ?', [user.id]);
 
-    const accessToken = await createAccessToken(env, freshUser);
+    const accessToken = await createAccessToken(jwtSecret, freshUser);
     const refresh = await createRefreshToken(env, freshUser.id);
 
     return json(req, {
@@ -195,7 +197,7 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     await touchLastActive(db, user.id);
     const freshUser = await db.first('SELECT * FROM users WHERE id = ?', [user.id]);
 
-    const accessToken = await createAccessToken(env, freshUser);
+    const accessToken = await createAccessToken(jwtSecret, freshUser);
     const refresh = await createRefreshToken(env, freshUser.id);
 
     return json(req, {

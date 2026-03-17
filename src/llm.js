@@ -68,9 +68,148 @@ export async function streamLLM(env, model, messages) {
 // SseLineParser accumulates raw bytes across reader.read() calls and emits
 // complete `data: ...` lines, handling the case where a single JSON payload
 // is split across two or more network chunks.
+const DEFAULT_REASONING_TAGS = ['think', 'thinking', 'thought', 'thoughts', 'reason', 'reasoning'];
+
+function getPotentialStartIndex(text, searchedText) {
+  if (!searchedText.length) return null;
+  const directIndex = text.indexOf(searchedText);
+  if (directIndex !== -1) return directIndex;
+  for (let i = text.length - 1; i >= 0; i -= 1) {
+    const suffix = text.substring(i);
+    if (searchedText.startsWith(suffix)) return i;
+  }
+  return null;
+}
+
 export class SseLineParser {
-  constructor() {
+  constructor({ onEvent = null, tagNames = DEFAULT_REASONING_TAGS } = {}) {
     this._buf = '';
+    this._tagBuffer = '';
+    this._inReasoning = false;
+    this._currentTag = null;
+    this._reasoningStarted = false;
+    this._reasoningEnded = false;
+    this._onEvent = typeof onEvent === 'function' ? onEvent : null;
+    this._tagNames = Array.isArray(tagNames) && tagNames.length ? tagNames : DEFAULT_REASONING_TAGS;
+  }
+
+  _emit(event) {
+    if (this._onEvent) this._onEvent(event);
+  }
+
+  _ensureReasoningStart() {
+    if (!this._reasoningStarted) {
+      this._reasoningStarted = true;
+      this._emit({ type: 'reasoning_start' });
+    }
+  }
+
+  _emitReasoningDelta(delta) {
+    if (!delta) return;
+    this._ensureReasoningStart();
+    this._emit({ type: 'reasoning_delta', delta });
+  }
+
+  _emitTextDelta(delta) {
+    if (!delta) return;
+    this._emit({ type: 'text_delta', delta });
+  }
+
+  _extractTaggedSegments(chunk) {
+    if (!chunk) return [];
+    this._tagBuffer += chunk;
+    const segments = [];
+    const bufferLower = () => this._tagBuffer.toLowerCase();
+    const openTokens = this._tagNames.map((tag) => `<${tag}`);
+
+    while (this._tagBuffer.length > 0) {
+      if (!this._inReasoning) {
+        let best = null;
+        const lower = bufferLower();
+        for (let i = 0; i < openTokens.length; i += 1) {
+          const token = openTokens[i];
+          const idx = getPotentialStartIndex(lower, token);
+          if (idx == null) continue;
+          if (!best || idx < best.index) {
+            best = { index: idx, token, tagName: this._tagNames[i] };
+          }
+        }
+
+        if (!best) {
+          segments.push({ type: 'text', text: this._tagBuffer });
+          this._tagBuffer = '';
+          break;
+        }
+
+        if (best.index > 0) {
+          segments.push({ type: 'text', text: this._tagBuffer.slice(0, best.index) });
+        }
+
+        const openEnd = this._tagBuffer.indexOf('>', best.index);
+        if (openEnd === -1) {
+          this._tagBuffer = this._tagBuffer.slice(best.index);
+          break;
+        }
+
+        this._tagBuffer = this._tagBuffer.slice(openEnd + 1);
+        this._inReasoning = true;
+        this._currentTag = best.tagName;
+      } else {
+        const closeToken = `</${this._currentTag}>`;
+        const lower = bufferLower();
+        const closeIdx = getPotentialStartIndex(lower, closeToken);
+        if (closeIdx == null) {
+          segments.push({ type: 'reasoning', text: this._tagBuffer });
+          this._tagBuffer = '';
+          break;
+        }
+
+        if (closeIdx > 0) {
+          segments.push({ type: 'reasoning', text: this._tagBuffer.slice(0, closeIdx) });
+        }
+
+        if (closeIdx + closeToken.length > this._tagBuffer.length) {
+          this._tagBuffer = this._tagBuffer.slice(closeIdx);
+          break;
+        }
+
+        this._tagBuffer = this._tagBuffer.slice(closeIdx + closeToken.length);
+        this._inReasoning = false;
+        this._currentTag = null;
+      }
+    }
+
+    return segments;
+  }
+
+  _handleParsed(parsed) {
+    let text = '';
+    const delta = parsed?.choices?.[0]?.delta || {};
+    const reasoningField =
+      delta.reasoning ??
+      delta.thinking ??
+      delta.reasoning_content ??
+      delta.reasoningContent;
+    if (reasoningField) {
+      const reasoningDelta = String(reasoningField);
+      this._emitReasoningDelta(reasoningDelta);
+    }
+
+    const contentField = parsed?.response ?? delta.content;
+    if (contentField) {
+      const segments = this._extractTaggedSegments(String(contentField));
+      for (const segment of segments) {
+        if (!segment?.text) continue;
+        if (segment.type === 'reasoning') {
+          this._emitReasoningDelta(segment.text);
+        } else {
+          this._emitTextDelta(segment.text);
+          text += segment.text;
+        }
+      }
+    }
+
+    return text;
   }
 
   // Feed a decoded text chunk; returns accumulated delta text from complete lines.
@@ -88,7 +227,7 @@ export class SseLineParser {
 
       try {
         const parsed = JSON.parse(payload);
-        text += parsed.response || parsed.choices?.[0]?.delta?.content || '';
+        text += this._handleParsed(parsed);
       } catch {
         // Incomplete JSON that didn't form a full line — discard (shouldn't
         // happen now that we only process newline-terminated lines).
@@ -101,16 +240,36 @@ export class SseLineParser {
   flush() {
     const line = this._buf.replace(/\r$/, '');
     this._buf = '';
-    if (!line.startsWith('data: ')) return '';
+    let text = '';
+    if (line.startsWith('data: ')) {
+      const payload = line.slice(6).trim();
+      if (payload && payload !== '[DONE]') {
+        try {
+          const parsed = JSON.parse(payload);
+          text += this._handleParsed(parsed);
+        } catch {
+          // ignore trailing parse failure
+        }
+      }
+    }
 
-    const payload = line.slice(6).trim();
-    if (!payload || payload === '[DONE]') return '';
+    if (this._tagBuffer) {
+      if (this._inReasoning) {
+        this._emitReasoningDelta(this._tagBuffer);
+      } else {
+        this._emitTextDelta(this._tagBuffer);
+        text += this._tagBuffer;
+      }
+      this._tagBuffer = '';
+    }
 
-    try {
-      const parsed = JSON.parse(payload);
-      return parsed.response || parsed.choices?.[0]?.delta?.content || '';
-    } catch {
-      return '';
+    return text;
+  }
+
+  finalize() {
+    if (this._reasoningStarted && !this._reasoningEnded) {
+      this._reasoningEnded = true;
+      this._emit({ type: 'reasoning_end' });
     }
   }
 }

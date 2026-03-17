@@ -3,6 +3,7 @@ import { error, json, sseData, sseHeaders } from '../utils/response.js';
 import { SseLineParser, streamLLM } from '../llm.js';
 import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
 import { createRealtimeEvent, getOriginSessionId, publishRealtimeEvent } from '../realtime.js';
+import { getConfigValue } from '../utils/app-config.js';
 
 const BUILTIN_DEFAULT_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
@@ -14,6 +15,42 @@ function defaultModel(env) {
     return models[0] || BUILTIN_DEFAULT_MODEL;
   }
   return BUILTIN_DEFAULT_MODEL;
+}
+
+async function getUserDefaultModelId(db, userId) {
+  if (!userId) return null;
+  try {
+    const row = await db.first('SELECT preferences FROM users WHERE id = ?', [userId]);
+    if (!row?.preferences) return null;
+    const prefs = JSON.parse(row.preferences);
+    const raw = prefs?.defaultModelId;
+    if (!raw) return null;
+    const value = String(raw).trim();
+    if (!value || value.length > 200 || /\s/.test(value)) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+async function getGlobalDefaultModelId(db) {
+  try {
+    const raw = await getConfigValue(db, 'default_model_id', null);
+    if (!raw) return null;
+    const value = String(raw).trim();
+    if (!value || value.length > 200 || /\s/.test(value)) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveDefaultModel(env, db, userId) {
+  const userDefault = await getUserDefaultModelId(db, userId);
+  if (userDefault) return userDefault;
+  const globalDefault = await getGlobalDefaultModelId(db);
+  if (globalDefault) return globalDefault;
+  return defaultModel(env);
 }
 
 function requireAuth(req, user) {
@@ -193,7 +230,8 @@ export async function chatRouter(req, env, ctx, user, path) {
 
     const id = crypto.randomUUID();
     const title = String(body.title || 'New Chat').trim() || 'New Chat';
-    const model = String(body.model || defaultModel(env)).trim() || defaultModel(env);
+    const fallbackModel = await resolveDefaultModel(env, db, user.sub);
+    const model = String(body.model || fallbackModel).trim() || fallbackModel;
 
     await db.run(
       'INSERT INTO chats (id, user_id, title, model, tags, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, unixepoch(), unixepoch())',
@@ -344,7 +382,7 @@ export async function chatRouter(req, env, ctx, user, path) {
         newChatId,
         user.sub,
         newTitle,
-        sourceChat.model || defaultModel(env),
+        sourceChat.model || (await resolveDefaultModel(env, db, user.sub)),
         sourceChat.tags || '[]'
       ),
     ];
@@ -484,7 +522,10 @@ export async function chatRouter(req, env, ctx, user, path) {
     const content = String(body.message || '').trim();
     if (!content) return error(req, 'message is required', 400);
 
-    const model = String(body.model || chat.model || defaultModel(env)).trim() || defaultModel(env);
+    let model = String(body.model || chat.model || '').trim();
+    if (!model) {
+      model = await resolveDefaultModel(env, db, user.sub);
+    }
 
     const userMsgId = crypto.randomUUID();
     const parentId = chat.current_message_id || null;
@@ -605,13 +646,37 @@ export async function chatRouter(req, env, ctx, user, path) {
     const reader = stream.getReader();
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
-    const parser = new SseLineParser();
     let fullText = '';
+    let fullReasoning = '';
+    let reasoningStartedAt = null;
     let deltaSeq = 0;
 
     const readable = new ReadableStream({
       async start(controller) {
+        let emitReasoningEvent = () => {};
+        const parser = new SseLineParser({
+          onEvent: (event) => emitReasoningEvent(event),
+        });
         controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
+        emitReasoningEvent = (event) => {
+          if (!event) return;
+          if (event.type === 'reasoning_start') {
+            if (!reasoningStartedAt) reasoningStartedAt = Date.now();
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_start' })));
+            return;
+          }
+          if (event.type === 'reasoning_delta') {
+            const delta = String(event.delta || '');
+            if (!delta) return;
+            fullReasoning += delta;
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_delta', delta })));
+            return;
+          }
+          if (event.type === 'reasoning_end') {
+            const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_end', duration_ms: duration })));
+          }
+        };
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -645,12 +710,17 @@ export async function chatRouter(req, env, ctx, user, path) {
               data: { delta: finalDelta, model, seq: ++deltaSeq },
             }));
           }
+          parser.finalize();
 
-          if (fullText) {
+          const reasoningSuffix = fullReasoning.trim();
+          const persistedText = reasoningSuffix
+            ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
+            : fullText;
+          if (persistedText) {
             const citationsJson = JSON.stringify(citations);
             await db.run(
               'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
-              [assistantMsgId, chatId, 'assistant', fullText, model, citationsJson, userMsgId]
+              [assistantMsgId, chatId, 'assistant', persistedText, model, citationsJson, userMsgId]
             );
             await db.run(
               'UPDATE chats SET current_message_id = ? WHERE id = ? AND user_id = ?',
@@ -832,7 +902,10 @@ export async function chatRouter(req, env, ctx, user, path) {
     }
 
     // === USER MESSAGE BRANCHING (role='user' or default) ===
-    const model = String(body.model || chat.model || defaultModel(env)).trim() || defaultModel(env);
+    let model = String(body.model || chat.model || '').trim();
+    if (!model) {
+      model = await resolveDefaultModel(env, db, user.sub);
+    }
 
     const newUserMsgId = crypto.randomUUID();
     await db.batch([
@@ -903,13 +976,37 @@ export async function chatRouter(req, env, ctx, user, path) {
     const reader = stream.getReader();
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
-    const parser = new SseLineParser();
     let fullText = '';
+    let fullReasoning = '';
+    let reasoningStartedAt = null;
     let deltaSeq = 0;
 
     const readable = new ReadableStream({
       async start(controller) {
+        let emitReasoningEvent = () => {};
+        const parser = new SseLineParser({
+          onEvent: (event) => emitReasoningEvent(event),
+        });
         controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: newUserMsgId })));
+        emitReasoningEvent = (event) => {
+          if (!event) return;
+          if (event.type === 'reasoning_start') {
+            if (!reasoningStartedAt) reasoningStartedAt = Date.now();
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_start' })));
+            return;
+          }
+          if (event.type === 'reasoning_delta') {
+            const delta = String(event.delta || '');
+            if (!delta) return;
+            fullReasoning += delta;
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_delta', delta })));
+            return;
+          }
+          if (event.type === 'reasoning_end') {
+            const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_end', duration_ms: duration })));
+          }
+        };
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -943,12 +1040,17 @@ export async function chatRouter(req, env, ctx, user, path) {
               data: { delta: finalDelta, model, seq: ++deltaSeq },
             }));
           }
+          parser.finalize();
 
-          if (fullText) {
+          const reasoningSuffix = fullReasoning.trim();
+          const persistedText = reasoningSuffix
+            ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
+            : fullText;
+          if (persistedText) {
             await db.batch([
               db.prepare(
                 'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
-                [assistantMsgId, chatId, 'assistant', fullText, model, newUserMsgId]
+                [assistantMsgId, chatId, 'assistant', persistedText, model, newUserMsgId]
               ),
               db.prepare(
                 'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
@@ -1030,7 +1132,10 @@ export async function chatRouter(req, env, ctx, user, path) {
     if (!sourceMsg) return error(req, 'Message not found', 404);
     if (sourceMsg.role !== 'assistant') return error(req, 'Can only regenerate assistant messages', 400);
 
-    const model = String(chat.model || defaultModel(env)).trim() || defaultModel(env);
+    let model = String(chat.model || '').trim();
+    if (!model) {
+      model = await resolveDefaultModel(env, db, user.sub);
+    }
     const newAssistantMsgId = crypto.randomUUID();
 
     const history = await db.all(
@@ -1082,13 +1187,37 @@ export async function chatRouter(req, env, ctx, user, path) {
     const reader = stream.getReader();
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
-    const parser = new SseLineParser();
     let fullText = '';
+    let fullReasoning = '';
+    let reasoningStartedAt = null;
     let deltaSeq = 0;
 
     const readable = new ReadableStream({
       async start(controller) {
+        let emitReasoningEvent = () => {};
+        const parser = new SseLineParser({
+          onEvent: (event) => emitReasoningEvent(event),
+        });
         controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: newAssistantMsgId })));
+        emitReasoningEvent = (event) => {
+          if (!event) return;
+          if (event.type === 'reasoning_start') {
+            if (!reasoningStartedAt) reasoningStartedAt = Date.now();
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_start' })));
+            return;
+          }
+          if (event.type === 'reasoning_delta') {
+            const delta = String(event.delta || '');
+            if (!delta) return;
+            fullReasoning += delta;
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_delta', delta })));
+            return;
+          }
+          if (event.type === 'reasoning_end') {
+            const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
+            controller.enqueue(encoder.encode(sseData({ event: 'reasoning_end', duration_ms: duration })));
+          }
+        };
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -1122,11 +1251,16 @@ export async function chatRouter(req, env, ctx, user, path) {
               data: { delta: finalDelta, model, seq: ++deltaSeq },
             }));
           }
+          parser.finalize();
 
-          if (fullText) {
+          const reasoningSuffix = fullReasoning.trim();
+          const persistedText = reasoningSuffix
+            ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
+            : fullText;
+          if (persistedText) {
             await db.run(
               'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())',
-              [newAssistantMsgId, chatId, 'assistant', fullText, model, sourceMsg.parent_id]
+              [newAssistantMsgId, chatId, 'assistant', persistedText, model, sourceMsg.parent_id]
             );
             await db.run(
               'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',

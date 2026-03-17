@@ -2,6 +2,7 @@ import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { isValidEmail } from '../utils/rbac.js';
 import { authorize, logAuditEvent, isLastOwnerOfRole, resolvePermissions, getUserRoles } from '../utils/authorize.js';
+import { getConfigValue } from '../utils/app-config.js';
 import { hashPassword } from '../auth.js';
 
 async function upsertGlobalRoleBinding(db, userId, role) {
@@ -84,6 +85,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
         preferences = {};
       }
     }
+    let globalDefaultModelId = null;
+    try {
+      const rawDefault = await getConfigValue(db, 'default_model_id', null);
+      globalDefaultModelId = rawDefault ? String(rawDefault).trim() : null;
+    } catch {
+      globalDefaultModelId = null;
+    }
 
     const payload = {
       user: {
@@ -99,6 +107,9 @@ export async function usersRouter(req, env, _ctx, user, path) {
         created_at: row.created_at,
         last_active_at: row.last_active_at || null,
         updated_at: row.updated_at,
+      },
+      app_config: {
+        default_model_id: globalDefaultModelId || null,
       },
     };
 

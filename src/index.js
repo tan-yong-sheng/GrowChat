@@ -1,4 +1,5 @@
 import { verifyJWT } from './auth.js';
+import { getJwtSecret } from './utils/jwt-secret.js';
 import { authRouter } from './routers/auth.js';
 import { chatRouter } from './routers/chat.js';
 import { usersRouter } from './routers/users.js';
@@ -19,6 +20,8 @@ const API_ROUTES = [publicRouter, authRouter, chatRouter, usersRouter, faqsRoute
 let schemaCompatibilityReady = null;
 let schemaDiagnosticsLogged = false;
 const REQUIRED_RBAC_TABLES = ['roles', 'permissions', 'role_permissions', 'user_roles', 'audit_log'];
+const REQUIRED_CORE_TABLES = ['users', 'chats', 'messages', 'refresh_tokens'];
+let coreSchemaDiagnosticsLogged = false;
 
 /**
  * Public routes that don't require authentication.
@@ -86,10 +89,11 @@ function readBearer(req) {
 
 async function resolveAuthUser(req, env) {
   const token = readBearer(req);
-  if (!token || !env.JWT_SECRET) return null;
+  const jwtSecret = getJwtSecret(env, req);
+  if (!token || !jwtSecret) return null;
 
   try {
-    return await verifyJWT(token, env.JWT_SECRET);
+    return await verifyJWT(token, jwtSecret);
   } catch {
     return null;
   }
@@ -177,10 +181,24 @@ async function ensureSchemaCompatibility(env) {
         const userInfo = await env.DB.prepare('PRAGMA table_info(users)').all();
         const userColumns = userInfo?.results || [];
         if (userColumns.length) {
-          const hasLastActiveAt = userColumns.some((col) => col?.name === 'last_active_at');
-          if (!hasLastActiveAt) {
+          const columnNames = new Set(userColumns.map((col) => col?.name).filter(Boolean));
+          if (!columnNames.has('last_active_at')) {
             await env.DB.prepare('ALTER TABLE users ADD COLUMN last_active_at INTEGER').run();
             await env.DB.prepare('UPDATE users SET last_active_at = COALESCE(updated_at, created_at) WHERE last_active_at IS NULL').run();
+          }
+          if (!columnNames.has('avatar')) {
+            await env.DB.prepare('ALTER TABLE users ADD COLUMN avatar TEXT').run();
+          }
+          if (!columnNames.has('avatar_emoji')) {
+            await env.DB.prepare('ALTER TABLE users ADD COLUMN avatar_emoji TEXT').run();
+          }
+          if (!columnNames.has('status')) {
+            await env.DB.prepare("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'offline'").run();
+            await env.DB.prepare("UPDATE users SET status = 'offline' WHERE status IS NULL").run();
+          }
+          if (!columnNames.has('preferences')) {
+            await env.DB.prepare("ALTER TABLE users ADD COLUMN preferences TEXT DEFAULT '{}'").run();
+            await env.DB.prepare("UPDATE users SET preferences = '{}' WHERE preferences IS NULL").run();
           }
         }
       } catch (err) {
@@ -191,6 +209,20 @@ async function ensureSchemaCompatibility(env) {
 
       // RBAC schema diagnostics: log local DB details + missing tables once.
       try {
+        const corePlaceholders = REQUIRED_CORE_TABLES.map(() => '?').join(', ');
+        const coreRows = await env.DB.prepare(
+          `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${corePlaceholders})`
+        ).bind(...REQUIRED_CORE_TABLES).all();
+        const coreSet = new Set((coreRows?.results || []).map((row) => row.name));
+        const missingCore = REQUIRED_CORE_TABLES.filter((name) => !coreSet.has(name));
+        if (missingCore.length > 0 && !coreSchemaDiagnosticsLogged) {
+          console.warn(
+            `Core schema missing tables [${missingCore.join(', ')}]. ` +
+            `Run: wrangler d1 execute growchat --local --file=./migrations/001_initial.sql`
+          );
+          coreSchemaDiagnosticsLogged = true;
+        }
+
         const placeholders = REQUIRED_RBAC_TABLES.map(() => '?').join(', ');
         const existingRows = await env.DB.prepare(
           `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${placeholders})`

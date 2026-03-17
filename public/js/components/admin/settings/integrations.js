@@ -19,9 +19,17 @@ export function renderIntegrationsSettings(container, data) {
         id: server.id || '',
         name: server.name || '',
         url: server.url || '',
-        key: server.key || '',
         headers: server.headers || '',
         enabled: server.enabled !== false,
+        auth_type: server.auth_type || 'none',
+        auth_bearer_token: server.auth_bearer_token || '',
+        auth_basic_username: server.auth_basic_username || '',
+        auth_basic_password: server.auth_basic_password || '',
+        oauth_client_name: server.oauth_client_name || '',
+        oauth_scope: server.oauth_scope || '',
+        oauth_client_id: server.oauth_client_id || '',
+        oauth_client_secret: server.oauth_client_secret || '',
+        oauth_token_auth_method: server.oauth_token_auth_method || '',
       }))
       .sort((a, b) => String(a.id).localeCompare(String(b.id)));
     return JSON.stringify(normalized);
@@ -63,6 +71,82 @@ export function renderIntegrationsSettings(container, data) {
     }
   };
 
+  const sanitizeServers = () => integrationsState.toolServers.map((server) => ({
+    id: server.id || '',
+    name: String(server.name || '').trim(),
+    url: String(server.url || '').trim(),
+    headers: String(server.headers || '').trim(),
+    enabled: server.enabled !== false,
+    auth_type: server.auth_type || 'none',
+    auth_bearer_token: String(server.auth_bearer_token || '').trim(),
+    auth_basic_username: String(server.auth_basic_username || '').trim(),
+    auth_basic_password: String(server.auth_basic_password || '').trim(),
+    oauth_client_name: String(server.oauth_client_name || '').trim(),
+    oauth_scope: String(server.oauth_scope || '').trim(),
+    oauth_client_id: String(server.oauth_client_id || '').trim(),
+    oauth_client_secret: String(server.oauth_client_secret || '').trim(),
+    oauth_token_auth_method: String(server.oauth_token_auth_method || '').trim(),
+    // tools are derived from verification; exclude from dirty checks
+  })).filter((server) => server.url);
+
+  const persistServers = async ({ showFeedback }) => {
+    const feedback = container.querySelector('#integrations-feedback');
+    const sanitized = sanitizeServers();
+    const res = await apiFetch('/api/admin/tool-servers', {
+      method: 'PUT',
+      body: JSON.stringify({ servers: sanitized }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || 'Failed to save integrations');
+    }
+    const payload = await res.json().catch(() => ({}));
+    integrationsState.toolServers = Array.isArray(payload?.servers)
+      ? payload.servers.map((server) => ({
+        ...server,
+        toolsExpanded: false,
+        toolsError: server.tools_error || '',
+      }))
+      : sanitized.map((server) => ({
+        ...server,
+        toolsExpanded: false,
+        toolsError: server.tools_error || '',
+      }));
+    integrationsState.originalSnapshot = buildSnapshot();
+    if (showFeedback && feedback) {
+      feedback.textContent = 'Integrations saved successfully';
+      feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+      feedback.classList.remove('hidden');
+      setTimeout(() => feedback.classList.add('hidden'), 3000);
+    }
+    updateButtons();
+  };
+
+  const runVerify = async ({ serverId, url, authType, bearerToken, basicUser, basicPass, headers }) => {
+    const res = await apiFetch('/api/admin/tool-servers/test', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: serverId,
+        url,
+        headers,
+        auth_type: authType,
+        auth_bearer_token: bearerToken,
+        auth_basic_username: basicUser,
+        auth_basic_password: basicPass,
+      }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(payload.error || payload.message || payload.details?.message || 'Connection failed');
+    }
+    const tools = Array.isArray(payload.tools) ? payload.tools : [];
+    return {
+      tools,
+      message: payload.message || 'Connection successful',
+      verifiedAt: payload.tools_verified_at || null,
+    };
+  };
+
   const setTestStatus = (status, message = '') => {
     const messageEl = container.querySelector('#server-test-message');
     if (!messageEl) return;
@@ -73,26 +157,72 @@ export function renderIntegrationsSettings(container, data) {
     messageEl.classList.toggle('text-gray-400', status === 'idle' || status === 'testing');
   };
 
+  const updateAuthFields = (authType) => {
+    const bearer = container.querySelector('#auth-bearer-fields');
+    const basic = container.querySelector('#auth-basic-fields');
+    const oauth = container.querySelector('#auth-oauth-fields');
+    if (bearer) bearer.classList.toggle('hidden', authType !== 'bearer');
+    if (basic) basic.classList.toggle('hidden', authType !== 'basic');
+    if (oauth) oauth.classList.toggle('hidden', authType !== 'oauth');
+  };
+
   const getToolServersMarkup = () => {
     if (integrationsState.toolServers.length === 0) {
       return '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
     }
     return integrationsState.toolServers.map(server => `
-      <div class="py-2.5 flex items-center justify-between pr-2 border-b border-gray-50 last:border-0">
-        <div class="flex flex-col">
-          <div class="text-xs font-medium text-gray-900">${server.name}</div>
-          <div class="text-[10px] text-gray-400 font-mono">${server.url}</div>
+      <div class="border-b border-gray-50 last:border-0">
+        <div class="py-2.5 flex items-center justify-between pr-2">
+          <div class="flex flex-col">
+            <div class="text-xs font-medium text-gray-900">${server.name}</div>
+            <div class="text-[10px] text-gray-400 font-mono">${server.url}</div>
+            <div class="text-[10px] text-gray-400 mt-1">
+              Tools: <span class="text-gray-900">${Array.isArray(server.tools) ? server.tools.length : 0}</span>
+              ${server.toolsError ? '<span class="text-red-500 ml-2">Last verify failed</span>' : ''}
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <button data-id="${server.id}" class="tools-toggle p-1 text-gray-400 hover:text-gray-600 transition-colors" title="Toggle tools">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 ${server.toolsExpanded ? 'rotate-180' : ''}">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            <button data-id="${server.id}" class="edit-server-btn p-1 text-gray-400 hover:text-gray-600 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            </button>
+            <button data-id="${server.id}" class="server-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${server.enabled ? 'bg-black' : 'bg-gray-200'}">
+              <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${server.enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
+            </button>
+          </div>
         </div>
-        <div class="flex items-center gap-3">
-          <button data-id="${server.id}" class="edit-server-btn p-1 text-gray-400 hover:text-gray-600 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-            </svg>
-          </button>
-          <button data-id="${server.id}" class="server-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${server.enabled ? 'bg-black' : 'bg-gray-200'}">
-            <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${server.enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
-          </button>
+        <div class="px-2 pb-3 ${server.toolsExpanded ? '' : 'hidden'}">
+          ${server.toolsError ? `<div class="text-[11px] text-red-500 mb-2">${server.toolsError}</div>` : ''}
+          <div class="space-y-2">
+            ${(Array.isArray(server.tools) && server.tools.length)
+        ? server.tools.map((tool) => {
+          const description = String(tool.description || '');
+          const maxLen = 160;
+          const isExpanded = Boolean(tool._expanded);
+          const hasMore = description.length > maxLen;
+          const preview = hasMore && !isExpanded
+            ? `${description.slice(0, maxLen).trimEnd()}…`
+            : description;
+          return `
+                <div class="rounded-xl border border-gray-100 px-3 py-2">
+                  <div class="text-xs font-medium text-gray-900">${tool.title || tool.name || 'Tool'}</div>
+                  <div class="text-[10px] text-gray-400 font-mono">${tool.name || ''}</div>
+                  ${description ? `
+                    <div class="text-[11px] text-gray-500 mt-1">${preview}</div>
+                    ${hasMore ? `<button data-server-id="${server.id}" data-tool-name="${tool.name}" class="tool-desc-toggle text-[10px] text-gray-400 hover:text-gray-600 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
+                  ` : ''}
+                </div>
+              `;
+        }).join('')
+        : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit Server.</div>'}
+          </div>
         </div>
       </div>
     `).join('');
@@ -169,7 +299,7 @@ export function renderIntegrationsSettings(container, data) {
             <div class="space-y-1">
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">URL</label>
               <div class="flex items-center gap-2">
-                <input id="server-url" type="text" value="${integrationsState.selectedServer?.url || ''}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="http://localhost:5000">
+                <input id="server-url" type="text" value="${integrationsState.selectedServer?.url || ''}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="http://localhost:5000/mcp">
                 <button id="test-server" class="p-1 text-gray-400 hover:text-gray-600" title="Test server">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -180,14 +310,21 @@ export function renderIntegrationsSettings(container, data) {
             </div>
 
             <div class="space-y-1">
-              <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Auth</label>
+              <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Auth Type</label>
+              <select id="server-auth-type" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900">
+                <option value="none">None</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Basic Auth</option>
+                <option value="oauth">OAuth 2.0 (PKCE)</option>
+              </select>
+            </div>
+
+            <div id="auth-bearer-fields" class="space-y-1 hidden">
+              <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Bearer Token</label>
               <div class="flex items-center gap-3">
-                <select class="bg-transparent border-none outline-none text-sm text-gray-900 appearance-none">
-                  <option>Bearer</option>
-                </select>
                 <div class="flex-1 relative">
-                  <input id="server-key" type="password" value="${integrationsState.selectedServer?.key || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="API Key">
-                  <button id="toggle-key-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600">
+                  <input id="server-auth-bearer" type="password" value="${integrationsState.selectedServer?.auth_bearer_token || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="Bearer token">
+                  <button id="toggle-bearer-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c3.41 0 6.446 1.315 8.613 3.447 1.12 1.101 2.04 2.484 2.747 4.033a1.015 1.012 0 0 1 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15 12.013a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -197,10 +334,67 @@ export function renderIntegrationsSettings(container, data) {
               </div>
             </div>
 
+            <div id="auth-basic-fields" class="space-y-3 hidden">
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Username</label>
+                <input id="server-auth-basic-username" type="text" value="${integrationsState.selectedServer?.auth_basic_username || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Username">
+              </div>
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Password</label>
+                <div class="flex items-center gap-3">
+                  <div class="flex-1 relative">
+                    <input id="server-auth-basic-password" type="password" value="${integrationsState.selectedServer?.auth_basic_password || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="Password">
+                    <button id="toggle-basic-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c3.41 0 6.446 1.315 8.613 3.447 1.12 1.101 2.04 2.484 2.747 4.033a1.015 1.012 0 0 1 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12.013a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="auth-oauth-fields" class="space-y-3 hidden">
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client Name</label>
+                <input id="server-auth-oauth-client-name" type="text" value="${integrationsState.selectedServer?.oauth_client_name || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="GrowChat MCP Client">
+              </div>
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Scope</label>
+                <input id="server-auth-oauth-scope" type="text" value="${integrationsState.selectedServer?.oauth_scope || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="optional">
+              </div>
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client ID</label>
+                <input id="server-auth-oauth-client-id" type="text" value="${integrationsState.selectedServer?.oauth_client_id || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Leave blank to auto-register">
+              </div>
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client Secret</label>
+                <input id="server-auth-oauth-client-secret" type="password" value="${integrationsState.selectedServer?.oauth_client_secret || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Optional">
+              </div>
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Token Auth Method</label>
+                <select id="server-auth-oauth-token-method" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900">
+                  <option value="">Auto</option>
+                  <option value="client_secret_basic">client_secret_basic</option>
+                  <option value="client_secret_post">client_secret_post</option>
+                  <option value="none">none</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-3">
+                <button id="connect-oauth" class="px-4 py-1.5 text-xs font-medium text-white bg-black hover:bg-gray-900 transition rounded-full">Connect OAuth</button>
+                <div id="oauth-status" class="text-[11px] text-gray-500">
+                  ${integrationsState.selectedServer?.oauth_connected ? 'Connected' : 'Not connected'}
+                </div>
+              </div>
+              <div class="text-[11px] text-gray-400">OAuth requires saving the server first.</div>
+            </div>
+
             <div class="space-y-1">
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Headers</label>
               <textarea id="server-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none" placeholder="Enter additional headers in JSON format">${integrationsState.selectedServer?.headers || ''}</textarea>
             </div>
+
           </div>
 
           <div class="px-6 py-6 flex justify-end gap-3">
@@ -217,21 +411,50 @@ export function renderIntegrationsSettings(container, data) {
   const fillModalFields = (server) => {
     const nameInput = container.querySelector('#server-name');
     const urlInput = container.querySelector('#server-url');
-    const keyInput = container.querySelector('#server-key');
     const headersInput = container.querySelector('#server-headers');
+    const authTypeSelect = container.querySelector('#server-auth-type');
+    const bearerInput = container.querySelector('#server-auth-bearer');
+    const basicUserInput = container.querySelector('#server-auth-basic-username');
+    const basicPassInput = container.querySelector('#server-auth-basic-password');
+    const oauthClientNameInput = container.querySelector('#server-auth-oauth-client-name');
+    const oauthScopeInput = container.querySelector('#server-auth-oauth-scope');
+    const oauthClientIdInput = container.querySelector('#server-auth-oauth-client-id');
+    const oauthClientSecretInput = container.querySelector('#server-auth-oauth-client-secret');
+    const oauthTokenMethodSelect = container.querySelector('#server-auth-oauth-token-method');
+    const oauthStatus = container.querySelector('#oauth-status');
     if (nameInput) nameInput.value = server?.name || '';
     if (urlInput) urlInput.value = server?.url || '';
-    if (keyInput) keyInput.value = server?.key || '';
     if (headersInput) headersInput.value = server?.headers || '';
+    if (authTypeSelect) authTypeSelect.value = server?.auth_type || 'none';
+    if (bearerInput) bearerInput.value = server?.auth_bearer_token || '';
+    if (basicUserInput) basicUserInput.value = server?.auth_basic_username || '';
+    if (basicPassInput) basicPassInput.value = server?.auth_basic_password || '';
+    if (oauthClientNameInput) oauthClientNameInput.value = server?.oauth_client_name || '';
+    if (oauthScopeInput) oauthScopeInput.value = server?.oauth_scope || '';
+    if (oauthClientIdInput) oauthClientIdInput.value = server?.oauth_client_id || '';
+    if (oauthClientSecretInput) oauthClientSecretInput.value = server?.oauth_client_secret || '';
+    if (oauthTokenMethodSelect) oauthTokenMethodSelect.value = server?.oauth_token_auth_method || '';
+    if (oauthStatus) {
+      oauthStatus.textContent = server?.oauth_connected ? 'Connected' : 'Not connected';
+    }
     const title = container.querySelector('#server-modal-title');
     if (title) title.textContent = server ? 'Edit Server' : 'Add Server';
     const deleteBtn = container.querySelector('#delete-server');
     if (deleteBtn) deleteBtn.classList.toggle('hidden', !server);
     setTestStatus('idle', '');
+    updateAuthFields(server?.auth_type || 'none');
   };
 
   const openModal = (server) => {
-    integrationsState.selectedServer = server ? { ...server } : null;
+    if (server) {
+      integrationsState.selectedServer = { ...server };
+    } else {
+      integrationsState.selectedServer = {
+        id: Math.random().toString(36).slice(2, 10),
+        enabled: true,
+        auth_type: 'none',
+      };
+    }
     integrationsState.showModal = true;
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
@@ -268,6 +491,30 @@ export function renderIntegrationsSettings(container, data) {
         }
         return;
       }
+      const toolsToggle = e.target.closest('.tools-toggle');
+      if (toolsToggle) {
+        const id = toolsToggle.dataset.id;
+        const server = integrationsState.toolServers.find(s => s.id === id);
+        if (server) {
+          server.toolsExpanded = !server.toolsExpanded;
+          renderToolServersList();
+        }
+        return;
+      }
+      const descToggle = e.target.closest('.tool-desc-toggle');
+      if (descToggle) {
+        const serverId = descToggle.dataset.serverId;
+        const toolName = descToggle.dataset.toolName;
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+        if (server && Array.isArray(server.tools)) {
+          const tool = server.tools.find(t => t.name === toolName);
+          if (tool) {
+            tool._expanded = !tool._expanded;
+            renderToolServersList();
+          }
+        }
+        return;
+      }
       const editBtn = e.target.closest('.edit-server-btn');
       if (editBtn) {
         const id = editBtn.dataset.id;
@@ -280,12 +527,24 @@ export function renderIntegrationsSettings(container, data) {
       closeModal();
     });
 
+    container.querySelector('#server-auth-type')?.addEventListener('change', (e) => {
+      const authType = e.target.value;
+      if (integrationsState.selectedServer) {
+        integrationsState.selectedServer.auth_type = authType;
+      }
+      updateAuthFields(authType);
+    });
+
     let testInFlight = false;
     container.querySelector('#test-server')?.addEventListener('click', async () => {
       if (testInFlight) return;
       const url = container.querySelector('#server-url')?.value || '';
-      const key = container.querySelector('#server-key')?.value || '';
       const headers = container.querySelector('#server-headers')?.value || '';
+      const authType = container.querySelector('#server-auth-type')?.value || 'none';
+      const bearerToken = container.querySelector('#server-auth-bearer')?.value || '';
+      const basicUser = container.querySelector('#server-auth-basic-username')?.value || '';
+      const basicPass = container.querySelector('#server-auth-basic-password')?.value || '';
+      const serverId = integrationsState.selectedServer?.id || '';
       if (!url.trim()) {
         setTestStatus('error', 'URL is required');
         return;
@@ -293,27 +552,51 @@ export function renderIntegrationsSettings(container, data) {
       testInFlight = true;
       setTestStatus('testing', 'Testing connection...');
       try {
-        const res = await apiFetch('/api/admin/tool-servers/test', {
-          method: 'POST',
-          body: JSON.stringify({ url, key, headers }),
+        const result = await runVerify({
+          serverId,
+          url,
+          authType,
+          bearerToken,
+          basicUser,
+          basicPass,
+          headers,
         });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(payload.error || payload.message || 'Connection failed');
+        setTestStatus('success', result.message);
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+        if (server) {
+          server.tools = result.tools;
+          server.toolsError = '';
+          server.toolsExpanded = false;
         }
-        setTestStatus('success', payload.message || 'Connection successful');
+        renderToolServersList();
       } catch (err) {
         setTestStatus('error', err.message || 'Connection failed');
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+        if (server) {
+          server.tools = [];
+          server.toolsError = err.message || 'Connection failed';
+          server.toolsExpanded = false;
+        }
+        renderToolServersList();
       } finally {
         testInFlight = false;
       }
     });
 
-    container.querySelector('#save-modal')?.addEventListener('click', () => {
+    container.querySelector('#save-modal')?.addEventListener('click', async () => {
       const name = container.querySelector('#server-name').value || 'Untitled Server';
       const url = container.querySelector('#server-url').value || '';
-      const key = container.querySelector('#server-key').value || '';
       const headers = container.querySelector('#server-headers').value || '';
+      const authType = container.querySelector('#server-auth-type').value || 'none';
+      const bearerToken = container.querySelector('#server-auth-bearer')?.value || '';
+      const basicUser = container.querySelector('#server-auth-basic-username')?.value || '';
+      const basicPass = container.querySelector('#server-auth-basic-password')?.value || '';
+      const oauthClientName = container.querySelector('#server-auth-oauth-client-name')?.value || '';
+      const oauthScope = container.querySelector('#server-auth-oauth-scope')?.value || '';
+      const oauthClientId = container.querySelector('#server-auth-oauth-client-id')?.value || '';
+      const oauthClientSecret = container.querySelector('#server-auth-oauth-client-secret')?.value || '';
+      const oauthTokenMethod = container.querySelector('#server-auth-oauth-token-method')?.value || '';
+      const serverId = integrationsState.selectedServer?.id || '';
 
       if (integrationsState.selectedServer) {
         const index = integrationsState.toolServers.findIndex(s => s.id === integrationsState.selectedServer.id);
@@ -322,58 +605,97 @@ export function renderIntegrationsSettings(container, data) {
             ...integrationsState.toolServers[index],
             name,
             url,
-            key,
-            headers
+            headers,
+            auth_type: authType,
+            auth_bearer_token: bearerToken,
+            auth_basic_username: basicUser,
+            auth_basic_password: basicPass,
+            oauth_client_name: oauthClientName,
+            oauth_scope: oauthScope,
+            oauth_client_id: oauthClientId,
+            oauth_client_secret: oauthClientSecret,
+            oauth_token_auth_method: oauthTokenMethod
           };
+        } else {
+          integrationsState.toolServers.push({
+            id: serverId,
+            name,
+            url,
+            headers,
+            enabled: true,
+            auth_type: authType,
+            auth_bearer_token: bearerToken,
+            auth_basic_username: basicUser,
+            auth_basic_password: basicPass,
+            oauth_client_name: oauthClientName,
+            oauth_scope: oauthScope,
+            oauth_client_id: oauthClientId,
+            oauth_client_secret: oauthClientSecret,
+            oauth_token_auth_method: oauthTokenMethod
+          });
         }
       } else {
         integrationsState.toolServers.push({
           id: Math.random().toString(36).substr(2, 9),
           name,
           url,
-          key,
           headers,
-          enabled: true
+          enabled: true,
+          auth_type: authType,
+          auth_bearer_token: bearerToken,
+          auth_basic_username: basicUser,
+          auth_basic_password: basicPass,
+          oauth_client_name: oauthClientName,
+          oauth_scope: oauthScope,
+          oauth_client_id: oauthClientId,
+          oauth_client_secret: oauthClientSecret,
+          oauth_token_auth_method: oauthTokenMethod
         });
       }
 
       closeModal();
       renderToolServersList();
       updateButtons();
+
+      if (!url.trim()) return;
+
+      try {
+        await persistServers({ showFeedback: false });
+        const verifyResult = await runVerify({
+          serverId,
+          url,
+          authType,
+          bearerToken,
+          basicUser,
+          basicPass,
+          headers,
+        });
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+        if (server) {
+          server.tools = verifyResult.tools;
+          server.toolsError = '';
+          server.toolsExpanded = false;
+        }
+        renderToolServersList();
+      } catch (err) {
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+        if (server) {
+          server.tools = [];
+          server.toolsError = err.message || 'Connection failed';
+          server.toolsExpanded = false;
+        }
+        renderToolServersList();
+      }
     });
 
     container.querySelector('#save-integrations')?.addEventListener('click', async () => {
       if (integrationsState.saving) return;
-      const feedback = container.querySelector('#integrations-feedback');
       integrationsState.saving = true;
       updateButtons();
       try {
-        const sanitized = integrationsState.toolServers.map((server) => ({
-          id: server.id || '',
-          name: String(server.name || '').trim(),
-          url: String(server.url || '').trim(),
-          key: String(server.key || '').trim(),
-          headers: String(server.headers || '').trim(),
-          enabled: server.enabled !== false,
-        })).filter((server) => server.url);
-
-        const res = await apiFetch('/api/admin/tool-servers', {
-          method: 'PUT',
-          body: JSON.stringify({ servers: sanitized }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || 'Failed to save integrations');
-        }
-        integrationsState.toolServers = sanitized;
-        integrationsState.originalSnapshot = buildSnapshot();
-        if (feedback) {
-          feedback.textContent = 'Integrations saved successfully';
-          feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-          feedback.classList.remove('hidden');
-          setTimeout(() => feedback.classList.add('hidden'), 3000);
-        }
+        await persistServers({ showFeedback: true });
       } catch (err) {
+        const feedback = container.querySelector('#integrations-feedback');
         if (feedback) {
           feedback.textContent = err.message || 'Failed to save integrations';
           feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
@@ -396,9 +718,47 @@ export function renderIntegrationsSettings(container, data) {
       }
     });
 
-    container.querySelector('#toggle-key-visibility')?.addEventListener('click', () => {
-      const input = container.querySelector('#server-key');
-      input.type = input.type === 'password' ? 'text' : 'password';
+    container.querySelector('#toggle-bearer-visibility')?.addEventListener('click', () => {
+      const input = container.querySelector('#server-auth-bearer');
+      if (input) input.type = input.type === 'password' ? 'text' : 'password';
+    });
+
+    container.querySelector('#toggle-basic-visibility')?.addEventListener('click', () => {
+      const input = container.querySelector('#server-auth-basic-password');
+      if (input) input.type = input.type === 'password' ? 'text' : 'password';
+    });
+
+    container.querySelector('#connect-oauth')?.addEventListener('click', async () => {
+      const serverId = integrationsState.selectedServer?.id || '';
+      if (!serverId) {
+        setTestStatus('error', 'Save the server before connecting OAuth');
+        return;
+      }
+      try {
+        const res = await apiFetch('/api/admin/tool-servers/oauth/start', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: serverId,
+            url: container.querySelector('#server-url')?.value || '',
+            oauth_client_name: container.querySelector('#server-auth-oauth-client-name')?.value || '',
+            oauth_scope: container.querySelector('#server-auth-oauth-scope')?.value || '',
+            oauth_client_id: container.querySelector('#server-auth-oauth-client-id')?.value || '',
+            oauth_client_secret: container.querySelector('#server-auth-oauth-client-secret')?.value || '',
+            oauth_token_auth_method: container.querySelector('#server-auth-oauth-token-method')?.value || '',
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload.error || payload.message || 'OAuth start failed');
+        }
+        if (payload.authorization_url) {
+          window.open(payload.authorization_url, '_blank', 'noopener,noreferrer');
+          const status = container.querySelector('#oauth-status');
+          if (status) status.textContent = 'Awaiting authorization...';
+        }
+      } catch (err) {
+        setTestStatus('error', err.message || 'OAuth start failed');
+      }
     });
   };
 
@@ -409,7 +769,13 @@ export function renderIntegrationsSettings(container, data) {
       const res = await apiFetch('/api/admin/tool-servers');
       if (!res.ok) throw new Error('Failed to load tool servers');
       const payload = await res.json();
-      integrationsState.toolServers = Array.isArray(payload?.servers) ? payload.servers : [];
+      integrationsState.toolServers = Array.isArray(payload?.servers)
+        ? payload.servers.map((server) => ({
+          ...server,
+          toolsExpanded: false,
+          toolsError: server.tools_error || '',
+        }))
+        : [];
       integrationsState.originalSnapshot = buildSnapshot();
       if (isActiveTab()) render();
     } catch (err) {

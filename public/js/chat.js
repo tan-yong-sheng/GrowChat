@@ -314,6 +314,12 @@ function wireChat(root) {
   const tempMessageIdMapByChat = new Map();
   const pendingTempMessagesByChat = new Map();
   const pendingTempResolversByChat = new Map();
+  const thinkingStartByMessageId = new Map();
+  const thinkingDurationByMessageId = new Map();
+  const thinkingCollapsedByMessageId = new Map();
+  const thinkingContentByMessageId = new Map();
+  const thinkingActiveByMessageId = new Map();
+  const errorExpandedByMessageId = new Map();
   const clientSessionId = getClientSessionId();
   let activeStreamAbort = null;
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
@@ -335,6 +341,30 @@ function wireChat(root) {
     tempMessageIdMapByChat.set(key, map);
   };
 
+  const remapThinkingTiming = (tempId, realId) => {
+    if (!tempId || !realId || tempId === realId) return;
+    if (thinkingStartByMessageId.has(String(tempId))) {
+      thinkingStartByMessageId.set(String(realId), thinkingStartByMessageId.get(String(tempId)));
+      thinkingStartByMessageId.delete(String(tempId));
+    }
+    if (thinkingDurationByMessageId.has(String(tempId))) {
+      thinkingDurationByMessageId.set(String(realId), thinkingDurationByMessageId.get(String(tempId)));
+      thinkingDurationByMessageId.delete(String(tempId));
+    }
+    if (thinkingCollapsedByMessageId.has(String(tempId))) {
+      thinkingCollapsedByMessageId.set(String(realId), thinkingCollapsedByMessageId.get(String(tempId)));
+      thinkingCollapsedByMessageId.delete(String(tempId));
+    }
+    if (thinkingContentByMessageId.has(String(tempId))) {
+      thinkingContentByMessageId.set(String(realId), thinkingContentByMessageId.get(String(tempId)));
+      thinkingContentByMessageId.delete(String(tempId));
+    }
+    if (thinkingActiveByMessageId.has(String(tempId))) {
+      thinkingActiveByMessageId.set(String(realId), thinkingActiveByMessageId.get(String(tempId)));
+      thinkingActiveByMessageId.delete(String(tempId));
+    }
+  };
+
   const resolveTempMessageId = (chatId, id) => {
     if (!chatId || !id) return id;
     const map = tempMessageIdMapByChat.get(String(chatId));
@@ -345,6 +375,7 @@ function wireChat(root) {
   const replaceTempMessageId = (chatId, tempId, realId) => {
     if (!chatId || !tempId || !realId || tempId === realId) return;
     mapTempMessageId(chatId, tempId, realId);
+    remapThinkingTiming(tempId, realId);
     const chatKey = String(chatId);
     setState((prev) => {
       const existing = prev.messagesByChat[chatKey] || [];
@@ -657,7 +688,7 @@ function wireChat(root) {
   const pruneTempChats = (list) => (Array.isArray(list) ? list.filter((c) => !isTempChatId(c?.id)) : []);
   const buildTempChat = (id = null) => {
     const nowTs = Math.floor(Date.now() / 1000);
-    const modelToUse = state.activeModelId || state.defaultModelId;
+    const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
     const tempChatId = id || `temp-${nowTs}-${Math.random().toString(36).slice(2, 8)}`;
     return {
       id: tempChatId,
@@ -1009,10 +1040,115 @@ function wireChat(root) {
     chatListLoadObserver.observe(sentinel);
   }
 
-  function renderAssistantContent(content, isError) {
-    const rendered = renderMessageContent(content);
-    if (!isError) return rendered;
-    return `<div class="rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-sans">${rendered}</div>`;
+  function renderAssistantContent(content) {
+    return renderMessageContent(content);
+  }
+
+  function extractThinkingBlocks(raw) {
+    const source = String(raw || '');
+    let text = source;
+    const collected = [];
+    const tagNames = ['thinking', 'thoughts', 'think', 'reasoning', 'reason'];
+
+    for (const tag of tagNames) {
+      const openToken = `<${tag}`;
+      const closeToken = `</${tag}>`;
+      while (true) {
+        const lower = text.toLowerCase();
+        const openIdx = lower.indexOf(openToken);
+        if (openIdx === -1) break;
+        const openEnd = text.indexOf('>', openIdx);
+        if (openEnd === -1) break;
+        const closeIdx = lower.indexOf(closeToken, openEnd + 1);
+        if (closeIdx === -1) {
+          const remainder = text.slice(openEnd + 1);
+          if (remainder.trim()) collected.push(remainder);
+          text = text.slice(0, openIdx);
+          break;
+        }
+        const inner = text.slice(openEnd + 1, closeIdx);
+        if (inner.trim()) collected.push(inner);
+        text = text.slice(0, openIdx) + text.slice(closeIdx + closeToken.length);
+      }
+    }
+
+    return {
+      cleaned: text.trim(),
+      thinking: collected.map((part) => part.trim()).filter(Boolean).join('\n\n'),
+      hasTag: /<thinking\b|<thoughts?\b/i.test(source) || collected.length > 0,
+    };
+  }
+
+  function formatThoughtDuration(ms) {
+    const value = Number(ms);
+    if (!Number.isFinite(value) || value <= 0) return 'Thought';
+    if (value < 1000) return 'Thought for less than a second';
+    const seconds = Math.round(value / 1000);
+    if (seconds <= 1) return 'Thought for 1 second';
+    return `Thought for ${seconds} seconds`;
+  }
+
+  function renderThinkingBlock({ messageId, label, thinking, collapsed }) {
+    if (!label) return '';
+    const hasContent = Boolean(thinking);
+    const contentHtml = hasContent
+      ? `<div data-thinking-body="${messageId}" class="${collapsed ? 'hidden' : ''} mt-2 border-l-2 border-gray-200 pl-3 text-[13px] leading-[1.6] text-gray-500 italic">
+          ${renderMessageContent(thinking)}
+        </div>`
+      : '';
+    const chevronClass = collapsed ? '-rotate-90' : 'rotate-0';
+    return `
+      <div class="mt-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2">
+        <button type="button" data-thinking-toggle="${messageId}" class="w-full flex items-center justify-between text-xs font-medium text-gray-500 hover:text-gray-700 transition">
+          <span>${escapeHtml(label)}</span>
+          <svg data-thinking-chevron="${messageId}" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform ${chevronClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        ${contentHtml}
+      </div>
+    `;
+  }
+
+  function renderAssistantMessageBody({ messageId, content, isError, isStreaming }) {
+    const { cleaned, thinking: tagThinking, hasTag } = extractThinkingBlocks(content);
+    const storedThinking = thinkingContentByMessageId.get(String(messageId));
+    const hasStoredThinking = thinkingContentByMessageId.has(String(messageId));
+    const thinking = (storedThinking ?? tagThinking) || '';
+    const hasThinking = hasStoredThinking || Boolean(tagThinking) || hasTag;
+    const isThinkingActive = thinkingActiveByMessageId.get(String(messageId)) === true;
+    const duration = thinkingDurationByMessageId.get(String(messageId));
+    const label = isStreaming
+      ? (hasThinking || isThinkingActive ? 'Thinking…' : '')
+      : (hasThinking ? formatThoughtDuration(duration) : '');
+    const collapsed = thinkingCollapsedByMessageId.get(String(messageId)) ?? false;
+    const thinkingHtml = label ? renderThinkingBlock({ messageId, label, thinking, collapsed }) : '';
+    const renderedAnswer = renderAssistantContent(cleaned || content);
+    if (!isError) return `${thinkingHtml}${renderedAnswer}`;
+
+    const raw = String(cleaned || content || '');
+    const shouldToggle = raw.length > 240 || raw.includes('\n');
+    const expanded = errorExpandedByMessageId.get(String(messageId)) ?? false;
+    const bodyClass = expanded ? '' : 'max-h-24 overflow-hidden';
+    const overlayClass = expanded ? 'hidden' : '';
+    const toggleLabel = expanded ? 'Less' : 'More';
+    const toggleHtml = shouldToggle
+      ? `<button type="button" data-error-toggle="${messageId}" class="mt-2 text-[11px] font-semibold text-red-700 hover:text-red-800">${toggleLabel}</button>`
+      : '';
+    const overlayHtml = shouldToggle
+      ? `<div data-error-overlay="${messageId}" class="pointer-events-none absolute inset-x-0 bottom-7 h-10 bg-gradient-to-t from-red-50 to-transparent ${overlayClass}"></div>`
+      : '';
+
+    const errorBlock = `
+      <div class="relative rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-sans">
+        <div data-error-body="${messageId}" class="${bodyClass}">
+          ${renderedAnswer}
+        </div>
+        ${overlayHtml}
+        ${toggleHtml}
+      </div>
+    `;
+    return `${thinkingHtml}${errorBlock}`;
   }
 
   function formatModelDisplayName(modelId) {
@@ -1023,15 +1159,21 @@ function wireChat(root) {
     return raw;
   }
 
-  function updateMessageContentDom(messageId, content, isError = false) {
+  function updateMessageContentDom(messageId, content, options = {}) {
     if (!messageId) return false;
     const el = messagesList.querySelector(`[data-message-content="${messageId}"]`);
     if (!el) return false;
+    const { isError = false, isStreaming = false } = options;
     const forceError = isError || el.dataset.messageError === '1';
     if (forceError) {
       el.dataset.messageError = '1';
     }
-    el.innerHTML = renderAssistantContent(content, forceError);
+    el.innerHTML = renderAssistantMessageBody({
+      messageId,
+      content,
+      isError: forceError,
+      isStreaming,
+    });
     return true;
   }
 
@@ -1198,7 +1340,12 @@ function wireChat(root) {
           <div class="flex-grow min-w-0 flex flex-col">
              <div class="font-bold text-sm mb-1 text-gray-800 font-primary">${escapeHtml(modelName)}</div>
              <div class="text-[15px] leading-[1.6] text-gray-800 prose prose-p:my-1 prose-pre:my-2 prose-headings:font-semibold max-w-none break-words font-sans" data-message-content="${msgId}" ${isError ? 'data-message-error="1"' : ''}>
-                ${renderAssistantContent(displayContent, isError)}
+                ${renderAssistantMessageBody({
+                  messageId: msgId,
+                  content: displayContent,
+                  isError,
+                  isStreaming,
+                })}
              </div>
              ${citationHtml}
              <div class="flex items-center gap-1 mt-3 -ml-2 text-gray-400">
@@ -1246,6 +1393,43 @@ function wireChat(root) {
     });
 
     // Re-attach event listeners
+    messagesList.querySelectorAll('[data-thinking-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-thinking-toggle');
+        if (!id) return;
+        const isCollapsed = thinkingCollapsedByMessageId.get(String(id)) ?? false;
+        const next = !isCollapsed;
+        thinkingCollapsedByMessageId.set(String(id), next);
+        const body = messagesList.querySelector(`[data-thinking-body="${id}"]`);
+        const chevron = messagesList.querySelector(`[data-thinking-chevron="${id}"]`);
+        if (body) body.classList.toggle('hidden', next);
+        if (chevron) {
+          chevron.classList.toggle('-rotate-90', next);
+          chevron.classList.toggle('rotate-0', !next);
+        }
+      });
+    });
+
+    messagesList.querySelectorAll('[data-error-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-error-toggle');
+        if (!id) return;
+        const isExpanded = errorExpandedByMessageId.get(String(id)) ?? false;
+        const next = !isExpanded;
+        errorExpandedByMessageId.set(String(id), next);
+
+        const body = messagesList.querySelector(`[data-error-body="${id}"]`);
+        const overlay = messagesList.querySelector(`[data-error-overlay="${id}"]`);
+        if (body) {
+          body.classList.toggle('max-h-24', !next);
+          body.classList.toggle('overflow-hidden', !next);
+        }
+        if (overlay) {
+          overlay.classList.toggle('hidden', next);
+        }
+        btn.textContent = next ? 'Less' : 'More';
+      });
+    });
     messagesList.querySelectorAll('[data-copy-message]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const idx = Number(btn.getAttribute('data-copy-message'));
@@ -1472,6 +1656,39 @@ function wireChat(root) {
             if (payload?.event === 'start' && payload?.message_id) {
               assistantMessageId = String(payload.message_id);
               replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+              if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
+                thinkingActiveByMessageId.set(String(assistantMessageId), true);
+              }
+              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+              }
+              applyAssistantText(true);
+            }
+            if (payload?.event === 'reasoning_start') {
+              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+              }
+              if (!thinkingContentByMessageId.has(String(assistantMessageId))) {
+                thinkingContentByMessageId.set(String(assistantMessageId), '');
+              }
+              thinkingActiveByMessageId.set(String(assistantMessageId), true);
+              applyAssistantText();
+            }
+            if (payload?.event === 'reasoning_delta') {
+              const delta = String(payload.delta || '');
+              if (delta) {
+                const prev = thinkingContentByMessageId.get(String(assistantMessageId)) || '';
+                thinkingContentByMessageId.set(String(assistantMessageId), prev + delta);
+                thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                applyAssistantText();
+              }
+            }
+            if (payload?.event === 'reasoning_end') {
+              const duration = Number(payload.duration_ms);
+              if (Number.isFinite(duration) && duration > 0) {
+                thinkingDurationByMessageId.set(String(assistantMessageId), duration);
+              }
+              thinkingActiveByMessageId.delete(String(assistantMessageId));
             }
             if (payload?.error) {
               errorMessage = payload.message || payload.error || 'LLM request failed';
@@ -1483,7 +1700,7 @@ function wireChat(root) {
           });
             let assistantText = '';
 
-          const applyAssistantText = () => {
+          const applyAssistantText = (streaming = true) => {
             streamingOverrideByChat.set(chatId, {
               targetMsgId: assistantMessageId,
               content: assistantText,
@@ -1503,7 +1720,7 @@ function wireChat(root) {
               }));
             }
             if (state.activeChatId === chatId) {
-              updateMessageContentDom(assistantMessageId, assistantText, errorActive);
+              updateMessageContentDom(assistantMessageId, assistantText, { isError: errorActive, isStreaming: streaming });
             }
           };
 
@@ -1511,7 +1728,12 @@ function wireChat(root) {
               const { done, value } = await reader.read();
               if (done) {
                 assistantText += parser.flush();
-                applyAssistantText();
+                const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
+                if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
+                  thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
+                }
+                thinkingActiveByMessageId.delete(String(assistantMessageId));
+                applyAssistantText(false);
                 streamingOverrideByChat.delete(chatId);
                 await loadMessages(chatId, {
                   draw: state.activeChatId === chatId,
@@ -1725,6 +1947,39 @@ function wireChat(root) {
             if (payload?.event === 'start' && payload?.message_id) {
               assistantMessageId = String(payload.message_id);
               replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+              if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
+                thinkingActiveByMessageId.set(String(assistantMessageId), true);
+              }
+              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+              }
+              applyAssistantText(true);
+            }
+            if (payload?.event === 'reasoning_start') {
+              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+              }
+              if (!thinkingContentByMessageId.has(String(assistantMessageId))) {
+                thinkingContentByMessageId.set(String(assistantMessageId), '');
+              }
+              thinkingActiveByMessageId.set(String(assistantMessageId), true);
+              applyAssistantText();
+            }
+            if (payload?.event === 'reasoning_delta') {
+              const delta = String(payload.delta || '');
+              if (delta) {
+                const prev = thinkingContentByMessageId.get(String(assistantMessageId)) || '';
+                thinkingContentByMessageId.set(String(assistantMessageId), prev + delta);
+                thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                applyAssistantText();
+              }
+            }
+            if (payload?.event === 'reasoning_end') {
+              const duration = Number(payload.duration_ms);
+              if (Number.isFinite(duration) && duration > 0) {
+                thinkingDurationByMessageId.set(String(assistantMessageId), duration);
+              }
+              thinkingActiveByMessageId.delete(String(assistantMessageId));
             }
             if (payload?.error) {
               errorMessage = payload.message || payload.error || 'LLM request failed';
@@ -1736,7 +1991,7 @@ function wireChat(root) {
           });
           let assistantText = '';
 
-          const applyAssistantText = () => {
+          const applyAssistantText = (streaming = true) => {
             streamingOverrideByChat.set(chatId, {
               targetMsgId: assistantMessageId,
               content: assistantText,
@@ -1756,7 +2011,7 @@ function wireChat(root) {
               }));
             }
             if (state.activeChatId === chatId) {
-              updateMessageContentDom(assistantMessageId, assistantText, errorActive);
+              updateMessageContentDom(assistantMessageId, assistantText, { isError: errorActive, isStreaming: streaming });
             }
           };
 
@@ -1764,7 +2019,12 @@ function wireChat(root) {
             const { done, value } = await reader.read();
             if (done) {
               assistantText += parser.flush();
-              applyAssistantText();
+              const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
+              if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
+                thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
+              }
+              thinkingActiveByMessageId.delete(String(assistantMessageId));
+              applyAssistantText(false);
               streamingOverrideByChat.delete(chatId);
               await loadMessages(chatId, {
                 draw: state.activeChatId === chatId,
@@ -1875,9 +2135,17 @@ function wireChat(root) {
     if (updateActiveModel) {
       let preferredModelId = state.activeModelId;
       if (modelMode === 'default') {
-        preferredModelId = data?.chat?.model || state.activeModelId || state.defaultModelId;
+        preferredModelId =
+          state.defaultModelId ||
+          state.globalDefaultModelId ||
+          data?.chat?.model ||
+          state.activeModelId;
       } else if (modelMode === 'chat') {
-        preferredModelId = data?.chat?.model || state.activeModelId || state.defaultModelId;
+        preferredModelId =
+          data?.chat?.model ||
+          state.activeModelId ||
+          state.defaultModelId ||
+          state.globalDefaultModelId;
       }
       nextState.activeModelId = preferredModelId;
     }
@@ -2068,7 +2336,7 @@ function wireChat(root) {
     setState((prev) => ({
       chats: [tempChat, ...pruneTempChats(prev.chats)],
       activeChatId: tempChat.id,
-      activeModelId: prev.activeModelId || prev.defaultModelId || tempChat.model,
+      activeModelId: prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
       newChatDraft: '',
     }));
     syncChatUrl(null);
@@ -2089,7 +2357,7 @@ function wireChat(root) {
       setState((prev) => ({
         chats: [tempChat, ...pruneTempChats(prev.chats)],
         activeChatId: tempChatId,
-        activeModelId: prev.activeModelId || prev.defaultModelId || tempChat.model,
+        activeModelId: prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
       }));
 
       chatId = tempChatId;
@@ -2101,7 +2369,7 @@ function wireChat(root) {
         setState((prev) => ({
           chats: [tempChat, ...pruneTempChats(prev.chats)],
           activeChatId: chatId,
-          activeModelId: prev.activeModelId || prev.defaultModelId || tempChat.model,
+          activeModelId: prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
         }));
       }
     }
@@ -2151,7 +2419,7 @@ function wireChat(root) {
     if (state.activeChatId === chatId) drawMessages(localMessages);
 
     if (tempChatId) {
-      const modelToUse = state.activeModelId || state.defaultModelId;
+    const modelToUse = state.defaultModelId || state.globalDefaultModelId || state.activeModelId;
       const payload = modelToUse ? { model: modelToUse } : {};
       const res = await apiFetch('/api/chats', {
         method: 'POST',
@@ -2206,7 +2474,7 @@ function wireChat(root) {
         return {
           chats: deduped,
           activeChatId: realChatId,
-          activeModelId: prev.activeModelId || data.chat.model || prev.defaultModelId,
+          activeModelId: data.chat.model || prev.defaultModelId || prev.globalDefaultModelId || prev.activeModelId,
           messagesByChat: nextMessagesByChat,
         };
       });
@@ -2297,6 +2565,39 @@ function wireChat(root) {
       if (payload?.event === 'start' && payload?.message_id) {
         assistantMessageId = String(payload.message_id);
         replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+        if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
+          thinkingActiveByMessageId.set(String(assistantMessageId), true);
+        }
+        if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+          thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+        }
+        applyAssistantText(true);
+      }
+      if (payload?.event === 'reasoning_start') {
+        if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+          thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+        }
+        if (!thinkingContentByMessageId.has(String(assistantMessageId))) {
+          thinkingContentByMessageId.set(String(assistantMessageId), '');
+        }
+        thinkingActiveByMessageId.set(String(assistantMessageId), true);
+        applyAssistantText(true);
+      }
+      if (payload?.event === 'reasoning_delta') {
+        const delta = String(payload.delta || '');
+        if (delta) {
+          const prev = thinkingContentByMessageId.get(String(assistantMessageId)) || '';
+          thinkingContentByMessageId.set(String(assistantMessageId), prev + delta);
+          thinkingActiveByMessageId.set(String(assistantMessageId), true);
+          applyAssistantText(true);
+        }
+      }
+      if (payload?.event === 'reasoning_end') {
+        const duration = Number(payload.duration_ms);
+        if (Number.isFinite(duration) && duration > 0) {
+          thinkingDurationByMessageId.set(String(assistantMessageId), duration);
+        }
+        thinkingActiveByMessageId.delete(String(assistantMessageId));
       }
       if (payload?.error) {
         errorMessage = payload.message || payload.error || 'LLM request failed';
@@ -2308,7 +2609,7 @@ function wireChat(root) {
     });
     let assistantText = '';
 
-    const applyAssistantText = () => {
+    const applyAssistantText = (streaming = true) => {
       // 1. Update streaming override for immediate projection rendering
       streamingOverrideByChat.set(chatId, {
         targetMsgId: assistantMessageId,
@@ -2332,7 +2633,7 @@ function wireChat(root) {
       }
 
       if (state.activeChatId === chatId) {
-        updateMessageContentDom(assistantMessageId, assistantText, errorActive);
+        updateMessageContentDom(assistantMessageId, assistantText, { isError: errorActive, isStreaming: streaming });
       }
     };
 
@@ -2341,7 +2642,12 @@ function wireChat(root) {
         const { done, value } = await reader.read();
         if (done) {
           assistantText += parser.flush();
-          applyAssistantText();
+          const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
+          if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
+            thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
+          }
+          thinkingActiveByMessageId.delete(String(assistantMessageId));
+          applyAssistantText(false);
           streamingOverrideByChat.delete(chatId);
           await loadMessages(chatId, {
             draw: state.activeChatId === chatId,
@@ -2351,7 +2657,7 @@ function wireChat(root) {
         }
         const chunk = decoder.decode(value, { stream: true });
         assistantText += parser.push(chunk);
-        applyAssistantText();
+        applyAssistantText(true);
       }
     } catch (err) {
       if (err?.name !== 'AbortError') {

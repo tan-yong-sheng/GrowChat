@@ -13,6 +13,7 @@ export const state = {
   modelsLoading: false,
   activeModelId: null,
   defaultModelId: null,
+  globalDefaultModelId: null,
   
   // UI Layout
   showSidebar: window.innerWidth >= 768,

@@ -1,4 +1,4 @@
-import { apiFetch, clearAuthState, fetchChats, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState } from './api.js';
+import { apiFetch, clearAuthState, fetchChats, fetchModels, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState } from './api.js';
 import { renderMessageContent } from './utils.js';
 import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
@@ -38,6 +38,22 @@ let bootstrapped = false;
 let shortcutsInitialized = false;
 let realtimeStarted = false;
 let deferredBootstrapPromise = null;
+let modelsPrefetchPromise = null;
+
+function prefetchModels() {
+  if (modelsPrefetchPromise) return modelsPrefetchPromise;
+  setState({ modelsLoading: true });
+  modelsPrefetchPromise = fetchModels()
+    .then((data) => {
+      const models = Array.isArray(data?.models) ? data.models : [];
+      setState({ models, modelsLoading: false });
+    })
+    .catch((err) => {
+      console.warn('Failed to prefetch models:', err);
+      setState({ modelsLoading: false });
+    });
+  return modelsPrefetchPromise;
+}
 
 function shouldStartRealtime() {
   const url = new URL(window.location.href);
@@ -248,8 +264,10 @@ async function ensureSession() {
 
   const cachedDefaultModelId = localStorage.getItem('defaultModelId');
   const serverDefaultModelId = user.preferences?.defaultModelId || null;
+  const globalDefaultModelId = meData?.app_config?.default_model_id || null;
   const initialModelId = modelParam ||
     serverDefaultModelId ||
+    globalDefaultModelId ||
     cachedDefaultModelId ||
     chatsData.chats?.[0]?.model ||
     null;
@@ -269,11 +287,13 @@ async function ensureSession() {
     messagesByChat: {},
     models: [],
     activeModelId: initialModelId,
-    defaultModelId: serverDefaultModelId || cachedDefaultModelId || null,
+    defaultModelId: serverDefaultModelId || null,
+    globalDefaultModelId: globalDefaultModelId || null,
   });
   if (serverDefaultModelId && serverDefaultModelId !== cachedDefaultModelId) {
     localStorage.setItem('defaultModelId', serverDefaultModelId);
   }
+  prefetchModels();
 
   bootstrapped = true;
   scheduleDeferredBootstrap(user, { permissions: meData.permissions, roles: meData.roles });
