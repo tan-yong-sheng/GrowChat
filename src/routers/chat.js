@@ -5,16 +5,14 @@ import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
 import { createRealtimeEvent, getOriginSessionId, publishRealtimeEvent } from '../realtime.js';
 import { getConfigValue } from '../utils/app-config.js';
 
-const BUILTIN_DEFAULT_MODEL = '@cf/meta/llama-3.1-8b-instruct';
-
 function defaultModel(env) {
   const envDefault = env.DEFAULT_MODELS;
   if (envDefault && envDefault.trim()) {
     // If it's a comma-separated list, use the first model
     const models = envDefault.split(',').map(m => m.trim()).filter(m => m);
-    return models[0] || BUILTIN_DEFAULT_MODEL;
+    return models[0] || null;
   }
-  return BUILTIN_DEFAULT_MODEL;
+  return null;
 }
 
 async function getUserDefaultModelId(db, userId) {
