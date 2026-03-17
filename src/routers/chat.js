@@ -91,10 +91,10 @@ async function getChatMessages(db, chatId) {
   }
 }
 
-function normalizeErrorMessage(err, fallback = 'LLM request failed') {
+function normalizeErrorMessage(err, fallback = 'LLM request failed', maxLen = 500) {
   const raw = String(err?.message || err || fallback || '').trim();
   if (!raw) return fallback;
-  return raw.slice(0, 500);
+  return Number.isFinite(maxLen) && maxLen > 0 ? raw.slice(0, maxLen) : raw;
 }
 
 async function persistAssistantErrorMessage(db, {
@@ -109,6 +109,10 @@ async function persistAssistantErrorMessage(db, {
   citations,
 }) {
   const displayContent = String(content || errorMessage || 'LLM request failed').trim();
+  const MAX_ERROR_CONTENT = 8000;
+  const truncatedContent = displayContent.length > MAX_ERROR_CONTENT
+    ? `${displayContent.slice(0, MAX_ERROR_CONTENT)}…`
+    : displayContent;
   const safeErrorMessage = String(errorMessage || 'LLM request failed').trim().slice(0, 500);
   const safeErrorCode = String(errorCode || 'llm_error').trim().slice(0, 80);
   const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : (citations || null);
@@ -117,12 +121,12 @@ async function persistAssistantErrorMessage(db, {
     await db.run(
       `INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, created_at)
        VALUES (?, ?, 'assistant', ?, ?, ?, ?, 'error', ?, ?, unixepoch())`,
-      [messageId, chatId, displayContent, model, citationsJson, parentId, safeErrorCode, safeErrorMessage]
+      [messageId, chatId, truncatedContent, model, citationsJson, parentId, safeErrorCode, safeErrorMessage]
     );
   } catch (err) {
     await db.run(
       'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
-      [messageId, chatId, 'assistant', displayContent, model, citationsJson, parentId]
+      [messageId, chatId, 'assistant', truncatedContent, model, citationsJson, parentId]
     );
   }
 
@@ -613,6 +617,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       stream = await streamLLM(env, model, enhancedHistory);
     } catch (err) {
       const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
+      const errorDetails = normalizeErrorMessage(err, 'LLM setup failed', 8000);
       const assistantError = await persistAssistantErrorMessage(db, {
         messageId: assistantMsgId,
         chatId,
@@ -621,6 +626,7 @@ export async function chatRouter(req, env, ctx, user, path) {
         parentId: userMsgId,
         errorCode: 'llm_unavailable',
         errorMessage,
+        content: errorDetails,
         citations,
       });
       await publishRealtimeNow(env, createRealtimeEvent({
@@ -756,9 +762,10 @@ export async function chatRouter(req, env, ctx, user, path) {
           controller.close();
         } catch (err) {
           const errorMessage = normalizeErrorMessage(err, 'Stream failed');
+          const errorDetails = normalizeErrorMessage(err, 'Stream failed', 8000);
           const errorContent = fullText
-            ? `${fullText}\n\n[Error] ${errorMessage}`
-            : errorMessage;
+            ? `${fullText}\n\n[Error] ${errorDetails}`
+            : errorDetails;
           const assistantError = await persistAssistantErrorMessage(db, {
             messageId: assistantMsgId,
             chatId,
@@ -944,6 +951,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       stream = await streamLLM(env, model, history);
     } catch (err) {
       const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
+      const errorDetails = normalizeErrorMessage(err, 'LLM setup failed', 8000);
       const assistantError = await persistAssistantErrorMessage(db, {
         messageId: assistantMsgId,
         chatId,
@@ -952,6 +960,7 @@ export async function chatRouter(req, env, ctx, user, path) {
         parentId: newUserMsgId,
         errorCode: 'llm_unavailable',
         errorMessage,
+        content: errorDetails,
       });
       await publishRealtimeNow(env, createRealtimeEvent({
         type: 'message.completed',
@@ -1085,9 +1094,10 @@ export async function chatRouter(req, env, ctx, user, path) {
           controller.close();
         } catch (err) {
           const errorMessage = normalizeErrorMessage(err, 'Stream failed');
+          const errorDetails = normalizeErrorMessage(err, 'Stream failed', 8000);
           const errorContent = fullText
-            ? `${fullText}\n\n[Error] ${errorMessage}`
-            : errorMessage;
+            ? `${fullText}\n\n[Error] ${errorDetails}`
+            : errorDetails;
           const assistantError = await persistAssistantErrorMessage(db, {
             messageId: assistantMsgId,
             chatId,
@@ -1155,6 +1165,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       stream = await streamLLM(env, model, history);
     } catch (err) {
       const errorMessage = normalizeErrorMessage(err, 'LLM setup failed');
+      const errorDetails = normalizeErrorMessage(err, 'LLM setup failed', 8000);
       const assistantError = await persistAssistantErrorMessage(db, {
         messageId: newAssistantMsgId,
         chatId,
@@ -1163,6 +1174,7 @@ export async function chatRouter(req, env, ctx, user, path) {
         parentId: sourceMsg.parent_id,
         errorCode: 'llm_unavailable',
         errorMessage,
+        content: errorDetails,
       });
       await publishRealtimeNow(env, createRealtimeEvent({
         type: 'message.completed',
@@ -1294,9 +1306,10 @@ export async function chatRouter(req, env, ctx, user, path) {
           controller.close();
         } catch (err) {
           const errorMessage = normalizeErrorMessage(err, 'Stream failed');
+          const errorDetails = normalizeErrorMessage(err, 'Stream failed', 8000);
           const errorContent = fullText
-            ? `${fullText}\n\n[Error] ${errorMessage}`
-            : errorMessage;
+            ? `${fullText}\n\n[Error] ${errorDetails}`
+            : errorDetails;
           const assistantError = await persistAssistantErrorMessage(db, {
             messageId: newAssistantMsgId,
             chatId,

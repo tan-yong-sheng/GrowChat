@@ -2336,7 +2336,7 @@ function wireChat(root) {
     setState((prev) => ({
       chats: [tempChat, ...pruneTempChats(prev.chats)],
       activeChatId: tempChat.id,
-      activeModelId: prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
+      activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
       newChatDraft: '',
     }));
     syncChatUrl(null);
@@ -2357,7 +2357,7 @@ function wireChat(root) {
       setState((prev) => ({
         chats: [tempChat, ...pruneTempChats(prev.chats)],
         activeChatId: tempChatId,
-        activeModelId: prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
+        activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
       }));
 
       chatId = tempChatId;
@@ -2369,7 +2369,7 @@ function wireChat(root) {
         setState((prev) => ({
           chats: [tempChat, ...pruneTempChats(prev.chats)],
           activeChatId: chatId,
-          activeModelId: prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
+          activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
         }));
       }
     }
@@ -2474,7 +2474,7 @@ function wireChat(root) {
         return {
           chats: deduped,
           activeChatId: realChatId,
-          activeModelId: data.chat.model || prev.defaultModelId || prev.globalDefaultModelId || prev.activeModelId,
+          activeModelId: prev.activeModelId || data.chat.model || prev.defaultModelId || prev.globalDefaultModelId,
           messagesByChat: nextMessagesByChat,
         };
       });
