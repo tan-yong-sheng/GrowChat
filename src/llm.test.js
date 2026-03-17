@@ -6,7 +6,6 @@ describe('llm.js - LLM Streaming', () => {
 
   beforeEach(() => {
     mockEnv = {
-      AI: { run: vi.fn() },
       OPENAI_BASE_URL: 'https://api.example.com/v1',
       OPENAI_API_KEY: 'test-key-12345',
     };
@@ -19,18 +18,11 @@ describe('llm.js - LLM Streaming', () => {
       await expect(streamLLM(mockEnv, undefined, [])).rejects.toThrow('Model is required');
     });
 
-    it('should use Workers AI for @cf/ models', async () => {
-      const mockStream = { ok: true, body: 'stream' };
-      mockEnv.AI.run.mockResolvedValue(mockStream);
-
+    it('should reject Workers AI models', async () => {
       const messages = [{ role: 'user', content: 'Hello' }];
-      const result = await streamLLM(mockEnv, '@cf/meta/llama-2-7b', messages);
-
-      expect(mockEnv.AI.run).toHaveBeenCalledWith('@cf/meta/llama-2-7b', {
-        messages,
-        stream: true,
-      });
-      expect(result).toBe(mockStream);
+      await expect(streamLLM(mockEnv, '@cf/meta/llama-2-7b', messages)).rejects.toThrow(
+        'Workers AI models are disabled'
+      );
     });
 
     it('should use OpenAI-compatible API for non-@cf/ models', async () => {
@@ -57,11 +49,12 @@ describe('llm.js - LLM Streaming', () => {
       expect(result).toBe('response body');
     });
 
-    it('should throw when OpenAI API key is missing', async () => {
+    it('should throw when no provider connection is configured', async () => {
       global.fetch = vi.fn();
-      mockEnv.OPENAI_API_KEY = undefined;
+      mockEnv.OPENAI_API_KEY = '';
+      mockEnv.OPENAI_BASE_URL = '';
 
-      await expect(streamLLM(mockEnv, 'gpt-4', [])).rejects.toThrow('OPENAI_API_KEY not configured');
+      await expect(streamLLM(mockEnv, 'gpt-4', [])).rejects.toThrow('No provider connection configured');
     });
 
     it('should handle OpenAI response errors', async () => {

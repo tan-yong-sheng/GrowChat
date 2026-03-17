@@ -132,32 +132,10 @@ function requireBinding(req, env, name, value) {
   return error(req, `${name} binding missing`, 500);
 }
 
-function isVectorizeDisabled(env) {
-  const raw = String(env?.DISABLE_VECTORIZE || '').toLowerCase();
-  return raw === '1' || raw === 'true' || raw === 'yes';
-}
-
 function validateRouteBindings(req, env, path) {
   // R2 upload endpoint requires FILES bucket.
   if (req.method === 'POST' && path === '/api/files/upload') {
     return requireBinding(req, env, 'FILES', env.FILES);
-  }
-
-  // FAQ semantic search requires embedding + vector indexes.
-  if (req.method === 'GET' && path === '/api/faqs/search') {
-    if (isVectorizeDisabled(env)) return null;
-    return requireBinding(req, env, 'AI', env.AI)
-      || requireBinding(req, env, 'VECTORIZE', env.VECTORIZE);
-  }
-
-  // Reindex jobs require embedding + vector indexes.
-  if (
-    req.method === 'POST' &&
-    (path === '/api/admin/faqs/reindex' || path === '/api/admin/documents/reindex')
-  ) {
-    if (isVectorizeDisabled(env)) return null;
-    return requireBinding(req, env, 'AI', env.AI)
-      || requireBinding(req, env, 'VECTORIZE', env.VECTORIZE);
   }
 
   if (path === '/api/realtime/stream') {

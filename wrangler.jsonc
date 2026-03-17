@@ -14,17 +14,7 @@
 		"directory": "./public",
 		"binding": "ASSETS"
 	},
-	// Workers AI binding for chat completions and embeddings
-	"ai": {
-		"binding": "AI"
-	},
-	// Vectorize for RAG - FAQ vector search
-	"vectorize": [
-		{
-			"binding": "VECTORIZE",
-			"index_name": "faq-vectors"
-		}
-	],
+	// Cloudflare AI/Vectorize bindings removed (OpenAI-compatible only)
 	// D1 database for users/chats/messages
 	"d1_databases": [
 		{
@@ -94,16 +84,14 @@
 	"vars": {
 		"APP_NAME": "GrowChat",
 		"TOOL_RUNNER_MODE": "auto",
-		"ENVIRONMENT": "dev",
-		"DISABLE_VECTORIZE": "1"
+		"ENVIRONMENT": "dev"
 	},
 	"env": {
 		"production": {
 			"vars": {
 				"APP_NAME": "GrowChat",
 				"TOOL_RUNNER_MODE": "auto",
-				"ENVIRONMENT": "production",
-				"DISABLE_VECTORIZE": "0"
+				"ENVIRONMENT": "production"
 			}
 		}
 	}

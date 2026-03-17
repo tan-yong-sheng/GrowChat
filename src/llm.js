@@ -6,7 +6,7 @@ export async function streamLLM(env, model, messages, options = {}) {
   const { tools, toolChoice, stream = true } = options || {};
 
   if (model.startsWith('@cf/')) {
-    return env.AI.run(model, { messages, stream: stream !== false });
+    throw new Error('Workers AI models are disabled');
   }
 
   let parsed = parseModelId(model);

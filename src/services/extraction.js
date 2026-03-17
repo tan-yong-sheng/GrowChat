@@ -20,9 +20,9 @@ export async function extractText(env, contentType, buffer) {
     return decoder.decode(buffer);
   }
 
-  // Images - use Workers AI OCR
+  // Images - OCR disabled
   if (contentType.startsWith('image/')) {
-    return extractTextFromImage(env, buffer);
+    throw new Error('Image extraction not supported (OCR disabled)');
   }
 
   // PDF - defer to Phase 3 (requires external service)
@@ -34,42 +34,13 @@ export async function extractText(env, contentType, buffer) {
 }
 
 /**
- * Extract text from image using Workers AI OCR
+ * Extract text from image (OCR disabled)
  * @param {Object} env - Worker environment
  * @param {ArrayBuffer} buffer - Image buffer
  * @returns {Promise<string>} - Extracted text
  */
-async function extractTextFromImage(env, buffer) {
-  if (!env.AI) throw new Error('AI binding not configured');
-
-  try {
-    // Convert buffer to base64
-    const base64 = Buffer.from(buffer).toString('base64');
-
-    const response = await env.AI.run('@cf/wit/ocr', {
-      image: [
-        {
-          data: base64,
-          encoding: 'base64',
-        },
-      ],
-    });
-
-    if (!response.result) {
-      throw new Error('OCR extraction returned empty result');
-    }
-
-    // Extract text from OCR response
-    const text = response.result
-      .map((block) => block.text || '')
-      .filter((t) => t.length > 0)
-      .join(' ');
-
-    return text;
-  } catch (err) {
-    console.error('Image OCR extraction failed:', err);
-    throw new Error(`Image extraction failed: ${err.message}`);
-  }
+async function extractTextFromImage() {
+  throw new Error('Image extraction not supported (OCR disabled)');
 }
 
 /**

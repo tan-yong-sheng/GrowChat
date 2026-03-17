@@ -110,7 +110,7 @@ describe('chatRouter', () => {
       id: 'c1',
       user_id: 'u1',
       title: 'New Chat',
-      model: '@cf/meta/llama-3.1-8b-instruct',
+      model: 'gpt-4',
     });
 
     const res = await chatRouter(

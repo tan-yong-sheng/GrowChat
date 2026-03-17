@@ -9,7 +9,6 @@ import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import {
-  generateEmbedding,
   upsertFAQ,
   queryFAQs,
   deleteFAQEmbedding,
