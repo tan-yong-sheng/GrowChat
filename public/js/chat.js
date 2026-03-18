@@ -325,6 +325,14 @@ function wireChat(root) {
   const messageBlocksById = new Map();
   const clientSessionId = getClientSessionId();
   let activeStreamAbort = null;
+  const setGlobalStreamAbort = (fn) => {
+    window.__growchatAbortStream = fn;
+  };
+  const clearGlobalStreamAbort = (fn) => {
+    if (window.__growchatAbortStream === fn) {
+      window.__growchatAbortStream = null;
+    }
+  };
   const getDraftAttachments = (chatId = state.activeChatId) => {
     if (chatId) {
       return state.attachmentsByChat?.[chatId] || [];
@@ -2029,6 +2037,7 @@ function wireChat(root) {
 
         const controller = new AbortController();
         activeStreamAbort = () => controller.abort();
+        setGlobalStreamAbort(activeStreamAbort);
 
         const runBranchRequest = async (sourceId) => {
           try {
@@ -2189,6 +2198,7 @@ function wireChat(root) {
             }
           } finally {
             streamingOverrideByChat.delete(chatId);
+            clearGlobalStreamAbort(activeStreamAbort);
             activeStreamAbort = null;
             setStreamingState(chatId, false);
           }
@@ -2253,6 +2263,7 @@ function wireChat(root) {
           const streamingId = streamingTarget ? resolveTempMessageId(chatId, streamingTarget) : null;
           if (streamingId && idsToDelete.has(String(streamingId))) {
             activeStreamAbort?.();
+            clearGlobalStreamAbort(activeStreamAbort);
             activeStreamAbort = null;
             streamingOverrideByChat.delete(chatId);
           }
@@ -2360,6 +2371,7 @@ function wireChat(root) {
 
         const controller = new AbortController();
         activeStreamAbort = () => controller.abort();
+        setGlobalStreamAbort(activeStreamAbort);
 
         try {
           setStreamingState(chatId, true);
@@ -2515,6 +2527,7 @@ function wireChat(root) {
           }
         } finally {
           streamingOverrideByChat.delete(chatId);
+          clearGlobalStreamAbort(activeStreamAbort);
           activeStreamAbort = null;
           setStreamingState(chatId, false);
         }
@@ -3063,6 +3076,7 @@ function wireChat(root) {
 
     const controller = new AbortController();
     activeStreamAbort = () => controller.abort();
+    setGlobalStreamAbort(activeStreamAbort);
     hooks.onAbortable?.(activeStreamAbort);
 
     let res;
@@ -3256,6 +3270,7 @@ function wireChat(root) {
       }
     } finally {
       streamingOverrideByChat.delete(chatId);
+      clearGlobalStreamAbort(activeStreamAbort);
       activeStreamAbort = null;
       setStreamingState(chatId, false);
       hooks.onFinished?.();

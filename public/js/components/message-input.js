@@ -71,6 +71,13 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     
     let isSubmitting = false;
     let abortFn = null;
+    const getGlobalAbort = () => {
+      try {
+        return window.__growchatAbortStream || null;
+      } catch {
+        return null;
+      }
+    };
     let lastActiveChatId = state.activeChatId;
     let isStreamBlocked = false;
     let queueNextId = 1;
@@ -220,7 +227,8 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
           micBtn.classList.add('hidden');
           sendBtn.classList.add('hidden');
           stopBtn.classList.remove('hidden');
-          if (abortFn) {
+          const fallbackAbort = getGlobalAbort();
+          if (abortFn || fallbackAbort) {
             stopBtn.disabled = false;
             stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
           } else {
@@ -236,7 +244,8 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
          micBtn.classList.add('hidden');
          sendBtn.classList.add('hidden');
          stopBtn.classList.remove('hidden');
-         if (abortFn) {
+         const fallbackAbort = getGlobalAbort();
+         if (abortFn || fallbackAbort) {
            stopBtn.disabled = false;
            stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
          } else {
@@ -265,11 +274,12 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
 
     stopBtn.onclick = (e) => {
       e.preventDefault();
-      if (abortFn) {
-        abortFn();
-        abortFn = null;
-        finishSubmission();
-      }
+      const fallbackAbort = getGlobalAbort();
+      const handler = abortFn || fallbackAbort;
+      if (!handler) return;
+      handler();
+      abortFn = null;
+      finishSubmission();
     };
 
     function startQueuedSend() {

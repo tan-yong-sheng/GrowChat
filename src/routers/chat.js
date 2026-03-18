@@ -354,7 +354,7 @@ async function persistAssistantErrorMessage(db, {
         'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
         [messageId, chatId, userId]
       );
-    } catch {}
+    } catch { }
   }
 
   return getMessageSnapshot(db, messageId);
@@ -378,16 +378,13 @@ async function publishRealtimeNow(env, event) {
 }
 
 const MCP_PROTOCOL_VERSION = '2025-11-25';
-const MAX_TOOL_STEPS = 3;
-const MAX_FOLLOW_UPS = 2;
+const MAX_TOOL_STEPS = 20;
+const MAX_FOLLOW_UPS = 5;
 const FOLLOW_UP_PROMPT = 'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
 
 function shouldUseToolRunner(env) {
-  const mode = String(env?.TOOL_RUNNER_MODE || 'auto').toLowerCase();
-  if (mode === 'inline') return false;
-  if (mode === 'queue') return Boolean(env?.TOOL_QUEUE);
-  const envName = String(env?.ENVIRONMENT || env?.CF_ENV || '').toLowerCase();
-  if (envName && envName !== 'production') return false;
+  const mode = String(env?.TOOL_RUNNER_MODE || 'inline').toLowerCase();
+  if (mode !== 'queue') return false;
   return Boolean(env?.TOOL_QUEUE);
 }
 
@@ -417,7 +414,7 @@ function normalizeHeadersInput(input) {
   try {
     const parsed = JSON.parse(String(input));
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-  } catch {}
+  } catch { }
   return {};
 }
 
@@ -685,23 +682,41 @@ function applyToolCallDelta(target, deltas) {
 }
 
 function normalizeToolCalls(stepToolCalls, toolMap) {
-  return stepToolCalls
+  const validCalls = [];
+  const unknownCalls = [];
+  (Array.isArray(stepToolCalls) ? stepToolCalls : [])
     .filter((call) => call && call.name)
-    .map((call) => {
+    .forEach((call) => {
       const toolCallId = call.id || crypto.randomUUID();
-      const mapping = toolMap.get(call.name);
+      const name = String(call.name || '').trim();
+      const args = call.arguments || '';
+      const mapping = toolMap.get(name);
       if (!mapping) {
-        throw new Error(`Unknown tool called: ${call.name}`);
+        unknownCalls.push({ toolCallId, name, arguments: args });
+        return;
       }
-      return {
+      validCalls.push({
         toolCallId,
-        modelToolName: call.name,
+        modelToolName: name,
         serverId: mapping.serverId,
         toolName: mapping.toolName,
         displayName: mapping.displayName || mapping.toolName,
-        arguments: call.arguments || '',
-      };
+        arguments: args,
+      });
     });
+  return { validCalls, unknownCalls };
+}
+
+function buildUnknownToolPrompt(unknownCalls, toolMap) {
+  const names = unknownCalls.map((call) => call.name).filter(Boolean);
+  const known = Array.from(toolMap.keys());
+  const preview = known.slice(0, 30);
+  const suffix = known.length > preview.length ? ` (and ${known.length - preview.length} more)` : '';
+  return [
+    `The model requested unknown tool name(s): ${names.join(', ') || 'unknown'}.`,
+    `Use only these tool names: ${preview.join(', ')}${suffix}.`,
+    'If no tool is required, respond directly without tool calls.',
+  ].join(' ');
 }
 
 async function streamAssistantWithTools({
@@ -768,14 +783,14 @@ async function streamAssistantWithTools({
               'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
               [assistantMsgId, chatId, 'assistant', '', model, citationsJson, userMsgId]
             );
-          } catch {}
+          } catch { }
         }
         try {
           await db.run(
             'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
             [assistantMsgId, model, chatId, user.sub]
           );
-        } catch {}
+        } catch { }
       };
 
       const buildPersistedContent = () => {
@@ -789,7 +804,7 @@ async function streamAssistantWithTools({
         try {
           const toolCallsJson = toolCallRecords.length ? JSON.stringify(toolCallRecords) : null;
           await db.run('UPDATE messages SET tool_calls = ? WHERE id = ?', [toolCallsJson, assistantMsgId]);
-        } catch {}
+        } catch { }
       };
 
       const persistAssistantContent = async (force = false) => {
@@ -805,7 +820,7 @@ async function streamAssistantWithTools({
             'UPDATE messages SET content = ?, citations = ?, message_blocks = ? WHERE id = ?',
             [content, citationsJson, blocksJson, assistantMsgId]
           );
-        } catch {}
+        } catch { }
       };
 
       const sendErrorAndClose = async (errorCode, err) => {
@@ -868,7 +883,7 @@ async function streamAssistantWithTools({
           const stepToolCalls = [];
           let finishReason = null;
 
-          let emitEvent = () => {};
+          let emitEvent = () => { };
           const parser = new SseLineParser({
             onEvent: (event) => emitEvent(event),
           });
@@ -951,8 +966,8 @@ async function streamAssistantWithTools({
               throw new Error('Too many tool calls in a single request');
             }
 
-            const normalizedCalls = normalizeToolCalls(stepToolCalls, toolMap);
-            const toolCallsForModel = normalizedCalls.map((call) => ({
+            const { validCalls, unknownCalls } = normalizeToolCalls(stepToolCalls, toolMap);
+            const toolCallsForModel = validCalls.map((call) => ({
               id: call.toolCallId,
               type: 'function',
               function: {
@@ -962,7 +977,7 @@ async function streamAssistantWithTools({
             }));
 
             if (shouldUseToolRunner(env)) {
-              for (const call of normalizedCalls) {
+              for (const call of validCalls) {
                 const record = {
                   id: call.toolCallId,
                   name: call.displayName,
@@ -986,7 +1001,7 @@ async function streamAssistantWithTools({
 
               try {
                 await db.run('UPDATE messages SET status = ? WHERE id = ?', ['tool_running', assistantMsgId]);
-              } catch {}
+              } catch { }
 
               await persistAssistantContent(true);
               const queued = await enqueueToolRunner(env, {
@@ -997,7 +1012,7 @@ async function streamAssistantWithTools({
                 model,
                 history: messagesForModel,
                 citations,
-                toolCalls: normalizedCalls,
+                toolCalls: validCalls,
                 originSessionId: getOriginSessionId(req),
                 fullText,
                 fullReasoning,
@@ -1012,7 +1027,33 @@ async function streamAssistantWithTools({
 
             const toolResultMessages = [];
 
-            for (const call of normalizedCalls) {
+            for (const call of unknownCalls) {
+              const errorText = `Unknown tool: ${call.name}`;
+              const record = {
+                id: call.toolCallId,
+                name: call.name || 'Unknown tool',
+                input: call.arguments,
+                output: errorText,
+                error: errorText,
+                status: 'error',
+              };
+              toolCallRecords.push(record);
+              appendMessageBlock('tool', '', call.toolCallId);
+              await persistToolCalls();
+              await persistAssistantContent();
+              controller.enqueue(encoder.encode(sseData({
+                event: 'tool_result',
+                message_id: assistantMsgId,
+                tool_call_id: call.toolCallId,
+                tool_name: record.name,
+                input: call.arguments,
+                output: errorText,
+                error: errorText,
+                status: 'error',
+              })));
+            }
+
+            for (const call of validCalls) {
               controller.enqueue(encoder.encode(sseData({
                 event: 'tool_status',
                 message_id: assistantMsgId,
@@ -1076,11 +1117,19 @@ async function streamAssistantWithTools({
               });
             }
 
-            messagesForModel = [
-              ...messagesForModel,
-              { role: 'assistant', content: '', tool_calls: toolCallsForModel },
-              ...toolResultMessages,
-            ];
+            if (toolCallsForModel.length) {
+              messagesForModel = [
+                ...messagesForModel,
+                { role: 'assistant', content: '', tool_calls: toolCallsForModel },
+                ...toolResultMessages,
+              ];
+            }
+            if (unknownCalls.length) {
+              messagesForModel = [
+                ...messagesForModel,
+                { role: 'system', content: buildUnknownToolPrompt(unknownCalls, toolMap) },
+              ];
+            }
             steps += 1;
             continue;
           }
@@ -1335,14 +1384,14 @@ export async function chatRouter(req, env, ctx, user, path) {
         originSessionId,
       }));
       await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'chat.updated',
-      userId: user.sub,
-      chatId,
-      originSessionId,
-      data: { shared: false, chat: await getOwnedChat(db, chatId, user.sub) },
-    }));
+        type: 'chat.updated',
+        userId: user.sub,
+        chatId,
+        originSessionId,
+        data: { shared: false, chat: await getOwnedChat(db, chatId, user.sub) },
+      }));
 
-    return json(req, { ok: true });
+      return json(req, { ok: true });
     }
   }
 

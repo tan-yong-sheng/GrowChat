@@ -6,7 +6,7 @@ import { createRealtimeEvent, publishRealtimeEvent } from './realtime.js';
 const MCP_PROTOCOL_VERSION = '2025-11-25';
 const MCP_RETRY_STATUSES = new Set([429, 500, 503, 504]);
 const MCP_MAX_RETRIES = 3;
-const MAX_TOOL_STEPS = 4;
+const MAX_TOOL_STEPS = 6;
 const MAX_FOLLOW_UPS = 2;
 const FOLLOW_UP_PROMPT = 'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
 
@@ -317,23 +317,41 @@ function upsertToolCallRecord(list, record) {
 }
 
 function normalizeToolCallsForModel(stepToolCalls, toolMap) {
-  return stepToolCalls
+  const validCalls = [];
+  const unknownCalls = [];
+  (Array.isArray(stepToolCalls) ? stepToolCalls : [])
     .filter((call) => call && call.name)
-    .map((call) => {
+    .forEach((call) => {
       const toolCallId = call.id || crypto.randomUUID();
-      const mapping = toolMap.get(call.name);
+      const name = String(call.name || '').trim();
+      const args = call.arguments || '';
+      const mapping = toolMap.get(name);
       if (!mapping) {
-        throw new Error(`Unknown tool called: ${call.name}`);
+        unknownCalls.push({ toolCallId, name, arguments: args });
+        return;
       }
-      return {
+      validCalls.push({
         toolCallId,
-        modelToolName: call.name,
+        modelToolName: name,
         serverId: mapping.serverId,
         toolName: mapping.toolName,
         displayName: mapping.displayName || mapping.toolName,
-        arguments: call.arguments || '',
-      };
+        arguments: args,
+      });
     });
+  return { validCalls, unknownCalls };
+}
+
+function buildUnknownToolPrompt(unknownCalls, toolMap) {
+  const names = unknownCalls.map((call) => call.name).filter(Boolean);
+  const known = Array.from(toolMap.keys());
+  const preview = known.slice(0, 30);
+  const suffix = known.length > preview.length ? ` (and ${known.length - preview.length} more)` : '';
+  return [
+    `The model requested unknown tool name(s): ${names.join(', ') || 'unknown'}.`,
+    `Use only these tool names: ${preview.join(', ')}${suffix}.`,
+    'If no tool is required, respond directly without tool calls.',
+  ].join(' ');
 }
 
 function buildToolName(serverId, toolName) {
@@ -674,10 +692,33 @@ export async function runToolJob(env, payload) {
       const hasToolCalls = stepToolCalls.some((call) => call && call.name);
         if (hasToolCalls && finishReason === 'tool_calls') {
           if (steps >= MAX_TOOL_STEPS) break;
-        const normalizedCalls = normalizeToolCallsForModel(stepToolCalls, toolMap);
+        const { validCalls, unknownCalls } = normalizeToolCallsForModel(stepToolCalls, toolMap);
         const toolResultMessages = [];
 
-        for (const call of normalizedCalls) {
+        for (const call of unknownCalls) {
+          const errorText = `Unknown tool: ${call.name}`;
+          const record = normalizeToolCallRecord({
+            id: call.toolCallId,
+            name: call.name || 'Unknown tool',
+            input: call.arguments,
+            output: errorText,
+            error: errorText,
+            status: 'error',
+          });
+          upsertToolCallRecord(toolCallRecords, record);
+          appendMessageBlock('tool', '', call.toolCallId);
+          await persistToolCalls();
+          await publishToolEvent('tool.result', {
+            tool_call_id: call.toolCallId,
+            tool_name: record.name,
+            status: record.status,
+            input: record.input,
+            output: record.output,
+            error: record.error,
+          });
+        }
+
+        for (const call of validCalls) {
           const record = normalizeToolCallRecord({
             id: call.toolCallId,
             name: call.displayName,
@@ -740,17 +781,25 @@ export async function runToolJob(env, payload) {
           });
         }
 
-        const toolCallsForModel = normalizedCalls.map((call) => ({
+        const toolCallsForModel = validCalls.map((call) => ({
           id: call.toolCallId,
           type: 'function',
           function: { name: call.modelToolName, arguments: call.arguments },
         }));
 
-        messagesForModel = [
-          ...messagesForModel,
-          { role: 'assistant', content: '', tool_calls: toolCallsForModel },
-          ...toolResultMessages,
-        ];
+        if (toolCallsForModel.length) {
+          messagesForModel = [
+            ...messagesForModel,
+            { role: 'assistant', content: '', tool_calls: toolCallsForModel },
+            ...toolResultMessages,
+          ];
+        }
+        if (unknownCalls.length) {
+          messagesForModel = [
+            ...messagesForModel,
+            { role: 'system', content: buildUnknownToolPrompt(unknownCalls, toolMap) },
+          ];
+        }
           steps += 1;
           continue;
         }
