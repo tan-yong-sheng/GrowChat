@@ -8,9 +8,12 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
-import { getConfigBool } from '../utils/app-config.js';
+import { getConfigBool, getConfigValue } from '../utils/app-config.js';
 import { getAllOpenAIConnectionConfigs } from '../utils/openai-connections.js';
 import { buildProviderId, formatModelId } from '../utils/provider-registry.js';
+
+const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
+const DEFAULT_ATTACHMENT_CAPS = { text: true };
 
 function isValidModelId(value) {
   const id = String(value || '').trim();
@@ -18,6 +21,32 @@ function isValidModelId(value) {
   if (id.length > 200) return false;
   if (/\s/.test(id)) return false;
   return true;
+}
+
+async function loadModelAttachmentCaps(db) {
+  if (!db) return {};
+  try {
+    const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function applyAttachmentDefaults(attachments) {
+  const caps = attachments && typeof attachments === 'object' ? { ...attachments } : {};
+  caps.text = DEFAULT_ATTACHMENT_CAPS.text;
+  return caps;
+}
+
+function getModelAttachmentCapsEntry(caps, modelId) {
+  const entry = caps?.[modelId];
+  if (!entry || typeof entry !== 'object') return applyAttachmentDefaults(null);
+  const attachments = entry.attachments;
+  if (!attachments || typeof attachments !== 'object') return applyAttachmentDefaults(null);
+  return applyAttachmentDefaults(attachments);
 }
 
 async function ensureModelAccessTable(db) {
@@ -301,6 +330,13 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       if (limit > 0) {
         paginatedModels = publicModels.slice(offset, offset + limit);
       }
+      if (db) {
+        const attachmentCaps = await loadModelAttachmentCaps(db);
+        paginatedModels = paginatedModels.map((model) => ({
+          ...model,
+          attachments: getModelAttachmentCapsEntry(attachmentCaps, model.id),
+        }));
+      }
 
       return json(req, { 
         models: paginatedModels,
@@ -376,6 +412,13 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       let paginatedModels = adminModels;
       if (limit > 0) {
         paginatedModels = adminModels.slice(offset, offset + limit);
+      }
+      if (db) {
+        const attachmentCaps = await loadModelAttachmentCaps(db);
+        paginatedModels = paginatedModels.map((model) => ({
+          ...model,
+          attachments: getModelAttachmentCapsEntry(attachmentCaps, model.id),
+        }));
       }
 
       return json(req, {

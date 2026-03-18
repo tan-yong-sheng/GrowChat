@@ -7,7 +7,7 @@
 		"build:css": "npx tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
 		"deploy": "npm run build:css && wrangler deploy",
 		"dev": "npm run build:css && wrangler dev --ip 0.0.0.0",
-		"dev:remote": "npm run build:css && wrangler dev --remote --ip 0.0.0.0",
+		"dev:remote": "npm run build:css && wrangler dev --remote --ip 0.0.0.0 -- --log-level debug",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
@@ -24,7 +24,7 @@
 		"postcss": "^8.5.6",
 		"tailwindcss": "^3.4.19",
 		"vitest": "^4.0.18",
-		"wrangler": "^4.74.0"
+		"wrangler": "^4.75.0"
 	},
 	"dependencies": {
 		"@codesandbox/sdk": "^2.4.2"

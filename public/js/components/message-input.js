@@ -10,6 +10,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     container.innerHTML = `
       <div id="pending-queue" class="hidden mb-2 space-y-1"></div>
       <div id="attachment-list" class="hidden mb-2 flex flex-wrap gap-2"></div>
+      <div id="attachment-hint" class="hidden mb-2 text-xs font-medium text-amber-700"></div>
       <form id="composer" class="relative bg-[#f4f4f4] rounded-[24px] p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 focus-within:ring-gray-300 focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-transparent focus-within:border-gray-200">
          <div class="relative flex-shrink-0 ml-1">
            <button type="button" id="open-files-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5" title="Attach file" aria-label="Attach file" aria-expanded="false">
@@ -21,7 +22,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
                Upload files & images
              </button>
            </div>
-           <input type="file" id="attachment-input" class="hidden" multiple accept="image/*,application/pdf,text/plain,text/markdown" />
+           <input type="file" id="attachment-input" class="hidden" multiple accept="image/*,application/pdf,text/*" />
          </div>
          
          <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[16px] px-2 py-2.5 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800" style="height: 44px;" aria-label="Message text"></textarea>
@@ -63,6 +64,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     const attachUploadBtn = container.querySelector('#attach-upload');
     const attachmentInput = container.querySelector('#attachment-input');
     const attachmentList = container.querySelector('#attachment-list');
+    const attachmentHint = container.querySelector('#attachment-hint');
     const promptPicker = container.querySelector('#prompt-picker');
     const pendingQueueEl = container.querySelector('#pending-queue');
     let promptIndex = 0;
@@ -137,6 +139,105 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
         });
       });
     }
+
+    const TEXT_LIKE_MIME_TYPES = new Set([
+      'application/csv',
+      'application/x-iif',
+      'application/json',
+      'application/json5',
+      'application/x-json5',
+      'application/x-ndjson',
+      'application/ndjson',
+      'application/xml',
+      'application/x-xml',
+      'application/yaml',
+      'application/x-yaml',
+      'application/javascript',
+      'application/x-javascript',
+      'application/typescript',
+    ]);
+
+    const isTextLikeContentType = (type) => {
+      const mediaType = String(type || '').toLowerCase();
+      if (!mediaType) return false;
+      if (mediaType.startsWith('text/')) return true;
+      return TEXT_LIKE_MIME_TYPES.has(mediaType);
+    };
+
+    const TEXT_LIKE_ACCEPT_TYPES = [
+      'text/*',
+      'application/csv',
+      'application/x-iif',
+      'application/json',
+      'application/json5',
+      'application/x-json5',
+      'application/x-ndjson',
+      'application/ndjson',
+      'application/xml',
+      'application/x-xml',
+      'application/yaml',
+      'application/x-yaml',
+      'application/javascript',
+      'application/x-javascript',
+      'application/typescript',
+    ];
+
+    const getActiveModelCaps = (currentState) => {
+      const modelId = currentState.activeModelId;
+      if (!modelId) return null;
+      const model = (currentState.models || []).find((item) => String(item.id) === String(modelId));
+      const caps = model?.attachments;
+      if (!caps || typeof caps !== 'object') return { text: true };
+      if (typeof caps.text !== 'boolean') return { ...caps, text: true };
+      return caps;
+    };
+
+    const getAllowedKinds = (currentState) => {
+      const caps = getActiveModelCaps(currentState);
+      const allowed = [];
+      if (caps?.image === true) allowed.push('image');
+      if (caps?.pdf === true) allowed.push('pdf');
+      if (caps?.text === true) allowed.push('text-local');
+      return allowed;
+    };
+
+    const getAllowedNonLocalKinds = (currentState) => {
+      const caps = getActiveModelCaps(currentState);
+      const allowed = [];
+      if (caps?.image === true) allowed.push('image');
+      if (caps?.pdf === true) allowed.push('pdf');
+      return allowed;
+    };
+
+    const updateAttachmentControls = (currentState) => {
+      if (!openFilesBtn || !attachUploadBtn || !attachmentInput) return;
+      const allowedKinds = getAllowedKinds(currentState);
+      const allowedNonLocalKinds = getAllowedNonLocalKinds(currentState);
+      const hasAny = allowedKinds.length > 0;
+      const accepts = [];
+      if (allowedKinds.includes('image')) accepts.push('image/*');
+      if (allowedKinds.includes('pdf')) accepts.push('application/pdf');
+      if (allowedKinds.includes('text-local')) {
+        accepts.push(...TEXT_LIKE_ACCEPT_TYPES);
+      }
+      attachmentInput.setAttribute('accept', accepts.join(','));
+
+      openFilesBtn.disabled = !hasAny;
+      attachUploadBtn.disabled = !hasAny;
+      openFilesBtn.classList.toggle('opacity-40', !hasAny);
+      openFilesBtn.classList.toggle('cursor-not-allowed', !hasAny);
+      attachUploadBtn.classList.toggle('opacity-40', !hasAny);
+      attachUploadBtn.classList.toggle('cursor-not-allowed', !hasAny);
+
+      if (attachmentHint) {
+        if (!hasAny) {
+          attachmentHint.textContent = 'Attachments are disabled for this model.';
+          attachmentHint.classList.remove('hidden');
+        } else {
+          attachmentHint.classList.add('hidden');
+        }
+      }
+    };
 
     function renderPendingQueue() {
       if (!pendingQueue.length) {
@@ -223,7 +324,12 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     }
 
     function toggleSendMicBtn() {
-       if (isSubmitting) {
+       // Use global streaming state as single source of truth to avoid race conditions
+       // between isSubmitting (local) and isStreamBlocked (state-derived).
+       // Check if streaming is actively happening (not just if we're submitting locally).
+       const isActivelyStreaming = isStreamBlocked;
+
+       if (isActivelyStreaming) {
           micBtn.classList.add('hidden');
           sendBtn.classList.add('hidden');
           stopBtn.classList.remove('hidden');
@@ -240,29 +346,13 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
           return;
        }
 
-       if (isStreamBlocked) {
-         micBtn.classList.add('hidden');
-         sendBtn.classList.add('hidden');
-         stopBtn.classList.remove('hidden');
-         const fallbackAbort = getGlobalAbort();
-         if (abortFn || fallbackAbort) {
-           stopBtn.disabled = false;
-           stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-         } else {
-           stopBtn.disabled = true;
-           stopBtn.classList.add('opacity-50', 'cursor-not-allowed');
-         }
-         loadingSpinner.classList.add('hidden');
-         loadingSpinner.style.display = 'none';
-         return;
-       }
-       
        stopBtn.classList.add('hidden');
        stopBtn.disabled = false;
        stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
        loadingSpinner.classList.add('hidden');
        loadingSpinner.style.display = 'none';
 
+       // Show send button if input has text, otherwise show mic button
        if (input.value.trim().length > 0) {
           micBtn.classList.add('hidden');
           sendBtn.classList.remove('hidden');
@@ -498,6 +588,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
 
     openFilesBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (openFilesBtn.disabled) return;
       if (!attachMenu) return;
       const isHidden = attachMenu.classList.contains('hidden');
       if (isHidden) {
@@ -509,6 +600,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     });
 
     attachUploadBtn?.addEventListener('click', () => {
+      if (attachUploadBtn?.disabled) return;
       closeAttachMenu();
       attachmentInput?.click();
     });
@@ -568,7 +660,16 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       );
       if (nextStreamBlocked !== isStreamBlocked) {
         isStreamBlocked = nextStreamBlocked;
-        toggleSendMicBtn();
+
+        // SAFETY GUARD: If streaming ended (nextStreamBlocked = false) but isSubmitting is still true,
+        // auto-clear it to prevent the stop button from lingering in the UI after the stream completes.
+        // This handles the race condition where finishSubmission() hasn't fired yet.
+        if (!nextStreamBlocked && isSubmitting) {
+          finishSubmission();
+        } else {
+          toggleSendMicBtn();
+        }
+
         if (!isStreamBlocked && pendingQueue.length > 0 && !isSubmitting) {
           startQueuedSend();
         }
@@ -588,6 +689,8 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
 
       const attachments = getCurrentAttachments(currentState);
       renderAttachments(attachments);
+
+      updateAttachmentControls(currentState);
     });
   }
 

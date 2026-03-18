@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:3007',
+    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://127.0.0.1:3007',
     trace: 'on-first-retry',
     screenshot: 'on',
     video: 'on-first-retry',
@@ -21,7 +21,7 @@ export default defineConfig({
     },
     {
       name: 'chromium-auth',
-      use: { 
+      use: {
         ...devices['Desktop Chrome'],
         storageState: 'tests/e2e/fixtures/auth-state.json',
       },
@@ -29,11 +29,16 @@ export default defineConfig({
     },
     {
       name: 'mobile-auth',
-      use: { 
+      use: {
         ...devices['Pixel 5'],
         storageState: 'tests/e2e/fixtures/auth-state.json',
       },
       testMatch: [/ui-logic\.spec\.ts/, /visual\.spec\.ts/],
+    },
+    {
+      name: 'debug',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:8787' },
+      testMatch: [/debug.*\.spec\.ts/],
     },
   ],
   webServer: {

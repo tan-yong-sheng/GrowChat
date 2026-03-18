@@ -151,7 +151,13 @@ async function ensureSchemaCompatibility(env) {
   schemaCompatibilityReady = (async () => {
     try {
       // Check for legacy Phase 1 schema: messages.citations column
-      const info = await env.DB.prepare('PRAGMA table_info(messages)').all();
+      let info;
+      try {
+        info = await env.DB.prepare('PRAGMA table_info(messages)').all();
+      } catch (err) {
+        console.warn('Could not check messages table info:', String(err?.message || err));
+        return;
+      }
       const columns = info?.results || [];
 
       // If messages table does not exist yet, skip here and let specific routes
@@ -159,7 +165,13 @@ async function ensureSchemaCompatibility(env) {
       if (columns.length) {
         const hasCitations = columns.some((col) => col?.name === 'citations');
         if (!hasCitations) {
-          await env.DB.prepare('ALTER TABLE messages ADD COLUMN citations TEXT').run();
+          try {
+            await env.DB.prepare('ALTER TABLE messages ADD COLUMN citations TEXT').run();
+          } catch (err) {
+            if (!isDuplicateColumnError(err)) {
+              console.warn('Could not add citations column:', String(err?.message || err));
+            }
+          }
         }
       }
 
@@ -168,37 +180,62 @@ async function ensureSchemaCompatibility(env) {
         const userColumns = userInfo?.results || [];
         if (userColumns.length) {
           const columnNames = new Set(userColumns.map((col) => col?.name).filter(Boolean));
-          if (!columnNames.has('last_active_at')) {
-            await env.DB.prepare('ALTER TABLE users ADD COLUMN last_active_at INTEGER').run();
+
+          const columnsToAdd = [
+            { name: 'last_active_at', type: 'INTEGER' },
+            { name: 'avatar', type: 'TEXT' },
+            { name: 'avatar_emoji', type: 'TEXT' },
+            { name: 'status', sql: "TEXT DEFAULT 'offline'" },
+            { name: 'preferences', sql: "TEXT DEFAULT '{}'" },
+          ];
+
+          for (const col of columnsToAdd) {
+            if (!columnNames.has(col.name)) {
+              try {
+                const colDef = col.sql || col.type;
+                await env.DB.prepare(`ALTER TABLE users ADD COLUMN ${col.name} ${colDef}`).run();
+              } catch (err) {
+                if (!isDuplicateColumnError(err)) {
+                  console.warn(`Could not add ${col.name} column:`, String(err?.message || err));
+                }
+              }
+            }
+          }
+
+          // Update default values separately to avoid issues
+          try {
             await env.DB.prepare('UPDATE users SET last_active_at = COALESCE(updated_at, created_at) WHERE last_active_at IS NULL').run();
+          } catch (err) {
+            // Ignore errors updating defaults
           }
-          if (!columnNames.has('avatar')) {
-            await env.DB.prepare('ALTER TABLE users ADD COLUMN avatar TEXT').run();
-          }
-          if (!columnNames.has('avatar_emoji')) {
-            await env.DB.prepare('ALTER TABLE users ADD COLUMN avatar_emoji TEXT').run();
-          }
-          if (!columnNames.has('status')) {
-            await env.DB.prepare("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'offline'").run();
+          try {
             await env.DB.prepare("UPDATE users SET status = 'offline' WHERE status IS NULL").run();
+          } catch (err) {
+            // Ignore errors updating defaults
           }
-          if (!columnNames.has('preferences')) {
-            await env.DB.prepare("ALTER TABLE users ADD COLUMN preferences TEXT DEFAULT '{}'").run();
+          try {
             await env.DB.prepare("UPDATE users SET preferences = '{}' WHERE preferences IS NULL").run();
+          } catch (err) {
+            // Ignore errors updating defaults
           }
         }
       } catch (err) {
-        if (!isDuplicateColumnError(err)) {
-          throw err;
-        }
+        console.warn('Could not check users table schema:', String(err?.message || err));
       }
 
       // RBAC schema diagnostics: log local DB details + missing tables once.
       try {
         const corePlaceholders = REQUIRED_CORE_TABLES.map(() => '?').join(', ');
-        const coreRows = await env.DB.prepare(
-          `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${corePlaceholders})`
-        ).bind(...REQUIRED_CORE_TABLES).all();
+        let coreRows;
+        try {
+          coreRows = await env.DB.prepare(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${corePlaceholders})`
+          ).bind(...REQUIRED_CORE_TABLES).all();
+        } catch (err) {
+          console.warn('Could not query core tables:', String(err?.message || err));
+          return;
+        }
+
         const coreSet = new Set((coreRows?.results || []).map((row) => row.name));
         const missingCore = REQUIRED_CORE_TABLES.filter((name) => !coreSet.has(name));
         if (missingCore.length > 0 && !coreSchemaDiagnosticsLogged) {
@@ -210,9 +247,16 @@ async function ensureSchemaCompatibility(env) {
         }
 
         const placeholders = REQUIRED_RBAC_TABLES.map(() => '?').join(', ');
-        const existingRows = await env.DB.prepare(
-          `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${placeholders})`
-        ).bind(...REQUIRED_RBAC_TABLES).all();
+        let existingRows;
+        try {
+          existingRows = await env.DB.prepare(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${placeholders})`
+          ).bind(...REQUIRED_RBAC_TABLES).all();
+        } catch (err) {
+          console.warn('Could not query RBAC tables:', String(err?.message || err));
+          return;
+        }
+
         const existingSet = new Set((existingRows?.results || []).map((row) => row.name));
         const missingTables = REQUIRED_RBAC_TABLES.filter((name) => !existingSet.has(name));
 
@@ -225,17 +269,13 @@ async function ensureSchemaCompatibility(env) {
           console.info('RBAC schema ready. Required tables present.');
         }
       } catch (err) {
-        if (/no such table|SQLITE_AUTH|not authorized/i.test(String(err?.message || ''))) {
-          console.warn('RBAC schema initialization pending: run migrations/008_rbac_core.sql');
-        } else {
-          throw err;
+        if (!/no such table|SQLITE_AUTH|not authorized/i.test(String(err?.message || ''))) {
+          console.warn('Schema diagnostics failed:', String(err?.message || err));
         }
       }
       schemaDiagnosticsLogged = true;
     } catch (err) {
-      if (!isDuplicateColumnError(err)) {
-        console.warn('Schema compatibility check skipped:', String(err?.message || err));
-      }
+      console.warn('Schema compatibility check failed:', String(err?.message || err));
     }
   })();
 
@@ -255,53 +295,93 @@ export default {
     const path = getPath(req);
     const isPublicSharePath = /^\/s\/[^/]+$/.test(path);
 
-    if (req.method === 'OPTIONS') {
-      return preflight(req);
-    }
+    try {
+      if (req.method === 'OPTIONS') {
+        return preflight(req);
+      }
 
-    if (path.startsWith('/api/') || isPublicSharePath) {
-      if (!env.DB) return error(req, 'DB binding missing', 500);
-      if (!env.SESSIONS && path.startsWith('/api/')) return error(req, 'SESSIONS KV binding missing', 500);
-      const bindingError = validateRouteBindings(req, env, path);
-      if (bindingError) return bindingError;
-      await ensureSchemaCompatibility(env);
+      if (path.startsWith('/api/') || isPublicSharePath) {
+        if (!env.DB) return error(req, 'DB binding missing', 500);
+        if (!env.SESSIONS && path.startsWith('/api/')) return error(req, 'SESSIONS KV binding missing', 500);
+        const bindingError = validateRouteBindings(req, env, path);
+        if (bindingError) return bindingError;
 
-      // Public routes don't require authentication
-      let user = null;
-      if (!isPublicRoute(req, path)) {
-        user = await resolveAuthUser(req, env);
-        // Enforce account deactivation server-side, even if caller still has a valid JWT.
-        if (user?.sub) {
-          const role = await loadUserRole(env, user.sub);
-          if (!role || role === 'inactive') {
-            return error(req, 'Account deactivated', 403);
+        // Don't block on schema compatibility check - run it in the background
+        if (!schemaCompatibilityReady) {
+          ctx.waitUntil(ensureSchemaCompatibility(env).catch(() => {}));
+        }
+
+        // Public routes don't require authentication
+        let user = null;
+        if (!isPublicRoute(req, path)) {
+          user = await resolveAuthUser(req, env);
+          // Enforce account deactivation server-side, even if caller still has a valid JWT.
+          if (user?.sub) {
+            const role = await loadUserRole(env, user.sub);
+            if (!role || role === 'inactive') {
+              return error(req, 'Account deactivated', 403);
+            }
+            user = { ...user, role };
+            ctx.waitUntil(touchLastActive(env, user.sub));
           }
-          user = { ...user, role };
-          ctx.waitUntil(touchLastActive(env, user.sub));
+        }
+
+        for (const route of API_ROUTES) {
+          const response = await route(req, env, ctx, user, path);
+          if (response) return response;
+        }
+
+        return error(req, 'Not found', 404);
+      }
+
+      if (!env.ASSETS) {
+        return new Response('ASSETS binding missing. Use `npm run dev` for local UI or ensure assets are available in remote dev.', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      }
+
+      // Fetch assets - note: in remote dev mode, assets may be slow
+      let response;
+      try {
+        response = await env.ASSETS.fetch(req);
+      } catch (err) {
+        console.error('Asset fetch failed:', String(err?.message || err));
+        return new Response('Asset fetch failed', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+      }
+
+      if (response.status === 404 && !path.startsWith('/api/')) {
+        if (path === '/auth' || path === '/auth.html') {
+          try {
+            const authReq = new Request(new URL('/auth.html', req.url));
+            const authRes = await env.ASSETS.fetch(authReq);
+            if (authRes.status !== 404) return authRes;
+          } catch (err) {
+            console.error('Auth asset fetch failed:', String(err?.message || err));
+          }
+        }
+
+        try {
+          const indexReq = new Request(new URL('/index.html', req.url));
+          return await env.ASSETS.fetch(indexReq);
+        } catch (err) {
+          console.error('Index asset fetch failed:', String(err?.message || err));
+          return new Response('Asset fetch failed', { status: 503, headers: { 'Content-Type': 'text/plain' } });
         }
       }
 
-      for (const route of API_ROUTES) {
-        const response = await route(req, env, ctx, user, path);
-        if (response) return response;
+      return response;
+    } catch (err) {
+      console.error('Unhandled worker error:', err);
+      const message = err?.message || 'Unhandled worker error';
+      if (path.startsWith('/api/') || isPublicSharePath) {
+        return error(req, `worker_crash: ${message}`, 500);
       }
-
-      return error(req, 'Not found', 404);
+      return new Response(`Worker crash: ${message}`, {
+        status: 500,
+        headers: { 'Content-Type': 'text/plain' },
+      });
     }
-
-    const response = await env.ASSETS.fetch(req);
-    if (response.status === 404 && !path.startsWith('/api/')) {
-      if (path === '/auth' || path === '/auth.html') {
-        const authReq = new Request(new URL('/auth.html', req.url));
-        const authRes = await env.ASSETS.fetch(authReq);
-        if (authRes.status !== 404) return authRes;
-      }
-
-      const indexReq = new Request(new URL('/index.html', req.url));
-      return env.ASSETS.fetch(indexReq);
-    }
-
-    return response;
   },
 
   async queue(batch, env, ctx) {

@@ -11,6 +11,9 @@ import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { buildEnvOpenAIConnections, ensureConnectionId, getEnvOpenAIOverrides } from '../utils/openai-connections.js';
 
+const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
+const ATTACHMENT_CAP_TYPES = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
+
 function isValidHttpUrl(value) {
   if (!value) return false;
   return /^https?:\/\//i.test(value);
@@ -57,6 +60,36 @@ function parseHeadersForRequest(input) {
 
 function normalizeBaseUrl(url) {
   return String(url || '').trim().replace(/\/$/, '');
+}
+
+function normalizeModelId(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  if (normalized.length > 200 || /\s/.test(normalized)) {
+    throw new Error('model_id is invalid');
+  }
+  return normalized;
+}
+
+function normalizeAttachmentCaps(input, { allowNull = false } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('attachments must be an object');
+  }
+  const caps = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!ATTACHMENT_CAP_TYPES.includes(key)) {
+      throw new Error(`Unknown attachment type: ${key}`);
+    }
+    if (value === null && allowNull) {
+      caps[key] = null;
+      continue;
+    }
+    if (typeof value !== 'boolean') {
+      throw new Error(`Attachment type ${key} must be a boolean`);
+    }
+    caps[key] = value;
+  }
+  return caps;
 }
 
 const MCP_PROTOCOL_VERSION = '2025-11-25';
@@ -345,6 +378,9 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (path === '/api/admin/config' && req.method === 'PUT') {
     requiredPermission = 'admin.user.write';
   }
+  if (path === '/api/admin/model-attachment-caps') {
+    requiredPermission = 'admin.rbac.admin';
+  }
   if (path === '/api/admin/openai/connections' || path === '/api/admin/openai/connections/test' || path === '/api/admin/openai/env') {
     requiredPermission = 'admin.rbac.admin';
   }
@@ -437,6 +473,123 @@ export async function adminRouter(req, env, ctx, user, path) {
     } catch (err) {
       console.error('Admin config update failed:', err);
       return error(req, 'Failed to update admin config', 500);
+    }
+  }
+
+  // GET /api/admin/model-attachment-caps - Fetch per-model attachment capabilities
+  if (req.method === 'GET' && path === '/api/admin/model-attachment-caps') {
+    try {
+      const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
+      let caps = {};
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          caps = parsed;
+        }
+      } catch {
+        caps = {};
+      }
+      return json(req, {
+        caps,
+        supported_types: ATTACHMENT_CAP_TYPES,
+      });
+    } catch (err) {
+      console.error('Attachment caps fetch failed:', err);
+      return error(req, 'Failed to fetch attachment caps', 500);
+    }
+  }
+
+  // PUT /api/admin/model-attachment-caps - Update per-model attachment capabilities
+  if (req.method === 'PUT' && path === '/api/admin/model-attachment-caps') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const replaceCaps = body.caps && typeof body.caps === 'object' && !Array.isArray(body.caps);
+    const updates = Array.isArray(body.updates) ? body.updates : [];
+    const remove = Array.isArray(body.remove) ? body.remove : [];
+
+    if (!replaceCaps && !updates.length && !remove.length) {
+      return error(req, 'No attachment cap changes provided', 400);
+    }
+
+    try {
+      if (replaceCaps) {
+        const nextCaps = {};
+        for (const [modelId, entry] of Object.entries(body.caps)) {
+          const normalizedId = normalizeModelId(modelId);
+          if (!normalizedId) continue;
+          const attachmentsInput = entry?.attachments ?? entry;
+          const attachments = normalizeAttachmentCaps(attachmentsInput);
+          nextCaps[normalizedId] = {
+            ...(entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {}),
+            attachments,
+            updated_at: Date.now(),
+          };
+        }
+        await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(nextCaps));
+        await logAuditEvent(env, {
+          actor_id: user.sub,
+          action: 'attachment_caps_replaced',
+          resource_type: 'admin',
+          resource_id: 'model-attachment-caps',
+        });
+        return json(req, { caps: nextCaps });
+      }
+
+      const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
+      let caps = {};
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          caps = parsed;
+        }
+      } catch {
+        caps = {};
+      }
+
+      for (const update of updates) {
+        const modelId = normalizeModelId(update?.model_id);
+        if (!modelId) {
+          throw new Error('model_id is required');
+        }
+        const patch = normalizeAttachmentCaps(update?.attachments, { allowNull: true });
+        const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
+        const nextAttachments = { ...(current.attachments || {}) };
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === null) {
+            delete nextAttachments[key];
+          } else {
+            nextAttachments[key] = value;
+          }
+        }
+        caps[modelId] = {
+          ...current,
+          attachments: nextAttachments,
+          updated_at: Date.now(),
+        };
+      }
+
+      for (const id of remove) {
+        const normalizedId = normalizeModelId(id);
+        if (!normalizedId) continue;
+        delete caps[normalizedId];
+      }
+
+      await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(caps));
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'attachment_caps_updated',
+        resource_type: 'admin',
+        resource_id: 'model-attachment-caps',
+      });
+
+      return json(req, { caps });
+    } catch (err) {
+      return error(req, err?.message || 'Invalid attachment cap data', 400);
     }
   }
 

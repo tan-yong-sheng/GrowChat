@@ -59,7 +59,7 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (shouldRefresh && auth?.refresh_token) {
-    const refreshed = await refreshToken(auth.refresh_token);
+    const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
     if (refreshed) {
       headers.set('Authorization', `Bearer ${refreshed.access_token}`);
       return fetch(path, { ...options, headers });
@@ -69,11 +69,12 @@ export async function apiFetch(path, options = {}) {
   return response;
 }
 
-export async function refreshToken(refreshTokenValue) {
+export async function refreshToken(refreshTokenValue, options = {}) {
   const res = await fetch('/api/auth/refresh', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshTokenValue }),
+    signal: options.signal,
   });
 
   if (!res.ok) {
@@ -129,18 +130,50 @@ export async function fetchFiles({ limit = 20, offset = 0, signal } = {}) {
   return res.json();
 }
 
-export async function uploadFile(file, chatId = null) {
+export async function uploadFile(file, chatId = null, options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 30000;
+  const externalSignal = options.signal;
+  const controller = new AbortController();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+  }
+  const timeoutId = timeoutMs > 0
+    ? setTimeout(() => controller.abort(), timeoutMs)
+    : null;
   const formData = new FormData();
   formData.append('file', file);
   if (chatId) formData.append('chat_id', chatId);
 
-  const res = await apiFetch('/api/files/upload', {
-    method: 'POST',
-    body: formData,
-  });
+  let res;
+  try {
+    res = await apiFetch('/api/files/upload', {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (err?.name === 'AbortError') {
+      throw new Error('Upload timed out');
+    }
+    throw err;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
-    const err = new Error(`Failed to upload file (${res.status})`);
+    let message = `Failed to upload file (${res.status})`;
+    try {
+      const payload = await res.json();
+      message = payload?.error || payload?.message || message;
+    } catch {
+      // ignore
+    }
+    const err = new Error(message);
     err.status = res.status;
     throw err;
   }
@@ -197,6 +230,16 @@ export async function getFileContent(id) {
     throw err;
   }
   return res.json();
+}
+
+export async function getFileBlob(id) {
+  const res = await apiFetch(`/api/files/${id}/blob`);
+  if (!res.ok) {
+    const err = new Error(`Failed to get file blob (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.blob();
 }
 
 export async function shareChat(chatId) {

@@ -13,6 +13,37 @@
  */
 export function validateFile(filename, contentType, fileSize) {
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  const normalizedType = String(contentType || '').toLowerCase();
+  const textLikeTypes = new Set([
+    'application/csv',
+    'application/x-iif',
+    'application/json',
+    'application/json5',
+    'application/x-json5',
+    'application/x-ndjson',
+    'application/ndjson',
+    'application/xml',
+    'application/x-xml',
+    'application/yaml',
+    'application/x-yaml',
+    'application/javascript',
+    'application/x-javascript',
+    'application/typescript',
+  ]);
+
+  const isTextLike = (type) => {
+    if (!type) return false;
+    if (type.startsWith('text/')) return true;
+    return textLikeTypes.has(type);
+  };
+
+  const isAllowedType = (type) => {
+    if (!type) return false;
+    if (type.startsWith('image/')) return true;
+    if (type === 'application/pdf') return true;
+    if (isTextLike(type)) return true;
+    return false;
+  };
 
   // Check file size
   if (fileSize > MAX_FILE_SIZE) {
@@ -23,19 +54,10 @@ export function validateFile(filename, contentType, fileSize) {
   }
 
   // Check content type
-  const allowedTypes = [
-    'text/plain',
-    'text/markdown',
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'application/pdf',
-  ];
-
-  if (!allowedTypes.includes(contentType)) {
+  if (!isAllowedType(normalizedType)) {
     return {
       valid: false,
-      error: `File type ${contentType} not supported. Supported: text, images, pdf`,
+      error: `File type ${contentType || 'unknown'} not supported. Supported: text/code, images, pdf`,
     };
   }
 
@@ -50,22 +72,68 @@ export function validateFile(filename, contentType, fileSize) {
   return { valid: true };
 }
 
+export function inferContentTypeFromFilename(filename) {
+  const name = String(filename || '').toLowerCase();
+  const ext = name.includes('.') ? name.split('.').pop() : '';
+  switch (ext) {
+    case 'png': return 'image/png';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'webp': return 'image/webp';
+    case 'gif': return 'image/gif';
+    case 'pdf': return 'application/pdf';
+    case 'txt': return 'text/plain';
+    case 'md': return 'text/markdown';
+    case 'csv': return 'text/csv';
+    case 'tsv': return 'text/tsv';
+    case 'json': return 'application/json';
+    case 'json5': return 'application/json5';
+    case 'ndjson': return 'application/x-ndjson';
+    case 'yml':
+    case 'yaml': return 'application/yaml';
+    case 'xml': return 'application/xml';
+    case 'js': return 'application/javascript';
+    case 'ts': return 'application/typescript';
+    case 'html': return 'text/html';
+    case 'css': return 'text/css';
+    case 'py': return 'text/x-python';
+    default: return '';
+  }
+}
+
+export function resolveContentType(filename, contentType) {
+  const explicit = String(contentType || '').trim();
+  if (explicit) return explicit;
+  const inferred = inferContentTypeFromFilename(filename);
+  return inferred || 'application/octet-stream';
+}
+
 /**
  * Get file extension from content type
  * @param {string} contentType - MIME type
  * @returns {string} - File extension (without dot)
  */
 function getExtensionFromContentType(contentType) {
+  const type = String(contentType || '').toLowerCase();
   const typeMap = {
     'text/plain': 'txt',
     'text/markdown': 'md',
+    'text/csv': 'csv',
+    'text/tsv': 'tsv',
+    'application/json': 'json',
+    'application/json5': 'json5',
+    'application/x-json5': 'json5',
+    'application/x-ndjson': 'ndjson',
+    'application/ndjson': 'ndjson',
     'image/jpeg': 'jpg',
     'image/png': 'png',
     'image/webp': 'webp',
     'application/pdf': 'pdf',
   };
 
-  return typeMap[contentType] || 'bin';
+  if (typeMap[type]) return typeMap[type];
+  if (type.startsWith('text/')) return 'txt';
+  return 'bin';
 }
 
 /**
@@ -86,8 +154,20 @@ export async function uploadFileToR2(env, userId, filename, contentType, buffer)
   const r2Key = `/user/${userId}/files/${fileId}.${ext}`;
 
   try {
+    const withTimeout = (promise, ms) => {
+      if (!ms || ms <= 0) return promise;
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('R2 upload timed out')), ms);
+      });
+      return Promise.race([
+        promise.finally(() => clearTimeout(timer)),
+        timeout,
+      ]);
+    };
+
     // Upload to R2
-    const r2Object = await env.FILES.put(r2Key, buffer, {
+    const r2Object = await withTimeout(env.FILES.put(r2Key, buffer, {
       httpMetadata: {
         contentType,
         cacheControl: 'max-age=86400', // Cache for 1 day
@@ -97,7 +177,7 @@ export async function uploadFileToR2(env, userId, filename, contentType, buffer)
         uploadedAt: new Date().toISOString(),
         userId,
       },
-    });
+    }), 15000);
 
     // Generate signed URL (valid for 7 days)
     // Note: In real implementation, you'd use R2 signed URLs

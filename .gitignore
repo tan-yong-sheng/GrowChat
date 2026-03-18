@@ -4,6 +4,7 @@ open-terminal/
 bolt.new/
 codex/
 claude-code/
+markitdown/
 
 .ona/
 .playwright/

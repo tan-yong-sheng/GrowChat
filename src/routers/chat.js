@@ -3,7 +3,7 @@ import { error, json, sseData, sseHeaders } from '../utils/response.js';
 import { SseLineParser, streamLLM } from '../llm.js';
 import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
 import { createRealtimeEvent, getOriginSessionId, publishRealtimeEvent } from '../realtime.js';
-import { getConfigValue } from '../utils/app-config.js';
+import { getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { getAllOpenAIConnectionConfigs } from '../utils/openai-connections.js';
 import { parseModelId, parseProviderId } from '../utils/provider-registry.js';
 
@@ -56,14 +56,44 @@ async function resolveDefaultModel(env, db, userId) {
 const MAX_ATTACHMENTS = 8;
 const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 24 * 1024 * 1024;
-const SUPPORTED_ATTACHMENT_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-  'text/plain',
-  'text/markdown',
+const MAX_TEXT_ATTACHMENT_CHARS = 100000;
+const TEXT_LIKE_MIME_TYPES = new Set([
+  'application/csv',
+  'application/x-iif',
+  'application/json',
+  'application/json5',
+  'application/x-json5',
+  'application/x-ndjson',
+  'application/ndjson',
+  'application/xml',
+  'application/x-xml',
+  'application/yaml',
+  'application/x-yaml',
+  'application/javascript',
+  'application/x-javascript',
+  'application/typescript',
 ]);
+
+const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
+const DEFAULT_ATTACHMENT_CAPS = { text: true };
+const ATTACHMENT_KIND_ORDER = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
+const STRICT_ATTACHMENT_CAPS = true;
+
+function isTextLikeContentType(contentType) {
+  const type = String(contentType || '').toLowerCase();
+  if (!type) return false;
+  if (type.startsWith('text/')) return true;
+  return TEXT_LIKE_MIME_TYPES.has(type);
+}
+
+function isSupportedAttachmentType(contentType) {
+  const type = String(contentType || '').toLowerCase();
+  if (!type) return false;
+  if (type.startsWith('image/')) return true;
+  if (type === 'application/pdf') return true;
+  if (isTextLikeContentType(type)) return true;
+  return false;
+}
 
 function normalizeAttachmentIds(input) {
   if (!Array.isArray(input)) return [];
@@ -78,6 +108,132 @@ function normalizeAttachmentIds(input) {
     unique.push(id);
   }
   return unique.slice(0, MAX_ATTACHMENTS);
+}
+
+function getAttachmentKind(contentType) {
+  const type = String(contentType || '').toLowerCase();
+  if (!type) return 'other';
+  if (type.startsWith('image/')) return 'image';
+  if (type === 'application/pdf') return 'pdf';
+  if (isTextLikeContentType(type)) return 'text';
+  if (type.startsWith('audio/')) return 'audio';
+  if (type.startsWith('video/')) return 'video';
+  return 'other';
+}
+
+function getAttachmentKinds(docs = []) {
+  const kinds = new Set();
+  docs.forEach((doc) => {
+    kinds.add(getAttachmentKind(doc?.content_type));
+  });
+  return Array.from(kinds);
+}
+
+function mergeTextAttachmentParts(content, parts = []) {
+  const segments = parts
+    .filter((part) => part && part.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text.trim())
+    .filter(Boolean);
+  if (!segments.length) return content;
+  const prefix = content ? `${content}\n\n` : '';
+  return `${prefix}${segments.join('\n\n')}`;
+}
+
+async function loadModelAttachmentCaps(db) {
+  try {
+    const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+async function saveModelAttachmentCaps(db, caps) {
+  try {
+    await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(caps || {}));
+  } catch (err) {
+    console.warn('Failed to save attachment caps:', String(err?.message || err));
+  }
+}
+
+function applyAttachmentDefaults(attachments) {
+  const caps = attachments && typeof attachments === 'object' ? { ...attachments } : {};
+  caps.text = DEFAULT_ATTACHMENT_CAPS.text;
+  return caps;
+}
+
+function getModelAttachmentCapsEntry(caps, modelId) {
+  const entry = caps?.[modelId];
+  if (!entry || typeof entry !== 'object') return applyAttachmentDefaults(null);
+  const attachments = entry.attachments;
+  if (!attachments || typeof attachments !== 'object') return applyAttachmentDefaults(null);
+  return applyAttachmentDefaults(attachments);
+}
+
+function getUnsupportedAttachmentKinds(modelCaps, attachmentKinds = []) {
+  if (!modelCaps) return [];
+  return attachmentKinds.filter((kind) => modelCaps[kind] === false);
+}
+
+function getUnsupportedAttachmentKindsStrict(modelCaps, attachmentKinds = []) {
+  if (!attachmentKinds.length) return [];
+  if (!modelCaps) return [...attachmentKinds];
+  return attachmentKinds.filter((kind) => modelCaps[kind] !== true);
+}
+
+function formatUnsupportedAttachmentMessage(unsupported = []) {
+  const list = unsupported.filter(Boolean);
+  if (!list.length) return 'Selected model does not support these attachments.';
+  const joined = list.join(', ');
+  return `Selected model does not support ${joined} attachment${list.length > 1 ? 's' : ''}.`;
+}
+
+function isTransientModelError(message) {
+  const msg = String(message || '').toLowerCase();
+  return (
+    msg.includes('rate limit') ||
+    msg.includes('overloaded') ||
+    msg.includes('timeout') ||
+    msg.includes('temporarily') ||
+    msg.includes('unavailable') ||
+    msg.includes('connect') ||
+    msg.includes('network') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('504')
+  );
+}
+
+function inferUnsupportedAttachmentKind(message, attachmentKinds = []) {
+  if (!attachmentKinds.length) return null;
+  if (attachmentKinds.length === 1) return attachmentKinds[0];
+  const msg = String(message || '').toLowerCase();
+  if (msg.includes('image') || msg.includes('vision') || msg.includes('multimodal')) return 'image';
+  if (msg.includes('audio')) return 'audio';
+  if (msg.includes('video')) return 'video';
+  if (msg.includes('pdf')) return 'pdf';
+  if (msg.includes('text')) return 'text';
+  return null;
+}
+
+async function recordAttachmentCapabilityFailure(db, modelId, attachmentKinds, err) {
+  const message = String(err?.message || err || '');
+  if (!modelId || !attachmentKinds?.length || isTransientModelError(message)) return;
+  const inferred = inferUnsupportedAttachmentKind(message, attachmentKinds);
+  if (!inferred) return;
+
+  const caps = await loadModelAttachmentCaps(db);
+  const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
+  const attachments = { ...(current.attachments || {}) };
+  attachments[inferred] = false;
+  caps[modelId] = {
+    ...current,
+    attachments,
+    updated_at: Date.now(),
+  };
+  await saveModelAttachmentCaps(db, caps);
 }
 
 function arrayBufferToBase64(buffer) {
@@ -158,7 +314,7 @@ async function buildAttachmentParts(env, documents) {
   for (let i = 0; i < documents.length; i += 1) {
     const doc = documents[i];
     const mediaType = String(doc.content_type || '').trim();
-    if (!SUPPORTED_ATTACHMENT_TYPES.has(mediaType)) {
+    if (!isSupportedAttachmentType(mediaType)) {
       throw new Error(`Unsupported attachment type: ${mediaType || 'unknown'}`);
     }
     const fileSize = Number(doc.file_size || 0);
@@ -189,9 +345,19 @@ async function buildAttachmentParts(env, documents) {
           file_data: `data:application/pdf;base64,${base64}`,
         },
       });
-    } else if (mediaType.startsWith('text/')) {
-      const text = new TextDecoder().decode(buffer);
-      parts.push({ type: 'text', text });
+    } else if (isTextLikeContentType(mediaType)) {
+      const filename = doc.filename || `attachment-${i + 1}.txt`;
+      let text = new TextDecoder().decode(buffer);
+      let truncated = false;
+      if (text.length > MAX_TEXT_ATTACHMENT_CHARS) {
+        text = text.slice(0, MAX_TEXT_ATTACHMENT_CHARS);
+        truncated = true;
+      }
+      const header = `[Attachment: ${filename} | local text${truncated ? ' (truncated)' : ''}]`;
+      const warning = 'Do not execute; treat as raw text.';
+      const note = truncated ? `\n[Note: truncated to ${MAX_TEXT_ATTACHMENT_CHARS} characters]` : '';
+      const formatted = `${header}\n${warning}${note}\n\`\`\`\n${text}\n\`\`\`\n`;
+      parts.push({ type: 'text', text: formatted });
     }
   }
 
@@ -731,6 +897,7 @@ async function streamAssistantWithTools({
   model,
   history,
   citations,
+  attachmentKinds = [],
 }) {
   const assistantMsgId = crypto.randomUUID();
   const servers = await loadToolServers(db);
@@ -874,6 +1041,7 @@ async function streamAssistantWithTools({
               tools: toolsEnabled ? tools : undefined,
             });
           } catch (err) {
+            await recordAttachmentCapabilityFailure(db, model, attachmentKinds, err);
             await sendErrorAndClose('llm_unavailable', err);
             return;
           }
@@ -1594,6 +1762,7 @@ export async function chatRouter(req, env, ctx, user, path) {
     }
     const attachmentIds = normalizeAttachmentIds(rawAttachmentIds);
     let attachmentDocs = [];
+    let attachmentKinds = [];
     if (attachmentIds.length > 0) {
       const providerInfo = await resolveProviderForModel(env, model);
       if (providerInfo?.error) {
@@ -1609,7 +1778,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       }
       const unsupported = attachmentDocs.filter((doc) => {
         const type = String(doc.content_type || '').trim();
-        return !SUPPORTED_ATTACHMENT_TYPES.has(type);
+        return !isSupportedAttachmentType(type);
       });
       if (unsupported.length > 0) {
         const list = unsupported.map((doc) => doc.filename || doc.id).join(', ');
@@ -1620,6 +1789,30 @@ export async function chatRouter(req, env, ctx, user, path) {
       } catch (err) {
         return error(req, normalizeErrorMessage(err, 'Failed to load attachments'), 400);
       }
+    }
+    if (attachmentDocs.length > 0) {
+      attachmentKinds = getAttachmentKinds(attachmentDocs);
+      const nonLocalKinds = attachmentKinds.filter((kind) => kind !== 'text');
+      const caps = await loadModelAttachmentCaps(db);
+      const modelCaps = getModelAttachmentCapsEntry(caps, model);
+      const unsupported = nonLocalKinds.length
+        ? (STRICT_ATTACHMENT_CAPS
+          ? getUnsupportedAttachmentKindsStrict(modelCaps, nonLocalKinds)
+          : getUnsupportedAttachmentKinds(modelCaps, nonLocalKinds))
+        : [];
+      if (attachmentKinds.includes('text') && modelCaps?.text !== true) {
+        unsupported.push('text');
+      }
+      if (unsupported.length > 0) {
+        return error(req, 'attachments_not_supported', 400, {
+          message: modelCaps
+            ? formatUnsupportedAttachmentMessage(unsupported)
+            : 'Attachment capabilities not configured for this model.',
+          unsupported_types: unsupported,
+          resumable: false,
+        });
+      }
+      attachmentKinds = nonLocalKinds;
     }
 
     const userMsgId = crypto.randomUUID();
@@ -1721,13 +1914,21 @@ export async function chatRouter(req, env, ctx, user, path) {
     if (attachmentParts.length > 0) {
       const lastIdx = enhancedHistory.length - 1;
       if (lastIdx >= 0 && enhancedHistory[lastIdx]?.role === 'user') {
-        enhancedHistory[lastIdx] = {
-          role: 'user',
-          content: [
-            { type: 'text', text: content },
-            ...attachmentParts,
-          ],
-        };
+        const hasNonText = attachmentParts.some((part) => part?.type && part.type !== 'text');
+        if (hasNonText) {
+          enhancedHistory[lastIdx] = {
+            role: 'user',
+            content: [
+              { type: 'text', text: content },
+              ...attachmentParts,
+            ],
+          };
+        } else {
+          enhancedHistory[lastIdx] = {
+            role: 'user',
+            content: mergeTextAttachmentParts(content, attachmentParts),
+          };
+        }
       }
     }
 
@@ -1743,6 +1944,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       model,
       history: enhancedHistory,
       citations,
+      attachmentKinds,
     });
 
     return response;
@@ -1867,6 +2069,80 @@ export async function chatRouter(req, env, ctx, user, path) {
       model = await resolveDefaultModel(env, db, user.sub);
     }
 
+    let attachmentParts = [];
+    let attachmentDocs = [];
+    let attachmentKinds = [];
+    let attachmentIds = normalizeAttachmentIds(Array.isArray(body.attachments) ? body.attachments : []);
+    if (attachmentIds.length === 0) {
+      try {
+        const inherited = await db.all(
+          `SELECT document_id FROM message_documents
+           WHERE message_id = ?
+             AND (mention_type IS NULL OR mention_type = 'attachment')`,
+          [msgId]
+        );
+        attachmentIds = normalizeAttachmentIds(inherited.map((row) => row.document_id));
+      } catch (err) {
+        if (!/no such table:\s*message_documents/i.test(String(err?.message || ''))) {
+          console.warn('Failed to load inherited attachments:', String(err?.message || err));
+        }
+      }
+    }
+    if (attachmentIds.length > MAX_ATTACHMENTS) {
+      return error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400);
+    }
+    if (attachmentIds.length > 0) {
+      const providerInfo = await resolveProviderForModel(env, model);
+      if (providerInfo?.error) {
+        return error(req, providerInfo.error, 400);
+      }
+      if (!env.FILES) {
+        return error(req, 'FILES binding missing', 500);
+      }
+      try {
+        attachmentDocs = await loadAttachmentDocuments(db, user.sub, attachmentIds);
+      } catch (err) {
+        return error(req, normalizeErrorMessage(err, 'Invalid attachments'), 400);
+      }
+      const unsupported = attachmentDocs.filter((doc) => {
+        const type = String(doc.content_type || '').trim();
+        return !isSupportedAttachmentType(type);
+      });
+      if (unsupported.length > 0) {
+        const list = unsupported.map((doc) => doc.filename || doc.id).join(', ');
+        return error(req, `Unsupported attachment type for: ${list}`, 400);
+      }
+      try {
+        attachmentParts = await buildAttachmentParts(env, attachmentDocs);
+      } catch (err) {
+        return error(req, normalizeErrorMessage(err, 'Failed to load attachments'), 400);
+      }
+    }
+    if (attachmentDocs.length > 0) {
+      attachmentKinds = getAttachmentKinds(attachmentDocs);
+      const nonLocalKinds = attachmentKinds.filter((kind) => kind !== 'text');
+      const caps = await loadModelAttachmentCaps(db);
+      const modelCaps = getModelAttachmentCapsEntry(caps, model);
+      const unsupported = nonLocalKinds.length
+        ? (STRICT_ATTACHMENT_CAPS
+          ? getUnsupportedAttachmentKindsStrict(modelCaps, nonLocalKinds)
+          : getUnsupportedAttachmentKinds(modelCaps, nonLocalKinds))
+        : [];
+      if (attachmentKinds.includes('text') && modelCaps?.text !== true) {
+        unsupported.push('text');
+      }
+      if (unsupported.length > 0) {
+        return error(req, 'attachments_not_supported', 400, {
+          message: modelCaps
+            ? formatUnsupportedAttachmentMessage(unsupported)
+            : 'Attachment capabilities not configured for this model.',
+          unsupported_types: unsupported,
+          resumable: false,
+        });
+      }
+      attachmentKinds = nonLocalKinds;
+    }
+
     const newUserMsgId = crypto.randomUUID();
     await db.batch([
       db.prepare(
@@ -1880,6 +2156,31 @@ export async function chatRouter(req, env, ctx, user, path) {
     const createdBranchUserMessage = await getMessageSnapshot(db, newUserMsgId);
     const updatedBranchChat = await getOwnedChat(db, chatId, user.sub);
 
+    if (attachmentDocs.length > 0) {
+      try {
+        const statements = attachmentDocs.map((doc) => db.prepare(
+          'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
+        ).bind(
+          crypto.randomUUID(),
+          newUserMsgId,
+          doc.id,
+          'attachment'
+        ));
+        await db.batch(statements);
+      } catch (err) {
+        console.warn('Failed to persist branch attachments:', String(err?.message || err));
+      }
+    }
+
+    if (createdBranchUserMessage && attachmentDocs.length > 0) {
+      createdBranchUserMessage.attachments = attachmentDocs.map((doc) => ({
+        id: doc.id,
+        filename: doc.filename,
+        content_type: doc.content_type,
+        file_size: doc.file_size,
+      }));
+    }
+
     await publishRealtimeNow(env, createRealtimeEvent({
       type: 'message.created',
       userId: user.sub,
@@ -1890,6 +2191,26 @@ export async function chatRouter(req, env, ctx, user, path) {
     }));
 
     const history = await getBranchHistory(newUserMsgId);
+    if (attachmentParts.length > 0) {
+      const lastIdx = history.length - 1;
+      if (lastIdx >= 0 && history[lastIdx]?.role === 'user') {
+        const hasNonText = attachmentParts.some((part) => part?.type && part.type !== 'text');
+        if (hasNonText) {
+          history[lastIdx] = {
+            role: 'user',
+            content: [
+              { type: 'text', text: content },
+              ...attachmentParts,
+            ],
+          };
+        } else {
+          history[lastIdx] = {
+            role: 'user',
+            content: mergeTextAttachmentParts(content, attachmentParts),
+          };
+        }
+      }
+    }
     const { response } = await streamAssistantWithTools({
       req,
       env,
@@ -1902,6 +2223,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       model,
       history,
       citations: null,
+      attachmentKinds,
     });
 
     return response;

@@ -3,6 +3,7 @@ import {
   fetchArchivedChats,
   fetchChats,
   fetchSharedChats,
+  getFileBlob,
   getFileContent,
   getFileMetadata,
   getClientSessionId,
@@ -33,6 +34,9 @@ const loadIconPickerModal = () => (iconPickerPromise ??= import('./components/ic
 const loadTagModal = () => (tagModalPromise ??= import('./components/tag-modal.js'));
 const loadUserProfileFooter = () => (userProfileFooterPromise ??= import('./components/user-profile-footer.js'));
 const loadFolderSidebar = () => (folderSidebarPromise ??= import('./components/folder-sidebar.js'));
+
+const attachmentImageUrlCache = new Map();
+const attachmentImagePromiseCache = new Map();
 
 function normalizeCitations(raw) {
   if (!raw) return [];
@@ -1146,9 +1150,74 @@ function wireChat(root) {
     return renderMessageContent(content);
   }
 
+  function isImageAttachment(file) {
+    return String(file?.content_type || '').toLowerCase().startsWith('image/');
+  }
+
+  function isTextAttachment(file) {
+    return isTextLikeContentType(file?.content_type);
+  }
+
+  async function getAttachmentImageUrl(fileId) {
+    const key = String(fileId || '');
+    if (!key) return null;
+    if (attachmentImageUrlCache.has(key)) return attachmentImageUrlCache.get(key);
+    if (attachmentImagePromiseCache.has(key)) return attachmentImagePromiseCache.get(key);
+
+    const promise = (async () => {
+      const blob = await getFileBlob(key);
+      const url = URL.createObjectURL(blob);
+      attachmentImageUrlCache.set(key, url);
+      attachmentImagePromiseCache.delete(key);
+      return url;
+    })().catch((err) => {
+      attachmentImagePromiseCache.delete(key);
+      throw err;
+    });
+
+    attachmentImagePromiseCache.set(key, promise);
+    return promise;
+  }
+
+  function hydrateAttachmentImages(containerEl) {
+    if (!containerEl) return;
+    const nodes = containerEl.querySelectorAll('[data-attachment-image]');
+    nodes.forEach((img) => {
+      const id = img.getAttribute('data-attachment-image');
+      if (!id || img.dataset.attachmentLoaded === '1') return;
+      img.dataset.attachmentLoaded = '1';
+      img.classList.add('opacity-0');
+      getAttachmentImageUrl(id)
+        .then((url) => {
+          if (!url) return;
+          img.src = url;
+          img.classList.remove('opacity-0');
+        })
+        .catch(() => {
+          img.classList.add('hidden');
+        });
+    });
+  }
+
   function renderAttachmentPills(attachments = [], align = 'end') {
     if (!Array.isArray(attachments) || attachments.length === 0) return '';
-    const items = attachments.map((file) => {
+    const images = attachments.filter(isImageAttachment);
+    const others = attachments.filter((file) => !isImageAttachment(file));
+    const alignItems = align === 'start' ? 'items-start' : 'items-end';
+    const justify = align === 'start' ? 'justify-start' : 'justify-end';
+
+    const imageHtml = images.map((file) => {
+      const label = String(file?.filename || 'Image');
+      const fileId = String(file?.id || '');
+      if (!fileId) return '';
+      return `
+        <div class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden" style="max-width:120px; max-height:120px;">
+          <img data-attachment-image="${escapeHtml(fileId)}" alt="${escapeHtml(label)}" title="${escapeHtml(label)}" class="block h-auto w-auto object-contain bg-gray-100 transition-opacity duration-200" style="max-width:120px; max-height:120px;" loading="lazy" />
+        </div>
+      `;
+    }).join('');
+
+    const pillsHtml = others.map((file) => {
       const label = String(file?.filename || 'Attachment');
       return `
         <div class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] text-gray-600 shadow-sm">
@@ -1160,8 +1229,15 @@ function wireChat(root) {
         </div>
       `;
     }).join('');
-    const justify = align === 'start' ? 'justify-start' : 'justify-end';
-    return `<div class="flex flex-wrap gap-2 ${justify}">${items}</div>`;
+
+    const imageRow = imageHtml ? `<div class="flex flex-wrap gap-2 ${justify}">${imageHtml}</div>` : '';
+    const pillRow = pillsHtml ? `<div class="flex flex-wrap gap-2 ${justify}">${pillsHtml}</div>` : '';
+    return `
+      <div class="flex flex-col gap-2 ${alignItems}">
+        ${imageRow}
+        ${pillRow}
+      </div>
+    `;
   }
 
   function extractThinkingBlocks(raw) {
@@ -1599,6 +1675,43 @@ function wireChat(root) {
     return true;
   }
 
+  function formatApiErrorMessage(payload, fallback) {
+    let message = fallback || 'Request failed.';
+    if (payload?.details?.message) {
+      message = payload.details.message;
+    } else if (payload?.error) {
+      message = payload.error;
+    } else if (payload?.message) {
+      message = payload.message;
+    }
+    if (payload?.details?.unsupported_types?.length) {
+      const list = payload.details.unsupported_types.join(', ');
+      message = `Selected model does not support ${list} attachment${payload.details.unsupported_types.length > 1 ? 's' : ''}.`;
+    }
+    return message;
+  }
+
+  function applyAssistantErrorMessage(chatId, messageId, errorText) {
+    if (!chatId || !messageId) return;
+    const safeText = String(errorText || 'Request failed.');
+    setState((prev) => {
+      const currentMessages = [...(prev.messagesByChat[chatId] || [])];
+      const targetIdx = currentMessages.findIndex((m) => String(m.id) === String(messageId));
+      if (targetIdx < 0) return prev;
+      currentMessages[targetIdx] = {
+        ...currentMessages[targetIdx],
+        content: safeText,
+        done: true,
+        status: 'error',
+        error_message: safeText,
+      };
+      return { ...prev, messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } };
+    });
+    if (state.activeChatId === chatId) {
+      updateMessageContentDom(messageId, safeText, { isError: true, isStreaming: false });
+    }
+  }
+
   function drawMessages(messages) {
     const welcomeScreen = welcomeScreenContainer.firstElementChild;
     const chatId = state.activeChatId;
@@ -1802,6 +1915,7 @@ function wireChat(root) {
 
     // Update innerHTML only once to minimize layout shifts
     messagesList.innerHTML = messagesHtml;
+    hydrateAttachmentImages(messagesList);
 
     // Auto-resize and focus edit textareas
     messagesList.querySelectorAll('.edit-message-textarea').forEach(ta => {
@@ -1938,7 +2052,8 @@ function wireChat(root) {
             await loadMessages(chatId);
           } else {
             const err = await res.json().catch(() => ({}));
-            alert(err.error || err.message || 'Failed to copy message');
+            const message = err?.details?.message || err.error || err.message || 'Failed to copy message';
+            alert(message);
           }
         } catch (e) {
           console.error('Copy failed', e);
@@ -1997,6 +2112,8 @@ function wireChat(root) {
 
         // User Edit: Branching (Existing logic)
         const branchParentId = sourceMsg?.parent_id || null;
+        const sourceAttachments = Array.isArray(sourceMsg?.attachments) ? sourceMsg.attachments : [];
+        const attachmentIds = Array.from(new Set(sourceAttachments.map((item) => item?.id).filter(Boolean)));
 
         // Remove from editing state immediately to avoid UI shifts
         const newEditing = { ...state.ui.editingMessages };
@@ -2014,6 +2131,7 @@ function wireChat(root) {
           role: 'user',
           content: newContent,
           model: state.activeModelId,
+          attachments: sourceAttachments,
           parent_id: branchParentId,
           created_at: nowTs,
           done: true,
@@ -2040,101 +2158,107 @@ function wireChat(root) {
         setGlobalStreamAbort(activeStreamAbort);
 
         const runBranchRequest = async (sourceId) => {
-          try {
-            setStreamingState(chatId, true);
-            const res = await apiFetch(`/api/chats/${chatId}/messages/${sourceId}/branch`, {
-              method: 'POST',
-              body: JSON.stringify({ content: newContent, model: state.activeModelId || undefined }),
-              signal: controller.signal
-            });
-
-            if (!res.ok || !res.body) {
-              const err = await res.json().catch(() => ({}));
-              alert(err.error || 'backend api not found');
-              return;
-            }
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let assistantMessageId = tempAssistantId;
+          let assistantMessageId = tempAssistantId;
           let errorMessage = null;
           let errorActive = false;
-          const parser = new SseLineParser((payload) => {
-            if (payload?.event === 'start' && payload?.user_message_id) {
-              replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
-            }
-            if (payload?.event === 'start' && payload?.message_id) {
-              assistantMessageId = String(payload.message_id);
-              replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
-              if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
-                thinkingActiveByMessageId.set(String(assistantMessageId), true);
-              }
-              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-              }
-              applyAssistantText(true);
-            }
-            if (payload?.event === 'reasoning_start') {
-              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-              }
-              thinkingActiveByMessageId.set(String(assistantMessageId), true);
-              ensureThinkingBlock(assistantMessageId);
-              applyAssistantText();
-            }
-            if (payload?.event === 'reasoning_delta') {
-              const delta = String(payload.delta || '');
-              if (delta) {
-                appendBlock(assistantMessageId, 'thinking', delta);
-                thinkingActiveByMessageId.set(String(assistantMessageId), true);
-                applyAssistantText();
-              }
-            }
-            if (payload?.event === 'reasoning_end') {
-              const duration = Number(payload.duration_ms);
-              if (Number.isFinite(duration) && duration > 0) {
-                thinkingDurationByMessageId.set(String(assistantMessageId), duration);
-              }
-              thinkingActiveByMessageId.delete(String(assistantMessageId));
-            }
-            if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-              const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
-              updateToolCallState(targetId, payload);
-              applyAssistantText();
-            }
-            if (payload?.error) {
-              errorMessage = payload.message || payload.error || 'LLM request failed';
-              errorActive = true;
-              const label = `Error: ${errorMessage}`;
-              assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
-              applyAssistantText();
-            }
-          });
-            let assistantText = '';
+          let assistantText = '';
 
           const applyAssistantText = (streaming = true) => {
             streamingOverrideByChat.set(chatId, {
               targetMsgId: assistantMessageId,
               content: assistantText,
             });
-            
+
             const currentMessages = [...(state.messagesByChat[chatId] || [])];
             const targetIdx = currentMessages.findIndex(m => String(m.id) === String(assistantMessageId));
             if (targetIdx >= 0) {
-              currentMessages[targetIdx] = { 
-                ...currentMessages[targetIdx], 
+              currentMessages[targetIdx] = {
+                ...currentMessages[targetIdx],
                 content: assistantText,
                 status: errorActive ? 'error' : currentMessages[targetIdx].status,
                 error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
               };
-              setState((prev) => ({ 
-                messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
+              setState((prev) => ({
+                messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages }
               }));
             }
             if (state.activeChatId === chatId) {
               updateMessageContentDom(assistantMessageId, assistantText, { isError: errorActive, isStreaming: streaming });
             }
           };
+
+          try {
+            setStreamingState(chatId, true);
+            const res = await apiFetch(`/api/chats/${chatId}/messages/${sourceId}/branch`, {
+              method: 'POST',
+              body: JSON.stringify({
+                content: newContent,
+                model: state.activeModelId || undefined,
+                ...(attachmentIds.length ? { attachments: attachmentIds } : {}),
+              }),
+              signal: controller.signal
+            });
+
+            if (!res.ok || !res.body) {
+              const err = await res.json().catch(() => ({}));
+              const message = formatApiErrorMessage(err, 'Failed to connect to the server.');
+              applyAssistantErrorMessage(chatId, assistantMessageId, message);
+              return;
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            const parser = new SseLineParser((payload) => {
+              if (payload?.event === 'start' && payload?.user_message_id) {
+                replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
+              }
+              if (payload?.event === 'start' && payload?.message_id) {
+                assistantMessageId = String(payload.message_id);
+                replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+                if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
+                  thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                }
+                if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                  thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+                }
+                applyAssistantText(true);
+              }
+              if (payload?.event === 'reasoning_start') {
+                if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                  thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+                }
+                thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                ensureThinkingBlock(assistantMessageId);
+                applyAssistantText();
+              }
+              if (payload?.event === 'reasoning_delta') {
+                const delta = String(payload.delta || '');
+                if (delta) {
+                  appendBlock(assistantMessageId, 'thinking', delta);
+                  thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                  applyAssistantText();
+                }
+              }
+              if (payload?.event === 'reasoning_end') {
+                const duration = Number(payload.duration_ms);
+                if (Number.isFinite(duration) && duration > 0) {
+                  thinkingDurationByMessageId.set(String(assistantMessageId), duration);
+                }
+                thinkingActiveByMessageId.delete(String(assistantMessageId));
+              }
+              if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
+                const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
+                updateToolCallState(targetId, payload);
+                applyAssistantText();
+              }
+              if (payload?.error) {
+                errorMessage = payload.message || payload.error || 'LLM request failed';
+                errorActive = true;
+                const label = `Error: ${errorMessage}`;
+                assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
+                applyAssistantText();
+              }
+            });
 
             while (true) {
               const { done, value } = await reader.read();
@@ -2176,7 +2300,6 @@ function wireChat(root) {
           } catch (e) {
             if (e?.name !== 'AbortError') {
               console.error('Branching failed', e);
-              alert('An error occurred while branching the chat.');
               if (!errorActive) {
                 errorMessage = String(e?.message || 'LLM request failed');
                 errorActive = true;
@@ -3098,23 +3221,27 @@ function wireChat(root) {
     } catch (err) {
       setStreamingState(chatId, false);
       const isAbort = err?.name === 'AbortError';
-      if (localMessages.length > 0) {
-        localMessages[localMessages.length - 1].done = true;
-        localMessages[localMessages.length - 1].content = isAbort ? 'Stopped.' : 'Failed to connect to the server.';
-        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-        if (state.activeChatId === chatId) drawMessages(localMessages);
+      if (isAbort) {
+        if (localMessages.length > 0) {
+          localMessages[localMessages.length - 1].done = true;
+          localMessages[localMessages.length - 1].content = 'Stopped.';
+          setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
+          if (state.activeChatId === chatId) drawMessages(localMessages);
+        }
+      } else {
+        applyAssistantErrorMessage(chatId, tempAssistantId, 'Failed to connect to the server.');
       }
       return;
     }
 
     if (!res.ok || !res.body) {
       setStreamingState(chatId, false);
-      if (localMessages.length > 0) {
-        localMessages[localMessages.length - 1].done = true;
-        localMessages[localMessages.length - 1].content = 'Failed to connect to the server.';
-        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-        if (state.activeChatId === chatId) drawMessages(localMessages);
-      }
+      let errorText = 'Failed to connect to the server.';
+      try {
+        const errPayload = await res.json();
+        errorText = formatApiErrorMessage(errPayload, errorText);
+      } catch {}
+      applyAssistantErrorMessage(chatId, tempAssistantId, errorText);
       return;
     }
 
@@ -3372,64 +3499,218 @@ function wireChat(root) {
   window.addEventListener('growchat:open-archived', onOpenArchivedEvent);
   window.addEventListener('popstate', onPopState);
 
+  const TEXT_LIKE_MIME_TYPES = new Set([
+    'application/csv',
+    'application/x-iif',
+    'application/json',
+    'application/json5',
+    'application/x-json5',
+    'application/x-ndjson',
+    'application/ndjson',
+    'application/xml',
+    'application/x-xml',
+    'application/yaml',
+    'application/x-yaml',
+    'application/javascript',
+    'application/x-javascript',
+    'application/typescript',
+  ]);
+
+  const inferContentTypeFromName = (name) => {
+    const lower = String(name || '').toLowerCase();
+    const ext = lower.includes('.') ? lower.split('.').pop() : '';
+    switch (ext) {
+      case 'png': return 'image/png';
+      case 'jpg':
+      case 'jpeg': return 'image/jpeg';
+      case 'webp': return 'image/webp';
+      case 'gif': return 'image/gif';
+      case 'pdf': return 'application/pdf';
+      case 'txt': return 'text/plain';
+      case 'md': return 'text/markdown';
+      case 'csv': return 'text/csv';
+      case 'tsv': return 'text/tsv';
+      case 'json': return 'application/json';
+      case 'json5': return 'application/json5';
+      case 'ndjson': return 'application/x-ndjson';
+      case 'yml':
+      case 'yaml': return 'application/yaml';
+      case 'xml': return 'application/xml';
+      case 'js': return 'application/javascript';
+      case 'ts': return 'application/typescript';
+      case 'html': return 'text/html';
+      case 'css': return 'text/css';
+      case 'py': return 'text/x-python';
+      default: return '';
+    }
+  };
+
+  const getFileContentType = (file) => {
+    const explicit = String(file?.type || '').trim();
+    if (explicit) return explicit;
+    return inferContentTypeFromName(file?.name);
+  };
+
+  const isTextLikeContentType = (type) => {
+    const mediaType = String(type || '').toLowerCase();
+    if (!mediaType) return false;
+    if (mediaType.startsWith('text/')) return true;
+    return TEXT_LIKE_MIME_TYPES.has(mediaType);
+  };
+
   const isSupportedAttachmentType = (type) => {
-    const mediaType = String(type || '');
+    const mediaType = String(type || '').toLowerCase();
+    if (!mediaType) return false;
     if (mediaType.startsWith('image/')) return true;
     if (mediaType === 'application/pdf') return true;
-    if (mediaType === 'text/plain' || mediaType === 'text/markdown') return true;
+    if (isTextLikeContentType(mediaType)) return true;
     return false;
+  };
+
+  const getAttachmentKindFromType = (type) => {
+    const mediaType = String(type || '').toLowerCase();
+    if (!mediaType) return 'other';
+    if (mediaType.startsWith('image/')) return 'image';
+    if (mediaType === 'application/pdf') return 'pdf';
+    if (isTextLikeContentType(mediaType)) return 'text';
+    if (mediaType.startsWith('audio/')) return 'audio';
+    if (mediaType.startsWith('video/')) return 'video';
+    return 'other';
+  };
+
+  const getActiveModelAttachmentCaps = () => {
+    const activeId = state.activeModelId;
+    if (!activeId) return null;
+    const model = (state.models || []).find((item) => String(item.id) === String(activeId));
+    const caps = model?.attachments;
+    if (!caps || typeof caps !== 'object') return { text: true };
+    if (typeof caps.text !== 'boolean') return { ...caps, text: true };
+    return caps;
+  };
+
+  const isAttachmentAllowedByModel = (type) => {
+    const kind = getAttachmentKindFromType(type);
+    const caps = getActiveModelAttachmentCaps();
+    if (kind === 'text') return caps?.text === true;
+    if (!caps) return false;
+    return caps[kind] === true;
+  };
+
+  const getAllowedAttachmentKinds = () => {
+    const caps = getActiveModelAttachmentCaps();
+    const allowed = [];
+    if (caps?.image === true) allowed.push('image');
+    if (caps?.pdf === true) allowed.push('pdf');
+    if (caps?.text === true) allowed.push('text (local)');
+    return allowed;
+  };
+
+  const getAllowedNonLocalKinds = () => {
+    const caps = getActiveModelAttachmentCaps();
+    const allowed = [];
+    if (caps?.image === true) allowed.push('image');
+    if (caps?.pdf === true) allowed.push('pdf');
+    return allowed;
   };
 
   const handleFilesSelected = async (event) => {
     const files = Array.isArray(event?.detail?.files) ? event.detail.files : [];
     if (!files.length) return;
     const toast = showToastProgress(`Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`);
-    const chatId = state.activeChatId;
-    const uploaded = [];
-    for (const file of files) {
-      if (!isSupportedAttachmentType(file?.type)) {
-        showToast(`Unsupported attachment type: ${file?.name || file?.type || 'file'}`);
-        continue;
+    try {
+      const allowedNonLocalKinds = getAllowedNonLocalKinds();
+      const chatId = state.activeChatId;
+      const uploaded = [];
+      let skippedUnsupported = 0;
+      let skippedByModel = 0;
+      for (const file of files) {
+        const mediaType = getFileContentType(file);
+        if (!isSupportedAttachmentType(mediaType)) {
+          skippedUnsupported += 1;
+          continue;
+        }
+        if (!isAttachmentAllowedByModel(mediaType)) {
+          skippedByModel += 1;
+          continue;
+        }
+        try {
+          const data = await uploadFile(file, chatId, { timeoutMs: 30000 });
+          uploaded.push({
+            id: data.id,
+            filename: data.filename,
+            content_type: data.content_type,
+            file_size: data.file_size,
+          });
+        } catch (err) {
+          const message = String(err?.message || '');
+          if (message.toLowerCase().includes('timeout')) {
+            showToast(`Upload timed out for ${file?.name || 'file'}`);
+          } else if (message) {
+            showToast(`Failed to upload ${file?.name || 'file'}: ${message}`);
+          } else {
+            showToast(`Failed to upload ${file?.name || 'file'}`);
+          }
+        }
       }
-      try {
-        const data = await uploadFile(file, chatId);
-        uploaded.push({
-          id: data.id,
-          filename: data.filename,
-          content_type: data.content_type,
-          file_size: data.file_size,
+      if (skippedUnsupported > 0) {
+        showToast('Some files were skipped (unsupported type).');
+      }
+      if (skippedByModel > 0) {
+        if (allowedNonLocalKinds.length > 0) {
+          showToast(`Current model supports ${allowedNonLocalKinds.join(', ')} attachments.`);
+        } else if (getAllowedAttachmentKinds().includes('text (local)')) {
+          showToast('Only text attachments are supported for this model.');
+        } else {
+          showToast('Attachments are disabled for this model.');
+        }
+      }
+      if (uploaded.length) {
+        const current = getDraftAttachments(chatId);
+        const seen = new Set(current.map((item) => String(item?.id || '')));
+        const next = [...current];
+        uploaded.forEach((item) => {
+          const key = String(item?.id || '');
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          next.push(item);
         });
-      } catch (err) {
-        showToast(`Failed to upload ${file?.name || 'file'}`);
+        setDraftAttachments(chatId, next);
       }
+    } finally {
+      toast.close();
     }
-    if (uploaded.length) {
-      const current = getDraftAttachments(chatId);
-      const seen = new Set(current.map((item) => String(item?.id || '')));
-      const next = [...current];
-      uploaded.forEach((item) => {
-        const key = String(item?.id || '');
-        if (!key || seen.has(key)) return;
-        seen.add(key);
-        next.push(item);
-      });
-      setDraftAttachments(chatId, next);
-    }
-    toast.close();
   };
 
   const handleAttachFiles = (event) => {
     const files = Array.isArray(event?.detail?.files) ? event.detail.files : [];
     if (!files.length) return;
+    const allowedKinds = getAllowedAttachmentKinds();
+    const allowedNonLocalKinds = getAllowedNonLocalKinds();
     const chatId = state.activeChatId;
-    const filtered = files.filter((file) => isSupportedAttachmentType(file?.content_type || file?.type));
+    const filtered = files.filter((file) => {
+      const mediaType = file?.content_type || file?.type || getFileContentType(file);
+      return isSupportedAttachmentType(mediaType);
+    });
+    const modelFiltered = filtered.filter((file) => {
+      const mediaType = file?.content_type || file?.type || getFileContentType(file);
+      return isAttachmentAllowedByModel(mediaType);
+    });
     if (filtered.length !== files.length) {
       showToast('Some files were skipped (unsupported type).');
+    }
+    if (modelFiltered.length !== filtered.length) {
+      if (allowedNonLocalKinds.length > 0) {
+        showToast(`Current model supports ${allowedNonLocalKinds.join(', ')} attachments.`);
+      } else if (allowedKinds.includes('text (local)')) {
+        showToast('Only text attachments are supported for this model.');
+      } else {
+        showToast('Attachments are disabled for this model.');
+      }
     }
     const current = getDraftAttachments(chatId);
     const seen = new Set(current.map((item) => String(item?.id || '')));
     const next = [...current];
-    filtered.forEach((file) => {
+    modelFiltered.forEach((file) => {
       const key = String(file?.id || '');
       if (!key || seen.has(key)) return;
       seen.add(key);

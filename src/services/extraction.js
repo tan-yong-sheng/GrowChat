@@ -5,42 +5,26 @@
  * and chunking for semantic search embeddings
  */
 
+import { parseDocument } from './parsers/index.js';
+
 /**
  * Extract text from a document based on content type
+ * @param {Object} env - Worker environment
  * @param {string} contentType - MIME type of document
  * @param {ArrayBuffer} buffer - File buffer
  * @returns {Promise<string>} - Extracted text
  */
 export async function extractText(env, contentType, buffer) {
   if (!contentType) throw new Error('Content type required');
-
-  // Plain text - straightforward
-  if (contentType === 'text/plain' || contentType === 'text/markdown') {
-    const decoder = new TextDecoder();
-    return decoder.decode(buffer);
+  const result = await parseDocument(env, { contentType, buffer });
+  if (result?.skipped) {
+    throw new Error(result.reason || 'Document extraction skipped');
   }
-
-  // Images - OCR disabled
-  if (contentType.startsWith('image/')) {
-    throw new Error('Image extraction not supported (OCR disabled)');
+  const text = result?.text || '';
+  if (!text.trim()) {
+    throw new Error('Document extraction resulted in empty text');
   }
-
-  // PDF - defer to Phase 3 (requires external service)
-  if (contentType === 'application/pdf') {
-    throw new Error('PDF extraction not yet supported. Please use text or image files.');
-  }
-
-  throw new Error(`Unsupported content type: ${contentType}`);
-}
-
-/**
- * Extract text from image (OCR disabled)
- * @param {Object} env - Worker environment
- * @param {ArrayBuffer} buffer - Image buffer
- * @returns {Promise<string>} - Extracted text
- */
-async function extractTextFromImage() {
-  throw new Error('Image extraction not supported (OCR disabled)');
+  return text;
 }
 
 /**
@@ -90,8 +74,18 @@ export function chunkText(text, chunkSize = 500, overlap = 50) {
  */
 export async function extractAndChunk(env, db, documentId, contentType, buffer) {
   try {
-    // Extract text
-    const fullText = await extractText(env, contentType, buffer);
+    const result = await parseDocument(env, { contentType, buffer });
+    if (result?.skipped) {
+      const reason = result.reason || 'Document extraction skipped';
+      await db.run(
+        `UPDATE documents SET extraction_status = -1, extraction_error = ?, updated_at = unixepoch()
+         WHERE id = ?`,
+        [reason, documentId]
+      );
+      return { extractedText: '', chunkCount: 0, skipped: true, reason };
+    }
+
+    const fullText = result?.text || '';
 
     if (!fullText || fullText.trim().length === 0) {
       throw new Error('Document extraction resulted in empty text');

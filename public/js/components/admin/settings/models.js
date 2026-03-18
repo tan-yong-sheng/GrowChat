@@ -1,6 +1,22 @@
 import { apiFetch } from '../../../api.js';
 import { setState } from '../../../store.js';
 
+const ATTACHMENT_CAP_TYPES = [
+  { key: 'image', label: 'Image', short: 'Img' },
+  { key: 'pdf', label: 'PDF', short: 'PDF' },
+];
+
+const ATTACHMENT_CAP_TOOLTIPS = {
+  image: {
+    exts: '.png .jpg .jpeg .webp .gif',
+    mimes: 'image/*',
+  },
+  pdf: {
+    exts: '.pdf',
+    mimes: 'application/pdf',
+  },
+};
+
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';
   const modelsState = data.modelsSettings || (data.modelsSettings = {
@@ -12,6 +28,10 @@ export function renderModelsSettings(container, data) {
     offset: 0,
     disabledModels: new Set(),
     originalDisabledModels: new Set(),
+    attachmentCaps: {},
+    originalAttachmentCaps: {},
+    capsLoading: false,
+    capsError: null,
     saving: false,
     query: '',
     invalidateToken: null,
@@ -30,11 +50,62 @@ export function renderModelsSettings(container, data) {
     modelsState.needsReload = true;
   }
 
+  const extractCapsFromModels = (models = []) => {
+    const caps = {};
+    models.forEach((model) => {
+      const attachments = model?.attachments;
+      const filtered = {};
+      ATTACHMENT_CAP_TYPES.forEach(({ key }) => {
+        if (attachments && typeof attachments === 'object' && !Array.isArray(attachments) && typeof attachments[key] === 'boolean') {
+          filtered[key] = attachments[key];
+        } else {
+          filtered[key] = false;
+        }
+      });
+      caps[model.id] = filtered;
+    });
+    return caps;
+  };
+
+  const cloneCapsMap = (caps = {}) => {
+    const next = {};
+    Object.entries(caps || {}).forEach(([modelId, values]) => {
+      if (!values || typeof values !== 'object') return;
+      next[modelId] = { ...values };
+    });
+    return next;
+  };
+
+  const getCapValue = (capsMap, modelId, kind) => Boolean(capsMap?.[modelId]?.[kind]);
+
+  const setCapValue = (modelId, kind, value) => {
+    const current = modelsState.attachmentCaps?.[modelId] || {};
+    const next = { ...current };
+    next[kind] = Boolean(value);
+    modelsState.attachmentCaps = {
+      ...(modelsState.attachmentCaps || {}),
+      [modelId]: next,
+    };
+  };
+
+  const hasCapsChanges = () => {
+    for (const model of modelsState.models) {
+      const modelId = model.id;
+      for (const { key } of ATTACHMENT_CAP_TYPES) {
+        const currentValue = getCapValue(modelsState.attachmentCaps, modelId, key);
+        const originalValue = getCapValue(modelsState.originalAttachmentCaps, modelId, key);
+        if (currentValue !== originalValue) return true;
+      }
+    }
+    return false;
+  };
+
   const hasChanges = () => {
     if (modelsState.disabledModels.size !== modelsState.originalDisabledModels.size) return true;
     for (const id of modelsState.disabledModels) {
       if (!modelsState.originalDisabledModels.has(id)) return true;
     }
+    if (hasCapsChanges()) return true;
     return false;
   };
   data.settingsDirtyCheckers.models = hasChanges;
@@ -70,8 +141,33 @@ export function renderModelsSettings(container, data) {
     }
   };
 
+  const getCapTooltip = (label, kind, state) => {
+    const info = ATTACHMENT_CAP_TOOLTIPS[kind] || {};
+    const lines = [`${label}: ${state}`];
+    if (info.exts) lines.push(`Ext: ${info.exts}`);
+    if (info.mimes) lines.push(`MIME: ${info.mimes}`);
+    if (info.note) lines.push(`Note: ${info.note}`);
+    return lines.join('\n');
+  };
+
+  const updateCapButton = (btn, enabled) => {
+    if (!btn) return;
+    const label = btn.getAttribute('data-cap-label') || 'Attachment';
+    const kind = btn.getAttribute('data-cap-kind') || '';
+    const state = enabled ? 'allowed' : 'unset';
+    btn.dataset.capState = state;
+    btn.title = getCapTooltip(label, kind, state);
+    btn.classList.toggle('bg-emerald-500', enabled);
+    btn.classList.toggle('text-white', enabled);
+    btn.classList.toggle('border-emerald-500', enabled);
+    btn.classList.toggle('bg-gray-50', !enabled);
+    btn.classList.toggle('text-gray-500', !enabled);
+    btn.classList.toggle('border-gray-200', !enabled);
+  };
+
   const render = () => {
     if (!isActiveTab()) return;
+    const previousScrollTop = container.querySelector('[data-models-scroll]')?.scrollTop ?? 0;
     const dirty = hasChanges();
     const query = modelsState.query.trim().toLowerCase();
     const filteredModels = query
@@ -108,13 +204,14 @@ export function renderModelsSettings(container, data) {
 
         <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden pb-6">
           <div class="relative flex-1 min-h-0 overflow-hidden w-full rounded-3xl border border-gray-100 bg-white">
-            <div class="h-full overflow-auto">
+            <div class="h-full overflow-auto" data-models-scroll="1">
               <table class="w-full text-sm text-left text-gray-500 table-fixed">
                 <thead class="text-[11px] text-gray-900 font-bold uppercase bg-gray-50/50 sticky top-0 z-10">
                   <tr class="border-b border-gray-100">
-                    <th scope="col" class="px-4 py-3 w-1/3">Name</th>
+                    <th scope="col" class="px-4 py-3 w-1/4">Name</th>
                     <th scope="col" class="px-4 py-3 w-1/3">Model ID</th>
-                    <th scope="col" class="px-4 py-3 w-1/4 text-right">Status</th>
+                    <th scope="col" class="px-4 py-3 w-1/3">Attachments</th>
+                    <th scope="col" class="px-4 py-3 w-1/6 text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody id="models-table-body" class="divide-y divide-gray-50/50">
@@ -130,17 +227,45 @@ export function renderModelsSettings(container, data) {
                     <tr>
                       <td colspan="3" class="py-10 text-center text-sm text-gray-400">No models found${modelsState.query ? ' matching "' + modelsState.query + '"' : ''}.</td>
                     </tr>
-                  ` : filteredModels.map(model => `
+                  ` : filteredModels.map(model => {
+                    const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
+                      const value = getCapValue(modelsState.attachmentCaps, model.id, key);
+                      const state = value ? 'allowed' : 'unset';
+                      const className = value
+                        ? 'bg-emerald-500 text-white border-emerald-500'
+                        : 'bg-gray-50 text-gray-500 border-gray-200';
+                      const tooltip = getCapTooltip(label, key, state);
+                      return `
+                        <button
+                          type="button"
+                          data-cap-model="${model.id}"
+                          data-cap-kind="${key}"
+                          data-cap-label="${label}"
+                          data-cap-state="${state}"
+                          title="${tooltip}"
+                          class="inline-flex items-center justify-center h-6 min-w-[36px] px-2 rounded-full text-[10px] font-semibold border transition hover:shadow-sm ${className}"
+                        >
+                          ${short}
+                        </button>
+                      `;
+                    }).join('');
+                    return `
                     <tr class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
                       <td class="px-4 py-4 text-gray-400 font-mono truncate" title="${model.id}">${model.id}</td>
+                      <td class="px-4 py-4">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                          ${capButtons}
+                        </div>
+                      </td>
                       <td class="px-4 py-4 text-right">
                         <button data-model-id="${model.id}" class="model-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!modelsState.disabledModels.has(model.id) ? 'bg-black' : 'bg-gray-200'}">
                           <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${!modelsState.disabledModels.has(model.id) ? 'translate-x-4' : 'translate-x-0'}"></span>
                         </button>
                       </td>
                     </tr>
-                  `).join('')}
+                  `;
+                  }).join('')}
                 </tbody>
               </table>
             </div>
@@ -179,6 +304,10 @@ export function renderModelsSettings(container, data) {
       </div>
     `;
 
+    const nextScrollContainer = container.querySelector('[data-models-scroll]');
+    if (nextScrollContainer) {
+      nextScrollContainer.scrollTop = previousScrollTop;
+    }
     bindEvents();
   };
 
@@ -193,23 +322,53 @@ export function renderModelsSettings(container, data) {
       })
       .filter(Boolean);
 
-    if (updates.length === 0) {
+    const attachmentUpdates = [];
+    modelsState.models.forEach((model) => {
+      const modelId = model.id;
+      const patch = {};
+      ATTACHMENT_CAP_TYPES.forEach(({ key }) => {
+        const currentValue = getCapValue(modelsState.attachmentCaps, modelId, key);
+        const originalValue = getCapValue(modelsState.originalAttachmentCaps, modelId, key);
+        if (currentValue !== originalValue) {
+          patch[key] = currentValue;
+        }
+      });
+      if (Object.keys(patch).length > 0) {
+        attachmentUpdates.push({ model_id: modelId, attachments: patch });
+      }
+    });
+
+    if (updates.length === 0 && attachmentUpdates.length === 0) {
       return;
     }
 
     modelsState.saving = true;
     updateButtons();
     try {
-      const res = await apiFetch('/api/admin/models', {
-        method: 'PUT',
-        body: JSON.stringify({ updates })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to save model settings');
+      if (updates.length > 0) {
+        const res = await apiFetch('/api/admin/models', {
+          method: 'PUT',
+          body: JSON.stringify({ updates })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || err.message || 'Failed to save model settings');
+        }
+        modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
+        setState({ models: [], modelsLoading: false });
       }
-      modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
-      setState({ models: [], modelsLoading: false });
+
+      if (attachmentUpdates.length > 0) {
+        const res = await apiFetch('/api/admin/model-attachment-caps', {
+          method: 'PUT',
+          body: JSON.stringify({ updates: attachmentUpdates })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || err.message || 'Failed to save attachment caps');
+        }
+        modelsState.originalAttachmentCaps = cloneCapsMap(modelsState.attachmentCaps);
+      }
       const feedback = container.querySelector('#models-feedback');
       if (feedback) {
         feedback.textContent = 'Model settings saved successfully';
@@ -235,6 +394,7 @@ export function renderModelsSettings(container, data) {
   data.settingsSaveHandlers.models = saveModels;
   data.settingsDiscardHandlers.models = () => {
     modelsState.disabledModels = new Set(modelsState.originalDisabledModels);
+    modelsState.attachmentCaps = cloneCapsMap(modelsState.originalAttachmentCaps);
     if (isActiveTab()) render();
   };
 
@@ -265,6 +425,19 @@ export function renderModelsSettings(container, data) {
           modelsState.disabledModels.add(modelId);
           updateModelToggle(btn, false);
         }
+        updateButtons();
+      };
+    });
+
+    container.querySelectorAll('[data-cap-model]').forEach((btn) => {
+      btn.onclick = () => {
+        const modelId = btn.getAttribute('data-cap-model');
+        const kind = btn.getAttribute('data-cap-kind');
+        if (!modelId || !kind) return;
+        const currentValue = getCapValue(modelsState.attachmentCaps, modelId, kind);
+        const nextValue = !currentValue;
+        setCapValue(modelId, kind, nextValue);
+        updateCapButton(btn, nextValue);
         updateButtons();
       };
     });
@@ -314,6 +487,9 @@ export function renderModelsSettings(container, data) {
           modelsState.models.filter((model) => model.enabled === false).map((model) => model.id)
         );
         modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
+        const capsFromModels = extractCapsFromModels(modelsState.models);
+        modelsState.attachmentCaps = capsFromModels;
+        modelsState.originalAttachmentCaps = cloneCapsMap(capsFromModels);
       }
     } catch (err) {
       console.warn('Failed to load models for settings', err);

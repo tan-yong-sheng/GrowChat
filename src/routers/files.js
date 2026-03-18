@@ -9,6 +9,7 @@ import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import {
   validateFile,
+  resolveContentType,
   uploadFileToR2,
   storeFileMetadata,
   getFileMetadata,
@@ -25,6 +26,7 @@ import { upsertDocumentChunks } from '../services/embeddings.js';
  *   GET    /api/files                    - List user's documents
  *   GET    /api/files/:id                - Get document metadata
  *   GET    /api/files/search             - Search user's documents
+ *   GET    /api/files/:id/blob           - Get raw file contents (authorized)
  *   GET    /api/files/:id/process/status - Get extraction/embedding status
  *   GET    /api/files/:id/content        - Get safe content representation
  *   DELETE /api/files/:id                - Delete document and R2 file
@@ -32,9 +34,11 @@ import { upsertDocumentChunks } from '../services/embeddings.js';
 export async function filesRouter(req, env, ctx, user, path) {
   const isFilePath =
     path === '/api/files' ||
+    path === '/api/files/health' ||
     path === '/api/files/upload' ||
     path === '/api/files/search' ||
     /^\/api\/files\/[^/]+$/.test(path) ||
+    /^\/api\/files\/[^/]+\/blob$/.test(path) ||
     /^\/api\/files\/[^/]+\/process\/status$/.test(path) ||
     /^\/api\/files\/[^/]+\/content$/.test(path);
   if (!isFilePath) return null;
@@ -45,6 +49,33 @@ export async function filesRouter(req, env, ctx, user, path) {
 
   function isMissingDocumentsTable(err) {
     return /no such table:\s*documents/i.test(String(err?.message || ''));
+  }
+
+  // GET /api/files/health - R2 health check
+  if (req.method === 'GET' && path === '/api/files/health') {
+    if (!env.FILES) {
+      return error(req, 'FILES binding missing', 500);
+    }
+
+    const withTimeout = (promise, ms) => {
+      if (!ms || ms <= 0) return promise;
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('R2 health check timed out')), ms);
+      });
+      return Promise.race([
+        promise.finally(() => clearTimeout(timer)),
+        timeout,
+      ]);
+    };
+
+    try {
+      await withTimeout(env.FILES.list({ limit: 1 }), 3000);
+      return json(req, { ok: true, message: 'R2 reachable' });
+    } catch (err) {
+      const message = err?.message || 'R2 health check failed';
+      return error(req, `R2 unreachable: ${message}`, 503);
+    }
   }
 
   // POST /api/files/upload - Upload file
@@ -72,7 +103,7 @@ export async function filesRouter(req, env, ctx, user, path) {
       }
 
       const filename = file.name;
-      const contentType = file.type;
+      const contentType = resolveContentType(filename, file.type);
       const buffer = await file.arrayBuffer();
       const fileSize = buffer.byteLength;
 
@@ -106,31 +137,42 @@ export async function filesRouter(req, env, ctx, user, path) {
       });
 
       // Extract and chunk content asynchronously
-      ctx.waitUntil(
-        extractAndChunk(env, db, documentId, contentType, buffer)
-          .then(async (extractResult) => {
-            console.log(
-              `Document ${documentId} extraction complete: ${extractResult.chunkCount} chunks`
-            );
+      // Skip extraction for JSON files (avoid memory overhead for config/data files)
+      if (!contentType.includes('json')) {
+        ctx.waitUntil(
+          extractAndChunk(env, db, documentId, contentType, buffer)
+            .then(async (extractResult) => {
+              if (extractResult?.skipped) {
+                console.log(
+                  `Document ${documentId} extraction skipped: ${extractResult.reason || 'unsupported type'}`
+                );
+                return;
+              }
+              console.log(
+                `Document ${documentId} extraction complete: ${extractResult.chunkCount} chunks`
+              );
 
-            // Get chunks for embedding generation
-            const chunks = await db.all(
-              `SELECT id, chunk_text as text, document_id as documentId, chunk_index as chunkIndex
-               FROM document_chunks WHERE document_id = ?`,
-              [documentId]
-            );
+              // Get chunks for embedding generation
+              const chunks = await db.all(
+                `SELECT id, chunk_text as text, document_id as documentId, chunk_index as chunkIndex
+                 FROM document_chunks WHERE document_id = ?`,
+                [documentId]
+              );
 
-            if (chunks.length > 0) {
-              // Generate embeddings for chunks
-              await upsertDocumentChunks(env, db, chunks).catch((err) => {
-                console.error(`Failed to generate embeddings for document ${documentId}:`, err);
-              });
-            }
-          })
-          .catch((err) => {
-            console.error(`Failed to process document ${documentId}:`, err);
-          })
-      );
+              if (chunks.length > 0) {
+                // Generate embeddings for chunks
+                await upsertDocumentChunks(env, db, chunks).catch((err) => {
+                  console.error(`Failed to generate embeddings for document ${documentId}:`, err);
+                });
+              }
+            })
+            .catch((err) => {
+              console.error(`Failed to process document ${documentId}:`, err);
+            })
+        );
+      } else {
+        console.log(`Document ${documentId} (JSON) skipped extraction to avoid memory overhead`);
+      }
 
       return json(
         req,
@@ -148,8 +190,10 @@ export async function filesRouter(req, env, ctx, user, path) {
         201
       );
     } catch (err) {
+      const message = err?.message || 'File upload failed';
+      const status = String(message).includes('R2 upload timed out') ? 504 : 500;
       console.error('File upload failed:', err);
-      return error(req, 'File upload failed: ' + err.message, 500);
+      return error(req, `File upload failed: ${message}`, status);
     }
   }
 
@@ -261,6 +305,45 @@ export async function filesRouter(req, env, ctx, user, path) {
       }
       console.error('Document search failed:', err);
       return error(req, 'Search failed', 500);
+    }
+  }
+
+  // GET /api/files/:id/blob - Get raw file contents (authorized)
+  const blobMatch = path.match(/^\/api\/files\/([^/]+)\/blob$/);
+  if (blobMatch && req.method === 'GET') {
+    if (!env.FILES) {
+      return error(req, 'FILES binding missing', 500);
+    }
+    const documentId = blobMatch[1];
+    const db = createDB(env.DB);
+
+    try {
+      const doc = await db.first(
+        `SELECT id, filename, content_type, r2_key
+         FROM documents
+         WHERE id = ? AND user_id = ?`,
+        [documentId, user.sub]
+      );
+
+      if (!doc) {
+        return error(req, 'Document not found', 404);
+      }
+
+      const object = await env.FILES.get(doc.r2_key);
+      if (!object || !object.body) {
+        return error(req, 'File not found', 404);
+      }
+
+      const safeName = String(doc.filename || 'file').replace(/["\\]/g, '_');
+      const headers = new Headers();
+      headers.set('Content-Type', doc.content_type || object.httpMetadata?.contentType || 'application/octet-stream');
+      headers.set('Content-Disposition', `inline; filename="${safeName}"`);
+      headers.set('Cache-Control', 'private, max-age=3600');
+
+      return new Response(object.body, { status: 200, headers });
+    } catch (err) {
+      console.error('Get file blob failed:', err);
+      return error(req, 'Failed to fetch file', 500);
     }
   }
 
