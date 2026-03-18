@@ -42,6 +42,8 @@ export const state = {
     offset: 0,
     hasMore: true
   },
+  attachmentsByChat: {},
+  newChatAttachments: [],
 
   // RBAC State
   permissions: [],

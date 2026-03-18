@@ -51,6 +51,9 @@ export async function streamLLM(env, model, messages, options = {}) {
     headers.Authorization = `Bearer ${apiKey}`;
   }
   headers['Content-Type'] = 'application/json';
+  if (!headers.Accept) {
+    headers.Accept = 'text/event-stream';
+  }
 
   const payload = { model: parsed.modelId, messages, stream: stream !== false };
   if (Array.isArray(tools) && tools.length) {
@@ -67,6 +70,15 @@ export async function streamLLM(env, model, messages, options = {}) {
   if (!response.ok || !response.body) {
     const body = await response.text().catch(() => '');
     throw new Error(`LLM request failed (${response.status}): ${body.slice(0, 200)}`);
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/event-stream')) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `LLM request failed: provider does not support streaming (content-type: ${contentType || 'unknown'}). ` +
+      `Response: ${body.slice(0, 200)}`
+    );
   }
 
   if (stream === false) {
@@ -96,6 +108,7 @@ export class SseLineParser {
   constructor({ onEvent = null, tagNames = DEFAULT_REASONING_TAGS } = {}) {
     this._buf = '';
     this._tagBuffer = '';
+    this._dataBuffer = '';
     this._inReasoning = false;
     this._currentTag = null;
     this._reasoningStarted = false;
@@ -208,8 +221,38 @@ export class SseLineParser {
     }
 
     const contentField = parsed?.response ?? delta.content;
-    if (contentField) {
-      const segments = this._extractTaggedSegments(String(contentField));
+    const messageContent = parsed?.choices?.[0]?.message?.content;
+    let resolvedContent =
+      contentField ??
+      messageContent ??
+      parsed?.choices?.[0]?.text;
+    if (
+      !resolvedContent &&
+      delta &&
+      typeof delta === 'object' &&
+      delta.content &&
+      typeof delta.content === 'object' &&
+      !Array.isArray(delta.content) &&
+      typeof delta.content.text === 'string'
+    ) {
+      resolvedContent = delta.content.text;
+    }
+    if (Array.isArray(resolvedContent)) {
+      for (const part of resolvedContent) {
+        if (!part || part.type !== 'text' || !part.text) continue;
+        const segments = this._extractTaggedSegments(String(part.text));
+        for (const segment of segments) {
+          if (!segment?.text) continue;
+          if (segment.type === 'reasoning') {
+            this._emitReasoningDelta(segment.text);
+          } else {
+            this._emitTextDelta(segment.text);
+            text += segment.text;
+          }
+        }
+      }
+    } else if (resolvedContent) {
+      const segments = this._extractTaggedSegments(String(resolvedContent));
       for (const segment of segments) {
         if (!segment?.text) continue;
         if (segment.type === 'reasoning') {
@@ -217,6 +260,22 @@ export class SseLineParser {
         } else {
           this._emitTextDelta(segment.text);
           text += segment.text;
+        }
+      }
+    }
+
+    if (!resolvedContent && typeof parsed?.type === 'string') {
+      const responseDelta = parsed?.delta ?? parsed?.text;
+      if (typeof responseDelta === 'string' && responseDelta) {
+        const segments = this._extractTaggedSegments(responseDelta);
+        for (const segment of segments) {
+          if (!segment?.text) continue;
+          if (segment.type === 'reasoning') {
+            this._emitReasoningDelta(segment.text);
+          } else {
+            this._emitTextDelta(segment.text);
+            text += segment.text;
+          }
         }
       }
     }
@@ -233,6 +292,24 @@ export class SseLineParser {
     return text;
   }
 
+  _consumeDataPayload(payload) {
+    if (!payload || payload === '[DONE]') return '';
+    try {
+      const parsed = JSON.parse(payload);
+      return this._handleParsed(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  _flushDataBuffer() {
+    if (!this._dataBuffer) return '';
+    const payload = this._dataBuffer;
+    this._dataBuffer = '';
+    const parsedText = this._consumeDataPayload(payload);
+    return parsedText || '';
+  }
+
   // Feed a decoded text chunk; returns accumulated delta text from complete lines.
   push(rawText) {
     this._buf += rawText;
@@ -242,16 +319,26 @@ export class SseLineParser {
       const line = this._buf.slice(0, newlineIdx).replace(/\r$/, '');
       this._buf = this._buf.slice(newlineIdx + 1);
 
-      if (!line.startsWith('data: ')) continue;
-      const payload = line.slice(6).trim();
-      if (!payload || payload === '[DONE]') continue;
+      if (line === '') {
+        text += this._flushDataBuffer();
+        continue;
+      }
 
-      try {
-        const parsed = JSON.parse(payload);
-        text += this._handleParsed(parsed);
-      } catch {
-        // Incomplete JSON that didn't form a full line — discard (shouldn't
-        // happen now that we only process newline-terminated lines).
+      if (!line.startsWith('data:')) continue;
+      let payload = line.slice(5);
+      if (payload.startsWith(' ')) payload = payload.slice(1);
+      if (!payload) continue;
+
+      if (this._dataBuffer) {
+        this._dataBuffer += `\n${payload}`;
+        continue;
+      }
+
+      const parsedText = this._consumeDataPayload(payload);
+      if (parsedText !== null) {
+        text += parsedText;
+      } else {
+        this._dataBuffer = payload;
       }
     }
     return text;
@@ -262,17 +349,27 @@ export class SseLineParser {
     const line = this._buf.replace(/\r$/, '');
     this._buf = '';
     let text = '';
-    if (line.startsWith('data: ')) {
-      const payload = line.slice(6).trim();
-      if (payload && payload !== '[DONE]') {
-        try {
-          const parsed = JSON.parse(payload);
-          text += this._handleParsed(parsed);
-        } catch {
-          // ignore trailing parse failure
+    if (line) {
+      if (line === '') {
+        text += this._flushDataBuffer();
+      } else if (line.startsWith('data:')) {
+        let payload = line.slice(5);
+        if (payload.startsWith(' ')) payload = payload.slice(1);
+        if (payload) {
+          if (this._dataBuffer) {
+            this._dataBuffer += `\n${payload}`;
+          } else {
+            const parsedText = this._consumeDataPayload(payload);
+            if (parsedText !== null) {
+              text += parsedText;
+            } else {
+              this._dataBuffer = payload;
+            }
+          }
         }
       }
     }
+    text += this._flushDataBuffer();
 
     if (this._tagBuffer) {
       if (this._inReasoning) {

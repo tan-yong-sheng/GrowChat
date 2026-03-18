@@ -9,10 +9,20 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
   function init() {
     container.innerHTML = `
       <div id="pending-queue" class="hidden mb-2 space-y-1"></div>
+      <div id="attachment-list" class="hidden mb-2 flex flex-wrap gap-2"></div>
       <form id="composer" class="relative bg-[#f4f4f4] rounded-[24px] p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 focus-within:ring-gray-300 focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-transparent focus-within:border-gray-200">
-         <button type="button" id="open-files-btn" class="flex-shrink-0 p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5 ml-1" title="Attach file" aria-label="Attach file">
-           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-         </button>
+         <div class="relative flex-shrink-0 ml-1">
+           <button type="button" id="open-files-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5" title="Attach file" aria-label="Attach file" aria-expanded="false">
+             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+           </button>
+           <div id="attach-menu" class="hidden absolute bottom-full left-0 mb-2 w-48 rounded-2xl border border-gray-100 bg-white shadow-xl p-1 z-30">
+             <button type="button" id="attach-upload" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl flex items-center gap-2">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+               Upload files & images
+             </button>
+           </div>
+           <input type="file" id="attachment-input" class="hidden" multiple accept="image/*,application/pdf,text/plain,text/markdown" />
+         </div>
          
          <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[16px] px-2 py-2.5 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800" style="height: 44px;" aria-label="Message text"></textarea>
          
@@ -49,6 +59,10 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     const micBtn = container.querySelector('#mic-btn');
     const loadingSpinner = container.querySelector('#loading-spinner');
     const openFilesBtn = container.querySelector('#open-files-btn');
+    const attachMenu = container.querySelector('#attach-menu');
+    const attachUploadBtn = container.querySelector('#attach-upload');
+    const attachmentInput = container.querySelector('#attachment-input');
+    const attachmentList = container.querySelector('#attachment-list');
     const promptPicker = container.querySelector('#prompt-picker');
     const pendingQueueEl = container.querySelector('#pending-queue');
     let promptIndex = 0;
@@ -61,6 +75,61 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     let isStreamBlocked = false;
     let queueNextId = 1;
     let pendingQueue = [];
+
+    function getCurrentAttachments(currentState = state) {
+      const chatId = currentState.activeChatId;
+      if (chatId) {
+        return currentState.attachmentsByChat?.[chatId] || [];
+      }
+      return currentState.newChatAttachments || [];
+    }
+
+    function setCurrentAttachments(next) {
+      const chatId = state.activeChatId;
+      if (chatId) {
+        setState({
+          attachmentsByChat: {
+            ...(state.attachmentsByChat || {}),
+            [chatId]: next,
+          },
+        });
+        return;
+      }
+      setState({ newChatAttachments: next });
+    }
+
+    function renderAttachments(list) {
+      if (!attachmentList) return;
+      if (!list?.length) {
+        attachmentList.classList.add('hidden');
+        attachmentList.innerHTML = '';
+        return;
+      }
+      attachmentList.classList.remove('hidden');
+      attachmentList.innerHTML = list.map((file) => {
+        const label = String(file?.filename || file?.name || 'Attachment');
+        const id = String(file?.id || '');
+        return `
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs text-gray-700 border border-gray-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <span class="max-w-[160px] truncate">${label.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</span>
+            <button type="button" data-attachment-remove="${id}" class="text-gray-400 hover:text-gray-700 transition">✕</button>
+          </div>
+        `;
+      }).join('');
+
+      attachmentList.querySelectorAll('[data-attachment-remove]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-attachment-remove');
+          if (!id) return;
+          const next = getCurrentAttachments().filter((item) => String(item?.id || '') !== String(id));
+          setCurrentAttachments(next);
+        });
+      });
+    }
 
     function renderPendingQueue() {
       if (!pendingQueue.length) {
@@ -150,19 +219,16 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
        if (isSubmitting) {
           micBtn.classList.add('hidden');
           sendBtn.classList.add('hidden');
+          stopBtn.classList.remove('hidden');
           if (abortFn) {
-            stopBtn.classList.remove('hidden');
             stopBtn.disabled = false;
             stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            loadingSpinner.classList.add('hidden');
-            loadingSpinner.style.display = 'none';
           } else {
-            stopBtn.classList.add('hidden');
-            stopBtn.disabled = false;
-            stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            loadingSpinner.classList.remove('hidden');
-            loadingSpinner.style.display = 'flex';
+            stopBtn.disabled = true;
+            stopBtn.classList.add('opacity-50', 'cursor-not-allowed');
           }
+          loadingSpinner.classList.add('hidden');
+          loadingSpinner.style.display = 'none';
           return;
        }
 
@@ -173,14 +239,12 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
          if (abortFn) {
            stopBtn.disabled = false;
            stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-           loadingSpinner.classList.add('hidden');
-           loadingSpinner.style.display = 'none';
          } else {
            stopBtn.disabled = true;
            stopBtn.classList.add('opacity-50', 'cursor-not-allowed');
-           loadingSpinner.classList.remove('hidden');
-           loadingSpinner.style.display = 'flex';
          }
+         loadingSpinner.classList.add('hidden');
+         loadingSpinner.style.display = 'none';
          return;
        }
        
@@ -416,8 +480,42 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
       });
     });
 
-    openFilesBtn.addEventListener('click', () => {
-      onOpenFiles();
+    function closeAttachMenu() {
+      if (!attachMenu || !openFilesBtn) return;
+      attachMenu.classList.add('hidden');
+      openFilesBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    openFilesBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!attachMenu) return;
+      const isHidden = attachMenu.classList.contains('hidden');
+      if (isHidden) {
+        attachMenu.classList.remove('hidden');
+        openFilesBtn.setAttribute('aria-expanded', 'true');
+      } else {
+        closeAttachMenu();
+      }
+    });
+
+    attachUploadBtn?.addEventListener('click', () => {
+      closeAttachMenu();
+      attachmentInput?.click();
+    });
+
+    attachmentInput?.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length) {
+        window.dispatchEvent(new CustomEvent('growchat:files-selected', { detail: { files } }));
+      }
+      e.target.value = '';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!attachMenu || !openFilesBtn) return;
+      if (attachMenu.classList.contains('hidden')) return;
+      if (attachMenu.contains(e.target) || openFilesBtn.contains(e.target)) return;
+      closeAttachMenu();
     });
 
     input.addEventListener('blur', () => {
@@ -477,6 +575,9 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
         }
       }
       lastActiveChatId = currentState.activeChatId;
+
+      const attachments = getCurrentAttachments(currentState);
+      renderAttachments(attachments);
     });
   }
 

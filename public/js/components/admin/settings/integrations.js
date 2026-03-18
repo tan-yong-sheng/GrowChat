@@ -12,6 +12,9 @@ export function renderIntegrationsSettings(container, data) {
     selectedServer: null,
     originalSnapshot: null,
   });
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
   const buildSnapshot = () => {
     const normalized = integrationsState.toolServers
@@ -39,6 +42,7 @@ export function renderIntegrationsSettings(container, data) {
     if (!integrationsState.originalSnapshot) return false;
     return buildSnapshot() !== integrationsState.originalSnapshot;
   };
+  data.settingsDirtyCheckers.integrations = hasChanges;
 
   const updateButtons = () => {
     const dirty = hasChanges();
@@ -473,6 +477,28 @@ export function renderIntegrationsSettings(container, data) {
     }
   };
 
+  const saveIntegrations = async () => {
+    if (integrationsState.saving) return;
+    integrationsState.saving = true;
+    updateButtons();
+    try {
+      await persistServers({ showFeedback: true });
+    } catch (err) {
+      throw err;
+    } finally {
+      integrationsState.saving = false;
+      updateButtons();
+    }
+  };
+
+  data.settingsSaveHandlers.integrations = saveIntegrations;
+  data.settingsDiscardHandlers.integrations = () => {
+    integrationsState.loaded = false;
+    integrationsState.originalSnapshot = null;
+    integrationsState.toolServers = [];
+    loadIntegrations();
+  };
+
   const bindEvents = () => {
     container.querySelector('#add-tool-server')?.addEventListener('click', () => {
       openModal(null);
@@ -689,11 +715,8 @@ export function renderIntegrationsSettings(container, data) {
     });
 
     container.querySelector('#save-integrations')?.addEventListener('click', async () => {
-      if (integrationsState.saving) return;
-      integrationsState.saving = true;
-      updateButtons();
       try {
-        await persistServers({ showFeedback: true });
+        await saveIntegrations();
       } catch (err) {
         const feedback = container.querySelector('#integrations-feedback');
         if (feedback) {
@@ -702,9 +725,6 @@ export function renderIntegrationsSettings(container, data) {
           feedback.classList.remove('hidden');
           setTimeout(() => feedback.classList.add('hidden'), 3000);
         }
-      } finally {
-        integrationsState.saving = false;
-        updateButtons();
       }
     });
 

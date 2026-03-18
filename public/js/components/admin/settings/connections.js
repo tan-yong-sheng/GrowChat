@@ -14,7 +14,19 @@ export function renderConnectionsSettings(container, data) {
     showModal: false,
     selectedConnection: null,
     originalSnapshot: null,
+    modalModels: [],
+    modalModelsLoading: false,
+    modalModelsError: null,
+    modalModelsSelection: new Set(),
+    modalModelsOriginal: new Set(),
+    modalModelsConnectionId: null,
+    modalSaving: false,
+    modelOverrides: new Map(),
+    modalModelsQuery: '',
   });
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
   // Migration for old state format
   if (connectionsState.openai && !connectionsState.openai.connections) {
@@ -57,10 +69,14 @@ export function renderConnectionsSettings(container, data) {
           envOverrides[conn.id] = false;
         }
       });
+    const modelOverrides = Array.from(connectionsState.modelOverrides.entries())
+      .map(([id, enabled]) => ({ id, enabled }))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)));
     return JSON.stringify({
       enabled: connectionsState.openai.enabled !== false,
       connections: manualConnections,
       envOverrides,
+      modelOverrides,
     });
   };
 
@@ -68,6 +84,7 @@ export function renderConnectionsSettings(container, data) {
     if (!connectionsState.originalSnapshot) return false;
     return buildSnapshot() !== connectionsState.originalSnapshot;
   };
+  data.settingsDirtyCheckers.connections = hasChanges;
 
   const getConnectionsListMarkup = () => {
     if (connectionsState.openai.connections.length === 0) {
@@ -264,6 +281,24 @@ export function renderConnectionsSettings(container, data) {
                 <div class="text-[11px] text-gray-400">Uses /v1/chat/completions</div>
               </div>
             </div>
+
+            <div class="space-y-2" id="modal-models-section">
+              <div class="flex items-center justify-between">
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Models</label>
+                <div class="flex items-center gap-2 text-[11px] text-gray-400">
+                  <button type="button" id="modal-models-select-all" class="px-2 py-1 rounded-md hover:bg-gray-50">All</button>
+                  <button type="button" id="modal-models-select-none" class="px-2 py-1 rounded-md hover:bg-gray-50">None</button>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-400">
+                  <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+                </svg>
+                <input id="modal-models-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Search models" value="${connectionsState.modalModelsQuery || ''}">
+              </div>
+              <div id="modal-models-list" class="rounded-2xl border border-gray-100 bg-white max-h-48 overflow-y-auto scrollbar-hidden text-sm"></div>
+              <div id="modal-models-status" class="text-[11px] text-gray-400"></div>
+            </div>
           </div>
 
           <div class="px-6 py-6 flex justify-end gap-3 border-t border-gray-50">
@@ -346,6 +381,111 @@ export function renderConnectionsSettings(container, data) {
     setTestStatus('idle', '', scope);
   };
 
+  const renderModalModels = (scope = container) => {
+    const list = scope.querySelector('#modal-models-list');
+    const status = scope.querySelector('#modal-models-status');
+    if (!list || !status) return;
+    if (!connectionsState.selectedConnection) {
+      list.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Save the connection first to load models.</div>';
+      status.textContent = '';
+      return;
+    }
+    if (connectionsState.modalModelsLoading) {
+      list.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
+      status.textContent = '';
+      return;
+    }
+    if (connectionsState.modalModelsError) {
+      list.innerHTML = '<div class="px-4 py-3 text-xs text-red-500">Failed to load models.</div>';
+      status.textContent = connectionsState.modalModelsError;
+      status.classList.add('text-red-500');
+      return;
+    }
+    const models = connectionsState.modalModels;
+    if (!models.length) {
+      list.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">No models discovered for this connection.</div>';
+      status.textContent = '';
+      return;
+    }
+    const query = String(connectionsState.modalModelsQuery || '').trim().toLowerCase();
+    const filtered = query
+      ? models.filter((model) => {
+        const label = String(model?.name || model?.id || '').toLowerCase();
+        return label.includes(query);
+      })
+      : models;
+    status.classList.remove('text-red-500');
+    const selected = connectionsState.modalModelsSelection || new Set();
+    list.innerHTML = filtered.map((model) => {
+      const checked = selected.has(model.id);
+      const label = model.name || model.id;
+      return `
+        <label class="flex items-center gap-3 px-4 py-2 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50">
+          <input type="checkbox" data-model-id="${model.id}" class="h-4 w-4 rounded border-gray-300" ${checked ? 'checked' : ''} />
+          <div class="flex flex-col min-w-0">
+            <span class="text-sm text-gray-900 truncate">${label}</span>
+            <span class="text-[11px] text-gray-400 font-mono truncate">${model.id}</span>
+          </div>
+        </label>
+      `;
+    }).join('');
+    status.textContent = `${selected.size} of ${models.length} enabled`;
+  };
+
+  const loadModalModels = async (connection, scope = container) => {
+    if (!connection?.id) {
+      connectionsState.modalModels = [];
+      connectionsState.modalModelsSelection = new Set();
+      connectionsState.modalModelsOriginal = new Set();
+      connectionsState.modalModelsConnectionId = null;
+      renderModalModels(scope);
+      return;
+    }
+
+    connectionsState.modalModelsLoading = true;
+    connectionsState.modalModelsError = null;
+    connectionsState.modalModelsConnectionId = String(connection.id);
+    connectionsState.modalModels = [];
+    connectionsState.modalModelsSelection = new Set();
+    connectionsState.modalModelsOriginal = new Set();
+    renderModalModels(scope);
+    try {
+      const res = await apiFetch('/api/admin/models?limit=0&offset=0');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || err.message || 'Failed to load models');
+      }
+      const payload = await res.json();
+      const allModels = Array.isArray(payload?.models) ? payload.models : [];
+      const filtered = allModels.filter((model) => String(model?.connection_id || '') === String(connection.id));
+      connectionsState.modalModels = filtered;
+      const enabled = new Set(filtered.filter((model) => model.enabled !== false).map((model) => model.id));
+      connectionsState.modalModelsOriginal = new Set(enabled);
+      const nextSelection = new Set();
+      filtered.forEach((model) => {
+        const override = connectionsState.modelOverrides.get(model.id);
+        const isEnabled = override === undefined ? enabled.has(model.id) : override !== false;
+        if (isEnabled) nextSelection.add(model.id);
+      });
+      connectionsState.modalModelsSelection = nextSelection;
+    } catch (err) {
+      connectionsState.modalModelsError = err.message || 'Failed to load models';
+    } finally {
+      connectionsState.modalModelsLoading = false;
+      renderModalModels(scope);
+    }
+  };
+
+  const updateModalSaveButton = (scope = container) => {
+    const btn = scope.querySelector('#save-modal');
+    if (!btn) return;
+    const saving = connectionsState.modalSaving;
+    btn.disabled = saving;
+    btn.textContent = saving ? 'Saving...' : 'Save';
+    btn.classList.toggle('opacity-60', saving);
+    btn.classList.toggle('cursor-not-allowed', saving);
+  };
+
   const openModal = (connection) => {
     if (connection) {
       connectionsState.selectedConnection = { ...connection };
@@ -362,6 +502,8 @@ export function renderConnectionsSettings(container, data) {
       modal.classList.add('fixed');
     }
     fillModalFields(connectionsState.selectedConnection, modal || container);
+    loadModalModels(connectionsState.selectedConnection, modal || container);
+    updateModalSaveButton(modal || container);
   };
 
   const closeModal = () => {
@@ -439,26 +581,41 @@ export function renderConnectionsSettings(container, data) {
       }
     });
 
-    container.querySelector('#save-modal')?.addEventListener('click', () => {
-      const name = container.querySelector('#modal-conn-name').value;
-      const url = container.querySelector('#modal-conn-url').value;
-      const key = container.querySelector('#modal-conn-key').value;
-      const headers = container.querySelector('#modal-conn-headers').value;
-      const providerType = container.querySelector('#modal-conn-provider')?.value || 'openai';
+    container.querySelector('#save-modal')?.addEventListener('click', async () => {
+      if (connectionsState.modalSaving) return;
+      const modalRoot = container.querySelector('#edit-connection-modal') || container;
+      const name = modalRoot.querySelector('#modal-conn-name').value;
+      const url = modalRoot.querySelector('#modal-conn-url').value;
+      const key = modalRoot.querySelector('#modal-conn-key').value;
+      const headers = modalRoot.querySelector('#modal-conn-headers').value;
+      const providerType = modalRoot.querySelector('#modal-conn-provider')?.value || 'openai';
       const apiType = 'chat-completions';
       const enabled = connectionsState.selectedConnection?.enabled !== false;
+      const connection = connectionsState.selectedConnection;
+      const models = connectionsState.modalModels || [];
+      const selected = connectionsState.modalModelsSelection || new Set();
 
-      if (connectionsState.selectedConnection) {
-        const index = connectionsState.openai.connections.findIndex(c => c.id === connectionsState.selectedConnection.id);
+      models.forEach((model) => {
+        const currentEnabled = selected.has(model.id);
+        const originalEnabled = connectionsState.modalModelsOriginal.has(model.id);
+        if (currentEnabled === originalEnabled) {
+          connectionsState.modelOverrides.delete(model.id);
+        } else {
+          connectionsState.modelOverrides.set(model.id, currentEnabled);
+        }
+      });
+
+      if (connection) {
+        const index = connectionsState.openai.connections.findIndex(c => c.id === connection.id);
         if (index !== -1) {
-          if (connectionsState.selectedConnection.source === 'env') {
+          if (connection.source === 'env') {
             connectionsState.openai.connections[index] = {
               ...connectionsState.openai.connections[index],
               enabled
             };
           } else {
-            connectionsState.openai.connections[index] = { 
-              ...connectionsState.openai.connections[index], 
+            connectionsState.openai.connections[index] = {
+              ...connectionsState.openai.connections[index],
               name, url, key, headers, providerType, apiType, enabled
             };
           }
@@ -481,6 +638,38 @@ export function renderConnectionsSettings(container, data) {
       updateButtons();
     });
 
+    container.querySelector('#modal-models-select-all')?.addEventListener('click', () => {
+      connectionsState.modalModelsSelection = new Set(
+        connectionsState.modalModels.map((model) => model.id)
+      );
+      renderModalModels(container.querySelector('#edit-connection-modal') || container);
+    });
+
+    container.querySelector('#modal-models-select-none')?.addEventListener('click', () => {
+      connectionsState.modalModelsSelection = new Set();
+      renderModalModels(container.querySelector('#edit-connection-modal') || container);
+    });
+
+    container.querySelector('#modal-models-list')?.addEventListener('change', (e) => {
+      const checkbox = e.target.closest('input[type="checkbox"][data-model-id]');
+      if (!checkbox) return;
+      const id = checkbox.getAttribute('data-model-id');
+      if (!id) return;
+      const next = new Set(connectionsState.modalModelsSelection || []);
+      if (checkbox.checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      connectionsState.modalModelsSelection = next;
+      renderModalModels(container.querySelector('#edit-connection-modal') || container);
+    });
+
+    container.querySelector('#modal-models-search')?.addEventListener('input', (e) => {
+      connectionsState.modalModelsQuery = e.target.value;
+      renderModalModels(container.querySelector('#edit-connection-modal') || container);
+    });
+
     container.querySelector('#delete-connection')?.addEventListener('click', () => {
       if (connectionsState.selectedConnection) {
         connectionsState.openai.connections = connectionsState.openai.connections.filter(c => c.id !== connectionsState.selectedConnection.id);
@@ -490,7 +679,7 @@ export function renderConnectionsSettings(container, data) {
       }
     });
 
-    container.querySelector('#save-connections')?.addEventListener('click', async () => {
+    const saveConnections = async () => {
       const feedback = container.querySelector('#connections-feedback');
       connectionsState.saving = true;
       updateButtons();
@@ -516,6 +705,19 @@ export function renderConnectionsSettings(container, data) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || err.message || 'Failed to save connections');
         }
+        const modelOverrides = Array.from(connectionsState.modelOverrides.entries())
+          .map(([id, enabled]) => ({ id, enabled }));
+        if (modelOverrides.length > 0) {
+          const modelRes = await apiFetch('/api/admin/models', {
+            method: 'PUT',
+            body: JSON.stringify({ updates: modelOverrides })
+          });
+          if (!modelRes.ok) {
+            const err = await modelRes.json().catch(() => ({}));
+            throw new Error(err.error || err.message || 'Failed to save model settings');
+          }
+          connectionsState.modelOverrides.clear();
+        }
         connectionsState.originalSnapshot = buildSnapshot();
         if (feedback) {
           feedback.textContent = 'Connections saved successfully';
@@ -535,10 +737,34 @@ export function renderConnectionsSettings(container, data) {
           feedback.classList.remove('hidden');
           setTimeout(() => feedback.classList.add('hidden'), 3000);
         }
+        throw err;
       } finally {
         connectionsState.saving = false;
         updateButtons();
       }
+    };
+
+  data.settingsSaveHandlers.connections = saveConnections;
+  data.settingsDiscardHandlers.connections = () => {
+    connectionsState.modelOverrides.clear();
+    connectionsState.modalModelsSelection = new Set();
+    connectionsState.modalModelsOriginal = new Set();
+    connectionsState.modalModels = [];
+    connectionsState.modalModelsQuery = '';
+    connectionsState.selectedConnection = null;
+    connectionsState.showModal = false;
+    const modal = container.querySelector('#edit-connection-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('fixed');
+    }
+    connectionsState.loaded = false;
+    connectionsState.originalSnapshot = null;
+    loadConnections();
+  };
+
+    container.querySelector('#save-connections')?.addEventListener('click', async () => {
+      await saveConnections();
     });
 
     container.querySelector('#toggle-key-visibility')?.addEventListener('click', () => {

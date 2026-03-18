@@ -29,14 +29,13 @@ export function validateFile(filename, contentType, fileSize) {
     'image/jpeg',
     'image/png',
     'image/webp',
-    // PDF support in Phase 3
-    // 'application/pdf',
+    'application/pdf',
   ];
 
   if (!allowedTypes.includes(contentType)) {
     return {
       valid: false,
-      error: `File type ${contentType} not supported. Supported: text, images`,
+      error: `File type ${contentType} not supported. Supported: text, images, pdf`,
     };
   }
 

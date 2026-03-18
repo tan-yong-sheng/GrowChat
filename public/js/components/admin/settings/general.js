@@ -25,6 +25,9 @@ export function renderGeneralSettings(container, data) {
       defaultModelId: false,
     },
   });
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
   if (data.modelsSettingsInvalidate && settingsState.modelsInvalidateToken !== data.modelsSettingsInvalidate) {
     settingsState.modelsInvalidateToken = data.modelsSettingsInvalidate;
@@ -34,6 +37,7 @@ export function renderGeneralSettings(container, data) {
   const isDirty = () => {
     return JSON.stringify(settingsState.initialValues) !== JSON.stringify(settingsState.currentValues);
   };
+  data.settingsDirtyCheckers.general = isDirty;
 
   const updatePublicRegToggle = () => {
     const regToggle = container.querySelector('#public-reg-toggle');
@@ -121,6 +125,89 @@ export function renderGeneralSettings(container, data) {
     bindEvents();
   };
 
+  const saveSettings = async () => {
+    if (settingsState.loading) return;
+    settingsState.loading = true;
+    updateButtons();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const feedback = container.querySelector('#settings-feedback');
+    const nextDefault = settingsState.currentValues.defaultModelId || '';
+    const prevDefault = settingsState.initialValues.defaultModelId || '';
+    const shouldUpdateDefault = nextDefault !== prevDefault;
+
+    const nextPublicReg = Boolean(settingsState.currentValues.publicRegistration);
+    const prevPublicReg = Boolean(settingsState.initialValues.publicRegistration);
+    const shouldUpdatePublicReg = nextPublicReg !== prevPublicReg;
+
+    try {
+      if (shouldUpdatePublicReg || shouldUpdateDefault) {
+        const adminUpdates = {};
+        if (shouldUpdatePublicReg) adminUpdates.public_registration = nextPublicReg;
+        if (shouldUpdateDefault) adminUpdates.default_model_id = nextDefault || null;
+
+        const res = await apiFetch('/api/admin/config', {
+          method: 'PUT',
+          body: JSON.stringify(adminUpdates)
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error || err?.message || 'Failed to update settings');
+        }
+
+        if (shouldUpdatePublicReg) {
+          settingsState.initialValues.publicRegistration = nextPublicReg;
+          settingsState.dirtyFields.publicRegistration = false;
+        }
+
+        if (shouldUpdateDefault) {
+          settingsState.initialValues.defaultModelId = nextDefault;
+          settingsState.dirtyFields.defaultModelId = false;
+          setState({ globalDefaultModelId: nextDefault || null });
+        }
+      }
+
+      settingsState.loading = false;
+      if (feedback) {
+        if (shouldUpdateDefault && shouldUpdatePublicReg) {
+          feedback.textContent = 'Settings saved successfully.';
+        } else if (shouldUpdateDefault) {
+          feedback.textContent = 'Default model saved.';
+        } else if (shouldUpdatePublicReg) {
+          feedback.textContent = 'Public registration updated.';
+        } else {
+          feedback.textContent = 'No changes to save.';
+        }
+        feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+        feedback.classList.remove('hidden');
+        setTimeout(() => feedback.classList.add('hidden'), 3000);
+      }
+      updateButtons();
+    } catch (err) {
+      settingsState.loading = false;
+      if (feedback) {
+        feedback.textContent = err?.message || 'Failed to save settings.';
+        feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
+        feedback.classList.remove('hidden');
+        setTimeout(() => feedback.classList.add('hidden'), 3000);
+      }
+      updateButtons();
+      throw err;
+    }
+  };
+
+  data.settingsSaveHandlers.general = saveSettings;
+  data.settingsDiscardHandlers.general = () => {
+    settingsState.currentValues = { ...settingsState.initialValues };
+    settingsState.dirtyFields = {
+      title: false,
+      publicRegistration: false,
+      defaultModelId: false,
+    };
+    if (isActiveTab()) render();
+  };
+
   const bindEvents = () => {
     const regToggle = container.querySelector('#public-reg-toggle');
     const modelSelect = container.querySelector('#default-model');
@@ -141,73 +228,7 @@ export function renderGeneralSettings(container, data) {
     });
 
     saveBtn?.addEventListener('click', async () => {
-      settingsState.loading = true;
-      updateButtons();
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-
-      const nextDefault = settingsState.currentValues.defaultModelId || '';
-      const prevDefault = settingsState.initialValues.defaultModelId || '';
-      const shouldUpdateDefault = nextDefault !== prevDefault;
-
-      const nextPublicReg = Boolean(settingsState.currentValues.publicRegistration);
-      const prevPublicReg = Boolean(settingsState.initialValues.publicRegistration);
-      const shouldUpdatePublicReg = nextPublicReg !== prevPublicReg;
-
-      try {
-        if (shouldUpdatePublicReg || shouldUpdateDefault) {
-          const adminUpdates = {};
-          if (shouldUpdatePublicReg) adminUpdates.public_registration = nextPublicReg;
-          if (shouldUpdateDefault) adminUpdates.default_model_id = nextDefault || null;
-
-          const res = await apiFetch('/api/admin/config', {
-            method: 'PUT',
-            body: JSON.stringify(adminUpdates)
-          });
-
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err?.error || err?.message || 'Failed to update settings');
-          }
-
-          if (shouldUpdatePublicReg) {
-            settingsState.initialValues.publicRegistration = nextPublicReg;
-            settingsState.dirtyFields.publicRegistration = false;
-          }
-
-          if (shouldUpdateDefault) {
-            settingsState.initialValues.defaultModelId = nextDefault;
-            settingsState.dirtyFields.defaultModelId = false;
-            setState({ globalDefaultModelId: nextDefault || null });
-            updateButtons();
-          }
-        }
-
-        settingsState.loading = false;
-        if (feedback) {
-          if (shouldUpdateDefault && shouldUpdatePublicReg) {
-            feedback.textContent = 'Settings saved successfully.';
-          } else if (shouldUpdateDefault) {
-            feedback.textContent = 'Default model saved.';
-          } else if (shouldUpdatePublicReg) {
-            feedback.textContent = 'Public registration updated.';
-          } else {
-            feedback.textContent = 'No changes to save.';
-          }
-          feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-          feedback.classList.remove('hidden');
-          setTimeout(() => feedback.classList.add('hidden'), 3000);
-        }
-        updateButtons();
-      } catch (err) {
-        settingsState.loading = false;
-        if (feedback) {
-          feedback.textContent = err?.message || 'Failed to save settings.';
-          feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
-          feedback.classList.remove('hidden');
-          setTimeout(() => feedback.classList.add('hidden'), 3000);
-        }
-        updateButtons();
-      }
+      await saveSettings();
     });
   };
 

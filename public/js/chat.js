@@ -9,8 +9,9 @@ import {
   shareChat,
   toggleArchiveChat,
   unshareChat,
+  uploadFile,
 } from './api.js';
-import { escapeHtml, renderMessageContent, SseLineParser, showToast } from './utils.js';
+import { escapeHtml, renderMessageContent, SseLineParser, showToast, showToastProgress } from './utils.js';
 import { state, setState, subscribe } from './store.js';
 import { renderPlaceholder } from './components/chat-placeholder.js';
 import { renderMessageInput } from './components/message-input.js';
@@ -324,6 +325,24 @@ function wireChat(root) {
   const messageBlocksById = new Map();
   const clientSessionId = getClientSessionId();
   let activeStreamAbort = null;
+  const getDraftAttachments = (chatId = state.activeChatId) => {
+    if (chatId) {
+      return state.attachmentsByChat?.[chatId] || [];
+    }
+    return state.newChatAttachments || [];
+  };
+  const setDraftAttachments = (chatId, attachments) => {
+    if (chatId) {
+      setState({
+        attachmentsByChat: {
+          ...(state.attachmentsByChat || {}),
+          [chatId]: attachments,
+        },
+      });
+      return;
+    }
+    setState({ newChatAttachments: attachments });
+  };
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
   let pinnedSectionCollapsed = false;
   try {
@@ -1119,6 +1138,24 @@ function wireChat(root) {
     return renderMessageContent(content);
   }
 
+  function renderAttachmentPills(attachments = [], align = 'end') {
+    if (!Array.isArray(attachments) || attachments.length === 0) return '';
+    const items = attachments.map((file) => {
+      const label = String(file?.filename || 'Attachment');
+      return `
+        <div class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] text-gray-600 shadow-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span class="max-w-[200px] truncate">${escapeHtml(label)}</span>
+        </div>
+      `;
+    }).join('');
+    const justify = align === 'start' ? 'justify-start' : 'justify-end';
+    return `<div class="flex flex-wrap gap-2 ${justify}">${items}</div>`;
+  }
+
   function extractThinkingBlocks(raw) {
     const source = String(raw || '');
     let text = source;
@@ -1679,9 +1716,11 @@ function wireChat(root) {
       }
 
       if (m.role === 'user') {
+        const attachmentHtml = renderAttachmentPills(m.attachments, 'end');
         return `
           <div class="flex justify-end w-full group py-2" data-message-id="${msgId}">
             <div class="flex flex-col items-end max-w-[85%] gap-1">
+              ${attachmentHtml}
               <div class="bg-[#f4f4f4] rounded-2xl px-4 py-2 text-[15px] text-gray-800 transition-colors relative">
                 ${escapeHtml(displayContent).replace(/\n/g, '<br/>')}
               </div>
@@ -2860,6 +2899,16 @@ function wireChat(root) {
       }
     }
 
+    if (!state.attachmentsByChat?.[chatId] && (state.newChatAttachments || []).length > 0) {
+      setState({
+        attachmentsByChat: {
+          ...(state.attachmentsByChat || {}),
+          [chatId]: state.newChatAttachments,
+        },
+        newChatAttachments: [],
+      });
+    }
+
     if (tempChatId) {
       const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
       if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
@@ -2876,11 +2925,13 @@ function wireChat(root) {
     const tempAssistantId = `temp-assistant-${Date.now()}`;
     const nowTs = Math.floor(Date.now() / 1000);
     let localMessages = [...(state.messagesByChat[chatId] || [])];
+    const draftAttachments = getDraftAttachments(chatId);
     const tempUserMessage = {
       id: tempUserId,
       role: 'user',
       content: text,
       model: state.activeModelId,
+      attachments: draftAttachments,
       parent_id: branchParentId,
       created_at: nowTs,
       done: true,
@@ -2957,11 +3008,17 @@ function wireChat(root) {
           nextMessagesByChat[realChatId] = nextMessagesByChat[tempChatId];
           delete nextMessagesByChat[tempChatId];
         }
+        const nextAttachmentsByChat = { ...(prev.attachmentsByChat || {}) };
+        if (nextAttachmentsByChat[tempChatId]) {
+          nextAttachmentsByChat[realChatId] = nextAttachmentsByChat[tempChatId];
+          delete nextAttachmentsByChat[tempChatId];
+        }
         return {
           chats: deduped,
           activeChatId: realChatId,
           activeModelId: prev.activeModelId || data.chat.model || prev.defaultModelId || prev.globalDefaultModelId,
           messagesByChat: nextMessagesByChat,
+          attachmentsByChat: nextAttachmentsByChat,
         };
       });
 
@@ -3011,9 +3068,17 @@ function wireChat(root) {
     let res;
     setStreamingState(chatId, true);
     try {
+      const attachmentIds = (draftAttachments || [])
+        .map((item) => item?.id)
+        .filter(Boolean);
+      const payload = {
+        message: text,
+        model: state.activeModelId || undefined,
+        ...(attachmentIds.length ? { attachments: attachmentIds } : {}),
+      };
       res = await apiFetch(`/api/chats/${chatId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ message: text, model: state.activeModelId || undefined }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
     } catch (err) {
@@ -3037,6 +3102,10 @@ function wireChat(root) {
         if (state.activeChatId === chatId) drawMessages(localMessages);
       }
       return;
+    }
+
+    if (draftAttachments.length > 0) {
+      setDraftAttachments(chatId, []);
     }
 
     const reader = res.body.getReader();
@@ -3288,6 +3357,80 @@ function wireChat(root) {
   window.addEventListener('growchat:open-archived', onOpenArchivedEvent);
   window.addEventListener('popstate', onPopState);
 
+  const isSupportedAttachmentType = (type) => {
+    const mediaType = String(type || '');
+    if (mediaType.startsWith('image/')) return true;
+    if (mediaType === 'application/pdf') return true;
+    if (mediaType === 'text/plain' || mediaType === 'text/markdown') return true;
+    return false;
+  };
+
+  const handleFilesSelected = async (event) => {
+    const files = Array.isArray(event?.detail?.files) ? event.detail.files : [];
+    if (!files.length) return;
+    const toast = showToastProgress(`Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`);
+    const chatId = state.activeChatId;
+    const uploaded = [];
+    for (const file of files) {
+      if (!isSupportedAttachmentType(file?.type)) {
+        showToast(`Unsupported attachment type: ${file?.name || file?.type || 'file'}`);
+        continue;
+      }
+      try {
+        const data = await uploadFile(file, chatId);
+        uploaded.push({
+          id: data.id,
+          filename: data.filename,
+          content_type: data.content_type,
+          file_size: data.file_size,
+        });
+      } catch (err) {
+        showToast(`Failed to upload ${file?.name || 'file'}`);
+      }
+    }
+    if (uploaded.length) {
+      const current = getDraftAttachments(chatId);
+      const seen = new Set(current.map((item) => String(item?.id || '')));
+      const next = [...current];
+      uploaded.forEach((item) => {
+        const key = String(item?.id || '');
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        next.push(item);
+      });
+      setDraftAttachments(chatId, next);
+    }
+    toast.close();
+  };
+
+  const handleAttachFiles = (event) => {
+    const files = Array.isArray(event?.detail?.files) ? event.detail.files : [];
+    if (!files.length) return;
+    const chatId = state.activeChatId;
+    const filtered = files.filter((file) => isSupportedAttachmentType(file?.content_type || file?.type));
+    if (filtered.length !== files.length) {
+      showToast('Some files were skipped (unsupported type).');
+    }
+    const current = getDraftAttachments(chatId);
+    const seen = new Set(current.map((item) => String(item?.id || '')));
+    const next = [...current];
+    filtered.forEach((file) => {
+      const key = String(file?.id || '');
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      next.push({
+        id: file.id,
+        filename: file.filename,
+        content_type: file.content_type,
+        file_size: file.file_size,
+      });
+    });
+    setDraftAttachments(chatId, next);
+  };
+
+  window.addEventListener('growchat:files-selected', handleFilesSelected);
+  window.addEventListener('attach-files', handleAttachFiles);
+
   let isChatsCollapsed = false;
   toggleChatsBtn.addEventListener('click', () => {
     isChatsCollapsed = !isChatsCollapsed;
@@ -3384,6 +3527,8 @@ function wireChat(root) {
     openSearchBtn.removeEventListener('click', onOpenSearch);
     newChatBtn.removeEventListener('click', onNewChat);
     window.removeEventListener('growchat:open-archived', onOpenArchivedEvent);
+    window.removeEventListener('growchat:files-selected', handleFilesSelected);
+    window.removeEventListener('attach-files', handleAttachFiles);
     window.removeEventListener('growchat:realtime', onRealtimeEvent);
     window.removeEventListener('popstate', onPopState);
     root.__cleanup = null;

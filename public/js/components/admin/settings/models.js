@@ -17,6 +17,9 @@ export function renderModelsSettings(container, data) {
     invalidateToken: null,
     needsReload: false,
   });
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
   if (data.modelsSettingsInvalidate && modelsState.invalidateToken !== data.modelsSettingsInvalidate) {
     modelsState.invalidateToken = data.modelsSettingsInvalidate;
@@ -34,6 +37,7 @@ export function renderModelsSettings(container, data) {
     }
     return false;
   };
+  data.settingsDirtyCheckers.models = hasChanges;
 
   const updateButtons = () => {
     const dirty = hasChanges();
@@ -178,6 +182,62 @@ export function renderModelsSettings(container, data) {
     bindEvents();
   };
 
+  const saveModels = async () => {
+    if (modelsState.saving) return;
+    const updates = modelsState.models
+      .map((model) => {
+        const isDisabled = modelsState.disabledModels.has(model.id);
+        const wasDisabled = modelsState.originalDisabledModels.has(model.id);
+        if (isDisabled === wasDisabled) return null;
+        return { id: model.id, enabled: !isDisabled };
+      })
+      .filter(Boolean);
+
+    if (updates.length === 0) {
+      return;
+    }
+
+    modelsState.saving = true;
+    updateButtons();
+    try {
+      const res = await apiFetch('/api/admin/models', {
+        method: 'PUT',
+        body: JSON.stringify({ updates })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || err.message || 'Failed to save model settings');
+      }
+      modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
+      setState({ models: [], modelsLoading: false });
+      const feedback = container.querySelector('#models-feedback');
+      if (feedback) {
+        feedback.textContent = 'Model settings saved successfully';
+        feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+        feedback.classList.remove('hidden');
+        setTimeout(() => feedback.classList.add('hidden'), 3000);
+      }
+    } catch (err) {
+      const feedback = container.querySelector('#models-feedback');
+      if (feedback) {
+        feedback.textContent = err.message || 'Failed to save model settings';
+        feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
+        feedback.classList.remove('hidden');
+        setTimeout(() => feedback.classList.add('hidden'), 3000);
+      }
+      throw err;
+    } finally {
+      modelsState.saving = false;
+      updateButtons();
+    }
+  };
+
+  data.settingsSaveHandlers.models = saveModels;
+  data.settingsDiscardHandlers.models = () => {
+    modelsState.disabledModels = new Set(modelsState.originalDisabledModels);
+    if (isActiveTab()) render();
+  };
+
   const bindEvents = () => {
     const searchInput = container.querySelector('#model-search-input');
     if (searchInput) {
@@ -227,52 +287,7 @@ export function renderModelsSettings(container, data) {
 
     const saveBtn = container.querySelector('#save-models-top');
     saveBtn?.addEventListener('click', async () => {
-      if (modelsState.saving) return;
-      const updates = modelsState.models
-        .map((model) => {
-          const isDisabled = modelsState.disabledModels.has(model.id);
-          const wasDisabled = modelsState.originalDisabledModels.has(model.id);
-          if (isDisabled === wasDisabled) return null;
-          return { id: model.id, enabled: !isDisabled };
-        })
-        .filter(Boolean);
-
-      if (updates.length === 0) {
-        return;
-      }
-
-      modelsState.saving = true;
-      updateButtons();
-      try {
-        const res = await apiFetch('/api/admin/models', {
-          method: 'PUT',
-          body: JSON.stringify({ updates })
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || 'Failed to save model settings');
-        }
-        modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
-        setState({ models: [], modelsLoading: false });
-        const feedback = container.querySelector('#models-feedback');
-        if (feedback) {
-          feedback.textContent = 'Model settings saved successfully';
-          feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-          feedback.classList.remove('hidden');
-          setTimeout(() => feedback.classList.add('hidden'), 3000);
-        }
-      } catch (err) {
-        const feedback = container.querySelector('#models-feedback');
-        if (feedback) {
-          feedback.textContent = err.message || 'Failed to save model settings';
-          feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
-          feedback.classList.remove('hidden');
-          setTimeout(() => feedback.classList.add('hidden'), 3000);
-        }
-      } finally {
-        modelsState.saving = false;
-        updateButtons();
-      }
+      await saveModels();
     });
   };
 

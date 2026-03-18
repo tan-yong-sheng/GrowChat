@@ -201,6 +201,9 @@ export async function renderAdminPage(container) {
       page: 1,
       pageSize: 20,
     },
+    settingsDirtyCheckers: {},
+    settingsSaveHandlers: {},
+    settingsDiscardHandlers: {},
   };
 
   const updateRouteInfo = () => {
@@ -231,6 +234,71 @@ export async function renderAdminPage(container) {
 
     mainTab = 'users';
     subTab = path.includes('/groups') ? 'groups' : 'overview';
+  };
+
+  const promptUnsavedChanges = () => new Promise((resolve) => {
+    const existing = document.querySelector('#admin-unsaved-modal');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'admin-unsaved-modal';
+    overlay.className = 'fixed inset-0 z-[200] flex items-center justify-center p-4';
+    overlay.innerHTML = `
+      <div class="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
+      <div class="relative w-full max-w-md rounded-3xl bg-white shadow-xl border border-gray-100">
+        <div class="px-6 pt-6 pb-3">
+          <div class="text-lg font-semibold text-gray-900">Unsaved changes</div>
+          <p class="text-sm text-gray-500 mt-2">You have unsaved changes. Save them before leaving this page?</p>
+        </div>
+        <div class="px-6 pb-6 flex items-center justify-end gap-2">
+          <button id="unsaved-cancel" class="px-4 py-2 rounded-full text-sm text-gray-500 hover:bg-gray-50">Cancel</button>
+          <button id="unsaved-discard" class="px-4 py-2 rounded-full text-sm text-gray-600 hover:bg-gray-100">Discard</button>
+          <button id="unsaved-save" class="px-4 py-2 rounded-full text-sm text-white bg-black hover:bg-gray-900">Save</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const cleanup = () => overlay.remove();
+    overlay.querySelector('#unsaved-cancel')?.addEventListener('click', () => {
+      cleanup();
+      resolve('cancel');
+    });
+    overlay.querySelector('#unsaved-discard')?.addEventListener('click', () => {
+      cleanup();
+      resolve('discard');
+    });
+    overlay.querySelector('#unsaved-save')?.addEventListener('click', () => {
+      cleanup();
+      resolve('save');
+    });
+  });
+
+  const guardSettingsNavigation = async () => {
+    if (mainTab !== 'settings') return true;
+    const dirtyFn = data.settingsDirtyCheckers?.[subTab];
+    const isDirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
+    if (!isDirty) return true;
+    const action = await promptUnsavedChanges();
+    if (action === 'cancel') return false;
+    if (action === 'discard') {
+      const discard = data.settingsDiscardHandlers?.[subTab];
+      if (typeof discard === 'function') discard();
+      return true;
+    }
+    if (action === 'save') {
+      const save = data.settingsSaveHandlers?.[subTab];
+      if (typeof save === 'function') {
+        try {
+          await save();
+        } catch {
+          return false;
+        }
+        const stillDirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
+        return !stillDirty;
+      }
+      return true;
+    }
+    return true;
   };
 
   const sortUsers = (users) => users
@@ -446,6 +514,8 @@ export async function renderAdminPage(container) {
     container.querySelectorAll('a[data-nav]').forEach((link) => {
       link.onclick = async (e) => {
         e.preventDefault();
+        const allowed = await guardSettingsNavigation();
+        if (!allowed) return;
         const nav = link.dataset.nav;
         const newPath = nav === 'users' ? '/admin/users/overview' : '/admin/settings/general';
         window.history.pushState({}, '', newPath);
@@ -467,8 +537,10 @@ export async function renderAdminPage(container) {
 
   function bindSubnav() {
     container.querySelectorAll('a[data-subnav]').forEach((link) => {
-      link.onclick = (e) => {
+      link.onclick = async (e) => {
         e.preventDefault();
+        const allowed = await guardSettingsNavigation();
+        if (!allowed) return;
         const nav = link.dataset.subnav;
         const basePath = mainTab === 'users' ? '/admin/users' : '/admin/settings';
         window.history.pushState({}, '', `${basePath}/${nav}`);
