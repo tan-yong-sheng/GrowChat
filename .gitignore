@@ -13,6 +13,7 @@ markitdown/
 # Ignore all .claude/ contents by default
 
 package-lock.json
+test-results/
 
 .agents/*
 .claude/*

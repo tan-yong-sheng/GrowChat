@@ -4,7 +4,7 @@ test.describe('Core Chat UI Logic', () => {
   // chromium-auth project provides storageState: tests/e2e/fixtures/auth-state.json
 
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/users/me', (route) => route.fulfill({ status: 200, body: JSON.stringify({ user: { id: '1', name: 'Test' } }) }));
+    await page.route('**/api/users/me**', (route) => route.fulfill({ status: 200, body: JSON.stringify({ user: { id: '1', name: 'Test' } }) }));
     await page.route('**/api/auth/refresh', (route) => route.fulfill({
       status: 200,
       body: JSON.stringify({ access_token: 'valid-token', refresh_token: 'refresh-token', user: { id: '1', name: 'Test' } }),
@@ -36,7 +36,7 @@ test.describe('Core Chat UI Logic', () => {
 
     const newChatBtn = page.locator('#new-chat, [aria-label="New chat"], button:has-text("New chat")').first();
     
-    await page.route('**/api/chats', async (route) => {
+    await page.route('**/api/chats**', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 200,
@@ -151,3 +151,4 @@ test.describe('Core Chat UI Logic', () => {
     await expect(page.locator('#message-input, textarea').first()).toBeVisible({ timeout: 15000 });
   });
 });
+

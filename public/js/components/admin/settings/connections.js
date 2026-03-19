@@ -1,4 +1,5 @@
-import { apiFetch } from '../../../api.js';
+import { apiFetch, clearModelsCache } from '../../../api.js';
+import { setState } from '../../../store.js';
 
 export function renderConnectionsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'connections';
@@ -375,9 +376,10 @@ export function renderConnectionsSettings(container, data) {
     if (headersInput) headersInput.classList.toggle('text-gray-400', isEnv);
     if (providerSelect) providerSelect.classList.toggle('text-gray-400', isEnv);
     const title = scope.querySelector('#modal-title');
-    if (title) title.textContent = connection ? 'Edit Connection' : 'Add Connection';
+    const isExisting = Boolean(connection?.id);
+    if (title) title.textContent = isExisting ? 'Edit Connection' : 'Add Connection';
     const deleteBtn = scope.querySelector('#delete-connection');
-    if (deleteBtn) deleteBtn.classList.toggle('hidden', !connection || isEnv);
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', !isExisting || isEnv);
     setTestStatus('idle', '', scope);
   };
 
@@ -493,7 +495,7 @@ export function renderConnectionsSettings(container, data) {
         connectionsState.selectedConnection.enabled = true;
       }
     } else {
-      connectionsState.selectedConnection = { enabled: true };
+      connectionsState.selectedConnection = null;
     }
     connectionsState.showModal = true;
     const modal = container.querySelector('#edit-connection-modal');
@@ -605,7 +607,7 @@ export function renderConnectionsSettings(container, data) {
         }
       });
 
-      if (connection) {
+      if (connection?.id) {
         const index = connectionsState.openai.connections.findIndex(c => c.id === connection.id);
         if (index !== -1) {
           if (connection.source === 'env') {
@@ -719,8 +721,15 @@ export function renderConnectionsSettings(container, data) {
           connectionsState.modelOverrides.clear();
         }
         connectionsState.originalSnapshot = buildSnapshot();
+        clearModelsCache();
+        try {
+          localStorage.setItem('growchat_models_invalidate', String(Date.now()));
+        } catch {
+          // ignore storage errors
+        }
+        setState({ models: [], modelsLoading: false });
         if (feedback) {
-          feedback.textContent = 'Connections saved successfully';
+          feedback.textContent = 'Connections saved. Chat model list will refresh.';
           feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
           feedback.classList.remove('hidden');
           setTimeout(() => feedback.classList.add('hidden'), 3000);

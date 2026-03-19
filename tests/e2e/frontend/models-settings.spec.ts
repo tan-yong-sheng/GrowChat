@@ -70,16 +70,16 @@ test.describe('Models Settings Page', () => {
     // Search for "gpt"
     await searchInput.fill('gpt');
     await expect(page.locator('.model-toggle')).toHaveCount(2);
-    await expect(page.locator('td', { hasText: 'GPT-4' })).toBeVisible();
-    await expect(page.locator('td', { hasText: 'GPT-3.5 Turbo' })).toBeVisible();
-    await expect(page.locator('td', { hasText: 'Claude 3 Opus' })).not.toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^GPT-4$/ })).toBeVisible();
+    await expect(page.locator('td[title="GPT-3.5 Turbo"]')).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^Claude 3 Opus$/ })).not.toBeVisible();
 
     // Search for "claude"
     await searchInput.fill('claude');
     await expect(page.locator('.model-toggle')).toHaveCount(2);
-    await expect(page.locator('td', { hasText: 'Claude 3 Opus' })).toBeVisible();
-    await expect(page.locator('td', { hasText: 'Claude 3 Sonnet' })).toBeVisible();
-    await expect(page.locator('td', { hasText: 'GPT-4' })).not.toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^Claude 3 Opus$/ })).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^Claude 3 Sonnet$/ })).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^GPT-4$/ })).not.toBeVisible();
 
     // Search for non-existent model
     await searchInput.fill('xyz');

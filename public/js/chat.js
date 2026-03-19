@@ -37,6 +37,79 @@ const loadFolderSidebar = () => (folderSidebarPromise ??= import('./components/f
 
 const attachmentImageUrlCache = new Map();
 const attachmentImagePromiseCache = new Map();
+const MAX_ATTACHMENT_CACHE = 48;
+const MAX_CACHED_CHATS = 6;
+const recentChatIds = [];
+let pruneScheduled = false;
+let isPruning = false;
+
+function touchAttachmentCache(key, url) {
+  if (!key) return;
+  if (attachmentImageUrlCache.has(key)) {
+    attachmentImageUrlCache.delete(key);
+  }
+  attachmentImageUrlCache.set(key, url);
+  if (attachmentImageUrlCache.size <= MAX_ATTACHMENT_CACHE) return;
+  const oldestEntry = attachmentImageUrlCache.entries().next().value;
+  if (!oldestEntry) return;
+  const [oldestKey, oldestUrl] = oldestEntry;
+  attachmentImageUrlCache.delete(oldestKey);
+  if (oldestUrl) {
+    URL.revokeObjectURL(oldestUrl);
+  }
+}
+
+function clearAttachmentCache() {
+  attachmentImageUrlCache.forEach((url) => {
+    if (url) URL.revokeObjectURL(url);
+  });
+  attachmentImageUrlCache.clear();
+  attachmentImagePromiseCache.clear();
+}
+
+function touchChatCache(chatId) {
+  if (!chatId) return;
+  const key = String(chatId);
+  const existingIndex = recentChatIds.indexOf(key);
+  if (existingIndex >= 0) {
+    recentChatIds.splice(existingIndex, 1);
+  }
+  recentChatIds.unshift(key);
+}
+
+function pruneChatCaches() {
+  if (isPruning) return;
+  isPruning = true;
+  const keep = new Set(recentChatIds.slice(0, MAX_CACHED_CHATS));
+  const nextMessages = { ...state.messagesByChat };
+  const nextAttachments = { ...state.attachmentsByChat };
+  let changed = false;
+  Object.keys(nextMessages).forEach((key) => {
+    if (!keep.has(String(key))) {
+      delete nextMessages[key];
+      changed = true;
+    }
+  });
+  Object.keys(nextAttachments).forEach((key) => {
+    if (!keep.has(String(key))) {
+      delete nextAttachments[key];
+      changed = true;
+    }
+  });
+  if (changed) {
+    setState({ messagesByChat: nextMessages, attachmentsByChat: nextAttachments });
+  }
+  isPruning = false;
+}
+
+function schedulePrune() {
+  if (pruneScheduled) return;
+  pruneScheduled = true;
+  setTimeout(() => {
+    pruneScheduled = false;
+    pruneChatCaches();
+  }, 50);
+}
 
 function normalizeCitations(raw) {
   if (!raw) return [];
@@ -1161,13 +1234,17 @@ function wireChat(root) {
   async function getAttachmentImageUrl(fileId) {
     const key = String(fileId || '');
     if (!key) return null;
-    if (attachmentImageUrlCache.has(key)) return attachmentImageUrlCache.get(key);
+    if (attachmentImageUrlCache.has(key)) {
+      const cached = attachmentImageUrlCache.get(key);
+      touchAttachmentCache(key, cached);
+      return cached;
+    }
     if (attachmentImagePromiseCache.has(key)) return attachmentImagePromiseCache.get(key);
 
     const promise = (async () => {
       const blob = await getFileBlob(key);
       const url = URL.createObjectURL(blob);
-      attachmentImageUrlCache.set(key, url);
+      touchAttachmentCache(key, url);
       attachmentImagePromiseCache.delete(key);
       return url;
     })().catch((err) => {
@@ -2720,6 +2797,8 @@ function wireChat(root) {
       if (draw) drawMessages([]);
       return;
     }
+    touchChatCache(chatId);
+    schedulePrune();
 
     if (draw) {
       setState({ ui: { loadingChatId: chatId } });
@@ -3761,6 +3840,7 @@ function wireChat(root) {
     headerMenuDropdown.classList.add('hidden');
   });
 
+  let lastActiveChatId = state.activeChatId;
   const unsubscribe = subscribe((currentState) => {
     if (currentState.showSearch) {
       ensureSearchModal();
@@ -3777,6 +3857,12 @@ function wireChat(root) {
         document.body.style.overflow = '';
       }
     }
+
+    if (currentState.activeChatId && currentState.activeChatId !== lastActiveChatId) {
+      touchChatCache(currentState.activeChatId);
+      schedulePrune();
+    }
+    lastActiveChatId = currentState.activeChatId;
 
     headerMenuBtn.disabled = !currentState.activeChatId || isTempChatId(currentState.activeChatId);
     drawChats(currentState.chats, currentState.activeChatId);
@@ -3811,6 +3897,7 @@ function wireChat(root) {
     if (activeStreamAbort) activeStreamAbort();
     if (chatListLoadObserver) chatListLoadObserver.disconnect();
     unsubscribe();
+    clearAttachmentCache();
     destroySearchModal?.();
     destroyFilesModal?.();
     destroyModelSelector?.();

@@ -1,4 +1,4 @@
-import { apiFetch } from '../../../api.js';
+import { apiFetch, clearModelsCache } from '../../../api.js';
 import { setState } from '../../../store.js';
 
 const ATTACHMENT_CAP_TYPES = [
@@ -167,21 +167,24 @@ export function renderModelsSettings(container, data) {
 
   const render = () => {
     if (!isActiveTab()) return;
+    const activeElement = document.activeElement;
+    const wasSearchFocused = activeElement && activeElement.id === 'model-search-input';
+    const selectionStart = wasSearchFocused && typeof activeElement.selectionStart === 'number'
+      ? activeElement.selectionStart
+      : null;
+    const selectionEnd = wasSearchFocused && typeof activeElement.selectionEnd === 'number'
+      ? activeElement.selectionEnd
+      : null;
     const previousScrollTop = container.querySelector('[data-models-scroll]')?.scrollTop ?? 0;
     const dirty = hasChanges();
-    const query = modelsState.query.trim().toLowerCase();
-    const filteredModels = query
-      ? modelsState.models.filter((model) => {
-        const label = String(model?.name || model?.id || '').toLowerCase();
-        return label.includes(query);
-      })
-      : modelsState.models;
+    const query = modelsState.query.trim();
     const usingFilter = Boolean(query);
-    const displayTotal = usingFilter ? filteredModels.length : modelsState.total;
-    const totalPages = usingFilter ? 1 : (Math.ceil(modelsState.total / modelsState.limit) || 1);
-    const currentPage = usingFilter ? 1 : (Math.floor(modelsState.offset / modelsState.limit) + 1);
-    const pageStart = displayTotal === 0 ? 0 : (usingFilter ? 1 : modelsState.offset + 1);
-    const pageEnd = usingFilter ? displayTotal : Math.min(modelsState.offset + modelsState.limit, modelsState.total);
+    const filteredModels = modelsState.models;
+    const displayTotal = modelsState.total;
+    const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
+    const currentPage = Math.floor(modelsState.offset / modelsState.limit) + 1;
+    const pageStart = displayTotal === 0 ? 0 : modelsState.offset + 1;
+    const pageEnd = Math.min(modelsState.offset + modelsState.limit, modelsState.total);
 
     container.innerHTML = `
       <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300 w-full">
@@ -225,7 +228,7 @@ export function renderModelsSettings(container, data) {
                     `).join('')}
                   ` : filteredModels.length === 0 ? `
                     <tr>
-                      <td colspan="3" class="py-10 text-center text-sm text-gray-400">No models found${modelsState.query ? ' matching "' + modelsState.query + '"' : ''}.</td>
+                      <td colspan="3" class="py-10 text-center text-sm text-gray-400">No models found${usingFilter ? ' matching "' + modelsState.query + '"' : ''}.</td>
                     </tr>
                   ` : filteredModels.map(model => {
                     const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
@@ -309,6 +312,20 @@ export function renderModelsSettings(container, data) {
       nextScrollContainer.scrollTop = previousScrollTop;
     }
     bindEvents();
+    if (wasSearchFocused) {
+      const searchInput = container.querySelector('#model-search-input');
+      if (searchInput) {
+        const len = searchInput.value.length;
+        const start = selectionStart === null ? len : Math.min(selectionStart, len);
+        const end = selectionEnd === null ? len : Math.min(selectionEnd, len);
+        searchInput.focus();
+        try {
+          searchInput.setSelectionRange(start, end);
+        } catch {
+          // Ignore selection restore errors (e.g. unsupported input types)
+        }
+      }
+    }
   };
 
   const saveModels = async () => {
@@ -369,9 +386,15 @@ export function renderModelsSettings(container, data) {
         }
         modelsState.originalAttachmentCaps = cloneCapsMap(modelsState.attachmentCaps);
       }
+      clearModelsCache();
+      try {
+        localStorage.setItem('growchat_models_invalidate', String(Date.now()));
+      } catch {
+        // ignore storage errors
+      }
       const feedback = container.querySelector('#models-feedback');
       if (feedback) {
-        feedback.textContent = 'Model settings saved successfully';
+        feedback.textContent = 'Model settings saved. Chat model list will refresh.';
         feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
         feedback.classList.remove('hidden');
         setTimeout(() => feedback.classList.add('hidden'), 3000);
@@ -407,7 +430,8 @@ export function renderModelsSettings(container, data) {
         if (searchDebounce) clearTimeout(searchDebounce);
         searchDebounce = setTimeout(() => {
           modelsState.query = nextValue;
-          render();
+          modelsState.offset = 0;
+          loadModels(true);
           const input = container.querySelector('#model-search-input');
           input.focus();
           input.setSelectionRange(input.value.length, input.value.length);
@@ -473,6 +497,9 @@ export function renderModelsSettings(container, data) {
       const params = new URLSearchParams();
       params.set('limit', String(modelsState.limit));
       params.set('offset', String(modelsState.offset));
+      if (modelsState.query && modelsState.query.trim()) {
+        params.set('q', modelsState.query.trim());
+      }
       
       const res = await apiFetch(`/api/admin/models?${params.toString()}`);
       if (res.ok) {

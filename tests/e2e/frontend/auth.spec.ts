@@ -121,3 +121,4 @@ test.describe('Auth Page', () => {
     expect(authState).toEqual(mockAuthResponse);
   });
 });
+

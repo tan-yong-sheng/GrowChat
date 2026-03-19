@@ -51,6 +51,7 @@ export function renderModelSelector(container) {
     let allFilteredModels = [];
     let visibleCount = 10;
     const PAGE_SIZE = 10;
+    const MAX_VISIBLE_NO_SCROLL = 40;
     let loadingPromise = null;
     let sortedModels = [];
     let lastModelsRef = null;
@@ -250,9 +251,21 @@ export function renderModelSelector(container) {
        const query = searchQuery.trim().toLowerCase();
        if (!query) {
           allFilteredModels = sortedModels;
+          const showAll = allFilteredModels.length <= MAX_VISIBLE_NO_SCROLL;
+          if (showAll) {
+            visibleCount = allFilteredModels.length;
+          } else if (visibleCount < PAGE_SIZE || visibleCount > allFilteredModels.length) {
+            visibleCount = Math.min(PAGE_SIZE, allFilteredModels.length);
+          }
           return;
        }
        allFilteredModels = sortedModels.filter((m) => getLabel(m).toLowerCase().includes(query));
+       const showAll = allFilteredModels.length <= MAX_VISIBLE_NO_SCROLL;
+       if (showAll) {
+          visibleCount = allFilteredModels.length;
+       } else if (visibleCount < PAGE_SIZE || visibleCount > allFilteredModels.length) {
+          visibleCount = Math.min(PAGE_SIZE, allFilteredModels.length);
+       }
     }
 
     function updateVisibleModels() {
@@ -351,7 +364,11 @@ export function renderModelSelector(container) {
        const hasModels = models.length > 0;
        const activeModel = hasModels ? (models.find(m => m.id === currentState.activeModelId) || null) : null;
        if (!hasModels) {
-          nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'Select a Model';
+          if (currentState.activeModelId) {
+            nameSpan.textContent = currentState.activeModelId;
+          } else {
+            nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'Select a Model';
+          }
        } else if (activeModel) {
           nameSpan.textContent = activeModel.name || activeModel.id;
        } else {

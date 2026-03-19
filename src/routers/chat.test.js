@@ -105,6 +105,63 @@ describe('chatRouter', () => {
     expect(mocks.db.all).toHaveBeenCalled();
   });
 
+  it('returns 304 for cached chat list when ETag matches', async () => {
+    mocks.db.all.mockResolvedValue([{ id: 'c1', title: 'Chat 1', updated_at: 10, created_at: 9 }]);
+
+    const res1 = await chatRouter(
+      new Request('https://example.com/api/chats?limit=10&offset=0', { method: 'GET' }),
+      { DB: {} },
+      {},
+      user,
+      '/api/chats'
+    );
+    const etag = res1.headers.get('ETag');
+    expect(etag).toBeTruthy();
+
+    const res2 = await chatRouter(
+      new Request('https://example.com/api/chats?limit=10&offset=0', { method: 'GET', headers: { 'If-None-Match': etag } }),
+      { DB: {} },
+      {},
+      user,
+      '/api/chats'
+    );
+
+    expect(res2.status).toBe(304);
+  });
+
+  it('returns 304 for cached chat detail when ETag matches', async () => {
+    mocks.db.first.mockResolvedValue({ id: 'c1', user_id: 'u1', updated_at: 20, current_message_id: 'm1' });
+    mocks.db.all.mockImplementation((sql) => {
+      if (String(sql).includes('FROM messages')) {
+        return Promise.resolve([{ id: 'm1', role: 'user', content: 'Hello', created_at: 5 }]);
+      }
+      if (String(sql).includes('message_documents')) {
+        return Promise.reject(new Error('no such table: message_documents'));
+      }
+      return Promise.resolve([]);
+    });
+
+    const res1 = await chatRouter(
+      new Request('https://example.com/api/chats/c1', { method: 'GET' }),
+      { DB: {} },
+      {},
+      user,
+      '/api/chats/c1'
+    );
+    const etag = res1.headers.get('ETag');
+    expect(etag).toBeTruthy();
+
+    const res2 = await chatRouter(
+      new Request('https://example.com/api/chats/c1', { method: 'GET', headers: { 'If-None-Match': etag } }),
+      { DB: {} },
+      {},
+      user,
+      '/api/chats/c1'
+    );
+
+    expect(res2.status).toBe(304);
+  });
+
   it('creates chat with default model and returns 201', async () => {
     mocks.db.first.mockResolvedValueOnce({
       id: 'c1',

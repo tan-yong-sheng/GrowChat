@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { json, error, preflight, sseHeaders, sseData } from './response.js';
+import { json, error, preflight, sseHeaders, sseData, jsonCached, createWeakEtag } from './response.js';
 
 describe('response.js - HTTP Response Helpers', () => {
   let mockRequest;
@@ -284,6 +284,65 @@ describe('response.js - HTTP Response Helpers', () => {
       results.forEach((result) => {
         expect(result).toMatch(/\n\n$/);
       });
+    });
+  });
+
+  describe('jsonCached', () => {
+    it('returns cached 304 response when If-None-Match matches', async () => {
+      const etag = createWeakEtag('payload');
+      mockRequest.headers.set('If-None-Match', etag);
+      const response = jsonCached(mockRequest, { ok: true }, {
+        etag,
+        cacheControl: 'private, max-age=30',
+        vary: 'Authorization',
+      });
+
+      expect(response.status).toBe(304);
+      expect(response.headers.get('ETag')).toBe(etag);
+      expect(response.headers.get('Cache-Control')).toBe('private, max-age=30');
+      const body = await response.text();
+      expect(body).toBe('');
+    });
+
+    it('returns JSON payload when cache is stale', async () => {
+      const etag = createWeakEtag('payload');
+      const response = jsonCached(mockRequest, { ok: true }, {
+        etag,
+        cacheControl: 'private, max-age=30',
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('ETag')).toBe(etag);
+      const body = await response.json();
+      expect(body).toEqual({ ok: true });
+    });
+
+    it('merges Vary headers with Origin', () => {
+      const etag = createWeakEtag('payload');
+      mockRequest.headers.set('Origin', 'https://example.com');
+      const response = jsonCached(mockRequest, { ok: true }, {
+        etag,
+        cacheControl: 'private, max-age=30',
+        vary: 'Authorization',
+      });
+
+      const vary = response.headers.get('Vary');
+      expect(vary).toContain('Origin');
+      expect(vary).toContain('Authorization');
+    });
+  });
+
+  describe('createWeakEtag', () => {
+    it('returns deterministic weak ETags', () => {
+      const first = createWeakEtag('alpha');
+      const second = createWeakEtag('alpha');
+      expect(first).toBe(second);
+    });
+
+    it('returns different tags for different inputs', () => {
+      const first = createWeakEtag('alpha');
+      const second = createWeakEtag('beta');
+      expect(first).not.toBe(second);
     });
   });
 

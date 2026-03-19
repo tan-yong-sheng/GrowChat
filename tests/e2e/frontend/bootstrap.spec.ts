@@ -50,12 +50,47 @@ test.describe('App Bootstrap and Route Guards', () => {
       localStorage.setItem('growchat_auth', JSON.stringify(auth));
     }, mockAuth);
 
-    await page.route('**/api/users/me', (route) => route.fulfill({ status: 200, body: JSON.stringify({ user: { id: '1', name: 'Test' } }) }));
-    await page.route('**/api/chats', (route) => route.fulfill({ status: 200, body: JSON.stringify({ chats: [{ id: 'c1', title: 'Chat 1' }] }) }));
+    await page.route('**/api/users/me**', (route) => route.fulfill({ status: 200, body: JSON.stringify({ user: { id: '1', name: 'Test' } }) }));
+    await page.route('**/api/chats**', (route) => route.fulfill({ status: 200, body: JSON.stringify({ chats: [{ id: 'c1', title: 'Chat 1' }] }) }));
     await page.route('**/api/models', (route) => route.fulfill({ status: 200, body: JSON.stringify({ models: [{ id: 'm1', name: 'Model 1' }] }) }));
 
     await page.goto('/');
     await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
     await expect(page.locator('#app')).not.toBeEmpty();
   });
+
+  test('uses cached models even if /api/models fails', async ({ page }) => {
+    const mockAuth = { access_token: 'valid-token', user: { id: '1', name: 'Test' } };
+    const cachedModels = {
+      savedAt: Date.now(),
+      value: { models: [{ id: 'm1', name: 'Model 1' }], total: 1, limit: 0, offset: 0 },
+    };
+
+    await page.addInitScript((auth, cache) => {
+      localStorage.setItem('growchat_auth', JSON.stringify(auth));
+      localStorage.setItem('growchat_models_cache_v1', JSON.stringify(cache));
+      localStorage.setItem('defaultModelId', 'm1');
+    }, mockAuth, cachedModels);
+
+    await page.route('**/api/users/me**', (route) => route.fulfill({
+      status: 200,
+      body: JSON.stringify({ user: { id: '1', name: 'Test' }, app_config: {} }),
+    }));
+    await page.route('**/api/chats**', (route) => route.fulfill({
+      status: 200,
+      body: JSON.stringify({ chats: [{ id: 'c1', title: 'Chat 1', model: 'm1' }] }),
+    }));
+
+    await page.route('**/api/models', (route) => {
+      return route.fulfill({ status: 500, body: JSON.stringify({ error: 'models down' }) });
+    });
+
+    await page.goto('/');
+    await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
+    await page.waitForTimeout(300);
+    const cacheRaw = await page.evaluate(() => localStorage.getItem('growchat_models_cache_v1'));
+    expect(cacheRaw).toBeTruthy();
+    await expect(page.locator('#active-model-name')).toHaveText(/m1|Model 1/);
+  });
 });
+

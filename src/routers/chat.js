@@ -1,5 +1,5 @@
 import { createDB } from '../db.js';
-import { error, json, sseData, sseHeaders } from '../utils/response.js';
+import { error, json, jsonCached, sseData, sseHeaders, createWeakEtag } from '../utils/response.js';
 import { SseLineParser, streamLLM } from '../llm.js';
 import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
 import { createRealtimeEvent, getOriginSessionId, publishRealtimeEvent } from '../realtime.js';
@@ -1444,7 +1444,16 @@ export async function chatRouter(req, env, ctx, user, path) {
     const has_more = chats.length > limit;
     const items = has_more ? chats.slice(0, limit) : chats;
 
-    return json(req, { chats: items, limit, offset, query: qRaw, has_more });
+    const itemsTag = items
+      .map((chat) => `${chat.id || ''}:${chat.updated_at || 0}`)
+      .join('|');
+    const etag = createWeakEtag(`${user.sub}|${qRaw}|${limit}|${offset}|${itemsTag}`);
+
+    return jsonCached(req, { chats: items, limit, offset, query: qRaw, has_more }, {
+      etag,
+      cacheControl: 'private, max-age=30, stale-while-revalidate=120',
+      vary: 'Authorization',
+    });
   }
 
   if (req.method === 'POST' && path === '/api/chats') {
@@ -1504,8 +1513,16 @@ export async function chatRouter(req, env, ctx, user, path) {
 
       const messages = await getChatMessages(db, chatId);
       const withAttachments = await attachDocumentsToMessages(db, messages);
+      const lastMessageAt = messages.reduce((max, msg) => Math.max(max, Number(msg?.created_at || 0)), 0);
+      const etag = createWeakEtag(
+        `${user.sub}|${chatId}|${chat.updated_at || 0}|${chat.current_message_id || ''}|${messages.length}|${lastMessageAt}`
+      );
 
-      return json(req, { chat, messages: withAttachments });
+      return jsonCached(req, { chat, messages: withAttachments }, {
+        etag,
+        cacheControl: 'private, max-age=15, stale-while-revalidate=30',
+        vary: 'Authorization',
+      });
     }
 
     if (req.method === 'PUT') {

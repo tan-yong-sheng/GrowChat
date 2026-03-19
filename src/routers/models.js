@@ -6,7 +6,7 @@
  */
 
 import { createDB } from '../db.js';
-import { error, json } from '../utils/response.js';
+import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue } from '../utils/app-config.js';
 import { getAllOpenAIConnectionConfigs } from '../utils/openai-connections.js';
@@ -280,6 +280,8 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const url = new URL(req.url);
       const limit = parseInt(url.searchParams.get('limit') || '0', 10);
       const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+      const rawQuery = url.searchParams.get('q') || '';
+      const query = String(rawQuery).trim().toLowerCase();
 
       let customModels = [];
       let baseModels = [];
@@ -318,6 +320,15 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         allModels = allModels.filter((model) => !isOpenAIProvider(model));
       }
       let publicModels = allModels.map(toPublicModel);
+      if (query) {
+        publicModels = publicModels.filter((model) => {
+          const name = String(model?.name || '').toLowerCase();
+          const id = String(model?.id || '').toLowerCase();
+          const connection = String(model?.connection_name || '').toLowerCase();
+          const provider = String(model?.provider || '').toLowerCase();
+          return name.includes(query) || id.includes(query) || connection.includes(query) || provider.includes(query);
+        });
+      }
       if (db) {
         const disabledSet = await getDisabledModelSet(db);
         if (disabledSet.size > 0) {
@@ -338,11 +349,17 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         }));
       }
 
-      return json(req, { 
+      const tagSource = `${limit}|${offset}|${total}|${paginatedModels.map((model) => model.id).join('|')}`;
+      const etag = createWeakEtag(tagSource);
+
+      return jsonCached(req, { 
         models: paginatedModels,
         total: total,
         limit: limit,
         offset: offset
+      }, {
+        etag,
+        cacheControl: 'public, max-age=60, stale-while-revalidate=300',
       });
     } catch (err) {
       console.error('Unexpected error listing models:', err);
@@ -365,6 +382,8 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const url = new URL(req.url);
       const limit = parseInt(url.searchParams.get('limit') || '0', 10);
       const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+      const rawQuery = url.searchParams.get('q') || '';
+      const query = String(rawQuery).trim().toLowerCase();
 
       let customModels = [];
       let baseModels = [];
@@ -408,10 +427,21 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         return { ...publicModel, enabled };
       });
 
-      const total = adminModels.length;
-      let paginatedModels = adminModels;
+      let filteredModels = adminModels;
+      if (query) {
+        filteredModels = adminModels.filter((model) => {
+          const name = String(model?.name || '').toLowerCase();
+          const id = String(model?.id || '').toLowerCase();
+          const connection = String(model?.connection_name || '').toLowerCase();
+          const provider = String(model?.provider || '').toLowerCase();
+          return name.includes(query) || id.includes(query) || connection.includes(query) || provider.includes(query);
+        });
+      }
+
+      const total = filteredModels.length;
+      let paginatedModels = filteredModels;
       if (limit > 0) {
-        paginatedModels = adminModels.slice(offset, offset + limit);
+        paginatedModels = filteredModels.slice(offset, offset + limit);
       }
       if (db) {
         const attachmentCaps = await loadModelAttachmentCaps(db);

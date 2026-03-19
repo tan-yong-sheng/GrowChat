@@ -1,5 +1,64 @@
 const STORAGE_KEY = 'growchat_auth';
 const CLIENT_SESSION_KEY = 'growchat_client_session_id';
+const MODEL_CACHE_KEY = 'growchat_models_cache_v1';
+const CHAT_CACHE_KEY_PREFIX = 'growchat_chats_cache_v1_';
+const MODEL_CACHE_TTL_MS = 15 * 60 * 1000;
+const CHAT_CACHE_TTL_MS = 30 * 1000;
+
+function readCache(key, maxAgeMs) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const savedAt = Number(parsed.savedAt || 0);
+    if (maxAgeMs && savedAt && Date.now() - savedAt > maxAgeMs) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), value }));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function readModelsCache(maxAgeMs = MODEL_CACHE_TTL_MS) {
+  const entry = readCache(MODEL_CACHE_KEY, maxAgeMs);
+  return entry ? entry.value : null;
+}
+
+export function writeModelsCache(payload) {
+  writeCache(MODEL_CACHE_KEY, payload);
+}
+
+export function clearModelsCache() {
+  try {
+    localStorage.removeItem(MODEL_CACHE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function getChatsCacheKey(userId) {
+  const safeId = String(userId || '').trim() || 'anonymous';
+  return `${CHAT_CACHE_KEY_PREFIX}${safeId}`;
+}
+
+export function readChatsCache(userId, maxAgeMs = CHAT_CACHE_TTL_MS) {
+  if (!userId) return null;
+  const entry = readCache(getChatsCacheKey(userId), maxAgeMs);
+  return entry ? entry.value : null;
+}
+
+export function writeChatsCache(userId, payload) {
+  if (!userId) return;
+  writeCache(getChatsCacheKey(userId), payload);
+}
 
 export function getAuthState() {
   try {
@@ -104,14 +163,17 @@ export async function fetchChats({ q = '', limit = 20, offset = 0, signal } = {}
   return res.json();
 }
 
-export async function fetchModels({ signal } = {}) {
-  const res = await apiFetch('/api/models', { signal });
+export async function fetchModels({ signal, cache = 'default', cacheBust } = {}) {
+  const suffix = cacheBust ? `?t=${encodeURIComponent(cacheBust === true ? Date.now() : cacheBust)}` : '';
+  const res = await apiFetch(`/api/models${suffix}`, { signal, cache });
   if (!res.ok) {
     const err = new Error(`Failed to fetch models (${res.status})`);
     err.status = res.status;
     throw err;
   }
-  return res.json();
+  const data = await res.json();
+  writeModelsCache(data);
+  return data;
 }
 
 export async function fetchFiles({ limit = 20, offset = 0, signal } = {}) {

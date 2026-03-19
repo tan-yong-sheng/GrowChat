@@ -1,4 +1,4 @@
-import { apiFetch, clearAuthState, fetchChats, fetchModels, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState } from './api.js';
+import { apiFetch, clearAuthState, clearModelsCache, fetchChats, fetchModels, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState, readChatsCache, readModelsCache, writeChatsCache } from './api.js';
 import { renderMessageContent } from './utils.js';
 import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
@@ -39,11 +39,36 @@ let shortcutsInitialized = false;
 let realtimeStarted = false;
 let deferredBootstrapPromise = null;
 let modelsPrefetchPromise = null;
+let modelsInvalidationListenerBound = false;
 
-function prefetchModels() {
+function checkModelsInvalidation() {
+  try {
+    const invalidateToken = localStorage.getItem('growchat_models_invalidate');
+    const seenToken = sessionStorage.getItem('growchat_models_invalidate_seen');
+    const shouldInvalidate = Boolean(invalidateToken && invalidateToken !== seenToken);
+    if (shouldInvalidate) {
+      clearModelsCache();
+      sessionStorage.setItem('growchat_models_invalidate_seen', invalidateToken);
+    }
+    return shouldInvalidate ? invalidateToken : null;
+  } catch {
+    return null;
+  }
+}
+
+function prefetchModels({ allowCache = true, cacheBust = null } = {}) {
   if (modelsPrefetchPromise) return modelsPrefetchPromise;
-  setState({ modelsLoading: true });
-  modelsPrefetchPromise = fetchModels()
+  const cached = allowCache ? readModelsCache() : null;
+  if (cached?.models?.length) {
+    setState({ models: cached.models, modelsLoading: false });
+    return Promise.resolve(cached);
+  }
+
+  if (!state.models?.length) {
+    setState({ modelsLoading: true });
+  }
+  const cacheMode = allowCache ? 'default' : 'no-store';
+  modelsPrefetchPromise = fetchModels({ cache: cacheMode, cacheBust })
     .then((data) => {
       const models = Array.isArray(data?.models) ? data.models : [];
       setState({ models, modelsLoading: false });
@@ -51,8 +76,30 @@ function prefetchModels() {
     .catch((err) => {
       console.warn('Failed to prefetch models:', err);
       setState({ modelsLoading: false });
+    })
+    .finally(() => {
+      modelsPrefetchPromise = null;
     });
   return modelsPrefetchPromise;
+}
+
+function bindModelsInvalidationListener() {
+  if (modelsInvalidationListenerBound) return;
+  window.addEventListener('storage', (event) => {
+    if (event.key !== 'growchat_models_invalidate') return;
+    const token = event.newValue;
+    if (!token) return;
+    const seenToken = sessionStorage.getItem('growchat_models_invalidate_seen');
+    if (token === seenToken) return;
+    clearModelsCache();
+    sessionStorage.setItem('growchat_models_invalidate_seen', token);
+    const path = window.location.pathname || '/';
+    if (!path.startsWith('/admin')) {
+      setState({ models: [], modelsLoading: true });
+      prefetchModels({ allowCache: false, cacheBust: token });
+    }
+  });
+  modelsInvalidationListenerBound = true;
 }
 
 function shouldStartRealtime() {
@@ -247,14 +294,7 @@ async function ensureSession() {
   const user = meData.user || {};
 
   ensureShortcuts();
-
-  let chatsData;
-  try {
-    chatsData = await fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 });
-  } catch {
-    document.getElementById('app').innerHTML = '<div class="p-6 text-center mt-20 text-gray-500">Failed to load chats. Please refresh.</div>';
-    return false;
-  }
+  bindModelsInvalidationListener();
 
   const path = window.location.pathname;
   const routeChatId = getChatIdFromPath(path);
@@ -262,15 +302,78 @@ async function ensureSession() {
   const modelParam = urlParams.get('model');
   const isHomeRoute = path === '/' || path === '';
 
+  const cachedChats = readChatsCache(user.id);
+  const invalidateToken = checkModelsInvalidation();
+  const shouldInvalidateModels = Boolean(invalidateToken);
+  const cachedModels = shouldInvalidateModels ? null : readModelsCache();
+  const hasCachedModels = Array.isArray(cachedModels?.models) && cachedModels.models.length > 0;
+
   const cachedDefaultModelId = localStorage.getItem('defaultModelId');
   const serverDefaultModelId = user.preferences?.defaultModelId || null;
   const globalDefaultModelId = meData?.app_config?.default_model_id || null;
+  const fallbackChatModelId = cachedChats?.chats?.[0]?.model || null;
   const initialModelId = modelParam ||
     serverDefaultModelId ||
     globalDefaultModelId ||
     cachedDefaultModelId ||
-    chatsData.chats?.[0]?.model ||
+    fallbackChatModelId ||
     null;
+
+  if (cachedChats?.chats?.length) {
+    const cachedActiveChatId = (routeChatId && cachedChats.chats.some((chat) => chat.id === routeChatId))
+      ? routeChatId
+      : (isHomeRoute ? null : (cachedChats.chats?.[0]?.id || null));
+
+    setState({
+      user,
+      chats: cachedChats.chats || [],
+      chatsPagination: {
+        limit: cachedChats.limit || INITIAL_CHAT_LIMIT,
+        offset: cachedChats.offset || (cachedChats.chats?.length || 0),
+        hasMore: cachedChats.has_more === true,
+        loading: false,
+      },
+      activeChatId: cachedActiveChatId,
+      messagesByChat: {},
+      models: cachedModels?.models || [],
+      modelsLoading: false,
+      activeModelId: initialModelId,
+      defaultModelId: serverDefaultModelId || null,
+      globalDefaultModelId: globalDefaultModelId || null,
+    });
+  }
+
+  let chatsData = cachedChats;
+  const hasCachedChats = cachedChats?.chats?.length;
+  if (!hasCachedChats) {
+    try {
+      chatsData = await fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 });
+      writeChatsCache(user.id, chatsData);
+    } catch {
+      document.getElementById('app').innerHTML = '<div class="p-6 text-center mt-20 text-gray-500">Failed to load chats. Please refresh.</div>';
+      return false;
+    }
+  } else {
+    fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
+      .then((fresh) => {
+        writeChatsCache(user.id, fresh);
+        setState({
+          chats: fresh.chats || [],
+          chatsPagination: {
+            limit: fresh.limit || INITIAL_CHAT_LIMIT,
+            offset: (fresh.offset || 0) + (fresh.chats?.length || 0),
+            hasMore: fresh.has_more === true,
+            loading: false,
+          },
+          activeChatId: (routeChatId && fresh.chats?.some((chat) => chat.id === routeChatId))
+            ? routeChatId
+            : (isHomeRoute ? null : (fresh.chats?.[0]?.id || null)),
+        });
+      })
+      .catch((err) => {
+        console.warn('Failed to refresh chats:', err);
+      });
+  }
 
   setState({
     user,
@@ -285,7 +388,7 @@ async function ensureSession() {
       ? routeChatId
       : (isHomeRoute ? null : (chatsData.chats?.[0]?.id || null)),
     messagesByChat: {},
-    models: [],
+    models: cachedModels?.models || state.models || [],
     activeModelId: initialModelId,
     defaultModelId: serverDefaultModelId || null,
     globalDefaultModelId: globalDefaultModelId || null,
@@ -293,7 +396,12 @@ async function ensureSession() {
   if (serverDefaultModelId && serverDefaultModelId !== cachedDefaultModelId) {
     localStorage.setItem('defaultModelId', serverDefaultModelId);
   }
-  prefetchModels();
+  if (!hasCachedModels || shouldInvalidateModels) {
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 500));
+    idle(() => {
+      prefetchModels({ allowCache: !shouldInvalidateModels, cacheBust: invalidateToken });
+    });
+  }
 
   bootstrapped = true;
   scheduleDeferredBootstrap(user, { permissions: meData.permissions, roles: meData.roles });
@@ -333,6 +441,12 @@ export async function renderCurrentRoute() {
   if (path.startsWith('/admin')) {
     await renderAdminRoute(app);
     return;
+  }
+
+  const invalidateModels = checkModelsInvalidation();
+  if (invalidateModels) {
+    setState({ models: [], modelsLoading: true });
+    prefetchModels({ allowCache: false, cacheBust: invalidateModels });
   }
 
   const renderChat = await ensureRenderChat();
