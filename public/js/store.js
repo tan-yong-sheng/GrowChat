@@ -52,7 +52,7 @@ export const state = {
   
   // Interaction State
   drafts: JSON.parse(localStorage.getItem('drafts') || '{}'), // chatId -> draft text
-  newChatDraft: '',
+  newChatDraft: localStorage.getItem('newChatDraft') || '',
   ui: {
     loading: false,
     streaming: false,
@@ -97,6 +97,7 @@ export function setState(updater) {
     if (changes.sidebarWidth) localStorage.setItem('sidebarWidth', state.sidebarWidth);
     if (changes.sidebarCollapsed !== undefined) localStorage.setItem('sidebarCollapsed', state.sidebarCollapsed);
     if (changes.drafts) localStorage.setItem('drafts', JSON.stringify(state.drafts));
+    if (changes.newChatDraft !== undefined) localStorage.setItem('newChatDraft', state.newChatDraft || '');
     if (changes.defaultModelId) {
       // defaultModelId is stored server-side; avoid persisting stale local values.
     }

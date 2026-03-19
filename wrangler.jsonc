@@ -48,21 +48,6 @@
 			]
 		}
 	],
-	// "queues": {
-	// 	"producers": [
-	// 		{
-	// 			"binding": "TOOL_QUEUE",
-	// 			"queue": "tool-runner"
-	// 		}
-	// 	],
-	// 	"consumers": [
-	// 		{
-	// 			"queue": "tool-runner",
-	// 			"max_batch_size": 1,
-	// 			"max_batch_timeout": 30
-	// 		}
-	// 	]
-	// },
 	// KV namespaces
 	"kv_namespaces": [
 		{
@@ -83,14 +68,12 @@
 	],
 	"vars": {
 		"APP_NAME": "GrowChat",
-		"TOOL_RUNNER_MODE": "auto",
 		"ENVIRONMENT": "dev"
 	},
 	"env": {
 		"production": {
 			"vars": {
 				"APP_NAME": "GrowChat",
-				"TOOL_RUNNER_MODE": "auto",
 				"ENVIRONMENT": "production"
 			},
 			"d1_databases": [
@@ -128,21 +111,7 @@
 					"id": "5f57cacd947e4fa9954e1c600f8a8170"
 				}
 			],
-			// "queues": {
-			// 	"producers": [
-			// 		{
-			// 			"binding": "TOOL_QUEUE",
-			// 			"queue": "tool-runner"
-			// 		}
-			// 	],
-			// 	"consumers": [
-			// 		{
-			// 			"queue": "tool-runner",
-			// 			"max_batch_size": 1,
-			// 			"max_batch_timeout": 30
-			// 		}
-			// 	]
-			// }
+			
 		}
 	}
 }

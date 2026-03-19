@@ -376,6 +376,57 @@ function wireChat(root) {
   const processedRealtimeEvents = new Map();
   const currentLeafByChatId = new Map();
   const branchSelectionByChat = new Map();
+  const streamPollersByChat = new Map();
+  const resumeStreamsByChat = new Map();
+  const messageSeqById = new Map();
+
+  const loadMessageSeqs = () => {
+    let stored = {};
+    try {
+      stored = JSON.parse(localStorage.getItem('message_seqs') || '{}') || {};
+    } catch { }
+    Object.entries(stored).forEach(([id, seq]) => {
+      const num = Number(seq);
+      if (Number.isFinite(num) && num > 0) {
+        messageSeqById.set(String(id), num);
+      }
+    });
+  };
+  const persistMessageSeqs = () => {
+    const entries = Array.from(messageSeqById.entries());
+    if (entries.length > 500) {
+      const excess = entries.length - 500;
+      for (let i = 0; i < excess; i += 1) {
+        messageSeqById.delete(entries[i][0]);
+      }
+    }
+    const payload = Object.fromEntries(messageSeqById.entries());
+    try {
+      localStorage.setItem('message_seqs', JSON.stringify(payload));
+    } catch { }
+  };
+  const getMessageSeq = (messageId) => {
+    if (!messageId) return 0;
+    return messageSeqById.get(String(messageId)) || 0;
+  };
+  const setMessageSeq = (messageId, seq) => {
+    if (!messageId) return;
+    const num = Number(seq);
+    if (!Number.isFinite(num) || num <= 0) return;
+    const key = String(messageId);
+    const existing = messageSeqById.get(key) || 0;
+    if (num <= existing) return;
+    messageSeqById.delete(key);
+    messageSeqById.set(key, num);
+    persistMessageSeqs();
+  };
+  const notePayloadSeq = (payload, messageId) => {
+    if (!payload || !messageId) return;
+    if (payload?.seq != null) {
+      setMessageSeq(messageId, payload.seq);
+    }
+  };
+  loadMessageSeqs();
   const setStreamingState = (chatId, streaming) => {
     if (!chatId) return;
     setState((prev) => ({
@@ -387,6 +438,10 @@ function wireChat(root) {
           : (prev.ui.streamingChatId === String(chatId) ? null : prev.ui.streamingChatId),
       }
     }));
+    if (!streaming) {
+      stopStreamPolling(chatId);
+      stopResumeStream(chatId);
+    }
   };
   const streamingOverrideByChat = new Map();
   const tempMessageIdMapByChat = new Map();
@@ -410,6 +465,39 @@ function wireChat(root) {
       window.__growchatAbortStream = null;
     }
   };
+  const requestCancelStream = async (chatId, messageId) => {
+    if (!chatId || !messageId) return false;
+    try {
+      await apiFetch(`/api/chats/${chatId}/messages/${messageId}/cancel`, { method: 'POST' });
+    } catch { }
+
+    streamingOverrideByChat.delete(chatId);
+    setStreamingState(chatId, false);
+    stopStreamPolling(chatId);
+    stopResumeStream(chatId);
+
+    const messages = [...(state.messagesByChat[chatId] || [])];
+    const idx = messages.findIndex((m) => String(m?.id || '') === String(messageId));
+    if (idx >= 0) {
+      const existing = messages[idx] || {};
+      messages[idx] = {
+        ...existing,
+        status: 'cancelled',
+        error_code: existing.error_code || 'cancelled',
+        error_message: existing.error_message || 'Cancelled by user',
+        done: true,
+      };
+      setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: messages } }));
+      if (state.activeChatId === chatId) drawMessages(messages);
+    }
+
+    if (activeStreamAbort && state.activeChatId === chatId) {
+      clearGlobalStreamAbort(activeStreamAbort);
+      activeStreamAbort = null;
+    }
+    return true;
+  };
+  window.__growchatRequestCancel = requestCancelStream;
   const getDraftAttachments = (chatId = state.activeChatId) => {
     if (chatId) {
       return state.attachmentsByChat?.[chatId] || [];
@@ -2335,6 +2423,7 @@ function wireChat(root) {
                 assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
                 applyAssistantText();
               }
+              notePayloadSeq(payload, assistantMessageId);
             });
 
             while (true) {
@@ -2639,6 +2728,7 @@ function wireChat(root) {
               assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
               applyAssistantText();
             }
+            notePayloadSeq(payload, assistantMessageId);
           });
           let assistantText = '';
 
@@ -2791,10 +2881,20 @@ function wireChat(root) {
     });
   }
 
+  const STREAM_STALE_MS = 5 * 60 * 1000;
+
   async function loadMessages(chatId, options = {}) {
     const { draw = true, updateActiveModel = draw, modelMode = 'keep', fallbackMessage = null } = options;
     if (!chatId) {
       if (draw) drawMessages([]);
+      return;
+    }
+    if (isTempChatId(chatId)) {
+      if (draw) {
+        setState({ ui: { loadingChatId: null, streaming: false, streamingChatId: null } });
+        const existing = state.messagesByChat[chatId] || [];
+        drawMessages(existing);
+      }
       return;
     }
     touchChatCache(chatId);
@@ -2806,15 +2906,27 @@ function wireChat(root) {
       drawMessages(existing);
     }
 
-    const res = await apiFetch(`/api/chats/${chatId}`);
-    if (!res.ok) return;
+    const res = await apiFetch(`/api/chats/${chatId}`, { cache: 'no-store' });
+    if (!res.ok) {
+      setState({ ui: { loadingChatId: null } });
+      return;
+    }
     const data = await res.json();
 
-    let messages = (data.messages || []).map((m) => {
-      const status = String(m?.status || '');
-      const isRunning = m?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
-      return { ...m, done: !isRunning };
-    });
+    const now = Date.now();
+    const isMessageLive = (message) => {
+      const status = String(message?.status || '');
+      const isRunning = message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+      if (!isRunning) return false;
+      const createdAtMs = Number(message?.created_at || 0) * 1000;
+      if (!createdAtMs) return false;
+      return now - createdAtMs <= STREAM_STALE_MS;
+    };
+
+    let messages = (data.messages || []).map((m) => ({
+      ...m,
+      done: !isMessageLive(m),
+    }));
     let appliedFallbackId = null;
     if (fallbackMessage?.id) {
       let resolvedFallback = fallbackMessage;
@@ -2844,10 +2956,7 @@ function wireChat(root) {
       currentLeafByChatId.set(chatId, String(appliedFallbackId));
     }
 
-    const hasRunning = messages.some((m) => {
-      const status = String(m?.status || '');
-      return m?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
-    });
+    const hasRunning = messages.some((m) => isMessageLive(m));
 
     const nextState = {
       messagesByChat: { ...state.messagesByChat, [chatId]: messages },
@@ -2877,6 +2986,10 @@ function wireChat(root) {
     setState(nextState);
 
     if (draw) drawMessages(messages);
+    if (hasRunning && state.activeChatId === chatId) {
+      const runningId = getRunningMessageId(messages);
+      if (runningId) startResumeStream(chatId, runningId);
+    }
   }
 
   function upsertChatFromEvent(chat) {
@@ -2997,6 +3110,30 @@ function wireChat(root) {
       return;
     }
 
+    if (type === 'message.cancelled') {
+      if (eventChat) {
+        upsertChatFromEvent(eventChat);
+      } else {
+        await loadChats();
+      }
+
+      if (eventMessage) {
+        upsertMessageFromEvent(event.chat_id, eventMessage, { draw: event.chat_id === state.activeChatId });
+      } else if (event.chat_id && event.chat_id === state.activeChatId) {
+        await loadMessages(event.chat_id);
+      }
+
+      if (event.chat_id && event.chat_id === state.activeChatId) {
+        streamingOverrideByChat.delete(event.chat_id);
+        setStreamingState(event.chat_id, false);
+        if (activeStreamAbort) {
+          clearGlobalStreamAbort(activeStreamAbort);
+          activeStreamAbort = null;
+        }
+      }
+      return;
+    }
+
     if ((type === 'message.created' || type === 'message.delta' || type === 'message.completed') && isSameSession && activeStreamAbort) {
       return;
     }
@@ -3067,7 +3204,7 @@ function wireChat(root) {
     const activeTempId = state.activeChatId && isTempChatId(state.activeChatId) ? state.activeChatId : null;
     if (activeTempId && (state.messagesByChat[activeTempId] || []).length === 0) {
       setState({ activeChatId: activeTempId, newChatDraft: '' });
-      syncChatUrl(null);
+      syncChatUrl(activeTempId);
       drawMessages([]);
       return;
     }
@@ -3079,7 +3216,7 @@ function wireChat(root) {
       activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
       newChatDraft: '',
     }));
-    syncChatUrl(null);
+    syncChatUrl(tempChat.id);
     drawMessages([]);
   }
 
@@ -3101,6 +3238,7 @@ function wireChat(root) {
       }));
 
       chatId = tempChatId;
+      syncChatUrl(tempChatId);
     } else if (isTempChat) {
       tempChatId = chatId;
       const exists = state.chats.some((chat) => String(chat.id) === String(chatId));
@@ -3112,6 +3250,7 @@ function wireChat(root) {
           activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
         }));
       }
+      syncChatUrl(chatId);
     }
 
     if (!state.attachmentsByChat?.[chatId] && (state.newChatAttachments || []).length > 0) {
@@ -3383,6 +3522,7 @@ function wireChat(root) {
         assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
         applyAssistantText();
       }
+      notePayloadSeq(payload, assistantMessageId);
     });
     let assistantText = '';
 
@@ -3859,6 +3999,7 @@ function wireChat(root) {
     }
 
     if (currentState.activeChatId && currentState.activeChatId !== lastActiveChatId) {
+      if (lastActiveChatId) stopStreamPolling(lastActiveChatId);
       touchChatCache(currentState.activeChatId);
       schedulePrune();
     }
@@ -3893,8 +4034,256 @@ function wireChat(root) {
     });
   }
 
+  const STREAM_POLL_INTERVAL_MS = 1500;
+  const STREAM_POLL_TIMEOUT_MS = 120000;
+
+  function getRunningMessageId(messages = []) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      const status = String(msg?.status || '');
+      if (msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running')) {
+        return msg.id;
+      }
+    }
+    return null;
+  }
+
+  function stopStreamPolling(chatId) {
+    if (!chatId) return;
+    const key = String(chatId);
+    const existing = streamPollersByChat.get(key);
+    if (!existing) return;
+    clearInterval(existing.timer);
+    streamPollersByChat.delete(key);
+  }
+
+  function startStreamPolling(chatId, messageId) {
+    if (!chatId || !messageId) return;
+    const key = String(chatId);
+    if (resumeStreamsByChat.has(key)) return;
+    const existing = streamPollersByChat.get(key);
+    if (existing && String(existing.messageId) === String(messageId)) return;
+    if (existing) stopStreamPolling(chatId);
+
+    const startedAt = Date.now();
+    let failures = 0;
+    const poll = async () => {
+      if (Date.now() - startedAt > STREAM_POLL_TIMEOUT_MS) {
+        setStreamingState(chatId, false);
+        return;
+      }
+      try {
+        const res = await apiFetch(`/api/chats/${chatId}/messages/${messageId}/status`);
+        if (!res.ok) {
+          failures += 1;
+          if (res.status === 404 || failures >= 3) {
+            setStreamingState(chatId, false);
+          }
+          return;
+        }
+        failures = 0;
+        const data = await res.json();
+        const msg = data?.message;
+        if (!msg) return;
+        const status = String(msg?.status || '');
+        const isRunning = msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+
+        const messages = [...(state.messagesByChat[chatId] || [])];
+        const idx = messages.findIndex((m) => String(m?.id || '') === String(msg.id));
+        if (idx >= 0) {
+          messages[idx] = {
+            ...messages[idx],
+            ...msg,
+            done: !isRunning,
+          };
+        } else {
+          messages.push({ ...msg, done: !isRunning });
+        }
+        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: messages } }));
+        if (state.activeChatId === chatId) drawMessages(messages);
+
+        const hasRunning = messages.some((m) => {
+          const s = String(m?.status || '');
+          return m?.role === 'assistant' && (s === 'streaming' || s === 'tool_running');
+        });
+        setStreamingState(chatId, hasRunning);
+
+        if (!isRunning) {
+          stopStreamPolling(chatId);
+        }
+      } catch {
+        failures += 1;
+        if (failures >= 3) {
+          setStreamingState(chatId, false);
+        }
+      }
+    };
+
+    const timer = setInterval(poll, STREAM_POLL_INTERVAL_MS);
+    streamPollersByChat.set(key, { timer, messageId, startedAt });
+    poll();
+  }
+
+  function stopResumeStream(chatId) {
+    if (!chatId) return;
+    const key = String(chatId);
+    const existing = resumeStreamsByChat.get(key);
+    if (!existing) return;
+    try {
+      existing.controller.abort();
+    } catch { }
+    resumeStreamsByChat.delete(key);
+  }
+
+  async function startResumeStream(chatId, messageId) {
+    if (!chatId || !messageId) return;
+    if (activeStreamAbort && state.activeChatId === chatId) return;
+    const key = String(chatId);
+    const existing = resumeStreamsByChat.get(key);
+    if (existing && String(existing.messageId) === String(messageId)) return;
+    if (existing) stopResumeStream(chatId);
+    stopStreamPolling(chatId);
+
+    const lastSeq = getMessageSeq(messageId);
+    const controller = new AbortController();
+    resumeStreamsByChat.set(key, { controller, messageId });
+    setStreamingState(chatId, true);
+
+    const existingMsg = getMessageById(chatId, messageId);
+    let assistantText = '';
+    if (lastSeq > 0 && existingMsg?.content) {
+      assistantText = extractThinkingBlocks(existingMsg.content).cleaned || '';
+    } else {
+      messageBlocksById.delete(String(messageId));
+      toolCallsByMessageId.delete(String(messageId));
+    }
+
+    let errorMessage = null;
+    let errorActive = false;
+
+    const applyAssistantText = (streaming = true) => {
+      streamingOverrideByChat.set(chatId, {
+        targetMsgId: messageId,
+        content: assistantText,
+      });
+
+      const currentMessages = [...(state.messagesByChat[chatId] || [])];
+      const targetIdx = currentMessages.findIndex(m => String(m.id) === String(messageId));
+      if (targetIdx >= 0) {
+        currentMessages[targetIdx] = {
+          ...currentMessages[targetIdx],
+          content: assistantText,
+          status: errorActive ? 'error' : currentMessages[targetIdx].status,
+          error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
+        };
+        setState((prev) => ({
+          messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages }
+        }));
+      }
+
+      if (state.activeChatId === chatId) {
+        updateMessageContentDom(messageId, assistantText, { isError: errorActive, isStreaming: streaming });
+      }
+    };
+
+    const parser = new SseLineParser((payload) => {
+      notePayloadSeq(payload, messageId);
+      if (payload?.event === 'reasoning_start') {
+        if (!thinkingStartByMessageId.has(String(messageId))) {
+          thinkingStartByMessageId.set(String(messageId), Date.now());
+        }
+        thinkingActiveByMessageId.set(String(messageId), true);
+        ensureThinkingBlock(messageId);
+        applyAssistantText(true);
+      }
+      if (payload?.event === 'reasoning_delta') {
+        const delta = String(payload.delta || '');
+        if (delta) {
+          appendBlock(messageId, 'thinking', delta);
+          thinkingActiveByMessageId.set(String(messageId), true);
+          applyAssistantText(true);
+        }
+      }
+      if (payload?.event === 'reasoning_end') {
+        const duration = Number(payload.duration_ms);
+        if (Number.isFinite(duration) && duration > 0) {
+          thinkingDurationByMessageId.set(String(messageId), duration);
+        }
+        thinkingActiveByMessageId.delete(String(messageId));
+      }
+      if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
+        updateToolCallState(messageId, payload);
+        applyAssistantText(true);
+      }
+      if (payload?.error) {
+        errorMessage = payload.message || payload.error || 'LLM request failed';
+        errorActive = true;
+        const label = `Error: ${errorMessage}`;
+        assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
+        applyAssistantText(false);
+      }
+    });
+
+    try {
+      const res = await apiFetch(`/api/chats/${chatId}/messages/${messageId}/resume?after_seq=${lastSeq}`, {
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) {
+        stopResumeStream(chatId);
+        startStreamPolling(chatId, messageId);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          const finalDelta = parser.flush();
+          if (finalDelta) {
+            assistantText += finalDelta;
+            appendBlock(messageId, 'text', finalDelta);
+          }
+          const startedAt = thinkingStartByMessageId.get(String(messageId));
+          if (startedAt && !thinkingDurationByMessageId.has(String(messageId))) {
+            thinkingDurationByMessageId.set(String(messageId), Date.now() - startedAt);
+          }
+          thinkingActiveByMessageId.delete(String(messageId));
+          applyAssistantText(false);
+          streamingOverrideByChat.delete(chatId);
+          await loadMessages(chatId, {
+            draw: state.activeChatId === chatId,
+            updateActiveModel: state.activeChatId === chatId,
+          });
+          break;
+        }
+        const chunk = decoder.decode(value, { stream: true });
+        const delta = parser.push(chunk);
+        if (delta) {
+          assistantText += delta;
+          appendBlock(messageId, 'text', delta);
+        }
+        applyAssistantText(true);
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        console.error('Resume stream error:', err);
+        startStreamPolling(chatId, messageId);
+      }
+    } finally {
+      if (resumeStreamsByChat.get(key)?.controller === controller) {
+        resumeStreamsByChat.delete(key);
+      }
+      if (state.activeChatId === chatId && !streamingOverrideByChat.has(chatId)) {
+        setStreamingState(chatId, false);
+      }
+    }
+  }
+
   return () => {
     if (activeStreamAbort) activeStreamAbort();
+    streamPollersByChat.forEach((poller) => clearInterval(poller.timer));
+    streamPollersByChat.clear();
     if (chatListLoadObserver) chatListLoadObserver.disconnect();
     unsubscribe();
     clearAttachmentCache();

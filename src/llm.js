@@ -4,6 +4,7 @@ import { buildProviderId, parseModelId, parseProviderId } from './utils/provider
 export async function streamLLM(env, model, messages, options = {}) {
   if (!model) throw new Error('Model is required');
   const { tools, toolChoice, stream = true } = options || {};
+  const LLM_CONNECT_TIMEOUT_MS = 30000;
 
   if (model.startsWith('@cf/')) {
     throw new Error('Workers AI models are disabled');
@@ -61,11 +62,24 @@ export async function streamLLM(env, model, messages, options = {}) {
     if (toolChoice) payload.tool_choice = toolChoice;
   }
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
+  let response;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), LLM_CONNECT_TIMEOUT_MS);
+  try {
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error('LLM request timed out');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok || !response.body) {
     const body = await response.text().catch(() => '');

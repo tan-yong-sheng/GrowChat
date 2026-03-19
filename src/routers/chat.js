@@ -547,22 +547,7 @@ const MCP_PROTOCOL_VERSION = '2025-11-25';
 const MAX_TOOL_STEPS = 20;
 const MAX_FOLLOW_UPS = 5;
 const FOLLOW_UP_PROMPT = 'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
-
-function shouldUseToolRunner(env) {
-  const mode = String(env?.TOOL_RUNNER_MODE || 'inline').toLowerCase();
-  if (mode !== 'queue') return false;
-  return Boolean(env?.TOOL_QUEUE);
-}
-
-async function enqueueToolRunner(env, payload) {
-  if (!env?.TOOL_QUEUE) return false;
-  try {
-    await env.TOOL_QUEUE.send(payload);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const CANCEL_CHECK_INTERVAL_MS = 900;
 
 async function loadToolServers(db) {
   const raw = await getConfigValue(db, 'tool_servers', '[]');
@@ -903,6 +888,7 @@ async function streamAssistantWithTools({
   const servers = await loadToolServers(db);
   const { tools, toolMap, serversById } = buildMcpTools(servers);
   const toolsEnabled = tools.length > 0;
+  const STREAM_STATUS_STALE_MS = 10 * 60 * 1000;
 
   const encoder = new TextEncoder();
   let fullText = '';
@@ -911,6 +897,28 @@ async function streamAssistantWithTools({
   let deltaSeq = 0;
   const toolCallRecords = [];
   const messageBlocks = [];
+  const STREAM_IDLE_TIMEOUT_MS = 45000;
+  let streamController = null;
+
+  const persistDelta = async (payload) => {
+    if (!payload || typeof payload !== 'object') return payload;
+    deltaSeq += 1;
+    const payloadWithSeq = { ...payload, seq: deltaSeq };
+    try {
+      await db.run(
+        'INSERT INTO message_deltas (message_id, seq, payload, created_at) VALUES (?, ?, ?, unixepoch())',
+        [assistantMsgId, deltaSeq, JSON.stringify(payloadWithSeq)]
+      );
+    } catch { }
+    return payloadWithSeq;
+  };
+
+  const emitSse = async (payload, { persist = false } = {}) => {
+    const outgoing = persist ? await persistDelta(payload) : payload;
+    if (!streamController) return outgoing;
+    streamController.enqueue(encoder.encode(sseData(outgoing)));
+    return outgoing;
+  };
 
   const appendMessageBlock = (type, content = '', toolCallId = null) => {
     if (!type) return;
@@ -931,33 +939,60 @@ async function streamAssistantWithTools({
     messageBlocks.push({ type, content: String(content || '') });
   };
 
+  const clearStreamingStatus = async () => {
+    try {
+      await db.run(
+        "UPDATE messages SET status = NULL WHERE id = ? AND status IN ('streaming', 'tool_running')",
+        [assistantMsgId]
+      );
+    } catch { }
+  };
+
   const readable = new ReadableStream({
     async start(controller) {
+      streamController = controller;
       const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : (citations || null);
       let lastPersistAt = 0;
       let lastPersistSize = 0;
+      let lastCancelCheckAt = 0;
+      const readWithTimeout = async (reader) => {
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('LLM stream timed out')), STREAM_IDLE_TIMEOUT_MS);
+        });
+        try {
+          return await Promise.race([reader.read(), timeoutPromise]);
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
 
       const ensureAssistantRow = async () => {
+        let inserted = false;
         try {
           await db.run(
             `INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, created_at)
              VALUES (?, ?, 'assistant', ?, ?, ?, ?, 'streaming', unixepoch())`,
             [assistantMsgId, chatId, '', model, citationsJson, userMsgId]
           );
+          inserted = true;
         } catch (err) {
           try {
             await db.run(
               'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
               [assistantMsgId, chatId, 'assistant', '', model, citationsJson, userMsgId]
             );
+            inserted = true;
           } catch { }
         }
+        if (!inserted) return false;
         try {
           await db.run(
             'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
             [assistantMsgId, model, chatId, user.sub]
           );
         } catch { }
+        return true;
       };
 
       const buildPersistedContent = () => {
@@ -990,6 +1025,46 @@ async function streamAssistantWithTools({
         } catch { }
       };
 
+      const isCancelled = async () => {
+        const now = Date.now();
+        if (now - lastCancelCheckAt < CANCEL_CHECK_INTERVAL_MS) return false;
+        lastCancelCheckAt = now;
+        try {
+          const row = await db.first('SELECT status, error_code FROM messages WHERE id = ?', [assistantMsgId]);
+          const status = String(row?.status || '').toLowerCase();
+          const code = String(row?.error_code || '').toLowerCase();
+          return status === 'cancelled' || status === 'cancel_requested' || code === 'cancelled';
+        } catch {
+          return false;
+        }
+      };
+
+      const sendCancelAndClose = async () => {
+        try {
+          await db.run(
+            "UPDATE messages SET status = 'cancelled', error_code = 'cancelled', error_message = ? WHERE id = ?",
+            ['Cancelled by user', assistantMsgId]
+          );
+        } catch { }
+        const cancelledMessage = await getMessageSnapshot(db, assistantMsgId);
+        const updatedChat = await getOwnedChat(db, chatId, user.sub);
+        await publishRealtimeNow(env, createRealtimeEvent({
+          type: 'message.cancelled',
+          userId: user.sub,
+          chatId,
+          messageId: assistantMsgId,
+          originSessionId: getOriginSessionId(req),
+          data: {
+            role: 'assistant',
+            model,
+            message: cancelledMessage,
+            chat: updatedChat,
+          },
+        }));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      };
+
       const sendErrorAndClose = async (errorCode, err) => {
         const errorMessage = normalizeErrorMessage(err, 'LLM request failed');
         const errorDetails = normalizeErrorMessage(err, 'LLM request failed', 8000);
@@ -1019,14 +1094,20 @@ async function streamAssistantWithTools({
             chat: await getOwnedChat(db, chatId, user.sub),
           },
         }));
-        controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
-        controller.enqueue(encoder.encode(sseData({ error: errorCode, message: errorMessage })));
+        await emitSse({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId });
+        await emitSse({ error: errorCode, message: errorMessage }, { persist: true });
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       };
 
       await ensureAssistantRow();
-      controller.enqueue(encoder.encode(sseData({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId })));
+      if (ctx?.waitUntil) {
+        ctx.waitUntil((async () => {
+          await sleep(STREAM_STATUS_STALE_MS);
+          await clearStreamingStatus(true);
+        })());
+      }
+      await emitSse({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId });
 
       let messagesForModel = [...history];
       let steps = 0;
@@ -1046,10 +1127,10 @@ async function streamAssistantWithTools({
             return;
           }
 
-          const reader = stream.getReader();
-          const decoder = new TextDecoder();
-          const stepToolCalls = [];
-          let finishReason = null;
+            const reader = stream.getReader();
+            const decoder = new TextDecoder();
+            const stepToolCalls = [];
+            let finishReason = null;
 
           let emitEvent = () => { };
           const parser = new SseLineParser({
@@ -1060,7 +1141,7 @@ async function streamAssistantWithTools({
             if (!event) return;
             if (event.type === 'reasoning_start') {
               if (!reasoningStartedAt) reasoningStartedAt = Date.now();
-              controller.enqueue(encoder.encode(sseData({ event: 'reasoning_start' })));
+              void emitSse({ event: 'reasoning_start' }, { persist: true });
               return;
             }
             if (event.type === 'reasoning_delta') {
@@ -1070,12 +1151,12 @@ async function streamAssistantWithTools({
               appendMessageBlock('thinking', delta);
               fullReasoning += delta;
               persistAssistantContent();
-              controller.enqueue(encoder.encode(sseData({ event: 'reasoning_delta', delta })));
+              void emitSse({ event: 'reasoning_delta', delta }, { persist: true });
               return;
             }
             if (event.type === 'reasoning_end') {
               const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
-              controller.enqueue(encoder.encode(sseData({ event: 'reasoning_end', duration_ms: duration })));
+              void emitSse({ event: 'reasoning_end', duration_ms: duration }, { persist: true });
               persistAssistantContent(true);
               return;
             }
@@ -1089,7 +1170,7 @@ async function streamAssistantWithTools({
           };
 
           while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await readWithTimeout(reader);
             if (done) break;
             const delta = parser.push(decoder.decode(value, { stream: true }));
             if (delta) {
@@ -1097,15 +1178,19 @@ async function streamAssistantWithTools({
               stepTextOutput = true;
               appendMessageBlock('text', delta);
               persistAssistantContent();
-              controller.enqueue(encoder.encode(sseData({ response: delta })));
+              const persisted = await emitSse({ response: delta }, { persist: true });
               await publishRealtimeNow(env, createRealtimeEvent({
                 type: 'message.delta',
                 userId: user.sub,
                 chatId,
                 messageId: assistantMsgId,
                 originSessionId: getOriginSessionId(req),
-                data: { delta, model, seq: ++deltaSeq },
+                data: { delta, model, seq: persisted?.seq },
               }));
+            }
+            if (await isCancelled()) {
+              await sendCancelAndClose();
+              return;
             }
           }
 
@@ -1115,18 +1200,23 @@ async function streamAssistantWithTools({
             stepTextOutput = true;
             appendMessageBlock('text', finalDelta);
             await persistAssistantContent();
-            controller.enqueue(encoder.encode(sseData({ response: finalDelta })));
+            const persisted = await emitSse({ response: finalDelta }, { persist: true });
             await publishRealtimeNow(env, createRealtimeEvent({
               type: 'message.delta',
               userId: user.sub,
               chatId,
               messageId: assistantMsgId,
               originSessionId: getOriginSessionId(req),
-              data: { delta: finalDelta, model, seq: ++deltaSeq },
+              data: { delta: finalDelta, model, seq: persisted?.seq },
             }));
           }
           parser.finalize();
           reader.releaseLock();
+
+          if (await isCancelled()) {
+            await sendCancelAndClose();
+            return;
+          }
 
           const hasToolCalls = stepToolCalls.some((call) => call && call.name);
           if (hasToolCalls && finishReason === 'tool_calls') {
@@ -1144,55 +1234,6 @@ async function streamAssistantWithTools({
               },
             }));
 
-            if (shouldUseToolRunner(env)) {
-              for (const call of validCalls) {
-                const record = {
-                  id: call.toolCallId,
-                  name: call.displayName,
-                  input: call.arguments,
-                  output: '',
-                  error: null,
-                  status: 'running',
-                };
-                toolCallRecords.push(record);
-                appendMessageBlock('tool', '', call.toolCallId);
-                await persistToolCalls();
-                controller.enqueue(encoder.encode(sseData({
-                  event: 'tool_status',
-                  message_id: assistantMsgId,
-                  tool_call_id: call.toolCallId,
-                  tool_name: call.displayName,
-                  state: 'running',
-                  input: call.arguments,
-                })));
-              }
-
-              try {
-                await db.run('UPDATE messages SET status = ? WHERE id = ?', ['tool_running', assistantMsgId]);
-              } catch { }
-
-              await persistAssistantContent(true);
-              const queued = await enqueueToolRunner(env, {
-                userId: user.sub,
-                chatId,
-                assistantMsgId,
-                userMsgId,
-                model,
-                history: messagesForModel,
-                citations,
-                toolCalls: validCalls,
-                originSessionId: getOriginSessionId(req),
-                fullText,
-                fullReasoning,
-                step: steps,
-              });
-              if (queued) {
-                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                controller.close();
-                return;
-              }
-            }
-
             const toolResultMessages = [];
 
             for (const call of unknownCalls) {
@@ -1209,7 +1250,7 @@ async function streamAssistantWithTools({
               appendMessageBlock('tool', '', call.toolCallId);
               await persistToolCalls();
               await persistAssistantContent();
-              controller.enqueue(encoder.encode(sseData({
+              await emitSse({
                 event: 'tool_result',
                 message_id: assistantMsgId,
                 tool_call_id: call.toolCallId,
@@ -1218,18 +1259,22 @@ async function streamAssistantWithTools({
                 output: errorText,
                 error: errorText,
                 status: 'error',
-              })));
+              }, { persist: true });
             }
 
             for (const call of validCalls) {
-              controller.enqueue(encoder.encode(sseData({
+              if (await isCancelled()) {
+                await sendCancelAndClose();
+                return;
+              }
+              await emitSse({
                 event: 'tool_status',
                 message_id: assistantMsgId,
                 tool_call_id: call.toolCallId,
                 tool_name: call.displayName,
                 state: 'running',
                 input: call.arguments,
-              })));
+              }, { persist: true });
 
               const server = serversById.get(call.serverId);
               let outputText = '';
@@ -1267,7 +1312,7 @@ async function streamAssistantWithTools({
               await persistToolCalls();
               await persistAssistantContent();
 
-              controller.enqueue(encoder.encode(sseData({
+              await emitSse({
                 event: 'tool_result',
                 message_id: assistantMsgId,
                 tool_call_id: call.toolCallId,
@@ -1276,13 +1321,18 @@ async function streamAssistantWithTools({
                 output: outputText,
                 error: errorText || null,
                 status,
-              })));
+              }, { persist: true });
 
               toolResultMessages.push({
                 role: 'tool',
                 tool_call_id: call.toolCallId,
                 content: outputText,
               });
+
+              if (await isCancelled()) {
+                await sendCancelAndClose();
+                return;
+              }
             }
 
             if (toolCallsForModel.length) {
@@ -1373,7 +1423,12 @@ async function streamAssistantWithTools({
         controller.close();
       } catch (err) {
         await sendErrorAndClose('stream_failed', err);
+      } finally {
+        await clearStreamingStatus();
       }
+    },
+    async cancel() {
+      await clearStreamingStatus();
     },
   });
 
@@ -1381,7 +1436,7 @@ async function streamAssistantWithTools({
 }
 
 export async function chatRouter(req, env, ctx, user, path) {
-  const isChatPath = path === '/api/chats' || path === '/api/chats/shared' || path === '/api/chats/archived' || /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate))?)?|\/(?:share|archive|pin|clone))?$/.test(path);
+  const isChatPath = path === '/api/chats' || path === '/api/chats/shared' || path === '/api/chats/archived' || /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate|cancel|status|resume))?)?|\/(?:share|archive|pin|clone))?$/.test(path);
   if (!isChatPath) return null;
 
   const unauthorized = requireAuth(req, user);
@@ -2287,6 +2342,126 @@ export async function chatRouter(req, env, ctx, user, path) {
     });
 
     return response;
+  }
+
+  // Route: POST /api/chats/:id/messages/:msgId/cancel
+  const cancelMatch = path.match(/^\/api\/chats\/([^/]+)\/messages\/([^/]+)\/cancel$/);
+  if (cancelMatch && req.method === 'POST') {
+    const chatId = cancelMatch[1];
+    const msgId = cancelMatch[2];
+
+    const chat = await getOwnedChat(db, chatId, user.sub);
+    if (!chat) return error(req, 'Chat not found', 404);
+
+    const msg = await db.first(
+      'SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?',
+      [msgId, chatId]
+    );
+    if (!msg) return error(req, 'Message not found', 404);
+    if (msg.role !== 'assistant') return error(req, 'Only assistant messages can be cancelled', 400);
+
+    const status = String(msg.status || '');
+    if (!['streaming', 'tool_running'].includes(status)) {
+      return json(req, { ok: true, cancelled: false, status });
+    }
+
+    await db.run(
+      "UPDATE messages SET status = 'cancelled', error_code = 'cancelled', error_message = ? WHERE id = ? AND chat_id = ?",
+      ['Cancelled by user', msgId, chatId]
+    );
+
+    const cancelledMessage = await getMessageSnapshot(db, msgId);
+    await publishRealtimeNow(env, createRealtimeEvent({
+      type: 'message.cancelled',
+      userId: user.sub,
+      chatId,
+      messageId: msgId,
+      originSessionId,
+      data: {
+        role: 'assistant',
+        model: cancelledMessage?.model || null,
+        message: cancelledMessage,
+        chat,
+      },
+    }));
+
+    return json(req, { ok: true, cancelled: true });
+  }
+
+  // Route: GET /api/chats/:id/messages/:msgId/resume
+  const resumeMatch = path.match(/^\/api\/chats\/([^/]+)\/messages\/([^/]+)\/resume$/);
+  if (resumeMatch && req.method === 'GET') {
+    const chatId = resumeMatch[1];
+    const msgId = resumeMatch[2];
+    const url = new URL(req.url);
+    const afterSeq = Number(url.searchParams.get('after_seq') || 0);
+    const lastSeq = Number.isFinite(afterSeq) && afterSeq > 0 ? Math.floor(afterSeq) : 0;
+
+    const chat = await getOwnedChat(db, chatId, user.sub);
+    if (!chat) return error(req, 'Chat not found', 404);
+
+    const msg = await db.first('SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?', [msgId, chatId]);
+    if (!msg) return error(req, 'Message not found', 404);
+    if (msg.role !== 'assistant') return error(req, 'Only assistant messages can be resumed', 400);
+
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        let cursor = lastSeq;
+        let idleRounds = 0;
+        while (true) {
+          const rows = await db.all(
+            'SELECT seq, payload FROM message_deltas WHERE message_id = ? AND seq > ? ORDER BY seq ASC LIMIT 200',
+            [msgId, cursor]
+          );
+          if (rows.length) {
+            idleRounds = 0;
+            for (const row of rows) {
+              if (!row?.payload) continue;
+              cursor = Math.max(cursor, Number(row.seq || cursor));
+              controller.enqueue(encoder.encode(sseData(String(row.payload))));
+            }
+          } else {
+            idleRounds += 1;
+          }
+
+          const statusRow = await db.first('SELECT status FROM messages WHERE id = ? AND chat_id = ?', [msgId, chatId]);
+          const status = String(statusRow?.status || '');
+          const isRunning = status === 'streaming' || status === 'tool_running';
+          if (!isRunning) break;
+
+          // Avoid tight loop if no new data.
+          if (idleRounds > 2) {
+            await sleep(400);
+          } else {
+            await sleep(150);
+          }
+        }
+
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+
+    return new Response(readable, { headers: sseHeaders(req) });
+  }
+
+  // Route: GET /api/chats/:id/messages/:msgId/status
+  const statusMatch = path.match(/^\/api\/chats\/([^/]+)\/messages\/([^/]+)\/status$/);
+  if (statusMatch && req.method === 'GET') {
+    const chatId = statusMatch[1];
+    const msgId = statusMatch[2];
+
+    const chat = await getOwnedChat(db, chatId, user.sub);
+    if (!chat) return error(req, 'Chat not found', 404);
+
+    const msg = await db.first(
+      'SELECT id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, message_blocks, created_at FROM messages WHERE id = ? AND chat_id = ?',
+      [msgId, chatId]
+    );
+    if (!msg) return error(req, 'Message not found', 404);
+
+    return json(req, { ok: true, message: msg, chat });
   }
 
   // Route: PUT /api/chats/:id/messages/:msgId

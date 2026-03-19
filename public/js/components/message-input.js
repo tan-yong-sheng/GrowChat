@@ -73,6 +73,8 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     
     let isSubmitting = false;
     let abortFn = null;
+    let canRequestCancel = false;
+    let latestRunningMessageId = null;
     const getGlobalAbort = () => {
       try {
         return window.__growchatAbortStream || null;
@@ -84,6 +86,26 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
     let isStreamBlocked = false;
     let queueNextId = 1;
     let pendingQueue = [];
+
+    function findRunningMessageId(currentState = state) {
+      const chatId = currentState.activeChatId;
+      if (!chatId) return null;
+      const messages = currentState.messagesByChat?.[chatId] || [];
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const msg = messages[i];
+        const status = String(msg?.status || '');
+        if (msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running')) {
+          return msg.id;
+        }
+      }
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const msg = messages[i];
+        if (msg?.role === 'assistant' && msg?.done === false) {
+          return msg.id;
+        }
+      }
+      return null;
+    }
 
     function getCurrentAttachments(currentState = state) {
       const chatId = currentState.activeChatId;
@@ -334,7 +356,7 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
           sendBtn.classList.add('hidden');
           stopBtn.classList.remove('hidden');
           const fallbackAbort = getGlobalAbort();
-          if (abortFn || fallbackAbort) {
+          if (abortFn || fallbackAbort || canRequestCancel) {
             stopBtn.disabled = false;
             stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
           } else {
@@ -362,13 +384,22 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
        }
     }
 
-    stopBtn.onclick = (e) => {
+    stopBtn.onclick = async (e) => {
       e.preventDefault();
       const fallbackAbort = getGlobalAbort();
       const handler = abortFn || fallbackAbort;
-      if (!handler) return;
-      handler();
-      abortFn = null;
+      if (handler) {
+        handler();
+        abortFn = null;
+      }
+      try {
+        const cancelFn = window.__growchatRequestCancel;
+        const chatId = state.activeChatId;
+        const messageId = latestRunningMessageId || findRunningMessageId(state);
+        if (typeof cancelFn === 'function' && chatId && messageId) {
+          await cancelFn(chatId, messageId);
+        }
+      } catch {}
       finishSubmission();
     };
 
@@ -658,6 +689,8 @@ export function renderMessageInput(container, onSend, onOpenFiles = () => {}) {
         currentState.ui?.streamingChatId &&
         String(currentState.ui.streamingChatId) === String(currentState.activeChatId || '')
       );
+      latestRunningMessageId = findRunningMessageId(currentState);
+      canRequestCancel = Boolean(latestRunningMessageId && typeof window.__growchatRequestCancel === 'function');
       if (nextStreamBlocked !== isStreamBlocked) {
         isStreamBlocked = nextStreamBlocked;
 

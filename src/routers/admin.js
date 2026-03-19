@@ -164,6 +164,10 @@ function mergeToolServer(existing, incoming) {
         name: String(tool?.name || '').trim(),
         title: String(tool?.title || '').trim(),
         description: String(tool?.description || '').trim(),
+        parameters:
+          tool?.parameters && typeof tool.parameters === 'object'
+            ? tool.parameters
+            : (tool?.inputSchema && typeof tool.inputSchema === 'object' ? tool.inputSchema : undefined),
       }))
       .filter((tool) => tool.name);
   };

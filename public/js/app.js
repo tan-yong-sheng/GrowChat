@@ -275,6 +275,37 @@ function getChatIdFromPath(pathname) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function isTempChatId(id) {
+  return String(id || '').startsWith('temp-');
+}
+
+function buildTempChatStub(id, modelId = null) {
+  const nowTs = Math.floor(Date.now() / 1000);
+  return {
+    id,
+    title: 'New Chat',
+    model: modelId || null,
+    pinned: 0,
+    tags: '[]',
+    created_at: nowTs,
+    updated_at: nowTs,
+  };
+}
+
+function injectTempChat(chats, routeChatId, modelId = null) {
+  if (!routeChatId || !isTempChatId(routeChatId)) return chats;
+  const exists = (chats || []).some((chat) => String(chat?.id) === String(routeChatId));
+  if (exists) return chats;
+  const tempChat = buildTempChatStub(routeChatId, modelId);
+  return [tempChat, ...(chats || [])];
+}
+
+function resolveActiveChatId(routeChatId, chats, isHomeRoute) {
+  if (routeChatId) return routeChatId;
+  if (isHomeRoute) return null;
+  return chats?.[0]?.id || null;
+}
+
 async function ensureSession() {
   if (bootstrapped) return true;
 
@@ -320,13 +351,12 @@ async function ensureSession() {
     null;
 
   if (cachedChats?.chats?.length) {
-    const cachedActiveChatId = (routeChatId && cachedChats.chats.some((chat) => chat.id === routeChatId))
-      ? routeChatId
-      : (isHomeRoute ? null : (cachedChats.chats?.[0]?.id || null));
+    const cachedActiveChatId = resolveActiveChatId(routeChatId, cachedChats.chats, isHomeRoute);
+    const nextCachedChats = injectTempChat(cachedChats.chats, routeChatId, initialModelId);
 
     setState({
       user,
-      chats: cachedChats.chats || [],
+      chats: nextCachedChats || [],
       chatsPagination: {
         limit: cachedChats.limit || INITIAL_CHAT_LIMIT,
         offset: cachedChats.offset || (cachedChats.chats?.length || 0),
@@ -357,17 +387,16 @@ async function ensureSession() {
     fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
       .then((fresh) => {
         writeChatsCache(user.id, fresh);
+        const nextFreshChats = injectTempChat(fresh.chats || [], routeChatId, initialModelId);
         setState({
-          chats: fresh.chats || [],
+          chats: nextFreshChats,
           chatsPagination: {
             limit: fresh.limit || INITIAL_CHAT_LIMIT,
             offset: (fresh.offset || 0) + (fresh.chats?.length || 0),
             hasMore: fresh.has_more === true,
             loading: false,
           },
-          activeChatId: (routeChatId && fresh.chats?.some((chat) => chat.id === routeChatId))
-            ? routeChatId
-            : (isHomeRoute ? null : (fresh.chats?.[0]?.id || null)),
+          activeChatId: resolveActiveChatId(routeChatId, fresh.chats, isHomeRoute),
         });
       })
       .catch((err) => {
@@ -375,18 +404,17 @@ async function ensureSession() {
       });
   }
 
+  const nextChatsData = injectTempChat(chatsData.chats || [], routeChatId, initialModelId);
   setState({
     user,
-    chats: chatsData.chats || [],
+    chats: nextChatsData,
     chatsPagination: {
       limit: chatsData.limit || INITIAL_CHAT_LIMIT,
       offset: (chatsData.offset || 0) + (chatsData.chats?.length || 0),
       hasMore: chatsData.has_more === true,
       loading: false,
     },
-    activeChatId: (routeChatId && chatsData.chats?.some((chat) => chat.id === routeChatId))
-      ? routeChatId
-      : (isHomeRoute ? null : (chatsData.chats?.[0]?.id || null)),
+    activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
     messagesByChat: {},
     models: cachedModels?.models || state.models || [],
     activeModelId: initialModelId,
@@ -432,8 +460,7 @@ export async function renderCurrentRoute() {
   if (!ok) return;
 
   if (routeChatId) {
-    const exists = state.chats.some((chat) => chat.id === routeChatId);
-    if (exists && state.activeChatId !== routeChatId) {
+    if (state.activeChatId !== routeChatId) {
       setState({ activeChatId: routeChatId });
     }
   }
