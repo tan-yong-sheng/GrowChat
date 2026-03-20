@@ -4,7 +4,7 @@
  * Tests for router authorization, endpoint behavior, and database interactions
  * These tests assume a running development environment with:
  * - Wrangler dev server
- * - D1 database with 008_rbac_core.sql migration applied
+ * - D1 database with 010_rbac_core.sql migration applied
  * - Test user fixtures created
  */
 

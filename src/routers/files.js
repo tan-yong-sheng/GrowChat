@@ -7,6 +7,7 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
+import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import {
   validateFile,
   resolveContentType,
@@ -88,6 +89,17 @@ export async function filesRouter(req, env, ctx, user, path) {
 
     if (!authDecision.allow) {
       return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    const uploadLimit = await checkRateLimit(env.CACHE, {
+      action: 'file-upload',
+      subject: user.sub,
+      ...RATE_LIMITS.fileUpload,
+    });
+    if (!uploadLimit.allowed) {
+      return error(req, 'Too many file uploads', 429, {
+        retry_after: Math.ceil((uploadLimit.resetAt - Date.now()) / 1000),
+      });
     }
 
     const db = createDB(env.DB);

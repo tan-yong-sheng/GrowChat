@@ -1,5 +1,586 @@
-import { getAllOpenAIConnectionConfigs } from './utils/openai-connections.js';
-import { buildProviderId, parseModelId, parseProviderId } from './utils/provider-registry.js';
+import { getAllOpenAIConnectionConfigs, buildConnectionHeaders } from './llm/connections.js';
+import { buildProviderId, normalizeProviderFamily, parseModelId, parseProviderId } from './llm/provider-registry.js';
+import { buildProviderRequest } from './llm/provider-adapters.js';
+export { SseLineParser, parseSseChunk } from './llm/stream-parser.js';
+
+function decodeDataUrl(value) {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^data:([^;,]+);base64,(.*)$/i);
+  if (!match) return null;
+  return {
+    mimeType: match[1],
+    data: match[2],
+  };
+}
+
+function contentToText(value) {
+  if (typeof value === 'string') return value;
+  if (!Array.isArray(value)) return '';
+  return value
+    .map((part) => {
+      if (!part) return '';
+      if (typeof part === 'string') return part;
+      if (part.type === 'text') return String(part.text || '');
+      if (part.type === 'tool') return String(part.content || '');
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+function contentToGoogleParts(content) {
+  const parts = [];
+  if (typeof content === 'string') {
+    if (content) parts.push({ text: content });
+    return parts;
+  }
+
+  for (const part of Array.isArray(content) ? content : []) {
+    if (!part) continue;
+    if (part.type === 'text') {
+      if (part.text) parts.push({ text: String(part.text) });
+      continue;
+    }
+    if (part.type === 'image_url') {
+      const url = String(part.image_url?.url || '').trim();
+      const dataUrl = decodeDataUrl(url);
+      if (dataUrl) {
+        parts.push({
+          inlineData: {
+            mimeType: dataUrl.mimeType,
+            data: dataUrl.data,
+          },
+        });
+      } else if (url) {
+        parts.push({ fileData: { fileUri: url, mimeType: 'image/*' } });
+      }
+      continue;
+    }
+    if (part.type === 'file') {
+      const fileData = String(part.file?.file_data || '').trim();
+      const decoded = decodeDataUrl(fileData);
+      if (decoded) {
+        parts.push({
+          inlineData: {
+            mimeType: decoded.mimeType,
+            data: decoded.data,
+          },
+        });
+      }
+    }
+  }
+
+  return parts;
+}
+
+function contentToAnthropicBlocks(content) {
+  const blocks = [];
+  if (typeof content === 'string') {
+    if (content) blocks.push({ type: 'text', text: content });
+    return blocks;
+  }
+
+  for (const part of Array.isArray(content) ? content : []) {
+    if (!part) continue;
+    if (part.type === 'text') {
+      if (part.text) blocks.push({ type: 'text', text: String(part.text) });
+      continue;
+    }
+    if (part.type === 'image_url') {
+      const url = String(part.image_url?.url || '').trim();
+      const dataUrl = decodeDataUrl(url);
+      if (dataUrl) {
+        blocks.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: dataUrl.mimeType,
+            data: dataUrl.data,
+          },
+        });
+      }
+      continue;
+    }
+    if (part.type === 'file') {
+      const fileData = String(part.file?.file_data || '').trim();
+      const decoded = decodeDataUrl(fileData);
+      if (!decoded) continue;
+      if (decoded.mimeType === 'application/pdf') {
+        blocks.push({
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: decoded.mimeType,
+            data: decoded.data,
+          },
+          title: part.file?.filename || 'attachment.pdf',
+        });
+      } else if (decoded.mimeType.startsWith('text/')) {
+        blocks.push({
+          type: 'document',
+          source: {
+            type: 'text',
+            media_type: decoded.mimeType,
+            data: '',
+          },
+          title: part.file?.filename || 'attachment.txt',
+        });
+      }
+    }
+  }
+
+  return blocks;
+}
+
+function normalizeToolParameters(input) {
+  return convertJsonSchemaToOpenApiSchema(input);
+}
+
+function convertJsonSchemaToOpenApiSchema(jsonSchema, isRoot = true) {
+  if (jsonSchema == null) {
+    return undefined;
+  }
+
+  if (isEmptyObjectSchema(jsonSchema)) {
+    if (isRoot) {
+      return undefined;
+    }
+
+    if (typeof jsonSchema === 'object' && jsonSchema.description) {
+      return { type: 'object', description: jsonSchema.description };
+    }
+    return { type: 'object' };
+  }
+
+  if (typeof jsonSchema === 'boolean') {
+    return { type: 'boolean', properties: {} };
+  }
+
+  if (Array.isArray(jsonSchema) || typeof jsonSchema !== 'object') {
+    return jsonSchema;
+  }
+
+  const {
+    type,
+    description,
+    required,
+    properties,
+    items,
+    allOf,
+    anyOf,
+    oneOf,
+    format,
+    const: constValue,
+    minLength,
+    enum: enumValues,
+  } = jsonSchema;
+
+  const result = {};
+
+  if (description) result.description = description;
+  if (required) result.required = required;
+  if (format) result.format = format;
+
+  if (constValue !== undefined) {
+    result.enum = [constValue];
+  }
+
+  if (type) {
+    if (Array.isArray(type)) {
+      const hasNull = type.includes('null');
+      const nonNullTypes = type.filter((t) => t !== 'null');
+      if (nonNullTypes.length === 0) {
+        result.type = 'null';
+      } else {
+        result.anyOf = nonNullTypes.map((t) => ({ type: t }));
+        if (hasNull) {
+          result.nullable = true;
+        }
+      }
+    } else {
+      result.type = type;
+    }
+  }
+
+  if (enumValues !== undefined) {
+    result.enum = enumValues;
+  }
+
+  if (properties != null) {
+    result.properties = Object.entries(properties).reduce((acc, [key, value]) => {
+      acc[key] = convertJsonSchemaToOpenApiSchema(value, false);
+      return acc;
+    }, {});
+  }
+
+  if (items) {
+    result.items = Array.isArray(items)
+      ? items.map((item) => convertJsonSchemaToOpenApiSchema(item, false))
+      : convertJsonSchemaToOpenApiSchema(items, false);
+  }
+
+  if (allOf) {
+    result.allOf = allOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
+  }
+  if (anyOf) {
+    if (anyOf.some((schema) => typeof schema === 'object' && schema?.type === 'null')) {
+      const nonNullSchemas = anyOf.filter(
+        (schema) => !(typeof schema === 'object' && schema?.type === 'null')
+      );
+
+      if (nonNullSchemas.length === 1) {
+        const converted = convertJsonSchemaToOpenApiSchema(nonNullSchemas[0], false);
+        if (typeof converted === 'object' && converted) {
+          result.nullable = true;
+          Object.assign(result, converted);
+        }
+      } else {
+        result.anyOf = nonNullSchemas.map((item) =>
+          convertJsonSchemaToOpenApiSchema(item, false)
+        );
+        result.nullable = true;
+      }
+    } else {
+      result.anyOf = anyOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
+    }
+  }
+  if (oneOf) {
+    result.oneOf = oneOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
+  }
+
+  if (minLength !== undefined) {
+    result.minLength = minLength;
+  }
+
+  return result;
+}
+
+function isEmptyObjectSchema(jsonSchema) {
+  return (
+    jsonSchema != null &&
+    typeof jsonSchema === 'object' &&
+    jsonSchema.type === 'object' &&
+    (jsonSchema.properties == null || Object.keys(jsonSchema.properties).length === 0) &&
+    !jsonSchema.additionalProperties
+  );
+}
+
+function normalizeToolChoice(toolChoice) {
+  if (!toolChoice) return undefined;
+  if (typeof toolChoice === 'string') {
+    const type = toolChoice.toLowerCase();
+    if (type === 'auto' || type === 'none' || type === 'required') {
+      return { type };
+    }
+    return undefined;
+  }
+  const type = String(toolChoice.type || '').toLowerCase();
+  if (!type) return undefined;
+  if (type === 'auto' || type === 'none' || type === 'required') {
+    return { type };
+  }
+  if (type === 'tool' && (toolChoice.toolName || toolChoice.name || toolChoice.function?.name)) {
+    return {
+      type: 'tool',
+      toolName: String(toolChoice.toolName || toolChoice.name || toolChoice.function?.name),
+    };
+  }
+  if (type === 'function' && (toolChoice.function?.name || toolChoice.name)) {
+    return {
+      type: 'tool',
+      toolName: String(toolChoice.function?.name || toolChoice.name),
+    };
+  }
+  return undefined;
+}
+
+function buildToolCallNameMap(messages = []) {
+  const map = new Map();
+  for (const message of messages || []) {
+    if (String(message?.role || '').toLowerCase() !== 'assistant') continue;
+    const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
+    for (const call of toolCalls) {
+      const id = String(call?.id || '').trim();
+      const name = String(call?.function?.name || '').trim();
+      if (id && name) {
+        map.set(id, name);
+      }
+    }
+  }
+  return map;
+}
+
+function buildGoogleTools(tools = []) {
+  const functionDeclarations = [];
+  for (const tool of Array.isArray(tools) ? tools : []) {
+    if (tool?.type !== 'function') continue;
+    const fn = tool.function || {};
+    const name = String(fn.name || '').trim();
+    if (!name) continue;
+    functionDeclarations.push({
+      name,
+      description: String(fn.description || ''),
+      parameters: normalizeToolParameters(fn.parameters),
+    });
+  }
+  return functionDeclarations.length ? [{ functionDeclarations }] : undefined;
+}
+
+function buildGoogleToolConfig(toolChoice) {
+  const choice = normalizeToolChoice(toolChoice);
+  if (!choice) return undefined;
+  switch (choice.type) {
+    case 'auto':
+      return { functionCallingConfig: { mode: 'AUTO' } };
+    case 'none':
+      return { functionCallingConfig: { mode: 'NONE' } };
+    case 'required':
+      return { functionCallingConfig: { mode: 'ANY' } };
+    case 'tool':
+      return {
+        functionCallingConfig: {
+          mode: 'ANY',
+          allowedFunctionNames: [choice.toolName],
+        },
+      };
+    default:
+      return undefined;
+  }
+}
+
+function buildAnthropicTools(tools = []) {
+  const anthropicTools = [];
+  for (const tool of Array.isArray(tools) ? tools : []) {
+    if (tool?.type !== 'function') continue;
+    const fn = tool.function || {};
+    const name = String(fn.name || '').trim();
+    if (!name) continue;
+    anthropicTools.push({
+      name,
+      description: String(fn.description || ''),
+      input_schema: normalizeToolParameters(fn.parameters),
+    });
+  }
+  return anthropicTools.length ? anthropicTools : undefined;
+}
+
+function buildAnthropicToolChoice(toolChoice) {
+  const choice = normalizeToolChoice(toolChoice);
+  if (!choice) return undefined;
+  switch (choice.type) {
+    case 'auto':
+      return { type: 'auto' };
+    case 'required':
+      return { type: 'any' };
+    case 'tool':
+      return { type: 'tool', name: choice.toolName };
+    default:
+      return undefined;
+  }
+}
+
+function buildGooglePayload(messages, options = {}) {
+  const contents = [];
+  const systemTexts = [];
+  const toolCallNameMap = buildToolCallNameMap(messages);
+  const getThoughtSignature = (call) => {
+    const signature =
+      call?.providerMetadata?.google?.thoughtSignature ??
+      call?.providerMetadata?.vertex?.thoughtSignature ??
+      call?.providerOptions?.google?.thoughtSignature ??
+      call?.providerOptions?.vertex?.thoughtSignature;
+    return signature != null ? String(signature) : undefined;
+  };
+  for (const message of messages || []) {
+    const role = String(message?.role || '').toLowerCase();
+    if (role === 'system') {
+      const text = contentToText(message.content);
+      if (text) systemTexts.push(text);
+      continue;
+    }
+    if (role === 'assistant' && Array.isArray(message?.tool_calls) && message.tool_calls.length) {
+      const parts = contentToGoogleParts(message.content);
+      for (const call of message.tool_calls) {
+        const fn = call?.function || {};
+        const name = String(fn.name || '').trim();
+        if (!name) continue;
+        const rawArgs = fn.arguments;
+        const args = typeof rawArgs === 'string'
+          ? (() => {
+              try { return JSON.parse(rawArgs); } catch { return rawArgs; }
+            })()
+          : rawArgs ?? {};
+        const thoughtSignature = getThoughtSignature(call);
+        parts.push({
+          functionCall: {
+            name,
+            args,
+          },
+          ...(thoughtSignature ? { thoughtSignature } : {}),
+        });
+      }
+      if (!parts.length) continue;
+      contents.push({
+        role: 'model',
+        parts,
+      });
+      continue;
+    }
+    if (role === 'tool') {
+      const toolName = String(message?.name || toolCallNameMap.get(String(message?.tool_call_id || '')) || 'tool').trim();
+      const outputText = contentToText(message.content);
+      contents.push({
+        role: 'user',
+        parts: [
+          {
+            functionResponse: {
+              name: toolName,
+              response: {
+                name: toolName,
+                content: outputText,
+              },
+            },
+          },
+        ],
+      });
+      continue;
+    }
+    if (role === 'user' || role === 'assistant') {
+      const parts = contentToGoogleParts(message.content);
+      if (!parts.length) {
+        const text = contentToText(message.content);
+        if (text) parts.push({ text });
+      }
+      if (!parts.length) continue;
+      contents.push({
+        role: role === 'assistant' ? 'model' : 'user',
+        parts,
+      });
+      continue;
+    }
+    const text = contentToText(message.content);
+    if (text) {
+      contents.push({ role: 'user', parts: [{ text }] });
+    }
+  }
+
+  const systemText = systemTexts.join('\n\n').trim();
+  const payload = {
+    contents,
+  };
+  if (systemText) {
+    payload.systemInstruction = { parts: [{ text: systemText }] };
+  }
+  const googleTools = buildGoogleTools(options.tools);
+  if (googleTools) {
+    payload.tools = googleTools;
+  }
+  const googleToolConfig = buildGoogleToolConfig(options.toolChoice);
+  if (googleToolConfig) {
+    payload.toolConfig = googleToolConfig;
+  }
+  if (options.stream !== false) {
+    payload.generationConfig = {};
+  }
+  return payload;
+}
+
+function buildAnthropicPayload(messages, options = {}) {
+  const payload = {
+    model: options.model,
+    max_tokens: options.maxTokens || 4096,
+    messages: [],
+  };
+  const systemTexts = [];
+  const toolCallNameMap = buildToolCallNameMap(messages);
+  for (const message of messages || []) {
+    const role = String(message?.role || '').toLowerCase();
+    if (role === 'system') {
+      const text = contentToText(message.content);
+      if (text) systemTexts.push(text);
+      continue;
+    }
+    if (role === 'assistant' && Array.isArray(message?.tool_calls) && message.tool_calls.length) {
+      const blocks = contentToAnthropicBlocks(message.content);
+      for (const call of message.tool_calls) {
+        const fn = call?.function || {};
+        const name = String(fn.name || '').trim();
+        if (!name) continue;
+        const rawArgs = fn.arguments;
+        const input = typeof rawArgs === 'string'
+          ? (() => {
+              try { return JSON.parse(rawArgs); } catch { return rawArgs; }
+            })()
+          : rawArgs ?? {};
+        blocks.push({
+          type: 'tool_use',
+          id: String(call?.id || crypto.randomUUID()),
+          name,
+          input,
+        });
+      }
+      if (!blocks.length) continue;
+      payload.messages.push({
+        role: 'assistant',
+        content: blocks,
+      });
+      continue;
+    }
+    if (role === 'tool') {
+      const toolName = String(message?.name || toolCallNameMap.get(String(message?.tool_call_id || '')) || 'tool').trim();
+      const outputText = contentToText(message.content);
+      payload.messages.push({
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: String(message?.tool_call_id || ''),
+            content: outputText,
+            is_error: Boolean(message?.error),
+          },
+        ],
+      });
+      continue;
+    }
+    if (role === 'user' || role === 'assistant') {
+      const blocks = contentToAnthropicBlocks(message.content);
+      if (!blocks.length) {
+        const text = contentToText(message.content);
+        if (text) blocks.push({ type: 'text', text });
+      }
+      if (!blocks.length) continue;
+      payload.messages.push({
+        role: role === 'assistant' ? 'assistant' : 'user',
+        content: blocks,
+      });
+      continue;
+    }
+    const text = contentToText(message.content);
+    if (text) {
+      payload.messages.push({
+        role: 'user',
+        content: [{ type: 'text', text }],
+      });
+    }
+  }
+  if (systemTexts.length) {
+    payload.system = systemTexts.join('\n\n');
+  }
+  const normalizedToolChoice = normalizeToolChoice(options.toolChoice);
+  const anthropicTools = normalizedToolChoice?.type === 'none'
+    ? undefined
+    : buildAnthropicTools(options.tools);
+  if (anthropicTools) {
+    payload.tools = anthropicTools;
+  }
+  const anthropicToolChoice = normalizedToolChoice?.type === 'none'
+    ? undefined
+    : buildAnthropicToolChoice(normalizedToolChoice);
+  if (anthropicToolChoice) {
+    payload.tool_choice = anthropicToolChoice;
+  }
+  return payload;
+}
 
 export async function streamLLM(env, model, messages, options = {}) {
   if (!model) throw new Error('Model is required');
@@ -33,8 +614,8 @@ export async function streamLLM(env, model, messages, options = {}) {
     const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
     primaryConn = allConnections.find((conn) => {
       if (String(conn.id) !== providerInfo.connectionId) return false;
-      const type = String(conn.providerType || 'openai-compatible').toLowerCase();
-      return type === providerInfo.providerType;
+      const family = normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai';
+      return family === providerInfo.providerFamily;
     });
   }
 
@@ -45,28 +626,37 @@ export async function streamLLM(env, model, messages, options = {}) {
     throw new Error('Provider connection is disabled');
   }
 
+  const providerFamily = normalizeProviderFamily(primaryConn.providerFamily || primaryConn.providerType) || 'openai';
   const baseUrl = (primaryConn.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
-  const apiKey = primaryConn.key;
-  const headers = { ...(primaryConn.headers || {}) };
-  if (apiKey && !headers.Authorization) {
-    headers.Authorization = `Bearer ${apiKey}`;
-  }
-  headers['Content-Type'] = 'application/json';
-  if (!headers.Accept) {
-    headers.Accept = 'text/event-stream';
-  }
+  const headers = {
+    ...buildConnectionHeaders(primaryConn),
+    'Content-Type': 'application/json',
+    Accept: 'text/event-stream',
+  };
 
-  const payload = { model: parsed.modelId, messages, stream: stream !== false };
-  if (Array.isArray(tools) && tools.length) {
-    payload.tools = tools;
-    if (toolChoice) payload.tool_choice = toolChoice;
-  }
+  const request = buildProviderRequest({
+    providerFamily,
+    baseUrl,
+    modelId: parsed.modelId,
+    messages,
+    options: {
+      tools,
+      toolChoice,
+      maxTokens: options.maxTokens,
+      normalizeToolParameters,
+    },
+    stream,
+    normalizeToolParameters,
+  });
+  const url = request.url;
+  const payload = request.payload;
+  Object.assign(headers, request.headers || {});
 
   let response;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), LLM_CONNECT_TIMEOUT_MS);
   try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
+    response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -102,312 +692,3 @@ export async function streamLLM(env, model, messages, options = {}) {
   return response.body;
 }
 
-// SseLineParser accumulates raw bytes across reader.read() calls and emits
-// complete `data: ...` lines, handling the case where a single JSON payload
-// is split across two or more network chunks.
-const DEFAULT_REASONING_TAGS = ['think', 'thinking', 'thought', 'thoughts', 'reason', 'reasoning'];
-
-function getPotentialStartIndex(text, searchedText) {
-  if (!searchedText.length) return null;
-  const directIndex = text.indexOf(searchedText);
-  if (directIndex !== -1) return directIndex;
-  for (let i = text.length - 1; i >= 0; i -= 1) {
-    const suffix = text.substring(i);
-    if (searchedText.startsWith(suffix)) return i;
-  }
-  return null;
-}
-
-export class SseLineParser {
-  constructor({ onEvent = null, tagNames = DEFAULT_REASONING_TAGS } = {}) {
-    this._buf = '';
-    this._tagBuffer = '';
-    this._dataBuffer = '';
-    this._inReasoning = false;
-    this._currentTag = null;
-    this._reasoningStarted = false;
-    this._reasoningEnded = false;
-    this._onEvent = typeof onEvent === 'function' ? onEvent : null;
-    this._tagNames = Array.isArray(tagNames) && tagNames.length ? tagNames : DEFAULT_REASONING_TAGS;
-  }
-
-  _emit(event) {
-    if (this._onEvent) this._onEvent(event);
-  }
-
-  _ensureReasoningStart() {
-    if (!this._reasoningStarted) {
-      this._reasoningStarted = true;
-      this._emit({ type: 'reasoning_start' });
-    }
-  }
-
-  _emitReasoningDelta(delta) {
-    if (!delta) return;
-    this._ensureReasoningStart();
-    this._emit({ type: 'reasoning_delta', delta });
-  }
-
-  _emitTextDelta(delta) {
-    if (!delta) return;
-    this._emit({ type: 'text_delta', delta });
-  }
-
-  _extractTaggedSegments(chunk) {
-    if (!chunk) return [];
-    this._tagBuffer += chunk;
-    const segments = [];
-    const bufferLower = () => this._tagBuffer.toLowerCase();
-    const openTokens = this._tagNames.map((tag) => `<${tag}`);
-
-    while (this._tagBuffer.length > 0) {
-      if (!this._inReasoning) {
-        let best = null;
-        const lower = bufferLower();
-        for (let i = 0; i < openTokens.length; i += 1) {
-          const token = openTokens[i];
-          const idx = getPotentialStartIndex(lower, token);
-          if (idx == null) continue;
-          if (!best || idx < best.index) {
-            best = { index: idx, token, tagName: this._tagNames[i] };
-          }
-        }
-
-        if (!best) {
-          segments.push({ type: 'text', text: this._tagBuffer });
-          this._tagBuffer = '';
-          break;
-        }
-
-        if (best.index > 0) {
-          segments.push({ type: 'text', text: this._tagBuffer.slice(0, best.index) });
-        }
-
-        const openEnd = this._tagBuffer.indexOf('>', best.index);
-        if (openEnd === -1) {
-          this._tagBuffer = this._tagBuffer.slice(best.index);
-          break;
-        }
-
-        this._tagBuffer = this._tagBuffer.slice(openEnd + 1);
-        this._inReasoning = true;
-        this._currentTag = best.tagName;
-      } else {
-        const closeToken = `</${this._currentTag}>`;
-        const lower = bufferLower();
-        const closeIdx = getPotentialStartIndex(lower, closeToken);
-        if (closeIdx == null) {
-          segments.push({ type: 'reasoning', text: this._tagBuffer });
-          this._tagBuffer = '';
-          break;
-        }
-
-        if (closeIdx > 0) {
-          segments.push({ type: 'reasoning', text: this._tagBuffer.slice(0, closeIdx) });
-        }
-
-        if (closeIdx + closeToken.length > this._tagBuffer.length) {
-          this._tagBuffer = this._tagBuffer.slice(closeIdx);
-          break;
-        }
-
-        this._tagBuffer = this._tagBuffer.slice(closeIdx + closeToken.length);
-        this._inReasoning = false;
-        this._currentTag = null;
-      }
-    }
-
-    return segments;
-  }
-
-  _handleParsed(parsed) {
-    let text = '';
-    const delta = parsed?.choices?.[0]?.delta || {};
-    const finishReason = parsed?.choices?.[0]?.finish_reason;
-    const reasoningField =
-      delta.reasoning ??
-      delta.thinking ??
-      delta.reasoning_content ??
-      delta.reasoningContent;
-    if (reasoningField) {
-      const reasoningDelta = String(reasoningField);
-      this._emitReasoningDelta(reasoningDelta);
-    }
-
-    const contentField = parsed?.response ?? delta.content;
-    const messageContent = parsed?.choices?.[0]?.message?.content;
-    let resolvedContent =
-      contentField ??
-      messageContent ??
-      parsed?.choices?.[0]?.text;
-    if (
-      !resolvedContent &&
-      delta &&
-      typeof delta === 'object' &&
-      delta.content &&
-      typeof delta.content === 'object' &&
-      !Array.isArray(delta.content) &&
-      typeof delta.content.text === 'string'
-    ) {
-      resolvedContent = delta.content.text;
-    }
-    if (Array.isArray(resolvedContent)) {
-      for (const part of resolvedContent) {
-        if (!part || part.type !== 'text' || !part.text) continue;
-        const segments = this._extractTaggedSegments(String(part.text));
-        for (const segment of segments) {
-          if (!segment?.text) continue;
-          if (segment.type === 'reasoning') {
-            this._emitReasoningDelta(segment.text);
-          } else {
-            this._emitTextDelta(segment.text);
-            text += segment.text;
-          }
-        }
-      }
-    } else if (resolvedContent) {
-      const segments = this._extractTaggedSegments(String(resolvedContent));
-      for (const segment of segments) {
-        if (!segment?.text) continue;
-        if (segment.type === 'reasoning') {
-          this._emitReasoningDelta(segment.text);
-        } else {
-          this._emitTextDelta(segment.text);
-          text += segment.text;
-        }
-      }
-    }
-
-    if (!resolvedContent && typeof parsed?.type === 'string') {
-      const responseDelta = parsed?.delta ?? parsed?.text;
-      if (typeof responseDelta === 'string' && responseDelta) {
-        const segments = this._extractTaggedSegments(responseDelta);
-        for (const segment of segments) {
-          if (!segment?.text) continue;
-          if (segment.type === 'reasoning') {
-            this._emitReasoningDelta(segment.text);
-          } else {
-            this._emitTextDelta(segment.text);
-            text += segment.text;
-          }
-        }
-      }
-    }
-
-    const toolCalls = delta.tool_calls;
-    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-      this._emit({ type: 'tool_call_delta', tool_calls: toolCalls });
-    }
-
-    if (finishReason) {
-      this._emit({ type: 'finish_reason', reason: finishReason });
-    }
-
-    return text;
-  }
-
-  _consumeDataPayload(payload) {
-    if (!payload || payload === '[DONE]') return '';
-    try {
-      const parsed = JSON.parse(payload);
-      return this._handleParsed(parsed);
-    } catch {
-      return null;
-    }
-  }
-
-  _flushDataBuffer() {
-    if (!this._dataBuffer) return '';
-    const payload = this._dataBuffer;
-    this._dataBuffer = '';
-    const parsedText = this._consumeDataPayload(payload);
-    return parsedText || '';
-  }
-
-  // Feed a decoded text chunk; returns accumulated delta text from complete lines.
-  push(rawText) {
-    this._buf += rawText;
-    let text = '';
-    let newlineIdx;
-    while ((newlineIdx = this._buf.indexOf('\n')) !== -1) {
-      const line = this._buf.slice(0, newlineIdx).replace(/\r$/, '');
-      this._buf = this._buf.slice(newlineIdx + 1);
-
-      if (line === '') {
-        text += this._flushDataBuffer();
-        continue;
-      }
-
-      if (!line.startsWith('data:')) continue;
-      let payload = line.slice(5);
-      if (payload.startsWith(' ')) payload = payload.slice(1);
-      if (!payload) continue;
-
-      if (this._dataBuffer) {
-        this._dataBuffer += `\n${payload}`;
-        continue;
-      }
-
-      const parsedText = this._consumeDataPayload(payload);
-      if (parsedText !== null) {
-        text += parsedText;
-      } else {
-        this._dataBuffer = payload;
-      }
-    }
-    return text;
-  }
-
-  // Flush any final buffered line (for providers that omit trailing newline).
-  flush() {
-    const line = this._buf.replace(/\r$/, '');
-    this._buf = '';
-    let text = '';
-    if (line) {
-      if (line === '') {
-        text += this._flushDataBuffer();
-      } else if (line.startsWith('data:')) {
-        let payload = line.slice(5);
-        if (payload.startsWith(' ')) payload = payload.slice(1);
-        if (payload) {
-          if (this._dataBuffer) {
-            this._dataBuffer += `\n${payload}`;
-          } else {
-            const parsedText = this._consumeDataPayload(payload);
-            if (parsedText !== null) {
-              text += parsedText;
-            } else {
-              this._dataBuffer = payload;
-            }
-          }
-        }
-      }
-    }
-    text += this._flushDataBuffer();
-
-    if (this._tagBuffer) {
-      if (this._inReasoning) {
-        this._emitReasoningDelta(this._tagBuffer);
-      } else {
-        this._emitTextDelta(this._tagBuffer);
-        text += this._tagBuffer;
-      }
-      this._tagBuffer = '';
-    }
-
-    return text;
-  }
-
-  finalize() {
-    if (this._reasoningStarted && !this._reasoningEnded) {
-      this._reasoningEnded = true;
-      this._emit({ type: 'reasoning_end' });
-    }
-  }
-}
-
-// Convenience wrapper kept for backwards compatibility with any callers that
-// pass a self-contained chunk (e.g. unit tests).
-export function parseSseChunk(rawChunk) {
-  return new SseLineParser().push(rawChunk);
-}

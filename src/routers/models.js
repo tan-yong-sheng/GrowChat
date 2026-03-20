@@ -9,8 +9,9 @@ import { createDB } from '../db.js';
 import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue } from '../utils/app-config.js';
-import { getAllOpenAIConnectionConfigs } from '../utils/openai-connections.js';
-import { buildProviderId, formatModelId } from '../utils/provider-registry.js';
+import { dedupeConnectionConfigs, discoverConnectionModels, extractConnectionModelId, getAllOpenAIConnectionConfigs, normalizeConnectionManualModels } from '../llm/connections.js';
+import { countEnabledModels, sortModelsByActiveThenName } from '../llm/model-state.js';
+import { buildProviderId, formatModelId, normalizeProviderFamily } from '../llm/provider-registry.js';
 
 const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
 const DEFAULT_ATTACHMENT_CAPS = { text: true };
@@ -117,25 +118,20 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
   const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
   const discovered = [];
   const discoveredIds = new Set();
+  const uniqueConnections = dedupeConnectionConfigs(connections);
 
-  for (const conn of connections) {
+  for (const conn of uniqueConnections) {
     try {
       const providerId = buildProviderId(conn);
-      const headers = { ...(conn.headers || {}) };
-      if (conn.key && !headers.Authorization) {
-        headers.Authorization = `Bearer ${conn.key}`;
-      }
-
-      const res = await fetch(`${conn.baseUrl}/models`, { headers });
-      if (!res.ok) {
-        console.warn(`Model discovery failed for ${conn.baseUrl}: ${res.status}`);
+      const discovery = await discoverConnectionModels(conn);
+      if (!discovery.items.length) {
+        const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
+        console.warn(`Model discovery failed for ${conn.baseUrl}: ${errorLabel}`);
         continue;
       }
 
-      const payload = await res.json();
-      const items = Array.isArray(payload?.data) ? payload.data : [];
-      for (const item of items) {
-        const rawId = String(item?.id || '').trim();
+      for (const item of discovery.items) {
+        const rawId = extractConnectionModelId(item);
         if (!rawId) continue;
         if (allowSet && !allowSet.has(rawId)) continue;
         const fullId = formatModelId(providerId, rawId);
@@ -144,12 +140,14 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         discovered.push({
           id: fullId,
           name: rawId,
-          provider: conn.providerType || 'openai-compatible',
+          provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
+          provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
+          provider_family: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
           provider_id: providerId,
           connection_id: conn.id,
           connection_name: conn.name || null,
           free: false,
-          description: `Model discovered from ${conn.baseUrl}`,
+          description: `Model discovered from ${discovery.url || conn.baseUrl}`,
         });
       }
     } catch (err) {
@@ -157,8 +155,8 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
     }
   }
 
-  if (allowSet && connections.length > 0) {
-    for (const conn of connections) {
+  if (allowSet && uniqueConnections.length > 0) {
+    for (const conn of uniqueConnections) {
       const providerId = buildProviderId(conn);
       for (const rawId of allowSet) {
         const fullId = formatModelId(providerId, rawId);
@@ -167,7 +165,9 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         discovered.push({
           id: fullId,
           name: rawId,
-          provider: conn.providerType || 'openai-compatible',
+          provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
+          provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
+          provider_family: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
           provider_id: providerId,
           connection_id: conn.id,
           connection_name: conn.name || null,
@@ -178,18 +178,44 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
     }
   }
 
-  if (discovered.length === 0 && env.DEFAULT_MODELS && connections.length > 0) {
+  for (const conn of uniqueConnections) {
+    const providerId = buildProviderId(conn);
+    const manualModels = normalizeConnectionManualModels(conn.manualModels);
+    for (const manual of manualModels) {
+      const fullId = formatModelId(providerId, manual.modelId);
+      if (discoveredIds.has(fullId)) continue;
+      discoveredIds.add(fullId);
+      discovered.push({
+        id: fullId,
+        name: manual.name || manual.modelId,
+        provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
+        provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
+        provider_family: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
+        provider_id: providerId,
+        connection_id: conn.id,
+        connection_name: conn.name || null,
+        free: false,
+        description: 'Manually added to this connection',
+        manual: true,
+        manual_model_id: manual.modelId,
+      });
+    }
+  }
+
+  if (discovered.length === 0 && env.DEFAULT_MODELS && uniqueConnections.length > 0) {
     const defaults = splitModelList(env.DEFAULT_MODELS);
     const fallbackModel = defaults[0];
     if (fallbackModel) {
-      const providerId = buildProviderId(connections[0]);
+      const providerId = buildProviderId(uniqueConnections[0]);
       discovered.push({
         id: formatModelId(providerId, fallbackModel),
         name: fallbackModel,
-        provider: connections[0].providerType || 'openai-compatible',
+        provider: normalizeProviderFamily(uniqueConnections[0].providerFamily || uniqueConnections[0].providerType) || 'openai',
+        provider_type: String(uniqueConnections[0].providerType || uniqueConnections[0].providerFamily || 'openai').toLowerCase(),
+        provider_family: normalizeProviderFamily(uniqueConnections[0].providerFamily || uniqueConnections[0].providerType) || 'openai',
         provider_id: providerId,
-        connection_id: connections[0].id,
-        connection_name: connections[0].name || null,
+        connection_id: uniqueConnections[0].id,
+        connection_name: uniqueConnections[0].name || null,
         free: false,
         description: 'Configured via DEFAULT_MODELS environment variable',
       });
@@ -200,10 +226,13 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
 }
 
 function toPublicModel(model) {
+  const providerFamily = normalizeProviderFamily(model.provider_family || model.provider_type || model.provider) || 'openai';
   return {
     id: model.id,
     name: model.name,
-    provider: model.provider,
+    provider: providerFamily,
+    provider_type: String(model.provider_type || model.provider || providerFamily).toLowerCase(),
+    provider_family: providerFamily,
     provider_id: model.provider_id,
     connection_id: model.connection_id,
     connection_name: model.connection_name,
@@ -213,11 +242,13 @@ function toPublicModel(model) {
     max_tokens: model.max_tokens ?? 4096,
     temperature: model.temperature ?? 0.7,
     created_at: model.created_at,
+    manual: Boolean(model.manual),
+    manual_model_id: model.manual_model_id || null,
   };
 }
 
 function isOpenAIProvider(model) {
-  return model?.provider === 'openai' || model?.provider === 'openai-compatible';
+  return normalizeProviderFamily(model?.provider_family || model?.provider_type || model?.provider) === 'openai';
 }
 
 async function loadCustomModels(env) {
@@ -335,7 +366,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           publicModels = publicModels.filter((model) => !disabledSet.has(model.id));
         }
       }
+      publicModels = sortModelsByActiveThenName(publicModels);
       const total = publicModels.length;
+      const activeTotal = countEnabledModels(publicModels);
 
       let paginatedModels = publicModels;
       if (limit > 0) {
@@ -355,6 +388,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       return jsonCached(req, { 
         models: paginatedModels,
         total: total,
+        active_total: activeTotal,
         limit: limit,
         offset: offset
       }, {
@@ -384,6 +418,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const offset = parseInt(url.searchParams.get('offset') || '0', 10);
       const rawQuery = url.searchParams.get('q') || '';
       const query = String(rawQuery).trim().toLowerCase();
+      const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
 
       let customModels = [];
       let baseModels = [];
@@ -403,7 +438,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       }
 
       try {
-        modelConnections = await getAllOpenAIConnectionConfigs(env);
+        modelConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled });
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
         console.warn('Failed to fetch base models from OpenAI-compatible sources:', err.message);
@@ -438,7 +473,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         });
       }
 
+      filteredModels = sortModelsByActiveThenName(filteredModels);
       const total = filteredModels.length;
+      const activeTotal = countEnabledModels(filteredModels);
       let paginatedModels = filteredModels;
       if (limit > 0) {
         paginatedModels = filteredModels.slice(offset, offset + limit);
@@ -454,6 +491,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       return json(req, {
         models: paginatedModels,
         total,
+        active_total: activeTotal,
         limit,
         offset,
       });
@@ -542,9 +580,17 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     }
 
     // Validate provider
-    const validProviders = ['openai', 'custom', 'openai-compatible'];
+    const validProviders = [
+      'openai',
+      'custom',
+      'openai-compatible',
+      'google',
+      'gemini-compatible',
+      'anthropic',
+      'claude-compatible',
+    ];
     if (!validProviders.includes(body.provider)) {
-      return error(req, 'Provider must be one of: openai, custom, openai-compatible', 400);
+      return error(req, 'Provider must be one of: openai, custom, openai-compatible, google, gemini-compatible, anthropic, claude-compatible', 400);
     }
 
     // Validate base_url

@@ -6,7 +6,7 @@
  *
  * To run these tests in a real environment:
  * 1. Set up test database (fresh D1 instance)
- * 2. Run migration 008_rbac_core.sql
+ * 2. Run migration 010_rbac_core.sql
  * 3. Execute this test file with Node.js or test framework (Jest/Vitest)
  */
 
@@ -463,7 +463,7 @@ export const deploymentVerificationChecklist = `
 ## Pre-Deployment RBAC Verification Checklist
 
 ### 1. Schema Validation
-- [ ] RBAC migration (008_rbac_core.sql) applied to staging database
+- [ ] RBAC migration (010_rbac_core.sql) applied to staging database
 - [ ] All 5 tables created: roles, permissions, role_permissions, user_roles, audit_log
 - [ ] All 9 indexes created for performance
 - [ ] Default seed data populated: 6 roles + 20+ permissions
@@ -524,7 +524,7 @@ export const deploymentVerificationChecklist = `
 
 ### 11. Deployment Steps
 1. [ ] Backup production database
-2. [ ] Apply migration: wrangler d1 execute growchat --file=migrations/008_rbac_core.sql
+2. [ ] Apply migration: wrangler d1 execute growchat --file=migrations/010_rbac_core.sql
 3. [ ] Verify migration: SELECT COUNT(*) FROM roles; (should show 6)
 4. [ ] Deploy new Worker code
 5. [ ] Monitor logs for "RBAC schema initialization pending" (should not appear after migration)

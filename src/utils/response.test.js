@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { json, error, preflight, sseHeaders, sseData, jsonCached, createWeakEtag } from './response.js';
+import { ValidationError } from '../errors/http-errors.js';
 
 describe('response.js - HTTP Response Helpers', () => {
   let mockRequest;
@@ -108,6 +109,13 @@ describe('response.js - HTTP Response Helpers', () => {
       const body = await response.json();
       expect(body.error).toBe('Validation error');
       expect(body.details).toEqual(details);
+    });
+
+    it('should serialize HttpError instances', async () => {
+      const response = error(mockRequest, new ValidationError('Bad input', { field: 'name' }));
+      const body = await response.json();
+      expect(response.status).toBe(400);
+      expect(body).toMatchObject({ error: 'validation_error', message: 'Bad input', details: { field: 'name' } });
     });
 
     it('should exclude details when not provided', async () => {

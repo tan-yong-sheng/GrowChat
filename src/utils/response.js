@@ -1,3 +1,5 @@
+import { isHttpError, toHttpErrorPayload } from '../errors/http-errors.js';
+
 function originHeaders(req) {
   const origin = req.headers.get('Origin');
   if (!origin) return {};
@@ -85,6 +87,10 @@ export function jsonCached(req, data, options = {}) {
 }
 
 export function error(req, message, status = 500, details = undefined) {
+  if (isHttpError(message)) {
+    const payload = toHttpErrorPayload(message);
+    return json(req, payload.body, payload.status);
+  }
   return json(req, { error: message, ...(details ? { details } : {}) }, status);
 }
 

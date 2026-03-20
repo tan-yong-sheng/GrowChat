@@ -1,3 +1,5 @@
+import { readStoredJson, readStoredString, writeStoredJson, writeStoredString } from './utils/storage.js';
+
 export const state = {
   // App Core
   chats: [],
@@ -17,8 +19,8 @@ export const state = {
   
   // UI Layout
   showSidebar: window.innerWidth >= 768,
-  sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
-  sidebarWidth: parseInt(localStorage.getItem('sidebarWidth')) || 260,
+  sidebarCollapsed: readStoredString(localStorage, 'sidebarCollapsed', 'false') === 'true',
+  sidebarWidth: Number.parseInt(readStoredString(localStorage, 'sidebarWidth', ''), 10) || 260,
   isMobile: window.innerWidth < 768,
   
   // Search Modal State
@@ -51,8 +53,8 @@ export const state = {
   rbacLoading: false,
   
   // Interaction State
-  drafts: JSON.parse(localStorage.getItem('drafts') || '{}'), // chatId -> draft text
-  newChatDraft: localStorage.getItem('newChatDraft') || '',
+  drafts: readStoredJson(localStorage, 'drafts', {}), // chatId -> draft text
+  newChatDraft: readStoredString(localStorage, 'newChatDraft', ''),
   ui: {
     loading: false,
     streaming: false,
@@ -94,10 +96,10 @@ export function setState(updater) {
 
   if (hasChanges) {
     // Persist certain state fields
-    if (changes.sidebarWidth) localStorage.setItem('sidebarWidth', state.sidebarWidth);
-    if (changes.sidebarCollapsed !== undefined) localStorage.setItem('sidebarCollapsed', state.sidebarCollapsed);
-    if (changes.drafts) localStorage.setItem('drafts', JSON.stringify(state.drafts));
-    if (changes.newChatDraft !== undefined) localStorage.setItem('newChatDraft', state.newChatDraft || '');
+    if (changes.sidebarWidth) writeStoredString(localStorage, 'sidebarWidth', state.sidebarWidth);
+    if (changes.sidebarCollapsed !== undefined) writeStoredString(localStorage, 'sidebarCollapsed', state.sidebarCollapsed);
+    if (changes.drafts) writeStoredJson(localStorage, 'drafts', state.drafts);
+    if (changes.newChatDraft !== undefined) writeStoredString(localStorage, 'newChatDraft', state.newChatDraft || '');
     if (changes.defaultModelId) {
       // defaultModelId is stored server-side; avoid persisting stale local values.
     }

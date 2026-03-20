@@ -9,359 +9,29 @@ import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
-import { buildEnvOpenAIConnections, ensureConnectionId, getEnvOpenAIOverrides } from '../utils/openai-connections.js';
-
-const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
-const ATTACHMENT_CAP_TYPES = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
-
-function isValidHttpUrl(value) {
-  if (!value) return false;
-  return /^https?:\/\//i.test(value);
-}
-
-function normalizeHeaders(input) {
-  const trimmed = String(input || '').trim();
-  if (!trimmed) return '';
-  let parsed;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    throw new Error('Headers must be valid JSON');
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Headers must be a JSON object');
-  }
-  const normalized = {};
-  for (const [key, value] of Object.entries(parsed)) {
-    const headerKey = String(key || '').trim();
-    if (!headerKey) {
-      throw new Error('Header names cannot be empty');
-    }
-    if (/[\r\n]/.test(headerKey)) {
-      throw new Error('Header names cannot contain newline characters');
-    }
-    const headerValue = String(value ?? '').trim();
-    if (/[\r\n]/.test(headerValue)) {
-      throw new Error('Header values cannot contain newline characters');
-    }
-    normalized[headerKey] = headerValue;
-  }
-  return JSON.stringify(normalized);
-}
-
-function parseHeadersForRequest(input) {
-  if (input && typeof input === 'object' && !Array.isArray(input)) {
-    return input;
-  }
-  const normalized = normalizeHeaders(input);
-  if (!normalized) return {};
-  return JSON.parse(normalized);
-}
-
-function normalizeBaseUrl(url) {
-  return String(url || '').trim().replace(/\/$/, '');
-}
-
-function normalizeModelId(value) {
-  const normalized = String(value || '').trim();
-  if (!normalized) return null;
-  if (normalized.length > 200 || /\s/.test(normalized)) {
-    throw new Error('model_id is invalid');
-  }
-  return normalized;
-}
-
-function normalizeAttachmentCaps(input, { allowNull = false } = {}) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('attachments must be an object');
-  }
-  const caps = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (!ATTACHMENT_CAP_TYPES.includes(key)) {
-      throw new Error(`Unknown attachment type: ${key}`);
-    }
-    if (value === null && allowNull) {
-      caps[key] = null;
-      continue;
-    }
-    if (typeof value !== 'boolean') {
-      throw new Error(`Attachment type ${key} must be a boolean`);
-    }
-    caps[key] = value;
-  }
-  return caps;
-}
-
-const MCP_PROTOCOL_VERSION = '2025-11-25';
-
-function base64UrlEncode(bytes) {
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-function randomString(length = 43) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  return Array.from(array, (x) => chars[x % chars.length]).join('');
-}
-
-async function sha256Base64Url(input) {
-  const data = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return base64UrlEncode(new Uint8Array(digest));
-}
-
-async function loadToolServers(db) {
-  let servers = [];
-  const raw = await getConfigValue(db, 'tool_servers', '[]');
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) servers = parsed;
-  } catch {
-    servers = [];
-  }
-  return servers;
-}
-
-async function saveToolServers(db, servers) {
-  await setConfigValue(db, 'tool_servers', JSON.stringify(servers));
-}
-
-function normalizeAuthType(value) {
-  const normalized = String(value || '').toLowerCase();
-  if (['none', 'bearer', 'basic', 'oauth'].includes(normalized)) return normalized;
-  return 'none';
-}
-
-function normalizeTokenAuthMethod(value) {
-  const normalized = String(value || '').toLowerCase();
-  if (['client_secret_basic', 'client_secret_post', 'none'].includes(normalized)) {
-    return normalized;
-  }
-  return undefined;
-}
-
-function redactToolServer(server) {
-  const { oauth_tokens, oauth_state, oauth_code_verifier, ...rest } = server || {};
-  return {
-    ...rest,
-    oauth_connected: Boolean(oauth_tokens?.access_token),
-    oauth_connected_at: oauth_tokens?.connected_at || server?.oauth_connected_at || null,
-  };
-}
-
-function mergeToolServer(existing, incoming) {
-  const authType = normalizeAuthType(incoming.auth_type);
-  const normalizeTools = (value) => {
-    if (!Array.isArray(value)) return existing?.tools || [];
-    return value
-      .map((tool) => ({
-        name: String(tool?.name || '').trim(),
-        title: String(tool?.title || '').trim(),
-        description: String(tool?.description || '').trim(),
-        parameters:
-          tool?.parameters && typeof tool.parameters === 'object'
-            ? tool.parameters
-            : (tool?.inputSchema && typeof tool.inputSchema === 'object' ? tool.inputSchema : undefined),
-      }))
-      .filter((tool) => tool.name);
-  };
-  const merged = {
-    ...(existing || {}),
-    id: incoming.id || existing?.id || crypto.randomUUID(),
-    name: String(incoming.name || existing?.name || 'Tool Server').slice(0, 120),
-    url: String(incoming.url || existing?.url || '').trim(),
-    headers: String(incoming.headers || existing?.headers || '').trim(),
-    enabled: incoming.enabled !== false,
-    auth_type: authType,
-    auth_bearer_token: String(incoming.auth_bearer_token || existing?.auth_bearer_token || '').trim(),
-    auth_basic_username: String(incoming.auth_basic_username || existing?.auth_basic_username || '').trim(),
-    auth_basic_password: String(incoming.auth_basic_password || existing?.auth_basic_password || '').trim(),
-    oauth_client_name: String(incoming.oauth_client_name || existing?.oauth_client_name || '').trim(),
-    oauth_scope: String(incoming.oauth_scope || existing?.oauth_scope || '').trim(),
-    oauth_client_id: String(incoming.oauth_client_id || existing?.oauth_client_id || '').trim(),
-    oauth_client_secret: String(incoming.oauth_client_secret || existing?.oauth_client_secret || '').trim(),
-    oauth_token_auth_method: normalizeTokenAuthMethod(incoming.oauth_token_auth_method || existing?.oauth_token_auth_method) || '',
-    oauth_authorization_server: String(incoming.oauth_authorization_server || existing?.oauth_authorization_server || '').trim(),
-    oauth_token_endpoint: String(incoming.oauth_token_endpoint || existing?.oauth_token_endpoint || '').trim(),
-    oauth_registration_endpoint: String(incoming.oauth_registration_endpoint || existing?.oauth_registration_endpoint || '').trim(),
-    tools: normalizeTools(incoming.tools),
-    tools_error: incoming.tools_error || existing?.tools_error || '',
-    tools_verified_at: incoming.tools_verified_at || existing?.tools_verified_at || null,
-  };
-
-  if (authType !== 'oauth') {
-    delete merged.oauth_tokens;
-    delete merged.oauth_state;
-    delete merged.oauth_code_verifier;
-    delete merged.oauth_connected_at;
-  } else {
-    if (existing?.oauth_tokens && !incoming.oauth_tokens) {
-      merged.oauth_tokens = existing.oauth_tokens;
-    }
-    if (existing?.oauth_connected_at && !incoming.oauth_connected_at) {
-      merged.oauth_connected_at = existing.oauth_connected_at;
-    }
-  }
-
-  return merged;
-}
-
-function buildMcpHeaders(base, sessionId) {
-  const headers = {
-    ...base,
-    'mcp-protocol-version': MCP_PROTOCOL_VERSION,
-    Accept: 'application/json, text/event-stream',
-    'Content-Type': 'application/json',
-  };
-  if (sessionId) headers['mcp-session-id'] = sessionId;
-  return headers;
-}
-
-function parseSseMessages(body) {
-  const blocks = body.split('\n\n');
-  const messages = [];
-  for (const block of blocks) {
-    const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
-    let data = '';
-    for (const line of lines) {
-      if (line.startsWith('data:')) {
-        data += line.slice(5).trim();
-      }
-    }
-    if (!data) continue;
-    try {
-      messages.push(JSON.parse(data));
-    } catch {
-      // ignore parse errors
-    }
-  }
-  return messages;
-}
-
-async function mcpRequest({ url, headers, sessionId, id, method, params }) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: buildMcpHeaders(headers, sessionId),
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id,
-      method,
-      ...(params ? { params } : {}),
-    }),
-  });
-
-  const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
-
-  if (response.status === 202) {
-    return { result: null, sessionId: nextSessionId };
-  }
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`MCP request failed (${response.status}): ${text || response.statusText}`);
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    const payload = await response.json();
-    const message = Array.isArray(payload)
-      ? payload.find((item) => String(item?.id) === String(id)) || payload[0]
-      : payload;
-    if (message?.error) {
-      throw new Error(message.error.message || 'MCP error');
-    }
-    return { result: message?.result, sessionId: nextSessionId };
-  }
-
-  if (contentType.includes('text/event-stream')) {
-    const text = await response.text();
-    const messages = parseSseMessages(text);
-    const message = messages.find((item) => String(item?.id) === String(id)) || messages[0];
-    if (message?.error) {
-      throw new Error(message.error.message || 'MCP error');
-    }
-    return { result: message?.result, sessionId: nextSessionId };
-  }
-
-  throw new Error(`Unexpected MCP response content type: ${contentType}`);
-}
-
-async function mcpNotify({ url, headers, sessionId, method, params }) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: buildMcpHeaders(headers, sessionId),
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method,
-      ...(params ? { params } : {}),
-    }),
-  });
-  const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
-  if (response.status === 202 || response.status === 204) {
-    return { sessionId: nextSessionId };
-  }
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`MCP notification failed (${response.status}): ${text || response.statusText}`);
-  }
-  return { sessionId: nextSessionId };
-}
-
-async function discoverAuthorizationMetadata(authorizationServerUrl) {
-  const url = new URL(authorizationServerUrl);
-  const hasPath = url.pathname && url.pathname !== '/';
-  const path = hasPath ? url.pathname.replace(/\/$/, '') : '';
-  const candidates = [];
-
-  if (!hasPath) {
-    candidates.push(new URL('/.well-known/oauth-authorization-server', url.origin));
-    candidates.push(new URL('/.well-known/openid-configuration', url.origin));
-  } else {
-    candidates.push(new URL(`/.well-known/oauth-authorization-server${path}`, url.origin));
-    candidates.push(new URL('/.well-known/oauth-authorization-server', url.origin));
-    candidates.push(new URL(`/.well-known/openid-configuration${path}`, url.origin));
-    candidates.push(new URL(`${path}/.well-known/openid-configuration`, url.origin));
-  }
-
-  for (const candidate of candidates) {
-    try {
-      const res = await fetch(candidate, { headers: { 'MCP-Protocol-Version': MCP_PROTOCOL_VERSION } });
-      if (!res.ok) continue;
-      return await res.json();
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
-
-function buildAuthorizationUrl({ authorizationEndpoint, clientId, redirectUri, scope, state, codeChallenge }) {
-  const url = new URL(authorizationEndpoint);
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('client_id', clientId);
-  url.searchParams.set('redirect_uri', redirectUri);
-  url.searchParams.set('code_challenge', codeChallenge);
-  url.searchParams.set('code_challenge_method', 'S256');
-  if (scope) url.searchParams.set('scope', scope);
-  if (state) url.searchParams.set('state', state);
-  return url;
-}
-
-function selectTokenAuthMethod(supported, hasSecret) {
-  if (Array.isArray(supported)) {
-    if (hasSecret && supported.includes('client_secret_basic')) return 'client_secret_basic';
-    if (hasSecret && supported.includes('client_secret_post')) return 'client_secret_post';
-    if (supported.includes('none')) return 'none';
-  }
-  return hasSecret ? 'client_secret_post' : 'none';
-}
+import { buildConnectionHeaders, buildEnvOpenAIConnections, discoverConnectionModels, ensureConnectionId, extractConnectionModelId, getConnectionApiType, getConnectionDefaultBaseUrl, getEnvOpenAIOverrides, isConnectionUrlRequired, normalizeConnectionManualModels } from '../llm/connections.js';
+import { normalizeProviderFamily } from '../llm/provider-registry.js';
+import { MCP_PROTOCOL_VERSION } from '../mcp/client.js';
+import {
+  buildAuthorizationUrl,
+  discoverAuthorizationMetadata,
+  isValidHttpUrl,
+  loadToolServers,
+  mergeToolServer,
+  normalizeAuthType,
+  normalizeAttachmentCaps,
+  normalizeBaseUrl,
+  normalizeHeaders,
+  normalizeModelId,
+  normalizeTokenAuthMethod,
+  parseHeadersForRequest,
+  randomString,
+  redactToolServer,
+  saveToolServers,
+  selectTokenAuthMethod,
+  sha256Base64Url,
+} from '../admin/tool-servers.js';
+import { mcpNotify, mcpRequest } from '../mcp/client.js';
 
 /**
  * Admin Router Handler
@@ -615,6 +285,7 @@ export async function adminRouter(req, env, ctx, user, path) {
             ...conn,
             id: ensureConnectionId(conn, index),
             providerType: String(conn?.providerType || 'openai-compatible').toLowerCase(),
+            providerFamily: normalizeProviderFamily(conn?.providerType || conn?.providerFamily) || 'openai',
             readOnly: false,
             source: 'config',
             enabled: conn?.enabled !== false,
@@ -645,8 +316,15 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
+    const providerType = String(body.providerType || 'openai').toLowerCase();
+    const providerFamily = normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
     const url = String(body.url || '').trim();
-    if (!url || !isValidHttpUrl(url)) {
+    const requiresUrl = isConnectionUrlRequired(providerType);
+    const baseUrl = url || getConnectionDefaultBaseUrl(providerType || providerFamily);
+    if (requiresUrl && !url) {
+      return error(req, 'Connection URL is required for compatible providers', 400);
+    }
+    if (!isValidHttpUrl(baseUrl)) {
       return error(req, 'Connection URL must start with http:// or https://', 400);
     }
 
@@ -658,24 +336,40 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, err.message || 'Headers must be valid JSON', 400);
     }
 
-    if (key && !headers.Authorization) {
-      headers.Authorization = `Bearer ${key}`;
-    }
-
-    const baseUrl = normalizeBaseUrl(url);
     try {
-      const res = await fetch(`${baseUrl}/models`, { headers });
-      if (!res.ok) {
-        const bodyText = await res.text().catch(() => '');
+      const testConnection = {
+        providerType,
+        providerFamily,
+        key,
+        headers,
+        baseUrl: normalizeBaseUrl(baseUrl),
+      };
+      const discovery = await discoverConnectionModels(testConnection, {
+        headers: buildConnectionHeaders(testConnection),
+      });
+      if (!discovery.items.length) {
+        const message = discovery.error?.message || 'No models discovered';
         return error(
           req,
-          `Connection failed (${res.status})`,
+          'Connection failed',
           502,
-          { message: bodyText.slice(0, 200) }
+          { message: String(message).slice(0, 200) }
         );
       }
 
-      return json(req, { ok: true, message: 'Connection successful' });
+      return json(req, {
+        ok: true,
+        message: 'Connection successful',
+        discovery_url: discovery.url,
+        models: discovery.items.map((item) => {
+          const rawId = extractConnectionModelId(item);
+          const displayName = String(item?.displayName || item?.display_name || item?.name || item?.id || rawId || '').trim();
+          return {
+            id: rawId,
+            name: displayName.startsWith('models/') ? displayName.slice('models/'.length) : displayName,
+          };
+        }).filter((item) => Boolean(item.id)),
+      });
     } catch (err) {
       return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
     }
@@ -1100,8 +794,17 @@ export async function adminRouter(req, env, ctx, user, path) {
       sanitized = connections
         .filter((conn) => !conn?.readOnly && conn?.source !== 'env')
         .map((conn) => {
-          const url = String(conn.url || '').trim();
-          if (!url) return null;
+          const providerType = String(conn.providerType || 'openai').toLowerCase();
+          if (!['openai', 'openai-compatible', 'google', 'gemini-compatible', 'anthropic', 'claude-compatible'].includes(providerType)) {
+            throw new Error('Provider type must be one of: openai, openai-compatible, google, gemini-compatible, anthropic, claude-compatible');
+          }
+          const providerFamily = normalizeProviderFamily(providerType || conn.providerFamily) || 'openai';
+          const rawUrl = String(conn.url || '').trim();
+          const requiresUrl = isConnectionUrlRequired(providerType);
+          const url = rawUrl || getConnectionDefaultBaseUrl(providerType || providerFamily);
+          if (requiresUrl && !rawUrl) {
+            throw new Error('Connection URL is required for compatible providers');
+          }
           if (!isValidHttpUrl(url)) {
             throw new Error('Connection URL must start with http:// or https://');
           }
@@ -1113,19 +816,22 @@ export async function adminRouter(req, env, ctx, user, path) {
           if (headers.length > 4096) {
             throw new Error('Headers are too long');
           }
-          const providerType = String(conn.providerType || 'openai').toLowerCase();
-          if (!['openai', 'openai-compatible'].includes(providerType)) {
-            throw new Error('Provider type must be openai or openai-compatible');
-          }
+          const defaultName = providerFamily === 'google'
+            ? 'Gemini Compatible'
+            : providerFamily === 'anthropic'
+              ? 'Claude Compatible'
+              : 'OpenAI Compatible';
           return {
             id: conn.id || crypto.randomUUID(),
-            name: String(conn.name || 'OpenAI Compatible').slice(0, 120),
+            name: String(conn.name || defaultName).slice(0, 120),
             url,
             key,
             headers,
             providerType,
-            apiType: 'chat-completions',
+            providerFamily,
+            apiType: getConnectionApiType(providerType),
             enabled: conn.enabled !== false,
+            manualModels: normalizeConnectionManualModels(conn.manualModels),
           };
         })
         .filter(Boolean);
@@ -1138,7 +844,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       await setConfigValue(db, 'openai_enabled', enabled ? 'true' : 'false');
       const envOverrides = {};
       for (const [key, value] of Object.entries(envOverridesInput)) {
-        if (!/^env-\d+$/.test(String(key))) continue;
+        if (!/^env-[a-z0-9-]+$/i.test(String(key))) continue;
         if (value === false) {
           envOverrides[String(key)] = false;
         }

@@ -4,6 +4,11 @@ import { hashPassword, signJWT, verifyPassword } from '../auth.js';
 import { createRefreshToken, consumeRefreshToken, revokeRefreshToken } from '../session.js';
 import { getConfigBool, setConfigValue } from '../utils/app-config.js';
 import { getJwtSecret } from '../utils/jwt-secret.js';
+import { requireString, validateEmail } from '../validation/request.js';
+import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../services/rate-limit.js';
+import { createUserRepository } from '../repositories/user-repository.js';
+import { APP_TTLS } from '../config/app.js';
+import { ValidationError } from '../errors/http-errors.js';
 
 async function ensureUserRoleBinding(db, userId, role) {
   if (!userId || !role || role === 'inactive') return;
@@ -20,7 +25,7 @@ async function ensureUserRoleBinding(db, userId, role) {
   } catch (err) {
     // Temporary safety net: do not block auth when RBAC tables are not migrated yet.
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      console.warn('RBAC role binding skipped: run migrations/008_rbac_core.sql');
+      console.warn('RBAC role binding skipped: run migrations/010_rbac_core.sql');
       return;
     }
     throw err;
@@ -46,18 +51,6 @@ function sanitizeUser(user) {
   };
 }
 
-async function touchLastActive(db, userId) {
-  if (!userId) return;
-  try {
-    await db.run('UPDATE users SET last_active_at = unixepoch() WHERE id = ?', [userId]);
-  } catch (err) {
-    if (/no such column:\s*last_active_at/i.test(String(err?.message || ''))) {
-      return;
-    }
-    throw err;
-  }
-}
-
 function readBearerToken(req) {
   const header = req.headers.get('Authorization');
   if (!header?.startsWith('Bearer ')) return null;
@@ -68,12 +61,13 @@ async function createAccessToken(secret, user) {
   return signJWT(
     { sub: user.id, email: user.email, role: user.role, name: user.name },
     secret,
-    60 * 15
+    APP_TTLS.accessTokenSeconds
   );
 }
 
 export async function authRouter(req, env, _ctx, _authUser, path) {
   const db = createDB(env.DB);
+  const users = createUserRepository(db);
   const jwtSecret = getJwtSecret(env, req);
 
   if (path.startsWith('/api/auth/') && !jwtSecret) {
@@ -88,45 +82,63 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const hasUsersRow = await db.first('SELECT COUNT(*) as count FROM users');
-    const hasUsers = (hasUsersRow?.count || 0) > 0;
+    const hasUsers = (await users.count()) > 0;
     const publicRegistrationEnabled = await getConfigBool(db, 'public_registration', true);
     if (!publicRegistrationEnabled && hasUsers) {
       return error(req, 'Public registration is disabled', 403);
     }
 
-    const email = String(body.email || '').trim().toLowerCase();
-    const name = String(body.name || '').trim();
-    const password = String(body.password || '');
+    const registerLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-register',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authRegister,
+    });
+    if (!registerLimit.allowed) {
+      return error(req, 'Too many registration attempts', 429, {
+        retry_after: Math.ceil((registerLimit.resetAt - Date.now()) / 1000),
+      });
+    }
 
-    if (!email || !name || !password) {
-      return error(req, 'email, name, password are required', 400);
+    let email;
+    let name;
+    let password;
+    try {
+      email = validateEmail(requireString(body.email, 'email, name, password are required').toLowerCase());
+      name = requireString(body.name, 'email, name, password are required');
+      password = requireString(body.password, 'email, name, password are required', { trim: false });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return error(req, err.message, 400);
+      }
+      throw err;
     }
     if (password.length < 8) {
       return error(req, 'Password must be at least 8 characters', 400);
     }
 
-    const existing = await db.first('SELECT id FROM users WHERE email = ?', [email]);
+    const existing = await users.findByEmail(email, 'id');
     if (existing) return error(req, 'Email already registered', 409);
 
     const id = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
-    await db.run(
-      'INSERT INTO users (id, email, password_hash, name, role, settings, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())',
-      [id, email, passwordHash, name, 'user', '{}']
-    );
+    let user = await users.create({
+      id,
+      email,
+      passwordHash,
+      name,
+      role: 'user',
+      settings: '{}',
+    });
 
     // Open WebUI-style first-user elevation: decide admin after insert.
-    const countRow = await db.first('SELECT COUNT(*) as count FROM users');
-    const finalRole = (countRow?.count || 0) === 1 ? 'admin' : 'user';
+    const finalRole = (await users.count()) === 1 ? 'admin' : 'user';
     if (finalRole === 'admin') {
       await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['admin', id]);
       // Disable public registration after first admin is created.
       await setConfigValue(db, 'public_registration', 'false');
+      user = { ...user, role: 'admin' };
     }
     await ensureUserRoleBinding(db, id, finalRole);
-
-    const user = await db.first('SELECT * FROM users WHERE id = ?', [id]);
     const accessToken = await createAccessToken(jwtSecret, user);
     const refresh = await createRefreshToken(env, user.id);
 
@@ -147,22 +159,38 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const email = String(body.email || '').trim().toLowerCase();
-    const password = String(body.password || '');
-
-    if (!email || !password) {
-      return error(req, 'email and password are required', 400);
+    let email;
+    let password;
+    try {
+      email = validateEmail(requireString(body.email, 'email and password are required').toLowerCase());
+      password = requireString(body.password, 'email and password are required', { trim: false });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return error(req, err.message, 400);
+      }
+      throw err;
     }
 
-    const user = await db.first('SELECT * FROM users WHERE email = ?', [email]);
+    const loginLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-login',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authLogin,
+    });
+    if (!loginLimit.allowed) {
+      return error(req, 'Too many login attempts', 429, {
+        retry_after: Math.ceil((loginLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
+    const user = await users.findByEmail(email);
     if (!user) return error(req, 'Invalid credentials', 401);
     await ensureUserRoleBinding(db, user.id, user.role);
 
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
 
-    await touchLastActive(db, user.id);
-    const freshUser = await db.first('SELECT * FROM users WHERE id = ?', [user.id]);
+    await users.touchLastActive(user.id);
+    const freshUser = await users.findById(user.id);
 
     const accessToken = await createAccessToken(jwtSecret, freshUser);
     const refresh = await createRefreshToken(env, freshUser.id);
@@ -184,18 +212,25 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const refreshToken = String(body.refresh_token || '');
-    if (!refreshToken) return error(req, 'refresh_token is required', 400);
+    let refreshToken;
+    try {
+      refreshToken = requireString(body.refresh_token, 'refresh_token is required', { trim: false });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return error(req, err.message, 400);
+      }
+      throw err;
+    }
 
     const session = await consumeRefreshToken(env, refreshToken);
     if (!session?.userId) return error(req, 'Invalid refresh token', 401);
 
-    const user = await db.first('SELECT * FROM users WHERE id = ?', [session.userId]);
+    const user = await users.findById(session.userId);
     if (!user) return error(req, 'User not found', 404);
     await ensureUserRoleBinding(db, user.id, user.role);
 
-    await touchLastActive(db, user.id);
-    const freshUser = await db.first('SELECT * FROM users WHERE id = ?', [user.id]);
+    await users.touchLastActive(user.id);
+    const freshUser = await users.findById(user.id);
 
     const accessToken = await createAccessToken(jwtSecret, freshUser);
     const refresh = await createRefreshToken(env, freshUser.id);

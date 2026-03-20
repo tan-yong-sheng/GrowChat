@@ -30,6 +30,7 @@ describe('llm.js - LLM Streaming', () => {
       const mockStream = {
         ok: true,
         body: 'response body',
+        headers: new Headers({ 'content-type': 'text/event-stream' }),
       };
       global.fetch.mockResolvedValue(mockStream);
 
@@ -47,6 +48,214 @@ describe('llm.js - LLM Streaming', () => {
         })
       );
       expect(result).toBe('response body');
+    });
+
+    it('should use the Gemini streamGenerateContent endpoint for Gemini providers', async () => {
+      global.fetch = vi.fn();
+      global.fetch.mockResolvedValue({
+        ok: true,
+        body: 'gemini stream',
+        headers: new Headers({ 'content-type': 'text/event-stream' }),
+      });
+
+      const messages = [{ role: 'user', content: 'Test Gemini' }];
+      const env = {
+        GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
+        GEMINI_API_KEY: 'gemini-key',
+      };
+
+      const result = await streamLLM(env, 'gemini-2.5-pro', messages);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'x-goog-api-key': 'gemini-key',
+            'Content-Type': 'application/json',
+          }),
+        })
+      );
+      expect(result).toBe('gemini stream');
+    });
+
+    it('should send Gemini function tools to streamGenerateContent', async () => {
+      global.fetch = vi.fn();
+      global.fetch.mockResolvedValue({
+        ok: true,
+        body: 'gemini stream',
+        headers: new Headers({ 'content-type': 'text/event-stream' }),
+      });
+
+      const messages = [{ role: 'user', content: 'Test Gemini' }];
+      const env = {
+        GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
+        GEMINI_API_KEY: 'gemini-key',
+      };
+      const tools = [
+        {
+          type: 'function',
+          function: {
+            name: 'weather',
+            description: 'Get weather',
+            parameters: {
+              type: 'object',
+              properties: { location: { type: 'string' } },
+              required: ['location'],
+              additionalProperties: false,
+            },
+          },
+        },
+      ];
+
+      await streamLLM(env, 'gemini-2.5-pro', messages, {
+        tools,
+        toolChoice: { type: 'required' },
+      });
+
+      const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(body.tools).toEqual([
+        {
+          functionDeclarations: [
+            {
+              name: 'weather',
+              description: 'Get weather',
+              parameters: {
+                type: 'object',
+                properties: { location: { type: 'string' } },
+                required: ['location'],
+              },
+            },
+          ],
+        },
+      ]);
+      expect(body.toolConfig).toEqual({
+        functionCallingConfig: { mode: 'ANY' },
+      });
+    });
+
+    it('should preserve Gemini thought signatures on assistant tool calls', async () => {
+      global.fetch = vi.fn();
+      global.fetch.mockResolvedValue({
+        ok: true,
+        body: 'gemini stream',
+        headers: new Headers({ 'content-type': 'text/event-stream' }),
+      });
+
+      const messages = [
+        {
+          role: 'assistant',
+          tool_calls: [
+            {
+              id: 'tool-1',
+              type: 'function',
+              function: {
+                name: 'weather',
+                arguments: JSON.stringify({ location: 'San Francisco' }),
+              },
+              providerMetadata: {
+                google: {
+                  thoughtSignature: 'sig-123',
+                },
+              },
+            },
+          ],
+        },
+      ];
+      const env = {
+        GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
+        GEMINI_API_KEY: 'gemini-key',
+      };
+
+      await streamLLM(env, 'gemini-2.5-pro', messages);
+
+      const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(body.contents[0].parts[0]).toEqual({
+        functionCall: {
+          name: 'weather',
+          args: { location: 'San Francisco' },
+        },
+        thoughtSignature: 'sig-123',
+      });
+    });
+
+    it('should use the Anthropic messages endpoint for Claude providers', async () => {
+      global.fetch = vi.fn();
+      global.fetch.mockResolvedValue({
+        ok: true,
+        body: 'anthropic stream',
+        headers: new Headers({ 'content-type': 'text/event-stream' }),
+      });
+
+      const messages = [{ role: 'user', content: 'Test Claude' }];
+      const env = {
+        ANTHROPIC_BASE_URL: 'https://api.anthropic.com/v1',
+        ANTHROPIC_API_KEY: 'anthropic-key',
+      };
+
+      const result = await streamLLM(env, 'claude-sonnet-4-5', messages);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://api.anthropic.com/v1/messages',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'x-api-key': 'anthropic-key',
+            'anthropic-version': '2023-06-01',
+            'Content-Type': 'application/json',
+          }),
+        })
+      );
+      expect(result).toBe('anthropic stream');
+    });
+
+    it('should send Anthropic function tools to messages', async () => {
+      global.fetch = vi.fn();
+      global.fetch.mockResolvedValue({
+        ok: true,
+        body: 'anthropic stream',
+        headers: new Headers({ 'content-type': 'text/event-stream' }),
+      });
+
+      const messages = [{ role: 'user', content: 'Test Claude' }];
+      const env = {
+        ANTHROPIC_BASE_URL: 'https://api.anthropic.com/v1',
+        ANTHROPIC_API_KEY: 'anthropic-key',
+      };
+      const tools = [
+        {
+          type: 'function',
+          function: {
+            name: 'weather',
+            description: 'Get weather',
+            parameters: {
+              type: 'object',
+              properties: { location: { type: 'string' } },
+              required: ['location'],
+              additionalProperties: false,
+            },
+          },
+        },
+      ];
+
+      await streamLLM(env, 'claude-sonnet-4-5', messages, {
+        tools,
+        toolChoice: { type: 'required' },
+      });
+
+      const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(body.tools).toEqual([
+        {
+          name: 'weather',
+          description: 'Get weather',
+          input_schema: {
+            type: 'object',
+            properties: { location: { type: 'string' } },
+            required: ['location'],
+          },
+        },
+      ]);
+      expect(body.tool_choice).toEqual({ type: 'any' });
     });
 
     it('should throw when no provider connection is configured', async () => {
@@ -82,7 +291,11 @@ describe('llm.js - LLM Streaming', () => {
     it('should normalize OPENAI_BASE_URL by removing trailing slash', async () => {
       global.fetch = vi.fn();
       mockEnv.OPENAI_BASE_URL = 'https://api.example.com/v1/';
-      global.fetch.mockResolvedValue({ ok: true, body: 'stream' });
+      global.fetch.mockResolvedValue({
+        ok: true,
+        body: 'stream',
+        headers: new Headers({ 'content-type': 'text/event-stream' }),
+      });
 
       await streamLLM(mockEnv, 'gpt-4', []);
 
@@ -101,7 +314,11 @@ describe('llm.js - LLM Streaming', () => {
 
     it('should pass messages array to LLM', async () => {
       global.fetch = vi.fn();
-      global.fetch.mockResolvedValue({ ok: true, body: 'stream' });
+      global.fetch.mockResolvedValue({
+        ok: true,
+        body: 'stream',
+        headers: new Headers({ 'content-type': 'text/event-stream' }),
+      });
 
       const messages = [
         { role: 'system', content: 'You are helpful' },
@@ -138,6 +355,43 @@ describe('llm.js - LLM Streaming', () => {
         const result = parser.push(text);
 
         expect(result).toBe('world');
+      });
+
+      it('should emit Gemini tool call deltas', () => {
+        const events = [];
+        const parserWithEvents = new SseLineParser({
+          onEvent: (event) => events.push(event),
+        });
+        const text =
+          'data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"weather","args":{"location":"San Francisco"}},"thoughtSignature":"sig-123"}]},"finishReason":"STOP"}]}\n\n';
+
+        const result = parserWithEvents.push(text);
+
+        expect(result).toBe('');
+        const toolEvent = events.find((event) => event.type === 'tool_call_delta');
+        expect(toolEvent).toBeTruthy();
+        expect(toolEvent.tool_calls[0].providerMetadata).toEqual({
+          google: { thoughtSignature: 'sig-123' },
+        });
+        expect(events.find((event) => event.type === 'finish_reason')?.reason).toBe('tool_calls');
+      });
+
+      it('should emit Anthropic tool call deltas', () => {
+        const events = [];
+        const parserWithEvents = new SseLineParser({
+          onEvent: (event) => events.push(event),
+        });
+        const chunks = [
+          'data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"weather","input":{}}}\n\n',
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"location\\":\\"San Francisco\\"}"}}\n\n',
+          'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null}}\n\n',
+        ];
+
+        const result = chunks.map((chunk) => parserWithEvents.push(chunk)).join('');
+
+        expect(result).toBe('');
+        expect(events.some((event) => event.type === 'tool_call_delta')).toBe(true);
+        expect(events.find((event) => event.type === 'finish_reason')?.reason).toBe('tool_calls');
       });
 
       it('should ignore [DONE] marker', () => {

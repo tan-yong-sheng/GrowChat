@@ -1,9 +1,11 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { isValidEmail } from '../utils/rbac.js';
 import { authorize, logAuditEvent, isLastOwnerOfRole, resolvePermissions, getUserRoles } from '../utils/authorize.js';
 import { getConfigValue } from '../utils/app-config.js';
 import { hashPassword } from '../auth.js';
+import { parsePagination, requirePlainObject, requireString, validateEmail } from '../validation/request.js';
+import { isValidEmail } from '../utils/rbac.js';
+import { ValidationError } from '../errors/http-errors.js';
 
 async function upsertGlobalRoleBinding(db, userId, role) {
   try {
@@ -23,7 +25,7 @@ async function upsertGlobalRoleBinding(db, userId, role) {
     );
   } catch (err) {
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      console.warn('RBAC role binding skipped: run migrations/008_rbac_core.sql');
+      console.warn('RBAC role binding skipped: run migrations/010_rbac_core.sql');
       return;
     }
     throw err;
@@ -143,33 +145,26 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'Status must be one of: online, away, offline', 400);
     }
 
-    // Validate avatar_emoji length
-    if (avatar_emoji && avatar_emoji.length > 50) {
-      return error(req, 'Avatar emoji must be 50 characters or less', 400);
-    }
-
     let settingsObj;
-    if (body.settings !== undefined) {
-      const isPlainObject =
-        typeof body.settings === 'object' &&
-        body.settings !== null &&
-        !Array.isArray(body.settings);
-      if (!isPlainObject) {
-        return error(req, 'settings must be an object', 400);
-      }
-      settingsObj = body.settings;
-    }
-
     let preferencesObj;
-    if (body.preferences !== undefined) {
-      const isPlainObject =
-        typeof body.preferences === 'object' &&
-        body.preferences !== null &&
-        !Array.isArray(body.preferences);
-      if (!isPlainObject) {
-        return error(req, 'preferences must be an object', 400);
+    try {
+      // Validate avatar_emoji length
+      if (avatar_emoji && avatar_emoji.length > 50) {
+        return error(req, 'Avatar emoji must be 50 characters or less', 400);
       }
-      preferencesObj = body.preferences;
+
+      if (body.settings !== undefined) {
+        settingsObj = requirePlainObject(body.settings, 'settings must be an object');
+      }
+
+      if (body.preferences !== undefined) {
+        preferencesObj = requirePlainObject(body.preferences, 'preferences must be an object');
+      }
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return error(req, err.message, 400);
+      }
+      throw err;
     }
 
     // Build update query
@@ -287,15 +282,15 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     let preferencesObj;
-    if (body.preferences !== undefined) {
-      const isPlainObject =
-        typeof body.preferences === 'object' &&
-        body.preferences !== null &&
-        !Array.isArray(body.preferences);
-      if (!isPlainObject) {
-        return error(req, 'preferences must be an object', 400);
+    try {
+      if (body.preferences !== undefined) {
+        preferencesObj = requirePlainObject(body.preferences, 'preferences must be an object');
       }
-      preferencesObj = body.preferences;
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return error(req, err.message, 400);
+      }
+      throw err;
     }
 
     // Build update query
@@ -395,8 +390,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     const db = createDB(env.DB);
-    const limit = Math.min(parseInt(new URL(req.url).searchParams.get('limit') || '20', 10), 100);
-    const offset = Math.max(parseInt(new URL(req.url).searchParams.get('offset') || '0', 10), 0);
+    const { limit, offset } = parsePagination(new URL(req.url), { defaultLimit: 20, maxLimit: 100, defaultOffset: 0 });
 
     try {
       const totalRow = await db.first('SELECT COUNT(*) as count FROM users');
@@ -469,18 +463,20 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const email = String(body.email || '').trim().toLowerCase();
-    const name = String(body.name || '').trim();
-    const password = String(body.password || '');
+    let email;
+    let name;
+    let password;
+    try {
+      email = validateEmail(requireString(body.email, 'email, name, and password are required').toLowerCase());
+      name = requireString(body.name, 'email, name, and password are required');
+      password = requireString(body.password, 'email, name, and password are required', { trim: false });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return error(req, err.message, 400);
+      }
+      throw err;
+    }
     const role = String(body.role || 'user').trim().toLowerCase();
-
-    if (!email || !name || !password) {
-      return error(req, 'email, name, and password are required', 400);
-    }
-
-    if (!isValidEmail(email)) {
-      return error(req, 'Invalid email format', 400);
-    }
 
     if (password.length < 8) {
       return error(req, 'Password must be at least 8 characters', 400);
@@ -759,9 +755,14 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     // Can update email
     if (body.email !== undefined) {
-      const email = String(body.email).trim().toLowerCase();
-      if (!isValidEmail(email)) {
-        return error(req, 'Invalid email format', 400);
+      let email;
+      try {
+        email = validateEmail(String(body.email).trim().toLowerCase());
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          return error(req, err.message, 400);
+        }
+        throw err;
       }
 
       const duplicate = await db.first('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
@@ -787,11 +788,17 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     // Can reset settings
     if (body.settings !== undefined) {
-      if (typeof body.settings !== 'object' || body.settings === null) {
-        return error(req, 'Settings must be an object', 400);
+      let settings;
+      try {
+        settings = requirePlainObject(body.settings, 'Settings must be an object');
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          return error(req, err.message, 400);
+        }
+        throw err;
       }
       updates.push('settings = ?');
-      values.push(JSON.stringify(body.settings));
+      values.push(JSON.stringify(settings));
       updatedFields.push('settings');
     }
 

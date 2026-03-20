@@ -1,4 +1,6 @@
-const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 7;
+import { APP_TTLS } from './config/app.js';
+
+const REFRESH_TTL_SECONDS = APP_TTLS.refreshTokenSeconds;
 
 function bytesToHex(bytes) {
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');

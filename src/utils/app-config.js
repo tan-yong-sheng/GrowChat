@@ -33,7 +33,7 @@ export async function setConfigValue(db, key, value) {
     );
   } catch (err) {
     if (/no such table:\s*app_config/i.test(String(err?.message || ''))) {
-      console.warn('app_config table missing; run migrations/009_app_config.sql');
+      console.warn('app_config table missing; run migrations/011_app_config.sql');
       return;
     }
     throw err;

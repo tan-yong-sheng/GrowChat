@@ -1,11 +1,58 @@
 import { createDB } from '../db.js';
 import { error, json, jsonCached, sseData, sseHeaders, createWeakEtag } from '../utils/response.js';
 import { SseLineParser, streamLLM } from '../llm.js';
+import { runAsyncSessionProcessor } from '../async-session-processor.js';
+import { resolveTurnContinuation } from '../llm/turn-policy.js';
 import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
-import { createRealtimeEvent, getOriginSessionId, publishRealtimeEvent } from '../realtime.js';
+import { createRealtimeEvent, getOriginSessionId } from '../realtime.js';
+import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
+import { createChatRepository } from '../repositories/chat-repository.js';
+import { createRealtimeBus } from '../services/realtime-bus.js';
 import { getConfigValue, setConfigValue } from '../utils/app-config.js';
-import { getAllOpenAIConnectionConfigs } from '../utils/openai-connections.js';
-import { parseModelId, parseProviderId } from '../utils/provider-registry.js';
+import { getAllOpenAIConnectionConfigs } from '../llm/connections.js';
+import { normalizeProviderFamily, parseModelId, parseProviderId } from '../llm/provider-registry.js';
+import { buildMetadataSystemPrompt } from '../llm/system-prompt.js';
+import { trimTrailingAssistantMessages } from './chat-history.js';
+import {
+  buildMcpTools,
+  executeMcpToolCall,
+  loadToolServers,
+  parseToolArguments,
+  stringifyToolPayload,
+} from '../chat/mcp.js';
+import {
+  applyToolCallDelta,
+  buildUnknownToolPrompt,
+  normalizeToolCalls,
+} from '../chat/tools.js';
+import { createAssistantStreamLifecycle } from '../chat/stream-lifecycle.js';
+import { finalizeAssistantStream } from '../chat/stream-finalize.js';
+import {
+  ATTACHMENT_KIND_ORDER,
+  DEFAULT_ATTACHMENT_CAPS,
+  MAX_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_TOTAL_BYTES,
+  MAX_TEXT_ATTACHMENT_CHARS,
+  MODEL_ATTACHMENT_CAPS_KEY,
+  STRICT_ATTACHMENT_CAPS,
+  applyAttachmentDefaults,
+  arrayBufferToBase64,
+  formatUnsupportedAttachmentMessage,
+  getAttachmentKinds,
+  getModelAttachmentCapsEntry,
+  getUnsupportedAttachmentKinds,
+  getUnsupportedAttachmentKindsStrict,
+  inferUnsupportedAttachmentKind,
+  isSupportedAttachmentType,
+  isTextLikeContentType,
+  isTransientModelError,
+  loadModelAttachmentCaps,
+  mergeTextAttachmentParts,
+  normalizeAttachmentIds,
+  recordAttachmentCapabilityFailure,
+  saveModelAttachmentCaps,
+} from '../chat/attachments.js';
 
 function defaultModel(env) {
   const envDefault = env.DEFAULT_MODELS;
@@ -53,204 +100,11 @@ async function resolveDefaultModel(env, db, userId) {
   return defaultModel(env);
 }
 
-const MAX_ATTACHMENTS = 8;
-const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024;
-const MAX_ATTACHMENT_TOTAL_BYTES = 24 * 1024 * 1024;
-const MAX_TEXT_ATTACHMENT_CHARS = 100000;
-const TEXT_LIKE_MIME_TYPES = new Set([
-  'application/csv',
-  'application/x-iif',
-  'application/json',
-  'application/json5',
-  'application/x-json5',
-  'application/x-ndjson',
-  'application/ndjson',
-  'application/xml',
-  'application/x-xml',
-  'application/yaml',
-  'application/x-yaml',
-  'application/javascript',
-  'application/x-javascript',
-  'application/typescript',
-]);
-
-const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
-const DEFAULT_ATTACHMENT_CAPS = { text: true };
-const ATTACHMENT_KIND_ORDER = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
-const STRICT_ATTACHMENT_CAPS = true;
-
-function isTextLikeContentType(contentType) {
-  const type = String(contentType || '').toLowerCase();
-  if (!type) return false;
-  if (type.startsWith('text/')) return true;
-  return TEXT_LIKE_MIME_TYPES.has(type);
-}
-
-function isSupportedAttachmentType(contentType) {
-  const type = String(contentType || '').toLowerCase();
-  if (!type) return false;
-  if (type.startsWith('image/')) return true;
-  if (type === 'application/pdf') return true;
-  if (isTextLikeContentType(type)) return true;
-  return false;
-}
-
-function normalizeAttachmentIds(input) {
-  if (!Array.isArray(input)) return [];
-  const cleaned = input
-    .map((id) => String(id || '').trim())
-    .filter(Boolean);
-  const seen = new Set();
-  const unique = [];
-  for (const id of cleaned) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    unique.push(id);
-  }
-  return unique.slice(0, MAX_ATTACHMENTS);
-}
-
-function getAttachmentKind(contentType) {
-  const type = String(contentType || '').toLowerCase();
-  if (!type) return 'other';
-  if (type.startsWith('image/')) return 'image';
-  if (type === 'application/pdf') return 'pdf';
-  if (isTextLikeContentType(type)) return 'text';
-  if (type.startsWith('audio/')) return 'audio';
-  if (type.startsWith('video/')) return 'video';
-  return 'other';
-}
-
-function getAttachmentKinds(docs = []) {
-  const kinds = new Set();
-  docs.forEach((doc) => {
-    kinds.add(getAttachmentKind(doc?.content_type));
-  });
-  return Array.from(kinds);
-}
-
-function mergeTextAttachmentParts(content, parts = []) {
-  const segments = parts
-    .filter((part) => part && part.type === 'text' && typeof part.text === 'string')
-    .map((part) => part.text.trim())
-    .filter(Boolean);
-  if (!segments.length) return content;
-  const prefix = content ? `${content}\n\n` : '';
-  return `${prefix}${segments.join('\n\n')}`;
-}
-
-async function loadModelAttachmentCaps(db) {
-  try {
-    const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return parsed;
-  } catch {
-    return {};
-  }
-}
-
-async function saveModelAttachmentCaps(db, caps) {
-  try {
-    await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(caps || {}));
-  } catch (err) {
-    console.warn('Failed to save attachment caps:', String(err?.message || err));
-  }
-}
-
-function applyAttachmentDefaults(attachments) {
-  const caps = attachments && typeof attachments === 'object' ? { ...attachments } : {};
-  caps.text = DEFAULT_ATTACHMENT_CAPS.text;
-  return caps;
-}
-
-function getModelAttachmentCapsEntry(caps, modelId) {
-  const entry = caps?.[modelId];
-  if (!entry || typeof entry !== 'object') return applyAttachmentDefaults(null);
-  const attachments = entry.attachments;
-  if (!attachments || typeof attachments !== 'object') return applyAttachmentDefaults(null);
-  return applyAttachmentDefaults(attachments);
-}
-
-function getUnsupportedAttachmentKinds(modelCaps, attachmentKinds = []) {
-  if (!modelCaps) return [];
-  return attachmentKinds.filter((kind) => modelCaps[kind] === false);
-}
-
-function getUnsupportedAttachmentKindsStrict(modelCaps, attachmentKinds = []) {
-  if (!attachmentKinds.length) return [];
-  if (!modelCaps) return [...attachmentKinds];
-  return attachmentKinds.filter((kind) => modelCaps[kind] !== true);
-}
-
-function formatUnsupportedAttachmentMessage(unsupported = []) {
-  const list = unsupported.filter(Boolean);
-  if (!list.length) return 'Selected model does not support these attachments.';
-  const joined = list.join(', ');
-  return `Selected model does not support ${joined} attachment${list.length > 1 ? 's' : ''}.`;
-}
-
-function isTransientModelError(message) {
-  const msg = String(message || '').toLowerCase();
-  return (
-    msg.includes('rate limit') ||
-    msg.includes('overloaded') ||
-    msg.includes('timeout') ||
-    msg.includes('temporarily') ||
-    msg.includes('unavailable') ||
-    msg.includes('connect') ||
-    msg.includes('network') ||
-    msg.includes('502') ||
-    msg.includes('503') ||
-    msg.includes('504')
-  );
-}
-
-function inferUnsupportedAttachmentKind(message, attachmentKinds = []) {
-  if (!attachmentKinds.length) return null;
-  if (attachmentKinds.length === 1) return attachmentKinds[0];
-  const msg = String(message || '').toLowerCase();
-  if (msg.includes('image') || msg.includes('vision') || msg.includes('multimodal')) return 'image';
-  if (msg.includes('audio')) return 'audio';
-  if (msg.includes('video')) return 'video';
-  if (msg.includes('pdf')) return 'pdf';
-  if (msg.includes('text')) return 'text';
-  return null;
-}
-
-async function recordAttachmentCapabilityFailure(db, modelId, attachmentKinds, err) {
-  const message = String(err?.message || err || '');
-  if (!modelId || !attachmentKinds?.length || isTransientModelError(message)) return;
-  const inferred = inferUnsupportedAttachmentKind(message, attachmentKinds);
-  if (!inferred) return;
-
-  const caps = await loadModelAttachmentCaps(db);
-  const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
-  const attachments = { ...(current.attachments || {}) };
-  attachments[inferred] = false;
-  caps[modelId] = {
-    ...current,
-    attachments,
-    updated_at: Date.now(),
-  };
-  await saveModelAttachmentCaps(db, caps);
-}
-
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 0x8000;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
 async function resolveProviderForModel(env, model) {
   if (!model) return { error: 'Model is required' };
   let parsed = parseModelId(model);
   let connection = null;
-  let providerType = null;
+  let providerFamily = null;
 
   if (!parsed) {
     const enabledConnections = await getAllOpenAIConnectionConfigs(env);
@@ -269,8 +123,8 @@ async function resolveProviderForModel(env, model) {
     const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
     connection = allConnections.find((conn) => {
       if (String(conn.id) !== providerInfo.connectionId) return false;
-      const type = String(conn.providerType || 'openai-compatible').toLowerCase();
-      return type === providerInfo.providerType;
+      const family = normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai';
+      return family === providerInfo.providerFamily;
     });
   }
 
@@ -281,8 +135,8 @@ async function resolveProviderForModel(env, model) {
     return { error: 'Provider connection is disabled' };
   }
 
-  providerType = String(connection.providerType || 'openai-compatible').toLowerCase();
-  return { providerType, connection };
+  providerFamily = normalizeProviderFamily(connection.providerFamily || connection.providerType) || 'openai';
+  return { providerFamily, connection };
 }
 
 async function loadAttachmentDocuments(db, userId, attachmentIds) {
@@ -417,36 +271,15 @@ function requireAuth(req, user) {
 }
 
 async function getOwnedChat(db, chatId, userId) {
-  return db.first('SELECT * FROM chats WHERE id = ? AND user_id = ?', [chatId, userId]);
+  return createChatRepository(db).findOwnedChat(chatId, userId);
 }
 
 async function getMessageSnapshot(db, messageId) {
-  if (!messageId) return null;
-  try {
-    return await db.first(
-      'SELECT id, chat_id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, message_blocks, created_at FROM messages WHERE id = ?',
-      [messageId]
-    );
-  } catch (err) {
-    return db.first(
-      'SELECT id, chat_id, role, content, model, citations, parent_id, message_blocks, created_at FROM messages WHERE id = ?',
-      [messageId]
-    );
-  }
+  return createChatRepository(db).getMessageSnapshot(messageId);
 }
 
 async function getChatMessages(db, chatId) {
-  try {
-    return await db.all(
-      'SELECT id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, message_blocks, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
-      [chatId]
-    );
-  } catch (err) {
-    return db.all(
-      'SELECT id, role, content, model, citations, parent_id, message_blocks, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
-      [chatId]
-    );
-  }
+  return createChatRepository(db).getChatMessages(chatId);
 }
 
 function normalizeErrorMessage(err, fallback = 'LLM request failed', maxLen = 500) {
@@ -527,348 +360,22 @@ async function persistAssistantErrorMessage(db, {
 }
 
 function scheduleRealtimeEvent(ctx, env, event) {
-  const publishPromise = publishRealtimeEvent(env, event);
-  if (ctx?.waitUntil) {
-    ctx.waitUntil(publishPromise.catch(() => false));
-    return;
-  }
-  publishPromise.catch(() => false);
+  createRealtimeBus(env, { waitUntil: ctx?.waitUntil?.bind(ctx) }).schedule(event);
 }
 
 async function publishRealtimeNow(env, event) {
   try {
-    return await publishRealtimeEvent(env, event);
+    return await createRealtimeBus(env).publish(event);
   } catch {
     return false;
   }
 }
 
-const MCP_PROTOCOL_VERSION = '2025-11-25';
-const MAX_TOOL_STEPS = 20;
-const MAX_FOLLOW_UPS = 5;
+const MAX_TOOL_STEPS = 100;
+const MAX_FOLLOW_UPS = 20;
 const FOLLOW_UP_PROMPT = 'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
 const CANCEL_CHECK_INTERVAL_MS = 900;
 
-async function loadToolServers(db) {
-  const raw = await getConfigValue(db, 'tool_servers', '[]');
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function normalizeHeadersInput(input) {
-  if (!input) return {};
-  if (input && typeof input === 'object' && !Array.isArray(input)) return input;
-  try {
-    const parsed = JSON.parse(String(input));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-  } catch { }
-  return {};
-}
-
-function buildMcpHeaders(base, sessionId) {
-  const headers = {
-    ...base,
-    'mcp-protocol-version': MCP_PROTOCOL_VERSION,
-    Accept: 'application/json, text/event-stream',
-    'Content-Type': 'application/json',
-  };
-  if (sessionId) headers['mcp-session-id'] = sessionId;
-  return headers;
-}
-
-function parseSseMessages(body) {
-  const blocks = String(body || '').split('\n\n');
-  const messages = [];
-  for (const block of blocks) {
-    const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
-    let data = '';
-    for (const line of lines) {
-      if (line.startsWith('data:')) {
-        data += line.slice(5).trim();
-      }
-    }
-    if (!data) continue;
-    try {
-      messages.push(JSON.parse(data));
-    } catch {
-      // ignore parse errors
-    }
-  }
-  return messages;
-}
-
-const MCP_RETRY_STATUSES = new Set([429, 500, 503, 504]);
-const MCP_MAX_RETRIES = 3;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function mcpFetchWithRetry({ url, headers, sessionId, body }) {
-  let attempt = 0;
-  while (true) {
-    attempt += 1;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: buildMcpHeaders(headers, sessionId),
-      body,
-    });
-
-    if (!MCP_RETRY_STATUSES.has(response.status) || attempt >= MCP_MAX_RETRIES) {
-      return response;
-    }
-
-    const retryAfter = Number(response.headers.get('retry-after') || '');
-    const baseDelay = Number.isFinite(retryAfter) && retryAfter > 0
-      ? retryAfter * 1000
-      : (500 * Math.pow(2, attempt - 1));
-    const jitter = Math.floor(Math.random() * 250);
-    await sleep(baseDelay + jitter);
-  }
-}
-
-async function mcpRequest({ url, headers, sessionId, id, method, params }) {
-  const response = await mcpFetchWithRetry({
-    url,
-    headers,
-    sessionId,
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id,
-      method,
-      ...(params ? { params } : {}),
-    }),
-  });
-
-  const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
-
-  if (response.status === 202) {
-    return { result: null, sessionId: nextSessionId };
-  }
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`MCP request failed (${response.status}): ${text || response.statusText}`);
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    const payload = await response.json();
-    const message = Array.isArray(payload)
-      ? payload.find((item) => String(item?.id) === String(id)) || payload[0]
-      : payload;
-    if (message?.error) {
-      throw new Error(message.error.message || 'MCP error');
-    }
-    return { result: message?.result, sessionId: nextSessionId };
-  }
-
-  if (contentType.includes('text/event-stream')) {
-    const text = await response.text();
-    const messages = parseSseMessages(text);
-    const message = messages.find((item) => String(item?.id) === String(id)) || messages[0];
-    if (message?.error) {
-      throw new Error(message.error.message || 'MCP error');
-    }
-    return { result: message?.result, sessionId: nextSessionId };
-  }
-
-  throw new Error(`Unexpected MCP response content type: ${contentType}`);
-}
-
-async function mcpNotify({ url, headers, sessionId, method, params }) {
-  const response = await mcpFetchWithRetry({
-    url,
-    headers,
-    sessionId,
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method,
-      ...(params ? { params } : {}),
-    }),
-  });
-  const nextSessionId = response.headers.get('mcp-session-id') || sessionId;
-  if (response.status === 202 || response.status === 204) {
-    return { sessionId: nextSessionId };
-  }
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`MCP notification failed (${response.status}): ${text || response.statusText}`);
-  }
-  return { sessionId: nextSessionId };
-}
-
-function normalizeToolParameters(input) {
-  if (input && typeof input === 'object' && !Array.isArray(input)) return input;
-  return {};
-}
-
-function buildMcpToolName(serverId, toolName) {
-  const safe = String(toolName || '').replace(/[^a-zA-Z0-9_-]/g, '_');
-  return `mcp__${serverId}__${safe}`;
-}
-
-function buildMcpTools(servers = []) {
-  const tools = [];
-  const toolMap = new Map();
-  const serversById = new Map();
-  servers.forEach((server) => {
-    if (server?.enabled === false) return;
-    if (!server?.id || !server?.url) return;
-    serversById.set(String(server.id), server);
-    const toolSpecs = Array.isArray(server.tools) ? server.tools : [];
-    toolSpecs.forEach((tool) => {
-      const toolName = String(tool?.name || '').trim();
-      if (!toolName) return;
-      const modelToolName = buildMcpToolName(server.id, toolName);
-      toolMap.set(modelToolName, {
-        serverId: String(server.id),
-        toolName,
-        displayName: toolName,
-      });
-      tools.push({
-        type: 'function',
-        function: {
-          name: modelToolName,
-          description: String(tool?.description || tool?.title || '').trim() || undefined,
-          parameters: normalizeToolParameters(tool?.parameters),
-        },
-      });
-    });
-  });
-  return { tools, toolMap, serversById };
-}
-
-function buildMcpAuthHeaders(server) {
-  const headers = { ...normalizeHeadersInput(server?.headers) };
-  const authType = String(server?.auth_type || 'none').toLowerCase();
-  if (authType === 'bearer') {
-    const token = String(server?.auth_bearer_token || '').trim();
-    if (token) headers.Authorization = headers.Authorization || `Bearer ${token}`;
-  } else if (authType === 'basic') {
-    const user = String(server?.auth_basic_username || '').trim();
-    const pass = String(server?.auth_basic_password || '');
-    if (user) headers.Authorization = headers.Authorization || `Basic ${btoa(`${user}:${pass}`)}`;
-  } else if (authType === 'oauth') {
-    const token = String(server?.oauth_tokens?.access_token || '').trim();
-    if (token) headers.Authorization = headers.Authorization || `Bearer ${token}`;
-  }
-  return headers;
-}
-
-function parseToolArguments(raw) {
-  if (!raw) return {};
-  if (typeof raw === 'object') return raw;
-  try {
-    return JSON.parse(String(raw));
-  } catch {
-    throw new Error('Tool arguments must be valid JSON');
-  }
-}
-
-async function executeMcpToolCall({ server, toolName, args }) {
-  const headers = buildMcpAuthHeaders(server);
-  let sessionId;
-  const init = await mcpRequest({
-    url: server.url,
-    headers,
-    sessionId,
-    id: 0,
-    method: 'initialize',
-    params: {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: { name: 'GrowChat', version: '1.0.0' },
-    },
-  });
-  sessionId = init.sessionId;
-
-  const notified = await mcpNotify({
-    url: server.url,
-    headers,
-    sessionId,
-    method: 'notifications/initialized',
-  });
-  sessionId = notified.sessionId;
-
-  const result = await mcpRequest({
-    url: server.url,
-    headers,
-    sessionId,
-    id: 2,
-    method: 'tools/call',
-    params: {
-      name: toolName,
-      arguments: args,
-    },
-  });
-
-  return result?.result;
-}
-
-function stringifyToolPayload(payload) {
-  if (payload == null) return '';
-  if (typeof payload === 'string') return payload;
-  try {
-    return JSON.stringify(payload, null, 2);
-  } catch {
-    return String(payload);
-  }
-}
-
-function applyToolCallDelta(target, deltas) {
-  if (!Array.isArray(deltas)) return;
-  deltas.forEach((delta) => {
-    if (!delta) return;
-    const index = Number.isFinite(delta.index) ? delta.index : 0;
-    if (!target[index]) {
-      target[index] = { id: null, name: '', arguments: '' };
-    }
-    if (delta.id) target[index].id = delta.id;
-    if (delta.function?.name) target[index].name += delta.function.name;
-    if (delta.function?.arguments) target[index].arguments += delta.function.arguments;
-  });
-}
-
-function normalizeToolCalls(stepToolCalls, toolMap) {
-  const validCalls = [];
-  const unknownCalls = [];
-  (Array.isArray(stepToolCalls) ? stepToolCalls : [])
-    .filter((call) => call && call.name)
-    .forEach((call) => {
-      const toolCallId = call.id || crypto.randomUUID();
-      const name = String(call.name || '').trim();
-      const args = call.arguments || '';
-      const mapping = toolMap.get(name);
-      if (!mapping) {
-        unknownCalls.push({ toolCallId, name, arguments: args });
-        return;
-      }
-      validCalls.push({
-        toolCallId,
-        modelToolName: name,
-        serverId: mapping.serverId,
-        toolName: mapping.toolName,
-        displayName: mapping.displayName || mapping.toolName,
-        arguments: args,
-      });
-    });
-  return { validCalls, unknownCalls };
-}
-
-function buildUnknownToolPrompt(unknownCalls, toolMap) {
-  const names = unknownCalls.map((call) => call.name).filter(Boolean);
-  const known = Array.from(toolMap.keys());
-  const preview = known.slice(0, 30);
-  const suffix = known.length > preview.length ? ` (and ${known.length - preview.length} more)` : '';
-  return [
-    `The model requested unknown tool name(s): ${names.join(', ') || 'unknown'}.`,
-    `Use only these tool names: ${preview.join(', ')}${suffix}.`,
-    'If no tool is required, respond directly without tool calls.',
-  ].join(' ');
-}
 
 async function streamAssistantWithTools({
   req,
@@ -883,11 +390,15 @@ async function streamAssistantWithTools({
   history,
   citations,
   attachmentKinds = [],
+  providerFamily = 'openai',
 }) {
   const assistantMsgId = crypto.randomUUID();
   const servers = await loadToolServers(db);
   const { tools, toolMap, serversById } = buildMcpTools(servers);
-  const toolsEnabled = tools.length > 0;
+  const providerSupportsTools = ['openai', 'google', 'anthropic'].includes(
+    normalizeProviderFamily(providerFamily) || ''
+  );
+  const toolsEnabled = tools.length > 0 && providerSupportsTools;
   const STREAM_STATUS_STALE_MS = 10 * 60 * 1000;
 
   const encoder = new TextEncoder();
@@ -939,22 +450,28 @@ async function streamAssistantWithTools({
     messageBlocks.push({ type, content: String(content || '') });
   };
 
-  const clearStreamingStatus = async () => {
-    try {
-      await db.run(
-        "UPDATE messages SET status = NULL WHERE id = ? AND status IN ('streaming', 'tool_running')",
-        [assistantMsgId]
-      );
-    } catch { }
-  };
-
   const readable = new ReadableStream({
     async start(controller) {
       streamController = controller;
       const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : (citations || null);
-      let lastPersistAt = 0;
-      let lastPersistSize = 0;
-      let lastCancelCheckAt = 0;
+      const lifecycle = createAssistantStreamLifecycle({
+        db,
+        env,
+        req,
+        user,
+        chatId,
+        model,
+        userMsgId,
+        assistantMsgId,
+        citationsJson,
+        getMessageSnapshot,
+        getOwnedChat,
+        publishRealtimeNow,
+        createRealtimeEvent,
+        getOriginSessionId,
+        normalizeErrorMessage,
+        emitSse,
+      });
       const readWithTimeout = async (reader) => {
         let timeoutId;
         const timeoutPromise = new Promise((_, reject) => {
@@ -967,468 +484,362 @@ async function streamAssistantWithTools({
         }
       };
 
-      const ensureAssistantRow = async () => {
-        let inserted = false;
-        try {
-          await db.run(
-            `INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, status, created_at)
-             VALUES (?, ?, 'assistant', ?, ?, ?, ?, 'streaming', unixepoch())`,
-            [assistantMsgId, chatId, '', model, citationsJson, userMsgId]
-          );
-          inserted = true;
-        } catch (err) {
-          try {
-            await db.run(
-              'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())',
-              [assistantMsgId, chatId, 'assistant', '', model, citationsJson, userMsgId]
-            );
-            inserted = true;
-          } catch { }
-        }
-        if (!inserted) return false;
-        try {
-          await db.run(
-            'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-            [assistantMsgId, model, chatId, user.sub]
-          );
-        } catch { }
-        return true;
-      };
-
-      const buildPersistedContent = () => {
-        const reasoningSuffix = fullReasoning.trim();
-        return reasoningSuffix
-          ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
-          : fullText;
-      };
-
-      const persistToolCalls = async () => {
-        try {
-          const toolCallsJson = toolCallRecords.length ? JSON.stringify(toolCallRecords) : null;
-          await db.run('UPDATE messages SET tool_calls = ? WHERE id = ?', [toolCallsJson, assistantMsgId]);
-        } catch { }
-      };
-
-      const persistAssistantContent = async (force = false) => {
-        const now = Date.now();
-        const size = fullText.length + fullReasoning.length;
-        if (!force && now - lastPersistAt < 1200 && size - lastPersistSize < 200) return;
-        lastPersistAt = now;
-        lastPersistSize = size;
-        const content = buildPersistedContent();
-        const blocksJson = messageBlocks.length ? JSON.stringify(messageBlocks) : null;
-        try {
-          await db.run(
-            'UPDATE messages SET content = ?, citations = ?, message_blocks = ? WHERE id = ?',
-            [content, citationsJson, blocksJson, assistantMsgId]
-          );
-        } catch { }
-      };
-
-      const isCancelled = async () => {
-        const now = Date.now();
-        if (now - lastCancelCheckAt < CANCEL_CHECK_INTERVAL_MS) return false;
-        lastCancelCheckAt = now;
-        try {
-          const row = await db.first('SELECT status, error_code FROM messages WHERE id = ?', [assistantMsgId]);
-          const status = String(row?.status || '').toLowerCase();
-          const code = String(row?.error_code || '').toLowerCase();
-          return status === 'cancelled' || status === 'cancel_requested' || code === 'cancelled';
-        } catch {
-          return false;
-        }
-      };
-
-      const sendCancelAndClose = async () => {
-        try {
-          await db.run(
-            "UPDATE messages SET status = 'cancelled', error_code = 'cancelled', error_message = ? WHERE id = ?",
-            ['Cancelled by user', assistantMsgId]
-          );
-        } catch { }
-        const cancelledMessage = await getMessageSnapshot(db, assistantMsgId);
-        const updatedChat = await getOwnedChat(db, chatId, user.sub);
-        await publishRealtimeNow(env, createRealtimeEvent({
-          type: 'message.cancelled',
-          userId: user.sub,
-          chatId,
-          messageId: assistantMsgId,
-          originSessionId: getOriginSessionId(req),
-          data: {
-            role: 'assistant',
-            model,
-            message: cancelledMessage,
-            chat: updatedChat,
-          },
-        }));
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      };
-
-      const sendErrorAndClose = async (errorCode, err) => {
-        const errorMessage = normalizeErrorMessage(err, 'LLM request failed');
-        const errorDetails = normalizeErrorMessage(err, 'LLM request failed', 8000);
-        const assistantError = await persistAssistantErrorMessage(db, {
-          messageId: assistantMsgId,
-          chatId,
-          userId: user.sub,
-          model,
-          parentId: userMsgId,
-          errorCode,
-          errorMessage,
-          content: errorDetails,
-          citations,
-          toolCalls: toolCallRecords,
-        });
-        await publishRealtimeNow(env, createRealtimeEvent({
-          type: 'message.completed',
-          userId: user.sub,
-          chatId,
-          messageId: assistantMsgId,
-          originSessionId: getOriginSessionId(req),
-          data: {
-            role: 'assistant',
-            model,
-            error: true,
-            message: assistantError,
-            chat: await getOwnedChat(db, chatId, user.sub),
-          },
-        }));
-        await emitSse({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId });
-        await emitSse({ error: errorCode, message: errorMessage }, { persist: true });
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      };
-
-      await ensureAssistantRow();
+      await lifecycle.ensureAssistantRow();
       if (ctx?.waitUntil) {
         ctx.waitUntil((async () => {
           await sleep(STREAM_STATUS_STALE_MS);
-          await clearStreamingStatus(true);
+          await lifecycle.clearStreamingStatus();
         })());
       }
       await emitSse({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId });
 
-      let messagesForModel = [...history];
-      let steps = 0;
-      let followUps = 0;
       try {
-        while (steps <= MAX_TOOL_STEPS) {
-          let stepTextOutput = false;
-          let stepReasoningOutput = false;
-          let stream;
-          try {
-            stream = await streamLLM(env, model, messagesForModel, {
-              tools: toolsEnabled ? tools : undefined,
-            });
-          } catch (err) {
-            await recordAttachmentCapabilityFailure(db, model, attachmentKinds, err);
-            await sendErrorAndClose('llm_unavailable', err);
-            return;
-          }
+        const sessionOutcome = await runAsyncSessionProcessor({
+          initialMessages: history,
+          maxToolSteps: MAX_TOOL_STEPS,
+          maxFollowUps: MAX_FOLLOW_UPS,
+          providerFamily,
+          runStep: async ({ messagesForModel, followUps }) => {
+            let stepTextOutput = false;
+            let stepReasoningOutput = false;
+            let stream;
+            try {
+              stream = await streamLLM(env, model, messagesForModel, {
+                tools: toolsEnabled ? tools : undefined,
+              });
+            } catch (err) {
+              await recordAttachmentCapabilityFailure(db, model, attachmentKinds, err);
+              await lifecycle.sendErrorAndClose({
+                controller,
+                encoder,
+                errorCode: 'llm_unavailable',
+                err,
+                toolCallRecords,
+                citations,
+              });
+              return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+            }
 
             const reader = stream.getReader();
             const decoder = new TextDecoder();
             const stepToolCalls = [];
             let finishReason = null;
 
-          let emitEvent = () => { };
-          const parser = new SseLineParser({
-            onEvent: (event) => emitEvent(event),
-          });
+            let emitEvent = () => { };
+            const parser = new SseLineParser({
+              onEvent: (event) => emitEvent(event),
+            });
 
-          emitEvent = (event) => {
-            if (!event) return;
-            if (event.type === 'reasoning_start') {
-              if (!reasoningStartedAt) reasoningStartedAt = Date.now();
-              void emitSse({ event: 'reasoning_start' }, { persist: true });
-              return;
-            }
-            if (event.type === 'reasoning_delta') {
-              const delta = String(event.delta || '');
-              if (!delta) return;
-              stepReasoningOutput = true;
-              appendMessageBlock('thinking', delta);
-              fullReasoning += delta;
-              persistAssistantContent();
-              void emitSse({ event: 'reasoning_delta', delta }, { persist: true });
-              return;
-            }
-            if (event.type === 'reasoning_end') {
-              const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
-              void emitSse({ event: 'reasoning_end', duration_ms: duration }, { persist: true });
-              persistAssistantContent(true);
-              return;
-            }
-            if (event.type === 'tool_call_delta') {
-              applyToolCallDelta(stepToolCalls, event.tool_calls);
-              return;
-            }
-            if (event.type === 'finish_reason') {
-              finishReason = event.reason;
-            }
-          };
+            emitEvent = (event) => {
+              if (!event) return;
+              if (event.type === 'reasoning_start') {
+                if (!reasoningStartedAt) reasoningStartedAt = Date.now();
+                void emitSse({ event: 'reasoning_start' }, { persist: true });
+                return;
+              }
+              if (event.type === 'reasoning_delta') {
+                const delta = String(event.delta || '');
+                if (!delta) return;
+                stepReasoningOutput = true;
+                appendMessageBlock('thinking', delta);
+                fullReasoning += delta;
+                void lifecycle.persistAssistantContent({
+                  fullText,
+                  fullReasoning,
+                  messageBlocks,
+                });
+                void emitSse({ event: 'reasoning_delta', delta }, { persist: true });
+                return;
+              }
+              if (event.type === 'reasoning_end') {
+                const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
+                void emitSse({ event: 'reasoning_end', duration_ms: duration }, { persist: true });
+                void lifecycle.persistAssistantContent({
+                  fullText,
+                  fullReasoning,
+                  messageBlocks,
+                  force: true,
+                });
+                return;
+              }
+              if (event.type === 'tool_call_delta') {
+                applyToolCallDelta(stepToolCalls, event.tool_calls);
+                return;
+              }
+              if (event.type === 'finish_reason') {
+                finishReason = event.reason;
+              }
+            };
 
-          while (true) {
-            const { done, value } = await readWithTimeout(reader);
-            if (done) break;
-            const delta = parser.push(decoder.decode(value, { stream: true }));
-            if (delta) {
-              fullText += delta;
+            while (true) {
+              const { done, value } = await readWithTimeout(reader);
+              if (done) break;
+              const delta = parser.push(decoder.decode(value, { stream: true }));
+              if (delta) {
+                fullText += delta;
+                stepTextOutput = true;
+                appendMessageBlock('text', delta);
+                await lifecycle.persistAssistantContent({
+                  fullText,
+                  fullReasoning,
+                  messageBlocks,
+                });
+                const persisted = await emitSse({ response: delta }, { persist: true });
+                await publishRealtimeNow(env, createRealtimeEvent({
+                  type: 'message.delta',
+                  userId: user.sub,
+                  chatId,
+                  messageId: assistantMsgId,
+                  originSessionId: getOriginSessionId(req),
+                  data: { delta, model, seq: persisted?.seq },
+                }));
+              }
+              if (await lifecycle.isCancelled()) {
+                await lifecycle.sendCancelAndClose({ controller, encoder });
+                return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+              }
+            }
+
+            const finalDelta = parser.flush();
+            if (finalDelta) {
+              fullText += finalDelta;
               stepTextOutput = true;
-              appendMessageBlock('text', delta);
-              persistAssistantContent();
-              const persisted = await emitSse({ response: delta }, { persist: true });
+              appendMessageBlock('text', finalDelta);
+              await lifecycle.persistAssistantContent({
+                fullText,
+                fullReasoning,
+                messageBlocks,
+              });
+              const persisted = await emitSse({ response: finalDelta }, { persist: true });
               await publishRealtimeNow(env, createRealtimeEvent({
                 type: 'message.delta',
                 userId: user.sub,
                 chatId,
                 messageId: assistantMsgId,
                 originSessionId: getOriginSessionId(req),
-                data: { delta, model, seq: persisted?.seq },
+                data: { delta: finalDelta, model, seq: persisted?.seq },
               }));
             }
-            if (await isCancelled()) {
-              await sendCancelAndClose();
-              return;
-            }
-          }
+            parser.finalize();
+            reader.releaseLock();
 
-          const finalDelta = parser.flush();
-          if (finalDelta) {
-            fullText += finalDelta;
-            stepTextOutput = true;
-            appendMessageBlock('text', finalDelta);
-            await persistAssistantContent();
-            const persisted = await emitSse({ response: finalDelta }, { persist: true });
-            await publishRealtimeNow(env, createRealtimeEvent({
-              type: 'message.delta',
-              userId: user.sub,
-              chatId,
-              messageId: assistantMsgId,
-              originSessionId: getOriginSessionId(req),
-              data: { delta: finalDelta, model, seq: persisted?.seq },
-            }));
-          }
-          parser.finalize();
-          reader.releaseLock();
-
-          if (await isCancelled()) {
-            await sendCancelAndClose();
-            return;
-          }
-
-          const hasToolCalls = stepToolCalls.some((call) => call && call.name);
-          if (hasToolCalls && finishReason === 'tool_calls') {
-            if (steps >= MAX_TOOL_STEPS) {
-              throw new Error('Too many tool calls in a single request');
+            if (await lifecycle.isCancelled()) {
+              await lifecycle.sendCancelAndClose({ controller, encoder });
+              return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
             }
 
-            const { validCalls, unknownCalls } = normalizeToolCalls(stepToolCalls, toolMap);
-            const toolCallsForModel = validCalls.map((call) => ({
-              id: call.toolCallId,
-              type: 'function',
-              function: {
-                name: call.modelToolName,
-                arguments: call.arguments,
-              },
-            }));
+            const hasToolCalls = stepToolCalls.some((call) => call && call.name);
+            const turnContinuation = resolveTurnContinuation({
+              providerFamily,
+              hasToolCalls,
+              finishReason,
+              stepTextOutput,
+              stepReasoningOutput,
+              followUps,
+              maxFollowUps: MAX_FOLLOW_UPS,
+            });
 
-            const toolResultMessages = [];
-
-            for (const call of unknownCalls) {
-              const errorText = `Unknown tool: ${call.name}`;
-              const record = {
+            if (turnContinuation.action === 'tool_loop') {
+              const { validCalls, unknownCalls } = normalizeToolCalls(stepToolCalls, toolMap);
+              const toolCallsForModel = validCalls.map((call) => ({
                 id: call.toolCallId,
-                name: call.name || 'Unknown tool',
-                input: call.arguments,
-                output: errorText,
-                error: errorText,
-                status: 'error',
-              };
-              toolCallRecords.push(record);
-              appendMessageBlock('tool', '', call.toolCallId);
-              await persistToolCalls();
-              await persistAssistantContent();
-              await emitSse({
-                event: 'tool_result',
-                message_id: assistantMsgId,
-                tool_call_id: call.toolCallId,
-                tool_name: record.name,
-                input: call.arguments,
-                output: errorText,
-                error: errorText,
-                status: 'error',
-              }, { persist: true });
-            }
+                type: 'function',
+                function: {
+                  name: call.modelToolName,
+                  arguments: call.arguments,
+                },
+                ...(call.providerMetadata ? { providerMetadata: call.providerMetadata } : {}),
+              }));
 
-            for (const call of validCalls) {
-              if (await isCancelled()) {
-                await sendCancelAndClose();
-                return;
-              }
-              await emitSse({
-                event: 'tool_status',
-                message_id: assistantMsgId,
-                tool_call_id: call.toolCallId,
-                tool_name: call.displayName,
-                state: 'running',
-                input: call.arguments,
-              }, { persist: true });
+              const toolResultMessages = [];
 
-              const server = serversById.get(call.serverId);
-              let outputText = '';
-              let errorText = '';
-              let status = 'completed';
-              const record = {
-                id: call.toolCallId,
-                name: call.displayName,
-                input: call.arguments,
-                output: '',
-                error: null,
-                status: 'running',
-              };
-              toolCallRecords.push(record);
-              appendMessageBlock('tool', '', call.toolCallId);
-              await persistToolCalls();
-
-              try {
-                const args = parseToolArguments(call.arguments);
-                const output = await executeMcpToolCall({
-                  server,
-                  toolName: call.toolName,
-                  args,
+              for (const call of unknownCalls) {
+                const errorText = `Unknown tool: ${call.name}`;
+                const record = {
+                  id: call.toolCallId,
+                  name: call.name || 'Unknown tool',
+                  input: call.arguments,
+                  output: errorText,
+                  error: errorText,
+                  status: 'error',
+                };
+                toolCallRecords.push(record);
+                appendMessageBlock('tool', '', call.toolCallId);
+                await lifecycle.persistToolCalls(toolCallRecords);
+                await lifecycle.persistAssistantContent({
+                  fullText,
+                  fullReasoning,
+                  messageBlocks,
                 });
-                outputText = stringifyToolPayload(output);
-              } catch (err) {
-                status = 'error';
-                errorText = normalizeErrorMessage(err, 'Tool call failed', 8000);
-                outputText = errorText;
+                await emitSse({
+                  event: 'tool_result',
+                  message_id: assistantMsgId,
+                  tool_call_id: call.toolCallId,
+                  tool_name: record.name,
+                  input: call.arguments,
+                  output: errorText,
+                  error: errorText,
+                  status: 'error',
+                }, { persist: true });
               }
 
-              record.output = outputText;
-              record.error = errorText || null;
-              record.status = status;
-              await persistToolCalls();
-              await persistAssistantContent();
+              for (const call of validCalls) {
+                if (await lifecycle.isCancelled()) {
+                  await lifecycle.sendCancelAndClose({ controller, encoder });
+                  return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+                }
+                await emitSse({
+                  event: 'tool_status',
+                  message_id: assistantMsgId,
+                  tool_call_id: call.toolCallId,
+                  tool_name: call.displayName,
+                  state: 'running',
+                  input: call.arguments,
+                }, { persist: true });
 
-              await emitSse({
-                event: 'tool_result',
-                message_id: assistantMsgId,
-                tool_call_id: call.toolCallId,
-                tool_name: call.displayName,
-                input: call.arguments,
-                output: outputText,
-                error: errorText || null,
-                status,
-              }, { persist: true });
+                const server = serversById.get(call.serverId);
+                let outputText = '';
+                let errorText = '';
+                let status = 'completed';
+                const record = {
+                  id: call.toolCallId,
+                  name: call.displayName,
+                  input: call.arguments,
+                  output: '',
+                  error: null,
+                  status: 'running',
+                  ...(call.providerMetadata ? { providerMetadata: call.providerMetadata } : {}),
+                };
+                toolCallRecords.push(record);
+                appendMessageBlock('tool', '', call.toolCallId);
+                await lifecycle.persistToolCalls(toolCallRecords);
 
-              toolResultMessages.push({
-                role: 'tool',
-                tool_call_id: call.toolCallId,
-                content: outputText,
-              });
+                try {
+                  const args = parseToolArguments(call.arguments);
+                  const output = await executeMcpToolCall({
+                    server,
+                    toolName: call.toolName,
+                    args,
+                  });
+                  outputText = stringifyToolPayload(output);
+                } catch (err) {
+                  status = 'error';
+                  errorText = normalizeErrorMessage(err, 'Tool call failed', 8000);
+                  outputText = errorText;
+                }
 
-              if (await isCancelled()) {
-                await sendCancelAndClose();
-                return;
+                record.output = outputText;
+                record.error = errorText || null;
+                record.status = status;
+                await lifecycle.persistToolCalls(toolCallRecords);
+                await lifecycle.persistAssistantContent({
+                  fullText,
+                  fullReasoning,
+                  messageBlocks,
+                });
+
+                await emitSse({
+                  event: 'tool_result',
+                  message_id: assistantMsgId,
+                  tool_call_id: call.toolCallId,
+                  tool_name: call.displayName,
+                  input: call.arguments,
+                  output: outputText,
+                  error: errorText || null,
+                  status,
+                }, { persist: true });
+
+                toolResultMessages.push({
+                  role: 'tool',
+                  tool_call_id: call.toolCallId,
+                  content: outputText,
+                });
+
+                if (await lifecycle.isCancelled()) {
+                  await lifecycle.sendCancelAndClose({ controller, encoder });
+                  return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+                }
               }
+
+              let nextMessagesForModel = [...messagesForModel];
+              if (toolCallsForModel.length) {
+                nextMessagesForModel = [
+                  ...nextMessagesForModel,
+                  { role: 'assistant', content: '', tool_calls: toolCallsForModel },
+                  ...toolResultMessages,
+                ];
+              }
+              if (unknownCalls.length) {
+                nextMessagesForModel = [
+                  ...nextMessagesForModel,
+                  { role: 'system', content: buildUnknownToolPrompt(unknownCalls, toolMap) },
+                ];
+              }
+
+              return {
+                action: 'tool_loop',
+                nextMessagesForModel,
+              };
             }
 
-            if (toolCallsForModel.length) {
-              messagesForModel = [
-                ...messagesForModel,
-                { role: 'assistant', content: '', tool_calls: toolCallsForModel },
-                ...toolResultMessages,
-              ];
+            if (turnContinuation.action === 'follow_up') {
+              return {
+                action: 'follow_up',
+                nextMessagesForModel: [
+                  ...messagesForModel,
+                  { role: 'system', content: FOLLOW_UP_PROMPT },
+                ],
+              };
             }
-            if (unknownCalls.length) {
-              messagesForModel = [
-                ...messagesForModel,
-                { role: 'system', content: buildUnknownToolPrompt(unknownCalls, toolMap) },
-              ];
-            }
-            steps += 1;
-            continue;
-          }
 
-          if (!hasToolCalls && !stepTextOutput && stepReasoningOutput) {
-            if (followUps < MAX_FOLLOW_UPS) {
-              followUps += 1;
-              messagesForModel = [
-                ...messagesForModel,
-                { role: 'system', content: FOLLOW_UP_PROMPT },
-              ];
-              continue;
-            }
-          }
-
-          break;
-        }
-
-        const reasoningSuffix = fullReasoning.trim();
-        let persistedText = reasoningSuffix
-          ? `${fullText ? `${fullText}\n\n` : ''}<thinking>${reasoningSuffix}</thinking>`
-          : fullText;
-        if (!String(persistedText || '').trim()) {
-          persistedText = 'I could not produce a final response for this request.';
-        }
-        const toolCallsJson = toolCallRecords.length ? JSON.stringify(toolCallRecords) : null;
-        const blocksJson = messageBlocks.length ? JSON.stringify(messageBlocks) : null;
-
-        try {
-          const update = await db.run(
-            `UPDATE messages
-             SET content = ?, model = ?, citations = ?, parent_id = ?, status = NULL,
-                 error_code = NULL, error_message = NULL, tool_calls = ?, message_blocks = ?
-             WHERE id = ?`,
-            [persistedText, model, citationsJson, userMsgId, toolCallsJson, blocksJson, assistantMsgId]
-          );
-          if (!update?.meta?.changes) {
-            await db.run(
-              'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, tool_calls, message_blocks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
-              [assistantMsgId, chatId, 'assistant', persistedText, model, citationsJson, userMsgId, toolCallsJson, blocksJson]
-            );
-          }
-        } catch (err) {
-          await db.run(
-            'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, tool_calls, message_blocks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
-            [assistantMsgId, chatId, 'assistant', persistedText, model, citationsJson, userMsgId, toolCallsJson, blocksJson]
-          );
-        }
-        await db.run(
-          'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-          [assistantMsgId, model, chatId, user.sub]
-        );
-
-        const completedAssistantMessage = await getMessageSnapshot(db, assistantMsgId);
-        const updatedChatAfterAssistantMessage = await getOwnedChat(db, chatId, user.sub);
-        await publishRealtimeNow(env, createRealtimeEvent({
-          type: 'message.completed',
-          userId: user.sub,
-          chatId,
-          messageId: assistantMsgId,
-          originSessionId: getOriginSessionId(req),
-          data: {
-            role: 'assistant',
-            model,
-            citations,
-            message: completedAssistantMessage,
-            chat: updatedChatAfterAssistantMessage,
+            return {
+              action: 'final',
+              nextMessagesForModel: messagesForModel,
+            };
           },
-        }));
+        });
 
-        await db.run('UPDATE chats SET model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?', [model, chatId, user.sub]);
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
+        if (sessionOutcome?.lastResult?.terminate) {
+          return;
+        }
+
+        await finalizeAssistantStream({
+          db,
+          env,
+          user,
+          req,
+          chatId,
+          model,
+          assistantMsgId,
+          userMsgId,
+          citations,
+          fullText,
+          fullReasoning,
+          toolCallRecords,
+          messageBlocks,
+          getMessageSnapshot,
+          getOwnedChat,
+          publishRealtimeNow,
+          createRealtimeEvent,
+          getOriginSessionId,
+          controller,
+          encoder,
+        });
       } catch (err) {
-        await sendErrorAndClose('stream_failed', err);
+        await lifecycle.sendErrorAndClose({
+          controller,
+          encoder,
+          errorCode: 'stream_failed',
+          err,
+          toolCallRecords,
+          citations,
+        });
       } finally {
-        await clearStreamingStatus();
+        await lifecycle.clearStreamingStatus();
       }
     },
     async cancel() {
-      await clearStreamingStatus();
+      await lifecycle.clearStreamingStatus();
     },
   });
 
@@ -1668,7 +1079,7 @@ export async function chatRouter(req, env, ctx, user, path) {
     if (!sourceChat) return error(req, 'Chat not found', 404);
 
     const sourceMessages = await db.all(
-      'SELECT id, role, content, model, citations, parent_id, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC',
+      'SELECT id, role, content, model, citations, parent_id, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC, rowid ASC',
       [sourceChatId]
     );
 
@@ -1812,6 +1223,17 @@ export async function chatRouter(req, env, ctx, user, path) {
     const chat = await getOwnedChat(db, chatId, user.sub);
     if (!chat) return error(req, 'Chat not found', 404);
 
+    const sendLimit = await checkRateLimit(env.CACHE, {
+      action: 'chat-send',
+      subject: user.sub,
+      ...RATE_LIMITS.chatSend,
+    });
+    if (!sendLimit.allowed) {
+      return error(req, 'Too many messages sent', 429, {
+        retry_after: Math.ceil((sendLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
     let body;
     try {
       body = await req.json();
@@ -1827,6 +1249,11 @@ export async function chatRouter(req, env, ctx, user, path) {
       model = await resolveDefaultModel(env, db, user.sub);
     }
 
+    const providerInfo = await resolveProviderForModel(env, model);
+    if (providerInfo?.error) {
+      return error(req, providerInfo.error, 400);
+    }
+
     let attachmentParts = [];
     const rawAttachmentIds = Array.isArray(body.attachments) ? body.attachments : [];
     if (rawAttachmentIds.length > MAX_ATTACHMENTS) {
@@ -1836,10 +1263,6 @@ export async function chatRouter(req, env, ctx, user, path) {
     let attachmentDocs = [];
     let attachmentKinds = [];
     if (attachmentIds.length > 0) {
-      const providerInfo = await resolveProviderForModel(env, model);
-      if (providerInfo?.error) {
-        return error(req, providerInfo.error, 400);
-      }
       if (!env.FILES) {
         return error(req, 'FILES binding missing', 500);
       }
@@ -1936,7 +1359,7 @@ export async function chatRouter(req, env, ctx, user, path) {
     }));
 
     const history = await db.all(
-      'SELECT role, content FROM messages WHERE chat_id = ? ORDER BY created_at ASC LIMIT 30',
+      'SELECT role, content FROM messages WHERE chat_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 30',
       [chatId]
     );
 
@@ -1972,16 +1395,26 @@ export async function chatRouter(req, env, ctx, user, path) {
       console.error('RAG query failed:', err);
     }
 
-    let enhancedHistory = [...history];
+    const metadataPrompt = buildMetadataSystemPrompt({
+      appName: env.APP_NAME || 'GrowChat',
+      model,
+      providerFamily: providerInfo.providerFamily,
+      timeZone: env.TIME_ZONE || env.TZ,
+    });
+
+    let enhancedHistory = [
+      {
+        role: 'system',
+        content: metadataPrompt,
+      },
+    ];
     if (ragContext) {
-      enhancedHistory = [
-        {
-          role: 'system',
-          content: `You are a helpful assistant. Use the following context to answer the user's question:\n${ragContext}`,
-        },
-        ...history,
-      ];
+      enhancedHistory.push({
+        role: 'system',
+        content: `You are a helpful assistant. Use the following context to answer the user's question:\n${ragContext}`,
+      });
     }
+    enhancedHistory.push(...history);
 
     if (attachmentParts.length > 0) {
       const lastIdx = enhancedHistory.length - 1;
@@ -2017,6 +1450,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       history: enhancedHistory,
       citations,
       attachmentKinds,
+      providerFamily: providerInfo.providerFamily,
     });
 
     return response;
@@ -2034,24 +1468,24 @@ export async function chatRouter(req, env, ctx, user, path) {
     async function getBranchHistory(leafMessageId) {
       return db.all(
         `WITH RECURSIVE lineage AS (
-          SELECT id, parent_id, role, content, created_at
+          SELECT id, parent_id, role, content, created_at, rowid
           FROM messages
           WHERE id = ? AND chat_id = ?
 
           UNION ALL
 
-          SELECT m.id, m.parent_id, m.role, m.content, m.created_at
+          SELECT m.id, m.parent_id, m.role, m.content, m.created_at, m.rowid
           FROM messages m
           JOIN lineage l ON m.id = l.parent_id
           WHERE m.chat_id = ?
         )
         SELECT role, content FROM (
-          SELECT role, content, created_at
+          SELECT role, content, created_at, rowid
           FROM lineage
-          ORDER BY created_at DESC
+          ORDER BY created_at DESC, rowid DESC
           LIMIT 30
         )
-        ORDER BY created_at ASC`,
+        ORDER BY created_at ASC, rowid ASC`,
         [leafMessageId, chatId, chatId]
       );
     }
@@ -2141,6 +1575,11 @@ export async function chatRouter(req, env, ctx, user, path) {
       model = await resolveDefaultModel(env, db, user.sub);
     }
 
+    const providerInfo = await resolveProviderForModel(env, model);
+    if (providerInfo?.error) {
+      return error(req, providerInfo.error, 400);
+    }
+
     let attachmentParts = [];
     let attachmentDocs = [];
     let attachmentKinds = [];
@@ -2164,10 +1603,6 @@ export async function chatRouter(req, env, ctx, user, path) {
       return error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400);
     }
     if (attachmentIds.length > 0) {
-      const providerInfo = await resolveProviderForModel(env, model);
-      if (providerInfo?.error) {
-        return error(req, providerInfo.error, 400);
-      }
       if (!env.FILES) {
         return error(req, 'FILES binding missing', 500);
       }
@@ -2296,6 +1731,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       history,
       citations: null,
       attachmentKinds,
+      providerFamily: providerInfo.providerFamily,
     });
 
     return response;
@@ -2322,10 +1758,26 @@ export async function chatRouter(req, env, ctx, user, path) {
       model = await resolveDefaultModel(env, db, user.sub);
     }
 
-    const history = await db.all(
-      'SELECT role, content FROM messages WHERE chat_id = ? AND created_at <= (SELECT created_at FROM messages WHERE id = ?) ORDER BY created_at ASC LIMIT 30',
-      [chatId, sourceMsg.parent_id || msgId]
-    );
+    const providerInfo = await resolveProviderForModel(env, model);
+    if (providerInfo?.error) {
+      return error(req, providerInfo.error, 400);
+    }
+
+    const history = trimTrailingAssistantMessages(await db.all(
+      `SELECT role, content
+       FROM messages
+       WHERE chat_id = ?
+         AND (
+           created_at < (SELECT created_at FROM messages WHERE id = ?)
+           OR (
+             created_at = (SELECT created_at FROM messages WHERE id = ?)
+             AND rowid <= (SELECT rowid FROM messages WHERE id = ?)
+           )
+         )
+       ORDER BY created_at ASC, rowid ASC
+       LIMIT 30`,
+      [chatId, sourceMsg.parent_id || msgId, sourceMsg.parent_id || msgId, sourceMsg.parent_id || msgId]
+    ));
 
     const { response } = await streamAssistantWithTools({
       req,
@@ -2339,6 +1791,7 @@ export async function chatRouter(req, env, ctx, user, path) {
       model,
       history,
       citations: null,
+      providerFamily: providerInfo.providerFamily,
     });
 
     return response;
@@ -2545,7 +1998,7 @@ export async function chatRouter(req, env, ctx, user, path) {
     await deleteMessageSubtree(msgId);
 
     const lastMsg = await db.first(
-      'SELECT id FROM messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT 1',
+      'SELECT id FROM messages WHERE chat_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
       [chatId]
     );
 

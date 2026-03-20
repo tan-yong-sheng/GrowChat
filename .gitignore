@@ -1,3 +1,5 @@
+REFACTOR_*.md
+
 ai/
 open-webui/
 open-terminal/
@@ -5,12 +7,18 @@ bolt.new/
 codex/
 claude-code/
 markitdown/
+gemini-cli/
+opencode/
+generative-ui-demo/
 
 .ona/
 .playwright/
 .playwright-cli/
 .playwright-artifacts/
 # Ignore all .claude/ contents by default
+
+dev-local.err.log
+dev-local.out.log
 
 package-lock.json
 test-results/

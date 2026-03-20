@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   revokeRefreshToken: vi.fn(),
 }));
 
+let queryResponses;
+
 vi.mock('../db.js', () => ({
   createDB: () => mocks.db,
 }));
@@ -43,6 +45,33 @@ function makeReq(path, method, body, headers = {}) {
 describe('authRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    queryResponses = {
+      countUsers: [],
+      appConfig: [],
+      existingUser: [],
+      userById: [],
+      loginUser: [],
+      refreshUser: [],
+    };
+    mocks.db.first.mockImplementation(async (sql) => {
+      const query = String(sql || '');
+      if (query.includes('SELECT COUNT(*) as count FROM users')) {
+        return queryResponses.countUsers.shift() ?? null;
+      }
+      if (query.includes('SELECT value FROM app_config WHERE key = ?')) {
+        return queryResponses.appConfig.shift() ?? null;
+      }
+      if (query.includes('SELECT id FROM users WHERE email = ?')) {
+        return queryResponses.existingUser.shift() ?? null;
+      }
+      if (query.includes('SELECT * FROM users WHERE email = ?')) {
+        return queryResponses.loginUser.shift() ?? null;
+      }
+      if (query.includes('SELECT * FROM users WHERE id = ?')) {
+        return queryResponses.userById.shift() ?? null;
+      }
+      return null;
+    });
     mocks.hashPassword.mockResolvedValue('pbkdf2:hash');
     mocks.verifyPassword.mockResolvedValue(true);
     mocks.signJWT.mockResolvedValue('jwt-token');
@@ -57,18 +86,18 @@ describe('authRouter', () => {
 
   it('registers a user and returns tokens', async () => {
     const env = { DB: {}, JWT_SECRET: 'secret' };
-    mocks.db.first
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({
-        id: 'u1',
-        email: 'user@example.com',
-        name: 'User',
-        role: 'admin',
-        settings: '{}',
-        created_at: 1,
-        updated_at: 1,
-      });
+    queryResponses.countUsers = [{ count: 0 }, { count: 1 }];
+    queryResponses.appConfig = [null];
+    queryResponses.existingUser = [null];
+    queryResponses.userById = [{
+      id: 'u1',
+      email: 'user@example.com',
+      name: 'User',
+      role: 'admin',
+      settings: '{}',
+      created_at: 1,
+      updated_at: 1,
+    }];
 
     const res = await authRouter(
       makeReq('/api/auth/register', 'POST', {
@@ -93,7 +122,9 @@ describe('authRouter', () => {
 
   it('rejects duplicate email on register', async () => {
     const env = { DB: {}, JWT_SECRET: 'secret' };
-    mocks.db.first.mockResolvedValueOnce({ id: 'exists' });
+    queryResponses.countUsers = [{ count: 1 }];
+    queryResponses.appConfig = [null];
+    queryResponses.existingUser = [{ id: 'exists' }];
 
     const res = await authRouter(
       makeReq('/api/auth/register', 'POST', {
@@ -113,7 +144,7 @@ describe('authRouter', () => {
 
   it('logs in user with valid credentials', async () => {
     const env = { DB: {}, JWT_SECRET: 'secret' };
-    mocks.db.first.mockResolvedValueOnce({
+    queryResponses.loginUser = [{
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
@@ -122,7 +153,17 @@ describe('authRouter', () => {
       settings: '{}',
       created_at: 1,
       updated_at: 1,
-    });
+    }];
+    queryResponses.userById = [{
+      id: 'u1',
+      email: 'user@example.com',
+      name: 'User',
+      role: 'user',
+      password_hash: 'stored-hash',
+      settings: '{}',
+      created_at: 1,
+      updated_at: 1,
+    }];
 
     const res = await authRouter(
       makeReq('/api/auth/login', 'POST', {
@@ -144,7 +185,7 @@ describe('authRouter', () => {
 
   it('returns generic 401 when login password is wrong', async () => {
     const env = { DB: {}, JWT_SECRET: 'secret' };
-    mocks.db.first.mockResolvedValueOnce({
+    queryResponses.loginUser = [{
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
@@ -153,7 +194,7 @@ describe('authRouter', () => {
       settings: '{}',
       created_at: 1,
       updated_at: 1,
-    });
+    }];
     mocks.verifyPassword.mockResolvedValueOnce(false);
 
     const res = await authRouter(
@@ -174,7 +215,7 @@ describe('authRouter', () => {
   it('refreshes tokens when refresh token is valid', async () => {
     const env = { DB: {}, JWT_SECRET: 'secret' };
     mocks.consumeRefreshToken.mockResolvedValueOnce({ userId: 'u1', expiresAt: 1_700_000_000 });
-    mocks.db.first.mockResolvedValueOnce({
+    queryResponses.userById = [{
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
@@ -182,7 +223,15 @@ describe('authRouter', () => {
       settings: '{}',
       created_at: 1,
       updated_at: 1,
-    });
+    }, {
+      id: 'u1',
+      email: 'user@example.com',
+      name: 'User',
+      role: 'user',
+      settings: '{}',
+      created_at: 1,
+      updated_at: 1,
+    }];
 
     const res = await authRouter(
       makeReq('/api/auth/refresh', 'POST', { refresh_token: 'valid' }),

@@ -1,4 +1,5 @@
 import { state, setState, subscribe } from '../store.js';
+import { deriveSidebarLayout } from './sidebar-helpers.js';
 
 export function renderSidebar(aside, container) {
   let isResizing = false;
@@ -42,33 +43,18 @@ export function renderSidebar(aside, container) {
     document.addEventListener('mouseup', onMouseUp);
 
     unsubscribe = subscribe((currentState) => {
-      const { showSidebar, sidebarCollapsed, sidebarWidth, isMobile } = currentState;
-
-      if (!showSidebar) {
-        aside.style.width = '0px';
-        aside.style.minWidth = '0px';
+      const layout = deriveSidebarLayout(currentState);
+      if (layout.hidden) {
+        aside.style.width = layout.width;
+        aside.style.minWidth = layout.minWidth;
         aside.classList.add('-ml-[260px]');
         handle.classList.add('hidden');
       } else {
         aside.classList.remove('-ml-[260px]');
-        if (isMobile) {
-          aside.style.width = '260px';
-          aside.style.minWidth = '260px';
-          handle.classList.add('hidden');
-          aside.classList.remove('sidebar-slim');
-        } else {
-          if (sidebarCollapsed) {
-            aside.style.width = '68px';
-            aside.style.minWidth = '68px';
-            handle.classList.add('hidden');
-            aside.classList.add('sidebar-slim');
-          } else {
-            aside.style.width = `${sidebarWidth}px`;
-            aside.style.minWidth = `${sidebarWidth}px`;
-            handle.classList.remove('hidden');
-            aside.classList.remove('sidebar-slim');
-          }
-        }
+        aside.style.width = layout.width;
+        aside.style.minWidth = layout.minWidth;
+        handle.classList.toggle('hidden', !layout.showHandle);
+        aside.classList.toggle('sidebar-slim', layout.slim);
       }
 
       // Toggle visibility of specific elements based on slim state
@@ -76,7 +62,7 @@ export function renderSidebar(aside, container) {
       const slimOnly = aside.querySelectorAll('.sidebar-collapsed-only');
       const footer = aside.querySelector('.user-profile-footer');
       
-      const isSlim = showSidebar && !isMobile && sidebarCollapsed;
+      const isSlim = layout.slim;
 
       if (footer) {
         if (isSlim) {

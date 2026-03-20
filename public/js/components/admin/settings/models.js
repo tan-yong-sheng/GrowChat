@@ -1,21 +1,16 @@
-import { apiFetch, clearModelsCache } from '../../../api.js';
-import { setState } from '../../../store.js';
+import { apiFetch } from '../../../api.js';
+import { filterModelsBySearch, normalizeModelSearchQuery } from '../../../utils/model-search.js';
+import { countEnabledModels, sortModelsByActiveThenName } from '../../../utils/model-state.js';
+import { broadcastModelsInvalidation } from '../../../utils/model-sync.js';
+import {
+  ATTACHMENT_CAP_TYPES,
+  cloneAttachmentCaps,
+  extractAttachmentCapsFromModels,
+  getAttachmentCapTooltip,
+  getAttachmentCapValue,
+} from './models-helpers.js';
 
-const ATTACHMENT_CAP_TYPES = [
-  { key: 'image', label: 'Image', short: 'Img' },
-  { key: 'pdf', label: 'PDF', short: 'PDF' },
-];
-
-const ATTACHMENT_CAP_TOOLTIPS = {
-  image: {
-    exts: '.png .jpg .jpeg .webp .gif',
-    mimes: 'image/*',
-  },
-  pdf: {
-    exts: '.pdf',
-    mimes: 'application/pdf',
-  },
-};
+const getCapTooltip = getAttachmentCapTooltip;
 
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';
@@ -24,6 +19,7 @@ export function renderModelsSettings(container, data) {
     error: null,
     models: [],
     total: 0,
+    activeTotal: 0,
     limit: 20,
     offset: 0,
     disabledModels: new Set(),
@@ -50,34 +46,6 @@ export function renderModelsSettings(container, data) {
     modelsState.needsReload = true;
   }
 
-  const extractCapsFromModels = (models = []) => {
-    const caps = {};
-    models.forEach((model) => {
-      const attachments = model?.attachments;
-      const filtered = {};
-      ATTACHMENT_CAP_TYPES.forEach(({ key }) => {
-        if (attachments && typeof attachments === 'object' && !Array.isArray(attachments) && typeof attachments[key] === 'boolean') {
-          filtered[key] = attachments[key];
-        } else {
-          filtered[key] = false;
-        }
-      });
-      caps[model.id] = filtered;
-    });
-    return caps;
-  };
-
-  const cloneCapsMap = (caps = {}) => {
-    const next = {};
-    Object.entries(caps || {}).forEach(([modelId, values]) => {
-      if (!values || typeof values !== 'object') return;
-      next[modelId] = { ...values };
-    });
-    return next;
-  };
-
-  const getCapValue = (capsMap, modelId, kind) => Boolean(capsMap?.[modelId]?.[kind]);
-
   const setCapValue = (modelId, kind, value) => {
     const current = modelsState.attachmentCaps?.[modelId] || {};
     const next = { ...current };
@@ -92,8 +60,8 @@ export function renderModelsSettings(container, data) {
     for (const model of modelsState.models) {
       const modelId = model.id;
       for (const { key } of ATTACHMENT_CAP_TYPES) {
-        const currentValue = getCapValue(modelsState.attachmentCaps, modelId, key);
-        const originalValue = getCapValue(modelsState.originalAttachmentCaps, modelId, key);
+        const currentValue = getAttachmentCapValue(modelsState.attachmentCaps, modelId, key);
+        const originalValue = getAttachmentCapValue(modelsState.originalAttachmentCaps, modelId, key);
         if (currentValue !== originalValue) return true;
       }
     }
@@ -141,15 +109,6 @@ export function renderModelsSettings(container, data) {
     }
   };
 
-  const getCapTooltip = (label, kind, state) => {
-    const info = ATTACHMENT_CAP_TOOLTIPS[kind] || {};
-    const lines = [`${label}: ${state}`];
-    if (info.exts) lines.push(`Ext: ${info.exts}`);
-    if (info.mimes) lines.push(`MIME: ${info.mimes}`);
-    if (info.note) lines.push(`Note: ${info.note}`);
-    return lines.join('\n');
-  };
-
   const updateCapButton = (btn, enabled) => {
     if (!btn) return;
     const label = btn.getAttribute('data-cap-label') || 'Attachment';
@@ -177,21 +136,22 @@ export function renderModelsSettings(container, data) {
       : null;
     const previousScrollTop = container.querySelector('[data-models-scroll]')?.scrollTop ?? 0;
     const dirty = hasChanges();
-    const query = modelsState.query.trim();
+    const query = normalizeModelSearchQuery(modelsState.query);
     const usingFilter = Boolean(query);
-    const filteredModels = modelsState.models;
-    const displayTotal = modelsState.total;
+    const filteredModels = filterModelsBySearch(sortModelsByActiveThenName(modelsState.models), query);
+    const displayTotal = modelsState.activeTotal || countEnabledModels(modelsState.models);
+    const pageTotal = modelsState.total;
     const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
     const currentPage = Math.floor(modelsState.offset / modelsState.limit) + 1;
-    const pageStart = displayTotal === 0 ? 0 : modelsState.offset + 1;
-    const pageEnd = Math.min(modelsState.offset + modelsState.limit, modelsState.total);
+    const pageStart = pageTotal === 0 ? 0 : modelsState.offset + 1;
+    const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
 
     container.innerHTML = `
       <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300 w-full">
         <div class="pt-0.5 pb-2.5 flex justify-between items-center sticky top-0 z-10 bg-white">
           <div class="flex items-center text-xl font-medium px-0.5 gap-2">
             <div class="flex-shrink-0 text-gray-900">Models</div>
-            <div class="text-gray-500 font-normal ml-0.5">${displayTotal}</div>
+            <div class="text-gray-500 font-normal ml-0.5" title="Active models">${displayTotal}</div>
           </div>
           <div class="flex items-center gap-3">
             <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30 w-64">
@@ -232,7 +192,7 @@ export function renderModelsSettings(container, data) {
                     </tr>
                   ` : filteredModels.map(model => {
                     const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
-                      const value = getCapValue(modelsState.attachmentCaps, model.id, key);
+                      const value = getAttachmentCapValue(modelsState.attachmentCaps, model.id, key);
                       const state = value ? 'allowed' : 'unset';
                       const className = value
                         ? 'bg-emerald-500 text-white border-emerald-500'
@@ -287,7 +247,7 @@ export function renderModelsSettings(container, data) {
               <span>per page</span>
             </div>
             <div class="flex items-center gap-4">
-              <div class="text-xs text-gray-400">${pageStart}-${pageEnd} of ${displayTotal}</div>
+              <div class="text-xs text-gray-400">${pageStart}-${pageEnd} of ${pageTotal}</div>
               <div class="flex items-center gap-2">
                 <button id="prev-page" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" ${usingFilter || modelsState.offset === 0 ? 'disabled' : ''}>Prev</button>
                 <div class="text-sm text-gray-600">Page ${currentPage} / ${totalPages}</div>
@@ -344,8 +304,8 @@ export function renderModelsSettings(container, data) {
       const modelId = model.id;
       const patch = {};
       ATTACHMENT_CAP_TYPES.forEach(({ key }) => {
-        const currentValue = getCapValue(modelsState.attachmentCaps, modelId, key);
-        const originalValue = getCapValue(modelsState.originalAttachmentCaps, modelId, key);
+        const currentValue = getAttachmentCapValue(modelsState.attachmentCaps, modelId, key);
+        const originalValue = getAttachmentCapValue(modelsState.originalAttachmentCaps, modelId, key);
         if (currentValue !== originalValue) {
           patch[key] = currentValue;
         }
@@ -372,7 +332,6 @@ export function renderModelsSettings(container, data) {
           throw new Error(err.error || err.message || 'Failed to save model settings');
         }
         modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
-        setState({ models: [], modelsLoading: false });
       }
 
       if (attachmentUpdates.length > 0) {
@@ -384,14 +343,9 @@ export function renderModelsSettings(container, data) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || err.message || 'Failed to save attachment caps');
         }
-        modelsState.originalAttachmentCaps = cloneCapsMap(modelsState.attachmentCaps);
+        modelsState.originalAttachmentCaps = cloneAttachmentCaps(modelsState.attachmentCaps);
       }
-      clearModelsCache();
-      try {
-        localStorage.setItem('growchat_models_invalidate', String(Date.now()));
-      } catch {
-        // ignore storage errors
-      }
+      broadcastModelsInvalidation();
       const feedback = container.querySelector('#models-feedback');
       if (feedback) {
         feedback.textContent = 'Model settings saved. Chat model list will refresh.';
@@ -417,7 +371,7 @@ export function renderModelsSettings(container, data) {
   data.settingsSaveHandlers.models = saveModels;
   data.settingsDiscardHandlers.models = () => {
     modelsState.disabledModels = new Set(modelsState.originalDisabledModels);
-    modelsState.attachmentCaps = cloneCapsMap(modelsState.originalAttachmentCaps);
+    modelsState.attachmentCaps = cloneAttachmentCaps(modelsState.originalAttachmentCaps);
     if (isActiveTab()) render();
   };
 
@@ -426,12 +380,12 @@ export function renderModelsSettings(container, data) {
     if (searchInput) {
       let searchDebounce = null;
       searchInput.oninput = (e) => {
-        const nextValue = e.target.value;
-        if (searchDebounce) clearTimeout(searchDebounce);
-        searchDebounce = setTimeout(() => {
-          modelsState.query = nextValue;
-          modelsState.offset = 0;
-          loadModels(true);
+      const nextValue = e.target.value;
+      if (searchDebounce) clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        modelsState.query = nextValue;
+        modelsState.offset = 0;
+        loadModels(true);
           const input = container.querySelector('#model-search-input');
           input.focus();
           input.setSelectionRange(input.value.length, input.value.length);
@@ -458,7 +412,7 @@ export function renderModelsSettings(container, data) {
         const modelId = btn.getAttribute('data-cap-model');
         const kind = btn.getAttribute('data-cap-kind');
         if (!modelId || !kind) return;
-        const currentValue = getCapValue(modelsState.attachmentCaps, modelId, kind);
+        const currentValue = getAttachmentCapValue(modelsState.attachmentCaps, modelId, kind);
         const nextValue = !currentValue;
         setCapValue(modelId, kind, nextValue);
         updateCapButton(btn, nextValue);
@@ -504,19 +458,16 @@ export function renderModelsSettings(container, data) {
       const res = await apiFetch(`/api/admin/models?${params.toString()}`);
       if (res.ok) {
         const payload = await res.json();
-        modelsState.models = (payload.models || []).slice().sort((a, b) => {
-          const aLabel = String(a?.name || a?.id || '').toLowerCase();
-          const bLabel = String(b?.name || b?.id || '').toLowerCase();
-          return aLabel.localeCompare(bLabel);
-        });
+        modelsState.models = sortModelsByActiveThenName(payload.models || []);
         modelsState.total = payload.total || 0;
+        modelsState.activeTotal = payload.active_total ?? countEnabledModels(modelsState.models);
         modelsState.disabledModels = new Set(
           modelsState.models.filter((model) => model.enabled === false).map((model) => model.id)
         );
         modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
-        const capsFromModels = extractCapsFromModels(modelsState.models);
+        const capsFromModels = extractAttachmentCapsFromModels(modelsState.models);
         modelsState.attachmentCaps = capsFromModels;
-        modelsState.originalAttachmentCaps = cloneCapsMap(capsFromModels);
+        modelsState.originalAttachmentCaps = cloneAttachmentCaps(capsFromModels);
       }
     } catch (err) {
       console.warn('Failed to load models for settings', err);

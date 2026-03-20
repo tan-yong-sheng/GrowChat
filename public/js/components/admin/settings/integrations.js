@@ -1,4 +1,10 @@
 import { apiFetch } from '../../../api.js';
+import {
+  buildIntegrationsSnapshot,
+  mapSavedToolServers,
+  sanitizeIntegrationsServers,
+  shouldShowAuthField,
+} from './integrations-helpers.js';
 
 export function renderIntegrationsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'integrations';
@@ -16,27 +22,7 @@ export function renderIntegrationsSettings(container, data) {
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
   data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
-  const buildSnapshot = () => {
-    const normalized = integrationsState.toolServers
-      .map((server) => ({
-        id: server.id || '',
-        name: server.name || '',
-        url: server.url || '',
-        headers: server.headers || '',
-        enabled: server.enabled !== false,
-        auth_type: server.auth_type || 'none',
-        auth_bearer_token: server.auth_bearer_token || '',
-        auth_basic_username: server.auth_basic_username || '',
-        auth_basic_password: server.auth_basic_password || '',
-        oauth_client_name: server.oauth_client_name || '',
-        oauth_scope: server.oauth_scope || '',
-        oauth_client_id: server.oauth_client_id || '',
-        oauth_client_secret: server.oauth_client_secret || '',
-        oauth_token_auth_method: server.oauth_token_auth_method || '',
-      }))
-      .sort((a, b) => String(a.id).localeCompare(String(b.id)));
-    return JSON.stringify(normalized);
-  };
+  const buildSnapshot = () => buildIntegrationsSnapshot(integrationsState.toolServers);
 
   const hasChanges = () => {
     if (!integrationsState.originalSnapshot) return false;
@@ -75,23 +61,7 @@ export function renderIntegrationsSettings(container, data) {
     }
   };
 
-  const sanitizeServers = () => integrationsState.toolServers.map((server) => ({
-    id: server.id || '',
-    name: String(server.name || '').trim(),
-    url: String(server.url || '').trim(),
-    headers: String(server.headers || '').trim(),
-    enabled: server.enabled !== false,
-    auth_type: server.auth_type || 'none',
-    auth_bearer_token: String(server.auth_bearer_token || '').trim(),
-    auth_basic_username: String(server.auth_basic_username || '').trim(),
-    auth_basic_password: String(server.auth_basic_password || '').trim(),
-    oauth_client_name: String(server.oauth_client_name || '').trim(),
-    oauth_scope: String(server.oauth_scope || '').trim(),
-    oauth_client_id: String(server.oauth_client_id || '').trim(),
-    oauth_client_secret: String(server.oauth_client_secret || '').trim(),
-    oauth_token_auth_method: String(server.oauth_token_auth_method || '').trim(),
-    // tools are derived from verification; exclude from dirty checks
-  })).filter((server) => server.url);
+  const sanitizeServers = () => sanitizeIntegrationsServers(integrationsState.toolServers);
 
   const persistServers = async ({ showFeedback }) => {
     const feedback = container.querySelector('#integrations-feedback');
@@ -105,17 +75,7 @@ export function renderIntegrationsSettings(container, data) {
       throw new Error(err.error || err.message || 'Failed to save integrations');
     }
     const payload = await res.json().catch(() => ({}));
-    integrationsState.toolServers = Array.isArray(payload?.servers)
-      ? payload.servers.map((server) => ({
-        ...server,
-        toolsExpanded: false,
-        toolsError: server.tools_error || '',
-      }))
-      : sanitized.map((server) => ({
-        ...server,
-        toolsExpanded: false,
-        toolsError: server.tools_error || '',
-      }));
+    integrationsState.toolServers = mapSavedToolServers(payload?.servers, sanitized);
     integrationsState.originalSnapshot = buildSnapshot();
     if (showFeedback && feedback) {
       feedback.textContent = 'Integrations saved successfully';
@@ -141,7 +101,7 @@ export function renderIntegrationsSettings(container, data) {
     });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(payload.error || payload.message || payload.details?.message || 'Connection failed');
+      throw new Error(payload.details?.message || payload.message || payload.error || 'Connection failed');
     }
     const tools = Array.isArray(payload.tools) ? payload.tools : [];
     return {
@@ -165,9 +125,9 @@ export function renderIntegrationsSettings(container, data) {
     const bearer = container.querySelector('#auth-bearer-fields');
     const basic = container.querySelector('#auth-basic-fields');
     const oauth = container.querySelector('#auth-oauth-fields');
-    if (bearer) bearer.classList.toggle('hidden', authType !== 'bearer');
-    if (basic) basic.classList.toggle('hidden', authType !== 'basic');
-    if (oauth) oauth.classList.toggle('hidden', authType !== 'oauth');
+    if (bearer) bearer.classList.toggle('hidden', !shouldShowAuthField(authType, 'bearer'));
+    if (basic) basic.classList.toggle('hidden', !shouldShowAuthField(authType, 'basic'));
+    if (oauth) oauth.classList.toggle('hidden', !shouldShowAuthField(authType, 'oauth'));
   };
 
   const getToolServersMarkup = () => {
@@ -297,13 +257,13 @@ export function renderIntegrationsSettings(container, data) {
           <div class="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hidden">
             <div class="space-y-1">
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Server Name</label>
-              <input id="server-name" type="text" value="${integrationsState.selectedServer?.name || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="e.g. Default Tool Server">
+              <input id="server-name" type="text" value="${integrationsState.selectedServer?.name || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="e.g. Default Tool Server" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
             </div>
 
             <div class="space-y-1">
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">URL</label>
               <div class="flex items-center gap-2">
-                <input id="server-url" type="text" value="${integrationsState.selectedServer?.url || ''}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="http://localhost:5000/mcp">
+                <input id="server-url" type="text" value="${integrationsState.selectedServer?.url || ''}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="http://localhost:5000/mcp" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
                 <button id="test-server" class="p-1 text-gray-400 hover:text-gray-600" title="Test server">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -327,7 +287,7 @@ export function renderIntegrationsSettings(container, data) {
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Bearer Token</label>
               <div class="flex items-center gap-3">
                 <div class="flex-1 relative">
-                  <input id="server-auth-bearer" type="password" value="${integrationsState.selectedServer?.auth_bearer_token || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="Bearer token">
+                  <input id="server-auth-bearer" type="password" value="${integrationsState.selectedServer?.auth_bearer_token || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="Bearer token" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
                   <button id="toggle-bearer-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c3.41 0 6.446 1.315 8.613 3.447 1.12 1.101 2.04 2.484 2.747 4.033a1.015 1.012 0 0 1 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
@@ -341,13 +301,13 @@ export function renderIntegrationsSettings(container, data) {
             <div id="auth-basic-fields" class="space-y-3 hidden">
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Username</label>
-                <input id="server-auth-basic-username" type="text" value="${integrationsState.selectedServer?.auth_basic_username || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Username">
+                <input id="server-auth-basic-username" type="text" value="${integrationsState.selectedServer?.auth_basic_username || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Username" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Password</label>
                 <div class="flex items-center gap-3">
                   <div class="flex-1 relative">
-                    <input id="server-auth-basic-password" type="password" value="${integrationsState.selectedServer?.auth_basic_password || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="Password">
+                    <input id="server-auth-basic-password" type="password" value="${integrationsState.selectedServer?.auth_basic_password || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="Password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
                     <button id="toggle-basic-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c3.41 0 6.446 1.315 8.613 3.447 1.12 1.101 2.04 2.484 2.747 4.033a1.015 1.012 0 0 1 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
@@ -362,19 +322,19 @@ export function renderIntegrationsSettings(container, data) {
             <div id="auth-oauth-fields" class="space-y-3 hidden">
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client Name</label>
-                <input id="server-auth-oauth-client-name" type="text" value="${integrationsState.selectedServer?.oauth_client_name || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="GrowChat MCP Client">
+                <input id="server-auth-oauth-client-name" type="text" value="${integrationsState.selectedServer?.oauth_client_name || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="GrowChat MCP Client" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Scope</label>
-                <input id="server-auth-oauth-scope" type="text" value="${integrationsState.selectedServer?.oauth_scope || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="optional">
+                <input id="server-auth-oauth-scope" type="text" value="${integrationsState.selectedServer?.oauth_scope || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="optional" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client ID</label>
-                <input id="server-auth-oauth-client-id" type="text" value="${integrationsState.selectedServer?.oauth_client_id || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Leave blank to auto-register">
+                <input id="server-auth-oauth-client-id" type="text" value="${integrationsState.selectedServer?.oauth_client_id || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Leave blank to auto-register" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client Secret</label>
-                <input id="server-auth-oauth-client-secret" type="password" value="${integrationsState.selectedServer?.oauth_client_secret || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Optional">
+                <input id="server-auth-oauth-client-secret" type="password" value="${integrationsState.selectedServer?.oauth_client_secret || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="Optional" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
               </div>
               <div class="space-y-1">
                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Token Auth Method</label>
@@ -789,13 +749,7 @@ export function renderIntegrationsSettings(container, data) {
       const res = await apiFetch('/api/admin/tool-servers');
       if (!res.ok) throw new Error('Failed to load tool servers');
       const payload = await res.json();
-      integrationsState.toolServers = Array.isArray(payload?.servers)
-        ? payload.servers.map((server) => ({
-          ...server,
-          toolsExpanded: false,
-          toolsError: server.tools_error || '',
-        }))
-        : [];
+      integrationsState.toolServers = mapSavedToolServers(payload?.servers, []);
       integrationsState.originalSnapshot = buildSnapshot();
       if (isActiveTab()) render();
     } catch (err) {

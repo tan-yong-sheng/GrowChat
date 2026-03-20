@@ -1,8 +1,19 @@
-import { apiFetch, clearAuthState, clearModelsCache, fetchChats, fetchModels, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState, readChatsCache, readModelsCache, writeChatsCache } from './api.js';
-import { renderMessageContent } from './utils.js';
+import { apiFetch, clearAuthState, fetchChats, fetchModels, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState, isAccessTokenUsable, readChatsCache, readModelsCache, refreshToken, writeChatsCache } from './api.js';
 import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
 import { startRealtimeSync, stopRealtimeSync } from './realtime.js';
+import { consumeModelsInvalidation } from './utils/model-sync.js';
+import {
+  getChatIdFromPath,
+  injectTempChat,
+  resolveActiveChatId,
+  shouldStartRealtime,
+} from './app-route-utils.js';
+import {
+  renderAdminSkeleton,
+  renderChatSkeleton,
+  renderSharedChatPage,
+} from './app-shells.js';
 
 const INITIAL_CHAT_LIMIT = 30;
 
@@ -34,30 +45,45 @@ const FALLBACK_PERMISSIONS = {
   inactive: []
 };
 
+const AUTOFILL_OVERLAY_ERROR_MESSAGE = "Cannot read properties of null (reading 'includes')";
+const AUTOFILL_OVERLAY_SOURCE = 'bootstrap-autofill-overlay.js';
+
 let bootstrapped = false;
 let shortcutsInitialized = false;
 let realtimeStarted = false;
 let deferredBootstrapPromise = null;
 let modelsPrefetchPromise = null;
 let modelsInvalidationListenerBound = false;
+let modelsCacheGeneration = 0;
 
-function checkModelsInvalidation() {
-  try {
-    const invalidateToken = localStorage.getItem('growchat_models_invalidate');
-    const seenToken = sessionStorage.getItem('growchat_models_invalidate_seen');
-    const shouldInvalidate = Boolean(invalidateToken && invalidateToken !== seenToken);
-    if (shouldInvalidate) {
-      clearModelsCache();
-      sessionStorage.setItem('growchat_models_invalidate_seen', invalidateToken);
-    }
-    return shouldInvalidate ? invalidateToken : null;
-  } catch {
-    return null;
-  }
+function isKnownAutofillOverlayError(error) {
+  const message = String(error?.message || error?.reason?.message || error?.reason || '');
+  const source = String(error?.filename || error?.sourceURL || error?.stack || '');
+  return message.includes(AUTOFILL_OVERLAY_ERROR_MESSAGE) || source.includes(AUTOFILL_OVERLAY_SOURCE);
 }
 
-function prefetchModels({ allowCache = true, cacheBust = null } = {}) {
-  if (modelsPrefetchPromise) return modelsPrefetchPromise;
+function installKnownErrorSuppressors() {
+  const suppress = (event) => {
+    if (!isKnownAutofillOverlayError(event)) return;
+    event.preventDefault();
+  };
+
+  window.addEventListener('error', suppress);
+  window.addEventListener('unhandledrejection', suppress);
+}
+
+function checkModelsInvalidation() {
+  const token = consumeModelsInvalidation();
+  if (!token) return null;
+  modelsCacheGeneration += 1;
+  modelsPrefetchPromise = null;
+  setState({ models: [], modelsLoading: true });
+  prefetchModels({ allowCache: false, cacheBust: token, force: true });
+  return token;
+}
+
+function prefetchModels({ allowCache = true, cacheBust = null, force = false } = {}) {
+  if (modelsPrefetchPromise && !force && !cacheBust && allowCache) return modelsPrefetchPromise;
   const cached = allowCache ? readModelsCache() : null;
   if (cached?.models?.length) {
     setState({ models: cached.models, modelsLoading: false });
@@ -68,47 +94,45 @@ function prefetchModels({ allowCache = true, cacheBust = null } = {}) {
     setState({ modelsLoading: true });
   }
   const cacheMode = allowCache ? 'default' : 'no-store';
-  modelsPrefetchPromise = fetchModels({ cache: cacheMode, cacheBust })
+  const requestGeneration = modelsCacheGeneration;
+  const requestPromise = fetchModels({ cache: cacheMode, cacheBust })
     .then((data) => {
+      if (requestGeneration !== modelsCacheGeneration) return data;
       const models = Array.isArray(data?.models) ? data.models : [];
       setState({ models, modelsLoading: false });
+      return data;
     })
     .catch((err) => {
+      if (requestGeneration !== modelsCacheGeneration) return null;
       console.warn('Failed to prefetch models:', err);
       setState({ modelsLoading: false });
+      return null;
     })
     .finally(() => {
-      modelsPrefetchPromise = null;
+      if (modelsPrefetchPromise === requestPromise) {
+        modelsPrefetchPromise = null;
+      }
     });
-  return modelsPrefetchPromise;
+  modelsPrefetchPromise = requestPromise;
+  return requestPromise;
 }
 
 function bindModelsInvalidationListener() {
   if (modelsInvalidationListenerBound) return;
+  const handleInvalidation = () => {
+    const token = consumeModelsInvalidation();
+    if (!token) return;
+    modelsCacheGeneration += 1;
+    modelsPrefetchPromise = null;
+    setState({ models: [], modelsLoading: true });
+    prefetchModels({ allowCache: false, cacheBust: token, force: true });
+  };
   window.addEventListener('storage', (event) => {
     if (event.key !== 'growchat_models_invalidate') return;
-    const token = event.newValue;
-    if (!token) return;
-    const seenToken = sessionStorage.getItem('growchat_models_invalidate_seen');
-    if (token === seenToken) return;
-    clearModelsCache();
-    sessionStorage.setItem('growchat_models_invalidate_seen', token);
-    const path = window.location.pathname || '/';
-    if (!path.startsWith('/admin')) {
-      setState({ models: [], modelsLoading: true });
-      prefetchModels({ allowCache: false, cacheBust: token });
-    }
+    handleInvalidation();
   });
+  window.addEventListener('growchat:models-invalidated', handleInvalidation);
   modelsInvalidationListenerBound = true;
-}
-
-function shouldStartRealtime() {
-  const url = new URL(window.location.href);
-  const path = url.pathname || '/';
-  const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-  if (isLocal && url.searchParams.get('realtime') !== '1') return false;
-  if (path.startsWith('/auth') || path.startsWith('/admin') || path.startsWith('/s/')) return false;
-  return path === '/' || path.startsWith('/c/');
 }
 
 function ensureShortcuts() {
@@ -179,143 +203,29 @@ async function initRBAC(user, preloaded = null) {
   }
 }
 
-function renderSharedChatPage(container, data) {
-  const chat = data?.chat || {};
-  const messages = data?.messages || [];
-  container.innerHTML = `
-    <div class="min-h-screen bg-[#fafafa] text-gray-900">
-      <div class="max-w-3xl mx-auto px-4 py-6">
-        <div class="flex items-center justify-between mb-6">
-          <a href="/" class="text-sm text-gray-600 hover:text-gray-800">← GrowChat</a>
-          <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">Shared Chat</span>
-        </div>
-        <h1 class="text-2xl font-semibold mb-1">${chat.title || 'Shared Chat'}</h1>
-        <p class="text-sm text-gray-500 mb-6">Read-only view</p>
-        <div class="space-y-5">
-          ${messages.map((m) => `
-            <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
-              <div class="${m.role === 'user' ? 'bg-[#f0f0f0]' : 'bg-white border border-gray-200'} rounded-2xl px-4 py-3 max-w-[85%]">
-                <p class="text-xs uppercase text-gray-400 mb-1">${m.role}</p>
-                <div class="prose prose-sm max-w-none break-words">${renderMessageContent(m.content)}</div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderAdminSkeleton(container) {
-  container.innerHTML = `
-    <div class="min-h-screen bg-[#fafafa] text-gray-900">
-      <div class="max-w-6xl mx-auto px-4 py-6">
-        <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
-          <div class="bg-white border border-gray-100 rounded-2xl p-4 animate-pulse">
-            <div class="h-4 w-28 bg-gray-200 rounded mb-4"></div>
-            <div class="space-y-3">
-              <div class="h-3 w-32 bg-gray-200 rounded"></div>
-              <div class="h-3 w-36 bg-gray-200 rounded"></div>
-              <div class="h-3 w-24 bg-gray-200 rounded"></div>
-            </div>
-            <div class="mt-6 h-3 w-20 bg-gray-200 rounded"></div>
-          </div>
-          <div class="bg-white border border-gray-100 rounded-2xl p-6 animate-pulse">
-            <div class="h-5 w-44 bg-gray-200 rounded mb-4"></div>
-            <div class="space-y-3">
-              <div class="h-3 w-full bg-gray-200 rounded"></div>
-              <div class="h-3 w-11/12 bg-gray-200 rounded"></div>
-              <div class="h-3 w-10/12 bg-gray-200 rounded"></div>
-            </div>
-            <div class="mt-6 h-3 w-32 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderChatSkeleton(container) {
-  container.innerHTML = `
-    <div class="h-full w-full bg-white overflow-hidden">
-      <div class="flex h-full">
-        <aside class="hidden md:flex w-[260px] flex-shrink-0 border-r border-gray-100 bg-[#f9f9f9] p-4">
-          <div class="w-full space-y-4 animate-pulse">
-            <div class="h-6 w-32 bg-gray-200 rounded"></div>
-            <div class="h-10 w-full bg-gray-200 rounded-xl"></div>
-            <div class="h-10 w-full bg-gray-200 rounded-xl"></div>
-            <div class="mt-6 space-y-2">
-              <div class="h-3 w-20 bg-gray-200 rounded"></div>
-              <div class="h-8 w-full bg-gray-200 rounded-lg"></div>
-              <div class="h-8 w-full bg-gray-200 rounded-lg"></div>
-              <div class="h-8 w-full bg-gray-200 rounded-lg"></div>
-            </div>
-          </div>
-        </aside>
-        <main class="flex-1 flex flex-col min-w-0">
-          <div class="h-[58px] border-b border-gray-100 bg-white/95 flex items-center px-4">
-            <div class="h-6 w-40 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-          <div class="flex-1 p-6">
-            <div class="max-w-3xl space-y-4 animate-pulse">
-              <div class="h-4 w-64 bg-gray-200 rounded"></div>
-              <div class="h-24 w-full bg-gray-200 rounded-2xl"></div>
-              <div class="h-24 w-11/12 bg-gray-200 rounded-2xl"></div>
-              <div class="h-24 w-10/12 bg-gray-200 rounded-2xl"></div>
-            </div>
-          </div>
-        </main>
-      </div>
-    </div>
-  `;
-}
-
-function getChatIdFromPath(pathname) {
-  const match = pathname.match(/^\/c\/([^/]+)$/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function isTempChatId(id) {
-  return String(id || '').startsWith('temp-');
-}
-
-function buildTempChatStub(id, modelId = null) {
-  const nowTs = Math.floor(Date.now() / 1000);
-  return {
-    id,
-    title: 'New Chat',
-    model: modelId || null,
-    pinned: 0,
-    tags: '[]',
-    created_at: nowTs,
-    updated_at: nowTs,
-  };
-}
-
-function injectTempChat(chats, routeChatId, modelId = null) {
-  if (!routeChatId || !isTempChatId(routeChatId)) return chats;
-  const exists = (chats || []).some((chat) => String(chat?.id) === String(routeChatId));
-  if (exists) return chats;
-  const tempChat = buildTempChatStub(routeChatId, modelId);
-  return [tempChat, ...(chats || [])];
-}
-
-function resolveActiveChatId(routeChatId, chats, isHomeRoute) {
-  if (routeChatId) return routeChatId;
-  if (isHomeRoute) return null;
-  return chats?.[0]?.id || null;
-}
-
 async function ensureSession() {
   if (bootstrapped) return true;
 
   const auth = getAuthState();
-  if (!auth?.access_token) {
+  if (!auth?.access_token || !isAccessTokenUsable(auth.access_token)) {
+    if (auth?.refresh_token) {
+      const refreshed = await refreshToken(auth.refresh_token);
+      if (refreshed?.access_token) {
+        return ensureSession();
+      }
+    }
+    clearAuthState();
     window.location.href = '/auth.html';
     return false;
   }
 
-  const meRes = await apiFetch('/api/users/me?include=permissions,roles');
+  let meRes = await apiFetch('/api/users/me?include=permissions,roles');
+  if (meRes.status === 401 && auth?.refresh_token) {
+    const refreshed = await refreshToken(auth.refresh_token);
+    if (refreshed?.access_token) {
+      meRes = await apiFetch('/api/users/me?include=permissions,roles');
+    }
+  }
   if (!meRes.ok) {
     clearAuthState();
     window.location.href = '/auth.html';
@@ -496,6 +406,7 @@ export async function renderCurrentRoute() {
 }
 
 async function bootstrap() {
+  installKnownErrorSuppressors();
   await renderCurrentRoute();
 }
 

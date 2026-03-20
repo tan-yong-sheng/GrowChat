@@ -1,30 +1,14 @@
 import { apiFetch } from '../../../api.js';
 import { setState } from '../../../store.js';
+import {
+  createGeneralSettingsState,
+  getGeneralSettingsToggleState,
+  isGeneralSettingsDirty,
+} from './general-helpers.js';
 
 export function renderGeneralSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'general';
-  const settingsState = data.generalSettings || (data.generalSettings = {
-    loading: false,
-    error: null,
-    initialValues: {
-      title: 'GrowChat',
-      publicRegistration: true,
-      defaultModelId: '',
-    },
-    currentValues: {
-      title: 'GrowChat',
-      publicRegistration: true,
-      defaultModelId: '',
-    },
-    models: [],
-    adminConfigLoaded: false,
-    modelsInvalidateToken: null,
-    dirtyFields: {
-      title: false,
-      publicRegistration: false,
-      defaultModelId: false,
-    },
-  });
+  const settingsState = data.generalSettings || (data.generalSettings = createGeneralSettingsState());
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
   data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
@@ -34,31 +18,28 @@ export function renderGeneralSettings(container, data) {
     settingsState.models = [];
   }
 
-  const isDirty = () => {
-    return JSON.stringify(settingsState.initialValues) !== JSON.stringify(settingsState.currentValues);
-  };
+  const isDirty = () => isGeneralSettingsDirty(settingsState);
   data.settingsDirtyCheckers.general = isDirty;
 
   const updatePublicRegToggle = () => {
     const regToggle = container.querySelector('#public-reg-toggle');
     if (!regToggle) return;
-    const isPublicRegOn = Boolean(settingsState.currentValues.publicRegistration);
-    regToggle.setAttribute('aria-pressed', String(isPublicRegOn));
-    regToggle.classList.toggle('bg-black', isPublicRegOn);
-    regToggle.classList.toggle('bg-gray-200', !isPublicRegOn);
+    const toggleState = getGeneralSettingsToggleState(settingsState.currentValues.publicRegistration);
+    regToggle.setAttribute('aria-pressed', toggleState.ariaPressed);
+    regToggle.classList.toggle('bg-black', toggleState.isOn);
+    regToggle.classList.toggle('bg-gray-200', !toggleState.isOn);
     const knob = regToggle.querySelector('span');
     if (knob) {
-      knob.style.transform = isPublicRegOn ? 'translateX(16px)' : 'translateX(0px)';
+      knob.style.transform = toggleState.knobTransform;
     }
     const status = container.querySelector('#public-reg-status');
-    if (status) status.textContent = isPublicRegOn ? 'On' : 'Off';
+    if (status) status.textContent = toggleState.statusText;
   };
 
   const render = () => {
     if (!isActiveTab()) return;
     const dirty = isDirty();
-    const isPublicRegOn = Boolean(settingsState.currentValues.publicRegistration);
-    const knobTranslate = isPublicRegOn ? 'translateX(16px)' : 'translateX(0px)';
+    const toggleState = getGeneralSettingsToggleState(settingsState.currentValues.publicRegistration);
 
     container.innerHTML = `
       <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300 w-full">
@@ -85,10 +66,10 @@ export function renderGeneralSettings(container, data) {
               <div class="py-2.5 flex items-center justify-between pr-2">
                 <div class="flex flex-col">
                   <div class="text-xs font-medium">Public Registration</div>
-                  <div id="public-reg-status" class="text-[10px] text-gray-400">${isPublicRegOn ? 'On' : 'Off'}</div>
+                  <div id="public-reg-status" class="text-[10px] text-gray-400">${toggleState.statusText}</div>
                 </div>
-                <button id="public-reg-toggle" aria-pressed="${isPublicRegOn}" class="relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isPublicRegOn ? 'bg-black' : 'bg-gray-200'}">
-                  <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${knobTranslate};"></span>
+                <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toggleState.toggleClass}">
+                  <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${toggleState.knobTransform};"></span>
                 </button>
               </div>
             </section>

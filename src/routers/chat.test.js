@@ -206,10 +206,15 @@ describe('chatRouter', () => {
       .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', model: 'gpt-4', current_message_id: 'm-user' });
     mocks.db.all.mockResolvedValueOnce([{ role: 'user', content: 'hello' }]);
     mocks.streamLLM.mockRejectedValueOnce(new Error('llm down'));
+    const env = {
+      DB: {},
+      OPENAI_BASE_URL: 'https://api.example.com/v1',
+      OPENAI_API_KEY: 'test-key-12345',
+    };
 
     const res = await chatRouter(
       makeReq('/api/chats/c1/messages', 'POST', { message: 'hello' }),
-      { DB: {} },
+      env,
       {},
       user,
       '/api/chats/c1/messages'

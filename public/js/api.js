@@ -1,3 +1,5 @@
+import { readStoredJson, readStoredString, removeStoredValue, writeStoredJson } from './utils/storage.js';
+
 const STORAGE_KEY = 'growchat_auth';
 const CLIENT_SESSION_KEY = 'growchat_client_session_id';
 const MODEL_CACHE_KEY = 'growchat_models_cache_v1';
@@ -6,25 +8,15 @@ const MODEL_CACHE_TTL_MS = 15 * 60 * 1000;
 const CHAT_CACHE_TTL_MS = 30 * 1000;
 
 function readCache(key, maxAgeMs) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    const savedAt = Number(parsed.savedAt || 0);
-    if (maxAgeMs && savedAt && Date.now() - savedAt > maxAgeMs) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+  const parsed = readStoredJson(localStorage, key, null);
+  if (!parsed || typeof parsed !== 'object') return null;
+  const savedAt = Number(parsed.savedAt || 0);
+  if (maxAgeMs && savedAt && Date.now() - savedAt > maxAgeMs) return null;
+  return parsed;
 }
 
 function writeCache(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), value }));
-  } catch {
-    // ignore storage errors
-  }
+  writeStoredJson(localStorage, key, { savedAt: Date.now(), value });
 }
 
 export function readModelsCache(maxAgeMs = MODEL_CACHE_TTL_MS) {
@@ -37,11 +29,7 @@ export function writeModelsCache(payload) {
 }
 
 export function clearModelsCache() {
-  try {
-    localStorage.removeItem(MODEL_CACHE_KEY);
-  } catch {
-    // ignore storage errors
-  }
+  removeStoredValue(localStorage, MODEL_CACHE_KEY);
 }
 
 function getChatsCacheKey(userId) {
@@ -61,24 +49,39 @@ export function writeChatsCache(userId, payload) {
 }
 
 export function getAuthState() {
+  return readStoredJson(localStorage, STORAGE_KEY, null);
+}
+
+export function setAuthState(state) {
+  writeStoredJson(localStorage, STORAGE_KEY, state);
+}
+
+export function clearAuthState() {
+  removeStoredValue(localStorage, STORAGE_KEY);
+}
+
+function decodeJwtPayload(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return null;
+  const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+  const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, '=');
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    return JSON.parse(atob(padded));
   } catch {
     return null;
   }
 }
 
-export function setAuthState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-export function clearAuthState() {
-  localStorage.removeItem(STORAGE_KEY);
+export function isAccessTokenUsable(token) {
+  const payload = decodeJwtPayload(token);
+  if (!payload || typeof payload !== 'object') return false;
+  const exp = Number(payload.exp || 0);
+  return Number.isFinite(exp) && exp > Math.floor(Date.now() / 1000);
 }
 
 export function getClientSessionId() {
   try {
-    let id = sessionStorage.getItem(CLIENT_SESSION_KEY);
+    let id = readStoredString(sessionStorage, CLIENT_SESSION_KEY, '');
     if (id) return id;
     id = `${Date.now().toString(36)}-${crypto.randomUUID()}`;
     sessionStorage.setItem(CLIENT_SESSION_KEY, id);
