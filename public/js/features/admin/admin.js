@@ -10,7 +10,7 @@ import { renderGeneralSettings } from './settings/general.js';
 import { renderConnectionsSettings } from './settings/connections.js';
 import { renderModelsSettings } from './settings/models.js';
 import { renderIntegrationsSettings } from './settings/integrations.js';
-import { renderCurrentRoute } from '../../app.js';
+import { renderCurrentRoute } from '../../bootstrap/app.js';
 
 function wireSidebar(root) {
   const newChatBtn = root.querySelector('#new-chat');
