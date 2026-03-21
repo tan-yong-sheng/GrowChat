@@ -4,7 +4,9 @@ import {
   apiFetch,
   clearAuthState,
   clearModelsCache,
+  fetchArchivedChats,
   fetchChats,
+  fetchSharedChats,
   fetchModels,
   getAuthState,
   getClientSessionId,
@@ -128,14 +130,22 @@ describe('public api helpers', () => {
   it('builds chat and model requests with the expected query parameters', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ chats: [] }))
-      .mockResolvedValueOnce(jsonResponse({ models: [{ id: 'm1' }] }));
+      .mockResolvedValueOnce(jsonResponse({ models: [{ id: 'm1' }] }))
+      .mockResolvedValueOnce(jsonResponse({ chats: [] }))
+      .mockResolvedValueOnce(jsonResponse({ chats: [] }));
     vi.stubGlobal('fetch', fetchMock);
 
     await fetchChats({ q: ' hello ', limit: 10, offset: 5 });
     await fetchModels();
+    await fetchSharedChats();
+    await fetchArchivedChats();
 
     expect(fetchMock.mock.calls[0][0]).toBe('/api/chats?q=hello&limit=10&offset=5');
     expect(fetchMock.mock.calls[1][0]).toBe('/api/models');
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/chats/shared');
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ cache: 'no-store' });
+    expect(fetchMock.mock.calls[3][0]).toBe('/api/chats/archived');
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({ cache: 'no-store' });
     expect(readModelsCache()).toEqual({ models: [{ id: 'm1' }] });
   });
 });

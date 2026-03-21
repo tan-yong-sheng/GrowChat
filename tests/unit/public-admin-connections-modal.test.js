@@ -64,4 +64,27 @@ describe('admin connections modal', () => {
       enabled: true,
     });
   });
+
+  it('does not render a master provider toggle and keeps providers visible', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/openai/connections')) {
+        return new Response(JSON.stringify({
+          enabled: false,
+          connections: [],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderConnectionsSettings(container, data);
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections'));
+
+    expect(container.querySelector('#openai-toggle')).toBeNull();
+    expect(container.querySelector('#manage-connections-section')).not.toBeNull();
+    expect(container.querySelector('#manage-connections-section')?.classList.contains('hidden')).toBe(false);
+  });
 });

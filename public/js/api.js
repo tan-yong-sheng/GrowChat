@@ -156,7 +156,7 @@ export async function fetchChats({ q = '', limit = 20, offset = 0, signal } = {}
   params.set('offset', String(offset));
 
   const path = `/api/chats?${params.toString()}`;
-  const res = await apiFetch(path, { signal });
+  const res = await apiFetch(path, { signal, cache: 'no-store' });
   if (!res.ok) {
     const err = new Error(`Failed to fetch chats (${res.status})`);
     err.status = res.status;
@@ -328,7 +328,7 @@ export async function unshareChat(chatId) {
 }
 
 export async function fetchSharedChats() {
-  const res = await apiFetch('/api/chats/shared');
+  const res = await apiFetch('/api/chats/shared', { cache: 'no-store' });
   if (!res.ok) {
     const err = new Error(`Failed to fetch shared chats (${res.status})`);
     err.status = res.status;
@@ -348,7 +348,7 @@ export async function toggleArchiveChat(chatId) {
 }
 
 export async function fetchArchivedChats() {
-  const res = await apiFetch('/api/chats/archived');
+  const res = await apiFetch('/api/chats/archived', { cache: 'no-store' });
   if (!res.ok) {
     const err = new Error(`Failed to fetch archived chats (${res.status})`);
     err.status = res.status;

@@ -153,23 +153,6 @@ export function renderConnectionsSettings(container, data) {
     list.innerHTML = getConnectionsListMarkup();
   };
 
-  const updateOpenAIToggle = () => {
-    const toggle = container.querySelector('#openai-toggle');
-    if (!toggle) return;
-    const enabled = connectionsState.openai.enabled !== false;
-    toggle.classList.toggle('bg-black', enabled);
-    toggle.classList.toggle('bg-gray-200', !enabled);
-    const knob = toggle.querySelector('span');
-    if (knob) {
-      knob.classList.toggle('translate-x-4', enabled);
-      knob.classList.toggle('translate-x-0', !enabled);
-    }
-    const status = container.querySelector('#openai-status');
-    if (status) status.textContent = enabled ? 'On' : 'Off';
-    const manageSection = container.querySelector('#manage-connections-section');
-    if (manageSection) manageSection.classList.toggle('hidden', !enabled);
-  };
-
   const updateButtons = () => {
     const dirty = hasChanges();
     const dirtyBadge = container.querySelector('#connections-dirty');
@@ -210,15 +193,12 @@ export function renderConnectionsSettings(container, data) {
               <div class="py-2.5 flex items-center justify-between pr-2">
                 <div class="flex flex-col">
                   <div class="text-xs font-medium text-gray-900">LLM Providers</div>
-                  <div id="openai-status" class="text-[10px] text-gray-400">${connectionsState.openai.enabled ? 'On' : 'Off'}</div>
+                  <div class="text-[10px] text-gray-400">Manage each provider directly below.</div>
                 </div>
-                <button id="openai-toggle" class="relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${connectionsState.openai.enabled ? 'bg-black' : 'bg-gray-200'}">
-                  <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${connectionsState.openai.enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
-                </button>
               </div>
             </section>
 
-            <section id="manage-connections-section" class="space-y-1 mt-4 ${connectionsState.openai.enabled ? '' : 'hidden'}">
+            <section id="manage-connections-section" class="space-y-1 mt-4">
               <div class="flex items-center justify-between px-0.5">
                 <div class="text-base font-medium text-gray-900">Manage Providers</div>
                 <button id="add-connection" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
@@ -783,12 +763,6 @@ export function renderConnectionsSettings(container, data) {
   };
 
   const bindEvents = () => {
-    container.querySelector('#openai-toggle')?.addEventListener('click', () => {
-      connectionsState.openai.enabled = !connectionsState.openai.enabled;
-      updateOpenAIToggle();
-      updateButtons();
-    });
-
     container.querySelector('#add-connection')?.addEventListener('click', () => {
       openModal(null);
     });

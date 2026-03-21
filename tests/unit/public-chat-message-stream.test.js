@@ -11,6 +11,96 @@ describe('chat message stream helper', () => {
     expect(onFinished).toHaveBeenCalledTimes(1);
   });
 
+  it('remaps temp ids when sending the first message', async () => {
+    const state = {
+      activeChatId: 'chat-1',
+      activeModelId: 'model-1',
+      chats: [{ id: 'chat-1', title: 'Chat 1' }],
+      messagesByChat: { 'chat-1': [] },
+      attachmentsByChat: {},
+      ui: {},
+    };
+    const setState = vi.fn((updater) => {
+      const next = typeof updater === 'function' ? updater(state) : updater;
+      Object.assign(state, next);
+    });
+    const replaceTempMessageId = vi.fn();
+    const currentLeafByChatId = new Map();
+    const branchSelectionByChat = new Map();
+    const streamingOverrideByChat = new Map();
+    const consumeSseTextStream = vi.fn(async (_, { onEvent, onDelta }) => {
+      onEvent({ event: 'start', user_message_id: 'u-real', message_id: 'a-real' });
+      onDelta('Hello');
+    });
+    const apiFetch = vi.fn(async (url) => {
+      if (String(url).includes('/messages')) {
+        return { ok: true, body: {} };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const helper = createChatMessageStream({
+      state,
+      setState,
+      apiFetch,
+      drawMessages: vi.fn(),
+      buildTempChat: vi.fn(),
+      pruneTempChats: (list) => list,
+      currentLeafByChatId,
+      registerPendingTempMessage: vi.fn(),
+      setBranchSelection: vi.fn(),
+      streamingOverrideByChat,
+      setGlobalStreamAbort: vi.fn(),
+      clearGlobalStreamAbort: vi.fn(),
+      setStreamingState: vi.fn(),
+      getActiveStreamAbort: vi.fn(() => null),
+      setActiveStreamAbort: vi.fn(),
+      consumeSseTextStream,
+      appendBlock: vi.fn(),
+      ensureThinkingBlock: vi.fn(),
+      updateToolCallState: vi.fn(),
+      notePayloadSeq: vi.fn(),
+      buildFallbackAssistantMessage: vi.fn(),
+      formatApiErrorMessage: vi.fn((_, fallback) => fallback),
+      updateMessageContentDom: vi.fn(),
+      applyAssistantErrorMessage: vi.fn(),
+      getMessageById: vi.fn(() => null),
+      loadMessages: vi.fn().mockResolvedValue(undefined),
+      getMessageSeq: vi.fn(() => 0),
+      thinkingStartByMessageId: new Map(),
+      thinkingDurationByMessageId: new Map(),
+      thinkingActiveByMessageId: new Map(),
+      messageBlocksById: new Map(),
+      toolCallsByMessageId: new Map(),
+      streamSession: {
+        getResumeStream: vi.fn(),
+        setResumeStream: vi.fn(),
+        clearResumeStream: vi.fn(),
+        startStreamPolling: vi.fn(),
+        stopStreamPolling: vi.fn(),
+        stopResumeStream: vi.fn(),
+      },
+      replaceTempMessageId,
+      resolveTempMessageId: vi.fn((_, id) => id),
+    });
+
+    await helper.sendMessage('hello world');
+
+    expect(replaceTempMessageId).toHaveBeenNthCalledWith(
+      1,
+      'chat-1',
+      expect.stringMatching(/^temp-user-/),
+      'u-real'
+    );
+    expect(replaceTempMessageId).toHaveBeenNthCalledWith(
+      2,
+      'chat-1',
+      expect.stringMatching(/^temp-assistant-/),
+      'a-real'
+    );
+    expect(currentLeafByChatId.get('chat-1')).toBe('a-real');
+  });
+
   it('resumes a stream and updates message state from SSE events', async () => {
     const messageBlocksById = new Map();
     const toolCallsByMessageId = new Map();

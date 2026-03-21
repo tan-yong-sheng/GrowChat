@@ -184,6 +184,60 @@ describe('chatRouter', () => {
     expect(mocks.db.run).toHaveBeenCalled();
   });
 
+  it('toggles chat pinned state', async () => {
+    mocks.db.first
+      .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', pinned: 0, title: 'Chat 1' })
+      .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', pinned: 1, title: 'Chat 1' });
+
+    const res = await chatRouter(
+      makeReq('/api/chats/c1/pin', 'POST'),
+      { DB: {} },
+      {},
+      user,
+      '/api/chats/c1/pin'
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.chat.pinned).toBe(1);
+    expect(mocks.db.run).toHaveBeenCalledWith(
+      'UPDATE chats SET pinned = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+      [1, 'c1', 'u1']
+    );
+  });
+
+  it('creates a share link for a chat', async () => {
+    mocks.db.first
+      .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', title: 'Chat 1', share_id: null })
+      .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', title: 'Chat 1', share_id: 'share-1' });
+
+    const randomUUIDSpy = vi.spyOn(crypto, 'randomUUID').mockReturnValue('share-1');
+
+    try {
+      const res = await chatRouter(
+        makeReq('/api/chats/c1/share', 'POST'),
+        { DB: {} },
+        {},
+        user,
+        '/api/chats/c1/share'
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({
+        share_id: 'share-1',
+        share_url: '/s/share-1',
+        chat_id: 'c1',
+      });
+      expect(mocks.db.run).toHaveBeenCalledWith(
+        'UPDATE chats SET share_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+        ['share-1', 'c1', 'u1']
+      );
+    } finally {
+      randomUUIDSpy.mockRestore();
+    }
+  });
+
   it('returns 400 when posting empty message', async () => {
     mocks.db.first.mockResolvedValueOnce({ id: 'c1', user_id: 'u1', model: 'gpt-4' });
 

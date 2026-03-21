@@ -459,12 +459,12 @@ export function createChatMessageStream({
       onEvent: (payload) => {
         if (payload?.event === 'start' && payload?.user_message_id) {
           const nextId = String(payload.user_message_id);
-          replaceTempMessageId(chatId, messageId, nextId);
+          replaceTempMessageId(chatId, tempUserId, nextId);
           currentLeafByChatId.set(chatId, nextId);
         }
         if (payload?.event === 'start' && payload?.message_id) {
           assistantMessageId = String(payload.message_id);
-          replaceTempMessageId(chatId, messageId, assistantMessageId);
+          replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
           currentLeafByChatId.set(chatId, assistantMessageId);
           if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
             thinkingActiveByMessageId.set(String(assistantMessageId), true);

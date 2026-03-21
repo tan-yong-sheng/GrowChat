@@ -5,11 +5,12 @@ export function buildChatRows(list, activeId, models, getChatHandlers) {
   list.forEach((chat) => {
     const handlers = getChatHandlers(chat);
     const model = (models || []).find((m) => m.id === chat.model);
-    const chatWithModelName = { ...chat, modelName: model?.name || chat.model || 'Default' };
+    const chatWithModelName = {
+      ...chat,
+      modelName: model?.name || chat.model || 'Default',
+      isActive: chat.id === activeId,
+    };
     const row = createChatRow(chatWithModelName, handlers);
-    if (chat.id === activeId) {
-      row.classList.add('active');
-    }
     fragment.appendChild(row);
   });
   return fragment;
