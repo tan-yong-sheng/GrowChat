@@ -788,7 +788,9 @@ function wireChat(root) {
     messagesList.classList.remove('hidden');
 
     const editingMessages = state.ui.editingMessages || {};
+    const pendingDeleteMessageKeys = state.ui.pendingDeleteMessageKeys || {};
     const firstUserMsg = projectedMessages.find((m) => m.role === 'user');
+    const isDeletePending = (messageId) => Boolean(pendingDeleteMessageKeys[`${chatId}:${String(messageId)}`]);
 
     const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 40;
     const streamingOverride = chatId ? streamingOverrideByChat.get(chatId) : null;
@@ -823,6 +825,7 @@ function wireChat(root) {
         ((rounds?.total || 0) > 1)
       );
       const showDeleteAssistant = m.role === 'assistant' && ((rounds?.total || 0) > 1);
+      const deletePending = isDeletePending(msgId);
 
       if (isEditing) {
         if (m.role === 'user') {
@@ -875,7 +878,7 @@ function wireChat(root) {
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                 </button>
                 ${showDelete ? `
-                <button data-delete-message="${msgId}" data-index="${i}" class="p-1 hover:text-red-600 hover:bg-red-50 rounded transition text-gray-400" title="Delete">
+                <button data-delete-message="${msgId}" data-index="${i}" class="p-1 hover:text-red-600 hover:bg-red-50 rounded transition text-gray-400 ${deletePending ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}" title="Delete" ${deletePending ? 'disabled aria-disabled="true"' : ''}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                 </button>
                 ` : ''}
@@ -932,7 +935,7 @@ function wireChat(root) {
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
                   </button>
                   ${showDeleteAssistant ? `
-                  <button data-delete-message="${msgId}" data-index="${i}" class="p-1.5 hover:text-red-600 hover:bg-red-50 rounded-md transition" title="Delete">
+                  <button data-delete-message="${msgId}" data-index="${i}" class="p-1.5 hover:text-red-600 hover:bg-red-50 rounded-md transition ${deletePending ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}" title="Delete" ${deletePending ? 'disabled aria-disabled="true"' : ''}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                   </button>
                   ` : ''}

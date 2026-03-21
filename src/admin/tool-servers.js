@@ -103,6 +103,41 @@ export async function sha256Base64Url(input) {
   return base64UrlEncode(new Uint8Array(digest));
 }
 
+function normalizeTool(tool = {}) {
+  return {
+    name: String(tool.name || '').trim(),
+    title: String(tool.title || '').trim(),
+    description: String(tool.description || '').trim(),
+    parameters:
+      tool.parameters && typeof tool.parameters === 'object' && !Array.isArray(tool.parameters)
+        ? tool.parameters
+        : undefined,
+    enabled: tool.enabled !== false,
+  };
+}
+
+export function mergeToolSpecs(existingTools, incomingTools) {
+  const previous = new Map(
+    (Array.isArray(existingTools) ? existingTools : [])
+      .map((tool) => normalizeTool(tool))
+      .filter((tool) => tool.name)
+      .map((tool) => [tool.name, tool])
+  );
+
+  const source = Array.isArray(incomingTools) ? incomingTools : (Array.isArray(existingTools) ? existingTools : []);
+  return source
+    .map((tool) => {
+      const normalized = normalizeTool(tool);
+      if (!normalized.name) return null;
+      const prior = previous.get(normalized.name);
+      return {
+        ...normalized,
+        enabled: prior ? prior.enabled !== false : normalized.enabled !== false,
+      };
+    })
+    .filter(Boolean);
+}
+
 export async function loadToolServers(db) {
   const raw = await getConfigValue(db, 'tool_servers', '[]');
   try {
@@ -153,6 +188,7 @@ export function mergeToolServer(existing, incoming) {
           tool?.parameters && typeof tool.parameters === 'object'
             ? tool.parameters
             : (tool?.inputSchema && typeof tool.inputSchema === 'object' ? tool.inputSchema : undefined),
+        enabled: tool?.enabled !== false,
       }))
       .filter((tool) => tool.name);
   };
@@ -175,7 +211,9 @@ export function mergeToolServer(existing, incoming) {
     oauth_authorization_server: String(incoming.oauth_authorization_server || existing?.oauth_authorization_server || '').trim(),
     oauth_token_endpoint: String(incoming.oauth_token_endpoint || existing?.oauth_token_endpoint || '').trim(),
     oauth_registration_endpoint: String(incoming.oauth_registration_endpoint || existing?.oauth_registration_endpoint || '').trim(),
-    tools: normalizeTools(incoming.tools),
+    tools: incoming.tools === undefined
+      ? mergeToolSpecs(existing?.tools, existing?.tools)
+      : normalizeTools(incoming.tools),
     tools_error: incoming.tools_error || existing?.tools_error || '',
     tools_verified_at: incoming.tools_verified_at || existing?.tools_verified_at || null,
   };

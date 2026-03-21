@@ -45,6 +45,8 @@ describe('admin connections modal', () => {
 
     renderConnectionsSettings(container, data);
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections'));
+    await vi.waitFor(() => expect(data.connectionsSettings.originalSnapshot).not.toBeNull());
+    await vi.waitFor(() => expect(container.querySelector('#save-connections')?.disabled).toBe(true));
 
     container.querySelector('#add-connection')?.click();
     container.querySelector('#modal-conn-name').value = 'OpenAI';
@@ -55,6 +57,7 @@ describe('admin connections modal', () => {
 
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
     expect(data.connectionsSettings.openai.connections).toHaveLength(1);
+    expect(container.querySelector('#save-connections')?.disabled).toBe(false);
     expect(data.connectionsSettings.openai.connections[0]).toMatchObject({
       name: 'OpenAI',
       url: 'https://api.openai.com/v1',
@@ -63,6 +66,7 @@ describe('admin connections modal', () => {
       providerType: 'openai',
       enabled: true,
     });
+    expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/openai/connections' && init?.method === 'PUT')).toBe(false);
   });
 
   it('does not render a master provider toggle and keeps providers visible', async () => {
@@ -82,6 +86,8 @@ describe('admin connections modal', () => {
 
     renderConnectionsSettings(container, data);
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections'));
+    await vi.waitFor(() => expect(data.connectionsSettings.originalSnapshot).not.toBeNull());
+    await vi.waitFor(() => expect(container.querySelector('#save-connections')?.disabled).toBe(true));
 
     expect(container.querySelector('#openai-toggle')).toBeNull();
     expect(container.querySelector('#manage-connections-section')).not.toBeNull();

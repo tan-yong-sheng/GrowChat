@@ -60,7 +60,8 @@ export const state = {
     streaming: false,
     streamingChatId: null,
     loadingChatId: null,
-    editingMessages: {} // { messageId: content }
+    editingMessages: {}, // { messageId: content }
+    pendingDeleteMessageKeys: {}, // { `${chatId}:${messageId}`: true }
   }
 };
 

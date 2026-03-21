@@ -43,6 +43,30 @@ describe('model selector', () => {
     destroy();
   });
 
+  it('falls back to the first alphabetical model when no active model is set', async () => {
+    const { store, renderModelSelector } = await loadModules();
+    const container = document.getElementById('root');
+
+    store.setState({
+      models: [
+        { id: 'm2', name: 'Zulu' },
+        { id: 'm1', name: 'Alpha' },
+      ],
+      activeModelId: null,
+      defaultModelId: null,
+      globalDefaultModelId: null,
+    });
+
+    const destroy = renderModelSelector(container);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(store.state.activeModelId).toBe('m1');
+    expect(container.textContent).toContain('Alpha');
+    expect(container.textContent).not.toContain('Unknown model');
+
+    destroy();
+  });
+
   it('updates the active model when a model is selected', async () => {
     const { store, renderModelSelector } = await loadModules();
     const container = document.getElementById('root');
@@ -60,6 +84,42 @@ describe('model selector', () => {
     container.querySelector('button[data-model-id="m2"]').click();
 
     expect(store.state.activeModelId).toBe('m2');
+
+    destroy();
+  });
+
+  it('shows unset default when the current model is already the default', async () => {
+    const { store, renderModelSelector } = await loadModules();
+    const container = document.getElementById('root');
+    const { apiFetch } = await import('../../public/js/api.js');
+    apiFetch.mockResolvedValue(new Response('{}', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    store.setState({
+      user: { preferences: { defaultModelId: 'm2' } },
+      models: [
+        { id: 'm1', name: 'GPT Mini' },
+        { id: 'm2', name: 'Claude' },
+      ],
+      activeModelId: 'm2',
+      defaultModelId: 'm2',
+    });
+
+    const destroy = renderModelSelector(container);
+
+    expect(container.querySelector('#header-set-default-btn').textContent).toBe('Unset default');
+
+    container.querySelector('#header-set-default-btn').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({
+      method: 'PUT',
+      body: JSON.stringify({ preferences: {} }),
+    }));
+    expect(store.state.defaultModelId).toBeNull();
+    expect(localStorage.getItem('defaultModelId')).toBeNull();
 
     destroy();
   });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bindChatMessageActions } from '../../public/js/chat-message-actions.js';
 
 function makeBaseContext(overrides = {}) {
@@ -60,6 +60,23 @@ function makeBaseContext(overrides = {}) {
   };
 }
 
+function createMutableSetState(state) {
+  return vi.fn((updater) => {
+    const changes = typeof updater === 'function' ? updater(state) : updater;
+    for (const [key, value] of Object.entries(changes || {})) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        state[key] = { ...(state[key] || {}), ...value };
+      } else {
+        state[key] = value;
+      }
+    }
+  });
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('chat message action binder', () => {
   it('binds edit actions and opens citations', async () => {
     const ctx = makeBaseContext();
@@ -76,5 +93,72 @@ describe('chat message action binder', () => {
     expect(ctx.setState).toHaveBeenCalled();
     expect(ctx.drawMessages).toHaveBeenCalled();
     expect(ctx.openCitation).toHaveBeenCalledWith('cite-1');
+  });
+
+  it('locks delete while the first request is in flight', async () => {
+    let resolveDelete;
+    const deletePromise = new Promise((resolve) => {
+      resolveDelete = resolve;
+    });
+    const state = {
+      ui: { editingMessages: {}, pendingDeleteMessageKeys: {} },
+      activeChatId: 'chat-1',
+      activeModelId: 'model-1',
+      messagesByChat: {
+        'chat-1': [{ id: 'm1', role: 'user', parent_id: null }],
+      },
+    };
+    const ctx = makeBaseContext({
+      state,
+      setState: createMutableSetState(state),
+      apiFetch: vi.fn(() => deletePromise),
+    });
+    ctx.messagesList.innerHTML = `
+      <button data-delete-message="m1"></button>
+    `;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    bindChatMessageActions(ctx);
+
+    const deleteBtn = ctx.messagesList.querySelector('[data-delete-message="m1"]');
+    deleteBtn?.click();
+    expect(deleteBtn?.disabled).toBe(true);
+    deleteBtn?.click();
+    expect(ctx.apiFetch).toHaveBeenCalledTimes(1);
+
+    resolveDelete({ status: 200, ok: true, json: async () => ({}) });
+    await deletePromise;
+  });
+
+  it('reloads the chat instead of showing the generic backend error when delete returns 404', async () => {
+    const state = {
+      ui: { editingMessages: {}, pendingDeleteMessageKeys: {} },
+      activeChatId: 'chat-1',
+      activeModelId: 'model-1',
+      messagesByChat: {
+        'chat-1': [{ id: 'm1', role: 'user', parent_id: null }],
+      },
+    };
+    const ctx = makeBaseContext({
+      state,
+      setState: createMutableSetState(state),
+      apiFetch: vi.fn(async () => ({ status: 404, ok: false })),
+      loadMessages: vi.fn(async () => {}),
+    });
+    ctx.messagesList.innerHTML = `
+      <button data-delete-message="m1"></button>
+    `;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    bindChatMessageActions(ctx);
+
+    ctx.messagesList.querySelector('[data-delete-message="m1"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(ctx.apiFetch).toHaveBeenCalledTimes(1);
+    expect(ctx.loadMessages).toHaveBeenCalledWith('chat-1');
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 });

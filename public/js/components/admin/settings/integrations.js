@@ -135,13 +135,19 @@ export function renderIntegrationsSettings(container, data) {
       return '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
     }
     return integrationsState.toolServers.map(server => `
+      ${(() => {
+        const serverEnabled = server.enabled !== false;
+        const tools = Array.isArray(server.tools) ? server.tools : [];
+        const enabledCount = tools.filter((tool) => tool.enabled !== false).length;
+        const totalCount = tools.length;
+        return `
       <div class="border-b border-gray-50 last:border-0">
         <div class="py-2.5 flex items-center justify-between pr-2">
           <div class="flex flex-col">
             <div class="text-xs font-medium text-gray-900">${server.name}</div>
             <div class="text-[10px] text-gray-400 font-mono">${server.url}</div>
             <div class="text-[10px] text-gray-400 mt-1">
-              Tools: <span class="text-gray-900">${Array.isArray(server.tools) ? server.tools.length : 0}</span>
+              Tools: <span class="text-gray-900">${enabledCount}</span> / <span class="text-gray-900">${totalCount}</span> enabled
               ${server.toolsError ? '<span class="text-red-500 ml-2">Last verify failed</span>' : ''}
             </div>
           </div>
@@ -157,16 +163,16 @@ export function renderIntegrationsSettings(container, data) {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
               </svg>
             </button>
-            <button data-id="${server.id}" class="server-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${server.enabled ? 'bg-black' : 'bg-gray-200'}">
-              <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${server.enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
+            <button data-id="${server.id}" class="server-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-black' : 'bg-gray-200'}">
+              <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${serverEnabled ? 'translate-x-4' : 'translate-x-0'}"></span>
             </button>
           </div>
         </div>
         <div class="px-2 pb-3 ${server.toolsExpanded ? '' : 'hidden'}">
           ${server.toolsError ? `<div class="text-[11px] text-red-500 mb-2">${server.toolsError}</div>` : ''}
           <div class="space-y-2">
-            ${(Array.isArray(server.tools) && server.tools.length)
-        ? server.tools.map((tool) => {
+            ${(tools.length)
+        ? tools.map((tool) => {
           const description = String(tool.description || '');
           const maxLen = 160;
           const isExpanded = Boolean(tool._expanded);
@@ -174,10 +180,26 @@ export function renderIntegrationsSettings(container, data) {
           const preview = hasMore && !isExpanded
             ? `${description.slice(0, maxLen).trimEnd()}…`
             : description;
+          const toolEnabled = tool.enabled !== false;
           return `
-                <div class="rounded-xl border border-gray-100 px-3 py-2">
-                  <div class="text-xs font-medium text-gray-900">${tool.title || tool.name || 'Tool'}</div>
-                  <div class="text-[10px] text-gray-400 font-mono">${tool.name || ''}</div>
+                <div class="rounded-xl border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <div class="text-xs font-medium text-gray-900">${tool.title || tool.name || 'Tool'}</div>
+                      <div class="text-[10px] text-gray-400 font-mono">${tool.name || ''}</div>
+                    </div>
+                    <button
+                      data-server-id="${server.id}"
+                      data-tool-name="${tool.name || ''}"
+                      class="tool-toggle relative inline-flex h-5 w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolEnabled ? 'bg-black' : 'bg-gray-200'} ${serverEnabled ? '' : 'opacity-40 cursor-not-allowed'}"
+                      ${serverEnabled ? '' : 'disabled'}
+                      aria-pressed="${toolEnabled ? 'true' : 'false'}"
+                      aria-disabled="${serverEnabled ? 'false' : 'true'}"
+                      title="${serverEnabled ? (toolEnabled ? 'Disable tool' : 'Enable tool') : 'Enable the server to edit tools'}"
+                    >
+                      <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toolEnabled ? 'translate-x-4' : 'translate-x-0'}"></span>
+                    </button>
+                  </div>
                   ${description ? `
                     <div class="text-[11px] text-gray-500 mt-1">${preview}</div>
                     ${hasMore ? `<button data-server-id="${server.id}" data-tool-name="${tool.name}" class="tool-desc-toggle text-[10px] text-gray-400 hover:text-gray-600 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
@@ -189,6 +211,8 @@ export function renderIntegrationsSettings(container, data) {
           </div>
         </div>
       </div>
+    `;
+      })()}
     `).join('');
   };
 
@@ -466,13 +490,28 @@ export function renderIntegrationsSettings(container, data) {
 
     const list = container.querySelector('#tool-servers-list');
     list?.addEventListener('click', (e) => {
+      const toolToggle = e.target.closest('.tool-toggle');
+      if (toolToggle) {
+        const id = toolToggle.dataset.serverId;
+        const toolName = toolToggle.dataset.toolName;
+        const server = integrationsState.toolServers.find((entry) => entry.id === id);
+        if (server && server.enabled !== false && Array.isArray(server.tools)) {
+          const tool = server.tools.find((entry) => entry.name === toolName);
+          if (tool) {
+            tool.enabled = tool.enabled === false;
+            renderToolServersList();
+            updateButtons();
+          }
+        }
+        return;
+      }
       const toggle = e.target.closest('.server-toggle');
       if (toggle) {
         const id = toggle.dataset.id;
         const server = integrationsState.toolServers.find(s => s.id === id);
         if (server) {
           server.enabled = !server.enabled;
-          updateServerToggle(toggle, server.enabled);
+          renderToolServersList();
           updateButtons();
         }
         return;
@@ -559,7 +598,6 @@ export function renderIntegrationsSettings(container, data) {
         setTestStatus('error', err.message || 'Connection failed');
         const server = integrationsState.toolServers.find(s => s.id === serverId);
         if (server) {
-          server.tools = [];
           server.toolsError = err.message || 'Connection failed';
           server.toolsExpanded = false;
         }
@@ -646,7 +684,6 @@ export function renderIntegrationsSettings(container, data) {
       if (!url.trim()) return;
 
       try {
-        await persistServers({ showFeedback: false });
         const verifyResult = await runVerify({
           serverId,
           url,
@@ -666,7 +703,6 @@ export function renderIntegrationsSettings(container, data) {
       } catch (err) {
         const server = integrationsState.toolServers.find(s => s.id === serverId);
         if (server) {
-          server.tools = [];
           server.toolsError = err.message || 'Connection failed';
           server.toolsExpanded = false;
         }

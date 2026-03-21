@@ -18,6 +18,7 @@ import {
   isValidHttpUrl,
   loadToolServers,
   mergeToolServer,
+  mergeToolSpecs,
   normalizeAuthType,
   normalizeAttachmentCaps,
   normalizeBaseUrl,
@@ -500,14 +501,16 @@ export async function adminRouter(req, env, ctx, user, path) {
           };
         })
         .filter((tool) => tool.name);
+      let mergedTools = toolSummaries;
 
       if (body.id) {
         const servers = await loadToolServers(db);
         const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
         if (index !== -1) {
+          mergedTools = mergeToolSpecs(servers[index].tools, toolSummaries);
           servers[index] = {
             ...servers[index],
-            tools: toolSummaries,
+            tools: mergedTools,
             tools_error: '',
             tools_verified_at: new Date().toISOString(),
           };
@@ -518,7 +521,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       return json(req, {
         ok: true,
         message: 'Connection successful',
-        tools: toolSummaries,
+        tools: mergedTools,
       });
     } catch (err) {
       if (body?.id) {
@@ -528,7 +531,6 @@ export async function adminRouter(req, env, ctx, user, path) {
           if (index !== -1) {
             servers[index] = {
               ...servers[index],
-              tools: [],
               tools_error: err?.message || 'Connection failed',
               tools_verified_at: new Date().toISOString(),
             };

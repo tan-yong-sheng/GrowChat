@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   getModelDisplayLabel,
   getModelSelectorDerivedState,
+  getPreferredModelId,
   persistDefaultModelSelection,
   renderModelSelectorOption,
 } from '../../public/js/components/model-selector-helpers.js';
@@ -29,6 +30,16 @@ describe('model selector helpers', () => {
     expect(derived.allFilteredModels).toEqual([models[1]]);
     expect(derived.visibleModels).toEqual([models[1]]);
     expect(derived.visibleCount).toBe(1);
+  });
+
+  it('falls back to the first alphabetically sorted model when no preferred id matches', () => {
+    const models = [
+      { id: 'm2', name: 'Zulu' },
+      { id: 'm1', name: 'Alpha' },
+    ];
+
+    expect(getPreferredModelId(models, [null, 'missing'])).toBe('m1');
+    expect(getPreferredModelId([], ['m1'])).toBeNull();
   });
 
   it('renders the selected model option markup', () => {
@@ -64,6 +75,35 @@ describe('model selector helpers', () => {
     expect(apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({
       method: 'PUT',
       body: JSON.stringify({ preferences: { theme: 'light', defaultModelId: 'm2' } }),
+    }));
+  });
+
+  it('clears the persisted default model when unsetting', async () => {
+    const storage = new Map([['defaultModelId', 'm2']]);
+    globalThis.localStorage = {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => { storage.set(key, String(value)); },
+      removeItem: (key) => { storage.delete(key); },
+      clear: () => storage.clear(),
+    };
+    const apiFetch = vi.fn().mockResolvedValue(new Response('{}', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    const onSuccess = vi.fn();
+    const result = await persistDefaultModelSelection({
+      apiFetch,
+      modelId: null,
+      currentPreferences: { theme: 'light', defaultModelId: 'm2' },
+      onSuccess,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(onSuccess).toHaveBeenCalledWith('Default model cleared');
+    expect(globalThis.localStorage.getItem('defaultModelId')).toBeNull();
+    expect(apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({
+      method: 'PUT',
+      body: JSON.stringify({ preferences: { theme: 'light' } }),
     }));
   });
 });

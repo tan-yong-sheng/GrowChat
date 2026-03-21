@@ -167,6 +167,36 @@ describe('public app bootstrap', () => {
     expect(document.getElementById('app').dataset.view).toBe('chat');
   });
 
+  it('chooses the first alphabetical cached model when no default is configured', async () => {
+    window.history.pushState({}, '', '/');
+    mocks.getAuthState.mockReturnValue({ access_token: 'token' });
+    mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'u1', role: 'user', preferences: {} },
+        permissions: ['chat.read'],
+        roles: [{ role_name: 'user' }],
+        app_config: { default_model_id: null },
+      }),
+    });
+    mocks.readChatsCache.mockReturnValue(null);
+    mocks.readModelsCache.mockReturnValue({
+      models: [
+        { id: 'm2', name: 'Zulu' },
+        { id: 'm1', name: 'Alpha' },
+      ],
+    });
+    mocks.consumeModelsInvalidation.mockReturnValue(null);
+    mocks.fetchChats.mockResolvedValue({ chats: [], limit: 30, offset: 0, has_more: false });
+
+    await loadApp();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const { state } = await import('../../public/js/store.js');
+    expect(state.activeModelId).toBe('m1');
+  });
+
   it('refreshes and retries profile bootstrap when the first me request returns 401', async () => {
     window.history.pushState({}, '', '/');
     mocks.getAuthState.mockReturnValue({ access_token: 'stale-access', refresh_token: 'refresh-token' });

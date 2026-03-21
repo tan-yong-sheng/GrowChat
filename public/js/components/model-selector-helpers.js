@@ -1,7 +1,23 @@
 import { filterModelsBySearch, normalizeModelSearchQuery } from '../utils/model-search.js';
+import { sortModelsByActiveThenName } from '../utils/model-state.js';
 
 export function getModelDisplayLabel(model) {
   return String(model?.name || model?.id || '').trim();
+}
+
+export function getPreferredModelId(models = [], preferredIds = []) {
+  const sortedModels = sortModelsByActiveThenName(models);
+  if (!sortedModels.length) return null;
+
+  const modelIdSet = new Set(sortedModels.map((model) => String(model?.id || '').trim()).filter(Boolean));
+  for (const preferredId of Array.isArray(preferredIds) ? preferredIds : []) {
+    const candidateId = String(preferredId || '').trim();
+    if (candidateId && modelIdSet.has(candidateId)) {
+      return candidateId;
+    }
+  }
+
+  return sortedModels[0]?.id || null;
 }
 
 export function getModelSelectorDerivedState({
@@ -54,33 +70,40 @@ function getStorage() {
 
 export async function persistDefaultModelSelection({
   apiFetch,
-  modelId,
+  modelId = null,
   currentPreferences = {},
   onSuccess = null,
   onFallback = null,
 }) {
-  if (!modelId || typeof apiFetch !== 'function') {
+  if (typeof apiFetch !== 'function') {
     return { ok: false, reason: 'invalid-input' };
   }
 
-  const nextPreferences = { ...currentPreferences, defaultModelId: modelId };
+  const nextPreferences = { ...currentPreferences };
+  if (modelId) nextPreferences.defaultModelId = modelId;
+  else delete nextPreferences.defaultModelId;
   const storage = getStorage();
+  const successMessage = modelId ? 'Default model set' : 'Default model cleared';
+  const fallbackMessage = modelId ? 'Default model set for this session' : 'Default model cleared for this session';
   try {
     const res = await apiFetch('/api/users/me', {
       method: 'PUT',
       body: JSON.stringify({ preferences: nextPreferences }),
     });
     if (res.ok) {
-      storage?.setItem('defaultModelId', modelId);
-      onSuccess?.('Default model set');
+      if (modelId) storage?.setItem('defaultModelId', modelId);
+      else storage?.removeItem('defaultModelId');
+      onSuccess?.(successMessage);
       return { ok: true, persisted: true };
     }
-    storage?.setItem('defaultModelId', modelId);
-    onFallback?.('Default model set for this session');
+    if (modelId) storage?.setItem('defaultModelId', modelId);
+    else storage?.removeItem('defaultModelId');
+    onFallback?.(fallbackMessage);
     return { ok: true, persisted: false };
   } catch {
-    storage?.setItem('defaultModelId', modelId);
-    onFallback?.('Default model set for this session');
+    if (modelId) storage?.setItem('defaultModelId', modelId);
+    else storage?.removeItem('defaultModelId');
+    onFallback?.(fallbackMessage);
     return { ok: true, persisted: false };
   }
 }

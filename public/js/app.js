@@ -3,6 +3,7 @@ import { state, setState } from './store.js';
 import { initShortcuts } from './shortcuts.js';
 import { startRealtimeSync, stopRealtimeSync } from './realtime.js';
 import { consumeModelsInvalidation } from './utils/model-sync.js';
+import { getPreferredModelId } from './utils/model-state.js';
 import {
   getChatIdFromPath,
   injectTempChat,
@@ -86,7 +87,12 @@ function prefetchModels({ allowCache = true, cacheBust = null, force = false } =
   if (modelsPrefetchPromise && !force && !cacheBust && allowCache) return modelsPrefetchPromise;
   const cached = allowCache ? readModelsCache() : null;
   if (cached?.models?.length) {
-    setState({ models: cached.models, modelsLoading: false });
+    const nextActiveModelId = getPreferredModelId(cached.models, [
+      state.activeModelId,
+      state.defaultModelId,
+      state.globalDefaultModelId,
+    ]);
+    setState({ models: cached.models, modelsLoading: false, activeModelId: nextActiveModelId });
     return Promise.resolve(cached);
   }
 
@@ -99,7 +105,12 @@ function prefetchModels({ allowCache = true, cacheBust = null, force = false } =
     .then((data) => {
       if (requestGeneration !== modelsCacheGeneration) return data;
       const models = Array.isArray(data?.models) ? data.models : [];
-      setState({ models, modelsLoading: false });
+      const nextActiveModelId = getPreferredModelId(models, [
+        state.activeModelId,
+        state.defaultModelId,
+        state.globalDefaultModelId,
+      ]);
+      setState({ models, modelsLoading: false, activeModelId: nextActiveModelId });
       return data;
     })
     .catch((err) => {
@@ -252,13 +263,12 @@ async function ensureSession() {
   const cachedDefaultModelId = localStorage.getItem('defaultModelId');
   const serverDefaultModelId = user.preferences?.defaultModelId || null;
   const globalDefaultModelId = meData?.app_config?.default_model_id || null;
-  const fallbackChatModelId = cachedChats?.chats?.[0]?.model || null;
-  const initialModelId = modelParam ||
-    serverDefaultModelId ||
-    globalDefaultModelId ||
-    cachedDefaultModelId ||
-    fallbackChatModelId ||
-    null;
+  const initialModelId = getPreferredModelId(cachedModels?.models || [], [
+    modelParam,
+    serverDefaultModelId,
+    globalDefaultModelId,
+    cachedDefaultModelId,
+  ]);
 
   if (cachedChats?.chats?.length) {
     const cachedActiveChatId = resolveActiveChatId(routeChatId, cachedChats.chats, isHomeRoute);

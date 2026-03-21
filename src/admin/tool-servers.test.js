@@ -16,6 +16,7 @@ import {
   isValidHttpUrl,
   loadToolServers,
   mergeToolServer,
+  mergeToolSpecs,
   normalizeAttachmentCaps,
   normalizeAuthType,
   normalizeBaseUrl,
@@ -74,9 +75,47 @@ describe('admin tool server helpers', () => {
     );
 
     expect(merged.oauth_tokens.access_token).toBe('secret');
-    expect(merged.tools).toEqual([{ name: 'fresh', title: 'Fresh', description: '', parameters: undefined }]);
+    expect(merged.tools).toEqual([{ name: 'fresh', title: 'Fresh', description: '', parameters: undefined, enabled: true }]);
     expect(redactToolServer(merged)).not.toHaveProperty('oauth_tokens');
     expect(redactToolServer(merged).oauth_connected).toBe(true);
+  });
+
+  it('preserves existing tool enabled flags when merging discovered tools', () => {
+    expect(mergeToolSpecs(
+      [
+        { name: 'tool-a', enabled: false },
+        { name: 'tool-b', enabled: true },
+      ],
+      [
+        { name: 'tool-a', title: 'Tool A' },
+        { name: 'tool-c', title: 'Tool C' },
+      ]
+    )).toEqual([
+      { name: 'tool-a', title: 'Tool A', description: '', parameters: undefined, enabled: false },
+      { name: 'tool-c', title: 'Tool C', description: '', parameters: undefined, enabled: true },
+    ]);
+  });
+
+  it('preserves incoming enabled flags when merging saved tool servers', () => {
+    const merged = mergeToolServer(
+      {
+        id: 's1',
+        tools: [{ name: 'tool-a', enabled: true }],
+      },
+      {
+        id: 's1',
+        url: 'https://example.com',
+        tools: [
+          { name: 'tool-a', enabled: false },
+          { name: 'tool-b', enabled: true },
+        ],
+      }
+    );
+
+    expect(merged.tools).toEqual([
+      { name: 'tool-a', title: '', description: '', parameters: undefined, enabled: false },
+      { name: 'tool-b', title: '', description: '', parameters: undefined, enabled: true },
+    ]);
   });
 
   it('builds OAuth authorization URLs and discovers metadata', async () => {

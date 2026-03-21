@@ -173,7 +173,7 @@ export function renderModelsSettings(container, data) {
                   <tr class="border-b border-gray-100">
                     <th scope="col" class="px-4 py-3 w-1/4">Name</th>
                     <th scope="col" class="px-4 py-3 w-1/3">Model ID</th>
-                    <th scope="col" class="px-4 py-3 w-1/3">Attachments</th>
+                    <th scope="col" class="px-4 py-3 w-1/3">Input</th>
                     <th scope="col" class="px-4 py-3 w-1/6 text-right">Status</th>
                   </tr>
                 </thead>
@@ -191,14 +191,14 @@ export function renderModelsSettings(container, data) {
                       <td colspan="3" class="py-10 text-center text-sm text-gray-400">No models found${usingFilter ? ' matching "' + modelsState.query + '"' : ''}.</td>
                     </tr>
                   ` : filteredModels.map(model => {
-                    const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
-                      const value = getAttachmentCapValue(modelsState.attachmentCaps, model.id, key);
-                      const state = value ? 'allowed' : 'unset';
-                      const className = value
-                        ? 'bg-emerald-500 text-white border-emerald-500'
-                        : 'bg-gray-50 text-gray-500 border-gray-200';
-                      const tooltip = getCapTooltip(label, key, state);
-                      return `
+      const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
+        const value = getAttachmentCapValue(modelsState.attachmentCaps, model.id, key);
+        const state = value ? 'allowed' : 'unset';
+        const className = value
+          ? 'bg-emerald-500 text-white border-emerald-500'
+          : 'bg-gray-50 text-gray-500 border-gray-200';
+        const tooltip = getCapTooltip(label, key, state);
+        return `
                         <button
                           type="button"
                           data-cap-model="${model.id}"
@@ -211,8 +211,8 @@ export function renderModelsSettings(container, data) {
                           ${short}
                         </button>
                       `;
-                    }).join('');
-                    return `
+      }).join('');
+      return `
                     <tr class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
                       <td class="px-4 py-4 text-gray-400 font-mono truncate" title="${model.id}">${model.id}</td>
@@ -228,7 +228,7 @@ export function renderModelsSettings(container, data) {
                       </td>
                     </tr>
                   `;
-                  }).join('')}
+    }).join('')}
                 </tbody>
               </table>
             </div>
@@ -380,12 +380,12 @@ export function renderModelsSettings(container, data) {
     if (searchInput) {
       let searchDebounce = null;
       searchInput.oninput = (e) => {
-      const nextValue = e.target.value;
-      if (searchDebounce) clearTimeout(searchDebounce);
-      searchDebounce = setTimeout(() => {
-        modelsState.query = nextValue;
-        modelsState.offset = 0;
-        loadModels(true);
+        const nextValue = e.target.value;
+        if (searchDebounce) clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+          modelsState.query = nextValue;
+          modelsState.offset = 0;
+          loadModels(true);
           const input = container.querySelector('#model-search-input');
           input.focus();
           input.setSelectionRange(input.value.length, input.value.length);
@@ -454,7 +454,7 @@ export function renderModelsSettings(container, data) {
       if (modelsState.query && modelsState.query.trim()) {
         params.set('q', modelsState.query.trim());
       }
-      
+
       const res = await apiFetch(`/api/admin/models?${params.toString()}`);
       if (res.ok) {
         const payload = await res.json();

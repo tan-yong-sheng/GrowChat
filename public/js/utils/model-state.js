@@ -10,6 +10,21 @@ export function countEnabledModels(models = []) {
   return (Array.isArray(models) ? models : []).reduce((count, model) => count + (isModelEnabled(model) ? 1 : 0), 0);
 }
 
+export function getPreferredModelId(models = [], preferredIds = []) {
+  const sortedModels = sortModelsByActiveThenName(models);
+  if (!sortedModels.length) return null;
+
+  const modelIdSet = new Set(sortedModels.map((model) => String(model?.id || '').trim()).filter(Boolean));
+  for (const preferredId of Array.isArray(preferredIds) ? preferredIds : []) {
+    const candidateId = String(preferredId || '').trim();
+    if (candidateId && modelIdSet.has(candidateId)) {
+      return candidateId;
+    }
+  }
+
+  return sortedModels[0]?.id || null;
+}
+
 export function sortModelsByActiveThenName(models = []) {
   return (Array.isArray(models) ? models : []).slice().sort((a, b) => {
     const aEnabled = isModelEnabled(a);

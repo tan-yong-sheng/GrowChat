@@ -447,10 +447,37 @@ export function bindChatMessageActions({
 
   messagesList.querySelectorAll('[data-delete-message]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete this message and all subsequent messages?')) return;
-
       const originalId = btn.getAttribute('data-delete-message');
+      const getDeleteKey = (messageId) => `${chatId}:${String(messageId)}`;
+      const isDeletePending = (messageId) => Boolean((state.ui?.pendingDeleteMessageKeys || {})[getDeleteKey(messageId)]);
+      const setDeletePending = (messageIds, pending) => {
+        const ids = Array.isArray(messageIds) ? messageIds : [messageIds];
+        setState((prev) => {
+          const next = { ...(prev.ui?.pendingDeleteMessageKeys || {}) };
+          ids.forEach((messageId) => {
+            if (!messageId) return;
+            const key = getDeleteKey(messageId);
+            if (pending) next[key] = true;
+            else delete next[key];
+          });
+          return { ui: { ...prev.ui, pendingDeleteMessageKeys: next } };
+        });
+      };
+      const syncDeleteButtonState = (locked) => {
+        btn.disabled = locked;
+        btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
+        btn.classList.toggle('opacity-50', locked);
+        btn.classList.toggle('cursor-not-allowed', locked);
+        btn.classList.toggle('pointer-events-none', locked);
+      };
+
+      if (!confirm('Are you sure you want to delete this message and all subsequent messages?')) return;
+      if (isDeletePending(originalId) || isDeletePending(resolveTempMessageId(chatId, originalId))) return;
+
       let id = originalId;
+      const pendingIds = new Set([String(originalId)]);
+      setDeletePending(originalId, true);
+      syncDeleteButtonState(true);
 
       const prevMessages = state.messagesByChat[chatId] || [];
       const prevLeaf = currentLeafByChatId.get(chatId) || null;
@@ -483,50 +510,54 @@ export function bindChatMessageActions({
         if (state.activeChatId === chatId) drawMessages(prevMessages);
       };
 
-      if (idsToDelete.size > 0) {
-        const streamingTarget = streamingOverrideByChat.get(chatId)?.targetMsgId;
-        const streamingId = streamingTarget ? resolveTempMessageId(chatId, streamingTarget) : null;
-        if (streamingId && idsToDelete.has(String(streamingId))) {
-          const activeAbort = getActiveStreamAbort();
-          activeAbort?.();
-          clearGlobalStreamAbort(activeAbort);
-          setActiveStreamAbort(null);
-          streamingOverrideByChat.delete(chatId);
-        }
-
-        const remaining = prevMessages.filter((msg) => !idsToDelete.has(String(msg.id)));
-        const nextLeaf = remaining.length ? remaining[remaining.length - 1].id : null;
-        if (nextLeaf) currentLeafByChatId.set(chatId, String(nextLeaf));
-        else currentLeafByChatId.delete(chatId);
-
-        if (prevBranchMap) {
-          const nextMap = new Map();
-          for (const [k, v] of prevBranchMap.entries()) {
-            if (idsToDelete.has(String(k)) || idsToDelete.has(String(v))) continue;
-            nextMap.set(k, v);
+      const applyOptimisticDelete = () => {
+        if (idsToDelete.size > 0) {
+          const streamingTarget = streamingOverrideByChat.get(chatId)?.targetMsgId;
+          const streamingId = streamingTarget ? resolveTempMessageId(chatId, streamingTarget) : null;
+          if (streamingId && idsToDelete.has(String(streamingId))) {
+            const activeAbort = getActiveStreamAbort();
+            activeAbort?.();
+            clearGlobalStreamAbort(activeAbort);
+            setActiveStreamAbort(null);
+            streamingOverrideByChat.delete(chatId);
           }
-          branchSelectionByChat.set(chatId, nextMap);
-        }
 
-        setState((prev) => ({
-          messagesByChat: { ...prev.messagesByChat, [chatId]: remaining },
-        }));
-        if (state.activeChatId === chatId) {
-          requestAnimationFrame(() => {
-            drawMessages(remaining);
-          });
+          const remaining = prevMessages.filter((msg) => !idsToDelete.has(String(msg.id)));
+          const nextLeaf = remaining.length ? remaining[remaining.length - 1].id : null;
+          if (nextLeaf) currentLeafByChatId.set(chatId, String(nextLeaf));
+          else currentLeafByChatId.delete(chatId);
+
+          if (prevBranchMap) {
+            const nextMap = new Map();
+            for (const [k, v] of prevBranchMap.entries()) {
+              if (idsToDelete.has(String(k)) || idsToDelete.has(String(v))) continue;
+              nextMap.set(k, v);
+            }
+            branchSelectionByChat.set(chatId, nextMap);
+          }
+
+          setState((prev) => ({
+            messagesByChat: { ...prev.messagesByChat, [chatId]: remaining },
+          }));
+          if (state.activeChatId === chatId) {
+            requestAnimationFrame(() => {
+              drawMessages(remaining);
+            });
+          }
         }
-      }
+      };
+      applyOptimisticDelete();
 
       const runDelete = async (resolvedId) => {
+        pendingIds.add(String(resolvedId));
+        setDeletePending(resolvedId, true);
         try {
           const res = await apiFetch(`/api/chats/${chatId}/messages/${resolvedId}`, {
             method: 'DELETE',
           });
 
           if (res.status === 404) {
-            alert('backend api not found');
-            rollbackDelete();
+            await loadMessages(chatId);
             return;
           }
 
@@ -541,12 +572,17 @@ export function bindChatMessageActions({
           console.error('Delete failed', e);
           alert('An error occurred while deleting the message.');
           rollbackDelete();
+        } finally {
+          setDeletePending([...pendingIds], false);
+          syncDeleteButtonState(false);
         }
       };
 
       if (isTempMessageId(id)) {
         waitForResolvedMessageId(chatId, id).then((resolved) => {
           if (!resolved) {
+            setDeletePending(id, false);
+            syncDeleteButtonState(false);
             showToast('Delete queued while message saves.');
             return;
           }

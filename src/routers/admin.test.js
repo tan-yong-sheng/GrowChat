@@ -65,6 +65,7 @@ function makeReq(path, method) {
 
 describe('adminRouter openai connections', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mocks.createDB.mockReturnValue({});
     mocks.authorize.mockResolvedValue({ allow: true });
     mocks.logAuditEvent.mockResolvedValue(undefined);
@@ -249,5 +250,62 @@ describe('adminRouter openai connections', () => {
       id: 2,
     }));
     expect(mocks.setConfigValue).toHaveBeenCalledWith(expect.anything(), 'tool_servers', expect.stringContaining('tools_verified_at'));
+  });
+
+  it('preserves existing tool enabled flags when verifying a tool server', async () => {
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'tool_servers') {
+        return JSON.stringify([
+          {
+            id: 'server-1',
+            name: 'MCP Server',
+            url: 'https://mcp.example.com',
+            auth_type: 'none',
+            tools: [
+              { name: 'tool-a', enabled: false },
+              { name: 'tool-b', enabled: true },
+            ],
+          },
+        ]);
+      }
+      return fallback;
+    });
+    mocks.mcpRequest
+      .mockResolvedValueOnce({ sessionId: 'session-1' })
+      .mockResolvedValueOnce({ result: { tools: [
+        { name: 'tool-a', title: 'Tool A', description: 'Desc A', inputSchema: { type: 'object' } },
+        { name: 'tool-b', title: 'Tool B', description: 'Desc B', inputSchema: { type: 'object' } },
+      ] } });
+    mocks.mcpNotify.mockResolvedValueOnce({ sessionId: 'session-1' });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/tool-servers/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'server-1',
+          url: 'https://mcp.example.com',
+          auth_type: 'none',
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/tool-servers/test'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.tools).toEqual([
+      { name: 'tool-a', title: 'Tool A', description: 'Desc A', parameters: { type: 'object' }, enabled: false },
+      { name: 'tool-b', title: 'Tool B', description: 'Desc B', parameters: { type: 'object' }, enabled: true },
+    ]);
+    const savedCall = mocks.setConfigValue.mock.calls.find(([, key]) => key === 'tool_servers');
+    expect(savedCall).toBeTruthy();
+    const savedServers = JSON.parse(savedCall[2]);
+    expect(savedServers[0].tools).toEqual([
+      { name: 'tool-a', title: 'Tool A', description: 'Desc A', parameters: { type: 'object' }, enabled: false },
+      { name: 'tool-b', title: 'Tool B', description: 'Desc B', parameters: { type: 'object' }, enabled: true },
+    ]);
   });
 });

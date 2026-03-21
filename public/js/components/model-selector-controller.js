@@ -1,6 +1,6 @@
 import { state, setState, subscribe } from '../store.js';
 import { showToast, showToastProgress } from '../utils.js';
-import { sortModelsByActiveThenName } from '../utils/model-state.js';
+import { getPreferredModelId, sortModelsByActiveThenName } from '../utils/model-state.js';
 import {
   getModelDisplayLabel,
   getModelSelectorDerivedState,
@@ -44,8 +44,11 @@ export function createModelSelectorController(container) {
         const { fetchModels } = await import('../api.js');
         const data = await fetchModels();
         const models = data.models || [];
-        const currentId = state.activeModelId;
-        const nextActiveModelId = currentId || (models[0]?.id || null);
+        const nextActiveModelId = getPreferredModelId(models, [
+          state.activeModelId,
+          state.defaultModelId,
+          state.globalDefaultModelId,
+        ]);
         setState({
           models,
           activeModelId: nextActiveModelId,
@@ -175,23 +178,27 @@ export function createModelSelectorController(container) {
 
   const handleSetDefault = async (e) => {
     e.stopPropagation();
-    if (!state.activeModelId) return;
-    const modelId = state.activeModelId;
-    if (state.defaultModelId === modelId) {
-      showToast('Already the default model');
-      return;
-    }
-    const progressToast = showToastProgress('Setting default model...');
+    const modelId = state.activeModelId || getPreferredModelId(state.models || [], [state.defaultModelId, state.globalDefaultModelId]);
+    if (!modelId) return;
+    const isDefault = state.defaultModelId === modelId;
+    const progressToast = showToastProgress(isDefault ? 'Unsetting default model...' : 'Setting default model...');
     const { apiFetch } = await import('../api.js');
     const result = await persistDefaultModelSelection({
       apiFetch,
-      modelId,
+      modelId: isDefault ? null : modelId,
       currentPreferences: state.user?.preferences || {},
       onSuccess: (message) => progressToast.update(message),
       onFallback: (message) => progressToast.update(message),
     });
     if (result.ok) {
-      setState({ defaultModelId: modelId });
+      const nextDefaultModelId = isDefault ? null : modelId;
+      const nextPreferences = { ...(state.user?.preferences || {}) };
+      if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
+      else delete nextPreferences.defaultModelId;
+      setState({
+        defaultModelId: nextDefaultModelId,
+        user: state.user ? { ...state.user, preferences: nextPreferences } : state.user,
+      });
       if (isOpen) toggle();
     }
   };
@@ -279,20 +286,28 @@ export function createModelSelectorController(container) {
   unsubscribe = subscribe((currentState) => {
     const models = Array.isArray(currentState.models) ? currentState.models : [];
     const hasModels = models.length > 0;
-    const activeModel = hasModels ? (models.find((m) => m.id === currentState.activeModelId) || null) : null;
+    const preferredModelId = hasModels ? getPreferredModelId(models, [
+      currentState.activeModelId,
+      currentState.defaultModelId,
+      currentState.globalDefaultModelId,
+    ]) : null;
+    const preferredModel = preferredModelId ? (models.find((m) => m.id === preferredModelId) || null) : null;
+
     if (!hasModels) {
-      if (currentState.activeModelId) nameSpan.textContent = currentState.activeModelId;
-      else nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'Select a Model';
-    } else if (activeModel) {
-      nameSpan.textContent = getModelDisplayLabel(activeModel) || activeModel.id;
+      nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'Unknown model';
+    } else if (preferredModel) {
+      nameSpan.textContent = getModelDisplayLabel(preferredModel) || preferredModel.id;
     } else {
-      nameSpan.textContent = currentState.activeModelId ? 'Unknown model' : 'Select a Model';
+      nameSpan.textContent = 'Select a Model';
     }
 
-    headerSetDefaultBtn.textContent = 'Set as default';
-    headerSetDefaultBtn.className = 'text-gray-400 font-primary hover:text-gray-500 transition-colors';
-    headerSetDefaultBtn.disabled = false;
-    headerSetDefaultBtn.style.cursor = 'pointer';
+    const isDefaultModel = Boolean(preferredModelId && currentState.defaultModelId === preferredModelId);
+    headerSetDefaultBtn.textContent = isDefaultModel ? 'Unset default' : 'Set as default';
+    headerSetDefaultBtn.className = hasModels
+      ? 'text-gray-400 font-primary hover:text-gray-500 transition-colors'
+      : 'text-gray-400 font-primary transition-colors opacity-50 cursor-not-allowed pointer-events-none';
+    headerSetDefaultBtn.disabled = !hasModels;
+    headerSetDefaultBtn.style.cursor = hasModels ? 'pointer' : 'not-allowed';
 
     const modelsChanged = currentState.models !== lastModelsRef || currentState.modelsLoading !== lastModelsLoading;
     if (modelsChanged) {
@@ -313,6 +328,11 @@ export function createModelSelectorController(container) {
       if (isOpen) {
         renderList(currentState, { reset: true, rebuild: false });
       }
+    }
+
+    if (hasModels && preferredModelId && currentState.activeModelId !== preferredModelId) {
+      setState({ activeModelId: preferredModelId });
+      return;
     }
 
     if (currentState.activeModelId !== lastActiveModelId) {
