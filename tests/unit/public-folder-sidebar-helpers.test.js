@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderFolderListMarkup } from '../../public/js/components/folder-sidebar-helpers.js';
+import { renderFolderListMarkup } from '../../public/js/features/chat/folder-sidebar-helpers.js';
 
 describe('folder sidebar helpers', () => {
   it('renders folder list markup with expanded state', () => {
@@ -11,3 +11,5 @@ describe('folder sidebar helpers', () => {
     expect(html).toContain('data-folder-id="f1"');
   });
 });
+
+

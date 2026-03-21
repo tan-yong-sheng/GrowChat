@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindChatFileEvents } from '../../public/js/chat-file-events.js';
+import { bindChatFileEvents } from '../../public/js/features/chat/chat-file-events.js';
 
 describe('chat file events', () => {
   beforeEach(() => {
@@ -79,3 +79,5 @@ describe('chat file events', () => {
     destroy();
   });
 });
+
+

@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   fetchPrompts: vi.fn().mockResolvedValue({ prompts: [] }),
   fetchPromptByCommand: vi.fn().mockResolvedValue({ prompt: { content: '' } }),
 }));
 
 async function loadModules() {
   vi.resetModules();
-  const store = await import('../../public/js/store.js');
-  const { renderMessageInput } = await import('../../public/js/components/message-input.js');
+  const store = await import('../../public/js/shared/store.js');
+  const { renderMessageInput } = await import('../../public/js/features/chat/message-input.js');
   return { store, renderMessageInput };
 }
 
@@ -87,3 +87,5 @@ describe('message input', () => {
     view.destroy();
   });
 });
+
+

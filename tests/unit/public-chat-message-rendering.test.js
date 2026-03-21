@@ -6,7 +6,7 @@ import {
   renderAttachmentPills,
   renderThinkingBlock,
   renderToolCallItem,
-} from '../../public/js/chat-message-rendering.js';
+} from '../../public/js/features/chat/chat-message-rendering.js';
 
 describe('chat message rendering helpers', () => {
   it('renders assistant content and attachment pills', () => {
@@ -58,3 +58,5 @@ describe('chat message rendering helpers', () => {
     expect(html).toContain('Executing Search...');
   });
 });
+
+

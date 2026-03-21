@@ -16,7 +16,7 @@ import {
   setAuthState,
   writeChatsCache,
   writeModelsCache,
-} from '../../public/js/api.js';
+} from '../../public/js/shared/api.js';
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -149,3 +149,5 @@ describe('public api helpers', () => {
     expect(readModelsCache()).toEqual({ models: [{ id: 'm1' }] });
   });
 });
+
+

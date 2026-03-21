@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { createChatMessageIdentityTracker } from '../../public/js/chat-message-identity.js';
+import { createChatMessageIdentityTracker } from '../../public/js/features/chat/chat-message-identity.js';
 
 function makeTracker(initialState = {}) {
   let state = {
@@ -102,3 +102,5 @@ describe('chat message identity tracker', () => {
     expect(getState().messagesByChat['chat-1'][0].id).toBe('real-assistant');
   });
 });
+
+

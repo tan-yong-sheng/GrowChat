@@ -2,10 +2,11 @@ import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent, isLastOwnerOfRole, resolvePermissions, getUserRoles } from '../utils/authorize.js';
 import { getConfigValue } from '../utils/app-config.js';
-import { hashPassword } from '../auth.js';
+import { hashPassword } from '../shared/auth.js';
 import { parsePagination, requirePlainObject, requireString, validateEmail } from '../validation/request.js';
 import { isValidEmail } from '../utils/rbac.js';
 import { ValidationError } from '../errors/http-errors.js';
+import { buildSelfProfileUpdate, buildUserProfileResponse } from './user-profile.js';
 
 async function upsertGlobalRoleBinding(db, userId, role) {
   try {
@@ -69,24 +70,6 @@ export async function usersRouter(req, env, _ctx, user, path) {
     );
 
     if (!row) return error(req, 'User not found', 404);
-
-    let settings = {};
-    if (row.settings) {
-      try {
-        settings = JSON.parse(row.settings);
-      } catch {
-        settings = {};
-      }
-    }
-
-    let preferences = {};
-    if (row.preferences) {
-      try {
-        preferences = JSON.parse(row.preferences);
-      } catch {
-        preferences = {};
-      }
-    }
     let globalDefaultModelId = null;
     try {
       const rawDefault = await getConfigValue(db, 'default_model_id', null);
@@ -95,25 +78,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       globalDefaultModelId = null;
     }
 
-    const payload = {
-      user: {
-        id: row.id,
-        email: row.email,
-        name: row.name,
-        role: row.role,
-        settings,
-        avatar: row.avatar || null,
-        avatar_emoji: row.avatar_emoji || null,
-        status: row.status || 'offline',
-        preferences,
-        created_at: row.created_at,
-        last_active_at: row.last_active_at || null,
-        updated_at: row.updated_at,
-      },
-      app_config: {
-        default_model_id: globalDefaultModelId || null,
-      },
-    };
+    const payload = buildUserProfileResponse(row, { defaultModelId: globalDefaultModelId });
 
     if (includePermissions) {
       payload.permissions = await resolvePermissions(env, user);
@@ -135,125 +100,31 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const name = body.name !== undefined ? String(body.name).trim() : undefined;
-    const avatar = body.avatar !== undefined ? String(body.avatar).trim() || null : undefined;
-    const avatar_emoji = body.avatar_emoji !== undefined ? String(body.avatar_emoji).trim() || null : undefined;
-    const status = body.status !== undefined ? String(body.status).toLowerCase().trim() : undefined;
-
-    // Validate status enum
-    if (status !== undefined && !['online', 'away', 'offline'].includes(status)) {
-      return error(req, 'Status must be one of: online, away, offline', 400);
-    }
-
-    let settingsObj;
-    let preferencesObj;
     try {
-      // Validate avatar_emoji length
-      if (avatar_emoji && avatar_emoji.length > 50) {
-        return error(req, 'Avatar emoji must be 50 characters or less', 400);
-      }
+      const update = buildSelfProfileUpdate(body, { allowSettings: true });
+      const { updates, values } = update;
 
-      if (body.settings !== undefined) {
-        settingsObj = requirePlainObject(body.settings, 'settings must be an object');
-      }
+      updates.push('updated_at = unixepoch()');
+      values.push(user.sub);
 
-      if (body.preferences !== undefined) {
-        preferencesObj = requirePlainObject(body.preferences, 'preferences must be an object');
-      }
+      await db.run(
+        `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+        values
+      );
+
+      const row = await db.first(
+        'SELECT id, email, name, role, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
+        [user.sub]
+      );
+      if (!row) return error(req, 'User not found', 404);
+
+      return json(req, buildUserProfileResponse(row));
     } catch (err) {
       if (err instanceof ValidationError) {
         return error(req, err.message, 400);
       }
       throw err;
     }
-
-    // Build update query
-    const updates = [];
-    const values = [];
-
-    if (name !== undefined) {
-      if (!name) return error(req, 'name cannot be empty', 400);
-      updates.push('name = ?');
-      values.push(name);
-    }
-
-    if (avatar !== undefined) {
-      updates.push('avatar = ?');
-      values.push(avatar);
-    }
-
-    if (avatar_emoji !== undefined) {
-      updates.push('avatar_emoji = ?');
-      values.push(avatar_emoji);
-    }
-
-    if (status !== undefined) {
-      updates.push('status = ?');
-      values.push(status);
-    }
-
-    if (settingsObj !== undefined) {
-      updates.push('settings = ?');
-      values.push(JSON.stringify(settingsObj));
-    }
-
-    if (preferencesObj !== undefined) {
-      updates.push('preferences = ?');
-      values.push(JSON.stringify(preferencesObj));
-    }
-
-    if (updates.length === 0) {
-      return error(req, 'No fields to update', 400);
-    }
-
-    updates.push('updated_at = unixepoch()');
-    values.push(user.sub);
-
-    await db.run(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
-
-    // Return updated user
-    const row = await db.first(
-      'SELECT id, email, name, role, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
-      [user.sub]
-    );
-    if (!row) return error(req, 'User not found', 404);
-
-    let settings = {};
-    if (row.settings) {
-      try {
-        settings = JSON.parse(row.settings);
-      } catch {
-        settings = {};
-      }
-    }
-
-    let preferences = {};
-    if (row.preferences) {
-      try {
-        preferences = JSON.parse(row.preferences);
-      } catch {
-        preferences = {};
-      }
-    }
-
-    return json(req, {
-      user: {
-        id: row.id,
-        email: row.email,
-        name: row.name,
-        role: row.role,
-        settings,
-        avatar: row.avatar || null,
-        avatar_emoji: row.avatar_emoji || null,
-        status: row.status || 'offline',
-        preferences,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      },
-    });
   }
 
   if (req.method === 'POST' && path === '/api/users/me/update') {
@@ -266,115 +137,31 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const name = body.name !== undefined ? String(body.name).trim() : undefined;
-    const avatar = body.avatar !== undefined ? String(body.avatar).trim() || null : undefined;
-    const avatar_emoji = body.avatar_emoji !== undefined ? String(body.avatar_emoji).trim() || null : undefined;
-    const status = body.status !== undefined ? String(body.status).toLowerCase().trim() : undefined;
-
-    // Validate status enum
-    if (status !== undefined && !['online', 'away', 'offline'].includes(status)) {
-      return error(req, 'Status must be one of: online, away, offline', 400);
-    }
-
-    // Validate avatar_emoji length
-    if (avatar_emoji && avatar_emoji.length > 50) {
-      return error(req, 'Avatar emoji must be 50 characters or less', 400);
-    }
-
-    let preferencesObj;
     try {
-      if (body.preferences !== undefined) {
-        preferencesObj = requirePlainObject(body.preferences, 'preferences must be an object');
-      }
+      const update = buildSelfProfileUpdate(body, { allowSettings: false });
+      const { updates, values } = update;
+
+      updates.push('updated_at = unixepoch()');
+      values.push(user.sub);
+
+      await db.run(
+        `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+        values
+      );
+
+      const row = await db.first(
+        'SELECT id, email, name, role, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
+        [user.sub]
+      );
+      if (!row) return error(req, 'User not found', 404);
+
+      return json(req, buildUserProfileResponse(row));
     } catch (err) {
       if (err instanceof ValidationError) {
         return error(req, err.message, 400);
       }
       throw err;
     }
-
-    // Build update query
-    const updates = [];
-    const values = [];
-
-    if (name !== undefined) {
-      if (!name) return error(req, 'name cannot be empty', 400);
-      updates.push('name = ?');
-      values.push(name);
-    }
-
-    if (avatar !== undefined) {
-      updates.push('avatar = ?');
-      values.push(avatar);
-    }
-
-    if (avatar_emoji !== undefined) {
-      updates.push('avatar_emoji = ?');
-      values.push(avatar_emoji);
-    }
-
-    if (status !== undefined) {
-      updates.push('status = ?');
-      values.push(status);
-    }
-
-    if (preferencesObj !== undefined) {
-      updates.push('preferences = ?');
-      values.push(JSON.stringify(preferencesObj));
-    }
-
-    if (updates.length === 0) {
-      return error(req, 'No fields to update', 400);
-    }
-
-    updates.push('updated_at = unixepoch()');
-    values.push(user.sub);
-
-    await db.run(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
-
-    // Return updated user
-    const row = await db.first(
-      'SELECT id, email, name, role, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
-      [user.sub]
-    );
-    if (!row) return error(req, 'User not found', 404);
-
-    let settings = {};
-    if (row.settings) {
-      try {
-        settings = JSON.parse(row.settings);
-      } catch {
-        settings = {};
-      }
-    }
-
-    let preferences = {};
-    if (row.preferences) {
-      try {
-        preferences = JSON.parse(row.preferences);
-      } catch {
-        preferences = {};
-      }
-    }
-
-    return json(req, {
-      user: {
-        id: row.id,
-        email: row.email,
-        name: row.name,
-        role: row.role,
-        settings,
-        avatar: row.avatar || null,
-        avatar_emoji: row.avatar_emoji || null,
-        status: row.status || 'offline',
-        preferences,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      },
-    });
   }
 
   // GET /api/admin/users - List all users (admin only)

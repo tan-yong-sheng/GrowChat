@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   fetchFiles: vi.fn(async () => ({ documents: [] })),
   searchFiles: vi.fn(async () => ({ documents: [] })),
   uploadFile: vi.fn(async () => ({})),
@@ -10,8 +10,8 @@ vi.mock('../../public/js/api.js', () => ({
 
 async function loadModules() {
   vi.resetModules();
-  const store = await import('../../public/js/store.js');
-  const { renderFilesModal } = await import('../../public/js/components/files-modal.js');
+  const store = await import('../../public/js/shared/store.js');
+  const { renderFilesModal } = await import('../../public/js/shared/components/files-modal.js');
   return { store, renderFilesModal };
 }
 
@@ -51,3 +51,5 @@ describe('files modal', () => {
     window.removeEventListener('attach-files', onAttach);
   });
 });
+
+

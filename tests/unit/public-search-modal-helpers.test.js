@@ -4,7 +4,7 @@ import {
   normalizeBackendQuery,
   renderSearchEmptyStateMarkup,
   renderSearchResultsMarkup,
-} from '../../public/js/components/search-modal-helpers.js';
+} from '../../public/js/shared/components/search-modal-helpers.js';
 
 describe('search modal helpers', () => {
   it('normalizes backend queries', () => {
@@ -28,3 +28,5 @@ describe('search modal helpers', () => {
     expect(html).toContain('<span class="bg-yellow-200 text-yellow-900 rounded-sm">Al</span>');
   });
 });
+
+

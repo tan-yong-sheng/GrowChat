@@ -1,4 +1,4 @@
-import { createRealtimeEvent, publishRealtimeEvent } from '../realtime.js';
+import { createRealtimeEvent, publishRealtimeEvent } from '../features/realtime/realtime.js';
 
 export function createRealtimeBus(env, { waitUntil = null } = {}) {
   return {

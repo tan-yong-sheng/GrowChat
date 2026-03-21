@@ -5,7 +5,7 @@ import {
   getPreferredModelId,
   persistDefaultModelSelection,
   renderModelSelectorOption,
-} from '../../public/js/components/model-selector-helpers.js';
+} from '../../public/js/features/chat/model-selector-helpers.js';
 
 describe('model selector helpers', () => {
   it('formats model display labels', () => {
@@ -107,3 +107,5 @@ describe('model selector helpers', () => {
     }));
   });
 });
+
+

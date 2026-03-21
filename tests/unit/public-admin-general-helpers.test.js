@@ -3,7 +3,7 @@ import {
   createGeneralSettingsState,
   getGeneralSettingsToggleState,
   isGeneralSettingsDirty,
-} from '../../public/js/components/admin/settings/general-helpers.js';
+} from '../../public/js/features/admin/settings/general-helpers.js';
 
 describe('admin general helpers', () => {
   it('creates the default settings state', () => {
@@ -31,3 +31,5 @@ describe('admin general helpers', () => {
     });
   });
 });
+
+

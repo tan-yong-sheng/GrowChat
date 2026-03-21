@@ -10,7 +10,7 @@ import {
   renderAttachmentListMarkup,
   renderPendingQueueMarkup,
   renderPromptPickerMarkup,
-} from '../../public/js/components/message-input-helpers.js';
+} from '../../public/js/features/chat/message-input-helpers.js';
 
 describe('message input helpers', () => {
   it('extracts and applies prompt variables', () => {
@@ -46,3 +46,5 @@ describe('message input helpers', () => {
     expect(renderPromptPickerMarkup([{ command: 'summarize', title: 'Summarize text' }], 0)).toContain('/summarize');
   });
 });
+
+

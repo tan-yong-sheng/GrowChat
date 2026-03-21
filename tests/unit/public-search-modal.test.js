@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: vi.fn(async () => ({ ok: true, json: async () => ({ chat: { title: 'Preview' }, messages: [] }) })),
   fetchChats: vi.fn(async () => ({ chats: [], limit: 20, offset: 0 })),
 }));
 
 async function loadModules() {
   vi.resetModules();
-  const store = await import('../../public/js/store.js');
-  const { renderSearchModal } = await import('../../public/js/components/search-modal.js');
+  const store = await import('../../public/js/shared/store.js');
+  const { renderSearchModal } = await import('../../public/js/shared/components/search-modal.js');
   return { store, renderSearchModal };
 }
 
@@ -40,3 +40,5 @@ describe('search modal', () => {
     destroy();
   });
 });
+
+

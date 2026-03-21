@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveSidebarLayout } from '../../public/js/components/sidebar-helpers.js';
+import { deriveSidebarLayout } from '../../public/js/shared/components/sidebar-helpers.js';
 
 describe('sidebar helpers', () => {
   it('derives hidden, mobile, collapsed, and expanded layouts', () => {
@@ -9,3 +9,5 @@ describe('sidebar helpers', () => {
     expect(deriveSidebarLayout({ showSidebar: true, sidebarCollapsed: false, sidebarWidth: 300 })).toMatchObject({ width: '300px', showHandle: true });
   });
 });
+
+

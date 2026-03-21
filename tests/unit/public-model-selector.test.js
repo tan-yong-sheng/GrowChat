@@ -1,19 +1,19 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../public/js/utils.js', () => ({
+vi.mock('../../public/js/shared/utils.js', () => ({
   showToast: vi.fn(),
   showToastProgress: vi.fn(() => ({ update: vi.fn() })),
 }));
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: vi.fn(),
 }));
 
 async function loadModules() {
   vi.resetModules();
-  const store = await import('../../public/js/store.js');
-  const { renderModelSelector } = await import('../../public/js/components/model-selector.js');
+  const store = await import('../../public/js/shared/store.js');
+  const { renderModelSelector } = await import('../../public/js/features/chat/model-selector.js');
   return { store, renderModelSelector };
 }
 
@@ -91,7 +91,7 @@ describe('model selector', () => {
   it('shows unset default when the current model is already the default', async () => {
     const { store, renderModelSelector } = await loadModules();
     const container = document.getElementById('root');
-    const { apiFetch } = await import('../../public/js/api.js');
+    const { apiFetch } = await import('../../public/js/shared/api.js');
     apiFetch.mockResolvedValue(new Response('{}', {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -127,7 +127,7 @@ describe('model selector', () => {
   it('persists the active model as the default model when requested', async () => {
     const { store, renderModelSelector } = await loadModules();
     const container = document.getElementById('root');
-    const { apiFetch } = await import('../../public/js/api.js');
+    const { apiFetch } = await import('../../public/js/shared/api.js');
     apiFetch.mockResolvedValue(new Response('{}', {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -157,3 +157,5 @@ describe('model selector', () => {
     destroy();
   });
 });
+
+

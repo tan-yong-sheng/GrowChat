@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 async function loadStore() {
   vi.resetModules();
-  return import('../../public/js/store.js');
+  return import('../../public/js/shared/store.js');
 }
 
 describe('public store', () => {
@@ -94,3 +94,5 @@ describe('public store', () => {
     expect(state.showSidebar).toBe(true);
   });
 });
+
+

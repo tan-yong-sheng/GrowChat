@@ -5,7 +5,7 @@ import {
   normalizeToolList,
   sanitizeIntegrationsServers,
   shouldShowAuthField,
-} from '../../public/js/components/admin/settings/integrations-helpers.js';
+} from '../../public/js/features/admin/settings/integrations-helpers.js';
 
 describe('admin integrations helpers', () => {
   it('builds stable snapshots from tool servers', () => {
@@ -71,3 +71,5 @@ describe('admin integrations helpers', () => {
     ]);
   });
 });
+
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterModelsBySearch, normalizeModelSearchQuery } from '../../public/js/utils/model-search.js';
+import { filterModelsBySearch, normalizeModelSearchQuery } from '../../public/js/shared/utils/model-search.js';
 
 describe('model search helpers', () => {
   it('normalizes model search queries', () => {
@@ -20,3 +20,5 @@ describe('model search helpers', () => {
     expect(filterModelsBySearch(models, '')).toEqual(models);
   });
 });
+
+

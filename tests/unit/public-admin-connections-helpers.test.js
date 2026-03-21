@@ -15,7 +15,7 @@ import {
   resolveModalUrl,
   resolveUrlLabel,
   persistModalDraft,
-} from '../../public/js/components/admin/settings/connections-helpers.js';
+} from '../../public/js/features/admin/settings/connections-helpers.js';
 
 describe('admin connection helpers', () => {
   it('normalizes provider labels and types', () => {
@@ -115,3 +115,5 @@ describe('admin connection helpers', () => {
     expect(Array.from(state.modalModelsOriginal)).toEqual(['new', 'old']);
   });
 });
+
+

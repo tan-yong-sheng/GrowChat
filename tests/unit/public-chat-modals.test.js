@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { createChatModals } from '../../public/js/chat-modals.js';
+import { createChatModals } from '../../public/js/features/chat/chat-modals.js';
 
 describe('chat modals helper', () => {
   it('wires share and citation modals', async () => {
@@ -80,3 +80,5 @@ describe('chat modals helper', () => {
     expect(loadChats).toHaveBeenCalled();
   });
 });
+
+

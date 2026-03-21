@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRealtimeBus } from './realtime-bus.js';
 
-vi.mock('../realtime.js', () => ({
+vi.mock('../features/realtime/realtime.js', () => ({
   createRealtimeEvent: vi.fn((event) => event),
   publishRealtimeEvent: vi.fn().mockResolvedValue(true),
 }));
 
-import { publishRealtimeEvent } from '../realtime.js';
+import { publishRealtimeEvent } from '../features/realtime/realtime.js';
 
 describe('realtime bus', () => {
   it('publishes events through the realtime transport', async () => {

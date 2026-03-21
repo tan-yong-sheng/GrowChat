@@ -33,7 +33,7 @@ vi.mock('../services/embeddings.js', () => ({
   queryDocumentChunks: (...args) => mocks.queryDocumentChunks(...args),
 }));
 
-vi.mock('../realtime.js', () => ({
+vi.mock('../features/realtime/realtime.js', () => ({
   createRealtimeEvent: (...args) => mocks.createRealtimeEvent(...args),
   getOriginSessionId: (...args) => mocks.getOriginSessionId(...args),
   publishRealtimeEvent: (...args) => mocks.publishRealtimeEvent(...args),
@@ -236,6 +236,101 @@ describe('chatRouter', () => {
     } finally {
       randomUUIDSpy.mockRestore();
     }
+  });
+
+  it('branches an assistant message without calling the LLM when no_reply is true', async () => {
+    const branchChat = { id: 'c1', user_id: 'u1', title: 'Chat 1', model: 'gpt-4', current_message_id: 'm0' };
+    const sourceMessage = {
+      role: 'assistant',
+      parent_id: 'm-parent',
+      model: 'gpt-4',
+      citations: '[{}]',
+    };
+    const createdMessage = {
+      id: 'm-branch',
+      chat_id: 'c1',
+      role: 'assistant',
+      content: 'Updated assistant answer',
+      model: 'gpt-4',
+      citations: '[{}]',
+      parent_id: 'm-parent',
+      created_at: 123,
+    };
+    mocks.db.first
+      .mockResolvedValueOnce(branchChat)
+      .mockResolvedValueOnce(sourceMessage)
+      .mockResolvedValueOnce(createdMessage)
+      .mockResolvedValueOnce({ ...branchChat, current_message_id: 'm-branch' });
+
+    const res = await chatRouter(
+      makeReq('/api/chats/c1/messages/m1/branch', 'POST', {
+        role: 'assistant',
+        no_reply: true,
+        content: 'Updated assistant answer',
+      }),
+      { DB: {} },
+      {},
+      user,
+      '/api/chats/c1/messages/m1/branch'
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      message: {
+        id: 'm-branch',
+        role: 'assistant',
+        content: 'Updated assistant answer',
+      },
+    });
+    expect(mocks.streamLLM).not.toHaveBeenCalled();
+    expect(mocks.db.batch).toHaveBeenCalled();
+  });
+
+  it('cancels a streaming assistant message', async () => {
+    mocks.db.first
+      .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', title: 'Chat 1' })
+      .mockResolvedValueOnce({ id: 'm1', role: 'assistant', status: 'streaming' })
+      .mockResolvedValueOnce({ id: 'm1', role: 'assistant', model: 'gpt-4', status: 'cancelled' });
+
+    const res = await chatRouter(
+      makeReq('/api/chats/c1/messages/m1/cancel', 'POST'),
+      { DB: {} },
+      {},
+      user,
+      '/api/chats/c1/messages/m1/cancel'
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, cancelled: true });
+    expect(mocks.db.run).toHaveBeenCalledWith(
+      "UPDATE messages SET status = 'cancelled', error_code = 'cancelled', error_message = ? WHERE id = ? AND chat_id = ?",
+      ['Cancelled by user', 'm1', 'c1']
+    );
+  });
+
+  it('resumes a streaming assistant message and emits deltas', async () => {
+    mocks.db.first
+      .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', title: 'Chat 1' })
+      .mockResolvedValueOnce({ id: 'm1', role: 'assistant', status: 'streaming' })
+      .mockResolvedValueOnce({ status: 'streaming' })
+      .mockResolvedValueOnce({ status: 'done' });
+    mocks.db.all
+      .mockResolvedValueOnce([{ seq: 1, payload: JSON.stringify({ response: 'hello' }) }])
+      .mockResolvedValueOnce([]);
+
+    const res = await chatRouter(
+      new Request('https://example.com/api/chats/c1/messages/m1/resume?after_seq=0', { method: 'GET' }),
+      { DB: {} },
+      {},
+      user,
+      '/api/chats/c1/messages/m1/resume'
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('text/event-stream');
+    const text = await res.text();
+    expect(text).toContain('"response":"hello"');
+    expect(text).toContain('data: [DONE]');
   });
 
   it('returns 400 when posting empty message', async () => {

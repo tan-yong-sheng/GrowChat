@@ -1,5 +1,5 @@
-import { verifyJWT } from '../auth.js';
-import { getJwtSecret } from '../utils/jwt-secret.js';
+import { verifyJWT } from '../shared/auth.js';
+import { getJwtSecret } from '../shared/jwt-secret.js';
 import { error } from '../utils/response.js';
 
 export function getPath(req) {

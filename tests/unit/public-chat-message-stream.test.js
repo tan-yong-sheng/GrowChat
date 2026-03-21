@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createChatMessageStream } from '../../public/js/chat-message-stream.js';
+import { createChatMessageStream } from '../../public/js/features/chat/chat-message-stream.js';
 
 describe('chat message stream helper', () => {
   it('finishes immediately when asked to send a blank prompt', async () => {
@@ -215,3 +215,5 @@ describe('chat message stream helper', () => {
     expect(toolCallsByMessageId.get('msg-1')[0].status).toBe('completed');
   });
 });
+
+

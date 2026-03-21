@@ -26,3 +26,5 @@ describe('chat history helpers', () => {
     expect(trimTrailingAssistantMessages(history)).toEqual(history);
   });
 });
+
+

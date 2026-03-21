@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { buildChatRows } from '../../public/js/chat-render-helpers.js';
+import { buildChatRows } from '../../public/js/features/chat/chat-render-helpers.js';
 
 describe('chat render helpers', () => {
   it('builds chat rows and marks the active row', () => {
@@ -38,3 +38,5 @@ describe('chat render helpers', () => {
     expect(rows.children[0].textContent).toContain('Untitled');
   });
 });
+
+

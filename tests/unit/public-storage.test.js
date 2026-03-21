@@ -6,7 +6,7 @@ import {
   removeStoredValue,
   writeStoredJson,
   writeStoredString,
-} from '../../public/js/utils/storage.js';
+} from '../../public/js/shared/utils/storage.js';
 
 describe('storage helpers', () => {
   beforeEach(() => {
@@ -32,3 +32,5 @@ describe('storage helpers', () => {
     expect(localStorage.getItem('remove-me')).toBeNull();
   });
 });
+
+

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { createChatListHandlers } from '../../public/js/chat-list-actions.js';
+import { createChatListHandlers } from '../../public/js/features/chat/chat-list-actions.js';
 
 function createMutableSetState(state) {
   return (updater) => {
@@ -426,3 +426,5 @@ describe('chat list actions', () => {
     }
   });
 });
+
+

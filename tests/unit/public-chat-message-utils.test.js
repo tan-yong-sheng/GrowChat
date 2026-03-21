@@ -11,7 +11,7 @@ import {
   normalizeToolCallRecord,
   normalizeToolCalls,
   splitThinkingSegments,
-} from '../../public/js/chat-message-utils.js';
+} from '../../public/js/features/chat/chat-message-utils.js';
 
 describe('chat message utils', () => {
   it('splits thinking segments and builds message blocks', () => {
@@ -50,3 +50,5 @@ describe('chat message utils', () => {
     });
   });
 });
+
+

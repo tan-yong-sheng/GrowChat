@@ -77,11 +77,11 @@ function makeDb(overrides = {}) {
   };
 }
 
-vi.mock('../../src/auth.js', () => ({
+vi.mock('../../src/shared/auth.js', () => ({
   verifyJWT: (...args) => mocks.verifyJWT(...args),
 }));
 
-vi.mock('../../src/utils/jwt-secret.js', () => ({
+vi.mock('../../src/shared/jwt-secret.js', () => ({
   getJwtSecret: (...args) => mocks.getJwtSecret(...args),
 }));
 
@@ -91,7 +91,7 @@ vi.mock('../../src/routers/public.js', () => ({
 vi.mock('../../src/routers/auth.js', () => ({
   authRouter: (...args) => mocks.authRouter(...args),
 }));
-vi.mock('../../src/routers/chat.js', () => ({
+vi.mock('../../src/routers/chat/index.js', () => ({
   chatRouter: (...args) => mocks.chatRouter(...args),
 }));
 vi.mock('../../src/routers/users.js', () => ({
@@ -103,10 +103,10 @@ vi.mock('../../src/routers/faqs.js', () => ({
 vi.mock('../../src/routers/files.js', () => ({
   filesRouter: (...args) => mocks.filesRouter(...args),
 }));
-vi.mock('../../src/routers/admin.js', () => ({
+vi.mock('../../src/routers/admin/index.js', () => ({
   adminRouter: (...args) => mocks.adminRouter(...args),
 }));
-vi.mock('../../src/routers/models.js', () => ({
+vi.mock('../../src/routers/models/index.js', () => ({
   modelsRouter: (...args) => mocks.modelsRouter(...args),
 }));
 vi.mock('../../src/routers/knowledge.js', () => ({
@@ -220,3 +220,5 @@ describe('worker entry point', () => {
     expect(mocks.chatRouter).not.toHaveBeenCalled();
   });
 });
+
+

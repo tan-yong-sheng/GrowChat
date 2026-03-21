@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   writeChatsCache: vi.fn(),
 }));
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
   clearAuthState: (...args) => mocks.clearAuthState(...args),
   fetchChats: (...args) => mocks.fetchChats(...args),
@@ -39,31 +39,47 @@ vi.mock('../../public/js/api.js', () => ({
   writeChatsCache: (...args) => mocks.writeChatsCache(...args),
 }));
 
-vi.mock('../../public/js/admin.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
+  apiFetch: (...args) => mocks.apiFetch(...args),
+  clearAuthState: (...args) => mocks.clearAuthState(...args),
+  fetchChats: (...args) => mocks.fetchChats(...args),
+  fetchModels: (...args) => mocks.fetchModels(...args),
+  fetchMyPermissions: (...args) => mocks.fetchMyPermissions(...args),
+  fetchMyRoles: (...args) => mocks.fetchMyRoles(...args),
+  fetchPublicSharedChat: (...args) => mocks.fetchPublicSharedChat(...args),
+  getAuthState: (...args) => mocks.getAuthState(...args),
+  isAccessTokenUsable: (...args) => mocks.isAccessTokenUsable(...args),
+  readChatsCache: (...args) => mocks.readChatsCache(...args),
+  readModelsCache: (...args) => mocks.readModelsCache(...args),
+  refreshToken: (...args) => mocks.refreshToken(...args),
+  writeChatsCache: (...args) => mocks.writeChatsCache(...args),
+}));
+
+vi.mock('../../public/js/features/admin/admin.js', () => ({
   renderAdminPage: (...args) => mocks.renderAdminPage(...args),
 }));
 
-vi.mock('../../public/js/chat.js', () => ({
+vi.mock('../../public/js/features/chat/chat.js', () => ({
   renderChat: (...args) => mocks.renderChat(...args),
 }));
 
-vi.mock('../../public/js/shortcuts.js', () => ({
+vi.mock('../../public/js/shared/shortcuts.js', () => ({
   initShortcuts: (...args) => mocks.initShortcuts(...args),
 }));
 
-vi.mock('../../public/js/realtime.js', () => ({
+vi.mock('../../public/js/shared/realtime.js', () => ({
   startRealtimeSync: (...args) => mocks.startRealtimeSync(...args),
   stopRealtimeSync: (...args) => mocks.stopRealtimeSync(...args),
 }));
 
-vi.mock('../../public/js/utils/model-sync.js', () => ({
+vi.mock('../../public/js/shared/utils/model-sync.js', () => ({
   broadcastModelsInvalidation: vi.fn(),
   consumeModelsInvalidation: (...args) => mocks.consumeModelsInvalidation(...args),
 }));
 
 async function loadApp() {
   vi.resetModules();
-  return import('../../public/js/app.js');
+  return import('../../public/js/bootstrap/app.js');
 }
 
 describe('public app bootstrap', () => {
@@ -91,6 +107,7 @@ describe('public app bootstrap', () => {
     mocks.startRealtimeSync.mockReset();
     mocks.stopRealtimeSync.mockReset();
     mocks.writeChatsCache.mockReset();
+    mocks.fetchModels.mockResolvedValue({ models: [] });
     mocks.isAccessTokenUsable.mockReturnValue(true);
     mocks.refreshToken.mockResolvedValue({ access_token: 'token', refresh_token: 'refresh', user: { id: 'u1' } });
   });
@@ -193,7 +210,7 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const { state } = await import('../../public/js/store.js');
+    const { state } = await import('../../public/js/shared/store.js');
     expect(state.activeModelId).toBe('m1');
   });
 
@@ -246,3 +263,5 @@ describe('public app bootstrap', () => {
     expect(event.defaultPrevented).toBe(true);
   });
 });
+
+

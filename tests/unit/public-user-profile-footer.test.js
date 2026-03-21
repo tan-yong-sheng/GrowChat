@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 async function loadModules() {
   vi.resetModules();
-  const { createUserProfileFooter } = await import('../../public/js/components/user-profile-footer.js');
+  const { createUserProfileFooter } = await import('../../public/js/shared/components/user-profile-footer.js');
   return { createUserProfileFooter };
 }
 
@@ -34,3 +34,5 @@ describe('user profile footer', () => {
     window.removeEventListener('growchat:open-archived', onArchived);
   });
 });
+
+

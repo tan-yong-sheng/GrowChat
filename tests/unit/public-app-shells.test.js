@@ -4,7 +4,7 @@ import {
   renderAdminSkeleton,
   renderChatSkeleton,
   renderSharedChatPage,
-} from '../../public/js/app-shells.js';
+} from '../../public/js/bootstrap/app-shells.js';
 
 describe('app shells', () => {
   it('renders a shared chat page with default text when data is missing', () => {
@@ -27,3 +27,5 @@ describe('app shells', () => {
     expect(chat.innerHTML).toContain('animate-pulse');
   });
 });
+
+

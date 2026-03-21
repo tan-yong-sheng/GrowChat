@@ -5,13 +5,13 @@ const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
 }));
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
 }));
 
 async function loadModule() {
   vi.resetModules();
-  return import('../../public/js/components/admin/settings/integrations.js');
+  return import('../../public/js/features/admin/settings/integrations.js');
 }
 
 describe('admin integrations settings', () => {
@@ -99,3 +99,5 @@ describe('admin integrations settings', () => {
     expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/tool-servers' && init?.method === 'PUT')).toBe(false);
   });
 });
+
+

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { createChatStreamController } from '../../public/js/chat-stream-controller.js';
+import { createChatStreamController } from '../../public/js/features/chat/chat-stream-controller.js';
 
 function createStream(chunks) {
   const encoder = new TextEncoder();
@@ -68,3 +68,5 @@ describe('chat stream controller', () => {
     expect(controller.getResumeStream('chat-2')).toBeNull();
   });
 });
+
+

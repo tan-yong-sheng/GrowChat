@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { broadcastModelsInvalidation, consumeModelsInvalidation } from '../../public/js/utils/model-sync.js';
+import { broadcastModelsInvalidation, consumeModelsInvalidation } from '../../public/js/shared/utils/model-sync.js';
 
 describe('model sync helpers', () => {
   let storage;
@@ -53,3 +53,5 @@ describe('model sync helpers', () => {
     expect(consumeModelsInvalidation()).toBe(null);
   });
 });
+
+

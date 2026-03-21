@@ -6,17 +6,17 @@ const mocks = vi.hoisted(() => ({
   broadcastModelsInvalidation: vi.fn(),
 }));
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
 }));
 
-vi.mock('../../public/js/utils/model-sync.js', () => ({
+vi.mock('../../public/js/shared/utils/model-sync.js', () => ({
   broadcastModelsInvalidation: (...args) => mocks.broadcastModelsInvalidation(...args),
 }));
 
 async function loadModule() {
   vi.resetModules();
-  return import('../../public/js/components/admin/settings/models.js');
+  return import('../../public/js/features/admin/settings/models.js');
 }
 
 describe('admin models settings', () => {
@@ -57,3 +57,5 @@ describe('admin models settings', () => {
     expect(container.querySelector('#save-models-top')?.disabled).toBe(false);
   });
 });
+
+

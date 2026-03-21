@@ -5,13 +5,13 @@ const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
 }));
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
 }));
 
 async function loadModule() {
   vi.resetModules();
-  return import('../../public/js/components/admin/settings/general.js');
+  return import('../../public/js/features/admin/settings/general.js');
 }
 
 describe('admin general settings', () => {
@@ -52,3 +52,5 @@ describe('admin general settings', () => {
     expect(container.querySelector('#save-settings')?.disabled).toBe(false);
   });
 });
+
+

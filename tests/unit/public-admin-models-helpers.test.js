@@ -5,7 +5,7 @@ import {
   extractAttachmentCapsFromModels,
   getAttachmentCapTooltip,
   getAttachmentCapValue,
-} from '../../public/js/components/admin/settings/models-helpers.js';
+} from '../../public/js/features/admin/settings/models-helpers.js';
 
 describe('admin model helpers', () => {
   it('extracts attachment caps from models', () => {
@@ -36,3 +36,5 @@ describe('admin model helpers', () => {
     expect(ATTACHMENT_CAP_TYPES).toHaveLength(2);
   });
 });
+
+

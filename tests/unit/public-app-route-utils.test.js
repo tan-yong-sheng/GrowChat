@@ -7,7 +7,7 @@ import {
   isTempChatId,
   resolveActiveChatId,
   shouldStartRealtime,
-} from '../../public/js/app-route-utils.js';
+} from '../../public/js/bootstrap/app-route-utils.js';
 
 describe('app route helpers', () => {
   it('parses chat ids from chat routes', () => {
@@ -45,3 +45,5 @@ describe('app route helpers', () => {
     expect(shouldStartRealtime(new URL('https://example.com/admin'))).toBe(false);
   });
 });
+
+

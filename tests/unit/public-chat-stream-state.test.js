@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createChatStreamState } from '../../public/js/chat-stream-state.js';
+import { createChatStreamState } from '../../public/js/features/chat/chat-stream-state.js';
 
 describe('chat stream state helper', () => {
   it('updates streaming state and cancels messages locally', async () => {
@@ -52,3 +52,5 @@ describe('chat stream state helper', () => {
     expect(states.length).toBeGreaterThan(0);
   });
 });
+
+

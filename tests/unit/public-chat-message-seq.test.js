@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMessageSequenceTracker } from '../../public/js/chat-message-seq.js';
+import { createMessageSequenceTracker } from '../../public/js/features/chat/chat-message-seq.js';
 
 describe('chat message sequence tracker', () => {
   it('loads, updates, and persists sequence numbers monotonically', () => {
@@ -42,3 +42,5 @@ describe('chat message sequence tracker', () => {
     expect(tracker.getMessageSeq('c')).toBe(0);
   });
 });
+
+

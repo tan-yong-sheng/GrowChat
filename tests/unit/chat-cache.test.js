@@ -6,7 +6,7 @@ import {
   pruneCachedChats,
   touchAttachmentCache,
   touchRecentChat,
-} from '../../public/js/utils/chat-cache.js';
+} from '../../public/js/shared/utils/chat-cache.js';
 
 describe('chat cache helpers', () => {
   it('updates attachment cache recency and evicts the oldest entry', () => {
@@ -104,3 +104,5 @@ describe('chat cache helpers', () => {
     expect(isTempMessageId('123')).toBe(false);
   });
 });
+
+

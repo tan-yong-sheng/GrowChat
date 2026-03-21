@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countEnabledModels, sortModelsByActiveThenName } from '../../public/js/utils/model-state.js';
+import { countEnabledModels, sortModelsByActiveThenName } from '../../public/js/shared/utils/model-state.js';
 
 describe('public model state helpers', () => {
   it('counts enabled models from arrays and ignores non-arrays', () => {
@@ -41,3 +41,5 @@ describe('public model state helpers', () => {
     expect(sorted.map((model) => model.connection_name || model.connection_id)).toEqual(['alpha-1', 'beta-1']);
   });
 });
+
+

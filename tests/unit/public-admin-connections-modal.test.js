@@ -6,17 +6,17 @@ const mocks = vi.hoisted(() => ({
   broadcastModelsInvalidation: vi.fn(),
 }));
 
-vi.mock('../../public/js/api.js', () => ({
+vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
 }));
 
-vi.mock('../../public/js/utils/model-sync.js', () => ({
+vi.mock('../../public/js/shared/utils/model-sync.js', () => ({
   broadcastModelsInvalidation: (...args) => mocks.broadcastModelsInvalidation(...args),
 }));
 
 async function loadModule() {
   vi.resetModules();
-  return import('../../public/js/components/admin/settings/connections.js');
+  return import('../../public/js/features/admin/settings/connections.js');
 }
 
 describe('admin connections modal', () => {
@@ -94,3 +94,5 @@ describe('admin connections modal', () => {
     expect(container.querySelector('#manage-connections-section')?.classList.contains('hidden')).toBe(false);
   });
 });
+
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projectConversation, resolveConversationLeafId } from '../../public/js/utils/conversation.js';
+import { projectConversation, resolveConversationLeafId } from '../../public/js/shared/utils/conversation.js';
 
 describe('projectConversation', () => {
   it('returns empty projections for empty input', () => {
@@ -77,3 +77,5 @@ describe('projectConversation', () => {
     })).toBe('m2');
   });
 });
+
+

@@ -5,7 +5,7 @@ import {
   getFileStatus,
   renderFilesEmptyStateMarkup,
   renderFilesListMarkup,
-} from '../../public/js/components/files-modal-helpers.js';
+} from '../../public/js/shared/components/files-modal-helpers.js';
 
 describe('files modal helpers', () => {
   it('derives file status and delete permission', () => {
@@ -31,3 +31,5 @@ describe('files modal helpers', () => {
     expect(html).toContain('data-file-id="f1"');
   });
 });
+
+

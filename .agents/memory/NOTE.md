@@ -1,5 +1,7 @@
 # RBAC + D1 Debug Note (2026-03-08)
 
+Thinking to support prompt-based function calling: https://www.philschmid.de/gemma-function-calling if the model is not supporting native function calling ...
+
 - Symptom seen by user: `POST /api/auth/login` returned `500` with `no such table: user_roles`.
 - Important context: Wrangler local D1 is scoped to working directory (`.wrangler/state/v3/d1`), so one folder can be migrated while another is not.
 - Root cause: auth role-binding wrote to `user_roles` before RBAC migration existed in the active DB target.

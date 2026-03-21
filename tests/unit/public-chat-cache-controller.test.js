@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createChatCacheController } from '../../public/js/chat-cache-controller.js';
+import { createChatCacheController } from '../../public/js/features/chat/chat-cache-controller.js';
 
 describe('chat cache controller', () => {
   afterEach(() => {
@@ -56,3 +56,5 @@ describe('chat cache controller', () => {
     expect(setStateFn).toHaveBeenCalledTimes(1);
   });
 });
+
+

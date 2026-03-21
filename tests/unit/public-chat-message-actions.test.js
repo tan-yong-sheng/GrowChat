@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bindChatMessageActions } from '../../public/js/chat-message-actions.js';
+import { bindChatMessageActions } from '../../public/js/features/chat/chat-message-actions.js';
 
 function makeBaseContext(overrides = {}) {
   const messagesList = document.createElement('div');
@@ -162,3 +162,5 @@ describe('chat message action binder', () => {
     expect(alertSpy).not.toHaveBeenCalled();
   });
 });
+
+

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { consumeSseTextStream } from '../../public/js/chat-stream.js';
+import { consumeSseTextStream } from '../../public/js/features/chat/chat-stream.js';
 
 function createStream(chunks) {
   const encoder = new TextEncoder();
@@ -32,3 +32,5 @@ describe('chat stream helper', () => {
     await expect(consumeSseTextStream(null)).rejects.toThrow('Stream body is required');
   });
 });
+
+

@@ -4,7 +4,7 @@ import {
   computePresence,
   getAvatarLabel,
   getStatusColor,
-} from '../../public/js/components/user-profile-footer-helpers.js';
+} from '../../public/js/shared/components/user-profile-footer-helpers.js';
 
 describe('user profile footer helpers', () => {
   it('derives avatar labels and status colors', () => {
@@ -24,3 +24,5 @@ describe('user profile footer helpers', () => {
     expect(html).toContain('Admin Settings');
   });
 });
+
+

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { createChatMessageDom } from '../../public/js/chat-message-dom.js';
+import { createChatMessageDom } from '../../public/js/features/chat/chat-message-dom.js';
 
 describe('chat message dom helper', () => {
   it('updates message html and applies error state', () => {
@@ -50,3 +50,5 @@ describe('chat message dom helper', () => {
     });
   });
 });
+
+

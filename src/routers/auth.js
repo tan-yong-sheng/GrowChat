@@ -1,9 +1,9 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { hashPassword, signJWT, verifyPassword } from '../auth.js';
-import { createRefreshToken, consumeRefreshToken, revokeRefreshToken } from '../session.js';
+import { hashPassword, signJWT, verifyPassword } from '../shared/auth.js';
+import { createRefreshToken, consumeRefreshToken, revokeRefreshToken } from '../shared/session.js';
 import { getConfigBool, setConfigValue } from '../utils/app-config.js';
-import { getJwtSecret } from '../utils/jwt-secret.js';
+import { getJwtSecret } from '../shared/jwt-secret.js';
 import { requireString, validateEmail } from '../validation/request.js';
 import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../services/rate-limit.js';
 import { createUserRepository } from '../repositories/user-repository.js';

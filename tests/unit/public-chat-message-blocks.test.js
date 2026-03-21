@@ -8,7 +8,7 @@ import {
   syncMessageBlocksForMessage,
   syncToolCallsForMessage,
   updateToolCallState,
-} from '../../public/js/chat-message-blocks.js';
+} from '../../public/js/features/chat/chat-message-blocks.js';
 
 describe('chat message blocks', () => {
   it('appends and ensures block state immutably enough for reuse', () => {
@@ -40,3 +40,5 @@ describe('chat message blocks', () => {
     expect(getMessageBlocks(blocksById, 'm1')).toHaveLength(1);
   });
 });
+
+

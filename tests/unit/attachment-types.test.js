@@ -10,7 +10,7 @@ import {
   isAttachmentAllowedByModel,
   isSupportedAttachmentType,
   isTextLikeContentType,
-} from '../../public/js/utils/attachment-types.js';
+} from '../../public/js/shared/utils/attachment-types.js';
 
 describe('attachment type helpers', () => {
   it('infers content types from file names', () => {
@@ -71,3 +71,5 @@ describe('attachment type helpers', () => {
     expect(TEXT_LIKE_ACCEPT_TYPES).toContain('application/json');
   });
 });
+
+

@@ -19,13 +19,13 @@ vi.mock('../db.js', () => ({
   createDB: () => mocks.db,
 }));
 
-vi.mock('../auth.js', () => ({
+vi.mock('../shared/auth.js', () => ({
   hashPassword: (...args) => mocks.hashPassword(...args),
   verifyPassword: (...args) => mocks.verifyPassword(...args),
   signJWT: (...args) => mocks.signJWT(...args),
 }));
 
-vi.mock('../session.js', () => ({
+vi.mock('../shared/session.js', () => ({
   createRefreshToken: (...args) => mocks.createRefreshToken(...args),
   consumeRefreshToken: (...args) => mocks.consumeRefreshToken(...args),
   revokeRefreshToken: (...args) => mocks.revokeRefreshToken(...args),
