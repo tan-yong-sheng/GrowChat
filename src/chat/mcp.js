@@ -29,10 +29,13 @@ export function buildMcpToolName(serverId, toolName) {
   return `mcp__${serverId}__${safe}`;
 }
 
-export function buildMcpTools(servers = []) {
+export function buildMcpTools(servers = [], { selectedToolNames = null } = {}) {
   const tools = [];
   const toolMap = new Map();
   const serversById = new Map();
+  const selectedTools = Array.isArray(selectedToolNames)
+    ? new Set(selectedToolNames.map((name) => String(name || '').trim()).filter(Boolean))
+    : null;
   servers.forEach((server) => {
     if (server?.enabled === false) return;
     if (!server?.id || !server?.url) return;
@@ -43,6 +46,7 @@ export function buildMcpTools(servers = []) {
       const toolName = String(tool?.name || '').trim();
       if (!toolName) return;
       const modelToolName = buildMcpToolName(server.id, toolName);
+      if (selectedTools && !selectedTools.has(modelToolName)) return;
       toolMap.set(modelToolName, {
         serverId: String(server.id),
         toolName,

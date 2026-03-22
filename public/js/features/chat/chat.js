@@ -3,6 +3,7 @@ import {
   fetchArchivedChats,
   fetchChats,
   fetchSharedChats,
+  fetchToolServers,
   getFileBlob,
   getFileContent,
   getFileMetadata,
@@ -14,6 +15,7 @@ import {
 } from '../../shared/api.js';
 import { escapeHtml, showToast, showToastProgress } from '../../shared/utils.js';
 import { state, setState, subscribe } from '../../shared/store.js';
+import { consumeToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
 import { renderPlaceholder } from '../../shared/components/chat-placeholder.js';
 import { renderMessageInput } from './message-input.js';
 import { renderModelSelector } from './model-selector.js';
@@ -70,6 +72,11 @@ let iconPickerPromise = null;
 let tagModalPromise = null;
 let userProfileFooterPromise = null;
 let folderSidebarPromise = null;
+let toolServersInvalidationListenerBound = false;
+let toolServersRefreshGeneration = 0;
+let toolServersRefreshPromise = null;
+let toolServersStorageListener = null;
+let toolServersCustomListener = null;
 
 const loadSearchModal = () => (searchModalPromise ??= import('../../shared/components/search-modal.js'));
 const loadFilesModal = () => (filesModalPromise ??= import('../../shared/components/files-modal.js'));
@@ -103,7 +110,7 @@ export function renderChat(container) {
     <div class="flex h-full w-full bg-white overflow-hidden text-[#171717] font-sans">
       <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
 
-      <aside id="sidebar" class="fixed md:relative h-screen md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 -ml-[260px] md:ml-0 overflow-visible group/sidebar">
+      <aside id="sidebar" class="fixed md:relative h-[100dvh] md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 -ml-[260px] md:ml-0 overflow-visible group/sidebar">
         <div class="p-3">
           <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
             <button type="button" id="sidebar-home-btn" class="flex items-center gap-3 sidebar-full-only hover:opacity-90 transition-opacity" title="Home">
@@ -143,7 +150,7 @@ export function renderChat(container) {
           </div>
         </div>
 
-        <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]"></div>
+        <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));"></div>
       </aside>
 
       <main class="flex-grow flex flex-col relative min-w-0 bg-white h-full">
@@ -301,6 +308,113 @@ function wireChat(root) {
     }
     setState({ newChatAttachments: attachments });
   };
+  const normalizeToolNames = (names) => {
+    if (!Array.isArray(names)) return null;
+    const seen = new Set();
+    const next = [];
+    for (const value of names) {
+      const name = String(value || '').trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      next.push(name);
+    }
+    return next;
+  };
+  const getDraftToolNames = (chatId = state.activeChatId) => {
+    if (chatId) {
+      const stored = state.toolSelectionsByChat?.[chatId];
+      return stored === undefined ? null : stored;
+    }
+    return state.newChatToolSelection;
+  };
+  const setDraftToolNames = (chatId, names) => {
+    const next = names === null ? null : normalizeToolNames(names);
+    if (chatId) {
+      setState((prev) => {
+        const nextMap = { ...(prev.toolSelectionsByChat || {}) };
+        if (next === null) {
+          delete nextMap[chatId];
+        } else {
+          nextMap[chatId] = next;
+        }
+        return { toolSelectionsByChat: nextMap };
+      });
+      return;
+    }
+    setState({ newChatToolSelection: next });
+  };
+  const refreshAllowedToolServers = async ({ force = false } = {}) => {
+    if (!force && (state.toolServersLoaded || state.toolServersLoading)) {
+      return toolServersRefreshPromise;
+    }
+
+    const requestGeneration = ++toolServersRefreshGeneration;
+    setState({ toolServersLoading: true });
+
+    const requestPromise = fetchToolServers()
+      .then((payload) => {
+        if (requestGeneration !== toolServersRefreshGeneration) return payload;
+        setState({
+          toolServers: Array.isArray(payload?.servers) ? payload.servers : [],
+          toolServersLoaded: true,
+          toolServersLoading: false,
+        });
+        return payload;
+      })
+      .catch((err) => {
+        if (requestGeneration !== toolServersRefreshGeneration) return null;
+        console.warn('Failed to load tool servers:', err);
+        setState({
+          toolServers: [],
+          toolServersLoaded: true,
+          toolServersLoading: false,
+        });
+        return null;
+      })
+      .finally(() => {
+        if (toolServersRefreshPromise === requestPromise) {
+          toolServersRefreshPromise = null;
+        }
+      });
+
+    toolServersRefreshPromise = requestPromise;
+    return requestPromise;
+  };
+  const loadAllowedToolServers = async () => refreshAllowedToolServers();
+  const checkToolServersInvalidation = () => {
+    const token = consumeToolServersInvalidation();
+    if (!token) return null;
+    toolServersRefreshGeneration += 1;
+    toolServersRefreshPromise = null;
+    setState({ toolServersLoaded: false, toolServersLoading: false });
+    refreshAllowedToolServers({ force: true });
+    return token;
+  };
+  const bindToolServersInvalidationListener = () => {
+    if (toolServersInvalidationListenerBound) return;
+    toolServersStorageListener = (event) => {
+      if (event.key !== 'growchat_tool_servers_invalidate') return;
+      checkToolServersInvalidation();
+    };
+    toolServersCustomListener = () => {
+      checkToolServersInvalidation();
+    };
+    window.addEventListener('storage', toolServersStorageListener);
+    window.addEventListener('growchat:tool-servers-invalidated', toolServersCustomListener);
+    toolServersInvalidationListenerBound = true;
+  };
+  const unbindToolServersInvalidationListener = () => {
+    if (!toolServersInvalidationListenerBound) return;
+    if (toolServersStorageListener) {
+      window.removeEventListener('storage', toolServersStorageListener);
+    }
+    if (toolServersCustomListener) {
+      window.removeEventListener('growchat:tool-servers-invalidated', toolServersCustomListener);
+    }
+    toolServersStorageListener = null;
+    toolServersCustomListener = null;
+    toolServersInvalidationListenerBound = false;
+  };
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
   let pinnedSectionCollapsed = false;
   try {
@@ -448,6 +562,7 @@ function wireChat(root) {
     buildTempChat,
     pruneTempChats,
     getDraftAttachments,
+    getDraftToolNames,
     setDraftAttachments,
     updateChatTitleLocal,
     currentLeafByChatId,
@@ -535,6 +650,9 @@ function wireChat(root) {
     await ensureFilesModal();
     setState({ showFiles: true });
   });
+  bindToolServersInvalidationListener();
+  checkToolServersInvalidation();
+  void loadAllowedToolServers();
 
   function getActiveModel() {
     return state.models.find((m) => m.id === state.activeModelId) || null;
@@ -1386,12 +1504,20 @@ function wireChat(root) {
     const activeTempId = state.activeChatId && isTempChatId(state.activeChatId) ? state.activeChatId : null;
     if (activeTempId && (state.messagesByChat[activeTempId] || []).length === 0) {
       setState({ activeChatId: activeTempId, newChatDraft: '' });
+      if (state.newChatToolSelection !== null) {
+        setDraftToolNames(activeTempId, state.newChatToolSelection);
+        setDraftToolNames(null, null);
+      }
       syncChatUrl(activeTempId);
       drawMessages([]);
       return;
     }
 
     const tempChat = buildTempChat();
+    if (state.newChatToolSelection !== null) {
+      setDraftToolNames(tempChat.id, state.newChatToolSelection);
+      setDraftToolNames(null, null);
+    }
     setState((prev) => ({
       chats: [tempChat, ...pruneTempChats(prev.chats)],
       activeChatId: tempChat.id,
@@ -1402,8 +1528,8 @@ function wireChat(root) {
     drawMessages([]);
   }
 
-  async function sendSingleMessage(text, hooks = {}) {
-    return chatMessageFlow?.sendSingleMessage?.(text, hooks);
+  async function sendSingleMessage(text, hooks = {}, options = {}) {
+    return chatMessageFlow?.sendSingleMessage?.(text, hooks, options);
     let chatId = state.activeChatId;
     let tempChatId = null;
     let autoTitle = null;
@@ -1413,6 +1539,10 @@ function wireChat(root) {
     if (!chatId) {
       const tempChat = buildTempChat();
       tempChatId = tempChat.id;
+      if (state.newChatToolSelection !== null) {
+        setDraftToolNames(tempChatId, state.newChatToolSelection);
+        setDraftToolNames(null, null);
+      }
 
       setState((prev) => ({
         chats: [tempChat, ...pruneTempChats(prev.chats)],
@@ -1557,12 +1687,18 @@ function wireChat(root) {
           nextAttachmentsByChat[realChatId] = nextAttachmentsByChat[tempChatId];
           delete nextAttachmentsByChat[tempChatId];
         }
+        const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
+        if (nextToolSelectionsByChat[tempChatId] !== undefined) {
+          nextToolSelectionsByChat[realChatId] = nextToolSelectionsByChat[tempChatId];
+          delete nextToolSelectionsByChat[tempChatId];
+        }
         return {
           chats: deduped,
           activeChatId: realChatId,
           activeModelId: prev.activeModelId || data.chat.model || prev.defaultModelId || prev.globalDefaultModelId,
           messagesByChat: nextMessagesByChat,
           attachmentsByChat: nextAttachmentsByChat,
+          toolSelectionsByChat: nextToolSelectionsByChat,
         };
       });
 
@@ -1801,13 +1937,13 @@ function wireChat(root) {
     }
   }
 
-  async function sendMessage(text, hooks = {}) {
+  async function sendMessage(text, hooks = {}, options = {}) {
     const prompt = String(text || '').trim();
     if (!prompt) {
       hooks.onFinished?.();
       return;
     }
-    return chatMessageFlow?.sendMessage?.(prompt, hooks);
+    return chatMessageFlow?.sendMessage?.(prompt, hooks, options);
   }
 
   const onToggleSidebar = () => {
@@ -2066,6 +2202,7 @@ function wireChat(root) {
     destroyChatFileEvents?.();
     window.removeEventListener('growchat:realtime', onRealtimeEvent);
     window.removeEventListener('popstate', onPopState);
+    unbindToolServersInvalidationListener();
     root.__cleanup = null;
   };
 }

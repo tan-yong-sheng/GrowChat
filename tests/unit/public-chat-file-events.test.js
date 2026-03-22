@@ -78,6 +78,33 @@ describe('chat file events', () => {
 
     destroy();
   });
+
+  it('does not show the disabled attachments warning for text-only uploads', () => {
+    const state = { activeChatId: 'chat-1' };
+    const showToast = vi.fn();
+    const setDraftAttachments = vi.fn();
+
+    const destroy = bindChatFileEvents({
+      state,
+      uploadFile: vi.fn(),
+      showToast,
+      showToastProgress: vi.fn(() => ({ close: vi.fn() })),
+      getDraftAttachments: vi.fn(() => []),
+      setDraftAttachments,
+      getAllowedNonLocalKinds: vi.fn(() => []),
+      getFileContentType: vi.fn(() => 'text/plain'),
+      isAttachmentAllowedByModel: vi.fn(() => false),
+      isSupportedAttachmentType: vi.fn(() => true),
+    });
+
+    window.dispatchEvent(new CustomEvent('attach-files', {
+      detail: { files: [{ id: 'f1', filename: 'Doc.txt', content_type: 'text/plain', file_size: 1 }] },
+    }));
+
+    expect(showToast).not.toHaveBeenCalledWith('Attachments are disabled for this model.');
+
+    destroy();
+  });
 });
 
 

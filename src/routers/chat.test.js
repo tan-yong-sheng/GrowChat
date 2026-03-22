@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   streamLLM: vi.fn(),
   queryFAQs: vi.fn(),
   queryDocumentChunks: vi.fn(),
+  loadToolServers: vi.fn(),
   createRealtimeEvent: vi.fn((event) => event),
   getOriginSessionId: vi.fn(() => 's1'),
   publishRealtimeEvent: vi.fn().mockResolvedValue(true),
@@ -32,6 +33,14 @@ vi.mock('../services/embeddings.js', () => ({
   queryFAQs: (...args) => mocks.queryFAQs(...args),
   queryDocumentChunks: (...args) => mocks.queryDocumentChunks(...args),
 }));
+
+vi.mock('../chat/mcp.js', async () => {
+  const actual = await vi.importActual('../chat/mcp.js');
+  return {
+    ...actual,
+    loadToolServers: (...args) => mocks.loadToolServers(...args),
+  };
+});
 
 vi.mock('../features/realtime/realtime.js', () => ({
   createRealtimeEvent: (...args) => mocks.createRealtimeEvent(...args),
@@ -57,6 +66,7 @@ describe('chatRouter', () => {
     vi.clearAllMocks();
     mocks.queryFAQs.mockResolvedValue([]);
     mocks.queryDocumentChunks.mockResolvedValue([]);
+    mocks.loadToolServers.mockResolvedValue([]);
     mocks.db.run.mockResolvedValue({ success: true });
     mocks.db.batch.mockResolvedValue([{ success: true }]);
     mocks.db.prepare.mockImplementation((sql) => ({
@@ -103,6 +113,54 @@ describe('chatRouter', () => {
     expect(body.offset).toBe(0);
     expect(body.has_more).toBe(false);
     expect(mocks.db.all).toHaveBeenCalled();
+  });
+
+  it('lists enabled tool servers for the chat composer', async () => {
+    mocks.loadToolServers.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        name: 'Weather',
+        url: 'https://example.invalid',
+        enabled: true,
+        tools: [
+          { name: 'weather_lookup', title: 'Weather Lookup', description: 'Lookup weather', enabled: true },
+          { name: 'news_lookup', title: 'News Lookup', description: 'Lookup news', enabled: false },
+        ],
+      },
+      {
+        id: 'server-2',
+        name: 'Hidden',
+        url: 'https://example.invalid',
+        enabled: false,
+        tools: [{ name: 'hidden_tool', enabled: true }],
+      },
+    ]);
+
+    const res = await chatRouter(
+      makeReq('/api/tool-servers', 'GET'),
+      { DB: {} },
+      {},
+      user,
+      '/api/tool-servers'
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.servers).toEqual([
+      {
+        id: 'server-1',
+        name: 'Weather',
+        enabled: true,
+        tools: [
+          {
+            name: 'weather_lookup',
+            title: 'Weather Lookup',
+            description: 'Lookup weather',
+            enabled: true,
+          },
+        ],
+      },
+    ]);
   });
 
   it('returns 304 for cached chat list when ETag matches', async () => {

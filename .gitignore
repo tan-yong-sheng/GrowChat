@@ -10,6 +10,7 @@ markitdown/
 gemini-cli/
 opencode/
 generative-ui-demo/
+ClawRouter/
 
 .ona/
 .playwright/
@@ -29,21 +30,25 @@ test-results/
 .gemini/*
 
 # But track these specific directories - negate dirs FIRST, then contents
+!.agents/agents/
 !.agents/skills/
 !.agents/rules/
 !.agents/memory/
 !.agents/plans/
 
+!.claude/agents/
 !.claude/skills/
 !.claude/rules/
 !.claude/memory/
 !.claude/plans/
 
+!.codex/agents/
 !.codex/skills/
 !.codex/rules/
 !.codex/memory/
 !.codex/plans/
 
+!.gemini/agents/
 !.gemini/skills/
 !.gemini/rules/
 !.gemini/memory/

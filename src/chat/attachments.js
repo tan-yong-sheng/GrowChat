@@ -25,6 +25,7 @@ export const TEXT_LIKE_MIME_TYPES = new Set([
 export const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
 export const DEFAULT_ATTACHMENT_CAPS = { text: true };
 export const ATTACHMENT_KIND_ORDER = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
+export const ATTACHMENT_CAP_TYPES = [...ATTACHMENT_KIND_ORDER];
 export const STRICT_ATTACHMENT_CAPS = true;
 
 export function isTextLikeContentType(contentType) {

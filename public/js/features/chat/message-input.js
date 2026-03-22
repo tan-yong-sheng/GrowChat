@@ -19,17 +19,39 @@ export function renderMessageInput(container, onSend) {
     <div id="attachment-list" class="hidden mb-2 flex flex-wrap gap-2"></div>
     <div id="attachment-hint" class="hidden mb-2 text-xs font-medium text-amber-700"></div>
     <form id="composer" class="relative bg-[#f4f4f4] rounded-[24px] p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 focus-within:ring-gray-300 focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-transparent focus-within:border-gray-200">
-       <div class="relative flex-shrink-0 ml-1">
+       <div class="relative flex-shrink-0 ml-1 flex items-center gap-1">
          <button type="button" id="open-files-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5" title="Attach file" aria-label="Attach file" aria-expanded="false">
            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
          </button>
-         <div id="attach-menu" class="hidden absolute bottom-full left-0 mb-2 w-48 rounded-2xl border border-gray-100 bg-white shadow-xl p-1 z-30">
-           <button type="button" id="attach-upload" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl flex items-center gap-2">
-             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-             Upload files & images
+         <button type="button" id="open-tools-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5" title="Tools" aria-label="Tools" aria-expanded="false">
+           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg>
+         </button>
+         <div id="attach-menu" class="hidden absolute bottom-full left-0 mb-2 w-52 rounded-2xl border border-gray-100 bg-white shadow-xl p-1 z-30">
+           <button type="button" id="attach-upload" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl flex items-center gap-2.5 whitespace-nowrap">
+             <i class="bi bi-paperclip text-[15px] leading-none"></i>
+             <span class="whitespace-nowrap">Upload Files</span>
+           </button>
+           <button type="button" id="attach-capture" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl flex items-center gap-2.5">
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-1.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg>
+             Capture
            </button>
          </div>
+         <div id="tools-menu" class="hidden absolute bottom-full left-12 mb-2 w-60 rounded-2xl border border-gray-100 bg-white shadow-xl p-1 z-30">
+           <div class="flex items-center justify-between gap-2 px-3 py-2">
+             <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Tools</div>
+             <div class="flex items-center gap-1">
+               <button type="button" id="tools-menu-all-on" class="hidden inline-flex h-7 w-7 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-50 transition" aria-label="Enable all MCP tools" title="Enable all MCP tools">
+                 <i class="bi bi-check2-circle text-sm leading-none" aria-hidden="true"></i>
+               </button>
+               <button type="button" id="tools-menu-all-off" class="hidden inline-flex h-7 w-7 items-center justify-center rounded-full text-rose-600 hover:bg-rose-50 transition" aria-label="Disable all MCP tools" title="Disable all MCP tools">
+                 <i class="bi bi-x-circle text-sm leading-none" aria-hidden="true"></i>
+               </button>
+             </div>
+           </div>
+           <div id="tools-menu-list" class="max-h-80 overflow-y-auto"></div>
+         </div>
          <input type="file" id="attachment-input" class="hidden" multiple accept="image/*,application/pdf,text/*" />
+         <input type="file" id="camera-input" class="hidden" accept="image/*" capture="environment" />
        </div>
        <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[16px] px-2 py-2.5 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800" style="height: 44px;" aria-label="Message text"></textarea>
        <div class="flex-shrink-0 flex items-center mb-1 mr-1 gap-1 relative">

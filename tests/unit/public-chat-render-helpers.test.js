@@ -20,6 +20,7 @@ describe('chat render helpers', () => {
     expect(rows.children).toHaveLength(2);
     expect(rows.children[1].classList.contains('active')).toBe(true);
     expect(rows.children[1].querySelector('.chat-row-content')?.className).toContain('bg-gray-100/90');
+    expect(rows.children[1].querySelector('.chat-row-content')?.className).toContain('shadow-sm');
     expect(rows.children[1].querySelector('.chat-title')?.className).toContain('text-gray-900');
     expect(rows.children[0].textContent).toContain('First');
     expect(rows.children[1].textContent).toContain('Second');

@@ -38,6 +38,25 @@ describe('message input', () => {
     view.destroy();
   });
 
+  it('does not render the disabled attachments warning', async () => {
+    const { store, renderMessageInput } = await loadModules();
+    const container = document.getElementById('root');
+
+    store.setState({
+      models: [{ id: 'm1', name: 'GPT Mini' }],
+      activeModelId: 'm1',
+    });
+
+    const view = renderMessageInput(container, vi.fn());
+    const hint = container.querySelector('#attachment-hint');
+
+    expect(hint).not.toBeNull();
+    expect(hint.textContent).toBe('');
+    expect(container.textContent).not.toContain('Attachments are disabled for this model.');
+
+    view.destroy();
+  });
+
   it('persists the draft for the active chat while typing', async () => {
     const { store, renderMessageInput } = await loadModules();
     const container = document.getElementById('root');
@@ -56,6 +75,67 @@ describe('message input', () => {
 
     expect(store.state.drafts).toEqual({ 'chat-1': 'Hello world' });
     expect(localStorage.getItem('drafts')).toBe(JSON.stringify({ 'chat-1': 'Hello world' }));
+
+    view.destroy();
+  });
+
+  it('renders allowed tool servers with inline expansion and server toggles', async () => {
+    const { store, renderMessageInput } = await loadModules();
+    const container = document.getElementById('root');
+
+    store.setState({
+      activeChatId: null,
+      models: [{ id: 'm1', name: 'GPT Mini' }],
+      activeModelId: 'm1',
+      toolServersLoaded: true,
+      toolServers: [
+        {
+          id: 'server-1',
+          name: 'Weather',
+          enabled: true,
+          tools: [
+            { name: 'weather_lookup', title: 'Weather Lookup', description: 'Lookup weather', enabled: true },
+            { name: 'news_lookup', title: 'News Lookup', description: 'Lookup news', enabled: true },
+          ],
+        },
+      ],
+      toolSelectionsByChat: {},
+      newChatToolSelection: null,
+    });
+
+    const view = renderMessageInput(container, vi.fn());
+    container.querySelector('#open-tools-btn').click();
+
+    expect(container.querySelector('#tools-menu')?.classList.contains('hidden')).toBe(false);
+    expect(container.textContent).toContain('Weather');
+    expect(container.querySelector('#tools-menu-all-on')).not.toBeNull();
+    expect(container.querySelector('#tools-menu-all-off')).not.toBeNull();
+    expect(container.querySelector('#tools-menu-all-on')?.classList.contains('hidden')).toBe(true);
+    expect(container.querySelector('#tools-menu-all-off')?.classList.contains('hidden')).toBe(false);
+
+    container.querySelector('#tools-menu-all-off').click();
+    expect(store.state.newChatToolSelection).toEqual([]);
+    expect(container.querySelector('#tools-menu-all-on')?.classList.contains('hidden')).toBe(false);
+    expect(container.querySelector('#tools-menu-all-off')?.classList.contains('hidden')).toBe(true);
+
+    container.querySelector('#tools-menu-all-on').click();
+    expect(store.state.newChatToolSelection).toBeNull();
+    expect(container.querySelector('#tools-menu-all-on')?.classList.contains('hidden')).toBe(true);
+    expect(container.querySelector('#tools-menu-all-off')?.classList.contains('hidden')).toBe(false);
+
+    container.querySelector('[data-tool-server-expand][data-tool-server-id="server-1"]').click();
+    expect(container.textContent).toContain('Weather Lookup');
+
+    container.querySelector('[data-tool-toggle][data-tool-name="weather_lookup"]').click();
+    expect(store.state.newChatToolSelection).toEqual(['mcp__server-1__news_lookup']);
+
+    container.querySelector('[data-tool-server-toggle][data-tool-server-id="server-1"]').click();
+    expect(store.state.newChatToolSelection).toEqual([]);
+
+    container.querySelector('[data-tool-server-toggle][data-tool-server-id="server-1"]').click();
+    expect(store.state.newChatToolSelection).toBeNull();
+
+    expect(container.querySelector('[data-tool-toggle][data-tool-name="weather_lookup"]')?.getAttribute('aria-pressed')).toBe('true');
 
     view.destroy();
   });

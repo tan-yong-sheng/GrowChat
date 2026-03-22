@@ -47,6 +47,7 @@ describe('chat message stream helper', () => {
       buildTempChat: vi.fn(),
       pruneTempChats: (list) => list,
       currentLeafByChatId,
+      getDraftToolNames: vi.fn(() => ['mcp__server-1__weather_lookup']),
       registerPendingTempMessage: vi.fn(),
       setBranchSelection: vi.fn(),
       streamingOverrideByChat,
@@ -86,6 +87,13 @@ describe('chat message stream helper', () => {
 
     await helper.sendMessage('hello world');
 
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/chats/chat-1/messages',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"selected_tool_names":["mcp__server-1__weather_lookup"]'),
+      })
+    );
     expect(replaceTempMessageId).toHaveBeenNthCalledWith(
       1,
       'chat-1',
@@ -99,6 +107,256 @@ describe('chat message stream helper', () => {
       'a-real'
     );
     expect(currentLeafByChatId.get('chat-1')).toBe('a-real');
+  });
+
+  it('serializes an explicit all-off tool selection as an empty list', async () => {
+    const state = {
+      activeChatId: 'chat-1',
+      activeModelId: 'model-1',
+      chats: [{ id: 'chat-1', title: 'Chat 1' }],
+      messagesByChat: { 'chat-1': [] },
+      attachmentsByChat: {},
+      ui: {},
+    };
+    const setState = vi.fn((updater) => {
+      const next = typeof updater === 'function' ? updater(state) : updater;
+      Object.assign(state, next);
+    });
+    const consumeSseTextStream = vi.fn(async () => {});
+    const apiFetch = vi.fn(async (url) => {
+      if (String(url).includes('/messages')) {
+        return { ok: true, body: {} };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const helper = createChatMessageStream({
+      state,
+      setState,
+      apiFetch,
+      drawMessages: vi.fn(),
+      buildTempChat: vi.fn(),
+      pruneTempChats: (list) => list,
+      currentLeafByChatId: new Map(),
+      getDraftToolNames: vi.fn(() => []),
+      registerPendingTempMessage: vi.fn(),
+      setBranchSelection: vi.fn(),
+      streamingOverrideByChat: new Map(),
+      setGlobalStreamAbort: vi.fn(),
+      clearGlobalStreamAbort: vi.fn(),
+      setStreamingState: vi.fn(),
+      getActiveStreamAbort: vi.fn(() => null),
+      setActiveStreamAbort: vi.fn(),
+      consumeSseTextStream,
+      appendBlock: vi.fn(),
+      ensureThinkingBlock: vi.fn(),
+      updateToolCallState: vi.fn(),
+      notePayloadSeq: vi.fn(),
+      buildFallbackAssistantMessage: vi.fn(),
+      formatApiErrorMessage: vi.fn((_, fallback) => fallback),
+      updateMessageContentDom: vi.fn(),
+      applyAssistantErrorMessage: vi.fn(),
+      getMessageById: vi.fn(() => null),
+      loadMessages: vi.fn().mockResolvedValue(undefined),
+      getMessageSeq: vi.fn(() => 0),
+      thinkingStartByMessageId: new Map(),
+      thinkingDurationByMessageId: new Map(),
+      thinkingActiveByMessageId: new Map(),
+      messageBlocksById: new Map(),
+      toolCallsByMessageId: new Map(),
+      streamSession: {
+        getResumeStream: vi.fn(),
+        setResumeStream: vi.fn(),
+        clearResumeStream: vi.fn(),
+        startStreamPolling: vi.fn(),
+        stopStreamPolling: vi.fn(),
+        stopResumeStream: vi.fn(),
+      },
+      replaceTempMessageId: vi.fn(),
+      resolveTempMessageId: vi.fn((_, id) => id),
+    });
+
+    await helper.sendMessage('hello world', {}, { selectedToolNames: [] });
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/chats/chat-1/messages',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"selected_tool_names":[]'),
+      })
+    );
+  });
+
+  it('preserves an empty tool selection when a temp chat becomes real', async () => {
+    const state = {
+      activeChatId: 'temp-chat-1',
+      activeModelId: 'model-1',
+      chats: [{ id: 'temp-chat-1', title: 'New Chat' }],
+      messagesByChat: { 'temp-chat-1': [] },
+      attachmentsByChat: {},
+      toolSelectionsByChat: { 'temp-chat-1': [] },
+      ui: {},
+    };
+    const setState = vi.fn((updater) => {
+      const next = typeof updater === 'function' ? updater(state) : updater;
+      Object.assign(state, next);
+    });
+    const consumeSseTextStream = vi.fn(async () => {});
+    const apiFetch = vi.fn(async (url) => {
+      if (String(url) === '/api/chats') {
+        return new Response(JSON.stringify({ chat: { id: 'chat-real-1', model: 'model-1', title: 'New Chat' } }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (String(url).includes('/messages')) {
+        return new Response(JSON.stringify({ chat: { id: 'chat-real-1', model: 'model-1', title: 'New Chat' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const helper = createChatMessageStream({
+      state,
+      setState,
+      apiFetch,
+      drawMessages: vi.fn(),
+      buildTempChat: vi.fn((id) => ({ id: id || 'temp-chat-1', title: 'New Chat' })),
+      pruneTempChats: (list) => list,
+      getDraftToolNames: vi.fn(() => []),
+      registerPendingTempMessage: vi.fn(),
+      setBranchSelection: vi.fn(),
+      streamingOverrideByChat: new Map(),
+      setGlobalStreamAbort: vi.fn(),
+      clearGlobalStreamAbort: vi.fn(),
+      setStreamingState: vi.fn(),
+      getActiveStreamAbort: vi.fn(() => null),
+      setActiveStreamAbort: vi.fn(),
+      consumeSseTextStream,
+      appendBlock: vi.fn(),
+      ensureThinkingBlock: vi.fn(),
+      updateToolCallState: vi.fn(),
+      notePayloadSeq: vi.fn(),
+      buildFallbackAssistantMessage: vi.fn(),
+      formatApiErrorMessage: vi.fn((_, fallback) => fallback),
+      updateMessageContentDom: vi.fn(),
+      applyAssistantErrorMessage: vi.fn(),
+      getMessageById: vi.fn(() => null),
+      loadMessages: vi.fn().mockResolvedValue(undefined),
+      getMessageSeq: vi.fn(() => 0),
+      thinkingStartByMessageId: new Map(),
+      thinkingDurationByMessageId: new Map(),
+      thinkingActiveByMessageId: new Map(),
+      messageBlocksById: new Map(),
+      toolCallsByMessageId: new Map(),
+      streamSession: {
+        getResumeStream: vi.fn(),
+        setResumeStream: vi.fn(),
+        clearResumeStream: vi.fn(),
+        startStreamPolling: vi.fn(),
+        stopStreamPolling: vi.fn(),
+        stopResumeStream: vi.fn(),
+      },
+      replaceTempMessageId: vi.fn(),
+      resolveTempMessageId: vi.fn((_, id) => id),
+      isTempChatId: (id) => String(id || '').startsWith('temp-'),
+    });
+
+    await helper.sendMessage('hello world');
+
+    expect(state.toolSelectionsByChat).toEqual({ 'chat-real-1': [] });
+  });
+
+  it('carries a new-chat tool selection into the temp chat before the first send', async () => {
+    const state = {
+      activeChatId: null,
+      activeModelId: 'model-1',
+      chats: [],
+      messagesByChat: {},
+      attachmentsByChat: {},
+      toolSelectionsByChat: {},
+      newChatToolSelection: [],
+      ui: {},
+    };
+    const setState = vi.fn((updater) => {
+      const next = typeof updater === 'function' ? updater(state) : updater;
+      Object.assign(state, next);
+    });
+    const consumeSseTextStream = vi.fn(async () => {});
+    const apiFetch = vi.fn(async (url) => {
+      if (String(url) === '/api/chats') {
+        return new Response(JSON.stringify({ chat: { id: 'chat-real-2', model: 'model-1', title: 'New Chat' } }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (String(url).includes('/messages')) {
+        return new Response(JSON.stringify({ chat: { id: 'chat-real-2', model: 'model-1', title: 'New Chat' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const helper = createChatMessageStream({
+      state,
+      setState,
+      apiFetch,
+      drawMessages: vi.fn(),
+      buildTempChat: vi.fn((id) => ({ id: id || 'temp-chat-2', title: 'New Chat' })),
+      pruneTempChats: (list) => list,
+      getDraftToolNames: vi.fn(() => []),
+      registerPendingTempMessage: vi.fn(),
+      setBranchSelection: vi.fn(),
+      streamingOverrideByChat: new Map(),
+      setGlobalStreamAbort: vi.fn(),
+      clearGlobalStreamAbort: vi.fn(),
+      setStreamingState: vi.fn(),
+      getActiveStreamAbort: vi.fn(() => null),
+      setActiveStreamAbort: vi.fn(),
+      consumeSseTextStream,
+      appendBlock: vi.fn(),
+      ensureThinkingBlock: vi.fn(),
+      updateToolCallState: vi.fn(),
+      notePayloadSeq: vi.fn(),
+      buildFallbackAssistantMessage: vi.fn(),
+      formatApiErrorMessage: vi.fn((_, fallback) => fallback),
+      updateMessageContentDom: vi.fn(),
+      applyAssistantErrorMessage: vi.fn(),
+      getMessageById: vi.fn(() => null),
+      loadMessages: vi.fn().mockResolvedValue(undefined),
+      getMessageSeq: vi.fn(() => 0),
+      thinkingStartByMessageId: new Map(),
+      thinkingDurationByMessageId: new Map(),
+      thinkingActiveByMessageId: new Map(),
+      messageBlocksById: new Map(),
+      toolCallsByMessageId: new Map(),
+      streamSession: {
+        getResumeStream: vi.fn(),
+        setResumeStream: vi.fn(),
+        clearResumeStream: vi.fn(),
+        startStreamPolling: vi.fn(),
+        stopStreamPolling: vi.fn(),
+        stopResumeStream: vi.fn(),
+      },
+      replaceTempMessageId: vi.fn(),
+      resolveTempMessageId: vi.fn((_, id) => id),
+      isTempChatId: (id) => String(id || '').startsWith('temp-'),
+    });
+
+    await helper.sendMessage('hello world', {}, { selectedToolNames: [] });
+
+    expect(state.toolSelectionsByChat).toEqual({ 'chat-real-2': [] });
+    expect(state.newChatToolSelection).toBeNull();
   });
 
   it('resumes a stream and updates message state from SSE events', async () => {

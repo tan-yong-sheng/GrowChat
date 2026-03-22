@@ -35,6 +35,42 @@ describe('chat MCP helpers', () => {
     expect(serversById.has('server-1')).toBe(true);
   });
 
+  it('filters MCP tools by selected model tool names', () => {
+    const { tools, toolMap } = buildMcpTools([
+      {
+        id: 'server-1',
+        url: 'https://example.invalid',
+        tools: [
+          { name: 'Weather Lookup', description: 'desc', parameters: { type: 'object' } },
+          { name: 'News Lookup', description: 'desc', parameters: { type: 'object' } },
+        ],
+      },
+    ], {
+      selectedToolNames: ['mcp__server-1__News_Lookup'],
+    });
+
+    expect(tools).toHaveLength(1);
+    expect(toolMap.has('mcp__server-1__News_Lookup')).toBe(true);
+    expect(toolMap.has('mcp__server-1__Weather_Lookup')).toBe(false);
+  });
+
+  it('returns no tools when the selected tool list is explicitly empty', () => {
+    const { tools, toolMap } = buildMcpTools([
+      {
+        id: 'server-1',
+        url: 'https://example.invalid',
+        tools: [
+          { name: 'Weather Lookup', description: 'desc', parameters: { type: 'object' } },
+        ],
+      },
+    ], {
+      selectedToolNames: [],
+    });
+
+    expect(tools).toHaveLength(0);
+    expect(toolMap.has('mcp__server-1__Weather_Lookup')).toBe(false);
+  });
+
   it('parses SSE messages and tool arguments', () => {
     const messages = parseSseMessages('data: {"id":1}\n\ndata: {"id":2}\n\n');
     expect(messages).toEqual([{ id: 1 }, { id: 2 }]);

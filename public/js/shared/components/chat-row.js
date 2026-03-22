@@ -20,8 +20,7 @@ export function createChatRow(chat, handlers) {
 
   const htmlTemplate = `
     <div class="chat-row relative group px-2 w-full ${isActive ? 'active' : ''}" data-chat-id="${chat.id}">
-      <div class="chat-row-content relative flex items-center justify-between rounded-xl px-3 py-2 transition-colors cursor-pointer ${isActive ? 'bg-gray-100/90 shadow-[inset_2px_0_0_#111827]' : 'group-hover:bg-gray-100/80'}">
-        ${isActive ? '<span aria-hidden="true" class="absolute inset-y-2 left-0 w-1 rounded-full bg-gray-900"></span>' : ''}
+      <div class="chat-row-content relative flex items-center justify-between rounded-xl px-3 py-2 transition-colors cursor-pointer ${isActive ? 'bg-gray-100/90 shadow-sm ring-1 ring-gray-200' : 'group-hover:bg-gray-100/80'}">
         <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="sidebar-full-only flex-1 min-w-0 pr-2">
             <span class="chat-title flex items-center gap-1.5 text-sm truncate font-primary ${isActive ? 'text-gray-900 font-semibold' : 'text-gray-700'}">

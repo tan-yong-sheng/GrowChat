@@ -1,4 +1,5 @@
 import { apiFetch } from '../../../shared/api.js';
+import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import {
   buildIntegrationsSnapshot,
   mapSavedToolServers,
@@ -77,6 +78,7 @@ export function renderIntegrationsSettings(container, data) {
     const payload = await res.json().catch(() => ({}));
     integrationsState.toolServers = mapSavedToolServers(payload?.servers, sanitized);
     integrationsState.originalSnapshot = buildSnapshot();
+    broadcastToolServersInvalidation();
     if (showFeedback && feedback) {
       feedback.textContent = 'Integrations saved successfully';
       feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';

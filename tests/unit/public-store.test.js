@@ -57,6 +57,19 @@ describe('public store', () => {
     expect(localStorage.getItem('newChatDraft')).toBe('Draft');
   });
 
+  it('replaces tool selection maps so deleted keys are actually removed', async () => {
+    localStorage.setItem('toolSelectionsByChat', JSON.stringify({ c1: [], c2: ['mcp__server__tool'] }));
+
+    const { state, setState } = await loadStore();
+
+    expect(state.toolSelectionsByChat).toEqual({ c1: [], c2: ['mcp__server__tool'] });
+
+    setState({ toolSelectionsByChat: { c2: ['mcp__server__tool'] } });
+
+    expect(state.toolSelectionsByChat).toEqual({ c2: ['mcp__server__tool'] });
+    expect(localStorage.getItem('toolSelectionsByChat')).toBe(JSON.stringify({ c2: ['mcp__server__tool'] }));
+  });
+
   it('notifies subscribers immediately and stops after unsubscribe', async () => {
     const { setState, subscribe } = await loadStore();
     const calls = [];

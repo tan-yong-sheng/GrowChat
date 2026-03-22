@@ -23,6 +23,24 @@ describe('llm-provider-adapters', () => {
     });
   });
 
+  it('forces tool_choice none for OpenAI-compatible requests when tools are explicitly disabled', () => {
+    const result = buildProviderRequest({
+      providerFamily: 'openai',
+      baseUrl: 'https://api.example.com/v1',
+      modelId: 'gpt-4o',
+      messages: [{ role: 'user', content: 'Hello' }],
+      options: {
+        tools: [],
+        toolChoice: 'none',
+      },
+      stream: true,
+      normalizeToolParameters,
+    });
+
+    expect(result.payload.tool_choice).toBe('none');
+    expect(result.payload.tools).toBeUndefined();
+  });
+
   it('builds Gemini streamGenerateContent requests with thought signatures', () => {
     const result = buildProviderRequest({
       providerFamily: 'google',

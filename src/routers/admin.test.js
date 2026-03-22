@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../chat/attachments.js';
 
 const mocks = vi.hoisted(() => ({
   createDB: vi.fn(),
@@ -153,6 +154,72 @@ describe('adminRouter openai connections', () => {
     expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       action: 'admin_config_updated',
       resource_id: 'config',
+    }));
+  });
+
+  it('reads and updates model attachment caps', async () => {
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === MODEL_ATTACHMENT_CAPS_KEY) {
+        return JSON.stringify({
+          'qwen3.5-plus': {
+            attachments: { image: true, pdf: false },
+            updated_at: 123,
+          },
+        });
+      }
+      return fallback;
+    });
+
+    const getRes = await adminRouter(
+      makeReq('/api/admin/model-attachment-caps', 'GET'),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/model-attachment-caps'
+    );
+    const getPayload = await getRes.json();
+
+    expect(getRes.status).toBe(200);
+    expect(getPayload).toEqual({
+      caps: {
+        'qwen3.5-plus': {
+          attachments: { image: true, pdf: false },
+          updated_at: 123,
+        },
+      },
+      supported_types: ATTACHMENT_CAP_TYPES,
+    });
+
+    const putRes = await adminRouter(
+      new Request('https://example.com/api/admin/model-attachment-caps', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: [
+            {
+              model_id: 'qwen3.5-plus',
+              attachments: { image: true, pdf: true },
+            },
+          ],
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/model-attachment-caps'
+    );
+    const putPayload = await putRes.json();
+
+    expect(putRes.status).toBe(200);
+    expect(putPayload.caps['qwen3.5-plus'].attachments).toEqual({ image: true, pdf: true });
+    expect(mocks.setConfigValue).toHaveBeenCalledWith(
+      expect.anything(),
+      MODEL_ATTACHMENT_CAPS_KEY,
+      expect.stringContaining('"qwen3.5-plus"')
+    );
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: 'attachment_caps_updated',
+      resource_id: 'model-attachment-caps',
     }));
   });
 

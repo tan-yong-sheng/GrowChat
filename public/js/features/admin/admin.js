@@ -562,9 +562,9 @@ export async function renderAdminPage(container) {
     }
 
     container.innerHTML = `
-      <div class="flex h-screen w-full bg-white overflow-hidden font-primary text-gray-900">
+      <div class="flex h-[100dvh] w-full bg-white overflow-hidden font-primary text-gray-900">
         <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
-        <aside id="sidebar" class="fixed md:relative h-screen md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
+        <aside id="sidebar" class="fixed md:relative h-[100dvh] md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
           <div class="p-3 flex-shrink-0">
             <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
               <a href="/" id="admin-home-link" class="flex items-center gap-3 sidebar-full-only rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300">
@@ -592,7 +592,7 @@ export async function renderAdminPage(container) {
             </div>
           </div>
           <div class="flex-1 min-h-0"></div>
-          <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]"></div>
+          <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));"></div>
         </aside>
         <div class="flex-1 flex flex-col min-w-0">
           <nav class="px-4 pt-2 border-b border-gray-50 bg-white/80 backdrop-blur-md sticky top-0 z-20">

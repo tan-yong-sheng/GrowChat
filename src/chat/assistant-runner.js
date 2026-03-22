@@ -45,10 +45,17 @@ export function createAssistantRunner(deps) {
     citations,
     attachmentKinds = [],
     providerFamily = 'openai',
+    selectedToolNames = null,
   }) {
     const assistantMsgId = crypto.randomUUID();
     const servers = await loadToolServers(db);
-    const { tools, toolMap, serversById } = buildMcpTools(servers);
+    const selectedToolNameList = Array.isArray(selectedToolNames)
+      ? selectedToolNames.map((name) => String(name || '').trim()).filter(Boolean)
+      : null;
+    const toolChoice = Array.isArray(selectedToolNames) && selectedToolNames.length === 0
+      ? 'none'
+      : undefined;
+    const { tools, toolMap, serversById } = buildMcpTools(servers, { selectedToolNames: selectedToolNameList });
     const providerSupportsTools = ['openai', 'google', 'anthropic'].includes(
       normalizeProviderFamily(providerFamily) || ''
     );
@@ -160,6 +167,7 @@ export function createAssistantRunner(deps) {
               try {
                 stream = await streamLLM(env, model, messagesForModel, {
                   tools: toolsEnabled ? tools : undefined,
+                  toolChoice,
                 });
               } catch (err) {
                 await recordAttachmentCapabilityFailure(db, model, attachmentKinds, err);

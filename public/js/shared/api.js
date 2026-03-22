@@ -195,6 +195,16 @@ export async function fetchFiles({ limit = 20, offset = 0, signal } = {}) {
   return res.json();
 }
 
+export async function fetchToolServers({ signal, cache = 'no-store' } = {}) {
+  const res = await apiFetch('/api/tool-servers', { signal, cache });
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch tool servers (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
 export async function uploadFile(file, chatId = null, options = {}) {
   const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 30000;
   const externalSignal = options.signal;

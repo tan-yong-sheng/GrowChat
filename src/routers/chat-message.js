@@ -30,6 +30,19 @@ import {
   isSupportedAttachmentType,
 } from '../chat/attachments.js';
 
+function normalizeSelectedToolNames(input) {
+  if (!Array.isArray(input)) return null;
+  const seen = new Set();
+  const names = [];
+  for (const value of input) {
+    const name = String(value || '').trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+
 async function publishRealtimeNow(env, event) {
   try {
     return await createRealtimeBus(env).publish(event);
@@ -65,6 +78,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
 
     const content = String(body.message || '').trim();
     if (!content) return error(req, 'message is required', 400);
+    const selectedToolNames = normalizeSelectedToolNames(
+      body.selected_tool_names || body.tool_names || body.tools
+    );
 
     let model = String(body.model || chat.model || '').trim();
     if (!model) {
@@ -273,6 +289,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       citations,
       attachmentKinds,
       providerFamily: providerInfo.providerFamily,
+      selectedToolNames,
     });
 
     return response;
@@ -326,6 +343,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
 
     const content = String(body.content || '').trim();
     if (!content) return error(req, 'content is required', 400);
+    const selectedToolNames = normalizeSelectedToolNames(
+      body.selected_tool_names || body.tool_names || body.tools
+    );
 
     const role = String(body.role || 'user').trim().toLowerCase();
     if (role !== 'user' && role !== 'assistant') {
@@ -547,6 +567,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       citations: null,
       attachmentKinds,
       providerFamily: providerInfo.providerFamily,
+      selectedToolNames,
     });
 
     return response;
@@ -577,6 +598,16 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       return error(req, providerInfo.error, 400);
     }
 
+    let body = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+    const selectedToolNames = normalizeSelectedToolNames(
+      body.selected_tool_names || body.tool_names || body.tools
+    );
+
     const history = trimTrailingAssistantMessages(await db.all(
       `SELECT role, content
        FROM messages
@@ -606,6 +637,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       history,
       citations: null,
       providerFamily: providerInfo.providerFamily,
+      selectedToolNames,
     });
 
     return response;

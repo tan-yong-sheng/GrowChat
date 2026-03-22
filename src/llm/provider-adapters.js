@@ -628,6 +628,7 @@ export function buildProviderRequest({
       messages,
       stream: stream !== false,
       ...(Array.isArray(options.tools) && options.tools.length ? { tools: options.tools, tool_choice: options.toolChoice } : {}),
+      ...(options.toolChoice ? { tool_choice: options.toolChoice } : {}),
     },
     headers: {},
   };

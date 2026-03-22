@@ -16,6 +16,9 @@ export const state = {
   activeModelId: null,
   defaultModelId: null,
   globalDefaultModelId: null,
+  toolServers: [],
+  toolServersLoading: false,
+  toolServersLoaded: false,
   
   // UI Layout
   showSidebar: window.innerWidth >= 768,
@@ -46,6 +49,8 @@ export const state = {
   },
   attachmentsByChat: {},
   newChatAttachments: [],
+  toolSelectionsByChat: readStoredJson(localStorage, 'toolSelectionsByChat', {}),
+  newChatToolSelection: null,
 
   // RBAC State
   permissions: [],
@@ -70,7 +75,7 @@ const listeners = new Set();
 export function setState(updater) {
   const changes = typeof updater === 'function' ? updater(state) : updater;
   let hasChanges = false;
-  const replaceObjectKeys = new Set(['drafts']);
+  const replaceObjectKeys = new Set(['drafts', 'messagesByChat', 'attachmentsByChat', 'toolSelectionsByChat']);
   
   for (const key in changes) {
     if (typeof changes[key] === 'object' && changes[key] !== null && !Array.isArray(changes[key])) {
@@ -101,6 +106,7 @@ export function setState(updater) {
     if (changes.sidebarCollapsed !== undefined) writeStoredString(localStorage, 'sidebarCollapsed', state.sidebarCollapsed);
     if (changes.drafts) writeStoredJson(localStorage, 'drafts', state.drafts);
     if (changes.newChatDraft !== undefined) writeStoredString(localStorage, 'newChatDraft', state.newChatDraft || '');
+    if (changes.toolSelectionsByChat) writeStoredJson(localStorage, 'toolSelectionsByChat', state.toolSelectionsByChat);
     if (changes.defaultModelId) {
       // defaultModelId is stored server-side; avoid persisting stale local values.
     }

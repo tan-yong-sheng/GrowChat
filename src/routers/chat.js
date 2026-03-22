@@ -1,5 +1,5 @@
 import { createDB } from '../db.js';
-import { error, preflight, sseData, sseHeaders } from '../utils/response.js';
+import { error, json, preflight, sseData, sseHeaders } from '../utils/response.js';
 import { createRealtimeEvent, getOriginSessionId } from '../features/realtime/realtime.js';
 import { runAsyncSessionProcessor } from '../features/chat/async-session-processor.js';
 import { resolveTurnContinuation } from '../llm/turn-policy.js';
@@ -41,6 +41,28 @@ async function publishRealtimeNow(env, event) {
   }
 }
 
+function serializeAllowedToolServers(servers = []) {
+  return (Array.isArray(servers) ? servers : [])
+    .filter((server) => server?.enabled !== false && server?.id && server?.url)
+    .map((server) => {
+      const tools = (Array.isArray(server.tools) ? server.tools : [])
+        .filter((tool) => tool?.enabled !== false && String(tool?.name || '').trim())
+        .map((tool) => ({
+          name: String(tool.name || '').trim(),
+          title: String(tool.title || '').trim(),
+          description: String(tool.description || '').trim(),
+          enabled: true,
+        }));
+      return {
+        id: String(server.id),
+        name: String(server.name || '').trim(),
+        enabled: true,
+        tools,
+      };
+    })
+    .filter((server) => server.name && server.tools.length > 0);
+}
+
 const assistantStreamRunner = createAssistantRunner({
   sseData,
   sseHeaders,
@@ -71,6 +93,7 @@ const assistantStreamRunner = createAssistantRunner({
 
 export async function chatRouter(req, env, ctx, user, path) {
   const isChatPath = path === '/api/chats'
+    || path === '/api/tool-servers'
     || path === '/api/chats/shared'
     || path === '/api/chats/archived'
     || /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate|cancel|status|resume))?)?|\/(?:share|archive|pin|clone))?$/.test(path);
@@ -81,6 +104,11 @@ export async function chatRouter(req, env, ctx, user, path) {
 
   const db = createDB(env.DB);
   const originSessionId = getOriginSessionId(req);
+
+  if (req.method === 'GET' && path === '/api/tool-servers') {
+    const servers = await loadToolServers(db);
+    return json(req, { servers: serializeAllowedToolServers(servers) });
+  }
 
   const collectionResponse = await chatCollectionRouter(req, env, user, path, originSessionId, db);
   if (collectionResponse) return collectionResponse;

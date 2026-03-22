@@ -9,6 +9,7 @@ export function createChatMessageStream({
   buildTempChat = () => null,
   pruneTempChats = (list) => list,
   getDraftAttachments = () => [],
+  getDraftToolNames = () => null,
   setDraftAttachments = () => {},
   updateChatTitleLocal = () => {},
   currentLeafByChatId = new Map(),
@@ -174,7 +175,7 @@ export function createChatMessageStream({
     }
   }
 
-  async function sendSingleMessage(text, hooks = {}) {
+  async function sendSingleMessage(text, hooks = {}, options = {}) {
     let chatId = state.activeChatId;
     let tempChatId = null;
     let autoTitle = null;
@@ -184,6 +185,16 @@ export function createChatMessageStream({
     if (!chatId) {
       const tempChat = buildTempChat();
       tempChatId = tempChat.id;
+      if (state.newChatToolSelection !== null) {
+        setState((prev) => {
+          const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
+          nextToolSelectionsByChat[tempChatId] = prev.newChatToolSelection;
+          return {
+            toolSelectionsByChat: nextToolSelectionsByChat,
+            newChatToolSelection: null,
+          };
+        });
+      }
 
       setState((prev) => ({
         chats: [tempChat, ...pruneTempChats(prev.chats)],
@@ -281,7 +292,14 @@ export function createChatMessageStream({
           const nextActiveChatId = prev.activeChatId === tempChatId ? (nextChats[0]?.id || null) : prev.activeChatId;
           const nextMessagesByChat = { ...prev.messagesByChat };
           delete nextMessagesByChat[tempChatId];
-          return { chats: nextChats, activeChatId: nextActiveChatId, messagesByChat: nextMessagesByChat };
+          const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
+          delete nextToolSelectionsByChat[tempChatId];
+          return {
+            chats: nextChats,
+            activeChatId: nextActiveChatId,
+            messagesByChat: nextMessagesByChat,
+            toolSelectionsByChat: nextToolSelectionsByChat,
+          };
         });
         hooks.onFinished?.();
         return;
@@ -324,12 +342,18 @@ export function createChatMessageStream({
           nextAttachmentsByChat[realChatId] = nextAttachmentsByChat[tempChatId];
           delete nextAttachmentsByChat[tempChatId];
         }
+        const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
+        if (nextToolSelectionsByChat[tempChatId] !== undefined) {
+          nextToolSelectionsByChat[realChatId] = nextToolSelectionsByChat[tempChatId];
+          delete nextToolSelectionsByChat[tempChatId];
+        }
         return {
           chats: deduped,
           activeChatId: realChatId,
           activeModelId: prev.activeModelId || data.chat.model || prev.defaultModelId || prev.globalDefaultModelId,
           messagesByChat: nextMessagesByChat,
           attachmentsByChat: nextAttachmentsByChat,
+          toolSelectionsByChat: nextToolSelectionsByChat,
         };
       });
 
@@ -384,10 +408,14 @@ export function createChatMessageStream({
       const attachmentIds = (draftAttachments || [])
         .map((item) => item?.id)
         .filter(Boolean);
+      const selectedToolNames = Array.isArray(options.selectedToolNames)
+        ? options.selectedToolNames.filter(Boolean)
+        : (Array.isArray(getDraftToolNames(chatId)) ? getDraftToolNames(chatId).filter(Boolean) : null);
       const payload = {
         message: text,
         model: state.activeModelId || undefined,
         ...(attachmentIds.length ? { attachments: attachmentIds } : {}),
+        ...(selectedToolNames !== null ? { selected_tool_names: selectedToolNames } : {}),
       };
       res = await apiFetch(`/api/chats/${chatId}/messages`, {
         method: 'POST',
@@ -570,13 +598,13 @@ export function createChatMessageStream({
     }
   }
 
-  async function sendMessage(text, hooks = {}) {
+  async function sendMessage(text, hooks = {}, options = {}) {
     const prompt = String(text || '').trim();
     if (!prompt) {
       hooks.onFinished?.();
       return;
     }
-    return sendSingleMessage(prompt, hooks);
+    return sendSingleMessage(prompt, hooks, options);
   }
 
   return {

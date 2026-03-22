@@ -5,7 +5,6 @@ export function bindChatFileEvents({
   showToastProgress,
   getDraftAttachments,
   setDraftAttachments,
-  getAllowedAttachmentKinds,
   getAllowedNonLocalKinds,
   getFileContentType,
   isAttachmentAllowedByModel,
@@ -16,7 +15,6 @@ export function bindChatFileEvents({
     if (!files.length) return;
     const toast = showToastProgress(`Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`);
     try {
-      const allowedKinds = getAllowedAttachmentKinds(state, { localTextLabel: 'text (local)' });
       const allowedNonLocalKinds = getAllowedNonLocalKinds(state);
       const chatId = state.activeChatId;
       const uploaded = [];
@@ -57,10 +55,6 @@ export function bindChatFileEvents({
       if (skippedByModel > 0) {
         if (allowedNonLocalKinds.length > 0) {
           showToast(`Current model supports ${allowedNonLocalKinds.join(', ')} attachments.`);
-        } else if (allowedKinds.includes('text (local)')) {
-          showToast('Only text attachments are supported for this model.');
-        } else {
-          showToast('Attachments are disabled for this model.');
         }
       }
       if (uploaded.length) {
@@ -83,7 +77,6 @@ export function bindChatFileEvents({
   const handleAttachFiles = (event) => {
     const files = Array.isArray(event?.detail?.files) ? event.detail.files : [];
     if (!files.length) return;
-    const allowedKinds = getAllowedAttachmentKinds(state, { localTextLabel: 'text (local)' });
     const allowedNonLocalKinds = getAllowedNonLocalKinds(state);
     const chatId = state.activeChatId;
     const filtered = files.filter((file) => {
@@ -100,10 +93,6 @@ export function bindChatFileEvents({
     if (modelFiltered.length !== filtered.length) {
       if (allowedNonLocalKinds.length > 0) {
         showToast(`Current model supports ${allowedNonLocalKinds.join(', ')} attachments.`);
-      } else if (allowedKinds.includes('text (local)')) {
-        showToast('Only text attachments are supported for this model.');
-      } else {
-        showToast('Attachments are disabled for this model.');
       }
     }
     const current = getDraftAttachments(chatId);

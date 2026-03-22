@@ -98,6 +98,26 @@ describe('admin integrations settings', () => {
     expect(container.querySelector('#save-integrations')?.disabled).toBe(false);
     expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/tool-servers' && init?.method === 'PUT')).toBe(false);
   });
+
+  it('broadcasts a tool-server invalidation after saving integrations', async () => {
+    const { renderIntegrationsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    const listener = vi.fn();
+
+    renderIntegrationsSettings(container, data);
+    await vi.waitFor(() => expect(data.integrationsSettings.originalSnapshot).not.toBeNull());
+    window.addEventListener('growchat:tool-servers-invalidated', listener);
+    vi.clearAllMocks();
+
+    container.querySelector('.server-toggle')?.click();
+    await vi.waitFor(() => expect(container.querySelector('#save-integrations')?.disabled).toBe(false));
+    container.querySelector('#save-integrations')?.click();
+
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers', expect.objectContaining({ method: 'PUT' })));
+    await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
+    window.removeEventListener('growchat:tool-servers-invalidated', listener);
+  });
 });
 
 
