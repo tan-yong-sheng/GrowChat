@@ -166,4 +166,47 @@ describe('modelsRouter', () => {
     expect(payload.models[0].id).toBe('google/conn-1:beta');
     expect(payload.models[1].id).toBe('google/conn-1:alpha');
   });
+
+  it('filters admin models by provider and returns provider stats', async () => {
+    const env = { DB: {} };
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-openai',
+        name: 'OpenAI Main',
+        providerType: 'openai',
+        providerFamily: 'openai',
+        providerId: 'openai/conn-openai',
+        baseUrl: 'https://api.openai.com/v1',
+        manualModels: [{ modelId: 'gpt-4o', name: 'GPT-4o' }],
+      },
+      {
+        id: 'conn-google',
+        name: 'Gemini',
+        providerType: 'google',
+        providerFamily: 'google',
+        providerId: 'google/conn-google',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        manualModels: [{ modelId: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' }],
+      },
+    ]);
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models?include_disabled=1&provider=gemini', 'GET'),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/admin/models'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.models).toHaveLength(1);
+    expect(payload.models[0].provider_family).toBe('google');
+    const openai = payload.providers.find((item) => item.value === 'openai main');
+    const google = payload.providers.find((item) => item.value === 'gemini');
+    expect(openai).toBeTruthy();
+    expect(google).toBeTruthy();
+    expect(google.total).toBe(1);
+    expect(google.active).toBe(1);
+  });
 });

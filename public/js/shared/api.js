@@ -419,3 +419,149 @@ export async function fetchMyRoles() {
   }
   return res.json();
 }
+
+async function parseApiError(res, fallback) {
+  let message = fallback;
+  try {
+    const payload = await res.json();
+    message = payload?.error || payload?.message || message;
+  } catch {
+    // ignore
+  }
+  const err = new Error(message);
+  err.status = res.status;
+  throw err;
+}
+
+export async function fetchAdminUsers({ limit = 200, offset = 0 } = {}) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  const res = await apiFetch(`/api/admin/users?${params.toString()}`);
+  if (!res.ok) {
+    return parseApiError(res, `Failed to fetch users (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchAdminGroups() {
+  const res = await apiFetch('/api/admin/groups');
+  if (!res.ok) {
+    return parseApiError(res, `Failed to fetch groups (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchAdminModels({ limit = 200, offset = 0, query = '', includeDisabled = true, provider = '' } = {}) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  if (query) params.set('q', query);
+  if (provider && provider !== 'all') params.set('provider', provider);
+  if (includeDisabled) params.set('include_disabled', '1');
+  const res = await apiFetch(`/api/admin/models?${params.toString()}`);
+  if (!res.ok) {
+    return parseApiError(res, `Failed to fetch models (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchAdminGroup(groupId) {
+  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}`);
+  if (!res.ok) {
+    return parseApiError(res, `Failed to fetch group (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function createAdminGroup(payload) {
+  const res = await apiFetch('/api/admin/groups', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to create group (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function updateAdminGroup(groupId, payload) {
+  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to update group (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function deleteAdminGroup(groupId) {
+  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to delete group (${res.status})`);
+  }
+  return res;
+}
+
+export async function fetchGroupDefaultPermissions() {
+  const res = await apiFetch('/api/admin/groups/default-permissions');
+  if (!res.ok) {
+    return parseApiError(res, `Failed to fetch default permissions (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function updateGroupDefaultPermissions(payload) {
+  const res = await apiFetch('/api/admin/groups/default-permissions', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to update default permissions (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function addGroupMembers(groupId, userIds = []) {
+  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}/users`, {
+    method: 'POST',
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to add group members (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function removeGroupMembers(groupId, userIds = []) {
+  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}/users`, {
+    method: 'DELETE',
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to remove group members (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchGroupModelAccess(groupId) {
+  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}/models`);
+  if (!res.ok) {
+    return parseApiError(res, `Failed to fetch group models (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function updateGroupModelAccess(groupId, modelIds = []) {
+  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}/models`, {
+    method: 'PUT',
+    body: JSON.stringify({ model_ids: modelIds }),
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to update group models (${res.status})`);
+  }
+  return res.json();
+}

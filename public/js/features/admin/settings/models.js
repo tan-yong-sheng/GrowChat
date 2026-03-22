@@ -1,5 +1,6 @@
 import { apiFetch } from '../../../shared/api.js';
-import { filterModelsBySearch, normalizeModelSearchQuery } from '../../../shared/utils/model-search.js';
+import { normalizeModelSearchQuery } from '../../../shared/utils/model-search.js';
+import { buildProviderOptions, filterModelsBySearchAndProvider } from '../../../shared/utils/model-filters.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import {
@@ -30,6 +31,8 @@ export function renderModelsSettings(container, data) {
     capsError: null,
     saving: false,
     query: '',
+    provider: 'all',
+    providerOptions: [],
     invalidateToken: null,
     needsReload: false,
   });
@@ -43,6 +46,9 @@ export function renderModelsSettings(container, data) {
     modelsState.total = 0;
     modelsState.offset = 0;
     modelsState.error = null;
+    modelsState.query = '';
+    modelsState.provider = 'all';
+    modelsState.providerOptions = [];
     modelsState.needsReload = true;
   }
 
@@ -138,7 +144,24 @@ export function renderModelsSettings(container, data) {
     const dirty = hasChanges();
     const query = normalizeModelSearchQuery(modelsState.query);
     const usingFilter = Boolean(query);
-    const filteredModels = filterModelsBySearch(sortModelsByActiveThenName(modelsState.models), query);
+    const providerOptions = modelsState.providerOptions.length
+      ? modelsState.providerOptions
+      : buildProviderOptions(modelsState.models, { includeAll: false });
+    const enabledProviders = providerOptions.filter((option) => Number(option.active || 0) > 0);
+    const allOption = {
+      value: 'all',
+      label: 'All Providers',
+      active: modelsState.activeTotal ?? countEnabledModels(modelsState.models),
+      total: modelsState.total ?? modelsState.models.length,
+    };
+    const mergedProviders = [
+      allOption,
+      ...enabledProviders.filter((option) => option.value !== 'all'),
+    ];
+    const filteredModels = filterModelsBySearchAndProvider(sortModelsByActiveThenName(modelsState.models), {
+      query,
+      provider: modelsState.provider,
+    });
     const displayTotal = modelsState.activeTotal || countEnabledModels(modelsState.models);
     const pageTotal = modelsState.total;
     const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
@@ -162,6 +185,13 @@ export function renderModelsSettings(container, data) {
               </div>
               <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search" id="model-search-input" value="${modelsState.query}">
             </div>
+            <select id="model-provider-select" class="rounded-xl border border-gray-100/30 bg-gray-50/50 px-3 py-1.5 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
+              ${mergedProviders.map((option) => `
+                <option value="${option.value}" ${option.value === modelsState.provider ? 'selected' : ''}>
+                  ${option.label}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
+                </option>
+              `).join('')}
+            </select>
           </div>
         </div>
 
@@ -392,6 +422,14 @@ export function renderModelsSettings(container, data) {
         }, 120);
       };
     }
+    const providerSelect = container.querySelector('#model-provider-select');
+    if (providerSelect) {
+      providerSelect.onchange = (e) => {
+        modelsState.provider = e.target.value || 'all';
+        modelsState.offset = 0;
+        loadModels(true);
+      };
+    }
 
     container.querySelectorAll('.model-toggle').forEach(btn => {
       btn.onclick = () => {
@@ -451,6 +489,9 @@ export function renderModelsSettings(container, data) {
       const params = new URLSearchParams();
       params.set('limit', String(modelsState.limit));
       params.set('offset', String(modelsState.offset));
+      if (modelsState.provider && modelsState.provider !== 'all') {
+        params.set('provider', modelsState.provider);
+      }
       if (modelsState.query && modelsState.query.trim()) {
         params.set('q', modelsState.query.trim());
       }
@@ -461,6 +502,9 @@ export function renderModelsSettings(container, data) {
         modelsState.models = sortModelsByActiveThenName(payload.models || []);
         modelsState.total = payload.total || 0;
         modelsState.activeTotal = payload.active_total ?? countEnabledModels(modelsState.models);
+        modelsState.providerOptions = Array.isArray(payload.providers) && payload.providers.length > 0
+          ? payload.providers
+          : buildProviderOptions(modelsState.models, { includeAll: false });
         modelsState.disabledModels = new Set(
           modelsState.models.filter((model) => model.enabled === false).map((model) => model.id)
         );

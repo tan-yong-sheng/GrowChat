@@ -121,6 +121,52 @@ CREATE INDEX IF NOT EXISTS idx_prompts_category ON prompts(category);
 CREATE INDEX IF NOT EXISTS idx_prompts_active ON prompts(is_active);
 CREATE INDEX IF NOT EXISTS idx_prompts_user_active ON prompts(user_id, is_active) WHERE is_active = 1;
 
+CREATE TABLE IF NOT EXISTS groups (
+  id TEXT PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  share_policy TEXT NOT NULL DEFAULT 'members' CHECK (share_policy IN ('none', 'members', 'anyone')),
+  is_system INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_groups_name ON groups(name);
+CREATE INDEX IF NOT EXISTS idx_groups_created_at ON groups(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS group_members (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(group_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_members_group_id ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
+
+CREATE TABLE IF NOT EXISTS group_permissions (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  permission_id TEXT NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(group_id, permission_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_permissions_group_id ON group_permissions(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_permissions_permission_id ON group_permissions(permission_id);
+
+CREATE TABLE IF NOT EXISTS group_model_access (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  model_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(group_id, model_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_model_access_group_id ON group_model_access(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_model_access_model_id ON group_model_access(model_id);
+
 CREATE TABLE IF NOT EXISTS roles (
   id TEXT PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,

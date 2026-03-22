@@ -3,6 +3,7 @@ import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { resolveDefaultModel, getOwnedChat, getChatMessages, attachDocumentsToMessages } from './chat-core.js';
+import { enforceGroupModelAccess } from '../utils/group-model-access.js';
 
 async function publishRealtimeNow(env, event) {
   try {
@@ -90,6 +91,10 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     const title = String(body.title || 'New Chat').trim() || 'New Chat';
     const fallbackModel = await resolveDefaultModel(env, db, user.sub);
     const model = String(body.model || fallbackModel).trim() || fallbackModel;
+    const access = await enforceGroupModelAccess(db, user.sub, model);
+    if (!access.allowed) {
+      return error(req, 'Model not allowed for this group', 403);
+    }
 
     await db.run(
       'INSERT INTO chats (id, user_id, title, model, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, 0, unixepoch(), unixepoch())',
@@ -235,6 +240,11 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
     const newChatId = crypto.randomUUID();
     const newTitle = `${String(sourceChat.title || 'New Chat').trim() || 'New Chat'} (Copy)`;
+    const cloneModel = sourceChat.model || (await resolveDefaultModel(env, db, user.sub));
+    const cloneAccess = await enforceGroupModelAccess(db, user.sub, cloneModel);
+    if (!cloneAccess.allowed) {
+      return error(req, 'Model not allowed for this group', 403);
+    }
 
     const statements = [
       db.prepare(
@@ -243,7 +253,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         newChatId,
         user.sub,
         newTitle,
-        sourceChat.model || (await resolveDefaultModel(env, db, user.sub))
+        cloneModel
       ),
     ];
 

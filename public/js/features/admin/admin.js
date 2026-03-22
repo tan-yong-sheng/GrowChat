@@ -1,11 +1,13 @@
 import { state, setState, subscribe } from '../../shared/store.js';
-import { apiFetch } from '../../shared/api.js';
+import { apiFetch, fetchAdminGroups } from '../../shared/api.js';
 import { renderSidebar } from '../../shared/components/sidebar.js';
 import { createUserProfileFooter } from '../../shared/components/user-profile-footer.js';
 import { renderSearchModal } from '../../shared/components/search-modal.js';
 import { renderFilesModal } from '../../shared/components/files-modal.js';
 import { renderUserOverview } from './users/overview.js';
-import { renderGroupsOverview } from './users/groups.js';
+import { preloadGroupsData, renderGroupsOverview } from './users/groups.js';
+import { shouldLoadGroups } from './users/groups-helpers.js';
+import { removeGroupById, updateGroupMemberCount, upsertGroup } from './users/groups-list-helpers.js';
 import { renderGeneralSettings } from './settings/general.js';
 import { renderConnectionsSettings } from './settings/connections.js';
 import { renderModelsSettings } from './settings/models.js';
@@ -192,6 +194,8 @@ export async function renderAdminPage(container) {
     users: [],
     total: 0,
     groups: [],
+    groupsLoading: false,
+    groupsSort: 'members',
     loading: false,
     loadingMode: 'initial',
     error: null,
@@ -462,7 +466,30 @@ export async function renderAdminPage(container) {
     } else if (data.loading && data.loadingMode === 'initial') {
       subContentEl.innerHTML = renderLoadingState();
     } else {
-      renderGroupsOverview(subContentEl, data);
+      renderGroupsOverview(subContentEl, data, {
+        reload: loadGroups,
+        onSortChange(nextSort) {
+          data.groupsSort = nextSort;
+          renderSubContent();
+        },
+        onCreate(group) {
+          data.groups = upsertGroup(data.groups, group);
+          renderSubContent();
+        },
+        onUpdate(group) {
+          data.groups = upsertGroup(data.groups, group);
+          renderSubContent();
+        },
+        onDelete(groupId) {
+          data.groups = removeGroupById(data.groups, groupId);
+          renderSubContent();
+        },
+        onMemberDelta(groupId, delta) {
+          if (!delta) return;
+          data.groups = updateGroupMemberCount(data.groups, groupId, delta);
+          renderSubContent();
+        },
+      });
     }
   };
 
@@ -510,6 +537,29 @@ export async function renderAdminPage(container) {
     }
   }
 
+  async function loadGroups({ preserveContent = true } = {}) {
+    data.groupsLoading = true;
+    data.groupsError = null;
+    if (!preserveContent) {
+      data.groups = [];
+    }
+    renderSubContent();
+
+    try {
+      const res = await fetchAdminGroups();
+      data.groups = res.groups || [];
+    } catch (err) {
+      if (err?.status === 403) {
+        data.groupsError = 'You do not have permission to manage groups.';
+      } else {
+        data.groupsError = err.message || 'Failed to fetch groups.';
+      }
+    } finally {
+      data.groupsLoading = false;
+      renderSubContent();
+    }
+  }
+
   function bindTopNav() {
     container.querySelectorAll('a[data-nav]').forEach((link) => {
       link.onclick = async (e) => {
@@ -552,6 +602,9 @@ export async function renderAdminPage(container) {
           return;
         }
         renderSubContent();
+        if (mainTab === 'users' && subTab === 'groups' && shouldLoadGroups(data)) {
+          await loadGroups({ preserveContent: false });
+        }
       };
     });
   }
@@ -627,5 +680,16 @@ export async function renderAdminPage(container) {
   renderSubContent();
   if (mainTab === 'users' && data.users.length === 0) {
     await loadUsers({ preserveContent: false });
+  }
+  if (mainTab === 'users' && subTab === 'groups' && shouldLoadGroups(data)) {
+    try {
+      const preload = await preloadGroupsData();
+      data.groups = preload.groups || [];
+      data.groupsError = null;
+      data.groupsLoading = false;
+      renderSubContent();
+    } catch (err) {
+      data.groupsError = err.message || 'Failed to fetch groups.';
+    }
   }
 }

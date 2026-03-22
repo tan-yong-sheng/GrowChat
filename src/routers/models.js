@@ -9,6 +9,7 @@ import { createDB } from '../db.js';
 import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue } from '../utils/app-config.js';
+import { filterModelsByAllowlist, loadGroupModelAccessForUser } from '../utils/group-model-access.js';
 import { dedupeConnectionConfigs, discoverConnectionModels, extractConnectionModelId, getAllOpenAIConnectionConfigs, normalizeConnectionManualModels } from '../llm/connections.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../llm/model-state.js';
 import { buildProviderId, formatModelId, normalizeProviderFamily } from '../llm/provider-registry.js';
@@ -251,6 +252,61 @@ function isOpenAIProvider(model) {
   return normalizeProviderFamily(model?.provider_family || model?.provider_type || model?.provider) === 'openai';
 }
 
+function getProviderKey(model) {
+  const raw = model?.connection_name
+    || model?.connectionName
+    || model?.provider_id
+    || model?.providerId
+    || model?.provider_family
+    || model?.providerFamily
+    || model?.provider_type
+    || model?.providerType
+    || model?.provider
+    || '';
+  const normalized = String(raw || '').trim().toLowerCase();
+  return normalized || 'unknown';
+}
+
+function getProviderLabel(model) {
+  const raw = model?.connection_name
+    || model?.connectionName
+    || model?.provider_id
+    || model?.providerId
+    || model?.provider_family
+    || model?.providerFamily
+    || model?.provider_type
+    || model?.providerType
+    || model?.provider
+    || '';
+  const trimmed = String(raw || '').trim();
+  return trimmed || 'unknown';
+}
+
+function buildProviderStats(models = []) {
+  const totals = new Map();
+  const actives = new Map();
+  const labels = new Map();
+  (Array.isArray(models) ? models : []).forEach((model) => {
+    const key = getProviderKey(model);
+    if (!key || key === 'unknown') return;
+    totals.set(key, (totals.get(key) || 0) + 1);
+    if (model?.enabled !== false) {
+      actives.set(key, (actives.get(key) || 0) + 1);
+    }
+    if (!labels.has(key)) {
+      labels.set(key, getProviderLabel(model));
+    }
+  });
+  return Array.from(totals.entries())
+    .map(([value, total]) => ({
+      value,
+      label: labels.get(value) || value,
+      total,
+      active: actives.get(value) || 0,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 async function loadCustomModels(env) {
   // Prefer KV when available.
   if (env.CACHE) {
@@ -365,6 +421,12 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         if (disabledSet.size > 0) {
           publicModels = publicModels.filter((model) => !disabledSet.has(model.id));
         }
+        if (user?.sub) {
+          const allowlist = await loadGroupModelAccessForUser(db, user.sub);
+          if (allowlist.length) {
+            publicModels = filterModelsByAllowlist(publicModels, allowlist);
+          }
+        }
       }
       publicModels = sortModelsByActiveThenName(publicModels);
       const total = publicModels.length;
@@ -419,6 +481,10 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const rawQuery = url.searchParams.get('q') || '';
       const query = String(rawQuery).trim().toLowerCase();
       const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
+      const providerParam = String(url.searchParams.get('provider') || '').trim().toLowerCase();
+      const providerFilter = providerParam && providerParam !== 'all'
+        ? providerParam
+        : '';
 
       let customModels = [];
       let baseModels = [];
@@ -461,6 +527,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         const enabled = accessMap.has(model.id) ? accessMap.get(model.id) : true;
         return { ...publicModel, enabled };
       });
+      const providerStats = buildProviderStats(adminModels);
 
       let filteredModels = adminModels;
       if (query) {
@@ -471,6 +538,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           const provider = String(model?.provider || '').toLowerCase();
           return name.includes(query) || id.includes(query) || connection.includes(query) || provider.includes(query);
         });
+      }
+      if (providerFilter) {
+        filteredModels = filteredModels.filter((model) => getProviderKey(model) === providerFilter);
       }
 
       filteredModels = sortModelsByActiveThenName(filteredModels);
@@ -494,6 +564,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         active_total: activeTotal,
         limit,
         offset,
+        providers: providerStats,
       });
     } catch (err) {
       console.error('Unexpected error listing admin models:', err);

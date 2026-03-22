@@ -1,5 +1,7 @@
 # Phase 04 - RAG and Knowledge Parity with Vectorize
 
+Note: This has been deprecated ....
+
 ## Objective
 Close retrieval and knowledge-management gaps using R2 + extraction + Vectorize + citations pipeline.
 

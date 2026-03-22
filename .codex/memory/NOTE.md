@@ -67,9 +67,3 @@ This list tracks RBAC-related deltas that are still not fully merged from `claud
   - admin role change/deactivate flows
   - RBAC admin endpoints (`/api/admin/rbac/*`, `/api/admin/audit`)
 - Only cherry-pick branch commits/file hunks that improve behavior without removing current compatibility guards.
-\n## Provider/Model Capability Metadata (Plan)
-- Store per-connection and/or per-model capability flags (e.g., supports_parallel_tool_calls, supports_vision, supports_file_parts, supports_audio, supports_reasoning, supports_streaming, supports_tools).
-- Use these flags to decide when to send optional request params like parallel_tool_calls and to validate UI actions.
-- OpenAI: supports parallel_tool_calls toggle in Responses API; OpenAI-compatible varies and may ignore/reject unknown params.
-- Recommendation: default flags to conservative values, allow admin override per connection and model, and optionally auto-disable on 400/422 errors.
-

@@ -25,9 +25,10 @@ export default {
         const bindingError = validateRouteBindings(req, env, path);
         if (bindingError) return bindingError;
 
-        // Public routes don't require authentication
+        // Public routes don't require authentication, but can still accept it for scoped data.
         let user = null;
-        if (!isPublicRoute(req, path)) {
+        const isPublic = isPublicRoute(req, path);
+        if (!isPublic || req.headers.get('Authorization')) {
           user = await resolveAuthUser(req, env);
           // Enforce account deactivation server-side, even if caller still has a valid JWT.
           if (user?.sub) {

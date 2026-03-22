@@ -124,6 +124,54 @@ describe('admin connections modal', () => {
     expect(container.querySelector('#manage-connections-section')).not.toBeNull();
     expect(container.querySelector('#manage-connections-section')?.classList.contains('hidden')).toBe(false);
   });
+
+  it('saves env overrides when toggling a provider and invalidates models', async () => {
+    let lastPutBody = null;
+    mocks.apiFetch.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes('/api/admin/openai/connections') && init?.method === 'PUT') {
+        lastPutBody = JSON.parse(init.body || '{}');
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (target.includes('/api/admin/openai/connections')) {
+        return new Response(JSON.stringify({
+          enabled: true,
+          connections: [
+            {
+              id: 'env-openai-0',
+              name: 'OpenAI (proxy)',
+              url: 'https://proxy.tanyongsheng.site/v1',
+              providerType: 'openai',
+              source: 'env',
+              readOnly: true,
+              enabled: true,
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (target.includes('/api/admin/models')) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderConnectionsSettings(container, data);
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections'));
+    await vi.waitFor(() => expect(container.querySelector('.connection-toggle')).not.toBeNull());
+
+    container.querySelector('.connection-toggle')?.click();
+    expect(container.querySelector('#save-connections')?.disabled).toBe(false);
+
+    container.querySelector('#save-connections')?.click();
+    await vi.waitFor(() => expect(lastPutBody).not.toBeNull());
+    expect(lastPutBody.env_overrides).toEqual({ 'env-openai-0': false });
+    await vi.waitFor(() => expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled());
+    expect(data.modelsSettingsInvalidate).toBeTruthy();
+  });
 });
 
 

@@ -28,6 +28,15 @@ import {
   normalizeAttachmentIds,
   isSupportedAttachmentType,
 } from '../chat/attachments.js';
+import { enforceGroupModelAccess } from '../utils/group-model-access.js';
+
+async function ensureModelAllowed(req, db, userId, model) {
+  const { allowed } = await enforceGroupModelAccess(db, userId, model);
+  if (!allowed) {
+    return error(req, 'Model not allowed for this group', 403);
+  }
+  return null;
+}
 
 function normalizeSelectedToolNames(input) {
   if (!Array.isArray(input)) return null;
@@ -85,6 +94,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     if (!model) {
       model = await resolveDefaultModel(env, db, user.sub);
     }
+
+    const accessError = await ensureModelAllowed(req, db, user.sub, model);
+    if (accessError) return accessError;
 
     const providerInfo = await resolveProviderForModel(env, model);
     if (providerInfo?.error) {
@@ -371,6 +383,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       model = await resolveDefaultModel(env, db, user.sub);
     }
 
+    const accessError = await ensureModelAllowed(req, db, user.sub, model);
+    if (accessError) return accessError;
+
     const providerInfo = await resolveProviderForModel(env, model);
     if (providerInfo?.error) {
       return error(req, providerInfo.error, 400);
@@ -553,6 +568,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     if (!model) {
       model = await resolveDefaultModel(env, db, user.sub);
     }
+
+    const accessError = await ensureModelAllowed(req, db, user.sub, model);
+    if (accessError) return accessError;
 
     const providerInfo = await resolveProviderForModel(env, model);
     if (providerInfo?.error) {

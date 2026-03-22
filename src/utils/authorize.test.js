@@ -308,6 +308,47 @@ describe('authorize.js - Authorization Core', () => {
       expect(perms).toEqual(['chat.read', 'chat.write']);
     });
 
+    it('should merge group permissions with role permissions', async () => {
+      const user = { sub: 'user-123' };
+      const roleStatement = createMockStatement({
+        all: vi.fn().mockResolvedValue({
+          results: [{ key: 'chat.read' }],
+        }),
+      });
+      const groupStatement = createMockStatement({
+        all: vi.fn().mockResolvedValue({
+          results: [{ key: 'admin.user.read' }],
+        }),
+      });
+      mockDB.prepare
+        .mockImplementationOnce(() => roleStatement)
+        .mockImplementationOnce(() => groupStatement);
+
+      const perms = await resolvePermissions(mockEnv, user);
+
+      expect(perms).toEqual(['chat.read', 'admin.user.read']);
+      expect(mockDB.prepare).toHaveBeenCalledTimes(2);
+    });
+
+    it('should return group permissions when role permissions are empty', async () => {
+      const user = { sub: 'user-456' };
+      const roleStatement = createMockStatement({
+        all: vi.fn().mockResolvedValue({ results: [] }),
+      });
+      const groupStatement = createMockStatement({
+        all: vi.fn().mockResolvedValue({
+          results: [{ key: 'chat.share' }],
+        }),
+      });
+      mockDB.prepare
+        .mockImplementationOnce(() => roleStatement)
+        .mockImplementationOnce(() => groupStatement);
+
+      const perms = await resolvePermissions(mockEnv, user);
+
+      expect(perms).toEqual(['chat.share']);
+    });
+
     it('should return empty array for user with no sub', async () => {
       const user = { role: 'user' };
 
@@ -385,7 +426,7 @@ describe('authorize.js - Authorization Core', () => {
 
       const perms = await resolvePermissions(mockEnv, user);
 
-      expect(perms).toEqual(['chat.read', 'chat.read', 'chat.write']);
+      expect(perms).toEqual(['chat.read', 'chat.write']);
     });
   });
 

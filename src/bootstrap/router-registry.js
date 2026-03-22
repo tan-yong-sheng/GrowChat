@@ -6,6 +6,7 @@ import { adminRouter } from '../routers/admin/index.js';
 import { modelsRouter } from '../routers/models/index.js';
 import { promptsRouter } from '../routers/prompts.js';
 import { rbacRouter } from '../routers/rbac.js';
+import { groupsRouter } from '../routers/groups.js';
 import { publicRouter } from '../routers/public.js';
 import { realtimeRouter } from '../routers/realtime.js';
 
@@ -18,6 +19,7 @@ export const API_ROUTES = [
   promptsRouter,
   adminRouter,
   modelsRouter,
+  groupsRouter,
   rbacRouter,
   realtimeRouter,
 ];

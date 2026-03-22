@@ -86,7 +86,7 @@ export async function resolvePermissions(env, user, context = {}) {
   try {
     // Query: Get all permissions for user's roles
     // Respects scope: if scope_type/scope_id provided, includes both global and scoped permissions
-    const query = `
+    const roleQuery = `
       SELECT DISTINCT p.key
       FROM permissions p
       INNER JOIN role_permissions rp ON p.id = rp.permission_id
@@ -96,14 +96,35 @@ export async function resolvePermissions(env, user, context = {}) {
         AND (ur.scope_type IS NULL OR (ur.scope_type = ? AND ur.scope_id = ?))
     `;
 
-    const result = await env.DB.prepare(query).bind(
+    const roleResult = await env.DB.prepare(roleQuery).bind(
       user.sub,
       context.scope_type || null,
       context.scope_id || null
     ).all();
 
-    const resolved = (result.results || []).map((row) => row.key);
-    if (resolved.length > 0) return resolved;
+    const rolePermissions = (roleResult.results || []).map((row) => row.key);
+
+    let groupPermissions = [];
+    try {
+      const groupQuery = `
+        SELECT DISTINCT p.key
+        FROM permissions p
+        INNER JOIN group_permissions gp ON p.id = gp.permission_id
+        INNER JOIN groups g ON gp.group_id = g.id
+        INNER JOIN group_members gm ON g.id = gm.group_id
+        WHERE gm.user_id = ?
+      `;
+      const groupResult = await env.DB.prepare(groupQuery).bind(user.sub).all();
+      groupPermissions = (groupResult.results || []).map((row) => row.key);
+    } catch (err) {
+      if (!/no such table:\s*(groups|group_members|group_permissions)/i.test(String(err?.message || ''))) {
+        throw err;
+      }
+    }
+
+    const resolved = [...rolePermissions, ...groupPermissions];
+    const uniqueResolved = Array.from(new Set(resolved));
+    if (uniqueResolved.length > 0) return uniqueResolved;
 
     // Compatibility fallback for legacy records without user_roles entries.
     const persistedRole = await loadUserRoleFromUsersTable(env, user.sub);

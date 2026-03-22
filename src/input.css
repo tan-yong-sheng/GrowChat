@@ -1,3 +1,25 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .chat-message-content pre {
+    max-width: 100%;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+  }
+
+  .chat-message-content code {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  @media (min-width: 640px) {
+    .chat-message-content pre,
+    .chat-message-content code {
+      white-space: pre;
+      word-break: normal;
+    }
+  }
+}
