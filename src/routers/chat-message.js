@@ -3,7 +3,6 @@ import { error, json, sseHeaders, sseData } from '../utils/response.js';
 import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
-import { queryFAQs, queryDocumentChunks } from '../services/embeddings.js';
 import { buildMetadataSystemPrompt } from '../llm/system-prompt.js';
 import { trimTrailingAssistantMessages } from './chat-history.js';
 import {
@@ -201,38 +200,6 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       [chatId]
     );
 
-    let ragContext = '';
-    let citations = [];
-
-    try {
-      const faqResults = await queryFAQs(env, db, user.sub, content, 3, 0.5);
-      if (faqResults.length > 0) {
-        ragContext += '\n## Relevant FAQs\n';
-        for (const faq of faqResults) {
-          ragContext += `\n**Q: ${faq.question}**\nA: ${faq.answer}\n`;
-          if (faq.id) citations.push(faq.id);
-        }
-      }
-
-      const chunkResults = await queryDocumentChunks(env, db, user.sub, content, 5, 0.5);
-      if (chunkResults.length > 0) {
-        ragContext += '\n## Relevant Documents\n';
-        const seenDocs = new Set();
-        for (const chunk of chunkResults) {
-          const docId = chunk.doc_id || chunk.document_id;
-          const docName = chunk.filename || 'Document';
-
-          if (!seenDocs.has(docId)) {
-            ragContext += `\n**${docName}**\n`;
-            seenDocs.add(docId);
-          }
-          ragContext += `${chunk.chunk_text}\n`;
-        }
-      }
-    } catch (err) {
-      console.error('RAG query failed:', err);
-    }
-
     const metadataPrompt = buildMetadataSystemPrompt({
       appName: env.APP_NAME || 'GrowChat',
       model,
@@ -246,12 +213,6 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
         content: metadataPrompt,
       },
     ];
-    if (ragContext) {
-      enhancedHistory.push({
-        role: 'system',
-        content: `You are a helpful assistant. Use the following context to answer the user's question:\n${ragContext}`,
-      });
-    }
     enhancedHistory.push(...history);
 
     if (attachmentParts.length > 0) {
@@ -286,7 +247,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       parentId: userMsgId,
       model,
       history: enhancedHistory,
-      citations,
+      citations: null,
       attachmentKinds,
       providerFamily: providerInfo.providerFamily,
       selectedToolNames,

@@ -17,7 +17,6 @@ test.describe('Realtime Sync and Event Safety', () => {
     }));
     await page.route('**/api/chats*', (route) => route.fulfill({ status: 200, body: JSON.stringify({ chats: [] }) }));
     await page.route('**/api/models', (route) => route.fulfill({ status: 200, body: JSON.stringify({ models: [] }) }));
-    await page.route('**/api/folders', (route) => route.fulfill({ status: 200, body: JSON.stringify({ folders: [] }) }));
   });
 
   test('client connects with bearer token', async ({ page }) => {

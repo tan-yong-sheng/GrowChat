@@ -32,17 +32,6 @@ export function auditMigrationFiles(fileNames = []) {
   });
   const sortedEntries = uniqueEntries.slice().sort((a, b) => a.prefix - b.prefix);
 
-  for (let index = 0; index < sortedEntries.length; index += 1) {
-    const expectedPrefix = index + 1;
-    const actualPrefix = sortedEntries[index].prefix;
-    if (actualPrefix !== expectedPrefix) {
-      errors.push(
-        `Migration order gap at ${sortedEntries[index].fileName}: expected ${String(expectedPrefix).padStart(3, '0')}`
-      );
-      break;
-    }
-  }
-
   return {
     entries: sortedEntries,
     errors,

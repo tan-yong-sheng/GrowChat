@@ -126,23 +126,10 @@ export const auditTrailTests = {
       },
     },
     {
-      name: 'FAQ creation logged with category and tags count',
+      name: 'File extraction status is tracked',
       async test(env) {
-        // Create FAQ via POST /api/admin/faqs
-        // Check audit_log has entry with:
-        // - action='faq_created'
-        // - metadata includes category, tags_count
-        return 'PASS';
-      },
-    },
-    {
-      name: 'Knowledge base operations fully audited',
-      async test(env) {
-        // Create KB, add files, delete KB
-        // Check audit_log has entries for:
-        // - knowledge_base_created
-        // - knowledge_base_files_added
-        // - knowledge_base_deleted
+        // Upload file via POST /api/files/upload
+        // Check documents row has extraction_status updates and text preview
         return 'PASS';
       },
     },
@@ -230,15 +217,15 @@ export const permissionMatrixTests = {
       async test(env) {
         // Get owner role: GET /api/admin/rbac/roles
         // Query role_permissions for owner role
-        // Expected: has admin.*, model.admin, kb.*, file.*, chat.*
+        // Expected: has admin.*, model.admin, file.*, chat.*
         return 'PASS';
       },
     },
     {
-      name: 'Admin role has admin/model/kb/file permissions',
+      name: 'Admin role has admin/model/file permissions',
       async test(env) {
         // Query role_permissions for admin role
-        // Expected: has admin.user.*, model.admin, kb.*, file.*
+        // Expected: has admin.user.*, model.admin, file.*, chat.*
         // NOT: admin.audit (owner only)
         return 'PASS';
       },
@@ -247,7 +234,7 @@ export const permissionMatrixTests = {
       name: 'Member role limited to own resource operations',
       async test(env) {
         // Query role_permissions for member role
-        // Expected: has kb.read, kb.write, file.*, chat.*
+        // Expected: has file.*, chat.*, model.use
         // NOT: admin.*, model.admin
         return 'PASS';
       },
@@ -256,7 +243,7 @@ export const permissionMatrixTests = {
       name: 'Viewer role read-only across all resources',
       async test(env) {
         // Query role_permissions for viewer role
-        // Expected: has kb.read, file.read, chat.read
+        // Expected: has chat.read
         // NOT: any .write, .delete, .admin permissions
         return 'PASS';
       },

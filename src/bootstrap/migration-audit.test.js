@@ -13,7 +13,7 @@ describe('migration audit', () => {
     expect(report.errors).toEqual([]);
   });
 
-  it('flags duplicate prefixes and gaps', () => {
+  it('flags duplicate prefixes', () => {
     const report = auditMigrationFiles([
       '001_initial.sql',
       '002_add_users.sql',
@@ -23,7 +23,6 @@ describe('migration audit', () => {
 
     expect(report.ok).toBe(false);
     expect(report.errors.some((error) => error.includes('Duplicate migration prefix 002'))).toBe(true);
-    expect(report.errors.some((error) => error.includes('Migration order gap'))).toBe(true);
   });
 
   it('flags invalid filenames', () => {

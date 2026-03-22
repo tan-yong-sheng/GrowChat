@@ -8,7 +8,7 @@ import {
 
 describe('search modal helpers', () => {
   it('normalizes backend queries', () => {
-    expect(normalizeBackendQuery('tag:alpha hello')).toBe('hello');
+    expect(normalizeBackendQuery('pinned:true hello')).toBe('hello');
   });
 
   it('groups chats by date label', () => {

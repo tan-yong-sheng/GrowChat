@@ -1,21 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetSchemaCompatibilityState } from '../../src/bootstrap/schema-compatibility.js';
-
 const mocks = vi.hoisted(() => ({
   verifyJWT: vi.fn(),
   publicRouter: vi.fn(),
   authRouter: vi.fn(),
   chatRouter: vi.fn(),
   usersRouter: vi.fn(),
-  faqsRouter: vi.fn(),
   filesRouter: vi.fn(),
   adminRouter: vi.fn(),
   modelsRouter: vi.fn(),
-  knowledgeRouter: vi.fn(),
   promptsRouter: vi.fn(),
   rbacRouter: vi.fn(),
   realtimeRouter: vi.fn(),
-  foldersRouter: vi.fn(),
   getJwtSecret: vi.fn(() => 'test-secret'),
 }));
 
@@ -97,9 +92,6 @@ vi.mock('../../src/routers/chat/index.js', () => ({
 vi.mock('../../src/routers/users.js', () => ({
   usersRouter: (...args) => mocks.usersRouter(...args),
 }));
-vi.mock('../../src/routers/faqs.js', () => ({
-  faqsRouter: (...args) => mocks.faqsRouter(...args),
-}));
 vi.mock('../../src/routers/files.js', () => ({
   filesRouter: (...args) => mocks.filesRouter(...args),
 }));
@@ -109,9 +101,6 @@ vi.mock('../../src/routers/admin/index.js', () => ({
 vi.mock('../../src/routers/models/index.js', () => ({
   modelsRouter: (...args) => mocks.modelsRouter(...args),
 }));
-vi.mock('../../src/routers/knowledge.js', () => ({
-  knowledgeRouter: (...args) => mocks.knowledgeRouter(...args),
-}));
 vi.mock('../../src/routers/prompts.js', () => ({
   promptsRouter: (...args) => mocks.promptsRouter(...args),
 }));
@@ -120,9 +109,6 @@ vi.mock('../../src/routers/rbac.js', () => ({
 }));
 vi.mock('../../src/routers/realtime.js', () => ({
   realtimeRouter: (...args) => mocks.realtimeRouter(...args),
-}));
-vi.mock('../../src/routers/folders.js', () => ({
-  foldersRouter: (...args) => mocks.foldersRouter(...args),
 }));
 
 import app from '../../src/index.js';
@@ -134,20 +120,16 @@ function makeReq(path, method = 'GET', init = {}) {
 describe('worker entry point', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetSchemaCompatibilityState();
     mocks.publicRouter.mockResolvedValue(null);
     mocks.authRouter.mockResolvedValue(null);
     mocks.chatRouter.mockResolvedValue(null);
     mocks.usersRouter.mockResolvedValue(null);
-    mocks.faqsRouter.mockResolvedValue(null);
     mocks.filesRouter.mockResolvedValue(null);
     mocks.adminRouter.mockResolvedValue(null);
     mocks.modelsRouter.mockResolvedValue(null);
-    mocks.knowledgeRouter.mockResolvedValue(null);
     mocks.promptsRouter.mockResolvedValue(null);
     mocks.rbacRouter.mockResolvedValue(null);
     mocks.realtimeRouter.mockResolvedValue(null);
-    mocks.foldersRouter.mockResolvedValue(null);
     mocks.verifyJWT.mockResolvedValue({ sub: 'u1', email: 'u@example.com', role: 'user', name: 'User' });
   });
 

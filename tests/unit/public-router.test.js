@@ -47,9 +47,7 @@ describe('public router', () => {
       user_id: 'user-1',
       title: 'Shared chat',
       model: 'gpt-5',
-      system_prompt: 'secret prompt',
       pinned: 1,
-      tags: '[]',
       created_at: 10,
       updated_at: 20,
     });

@@ -1,8 +1,6 @@
 import { escapeHtml } from '../utils.js';
 
 const TOKENS = [
-  { label: 'tag:', description: 'Filter by tags' },
-  { label: 'folder:', description: 'Filter by folder' },
   { label: 'pinned:', description: 'Filter pinned chats' },
   { label: 'shared:', description: 'Filter shared chats' },
   { label: 'archived:', description: 'Filter archived chats' }

@@ -26,7 +26,7 @@ async function upsertGlobalRoleBinding(db, userId, role) {
     );
   } catch (err) {
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      console.warn('RBAC role binding skipped: run migrations/010_rbac_core.sql');
+      console.warn('RBAC role binding skipped: run migrations/001_initial.sql');
       return;
     }
     throw err;

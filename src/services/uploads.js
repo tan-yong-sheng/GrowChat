@@ -223,8 +223,8 @@ export async function storeFileMetadata(db, fileMetadata) {
   await db.run(
     `INSERT INTO documents
      (id, user_id, chat_id, filename, content_type, file_size, r2_key, r2_url,
-      extraction_status, embedding_generated, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, unixepoch(), unixepoch())`,
+      extraction_status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, unixepoch(), unixepoch())`,
     [
       documentId,
       fileMetadata.userId,
@@ -263,8 +263,8 @@ export async function getFileMetadata(db, documentId) {
  */
 export async function listUserDocuments(db, userId, limit = 20, offset = 0) {
   return await db.all(
-    `SELECT id, filename, content_type, file_size, extraction_status,
-            embedding_generated, created_at, updated_at
+    `SELECT id, filename, content_type, file_size, text_excerpt, extraction_status,
+            created_at, updated_at
      FROM documents
      WHERE user_id = ?
      ORDER BY created_at DESC
@@ -295,7 +295,7 @@ export async function deleteDocument(env, db, documentId, userId) {
   // Delete from R2
   await deleteFileFromR2(env, doc.r2_key);
 
-  // Delete from D1 (cascades to chunks and message references)
+  // Delete from D1 (cascades to message references)
   await db.run(
     'DELETE FROM documents WHERE id = ? AND user_id = ?',
     [documentId, userId]

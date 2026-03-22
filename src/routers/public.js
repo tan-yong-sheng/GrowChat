@@ -48,7 +48,7 @@ export async function publicRouter(req, env, _ctx, _user, path) {
     // Look up chat by share_id (case-sensitive)
     const chat = await db.first(
       `SELECT
-        id, user_id, title, model, system_prompt, pinned, tags,
+        id, user_id, title, model, pinned,
         created_at, updated_at
       FROM chats
       WHERE share_id = ?`,

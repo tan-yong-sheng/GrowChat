@@ -25,7 +25,7 @@ async function ensureUserRoleBinding(db, userId, role) {
   } catch (err) {
     // Temporary safety net: do not block auth when RBAC tables are not migrated yet.
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      console.warn('RBAC role binding skipped: run migrations/010_rbac_core.sql');
+      console.warn('RBAC role binding skipped: run migrations/001_initial.sql');
       return;
     }
     throw err;

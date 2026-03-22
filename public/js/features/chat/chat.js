@@ -68,10 +68,7 @@ import { createMessageSequenceTracker } from './chat-message-seq.js';
 // Lazy-loaded components to reduce initial network requests.
 let searchModalPromise = null;
 let filesModalPromise = null;
-let iconPickerPromise = null;
-let tagModalPromise = null;
 let userProfileFooterPromise = null;
-let folderSidebarPromise = null;
 let toolServersInvalidationListenerBound = false;
 let toolServersRefreshGeneration = 0;
 let toolServersRefreshPromise = null;
@@ -80,10 +77,7 @@ let toolServersCustomListener = null;
 
 const loadSearchModal = () => (searchModalPromise ??= import('../../shared/components/search-modal.js'));
 const loadFilesModal = () => (filesModalPromise ??= import('../../shared/components/files-modal.js'));
-const loadIconPickerModal = () => (iconPickerPromise ??= import('../../shared/components/icon-picker-modal.js'));
-const loadTagModal = () => (tagModalPromise ??= import('../../shared/components/tag-modal.js'));
 const loadUserProfileFooter = () => (userProfileFooterPromise ??= import('../../shared/components/user-profile-footer.js'));
-const loadFolderSidebar = () => (folderSidebarPromise ??= import('./folder-sidebar.js'));
 
 const attachmentImageUrlCache = new Map();
 const attachmentImagePromiseCache = new Map();
@@ -527,8 +521,6 @@ function wireChat(root) {
     syncChatUrl,
     setState,
     isTempChatId,
-    loadIconPickerModal,
-    loadTagModal,
     refreshShareState,
     renderShareModal,
     sharedByChatId,
@@ -547,7 +539,6 @@ function wireChat(root) {
       title: 'New Chat',
       model: modelToUse || null,
       pinned: 0,
-      tags: '[]',
       created_at: nowTs,
       updated_at: nowTs,
     };
@@ -600,14 +591,6 @@ function wireChat(root) {
 
   function scheduleSidebarEnhancements() {
     const run = () => {
-      loadFolderSidebar()
-        .then(({ createFolderSidebar }) => createFolderSidebar(getChatHandlers))
-        .then((folderContainer) => {
-          if (!folderContainer || !chatList?.parentNode) return;
-          chatList.parentNode.insertBefore(folderContainer, chatList);
-        })
-        .catch(() => {});
-
       loadUserProfileFooter()
         .then(({ createUserProfileFooter }) => createUserProfileFooter())
         .then((footer) => {
@@ -671,7 +654,7 @@ function wireChat(root) {
   drawPlaceholder();
 
   function drawChats(chats, activeId) {
-    const mainListChats = chats.filter((c) => !c.folder_id);
+    const mainListChats = chats;
     const pinnedChats = mainListChats.filter((c) => Number(c.pinned) === 1);
     const regularChats = mainListChats.filter((c) => Number(c.pinned) !== 1);
     const groups = groupChatsByTime(regularChats);

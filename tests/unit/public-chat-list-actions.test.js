@@ -32,8 +32,6 @@ describe('chat list actions', () => {
       setState,
       isTempChatId: (id) => String(id).startsWith('temp-'),
       drawMessages,
-      loadIconPickerModal: vi.fn(),
-      loadTagModal: vi.fn(),
       refreshShareState: vi.fn(),
       renderShareModal: vi.fn(),
       sharedByChatId: new Map(),
@@ -44,11 +42,8 @@ describe('chat list actions', () => {
 
     await handlers.share('temp-1');
     await handlers.rename('temp-1');
-    await handlers.setIcon('temp-1');
     await handlers.pin('temp-1');
     await handlers.duplicate('temp-1');
-    await handlers.tag('temp-1');
-    await handlers.moveFolder('temp-1');
     await handlers.archive('temp-1');
     await handlers.delete('temp-1');
     handlers.onClick('temp-1');
@@ -103,8 +98,6 @@ describe('chat list actions', () => {
     const loadMessages = vi.fn(async () => {});
     const syncChatUrl = vi.fn();
     const setState = createMutableSetState(state);
-    const showIconPickerModal = vi.fn(async () => {});
-    const showTagModal = vi.fn(async () => {});
     const refreshShareState = vi.fn(async () => {});
     const renderShareModal = vi.fn();
     const toggleArchiveChat = vi.fn(async () => {});
@@ -116,8 +109,6 @@ describe('chat list actions', () => {
       syncChatUrl,
       setState,
       isTempChatId: () => false,
-      loadIconPickerModal: vi.fn(async () => ({ showIconPickerModal })),
-      loadTagModal: vi.fn(async () => ({ showTagModal })),
       refreshShareState,
       renderShareModal,
       sharedByChatId: new Map([['chat-1', { share_id: 's-1' }]]),
@@ -130,27 +121,19 @@ describe('chat list actions', () => {
       alertFn: vi.fn(),
     })({
       title: 'First',
-      icon: 'A',
-      tags: '[]',
-      folder_id: 'folder-1',
     });
 
     await handlers.rename('chat-1');
-    await handlers.setIcon('chat-1');
     await handlers.pin('chat-1');
     await handlers.duplicate('chat-1');
-    await handlers.tag('chat-1');
-    await handlers.moveFolder('chat-1');
     await handlers.share('chat-1');
     await handlers.archive('chat-1');
     handlers.onClick('chat-1');
 
     expect(apiFetch).toHaveBeenCalledWith('/api/chats/chat-1', expect.objectContaining({ method: 'PUT' }));
-    expect(showIconPickerModal).toHaveBeenCalledWith('chat-1', 'A');
     expect(loadChats).toHaveBeenCalled();
     expect(syncChatUrl).toHaveBeenCalledWith('chat-2');
     expect(syncChatUrl).toHaveBeenCalledWith('chat-1');
-    expect(showTagModal).toHaveBeenCalledWith('chat-1', '[]');
     expect(toggleArchiveChat).toHaveBeenCalledWith('chat-1');
     expect(refreshShareState).toHaveBeenCalled();
     expect(renderShareModal).toHaveBeenCalledWith({ share_id: 's-1' });
@@ -188,8 +171,6 @@ describe('chat list actions', () => {
         syncChatUrl: vi.fn(),
         setState,
         isTempChatId: () => false,
-        loadIconPickerModal: vi.fn(async () => ({ showIconPickerModal: vi.fn() })),
-        loadTagModal: vi.fn(async () => ({ showTagModal: vi.fn() })),
         refreshShareState: vi.fn(async () => {}),
         renderShareModal: vi.fn(),
         sharedByChatId: new Map(),
@@ -199,11 +180,9 @@ describe('chat list actions', () => {
         streamingOverrideByChatId: new Map(),
       })({
         title: 'First',
-        folder_id: 'folder-1',
       });
 
       await handlers.rename('chat-1');
-      await handlers.moveFolder('chat-1');
       await handlers.pin('chat-1');
       await handlers.duplicate('chat-1');
 
@@ -413,8 +392,6 @@ describe('chat list actions', () => {
         streamingOverrideByChatId: new Map(),
       })({ title: 'First' });
 
-      await handlers.setIcon('chat-1');
-      await handlers.tag('chat-1');
       await handlers.share('chat-1');
       await handlers.archive('chat-1');
       await handlers.delete('chat-1');

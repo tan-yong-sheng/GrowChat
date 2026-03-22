@@ -2,7 +2,6 @@ import { formatRelativeTime } from '../utils/time-grouping.js';
 import { escapeHtml } from '../utils.js';
 
 export function createChatRow(chat, handlers) {
-  const firstLetter = (chat.title || 'U').charAt(0).toUpperCase();
   const isPinned = Number(chat.pinned) === 1;
   const isActive = chat.isActive === true;
   const pinLabel = isPinned ? 'Unpin' : 'Pin';
@@ -14,9 +13,6 @@ export function createChatRow(chat, handlers) {
          </svg>
        </span>`
     : '';
-  const iconHtml = chat.icon
-    ? `<span class="text-lg">${escapeHtml(chat.icon)}</span>`
-    : `<span class="text-[11px] font-bold text-gray-500">${escapeHtml(firstLetter)}</span>`;
 
   const htmlTemplate = `
     <div class="chat-row relative group px-2 w-full ${isActive ? 'active' : ''}" data-chat-id="${chat.id}">

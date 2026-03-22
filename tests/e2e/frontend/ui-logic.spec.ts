@@ -36,8 +36,6 @@ test.describe('UI Logic and Components', () => {
 
     await page.route('**/api/models', (route) => route.fulfill({ status: 200, body: JSON.stringify({ models: [] }) }));
 
-    await page.route('**/api/folders', (route) => route.fulfill({ status: 200, body: JSON.stringify({ folders: [] }) }));
-
     await page.route('**/api/realtime/stream', (route) => route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' }));
 
   });

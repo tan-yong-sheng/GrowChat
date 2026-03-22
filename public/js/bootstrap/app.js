@@ -35,13 +35,13 @@ async function ensureRenderChat() {
 const FALLBACK_PERMISSIONS = {
   admin: [
     'chat.read', 'chat.write', 'chat.delete', 'chat.share',
-    'model.use', 'model.admin', 'kb.read', 'kb.write', 'kb.reindex',
+    'model.use', 'model.admin',
     'file.upload', 'file.delete', 'admin.user.read', 'admin.user.write',
     'admin.audit.read', 'admin.rbac.admin'
   ],
   user: [
     'chat.read', 'chat.write', 'chat.delete', 'chat.share',
-    'model.use', 'kb.read', 'kb.write', 'file.upload', 'file.delete'
+    'model.use', 'file.upload', 'file.delete'
   ],
   inactive: []
 };

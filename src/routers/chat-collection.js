@@ -46,7 +46,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     if (qRaw) {
       const like = `%${qRaw}%`;
       chats = await db.all(
-        `SELECT DISTINCT c.id, c.title, c.model, c.pinned, c.tags, c.created_at, c.updated_at
+        `SELECT DISTINCT c.id, c.title, c.model, c.pinned, c.created_at, c.updated_at
          FROM chats c
          LEFT JOIN messages m ON c.id = m.chat_id
          WHERE c.user_id = ?
@@ -58,7 +58,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       );
     } else {
       chats = await db.all(
-        'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? AND archived = 0 ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?',
+        'SELECT id, title, model, pinned, created_at, updated_at FROM chats WHERE user_id = ? AND archived = 0 ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?',
         [user.sub, queryLimit, offset]
       );
     }
@@ -92,8 +92,8 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     const model = String(body.model || fallbackModel).trim() || fallbackModel;
 
     await db.run(
-      'INSERT INTO chats (id, user_id, title, model, tags, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, unixepoch(), unixepoch())',
-      [id, user.sub, title, model, '[]']
+      'INSERT INTO chats (id, user_id, title, model, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, 0, unixepoch(), unixepoch())',
+      [id, user.sub, title, model]
     );
 
     const chat = await db.first('SELECT * FROM chats WHERE id = ?', [id]);
@@ -109,7 +109,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
   if (req.method === 'GET' && path === '/api/chats/shared') {
     const sharedChats = await db.all(
-      'SELECT id, title, model, pinned, tags, share_id, created_at, updated_at FROM chats WHERE user_id = ? AND share_id IS NOT NULL ORDER BY updated_at DESC',
+      'SELECT id, title, model, pinned, share_id, created_at, updated_at FROM chats WHERE user_id = ? AND share_id IS NOT NULL ORDER BY updated_at DESC',
       [user.sub]
     );
     return json(req, { chats: sharedChats });
@@ -117,7 +117,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
   if (req.method === 'GET' && path === '/api/chats/archived') {
     const archivedChats = await db.all(
-      'SELECT id, title, model, pinned, tags, created_at, updated_at FROM chats WHERE user_id = ? AND archived = 1 ORDER BY updated_at DESC',
+      'SELECT id, title, model, pinned, created_at, updated_at FROM chats WHERE user_id = ? AND archived = 1 ORDER BY updated_at DESC',
       [user.sub]
     );
     return json(req, { chats: archivedChats });
@@ -158,12 +158,10 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
       const title = body.title !== undefined ? String(body.title).trim() : chat.title;
       const pinned = body.pinned !== undefined ? (body.pinned ? 1 : 0) : chat.pinned;
-      const tagsArray = Array.isArray(body.tags) ? body.tags : [];
-      const tags = body.tags !== undefined ? JSON.stringify(tagsArray) : chat.tags;
 
       await db.run(
-        'UPDATE chats SET title = ?, pinned = ?, tags = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-        [title || 'New Chat', pinned, tags, chatId, user.sub]
+        'UPDATE chats SET title = ?, pinned = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
+        [title || 'New Chat', pinned, chatId, user.sub]
       );
 
       const updated = await getOwnedChat(db, chatId, user.sub);
@@ -240,13 +238,12 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
     const statements = [
       db.prepare(
-        'INSERT INTO chats (id, user_id, title, model, tags, pinned, share_id, archived, current_message_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, 0, NULL, unixepoch(), unixepoch())'
+        'INSERT INTO chats (id, user_id, title, model, pinned, share_id, archived, current_message_id, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, 0, NULL, unixepoch(), unixepoch())'
       ).bind(
         newChatId,
         user.sub,
         newTitle,
-        sourceChat.model || (await resolveDefaultModel(env, db, user.sub)),
-        sourceChat.tags || '[]'
+        sourceChat.model || (await resolveDefaultModel(env, db, user.sub))
       ),
     ];
 

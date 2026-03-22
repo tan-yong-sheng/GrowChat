@@ -26,7 +26,6 @@ test.describe('Core Chat UI Logic', () => {
       status: 200, 
       body: JSON.stringify({ models: [{ id: 'gpt-4', name: 'GPT-4' }] }) 
     }));
-    await page.route('**/api/folders', (route) => route.fulfill({ status: 200, body: JSON.stringify({ folders: [] }) }));
     await page.route('**/api/realtime/stream', (route) => route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' }));
   });
 

@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
     prepare: vi.fn(),
   },
   streamLLM: vi.fn(),
-  queryFAQs: vi.fn(),
-  queryDocumentChunks: vi.fn(),
   loadToolServers: vi.fn(),
   createRealtimeEvent: vi.fn((event) => event),
   getOriginSessionId: vi.fn(() => 's1'),
@@ -28,11 +26,6 @@ vi.mock('../llm.js', async () => {
     streamLLM: (...args) => mocks.streamLLM(...args),
   };
 });
-
-vi.mock('../services/embeddings.js', () => ({
-  queryFAQs: (...args) => mocks.queryFAQs(...args),
-  queryDocumentChunks: (...args) => mocks.queryDocumentChunks(...args),
-}));
 
 vi.mock('../chat/mcp.js', async () => {
   const actual = await vi.importActual('../chat/mcp.js');
@@ -64,8 +57,6 @@ describe('chatRouter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.queryFAQs.mockResolvedValue([]);
-    mocks.queryDocumentChunks.mockResolvedValue([]);
     mocks.loadToolServers.mockResolvedValue([]);
     mocks.db.run.mockResolvedValue({ success: true });
     mocks.db.batch.mockResolvedValue([{ success: true }]);

@@ -246,7 +246,7 @@ const permissionMatrixTests = {
       test: async () => {
         // Given: user with admin role
         // When: check permission list
-        // Then: should have: admin.*, model.admin, kb.*, file.*
+        // Then: should have: admin.*, model.admin, file.*, chat.*
         // Expected: admin role full coverage on resources
         return 'PASS: Admin should have resource permissions';
       },
@@ -255,9 +255,9 @@ const permissionMatrixTests = {
       name: 'Member role limited to own resources',
       test: async () => {
         // Given: user with member role
-        // When: attempt kb.reindex
+        // When: attempt admin.rbac.admin
         // Then: should be denied
-        // Expected: member cannot perform admin KB operations
+        // Expected: member cannot perform admin RBAC operations
         return 'PASS: Member limited to own resources';
       },
     },
@@ -499,8 +499,8 @@ export const deploymentVerificationChecklist = `
 
 ### 7. Permission Matrix Validation
 - [ ] Owner role: all permissions ✅
-- [ ] Admin role: admin.*, model.admin, kb.*, file.* ✅
-- [ ] Manager role: limited kb/file operations ✅
+- [ ] Admin role: admin.*, model.admin, file.*, chat.* ✅
+- [ ] Manager role: limited file/model operations ✅
 - [ ] Member role: read/write own resources only ✅
 - [ ] Viewer role: read-only ✅
 - [ ] Service role: specific endpoints only ✅
@@ -524,10 +524,10 @@ export const deploymentVerificationChecklist = `
 
 ### 11. Deployment Steps
 1. [ ] Backup production database
-2. [ ] Apply migration: wrangler d1 execute growchat --file=migrations/010_rbac_core.sql
+2. [ ] Apply migration: wrangler d1 execute growchat --file=migrations/001_initial.sql
 3. [ ] Verify migration: SELECT COUNT(*) FROM roles; (should show 6)
 4. [ ] Deploy new Worker code
-5. [ ] Monitor logs for "RBAC schema initialization pending" (should not appear after migration)
+5. [ ] Monitor logs for schema warnings (should not appear after migration)
 6. [ ] Test admin endpoints: GET /api/admin/rbac/roles should return 6 system roles
 7. [ ] Verify existing users can still access their resources
 

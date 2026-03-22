@@ -1,4 +1,3 @@
-import { ensureSchemaCompatibility } from './bootstrap/schema-compatibility.js';
 import { API_ROUTES, isPublicRoute } from './bootstrap/router-registry.js';
 import {
   getPath,
@@ -25,9 +24,6 @@ export default {
         if (!env.SESSIONS && path.startsWith('/api/')) return error(req, 'SESSIONS KV binding missing', 500);
         const bindingError = validateRouteBindings(req, env, path);
         if (bindingError) return bindingError;
-
-        // Don't block on schema compatibility check - run it in the background.
-        ctx.waitUntil(ensureSchemaCompatibility(env).catch(() => {}));
 
         // Public routes don't require authentication
         let user = null;

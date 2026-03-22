@@ -17,8 +17,7 @@ import {
   listUserDocuments,
   deleteDocument,
 } from '../services/uploads.js';
-import { extractAndChunk } from '../services/extraction.js';
-import { upsertDocumentChunks } from '../services/embeddings.js';
+import { extractDocumentText } from '../services/extraction.js';
 
 /**
  * File Router Handler
@@ -28,7 +27,7 @@ import { upsertDocumentChunks } from '../services/embeddings.js';
  *   GET    /api/files/:id                - Get document metadata
  *   GET    /api/files/search             - Search user's documents
  *   GET    /api/files/:id/blob           - Get raw file contents (authorized)
- *   GET    /api/files/:id/process/status - Get extraction/embedding status
+ *   GET    /api/files/:id/process/status - Get extraction status
  *   GET    /api/files/:id/content        - Get safe content representation
  *   DELETE /api/files/:id                - Delete document and R2 file
  */
@@ -148,11 +147,11 @@ export async function filesRouter(req, env, ctx, user, path) {
         metadata: { filename, contentType, fileSize }
       });
 
-      // Extract and chunk content asynchronously
+      // Extract content asynchronously
       // Skip extraction for JSON files (avoid memory overhead for config/data files)
       if (!contentType.includes('json')) {
         ctx.waitUntil(
-          extractAndChunk(env, db, documentId, contentType, buffer)
+          extractDocumentText(env, db, documentId, contentType, buffer)
             .then(async (extractResult) => {
               if (extractResult?.skipped) {
                 console.log(
@@ -160,23 +159,7 @@ export async function filesRouter(req, env, ctx, user, path) {
                 );
                 return;
               }
-              console.log(
-                `Document ${documentId} extraction complete: ${extractResult.chunkCount} chunks`
-              );
-
-              // Get chunks for embedding generation
-              const chunks = await db.all(
-                `SELECT id, chunk_text as text, document_id as documentId, chunk_index as chunkIndex
-                 FROM document_chunks WHERE document_id = ?`,
-                [documentId]
-              );
-
-              if (chunks.length > 0) {
-                // Generate embeddings for chunks
-                await upsertDocumentChunks(env, db, chunks).catch((err) => {
-                  console.error(`Failed to generate embeddings for document ${documentId}:`, err);
-                });
-              }
+              console.log(`Document ${documentId} extraction complete`);
             })
             .catch((err) => {
               console.error(`Failed to process document ${documentId}:`, err);
@@ -196,7 +179,6 @@ export async function filesRouter(req, env, ctx, user, path) {
           r2_key: r2Result.r2Key,
           r2_url: r2Result.r2Url,
           extraction_status: 0, // pending
-          embedding_generated: 0, // pending
           created_at: Math.floor(Date.now() / 1000),
         },
         201
@@ -301,7 +283,7 @@ export async function filesRouter(req, env, ctx, user, path) {
       const documents = await db.all(
         `SELECT
           id, filename, content_type, file_size, text_excerpt,
-          extraction_status, embedding_generated,
+          extraction_status,
           created_at, updated_at
         FROM documents
         WHERE user_id = ? AND filename LIKE ?
@@ -359,7 +341,7 @@ export async function filesRouter(req, env, ctx, user, path) {
     }
   }
 
-  // GET /api/files/:id/process/status - Get extraction/embedding status
+  // GET /api/files/:id/process/status - Get extraction status
   const statusMatch = path.match(/^\/api\/files\/([^/]+)\/process\/status$/);
   if (statusMatch && req.method === 'GET') {
     const documentId = statusMatch[1];
@@ -369,7 +351,7 @@ export async function filesRouter(req, env, ctx, user, path) {
       const doc = await db.first(
         `SELECT
           id, filename, extraction_status, extraction_error,
-          embedding_generated, embedding_error, created_at, updated_at
+          created_at, updated_at
         FROM documents
         WHERE id = ? AND user_id = ?`,
         [documentId, user.sub]
@@ -382,8 +364,6 @@ export async function filesRouter(req, env, ctx, user, path) {
       // Map numeric status to human-readable state
       const extractionState = doc.extraction_status === 1 ? 'done' :
                              doc.extraction_status === -1 ? 'failed' : 'pending';
-      const embeddingState = doc.embedding_generated === 1 ? 'done' :
-                            doc.embedding_generated === -1 ? 'failed' : 'pending';
 
       return json(req, {
         id: doc.id,
@@ -391,10 +371,6 @@ export async function filesRouter(req, env, ctx, user, path) {
         extraction: {
           status: extractionState,
           error: doc.extraction_error || null,
-        },
-        embedding: {
-          status: embeddingState,
-          error: doc.embedding_error || null,
         },
         created_at: doc.created_at,
         updated_at: doc.updated_at,

@@ -6,8 +6,6 @@ export function createChatListHandlers({
   syncChatUrl = () => {},
   setState = () => {},
   isTempChatId = () => false,
-  loadIconPickerModal = async () => ({ showIconPickerModal: async () => {} }),
-  loadTagModal = async () => ({ showTagModal: async () => {} }),
   refreshShareState = async () => {},
   renderShareModal = () => {},
   sharedByChatId = new Map(),
@@ -52,11 +50,6 @@ export function createChatListHandlers({
         await loadChats();
       }
     },
-    setIcon: async (id) => {
-      if (isTempChatId(id)) return;
-      const { showIconPickerModal } = await loadIconPickerModal();
-      await showIconPickerModal(id, chat.icon);
-    },
     pin: async (id) => {
       if (isTempChatId(id)) return;
       const res = await apiFetch(`/api/chats/${id}/pin`, { method: 'POST' });
@@ -86,20 +79,6 @@ export function createChatListHandlers({
       if (nextId) {
         await loadMessages(nextId, { modelMode: 'default' });
       }
-    },
-    tag: async (id) => {
-      if (isTempChatId(id)) return;
-      const { showTagModal } = await loadTagModal();
-      await showTagModal(id, chat.tags);
-    },
-    moveFolder: async (id) => {
-      if (isTempChatId(id)) return;
-      const folderId = promptFn('Enter folder ID (or empty to remove):', chat.folder_id || '');
-      await apiFetch(`/api/chats/${id}/folder`, {
-        method: 'PATCH',
-        body: JSON.stringify({ folder_id: folderId || null }),
-      });
-      await loadChats();
     },
     share: async (id) => {
       if (isTempChatId(id)) return;

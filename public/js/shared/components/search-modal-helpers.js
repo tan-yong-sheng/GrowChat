@@ -11,14 +11,14 @@ function escapeHtml(text) {
 
 export function highlightText(text, query) {
   if (!query) return escapeHtml(text);
-  const pureQuery = query.replace(/(tag|folder|pinned|shared|archived):\S*/gi, '').trim();
+  const pureQuery = query.replace(/(pinned|shared|archived):\S*/gi, '').trim();
   if (!pureQuery) return escapeHtml(text);
   const regex = new RegExp(`(${pureQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   return escapeHtml(text).replace(regex, '<span class="bg-yellow-200 text-yellow-900 rounded-sm">$1</span>');
 }
 
 export function normalizeBackendQuery(query) {
-  return String(query || '').replace(/(tag|folder|pinned|shared|archived):\S*/gi, '').trim();
+  return String(query || '').replace(/(pinned|shared|archived):\S*/gi, '').trim();
 }
 
 export function groupChatsByDate(chats) {

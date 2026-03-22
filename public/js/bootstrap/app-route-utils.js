@@ -14,7 +14,6 @@ export function buildTempChatStub(id, modelId = null) {
     title: 'New Chat',
     model: modelId || null,
     pinned: 0,
-    tags: '[]',
     created_at: nowTs,
     updated_at: nowTs,
   };

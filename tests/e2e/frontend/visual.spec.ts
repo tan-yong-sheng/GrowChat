@@ -30,7 +30,6 @@ test.describe('Visual Regressions @visual', () => {
       status: 200, 
       body: JSON.stringify({ models: [{ id: 'gpt-4', name: 'GPT-4' }] }) 
     }));
-    await page.route('**/api/folders', (route) => route.fulfill({ status: 200, body: JSON.stringify({ folders: [] }) }));
     await page.route('**/api/realtime/stream', (route) => route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' }));
     await page.route('**/api/chats/c1/messages*', (route) => route.fulfill({ status: 200, body: JSON.stringify({ messages: [
       { id: 'm1', role: 'user', content: 'Visual regression test message' },

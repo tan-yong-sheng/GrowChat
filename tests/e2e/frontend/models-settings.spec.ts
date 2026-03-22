@@ -31,7 +31,6 @@ test.describe('Models Settings Page', () => {
     // Mock other required APIs to prevent 404s
     await page.route('**/api/chats/shared', (route) => route.fulfill({ status: 200, body: JSON.stringify({ chats: [] }) }));
     await page.route('**/api/chats*', (route) => route.fulfill({ status: 200, body: JSON.stringify({ chats: [] }) }));
-    await page.route('**/api/folders', (route) => route.fulfill({ status: 200, body: JSON.stringify({ folders: [] }) }));
   });
 
   test('displays total count of models', async ({ page }) => {

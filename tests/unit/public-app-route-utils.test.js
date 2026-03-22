@@ -25,7 +25,6 @@ describe('app route helpers', () => {
       title: 'New Chat',
       model: 'm1',
       pinned: 0,
-      tags: '[]',
     });
   });
 
