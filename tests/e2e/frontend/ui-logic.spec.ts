@@ -28,7 +28,20 @@ test.describe('UI Logic and Components', () => {
 
       status: 200,
 
-      body: JSON.stringify({ chat: { id: 'c1', title: 'Existing Chat', model: 'gpt-4', updated_at: now, created_at: now }, messages: [] }),
+      body: JSON.stringify({
+        chat: { id: 'c1', title: 'Existing Chat', model: 'gpt-4', updated_at: now, created_at: now },
+        messages: [
+          {
+            id: 'm1',
+            role: 'assistant',
+            content: '```python\\n' +
+              'def long_line():\\n' +
+              '    print(\"' + 'x'.repeat(180) + '\")\\n' +
+              '```',
+            created_at: now,
+          },
+        ],
+      }),
 
     }));
 
@@ -261,6 +274,40 @@ test.describe('UI Logic and Components', () => {
       await expect.poll(async () => sidebar.evaluate(el => el.getBoundingClientRect().left), { timeout: 5000 }).toBeGreaterThanOrEqual(0);
 
     });
+
+  });
+
+  test('mobile chat code blocks do not overflow viewport', async ({ page }) => {
+
+    test.skip(test.info().project.name !== 'mobile-auth', 'Mobile-only overflow check');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await page.goto('/');
+    await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
+
+    await page.evaluate(async () => {
+      const mod = await import('/js/bootstrap/app.js');
+      window.history.pushState({}, '', '/c/c1');
+      await mod.renderCurrentRoute();
+    });
+
+    await page.waitForSelector('[data-message-content]', { state: 'visible', timeout: 15000 });
+
+    const overflow = await page.evaluate(() => {
+      const viewportWidth = window.innerWidth;
+      const offenders = Array.from(document.querySelectorAll('pre code')).filter((el) => {
+        return el.getBoundingClientRect().width > viewportWidth + 1;
+      });
+      return {
+        viewportWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        offenders: offenders.length,
+      };
+    });
+
+    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.viewportWidth + 1);
+    expect(overflow.offenders).toBe(0);
 
   });
 

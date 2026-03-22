@@ -8,18 +8,27 @@
     white-space: pre-wrap;
     word-break: break-word;
     overflow-x: auto;
+    overflow-wrap: anywhere;
   }
 
   .chat-message-content code {
+    max-width: 100%;
     white-space: pre-wrap;
     word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .chat-message-content {
+    overflow-wrap: anywhere;
   }
 
   @media (min-width: 640px) {
     .chat-message-content pre,
-    .chat-message-content code {
+    .chat-message-content code,
+    .chat-message-content {
       white-space: pre;
       word-break: normal;
+      overflow-wrap: normal;
     }
   }
 }
