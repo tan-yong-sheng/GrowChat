@@ -55,7 +55,7 @@ export function getConnectionDefaultBaseUrl(providerType) {
 
 export function isConnectionUrlRequired(providerType) {
   const raw = String(providerType || '').trim().toLowerCase();
-  return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible' || raw === 'oc';
+  return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible';
 }
 
 function labelFromUrl(url) {

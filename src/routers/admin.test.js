@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../chat/attachments.js';
 
 const mocks = vi.hoisted(() => ({
@@ -374,5 +374,68 @@ describe('adminRouter openai connections', () => {
       { name: 'tool-a', title: 'Tool A', description: 'Desc A', parameters: { type: 'object' }, enabled: false },
       { name: 'tool-b', title: 'Tool B', description: 'Desc B', parameters: { type: 'object' }, enabled: true },
     ]);
+  });
+});
+
+describe('adminRouter tool server oauth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.createDB.mockReturnValue({});
+    mocks.authorize.mockResolvedValue({ allow: true });
+    mocks.logAuditEvent.mockResolvedValue(undefined);
+    mocks.getConfigBool.mockResolvedValue(true);
+    mocks.setConfigValue.mockResolvedValue(undefined);
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'tool_servers') return '[]';
+      return fallback;
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('creates a draft server when starting oauth for a new tool server', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('not found', { status: 404 })));
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/tool-servers/oauth/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'draft-server-1',
+          name: 'Bindings MCP',
+          url: 'https://bindings.mcp.cloudflare.com/mcp',
+          auth_type: 'oauth',
+          oauth_client_name: 'GrowChat MCP Client',
+          oauth_scope: '',
+          oauth_client_id: 'client-123',
+          oauth_client_secret: '',
+          oauth_token_auth_method: '',
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/tool-servers/oauth/start'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.authorization_url).toContain('client_id=client-123');
+    const savedCall = mocks.setConfigValue.mock.calls.find(([, key]) => key === 'tool_servers');
+    expect(savedCall).toBeTruthy();
+    const savedServers = JSON.parse(savedCall[2]);
+    expect(savedServers).toHaveLength(1);
+    expect(savedServers[0]).toMatchObject({
+      id: 'draft-server-1',
+      name: 'Bindings MCP',
+      url: 'https://bindings.mcp.cloudflare.com/mcp',
+      auth_type: 'oauth',
+      oauth_client_name: 'GrowChat MCP Client',
+      oauth_client_id: 'client-123',
+    });
+    expect(savedServers[0].oauth_state).toEqual(expect.any(String));
+    expect(savedServers[0].oauth_code_verifier).toEqual(expect.any(String));
   });
 });

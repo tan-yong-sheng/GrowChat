@@ -99,6 +99,24 @@ describe('admin integrations settings', () => {
     expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/tool-servers' && init?.method === 'PUT')).toBe(false);
   });
 
+  it('labels the modal as add for a new server and edit for an existing one', async () => {
+    const { renderIntegrationsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderIntegrationsSettings(container, data);
+    await vi.waitFor(() => expect(data.integrationsSettings.originalSnapshot).not.toBeNull());
+
+    container.querySelector('#add-tool-server')?.click();
+    expect(container.querySelector('#server-modal-title')?.textContent).toBe('Add Server');
+
+    container.querySelector('#close-modal')?.click();
+    await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
+
+    container.querySelector('.edit-server-btn')?.click();
+    expect(container.querySelector('#server-modal-title')?.textContent).toBe('Edit Server');
+  });
+
   it('broadcasts a tool-server invalidation after saving integrations', async () => {
     const { renderIntegrationsSettings } = await loadModule();
     const container = document.getElementById('root');

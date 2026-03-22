@@ -49,6 +49,7 @@ describe('admin connections modal', () => {
     await vi.waitFor(() => expect(container.querySelector('#save-connections')?.disabled).toBe(true));
 
     container.querySelector('#add-connection')?.click();
+    expect(container.querySelector('#modal-title')?.textContent).toBe('Add Connection');
     container.querySelector('#modal-conn-name').value = 'OpenAI';
     container.querySelector('#modal-conn-url').value = 'https://api.openai.com/v1';
     container.querySelector('#modal-conn-key').value = 'secret';
@@ -67,6 +68,36 @@ describe('admin connections modal', () => {
       enabled: true,
     });
     expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/openai/connections' && init?.method === 'PUT')).toBe(false);
+  });
+
+  it('labels the modal as edit when opening an existing connection', async () => {
+    mocks.apiFetch.mockImplementation(async (url) => {
+      if (String(url).includes('/api/admin/openai/connections')) {
+        return new Response(JSON.stringify({
+          enabled: true,
+          connections: [
+            {
+              id: 'conn-1',
+              name: 'OpenAI',
+              url: 'https://api.openai.com/v1',
+              key: 'secret',
+              providerType: 'openai',
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderConnectionsSettings(container, data);
+    await vi.waitFor(() => expect(container.querySelector('.edit-connection-btn')).not.toBeNull());
+
+    container.querySelector('.edit-connection-btn')?.click();
+    expect(container.querySelector('#modal-title')?.textContent).toBe('Edit Connection');
   });
 
   it('does not render a master provider toggle and keeps providers visible', async () => {

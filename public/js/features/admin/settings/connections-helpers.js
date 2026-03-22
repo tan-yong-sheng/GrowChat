@@ -8,7 +8,6 @@ export function normalizeProviderFamily(value) {
   switch (normalizeProviderType(value)) {
     case 'openai':
     case 'openai-compatible':
-    case 'oc':
       return 'openai';
     case 'google':
     case 'gemini':
@@ -62,7 +61,7 @@ export function providerUrlPlaceholder(providerType) {
 
 export function isCompatibleProviderType(providerType) {
   const raw = normalizeProviderType(providerType);
-  return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible' || raw === 'oc';
+  return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible';
 }
 
 export function resolveModalUrl(providerType, rawUrl) {
@@ -157,15 +156,16 @@ export function getModalDraftKey(connection = null) {
 }
 
 export function persistModalDraft(connectionsState, connection = null) {
-  const key = getModalDraftKey(connection || connectionsState.selectedConnection);
+  const resolvedConnection = connection || connectionsState.selectedConnection;
+  const key = getModalDraftKey(resolvedConnection);
   if (!key) return;
   const drafts = connectionsState.modalDrafts || (connectionsState.modalDrafts = new Map());
   drafts.set(key, {
     models: Array.isArray(connectionsState.modalModels)
-      ? connectionsState.modalModels.map((model) => normalizeModelRecord(model)).filter(Boolean)
+      ? connectionsState.modalModels.map((model) => normalizeModalModelRecord(model, resolvedConnection)).filter(Boolean)
       : [],
-    selection: cloneModelSelection(connectionsState.modalModelsSelection),
-    original: cloneModelSelection(connectionsState.modalModelsOriginal),
+    selection: cloneModalModelSelection(connectionsState.modalModelsSelection, resolvedConnection),
+    original: cloneModalModelSelection(connectionsState.modalModelsOriginal, resolvedConnection),
     query: String(connectionsState.modalModelsQuery || ''),
   });
 }
@@ -175,10 +175,10 @@ export function applyModalDraft(connectionsState, connection = null) {
   const draft = connectionsState.modalDrafts?.get(key);
   if (!draft) return false;
   connectionsState.modalModels = Array.isArray(draft.models)
-    ? draft.models.map((model) => normalizeModelRecord(model)).filter(Boolean)
+    ? draft.models.map((model) => normalizeModalModelRecord(model, connection)).filter(Boolean)
     : [];
-  connectionsState.modalModelsSelection = cloneModelSelection(draft.selection);
-  connectionsState.modalModelsOriginal = cloneModelSelection(draft.original);
+  connectionsState.modalModelsSelection = cloneModalModelSelection(draft.selection, connection);
+  connectionsState.modalModelsOriginal = cloneModalModelSelection(draft.original, connection);
   connectionsState.modalModelsQuery = String(draft.query || '');
   return true;
 }
@@ -190,7 +190,7 @@ export function getConnectionProviderId(connection = {}) {
   const connectionId = String(connection?.id || '').trim();
   if (!connectionId) return providerType;
   const family = normalizeProviderFamily(providerType);
-  if (providerType === 'openai-compatible' || providerType === 'oc') return `oc/${connectionId}`;
+  if (providerType === 'openai-compatible') return `openai/${connectionId}`;
   if (providerType === 'gemini-compatible') return `google/${connectionId}`;
   if (providerType === 'claude-compatible') return `anthropic/${connectionId}`;
   return `${family || providerType}/${connectionId}`;
@@ -216,6 +216,35 @@ export function inflateManualConnectionModels(connection = {}) {
   }).filter(Boolean);
 }
 
+export function normalizeModalModelRecord(model = {}, connection = null) {
+  const normalized = normalizeModelRecord(model);
+  if (!normalized) return null;
+  if (normalized.connection_id || normalized.provider_id) return normalized;
+
+  const canonicalId = normalizeModalModelId(normalized.id, connection);
+  if (!canonicalId) return normalized;
+  if (normalized.id === canonicalId) return normalized;
+  return {
+    ...normalized,
+    id: canonicalId,
+  };
+}
+
+export function normalizeModalModelId(modelId = '', connection = null) {
+  const raw = String(modelId || '').trim();
+  if (!raw) return '';
+  const providerId = getConnectionProviderId(connection || {});
+  if (!providerId) return raw;
+  const canonicalId = formatConnectionModelId(providerId, raw);
+  return raw.startsWith(`${providerId}:`) ? raw : canonicalId;
+}
+
+export function cloneModalModelSelection(value = [], connection = null) {
+  const selected = cloneModelSelection(value);
+  if (!connection) return selected;
+  return new Set(Array.from(selected).map((modelId) => normalizeModalModelId(modelId, connection)).filter(Boolean));
+}
+
 export function buildModalConnectionDraft(scope = null, selectedConnection = null) {
   const root = scope || document;
   return {
@@ -231,8 +260,9 @@ export function buildModalConnectionDraft(scope = null, selectedConnection = nul
 
 export function applyModalModelPreview(connectionsState, models, scope = null, renderModels = null) {
   const root = scope || document;
+  const connection = connectionsState.selectedConnection || null;
   const nextModels = Array.isArray(models)
-    ? sortModelsByActiveThenName(models.map((model) => normalizeModelRecord(model)).filter(Boolean))
+    ? sortModelsByActiveThenName(models.map((model) => normalizeModalModelRecord(model, connection)).filter(Boolean))
     : [];
   const previousModels = Array.isArray(connectionsState.modalModels)
     ? connectionsState.modalModels

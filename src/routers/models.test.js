@@ -38,7 +38,7 @@ vi.mock('../llm/connections.js', () => ({
   },
   isConnectionUrlRequired: (providerType) => {
     const raw = String(providerType || '').toLowerCase();
-    return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible' || raw === 'oc';
+    return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible';
   },
 }));
 

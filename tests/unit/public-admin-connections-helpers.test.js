@@ -22,7 +22,7 @@ describe('admin connection helpers', () => {
     expect(normalizeProviderFamily('claude-compatible')).toBe('anthropic');
     expect(providerDisplayLabel('gemini-compatible')).toBe('Gemini Compatible');
     expect(providerUrlPlaceholder('openai')).toBe('https://api.openai.com/v1');
-    expect(resolveUrlLabel('oc')).toBe('URL *');
+    expect(resolveUrlLabel('openai-compatible')).toBe('URL *');
     expect(resolveModalUrl('openai-compatible', '')).toBe('');
     expect(connectionApiTypeDetails('google').value).toBe('stream-generate-content');
   });
@@ -50,8 +50,8 @@ describe('admin connection helpers', () => {
   });
 
   it('creates stable connection model ids', () => {
-    expect(getConnectionProviderId({ id: 'conn-1', providerType: 'openai-compatible' })).toBe('oc/conn-1');
-    expect(formatConnectionModelId('oc/conn-1', 'gpt-4')).toBe('oc/conn-1:gpt-4');
+    expect(getConnectionProviderId({ id: 'conn-1', providerType: 'openai-compatible' })).toBe('openai/conn-1');
+    expect(formatConnectionModelId('openai/conn-1', 'gpt-4')).toBe('openai/conn-1:gpt-4');
   });
 
   it('persists and restores modal drafts', () => {
@@ -71,8 +71,8 @@ describe('admin connection helpers', () => {
     state.modalModelsQuery = '';
 
     expect(applyModalDraft(state, { id: 'conn-1' })).toBe(true);
-    expect(state.modalModels).toEqual([{ id: 'a', name: 'Alpha' }]);
-    expect(Array.from(state.modalModelsSelection)).toEqual(['a']);
+    expect(state.modalModels).toEqual([{ id: 'openai/conn-1:a', name: 'Alpha' }]);
+    expect(Array.from(state.modalModelsSelection)).toEqual(['openai/conn-1:a']);
     expect(state.modalModelsQuery).toBe('alp');
   });
 
@@ -110,9 +110,9 @@ describe('admin connection helpers', () => {
     ], document, renderModels);
 
     expect(renderModels).toHaveBeenCalledTimes(1);
-    expect(state.modalModels.map((model) => model.id)).toEqual(['new', 'old']);
-    expect(Array.from(state.modalModelsSelection)).toEqual(['new', 'old']);
-    expect(Array.from(state.modalModelsOriginal)).toEqual(['new', 'old']);
+    expect(state.modalModels.map((model) => model.id)).toEqual(['openai/conn-1:new', 'openai/conn-1:old']);
+    expect(Array.from(state.modalModelsSelection)).toEqual(['openai/conn-1:new', 'openai/conn-1:old']);
+    expect(Array.from(state.modalModelsOriginal)).toEqual(['openai/conn-1:new', 'openai/conn-1:old']);
   });
 });
 

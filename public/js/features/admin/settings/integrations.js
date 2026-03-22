@@ -18,6 +18,7 @@ export function renderIntegrationsSettings(container, data) {
     showModal: false,
     selectedServer: null,
     originalSnapshot: null,
+    modalMode: 'create',
   });
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
@@ -272,7 +273,7 @@ export function renderIntegrationsSettings(container, data) {
         <div class="fixed inset-0 bg-black/20 backdrop-blur-sm"></div>
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center">
-            <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${integrationsState.selectedServer ? 'Edit Server' : 'Add Server'}</h3>
+            <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${integrationsState.modalMode === 'update' ? 'Edit Server' : 'Add Server'}</h3>
             <button id="close-modal" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -428,7 +429,7 @@ export function renderIntegrationsSettings(container, data) {
       oauthStatus.textContent = server?.oauth_connected ? 'Connected' : 'Not connected';
     }
     const title = container.querySelector('#server-modal-title');
-    if (title) title.textContent = server ? 'Edit Server' : 'Add Server';
+    if (title) title.textContent = integrationsState.modalMode === 'update' ? 'Edit Server' : 'Add Server';
     const deleteBtn = container.querySelector('#delete-server');
     if (deleteBtn) deleteBtn.classList.toggle('hidden', !server);
     setTestStatus('idle', '');
@@ -437,8 +438,10 @@ export function renderIntegrationsSettings(container, data) {
 
   const openModal = (server) => {
     if (server) {
+      integrationsState.modalMode = 'update';
       integrationsState.selectedServer = { ...server };
     } else {
+      integrationsState.modalMode = 'create';
       integrationsState.selectedServer = {
         id: Math.random().toString(36).slice(2, 10),
         enabled: true,
@@ -456,6 +459,7 @@ export function renderIntegrationsSettings(container, data) {
 
   const closeModal = () => {
     integrationsState.showModal = false;
+    integrationsState.modalMode = 'create';
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.add('hidden');

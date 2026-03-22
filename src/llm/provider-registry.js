@@ -2,7 +2,6 @@ const MODEL_ID_SEPARATOR = ':';
 const PROVIDER_FAMILY_ALIASES = new Map([
   ['openai', 'openai'],
   ['openai-compatible', 'openai'],
-  ['oc', 'openai'],
   ['google', 'google'],
   ['gemini', 'google'],
   ['gemini-compatible', 'google'],
@@ -13,7 +12,6 @@ const PROVIDER_FAMILY_ALIASES = new Map([
 
 const PROVIDER_PREFIX_TO_FAMILY = new Map([
   ['openai', 'openai'],
-  ['oc', 'openai'],
   ['google', 'google'],
   ['gemini', 'google'],
   ['anthropic', 'anthropic'],
@@ -66,8 +64,8 @@ export function buildProviderId(connection) {
   const providerType = String(connection?.providerType || '').trim().toLowerCase();
   const providerFamily = normalizeProviderFamily(connection?.providerFamily || providerType) || 'openai';
   let prefix = providerFamily;
-  if (providerType === 'openai-compatible' || providerType === 'oc') {
-    prefix = 'oc';
+  if (providerType === 'openai-compatible') {
+    prefix = 'openai';
   } else if (providerType === 'gemini-compatible') {
     prefix = 'google';
   } else if (providerType === 'claude-compatible') {

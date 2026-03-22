@@ -51,6 +51,7 @@ export function renderConnectionsSettings(container, data) {
     modalModelsQuery: '',
     modalDrafts: new Map(),
     newConnectionDraftId: null,
+    modalMode: 'create',
   });
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
@@ -409,8 +410,7 @@ export function renderConnectionsSettings(container, data) {
     if (headersInput) headersInput.classList.toggle('text-gray-400', isEnv);
     if (providerSelect) providerSelect.classList.toggle('text-gray-400', isEnv);
     const title = scope.querySelector('#modal-title');
-    const isExisting = Boolean(connection?.id);
-    if (title) title.textContent = isExisting ? 'Edit Connection' : 'Add Connection';
+    if (title) title.textContent = connectionsState.modalMode === 'update' ? 'Edit Connection' : 'Add Connection';
     const providerHint = scope.querySelector('#modal-conn-provider-hint');
     if (providerHint) providerHint.textContent = providerDisplayLabel(providerSelect?.value || connection?.providerType || 'openai');
     const urlLabel = scope.querySelector('#modal-conn-url-label');
@@ -425,7 +425,7 @@ export function renderConnectionsSettings(container, data) {
     if (keyLabel) keyLabel.textContent = resolveKeyLabel();
     updateApiTypeDisplay(scope, providerSelect?.value || connection?.providerType || 'openai');
     const deleteBtn = scope.querySelector('#delete-connection');
-    if (deleteBtn) deleteBtn.classList.toggle('hidden', !isExisting || isEnv);
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', connectionsState.modalMode !== 'update' || isEnv);
     if (testButton) testButton.classList.toggle('hidden', isEnv);
     if (testMessage) testMessage.classList.toggle('hidden', isEnv);
     setTestStatus('idle', '', scope);
@@ -712,11 +712,13 @@ export function renderConnectionsSettings(container, data) {
 
   const openModal = (connection) => {
     if (connection) {
+      connectionsState.modalMode = 'update';
       connectionsState.selectedConnection = { ...connection };
       if (connectionsState.selectedConnection.enabled === undefined) {
         connectionsState.selectedConnection.enabled = true;
       }
     } else {
+      connectionsState.modalMode = 'create';
       if (!connectionsState.newConnectionDraftId) {
         connectionsState.newConnectionDraftId = `draft-${Math.random().toString(36).slice(2, 10)}`;
       }
@@ -755,6 +757,7 @@ export function renderConnectionsSettings(container, data) {
 
   const closeModal = () => {
     connectionsState.showModal = false;
+    connectionsState.modalMode = 'create';
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.add('hidden');

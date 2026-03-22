@@ -561,16 +561,32 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     const servers = await loadToolServers(db);
     const serverIndex = servers.findIndex((entry) => String(entry.id) === serverId);
-    if (serverIndex === -1) {
-      return error(req, 'Server must be saved before OAuth connect', 400);
-    }
-
-    const server = servers[serverIndex];
-    const serverUrl = String(body.url || server.url || '').trim();
+    const existingServer = serverIndex === -1 ? null : servers[serverIndex];
+    const serverUrl = String(body.url || existingServer?.url || '').trim();
     if (!serverUrl || !isValidHttpUrl(serverUrl)) {
       return error(req, 'Server URL must start with http:// or https://', 400);
     }
 
+    const draftServer = {
+      id: serverId,
+      name: String(body.name || 'Tool Server').trim() || 'Tool Server',
+      url: serverUrl,
+      headers: String(body.headers || '').trim(),
+      enabled: body.enabled !== false,
+      auth_type: 'oauth',
+      auth_bearer_token: String(body.auth_bearer_token || '').trim(),
+      auth_basic_username: String(body.auth_basic_username || '').trim(),
+      auth_basic_password: String(body.auth_basic_password || '').trim(),
+      oauth_client_name: String(body.oauth_client_name || '').trim(),
+      oauth_scope: String(body.oauth_scope || '').trim(),
+      oauth_client_id: String(body.oauth_client_id || '').trim(),
+      oauth_client_secret: String(body.oauth_client_secret || '').trim(),
+      oauth_token_auth_method: normalizeTokenAuthMethod(body.oauth_token_auth_method) || '',
+      oauth_authorization_server: String(body.oauth_authorization_server || '').trim(),
+      oauth_token_endpoint: String(body.oauth_token_endpoint || '').trim(),
+      oauth_registration_endpoint: String(body.oauth_registration_endpoint || '').trim(),
+    };
+    const server = existingServer || draftServer;
     const oauthClientName = String(body.oauth_client_name || server.oauth_client_name || 'GrowChat MCP Client').trim();
     const oauthScope = String(body.oauth_scope || server.oauth_scope || '').trim();
     const authServerUrl = String(body.oauth_authorization_server || server.oauth_authorization_server || serverUrl).trim();
@@ -639,7 +655,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       codeChallenge,
     });
 
-    servers[serverIndex] = {
+    const persistedServer = {
       ...server,
       auth_type: 'oauth',
       oauth_client_name: oauthClientName,
@@ -653,6 +669,16 @@ export async function adminRouter(req, env, ctx, user, path) {
       oauth_state: state,
       oauth_code_verifier: codeVerifier,
     };
+
+    if (serverIndex === -1) {
+      servers.push({
+        ...mergeToolServer(null, persistedServer),
+        oauth_state: state,
+        oauth_code_verifier: codeVerifier,
+      });
+    } else {
+      servers[serverIndex] = persistedServer;
+    }
 
     await saveToolServers(db, servers);
 
