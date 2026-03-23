@@ -18,14 +18,21 @@ function createMutableSetState(state) {
 
 describe('chat list actions', () => {
   it('routes temp chats locally and avoids remote actions', async () => {
-    const state = { isMobile: true };
+    const state = {
+      isMobile: true,
+      activeChatId: 'temp-1',
+      chats: [{ id: 'temp-1', title: 'Temp chat' }],
+      messagesByChat: { 'temp-1': [{ id: 'm1' }] },
+    };
     const drawMessages = vi.fn();
     const loadMessages = vi.fn();
     const syncChatUrl = vi.fn();
+    const apiFetch = vi.fn();
+    const confirmFn = vi.fn(() => true);
     const setState = createMutableSetState(state);
     const handlers = createChatListHandlers({
       state,
-      apiFetch: vi.fn(),
+      apiFetch,
       loadChats: vi.fn(),
       loadMessages,
       syncChatUrl,
@@ -38,6 +45,7 @@ describe('chat list actions', () => {
       toggleArchiveChat: vi.fn(),
       currentLeafByChatId: new Map(),
       streamingOverrideByChatId: new Map(),
+      confirmFn,
     })({ title: 'Temp chat' });
 
     await handlers.share('temp-1');
@@ -45,13 +53,17 @@ describe('chat list actions', () => {
     await handlers.pin('temp-1');
     await handlers.duplicate('temp-1');
     await handlers.archive('temp-1');
-    await handlers.delete('temp-1');
     handlers.onClick('temp-1');
+    await handlers.delete('temp-1');
 
-    expect(syncChatUrl).toHaveBeenCalledTimes(1);
     expect(syncChatUrl).toHaveBeenCalledWith(null);
+    expect(syncChatUrl).toHaveBeenCalledWith(null, { replace: true });
     expect(drawMessages).toHaveBeenCalledWith([]);
     expect(loadMessages).not.toHaveBeenCalled();
+    expect(confirmFn).toHaveBeenCalledWith('Are you sure you want to delete this chat?');
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(state.chats).toHaveLength(0);
+    expect(state.activeChatId).toBe(null);
   });
 
   it('hides the sidebar when opening a regular chat on mobile', () => {

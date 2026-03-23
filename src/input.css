@@ -23,12 +23,16 @@
   }
 
   @media (min-width: 640px) {
-    .chat-message-content pre,
-    .chat-message-content code,
-    .chat-message-content {
+    .chat-message-content pre {
       white-space: pre;
       word-break: normal;
       overflow-wrap: normal;
+    }
+
+    .chat-message-content pre code {
+      white-space: inherit;
+      word-break: inherit;
+      overflow-wrap: inherit;
     }
   }
 }

@@ -103,7 +103,34 @@ export function createChatListHandlers({
       }
     },
     delete: async (id) => {
-      if (isTempChatId(id)) return;
+      if (isTempChatId(id)) {
+        if (!confirmFn('Are you sure you want to delete this chat?')) return;
+        const wasActive = id === state.activeChatId;
+        const prevChats = Array.isArray(state.chats) ? state.chats.slice() : [];
+        const nextChatsSnapshot = prevChats.filter((chatItem) => String(chatItem.id) !== String(id));
+        const nextId = wasActive ? (nextChatsSnapshot[0]?.id || null) : state.activeChatId;
+
+        setState((prev) => {
+          const nextChats = Array.isArray(prev.chats)
+            ? prev.chats.filter((chatItem) => String(chatItem.id) !== String(id))
+            : [];
+          const nextActiveChatId = wasActive ? (nextChats[0]?.id || null) : prev.activeChatId;
+          const nextMessagesByChat = { ...(prev.messagesByChat || {}) };
+          delete nextMessagesByChat[id];
+          return { chats: nextChats, activeChatId: nextActiveChatId, messagesByChat: nextMessagesByChat };
+        });
+
+        currentLeafByChatId.delete(id);
+        streamingOverrideByChatId.delete(id);
+
+        syncChatUrl(nextId, { replace: true });
+        if (nextId) {
+          await loadMessages(nextId, { modelMode: 'default' });
+        } else {
+          drawMessages([]);
+        }
+        return;
+      }
       if (!confirmFn('Are you sure you want to delete this chat?')) return;
 
       const wasActive = id === state.activeChatId;
