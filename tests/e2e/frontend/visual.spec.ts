@@ -15,7 +15,7 @@ test.describe('Visual Regressions @visual', () => {
     await page.route('**/api/users/me**', (route) => route.fulfill({ status: 200, body: JSON.stringify({ user: { id: '1', name: 'Visual Test' } }) }));
     await page.route('**/api/auth/refresh', (route) => route.fulfill({
       status: 200,
-      body: JSON.stringify({ access_token: 'valid-token', refresh_token: 'refresh-token', user: { id: '1', name: 'Visual Test' } }),
+      body: JSON.stringify({ access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsInN1YiI6IjEiLCJuYW1lIjoiVGVzdCJ9.signature', refresh_token: 'refresh-token', user: { id: '1', name: 'Visual Test' } }),
     }));
     await page.route('**/api/chats/shared', (route) => route.fulfill({ status: 200, body: JSON.stringify({ chats: [] }) }));
     await page.route('**/api/chats/c1', (route) => route.fulfill({

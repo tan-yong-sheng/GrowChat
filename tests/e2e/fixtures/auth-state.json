@@ -6,7 +6,7 @@
       "localStorage": [
         {
           "name": "growchat_auth",
-          "value": "{\"access_token\":\"valid-token\",\"refresh_token\":\"refresh-token\",\"user\":{\"id\":\"1\",\"name\":\"Test\"}}"
+          "value": "{\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsInN1YiI6IjEiLCJuYW1lIjoiVGVzdCJ9.signature\",\"refresh_token\":\"refresh-token\",\"user\":{\"id\":\"1\",\"name\":\"Test\"}}"
         }
       ]
     }

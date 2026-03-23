@@ -1,4 +1,5 @@
 import { apiFetch, clearAuthState, fetchChats, fetchModels, fetchMyPermissions, fetchMyRoles, fetchPublicSharedChat, getAuthState, isAccessTokenUsable, readChatsCache, readModelsCache, refreshToken, writeChatsCache } from '../shared/api.js';
+import { ensureMarkedReady } from '../shared/utils.js';
 import { state, setState } from '../shared/store.js';
 import { initShortcuts } from '../shared/shortcuts.js';
 import { startRealtimeSync, stopRealtimeSync } from '../shared/realtime.js';
@@ -357,6 +358,7 @@ async function ensureSession() {
 }
 
 export async function renderCurrentRoute() {
+  ensureMarkedReady();
   const path = window.location.pathname;
   const app = document.getElementById('app');
   const sharedMatch = path.match(/^\/s\/([^/]+)$/);
@@ -417,6 +419,7 @@ export async function renderCurrentRoute() {
 
 async function bootstrap() {
   installKnownErrorSuppressors();
+  ensureMarkedReady();
   await renderCurrentRoute();
 }
 

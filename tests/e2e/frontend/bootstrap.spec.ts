@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
+const TEST_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsInN1YiI6IjEiLCJuYW1lIjoiVGVzdCJ9.signature';
+
 test.describe('App Bootstrap and Route Guards', () => {
   test('unauthenticated user redirected to /auth.html', async ({ page }) => {
     await page.goto('/');
@@ -45,7 +47,7 @@ test.describe('App Bootstrap and Route Guards', () => {
   });
 
   test('authenticated bootstrap loads chats and renders shell', async ({ page }) => {
-    const mockAuth = { access_token: 'valid-token', user: { id: '1', name: 'Test' } };
+    const mockAuth = { access_token: TEST_JWT, user: { id: '1', name: 'Test' } };
     await page.addInitScript((auth) => {
       localStorage.setItem('growchat_auth', JSON.stringify(auth));
     }, mockAuth);
@@ -60,7 +62,7 @@ test.describe('App Bootstrap and Route Guards', () => {
   });
 
   test('uses cached models even if /api/models fails', async ({ page }) => {
-    const mockAuth = { access_token: 'valid-token', user: { id: '1', name: 'Test' } };
+    const mockAuth = { access_token: TEST_JWT, user: { id: '1', name: 'Test' } };
     const cachedModels = {
       savedAt: Date.now(),
       value: { models: [{ id: 'm1', name: 'Model 1' }], total: 1, limit: 0, offset: 0 },
@@ -93,4 +95,3 @@ test.describe('App Bootstrap and Route Guards', () => {
     await expect(page.locator('#active-model-name')).toHaveText(/m1|Model 1/);
   });
 });
-

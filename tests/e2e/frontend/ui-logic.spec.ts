@@ -11,6 +11,7 @@ test.describe('UI Logic and Components', () => {
   test.beforeEach(async ({ page }) => {
 
     const now = Date.now();
+    const longLine = 'x'.repeat(180);
 
     await page.route('**/api/users/me**', (route) => route.fulfill({ status: 200, body: JSON.stringify({ user: { id: '1', name: 'Test' } }) }));
 
@@ -18,7 +19,7 @@ test.describe('UI Logic and Components', () => {
 
       status: 200,
 
-      body: JSON.stringify({ access_token: 'valid-token', refresh_token: 'refresh-token', user: { id: '1', name: 'Test' } }),
+      body: JSON.stringify({ access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsInN1YiI6IjEiLCJuYW1lIjoiVGVzdCJ9.signature', refresh_token: 'refresh-token', user: { id: '1', name: 'Test' } }),
 
     }));
 
@@ -34,10 +35,15 @@ test.describe('UI Logic and Components', () => {
           {
             id: 'm1',
             role: 'assistant',
-            content: '```python\\n' +
-              'def long_line():\\n' +
-              '    print(\"' + 'x'.repeat(180) + '\")\\n' +
-              '```',
+            content: `First line
+Second line
+
+Third paragraph.
+
+\`\`\`python
+def long_line():
+    print("${longLine}")
+\`\`\``,
             created_at: now,
           },
         ],
@@ -308,6 +314,28 @@ test.describe('UI Logic and Components', () => {
 
     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.viewportWidth + 1);
     expect(overflow.offenders).toBe(0);
+
+  });
+
+  test('markdown renders paragraphs and fenced code blocks', async ({ page }) => {
+
+    await page.goto('/');
+    await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
+
+    await page.evaluate(async () => {
+      const mod = await import('/js/bootstrap/app.js');
+      window.history.pushState({}, '', '/c/c1');
+      await mod.renderCurrentRoute();
+    });
+
+    const content = page.locator('[data-message-content]').first();
+    await expect(content).toBeVisible({ timeout: 15000 });
+
+    await expect(content.locator('pre code')).toHaveCount(1);
+    await expect(content.locator('p')).toHaveCount(2);
+
+    const brCount = await content.locator('br').count();
+    expect(brCount).toBe(0);
 
   });
 

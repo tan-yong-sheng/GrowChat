@@ -9,7 +9,7 @@ test.describe('Models Settings Page', () => {
     }));
     await page.route('**/api/auth/refresh', (route) => route.fulfill({
       status: 200,
-      body: JSON.stringify({ access_token: 'valid-token', refresh_token: 'refresh-token', user: { id: '1', name: 'Admin', role: 'admin' } }),
+      body: JSON.stringify({ access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsInN1YiI6IjEiLCJuYW1lIjoiVGVzdCJ9.signature', refresh_token: 'refresh-token', user: { id: '1', name: 'Admin', role: 'admin' } }),
     }));
 
     // Mock admin models API
