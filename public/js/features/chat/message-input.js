@@ -1,15 +1,11 @@
 import { state, setState, subscribe } from '../../shared/store.js';
-import { fetchPromptByCommand, fetchPrompts } from '../../shared/api.js';
 import {
-  applyPromptVariables,
-  filterPromptsByQuery,
   getAttachmentAcceptTypes,
   moveQueueItem,
   promoteQueueItem,
   removeQueueItem,
   renderAttachmentListMarkup,
   renderPendingQueueMarkup,
-  renderPromptPickerMarkup,
 } from './message-input-helpers.js';
 import { createMessageInputController } from './message-input-controller.js';
 
@@ -69,7 +65,6 @@ export function renderMessageInput(container, onSend) {
          </button>
        </div>
     </form>
-    <div id="prompt-picker" class="hidden absolute left-4 right-4 bottom-[94px] rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden z-20"></div>
     <div class="mt-2 text-xs text-gray-400 text-center font-medium">GrowChat can make mistakes. Check important info.</div>
   `;
 
@@ -78,11 +73,6 @@ export function renderMessageInput(container, onSend) {
     setState,
     subscribe,
     onSend,
-    fetchPrompts,
-    fetchPromptByCommand,
-    applyPromptVariables,
-    filterPromptsByQuery,
-    renderPromptPickerMarkup,
     getAttachmentAcceptTypes,
     moveQueueItem,
     promoteQueueItem,

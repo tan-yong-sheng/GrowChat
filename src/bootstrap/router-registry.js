@@ -4,7 +4,6 @@ import { usersRouter } from '../routers/users.js';
 import { filesRouter } from '../routers/files.js';
 import { adminRouter } from '../routers/admin/index.js';
 import { modelsRouter } from '../routers/models/index.js';
-import { promptsRouter } from '../routers/prompts.js';
 import { rbacRouter } from '../routers/rbac.js';
 import { groupsRouter } from '../routers/groups.js';
 import { publicRouter } from '../routers/public.js';
@@ -16,7 +15,6 @@ export const API_ROUTES = [
   chatRouter,
   usersRouter,
   filesRouter,
-  promptsRouter,
   adminRouter,
   modelsRouter,
   groupsRouter,

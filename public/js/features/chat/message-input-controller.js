@@ -1,17 +1,11 @@
 import { state } from '../../shared/store.js';
 import { escapeHtml, showToast } from '../../shared/utils.js';
-import { createPromptPickerController } from './message-input-prompts.js';
 
 export function createMessageInputController({
   container,
   setState,
   subscribe,
   onSend,
-  fetchPrompts,
-  fetchPromptByCommand,
-  applyPromptVariables,
-  filterPromptsByQuery,
-  renderPromptPickerMarkup,
   getAttachmentAcceptTypes,
   moveQueueItem,
   promoteQueueItem,
@@ -38,18 +32,7 @@ export function createMessageInputController({
   const cameraInput = container.querySelector('#camera-input');
   const attachmentList = container.querySelector('#attachment-list');
   const attachmentHint = container.querySelector('#attachment-hint');
-  const promptPicker = container.querySelector('#prompt-picker');
   const pendingQueueEl = container.querySelector('#pending-queue');
-
-  const promptController = createPromptPickerController({
-    input,
-    promptPicker,
-    fetchPrompts,
-    fetchPromptByCommand,
-    applyPromptVariables,
-    filterPromptsByQuery,
-    renderPromptPickerMarkup,
-  });
 
   let isSubmitting = false;
   let abortFn = null;
@@ -698,12 +681,9 @@ export function createMessageInputController({
     } else {
       setState({ newChatDraft: input.value });
     }
-    await promptController.handleInput(input.value);
   });
 
   input.addEventListener('keydown', async (e) => {
-    const handled = await promptController.handleKeydown(e);
-    if (handled) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (input.value.trim()) composer.dispatchEvent(new Event('submit'));
@@ -822,12 +802,6 @@ export function createMessageInputController({
     if (toolsMenu && !toolsMenu.classList.contains('hidden') && !clickInsideTools) {
       closeToolsMenu();
     }
-  });
-  input.addEventListener('blur', () => {
-    setTimeout(() => {
-      if (document.activeElement && promptPicker.contains(document.activeElement)) return;
-      promptController.hidePromptPicker();
-    }, 100);
   });
 
   const unsubscribe = subscribe((currentState) => {

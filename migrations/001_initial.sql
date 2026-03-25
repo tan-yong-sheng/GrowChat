@@ -101,26 +101,6 @@ CREATE TABLE IF NOT EXISTS message_documents (
 CREATE INDEX IF NOT EXISTS idx_message_documents_message_id ON message_documents(message_id);
 CREATE INDEX IF NOT EXISTS idx_message_documents_document_id ON message_documents(document_id);
 
-CREATE TABLE IF NOT EXISTS prompts (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  command TEXT,
-  category TEXT NOT NULL DEFAULT 'general',
-  is_global INTEGER NOT NULL DEFAULT 0,
-  is_active INTEGER NOT NULL DEFAULT 1,
-  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-  updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-  UNIQUE(user_id, command)
-);
-
-CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompts(user_id);
-CREATE INDEX IF NOT EXISTS idx_prompts_command ON prompts(command);
-CREATE INDEX IF NOT EXISTS idx_prompts_category ON prompts(category);
-CREATE INDEX IF NOT EXISTS idx_prompts_active ON prompts(is_active);
-CREATE INDEX IF NOT EXISTS idx_prompts_user_active ON prompts(user_id, is_active) WHERE is_active = 1;
-
 CREATE TABLE IF NOT EXISTS groups (
   id TEXT PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,

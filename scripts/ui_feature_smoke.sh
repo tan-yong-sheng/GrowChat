@@ -77,11 +77,4 @@ echo "$files_modal" | grep -q 'true' || fail "Files modal did not open"
 pass "Files modal open"
 playwright-cli eval "document.querySelector('#close-files-modal')?.click(); true" >/dev/null
 
-# Prompt picker trigger with slash command
-playwright-cli eval "const el=document.querySelector('#message-input'); if(el){el.value='/'; el.dispatchEvent(new Event('input',{bubbles:true}));} true" >/dev/null
-sleep 0.4
-prompt_picker="$(playwright-cli eval "Boolean(document.querySelector('#prompt-picker:not(.hidden)'))")"
-echo "$prompt_picker" | grep -q 'true' || fail "Prompt picker did not appear for '/'"
-pass "Prompt picker visible"
-
 echo "UI feature smoke complete."

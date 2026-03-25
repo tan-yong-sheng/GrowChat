@@ -281,75 +281,6 @@ test_knowledge_crud() {
   fi
 }
 
-# ==================== Prompts Tests ====================
-echo ""
-echo "=== P2: Prompt Templates API ==="
-
-test_prompts_crud() {
-  log_info "Testing prompt templates CRUD operations..."
-
-  # POST /api/prompts/create
-  CREATE_PROMPT=$(api_call POST "/api/prompts/create" '{
-    "title":"Translate",
-    "content":"Translate the following text to Spanish:",
-    "command":"translate",
-    "category":"writing"
-  }')
-  PROMPT_ID=$(echo "$CREATE_PROMPT" | jq -r '.prompt.id // empty')
-  if [[ -n "$PROMPT_ID" ]]; then
-    log_pass "POST /api/prompts/create - Prompt created"
-  else
-    log_fail "POST /api/prompts/create - Failed to create prompt"
-    echo "$CREATE_PROMPT" | jq . || echo "$CREATE_PROMPT"
-    return 1
-  fi
-
-  # GET /api/prompts/command/:command
-  GET_BY_CMD=$(api_call GET "/api/prompts/command/translate")
-  CMD_PROMPT=$(echo "$GET_BY_CMD" | jq -r '.prompt.command // empty')
-  if [[ "$CMD_PROMPT" == "translate" ]]; then
-    log_pass "GET /api/prompts/command/:command - Retrieved by command"
-  else
-    log_fail "GET /api/prompts/command/:command - Failed lookup"
-  fi
-
-  # GET /api/prompts/list
-  LIST_PROMPTS=$(api_call GET "/api/prompts/list")
-  PROMPT_COUNT=$(echo "$LIST_PROMPTS" | jq '.prompts | length')
-  if [[ "$PROMPT_COUNT" -gt 0 ]]; then
-    log_pass "GET /api/prompts/list - Listed prompts (count: $PROMPT_COUNT)"
-  else
-    log_fail "GET /api/prompts/list - No prompts in list"
-  fi
-
-  # PUT /api/prompts/:id
-  UPDATE_PROMPT=$(api_call PUT "/api/prompts/${PROMPT_ID}" '{"title":"Translate to Spanish"}')
-  UPDATED_TITLE=$(echo "$UPDATE_PROMPT" | jq -r '.prompt.title // empty')
-  if [[ "$UPDATED_TITLE" == "Translate to Spanish" ]]; then
-    log_pass "PUT /api/prompts/:id - Prompt updated"
-  else
-    log_fail "PUT /api/prompts/:id - Failed to update"
-  fi
-
-  # POST /api/prompts/:id/toggle
-  TOGGLE=$(api_call POST "/api/prompts/${PROMPT_ID}/toggle")
-  ACTIVE=$(echo "$TOGGLE" | jq -r '.is_active // empty')
-  if [[ -n "$ACTIVE" ]]; then
-    log_pass "POST /api/prompts/:id/toggle - Toggled active state"
-  else
-    log_fail "POST /api/prompts/:id/toggle - Failed to toggle"
-  fi
-
-  # DELETE /api/prompts/:id
-  DELETE_PROMPT=$(api_call DELETE "/api/prompts/${PROMPT_ID}")
-  DELETE_OK=$(echo "$DELETE_PROMPT" | jq -r '.ok // empty')
-  if [[ "$DELETE_OK" == "true" ]]; then
-    log_pass "DELETE /api/prompts/:id - Prompt deleted"
-  else
-    log_fail "DELETE /api/prompts/:id - Failed to delete"
-  fi
-}
-
 # ==================== Main Test Execution ====================
 echo "Feature Smoke Matrix - Backend Feature Validation"
 echo "Base URL: ${BASE_URL}"
@@ -363,7 +294,6 @@ test_files_search
 test_files_status
 test_files_content
 test_knowledge_crud
-test_prompts_crud
 
 # Summary
 echo ""

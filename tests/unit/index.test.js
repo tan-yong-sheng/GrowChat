@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   filesRouter: vi.fn(),
   adminRouter: vi.fn(),
   modelsRouter: vi.fn(),
-  promptsRouter: vi.fn(),
   rbacRouter: vi.fn(),
   realtimeRouter: vi.fn(),
   getJwtSecret: vi.fn(() => 'test-secret'),
@@ -101,9 +100,6 @@ vi.mock('../../src/routers/admin/index.js', () => ({
 vi.mock('../../src/routers/models/index.js', () => ({
   modelsRouter: (...args) => mocks.modelsRouter(...args),
 }));
-vi.mock('../../src/routers/prompts.js', () => ({
-  promptsRouter: (...args) => mocks.promptsRouter(...args),
-}));
 vi.mock('../../src/routers/rbac.js', () => ({
   rbacRouter: (...args) => mocks.rbacRouter(...args),
 }));
@@ -127,7 +123,6 @@ describe('worker entry point', () => {
     mocks.filesRouter.mockResolvedValue(null);
     mocks.adminRouter.mockResolvedValue(null);
     mocks.modelsRouter.mockResolvedValue(null);
-    mocks.promptsRouter.mockResolvedValue(null);
     mocks.rbacRouter.mockResolvedValue(null);
     mocks.realtimeRouter.mockResolvedValue(null);
     mocks.verifyJWT.mockResolvedValue({ sub: 'u1', email: 'u@example.com', role: 'user', name: 'User' });

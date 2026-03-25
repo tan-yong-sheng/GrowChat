@@ -367,27 +367,6 @@ export async function fetchArchivedChats() {
   return res.json();
 }
 
-export async function fetchPrompts() {
-  const res = await apiFetch('/api/prompts/list?limit=100&offset=0');
-  if (!res.ok) {
-    const err = new Error(`Failed to fetch prompts (${res.status})`);
-    err.status = res.status;
-    throw err;
-  }
-  return res.json();
-}
-
-export async function fetchPromptByCommand(command) {
-  const normalized = String(command || '').trim().toLowerCase();
-  const res = await apiFetch(`/api/prompts/command/${encodeURIComponent(normalized)}`);
-  if (!res.ok) {
-    const err = new Error(`Failed to fetch prompt command (${res.status})`);
-    err.status = res.status;
-    throw err;
-  }
-  return res.json();
-}
-
 export async function fetchPublicSharedChat(shareId) {
   const res = await fetch(`/s/${encodeURIComponent(shareId)}?format=json`, {
     headers: { Accept: 'application/json' },

@@ -13,32 +13,6 @@ export function getAttachmentAcceptTypes(currentState) {
   };
 }
 
-export function extractPromptVariables(text) {
-  const matches = String(text).match(/\{\{([a-zA-Z0-9_ -]+)\}\}/g) || [];
-  return [...new Set(matches.map((m) => m.slice(2, -2).trim()).filter(Boolean))];
-}
-
-export function applyPromptVariables(text, resolveValue) {
-  let output = String(text || '');
-  const vars = extractPromptVariables(output);
-  vars.forEach((variable) => {
-    const resolver = typeof resolveValue === 'function' ? resolveValue : () => '';
-    const value = resolver(variable) ?? '';
-    output = output.replaceAll(`{{${variable}}}`, String(value));
-  });
-  return output;
-}
-
-export function filterPromptsByQuery(prompts = [], query = '') {
-  const normalizedQuery = String(query || '').trim().toLowerCase();
-  if (!normalizedQuery) return Array.isArray(prompts) ? prompts : [];
-  return (Array.isArray(prompts) ? prompts : []).filter((prompt) => {
-    const cmd = String(prompt?.command || '').toLowerCase();
-    const title = String(prompt?.title || '').toLowerCase();
-    return cmd.includes(normalizedQuery) || title.includes(normalizedQuery);
-  });
-}
-
 export function moveQueueItem(queue, id, direction) {
   const list = Array.isArray(queue) ? [...queue] : [];
   const idx = list.findIndex((item) => item.id === id);
@@ -110,18 +84,6 @@ export function renderPendingQueueMarkup(pendingQueue = []) {
         ✕
       </button>
     </div>
-  `).join('');
-}
-
-export function renderPromptPickerMarkup(promptOptions = [], promptIndex = 0) {
-  if (!Array.isArray(promptOptions) || !promptOptions.length) {
-    return '<div class="px-3 py-2 text-xs text-gray-500">No matching prompts</div>';
-  }
-  return promptOptions.slice(0, 8).map((item, idx) => `
-    <button data-prompt-idx="${idx}" class="w-full text-left px-3 py-2 border-b border-gray-100 last:border-b-0 ${idx === promptIndex ? 'bg-gray-100' : 'hover:bg-gray-50'}">
-      <div class="text-sm font-medium text-gray-800">/${item.command || 'prompt'}</div>
-      <div class="text-xs text-gray-500 truncate">${item.title || ''}</div>
-    </button>
   `).join('');
 }
 

@@ -33,7 +33,6 @@ Use "access domains" or "permission families" instead of loose "access types". T
 - `chat.*` for chat access and lifecycle
 - `model.use` for model invocation
 - `file.*` for uploads and file cleanup
-- `prompt.*` for prompt library management
 
 ### Staff/admin domains
 
@@ -45,7 +44,6 @@ Use "access domains" or "permission families" instead of loose "access types". T
 
 ### Reserved domains
 
-- `admin.breakglass.*` for recovery only
 - `admin.secrets.*` for secret/config work if we add it later
 
 ## Recommended Permission Keys
@@ -60,10 +58,6 @@ Use "access domains" or "permission families" instead of loose "access types". T
 - `model.admin`
 - `file.upload`
 - `file.delete`
-- `prompt.read`
-- `prompt.write`
-- `prompt.delete`
-- `prompt.publish`
 
 ### Delegated staff permissions
 
@@ -89,7 +83,6 @@ Use "access domains" or "permission families" instead of loose "access types". T
 - `admin.secrets.edit`
 - `admin.user.delete`
 - `admin.group.delete`
-- `admin.breakglass.use`
 
 ## Default Bundles
 
@@ -99,12 +92,12 @@ These are the recommended default bundles for non-admin users.
 
 - `starter`: `chat.read`, `chat.write`, `model.use`
 - `member`: `starter` plus `chat.share`, `file.upload`
-- `creator`: `member` plus `chat.delete`, `file.delete`, `prompt.read`, `prompt.write`, `prompt.delete`
+- `creator`: `member` plus `chat.delete`, `file.delete`
 
 ### Staff bundles
 
 - `support`: `member` plus `admin.user.read`, `admin.user.approve`, `admin.audit.read`
-- `moderator`: `member` plus `chat.delete`, `file.delete`, `prompt.publish`
+- `moderator`: `member` plus `chat.delete`, `file.delete`
 - `model_operator`: `model.use`, `model.admin`, `admin.settings.models.read`, `admin.settings.models.edit`
 - `settings_operator`: `admin.settings.general.read`, `admin.settings.general.edit`
 - `security_reader`: `admin.audit.read`, `admin.user.read`
@@ -168,7 +161,6 @@ Hard deny means some actions should require extra logic even if a user is broadl
 Examples:
 
 - removing the last admin
-- deleting the last recovery path
 - rotating or exposing secrets
 - deleting audit history
 
@@ -179,7 +171,7 @@ Examples:
 - Avoid exposing normal users to policy complexity.
 - Make delegated admin control precise, not ambiguous.
 - Reduce accidental privilege creep.
-- Preserve recovery if RBAC is misconfigured.
+- Keep admin access understandable and auditable.
 
 ## Backend Touchpoints
 
@@ -189,7 +181,6 @@ Examples:
 - `src/routers/rbac.js`
 - `src/routers/users.js`
 - `src/routers/models.js`
-- `src/routers/prompts.js`
 - `src/routers/chat.js`
 - `src/routers/files.js`
 - `src/index.js`
@@ -213,7 +204,6 @@ Examples:
 
 - Add UI for group templates and effective permissions.
 - Add audit visibility for RBAC changes.
-- Add break-glass recovery.
 
 ### Phase 4
 
@@ -330,8 +320,7 @@ The RBAC screen should make policy review readable, not expose every raw mechani
 3. Split broad settings permissions out of `admin.user.write`.
 4. Seed default user groups and their bundles.
 5. Add RBAC admin UI for auditing and review.
-6. Add break-glass recovery.
-7. Add tests for "group can be powerful but not admin".
+6. Add tests for "group can be powerful but not admin".
 
 ## Open Questions
 

@@ -1,11 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../public/js/shared/api.js', () => ({
-  fetchPrompts: vi.fn().mockResolvedValue({ prompts: [] }),
-  fetchPromptByCommand: vi.fn().mockResolvedValue({ prompt: { content: '' } }),
-}));
-
 async function loadModules() {
   vi.resetModules();
   const store = await import('../../public/js/shared/store.js');
@@ -34,6 +29,7 @@ describe('message input', () => {
 
     expect(input.placeholder).toBe('Message GPT Mini');
     expect(container.textContent).toContain('GPT Mini can make mistakes. Check important info.');
+    expect(container.querySelector('#prompt-picker')).toBeNull();
 
     view.destroy();
   });
