@@ -89,7 +89,8 @@ describe('markdown rendering utilities', () => {
     expect(html).toContain('data-markdown-code-copy');
     expect(html).toContain('data-markdown-code-toggle');
     expect(html).toContain('<a href="https://example.com/docs" target="_blank" rel="noopener noreferrer" title="Docs">Example Docs</a>');
-    expect(html).toContain('<pre class="gc-markdown-code-block" data-markdown-code-body><code class="language-text">');
+    expect(html).toContain('<div class="gc-markdown-code-shell" data-markdown-code-block data-code-lang="js">');
+    expect(html).toContain('<pre class="gc-markdown-code-block" data-markdown-code-body><code class="language-js">');
     expect(html).toContain('</code></pre>');
     expect(html).toContain('<table class="gc-markdown-table"');
     expect(html).toContain('<p dir="auto">Hello world</p>');

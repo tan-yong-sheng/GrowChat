@@ -60,6 +60,7 @@ import { createChatMessageIdentityTracker } from './chat-message-identity.js';
 import { createChatMessageStream } from './chat-message-stream.js';
 import { createChatStreamController } from './chat-stream-controller.js';
 import { createChatStreamState } from './chat-stream-state.js';
+import { setupEditTextarea } from './edit-textarea.js';
 import { consumeSseTextStream } from './chat-stream.js';
 import { createChatListHandlers } from './chat-list-actions.js';
 import { createChatModals } from './chat-modals.js';
@@ -1052,19 +1053,9 @@ function wireChat(root) {
     messagesList.innerHTML = messagesHtml;
     hydrateAttachmentImages(messagesList);
 
-    // Auto-resize and focus edit textareas
+    // Keep edit textareas stable so typing does not shift the thread.
     messagesList.querySelectorAll('.edit-message-textarea').forEach(ta => {
-      const resize = () => {
-        ta.style.height = 'auto';
-        ta.style.height = ta.scrollHeight + 'px';
-      };
-      ta.addEventListener('input', resize);
-      resize();
-      ta.focus();
-      // Move cursor to end
-      const val = ta.value;
-      ta.value = '';
-      ta.value = val;
+      setupEditTextarea(ta);
     });
 
     bindChatMessageActions({
