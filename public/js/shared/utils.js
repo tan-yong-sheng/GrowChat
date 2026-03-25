@@ -1,3 +1,7 @@
+import { ensureMarkedReady, renderMarkdownContent } from './markdown-renderer.js';
+
+export { ensureMarkedReady } from './markdown-renderer.js';
+
 export function escapeHtml(str) {
   if (!str) return '';
   const div = document.createElement('div');
@@ -5,103 +9,9 @@ export function escapeHtml(str) {
   return div.innerHTML;
 }
 
-const MARKDOWN_CACHE_LIMIT = 200;
-const markdownCache = new Map();
-let markedReadyPromise = null;
-
-function normalizeMessageContent(content) {
-  return String(content ?? '').replace(/\r\n?/g, '\n');
-}
-
-function touchMarkdownCache(key, value) {
-  markdownCache.delete(key);
-  markdownCache.set(key, value);
-  if (markdownCache.size <= MARKDOWN_CACHE_LIMIT) return;
-  const firstKey = markdownCache.keys().next().value;
-  if (firstKey) markdownCache.delete(firstKey);
-}
-
-function configureMarked() {
-  const marked = globalThis?.window?.marked || globalThis?.marked;
-  if (!marked || typeof marked.setOptions !== 'function') return;
-  if (marked.__growchatConfigured) return;
-  marked.setOptions({
-    gfm: true,
-    breaks: false,
-    mangle: false,
-    headerIds: false,
-  });
-  marked.__growchatConfigured = true;
-}
-
-function fallbackMarkdown(content) {
-  const blocks = String(content ?? '').split(/(```[\s\S]*?```)/g);
-  const parts = blocks.map((block) => {
-    const trimmedBlock = block.trim();
-    if (trimmedBlock.startsWith('```')) {
-      const stripped = trimmedBlock.replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
-      const code = escapeHtml(stripped);
-      return `<pre><code>${code}</code></pre>`;
-    }
-    const escaped = escapeHtml(block).trim();
-    if (!escaped) return '';
-    const paragraphs = escaped
-      .split(/\n{2,}/)
-      .map((part) => part.replace(/\n/g, ' ').trim())
-      .filter(Boolean);
-    return paragraphs.map((part) => `<p>${part}</p>`).join('');
-  });
-  return parts.join('');
-}
-
-export function ensureMarkedReady({ timeoutMs = 1200, pollMs = 25 } = {}) {
-  if (typeof window === 'undefined') return Promise.resolve(false);
-  const hasMarked = () => Boolean(window.marked && typeof window.marked.parse === 'function');
-  if (hasMarked()) {
-    configureMarked();
-    return Promise.resolve(true);
-  }
-  if (markedReadyPromise) return markedReadyPromise;
-  markedReadyPromise = new Promise((resolve) => {
-    const started = Date.now();
-    const tick = () => {
-      if (hasMarked()) {
-        configureMarked();
-        resolve(true);
-        return;
-      }
-      if (Date.now() - started >= timeoutMs) {
-        markedReadyPromise = null;
-        resolve(false);
-        return;
-      }
-      setTimeout(tick, pollMs);
-    };
-    tick();
-  });
-  return markedReadyPromise;
-}
-
-export function renderMessageContent(content) {
+export function renderMessageContent(content, options = {}) {
   if (!content) return '<span class="inline-block w-2 h-4 bg-gray-400 animate-pulse rounded-sm"></span>';
-  const normalized = normalizeMessageContent(content);
-  const marked = globalThis?.window?.marked || globalThis?.marked;
-  if (marked && typeof marked.parse === 'function') {
-    configureMarked();
-    const cached = markdownCache.get(normalized);
-    if (cached) {
-      touchMarkdownCache(normalized, cached);
-      return cached;
-    }
-    try {
-      const html = marked.parse(normalized);
-      touchMarkdownCache(normalized, html);
-      return html;
-    } catch {
-      return fallbackMarkdown(normalized);
-    }
-  }
-  return fallbackMarkdown(normalized);
+  return renderMarkdownContent(content, options);
 }
 
 export class SseLineParser {

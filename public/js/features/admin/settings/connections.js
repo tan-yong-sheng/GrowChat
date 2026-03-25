@@ -201,7 +201,7 @@ export function renderConnectionsSettings(container, data) {
 
             <section id="manage-connections-section" class="space-y-1 mt-4">
               <div class="flex items-center justify-between px-0.5">
-                <div class="text-base font-medium text-gray-900">Manage Providers</div>
+                <div class="text-base font-medium text-gray-900">Manage LLM Chat Providers</div>
                 <button id="add-connection" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -483,7 +483,7 @@ export function renderConnectionsSettings(container, data) {
             <span class="text-[11px] text-gray-400 font-mono truncate">${model.id}</span>
           </div>
         </label>
-      `; 
+      `;
     }).join('');
     status.textContent = `${selected.size} of ${models.length} enabled`;
   };

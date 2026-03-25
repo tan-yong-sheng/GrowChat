@@ -331,11 +331,17 @@ def long_line():
     const content = page.locator('[data-message-content]').first();
     await expect(content).toBeVisible({ timeout: 15000 });
 
+    await expect(content.locator('[data-markdown-code-block]')).toHaveCount(1);
+    await expect(content.locator('[data-markdown-code-copy]')).toBeVisible();
+    await expect(content.locator('[data-markdown-code-toggle]')).toBeVisible();
     await expect(content.locator('pre code')).toHaveCount(1);
     await expect(content.locator('p')).toHaveCount(2);
 
     const brCount = await content.locator('br').count();
     expect(brCount).toBe(0);
+
+    await content.locator('[data-markdown-code-toggle]').click();
+    await expect(content.locator('[data-markdown-code-body]')).toHaveClass(/hidden/);
 
   });
 

@@ -2,8 +2,8 @@ import { escapeHtml, renderMessageContent } from '../../shared/utils.js';
 import { ensureBlocksFromContent } from './chat-message-blocks.js';
 import { formatThoughtDuration, buildToolToggleKey } from './chat-message-utils.js';
 
-export function renderAssistantContent(content) {
-  return renderMessageContent(content);
+export function renderAssistantContent(content, options = {}) {
+  return renderMessageContent(content, options);
 }
 
 export function isImageAttachment(file) {
@@ -51,12 +51,12 @@ export function renderAttachmentPills(attachments = [], align = 'end') {
   `;
 }
 
-export function renderThinkingBlock({ label, thinking, collapsed, toggleKey }) {
+export function renderThinkingBlock({ label, thinking, collapsed, toggleKey, specialBlockScope = '' }) {
   if (!label) return '';
   const hasContent = Boolean(thinking);
   const contentHtml = hasContent
     ? `<div data-thinking-body="${toggleKey}" class="${collapsed ? 'hidden' : ''} mt-2 border-l-2 border-gray-200 pl-3 text-[13px] leading-[1.6] text-gray-500 italic">
-        ${renderMessageContent(thinking)}
+        ${renderMessageContent(thinking, specialBlockScope ? { specialBlockScope } : {})}
       </div>`
     : '';
   const chevronClass = collapsed ? '-rotate-90' : 'rotate-0';
@@ -128,6 +128,7 @@ export function renderAssistantMessageBody({
   errorMessage,
   isError,
   isStreaming,
+  chatId = '',
   stateMaps,
   formatDuration = formatThoughtDuration,
 }) {
@@ -180,17 +181,20 @@ export function renderAssistantMessageBody({
           : (hasThinking ? formatDuration(duration) : '');
         const toggleKey = `${key}:${block.id}`;
         const collapsed = thinkingCollapsedByKey?.get(toggleKey) ?? false;
-        return label ? renderThinkingBlock({ label, thinking: block.content, collapsed, toggleKey }) : '';
+        return label ? renderThinkingBlock({ label, thinking: block.content, collapsed, toggleKey, specialBlockScope: chatId }) : '';
       }
       if (block.type === 'text') {
         if (!block.content) return '';
-        return renderAssistantContent(block.content);
+        return renderAssistantContent(block.content, {
+          streaming: isStreaming,
+          specialBlockScope: chatId,
+        });
       }
       return '';
     }).join('');
     const textBlocks = renderBlocks.filter((block) => block?.type === 'text');
     const hasTextBlocks = textBlocks.length > 0;
-    const renderedAnswer = hasTextBlocks ? '' : (text ? renderAssistantContent(text) : '');
+    const renderedAnswer = hasTextBlocks ? '' : (text ? renderAssistantContent(text, { streaming: isStreaming }) : '');
     return `${asyncNotice}${blocksHtml}${renderedAnswer}`;
   }
 
@@ -208,7 +212,7 @@ export function renderAssistantMessageBody({
     : '';
   return `${asyncNotice}
     <div class="relative rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-sans">
-      <div data-error-body="${key}" class="${bodyClass}">${renderMessageContent(raw)}</div>
+      <div data-error-body="${key}" class="${bodyClass}">${renderMessageContent(raw, chatId ? { specialBlockScope: chatId } : {})}</div>
       ${overlayHtml}
       ${toggleHtml}
     </div>

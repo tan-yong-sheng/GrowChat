@@ -1009,6 +1009,7 @@ function wireChat(root) {
                   content: displayContent,
                   isError,
                   isStreaming,
+                  chatId: state.activeChatId,
                   stateMaps: {
                     errorExpandedByMessageId,
                     thinkingActiveByMessageId,

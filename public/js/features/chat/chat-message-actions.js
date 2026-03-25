@@ -81,6 +81,33 @@ export function bindChatMessageActions({
     });
   });
 
+  messagesList.querySelectorAll('[data-markdown-code-copy]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const shell = btn.closest('[data-markdown-code-block]');
+      const code = shell?.querySelector('[data-markdown-code-body] code');
+      const text = code?.textContent || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Code copied');
+      } catch {
+        window.prompt('Copy code', text);
+      }
+    });
+  });
+
+  messagesList.querySelectorAll('[data-markdown-code-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const shell = btn.closest('[data-markdown-code-block]');
+      const body = shell?.querySelector('[data-markdown-code-body]');
+      if (!body) return;
+      const collapsed = !body.classList.contains('hidden');
+      body.classList.toggle('hidden', collapsed);
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      const label = btn.querySelector('span');
+      if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+    });
+  });
+
   messagesList.querySelectorAll('[data-edit-message]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-edit-message');

@@ -1,6 +1,52 @@
 const MAX_TOOL_STEPS = 100;
 const MAX_FOLLOW_UPS = 20;
 const FOLLOW_UP_PROMPT = 'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
+const STREAM_KEEPALIVE_INTERVAL_MS = 15000;
+const STREAM_HARD_TIMEOUT_MS = 10 * 60 * 1000;
+const STREAM_KEEPALIVE_PAYLOAD = ':\n\n';
+
+export async function readStreamChunkWithHeartbeat(reader, {
+  controller = null,
+  encoder = new TextEncoder(),
+  keepAliveIntervalMs = STREAM_KEEPALIVE_INTERVAL_MS,
+  hardTimeoutMs = STREAM_HARD_TIMEOUT_MS,
+  heartbeatPayload = STREAM_KEEPALIVE_PAYLOAD,
+} = {}) {
+  let heartbeatTimer = null;
+  let timeoutId = null;
+  let timedOut = false;
+
+  if (controller && typeof controller.enqueue === 'function' && keepAliveIntervalMs > 0) {
+    heartbeatTimer = setInterval(() => {
+      try {
+        controller.enqueue(encoder.encode(heartbeatPayload));
+      } catch {
+      }
+    }, keepAliveIntervalMs);
+  }
+
+  const pendingReads = [reader.read()];
+  if (hardTimeoutMs > 0) {
+    pendingReads.push(new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        reject(new Error('LLM stream timed out'));
+      }, hardTimeoutMs);
+    }));
+  }
+
+  try {
+    return await Promise.race(pendingReads);
+  } catch (err) {
+    if (timedOut && typeof reader.cancel === 'function') {
+      void reader.cancel().catch(() => {});
+    }
+    throw err;
+  } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
 
 export function createAssistantRunner(deps) {
   const {
@@ -69,7 +115,6 @@ export function createAssistantRunner(deps) {
     let deltaSeq = 0;
     const toolCallRecords = [];
     const messageBlocks = [];
-    const STREAM_IDLE_TIMEOUT_MS = 45000;
     let streamController = null;
 
     const persistDelta = async (payload) => {
@@ -133,18 +178,6 @@ export function createAssistantRunner(deps) {
           normalizeErrorMessage,
           emitSse,
         });
-        const readWithTimeout = async (reader) => {
-          let timeoutId;
-          const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error('LLM stream timed out')), STREAM_IDLE_TIMEOUT_MS);
-          });
-          try {
-            return await Promise.race([reader.read(), timeoutPromise]);
-          } finally {
-            clearTimeout(timeoutId);
-          }
-        };
-
         await lifecycle.ensureAssistantRow();
         if (ctx?.waitUntil) {
           ctx.waitUntil((async () => {
@@ -234,7 +267,10 @@ export function createAssistantRunner(deps) {
               };
 
               while (true) {
-                const { done, value } = await readWithTimeout(reader);
+                const { done, value } = await readStreamChunkWithHeartbeat(reader, {
+                  controller,
+                  encoder,
+                });
                 if (done) break;
                 const delta = parser.push(decoder.decode(value, { stream: true }));
                 if (delta) {

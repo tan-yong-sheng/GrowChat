@@ -95,6 +95,39 @@ describe('chat message action binder', () => {
     expect(ctx.openCitation).toHaveBeenCalledWith('cite-1');
   });
 
+  it('copies and collapses markdown code blocks', async () => {
+    const ctx = makeBaseContext();
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    ctx.messagesList.innerHTML = `
+      <div data-markdown-code-block>
+        <div>
+          <button data-markdown-code-copy type="button">Copy</button>
+          <button data-markdown-code-toggle type="button" aria-expanded="true"><span>Collapse</span></button>
+        </div>
+        <pre data-markdown-code-body><code>console.log('hi')</code></pre>
+      </div>
+    `;
+
+    bindChatMessageActions(ctx);
+
+    ctx.messagesList.querySelector('[data-markdown-code-copy]')?.click();
+    await Promise.resolve();
+    expect(writeText).toHaveBeenCalledWith("console.log('hi')");
+    expect(ctx.showToast).toHaveBeenCalledWith('Code copied');
+
+    ctx.messagesList.querySelector('[data-markdown-code-toggle]')?.click();
+    const body = ctx.messagesList.querySelector('[data-markdown-code-body]');
+    const toggle = ctx.messagesList.querySelector('[data-markdown-code-toggle]');
+
+    expect(body?.classList.contains('hidden')).toBe(true);
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle?.textContent).toContain('Expand');
+  });
+
   it('locks delete while the first request is in flight', async () => {
     let resolveDelete;
     const deletePromise = new Promise((resolve) => {

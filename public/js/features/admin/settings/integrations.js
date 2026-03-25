@@ -175,16 +175,16 @@ export function renderIntegrationsSettings(container, data) {
           ${server.toolsError ? `<div class="text-[11px] text-red-500 mb-2">${server.toolsError}</div>` : ''}
           <div class="space-y-2">
             ${(tools.length)
-        ? tools.map((tool) => {
-          const description = String(tool.description || '');
-          const maxLen = 160;
-          const isExpanded = Boolean(tool._expanded);
-          const hasMore = description.length > maxLen;
-          const preview = hasMore && !isExpanded
-            ? `${description.slice(0, maxLen).trimEnd()}…`
-            : description;
-          const toolEnabled = tool.enabled !== false;
-          return `
+            ? tools.map((tool) => {
+              const description = String(tool.description || '');
+              const maxLen = 160;
+              const isExpanded = Boolean(tool._expanded);
+              const hasMore = description.length > maxLen;
+              const preview = hasMore && !isExpanded
+                ? `${description.slice(0, maxLen).trimEnd()}…`
+                : description;
+              const toolEnabled = tool.enabled !== false;
+              return `
                 <div class="rounded-xl border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
@@ -209,8 +209,8 @@ export function renderIntegrationsSettings(container, data) {
                   ` : ''}
                 </div>
               `;
-        }).join('')
-        : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit Server.</div>'}
+            }).join('')
+            : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit MCP Server.</div>'}
           </div>
         </div>
       </div>
@@ -242,7 +242,7 @@ export function renderIntegrationsSettings(container, data) {
           <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
             <section class="space-y-1">
               <div class="flex items-center justify-between px-0.5">
-                <div class="text-base font-medium text-gray-900">Manage Tool Servers</div>
+                <div class="text-base font-medium text-gray-900">Manage MCP Servers</div>
                 <button id="add-tool-server" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -273,7 +273,7 @@ export function renderIntegrationsSettings(container, data) {
         <div class="fixed inset-0 bg-black/20 backdrop-blur-sm"></div>
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center">
-            <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${integrationsState.modalMode === 'update' ? 'Edit Server' : 'Add Server'}</h3>
+            <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${integrationsState.modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server'}</h3>
             <button id="close-modal" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -429,7 +429,7 @@ export function renderIntegrationsSettings(container, data) {
       oauthStatus.textContent = server?.oauth_connected ? 'Connected' : 'Not connected';
     }
     const title = container.querySelector('#server-modal-title');
-    if (title) title.textContent = integrationsState.modalMode === 'update' ? 'Edit Server' : 'Add Server';
+    if (title) title.textContent = integrationsState.modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server';
     const deleteBtn = container.querySelector('#delete-server');
     if (deleteBtn) deleteBtn.classList.toggle('hidden', !server);
     setTestStatus('idle', '');

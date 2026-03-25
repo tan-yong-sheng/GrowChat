@@ -108,13 +108,13 @@ describe('admin integrations settings', () => {
     await vi.waitFor(() => expect(data.integrationsSettings.originalSnapshot).not.toBeNull());
 
     container.querySelector('#add-tool-server')?.click();
-    expect(container.querySelector('#server-modal-title')?.textContent).toBe('Add Server');
+    expect(container.querySelector('#server-modal-title')?.textContent).toBe('Add MCP Server');
 
     container.querySelector('#close-modal')?.click();
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
 
     container.querySelector('.edit-server-btn')?.click();
-    expect(container.querySelector('#server-modal-title')?.textContent).toBe('Edit Server');
+    expect(container.querySelector('#server-modal-title')?.textContent).toBe('Edit MCP Server');
   });
 
   it('broadcasts a tool-server invalidation after saving integrations', async () => {

@@ -6,7 +6,9 @@ open-terminal/
 bolt.new/
 codex/
 claude-code/
+learn-claude-code/
 markitdown/
+rag-tutorial-simple/
 gemini-cli/
 opencode/
 generative-ui-demo/

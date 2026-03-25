@@ -108,7 +108,7 @@ export function createSearchModalController(container, createChatFn, loadMessage
             <span class="text-[10px] font-bold uppercase text-gray-400">${m.role}</span>
           </div>
           <div class="max-w-[90%] ${m.role === 'user' ? 'bg-gray-100 rounded-[18px]' : 'bg-white border border-gray-100 rounded-[18px]'} px-4 py-2.5 text-xs text-gray-800 shadow-sm prose prose-p:my-1 prose-pre:my-2 prose-sm max-w-none break-words">
-            ${renderMessageContent(m.content)}
+            ${renderMessageContent(m.content, { interactive: false })}
           </div>
         </div>
       `).join('');

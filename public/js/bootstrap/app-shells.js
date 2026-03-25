@@ -17,7 +17,7 @@ export function renderSharedChatPage(container, data) {
             <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
               <div class="${m.role === 'user' ? 'bg-[#f0f0f0]' : 'bg-white border border-gray-200'} rounded-2xl px-4 py-3 max-w-[85%]">
                 <p class="text-xs uppercase text-gray-400 mb-1">${m.role}</p>
-                <div class="prose prose-sm max-w-none break-words">${renderMessageContent(m.content)}</div>
+                <div class="prose prose-sm max-w-none break-words">${renderMessageContent(m.content, { interactive: false })}</div>
               </div>
             </div>
           `).join('')}
