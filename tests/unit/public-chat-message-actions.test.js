@@ -95,6 +95,106 @@ describe('chat message action binder', () => {
     expect(ctx.openCitation).toHaveBeenCalledWith('cite-1');
   });
 
+  it('pins the edited branch leaf after saving a user message', async () => {
+    const state = {
+      ui: { editingMessages: { m1: 'draft' } },
+      activeChatId: 'chat-1',
+      activeModelId: 'model-1',
+      messagesByChat: {
+        'chat-1': [{ id: 'm1', role: 'user', parent_id: null, content: 'hello' }],
+      },
+    };
+    const currentLeafByChatId = new Map();
+    const branchSelectionByChat = new Map();
+    const consumeSseTextStream = vi.fn(async (_body, { onEvent, onDelta }) => {
+      onEvent?.({ event: 'start', message_id: 'assistant-real', user_message_id: 'user-real' });
+      onDelta?.('final answer');
+    });
+    const ctx = makeBaseContext({
+      state,
+      setState: createMutableSetState(state),
+      messages: state.messagesByChat['chat-1'],
+      projectedMessages: [{ id: 'm1', role: 'user', parent_id: null, content: 'hello' }],
+      currentLeafByChatId,
+      branchSelectionByChat,
+      getMessageById: vi.fn(() => ({ id: 'm1', role: 'user', parent_id: null, content: 'hello', attachments: [] })),
+      apiFetch: vi.fn(async () => ({
+        ok: true,
+        body: {},
+      })),
+      consumeSseTextStream,
+      loadMessages: vi.fn(async () => {}),
+    });
+    ctx.messagesList.innerHTML = `
+      <div data-message-id="m1">
+        <textarea class="edit-message-textarea" data-message-id="m1">draft</textarea>
+        <button class="save-edit-btn" data-message-id="m1"></button>
+      </div>
+    `;
+
+    bindChatMessageActions(ctx);
+
+    ctx.messagesList.querySelector('.save-edit-btn')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(consumeSseTextStream).toHaveBeenCalled();
+    expect(ctx.replaceTempMessageId).toHaveBeenCalledWith('chat-1', expect.stringMatching(/^temp-assistant-/), 'assistant-real');
+    expect(ctx.loadMessages).toHaveBeenCalledWith('chat-1', expect.objectContaining({
+      preferredLeafId: 'assistant-real',
+    }));
+  });
+
+  it('creates and selects a new branch when saving an assistant message as a copy', async () => {
+    const state = {
+      ui: { editingMessages: { m2: 'draft answer' } },
+      activeChatId: 'chat-1',
+      activeModelId: 'model-1',
+      messagesByChat: {
+        'chat-1': [
+          { id: 'm1', role: 'user', parent_id: null, content: 'hello' },
+          { id: 'm2', role: 'assistant', parent_id: 'm1', content: 'old answer' },
+        ],
+      },
+    };
+    const currentLeafByChatId = new Map();
+    const branchSelectionByChat = new Map();
+    const ctx = makeBaseContext({
+      state,
+      setState: createMutableSetState(state),
+      messages: state.messagesByChat['chat-1'],
+      projectedMessages: state.messagesByChat['chat-1'],
+      currentLeafByChatId,
+      branchSelectionByChat,
+      getMessageById: vi.fn(() => ({ id: 'm2', role: 'assistant', parent_id: 'm1', content: 'old answer' })),
+      apiFetch: vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ message: { id: 'm2-branch' } }),
+      })),
+      loadMessages: vi.fn(async () => {}),
+    });
+    ctx.messagesList.innerHTML = `
+      <div data-message-id="m2">
+        <textarea class="edit-message-textarea" data-message-id="m2">draft answer</textarea>
+        <button class="save-copy-btn" data-message-id="m2"></button>
+      </div>
+    `;
+
+    bindChatMessageActions(ctx);
+
+    ctx.messagesList.querySelector('.save-copy-btn')?.click();
+    for (let i = 0; i < 10 && !currentLeafByChatId.get('chat-1'); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    expect(ctx.apiFetch).toHaveBeenCalledWith('/api/chats/chat-1/messages/m2/branch', expect.objectContaining({
+      method: 'POST',
+    }));
+    expect(currentLeafByChatId.get('chat-1')).toBe('m2-branch');
+    expect(ctx.setBranchSelection).toHaveBeenCalledWith('chat-1', 'm1', 'm2-branch');
+    expect(ctx.loadMessages).toHaveBeenCalledWith('chat-1');
+  });
+
   it('copies and collapses markdown code blocks', async () => {
     const ctx = makeBaseContext();
     const writeText = vi.fn().mockResolvedValue();

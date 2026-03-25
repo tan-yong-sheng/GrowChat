@@ -83,6 +83,7 @@ export function projectConversation(messages, preferredLeafId, branchSelectionMa
 }
 
 export function resolveConversationLeafId(messages, {
+  preferredLeafId = null,
   currentMessageId = null,
   fallbackMessageId = null,
   previousLeafId = null,
@@ -90,6 +91,8 @@ export function resolveConversationLeafId(messages, {
   const all = Array.isArray(messages) ? messages : [];
   if (all.length === 0) return null;
   const byId = new Set(all.map((msg) => String(msg?.id || '')).filter(Boolean));
+  const preferred = String(preferredLeafId || '').trim();
+  if (preferred && byId.has(preferred)) return preferred;
   const current = String(currentMessageId || '').trim();
   if (current && byId.has(current)) return current;
   const fallback = String(fallbackMessageId || '').trim();

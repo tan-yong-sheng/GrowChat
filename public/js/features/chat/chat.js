@@ -1157,7 +1157,7 @@ function wireChat(root) {
   const STREAM_STALE_MS = 5 * 60 * 1000;
 
   async function loadMessages(chatId, options = {}) {
-    const { draw = true, updateActiveModel = draw, modelMode = 'keep', fallbackMessage = null } = options;
+    const { draw = true, updateActiveModel = draw, modelMode = 'keep', preferredLeafId = null, fallbackMessage = null } = options;
     if (!chatId) {
       if (draw) drawMessages([]);
       return;
@@ -1223,6 +1223,7 @@ function wireChat(root) {
 
     const priorLeafId = currentLeafByChatId.get(chatId) || null;
     const resolvedLeafId = resolveConversationLeafId(messages, {
+      preferredLeafId,
       currentMessageId: data.chat?.current_message_id || null,
       fallbackMessageId: appliedFallbackId,
       previousLeafId: priorLeafId,

@@ -75,6 +75,11 @@ describe('projectConversation', () => {
       fallbackMessageId: 'm2',
       previousLeafId: 'm3',
     })).toBe('m2');
+    expect(resolveConversationLeafId(messages, {
+      preferredLeafId: 'm3',
+      currentMessageId: 'm2',
+      previousLeafId: 'm1',
+    })).toBe('m3');
   });
 });
 

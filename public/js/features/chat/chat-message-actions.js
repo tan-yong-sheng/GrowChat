@@ -425,6 +425,7 @@ export function bindChatMessageActions({
           await loadMessages(chatId, {
             draw: state.activeChatId === chatId,
             updateActiveModel: state.activeChatId === chatId,
+            preferredLeafId: assistantMessageId,
             fallbackMessage: fallback,
           });
         } catch (e) {
@@ -446,6 +447,7 @@ export function bindChatMessageActions({
             await loadMessages(chatId, {
               draw: state.activeChatId === chatId,
               updateActiveModel: state.activeChatId === chatId,
+              preferredLeafId: assistantMessageId,
               fallbackMessage: fallback,
             });
           }
@@ -766,27 +768,6 @@ export function bindChatMessageActions({
         thinkingActiveByMessageId.delete(String(assistantMessageId));
         applyAssistantText(false);
         streamingOverrideByChat.delete(chatId);
-        const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-          content: assistantText,
-          errorActive,
-          errorMessage,
-          model: state.activeModelId,
-          parentId: branchParentId,
-        });
-        await loadMessages(chatId, {
-          draw: state.activeChatId === chatId,
-          updateActiveModel: state.activeChatId === chatId,
-          fallbackMessage: fallback,
-        });
-      } catch (e) {
-        if (e?.name !== 'AbortError') {
-          console.error('Regeneration failed', e);
-          if (!errorActive) {
-            errorMessage = String(e?.message || 'LLM request failed');
-            errorActive = true;
-            assistantText = '';
-            applyAssistantText(false);
-          }
           const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
             content: assistantText,
             errorActive,
@@ -797,10 +778,33 @@ export function bindChatMessageActions({
           await loadMessages(chatId, {
             draw: state.activeChatId === chatId,
             updateActiveModel: state.activeChatId === chatId,
+            preferredLeafId: assistantMessageId,
             fallbackMessage: fallback,
           });
-        }
-      } finally {
+        } catch (e) {
+          if (e?.name !== 'AbortError') {
+            console.error('Regeneration failed', e);
+          if (!errorActive) {
+            errorMessage = String(e?.message || 'LLM request failed');
+            errorActive = true;
+            assistantText = '';
+            applyAssistantText(false);
+          }
+            const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+              content: assistantText,
+              errorActive,
+              errorMessage,
+              model: state.activeModelId,
+              parentId: branchParentId,
+            });
+            await loadMessages(chatId, {
+              draw: state.activeChatId === chatId,
+              updateActiveModel: state.activeChatId === chatId,
+              preferredLeafId: assistantMessageId,
+              fallbackMessage: fallback,
+            });
+          }
+        } finally {
         streamingOverrideByChat.delete(chatId);
         clearGlobalStreamAbort(getActiveStreamAbort());
         setActiveStreamAbort(null);
