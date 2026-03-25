@@ -73,10 +73,15 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (req.method === 'GET' && path === '/api/admin/config') {
     try {
       const publicRegistration = await getConfigBool(db, 'public_registration', true);
+      const registrationStatusRaw = await getConfigValue(db, 'public_registration_status', 'pending');
       const defaultModelIdRaw = await getConfigValue(db, 'default_model_id', null);
+      const registrationStatus = String(registrationStatusRaw || 'pending').trim().toLowerCase() === 'active'
+        ? 'active'
+        : 'pending';
       const defaultModelId = defaultModelIdRaw ? String(defaultModelIdRaw).trim() : null;
       return json(req, {
         public_registration: publicRegistration,
+        public_registration_status: registrationStatus,
         default_model_id: defaultModelId || null
       });
     } catch (err) {
@@ -95,14 +100,26 @@ export async function adminRouter(req, env, ctx, user, path) {
     }
 
     const hasPublicRegistration = body.public_registration !== undefined;
+    const hasRegistrationStatus = body.public_registration_status !== undefined;
     const hasDefaultModel = body.default_model_id !== undefined;
 
-    if (!hasPublicRegistration && !hasDefaultModel) {
+    if (!hasPublicRegistration && !hasRegistrationStatus && !hasDefaultModel) {
       return error(req, 'No config changes provided', 400);
     }
 
     if (hasPublicRegistration && typeof body.public_registration !== 'boolean') {
       return error(req, 'public_registration must be a boolean', 400);
+    }
+
+    let normalizedRegistrationStatus = null;
+    if (hasRegistrationStatus) {
+      if (typeof body.public_registration_status !== 'string') {
+        return error(req, 'public_registration_status must be a string', 400);
+      }
+      normalizedRegistrationStatus = String(body.public_registration_status).trim().toLowerCase();
+      if (!['active', 'pending'].includes(normalizedRegistrationStatus)) {
+        return error(req, 'public_registration_status must be "active" or "pending"', 400);
+      }
     }
 
     let normalizedDefaultModel = null;
@@ -124,6 +141,9 @@ export async function adminRouter(req, env, ctx, user, path) {
       if (hasPublicRegistration) {
         await setConfigValue(db, 'public_registration', body.public_registration ? 'true' : 'false');
       }
+      if (hasRegistrationStatus) {
+        await setConfigValue(db, 'public_registration_status', normalizedRegistrationStatus);
+      }
       if (hasDefaultModel) {
         await setConfigValue(db, 'default_model_id', normalizedDefaultModel);
       }
@@ -135,6 +155,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       });
       return json(req, {
         public_registration: hasPublicRegistration ? body.public_registration : undefined,
+        public_registration_status: hasRegistrationStatus ? normalizedRegistrationStatus : undefined,
         default_model_id: hasDefaultModel ? (normalizedDefaultModel || null) : undefined
       });
     } catch (err) {

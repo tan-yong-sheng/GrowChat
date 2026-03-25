@@ -37,6 +37,8 @@ async function submit(e) {
   e.preventDefault();
   if (isSubmitting) return;
   err.classList.add('hidden');
+  err.classList.remove('text-green-600');
+  err.classList.add('text-red-600');
 
   const payload = {
     email: emailInput.value.trim(),
@@ -68,6 +70,13 @@ async function submit(e) {
     if (!res.ok) {
       err.textContent = data.error || 'Authentication failed';
       err.classList.remove('hidden');
+      return;
+    }
+
+    if (mode === 'register' && !data.access_token) {
+      err.textContent = data.message || 'Your account is pending approval.';
+      err.classList.remove('hidden', 'text-red-600');
+      err.classList.add('text-green-600');
       return;
     }
 

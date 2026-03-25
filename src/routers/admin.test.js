@@ -134,6 +134,7 @@ describe('adminRouter openai connections', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           public_registration: false,
+          public_registration_status: 'active',
           default_model_id: 'gpt-5-mini',
         }),
       }),
@@ -147,14 +148,34 @@ describe('adminRouter openai connections', () => {
     expect(res.status).toBe(200);
     expect(payload).toEqual({
       public_registration: false,
+      public_registration_status: 'active',
       default_model_id: 'gpt-5-mini',
     });
     expect(mocks.setConfigValue).toHaveBeenCalledWith(expect.anything(), 'public_registration', 'false');
+    expect(mocks.setConfigValue).toHaveBeenCalledWith(expect.anything(), 'public_registration_status', 'active');
     expect(mocks.setConfigValue).toHaveBeenCalledWith(expect.anything(), 'default_model_id', 'gpt-5-mini');
     expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       action: 'admin_config_updated',
       resource_id: 'config',
     }));
+  });
+
+  it('returns pending registration status when the config value is unset', async () => {
+    const res = await adminRouter(
+      makeReq('/api/admin/config', 'GET'),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/config'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload).toEqual({
+      public_registration: true,
+      public_registration_status: 'pending',
+      default_model_id: null,
+    });
   });
 
   it('reads and updates model attachment caps', async () => {

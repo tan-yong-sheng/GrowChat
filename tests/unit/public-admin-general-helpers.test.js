@@ -10,6 +10,7 @@ describe('admin general helpers', () => {
     const state = createGeneralSettingsState();
     expect(state.initialValues.title).toBe('GrowChat');
     expect(state.currentValues.publicRegistration).toBe(true);
+    expect(state.currentValues.registrationStatus).toBe('pending');
     expect(state.dirtyFields.defaultModelId).toBe(false);
   });
 
@@ -17,6 +18,8 @@ describe('admin general helpers', () => {
     const state = createGeneralSettingsState();
     expect(isGeneralSettingsDirty(state)).toBe(false);
     state.currentValues.defaultModelId = 'gpt-5-mini';
+    expect(isGeneralSettingsDirty(state)).toBe(true);
+    state.currentValues.registrationStatus = 'active';
     expect(isGeneralSettingsDirty(state)).toBe(true);
 
     expect(getGeneralSettingsToggleState(true)).toMatchObject({

@@ -28,6 +28,7 @@ describe('admin general settings', () => {
       if (String(url) === '/api/admin/config') {
         return new Response(JSON.stringify({
           public_registration: true,
+          public_registration_status: 'pending',
           default_model_id: '',
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
@@ -50,6 +51,30 @@ describe('admin general settings', () => {
     container.querySelector('#public-reg-toggle')?.click();
 
     expect(container.querySelector('#save-settings')?.disabled).toBe(false);
+  });
+
+  it('saves registration status changes to the admin config API', async () => {
+    const { renderGeneralSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderGeneralSettings(container, data);
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/models'));
+    await vi.waitFor(() => expect(container.querySelector('#registration-status')).not.toBeNull());
+
+    const registrationStatus = container.querySelector('#registration-status');
+    registrationStatus.value = 'active';
+    registrationStatus.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(container.querySelector('#save-settings')?.disabled).toBe(false);
+
+    await data.settingsSaveHandlers.general();
+
+    const putCall = mocks.apiFetch.mock.calls.find(([url, options]) => (
+      String(url) === '/api/admin/config' && options?.method === 'PUT'
+    ));
+    expect(putCall).toBeTruthy();
+    expect(putCall[1].body).toBe(JSON.stringify({ public_registration_status: 'active' }));
   });
 });
 

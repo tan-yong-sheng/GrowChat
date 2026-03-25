@@ -5,11 +5,13 @@ export function createGeneralSettingsState() {
     initialValues: {
       title: 'GrowChat',
       publicRegistration: true,
+      registrationStatus: 'pending',
       defaultModelId: '',
     },
     currentValues: {
       title: 'GrowChat',
       publicRegistration: true,
+      registrationStatus: 'pending',
       defaultModelId: '',
     },
     models: [],
@@ -18,6 +20,7 @@ export function createGeneralSettingsState() {
     dirtyFields: {
       title: false,
       publicRegistration: false,
+      registrationStatus: false,
       defaultModelId: false,
     },
   };

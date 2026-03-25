@@ -2,7 +2,7 @@ import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { hashPassword, signJWT, verifyPassword } from '../shared/auth.js';
 import { createRefreshToken, consumeRefreshToken, revokeRefreshToken } from '../shared/session.js';
-import { getConfigBool, setConfigValue } from '../utils/app-config.js';
+import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { getJwtSecret } from '../shared/jwt-secret.js';
 import { requireString, validateEmail } from '../validation/request.js';
 import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../services/rate-limit.js';
@@ -121,6 +121,10 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const id = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
+    const registrationStatusRaw = await getConfigValue(db, 'public_registration_status', 'pending');
+    const registrationStatus = String(registrationStatusRaw || 'pending').trim().toLowerCase() === 'active'
+      ? 'active'
+      : 'pending';
     let user = await users.create({
       id,
       email,
@@ -131,14 +135,29 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     });
 
     // Open WebUI-style first-user elevation: decide admin after insert.
-    const finalRole = (await users.count()) === 1 ? 'admin' : 'user';
+    const finalRole = (await users.count()) === 1
+      ? 'admin'
+      : (registrationStatus === 'active' ? 'user' : 'inactive');
     if (finalRole === 'admin') {
       await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['admin', id]);
       // Disable public registration after first admin is created.
       await setConfigValue(db, 'public_registration', 'false');
       user = { ...user, role: 'admin' };
+    } else if (finalRole === 'inactive') {
+      await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['inactive', id]);
+      user = { ...user, role: 'inactive' };
+    } else {
+      user = { ...user, role: 'user' };
     }
     await ensureUserRoleBinding(db, id, finalRole);
+    if (finalRole === 'inactive') {
+      return json(req, {
+        user: sanitizeUser(user),
+        status: 'pending',
+        message: 'Account pending approval.',
+      }, 201);
+    }
+
     const accessToken = await createAccessToken(jwtSecret, user);
     const refresh = await createRefreshToken(env, user.id);
 
@@ -188,6 +207,12 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
+    if (user.role === 'inactive') {
+      return json(req, {
+        error: 'inactive_account',
+        message: 'Account pending approval.',
+      }, 403);
+    }
 
     await users.touchLastActive(user.id);
     const freshUser = await users.findById(user.id);

@@ -120,6 +120,47 @@ describe('authRouter', () => {
     expect(mocks.db.run).toHaveBeenCalled();
   });
 
+  it('creates pending registrations when the default registration status is pending', async () => {
+    const env = { DB: {}, JWT_SECRET: 'secret' };
+    queryResponses.countUsers = [{ count: 1 }, { count: 2 }];
+    queryResponses.appConfig = [null];
+    queryResponses.existingUser = [null];
+    queryResponses.userById = [{
+      id: 'u2',
+      email: 'pending@example.com',
+      name: 'Pending User',
+      role: 'inactive',
+      settings: '{}',
+      created_at: 1,
+      updated_at: 1,
+    }];
+
+    const res = await authRouter(
+      makeReq('/api/auth/register', 'POST', {
+        email: 'pending@example.com',
+        name: 'Pending User',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/register'
+    );
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user.role).toBe('inactive');
+    expect(body.status).toBe('pending');
+    expect(body.message).toBe('Account pending approval.');
+    expect(body.access_token).toBeUndefined();
+    expect(body.refresh_token).toBeUndefined();
+    expect(mocks.createRefreshToken).not.toHaveBeenCalled();
+    expect(mocks.db.run).toHaveBeenCalledWith(
+      'UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?',
+      ['inactive', expect.any(String)]
+    );
+  });
+
   it('rejects duplicate email on register', async () => {
     const env = { DB: {}, JWT_SECRET: 'secret' };
     queryResponses.countUsers = [{ count: 1 }];
@@ -181,6 +222,39 @@ describe('authRouter', () => {
     expect(body.access_token).toBe('jwt-token');
     expect(body.refresh_token).toBe('refresh-token');
     expect(mocks.verifyPassword).toHaveBeenCalledWith('password123', 'stored-hash');
+  });
+
+  it('rejects pending users from logging in', async () => {
+    const env = { DB: {}, JWT_SECRET: 'secret' };
+    queryResponses.loginUser = [{
+      id: 'u1',
+      email: 'user@example.com',
+      name: 'User',
+      role: 'inactive',
+      password_hash: 'stored-hash',
+      settings: '{}',
+      created_at: 1,
+      updated_at: 1,
+    }];
+    mocks.verifyPassword.mockResolvedValueOnce(true);
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'user@example.com',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'inactive_account',
+      message: 'Account pending approval.',
+    });
+    expect(mocks.createRefreshToken).not.toHaveBeenCalled();
   });
 
   it('returns generic 401 when login password is wrong', async () => {

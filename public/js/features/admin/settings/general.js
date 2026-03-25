@@ -34,6 +34,14 @@ export function renderGeneralSettings(container, data) {
     }
     const status = container.querySelector('#public-reg-status');
     if (status) status.textContent = toggleState.statusText;
+    updateRegistrationStatusVisibility();
+    updateButtons();
+  };
+
+  const updateRegistrationStatusVisibility = () => {
+    const statusWrap = container.querySelector('#registration-status-wrap');
+    if (!statusWrap) return;
+    statusWrap.classList.toggle('hidden', !settingsState.currentValues.publicRegistration);
   };
 
   const render = () => {
@@ -71,6 +79,17 @@ export function renderGeneralSettings(container, data) {
                 <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toggleState.toggleClass}">
                   <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${toggleState.knobTransform};"></span>
                 </button>
+              </div>
+
+              <div id="registration-status-wrap" class="py-2.5 ${toggleState.isOn ? '' : 'hidden'}">
+                <div class="text-xs font-medium mb-1">Registration Status</div>
+                <div class="relative">
+                  <select id="registration-status" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 appearance-none pr-8 transition">
+                    <option value="active" ${settingsState.currentValues.registrationStatus === 'active' ? 'selected' : ''}>Active</option>
+                    <option value="pending" ${settingsState.currentValues.registrationStatus !== 'active' ? 'selected' : ''}>Pending</option>
+                  </select>
+                </div>
+                <div id="registration-status-hint" class="text-[10px] text-gray-400 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
               </div>
             </section>
 
@@ -117,14 +136,19 @@ export function renderGeneralSettings(container, data) {
     const prevDefault = settingsState.initialValues.defaultModelId || '';
     const shouldUpdateDefault = nextDefault !== prevDefault;
 
+    const nextRegistrationStatus = settingsState.currentValues.registrationStatus || 'pending';
+    const prevRegistrationStatus = settingsState.initialValues.registrationStatus || 'pending';
+    const shouldUpdateRegistrationStatus = nextRegistrationStatus !== prevRegistrationStatus;
+
     const nextPublicReg = Boolean(settingsState.currentValues.publicRegistration);
     const prevPublicReg = Boolean(settingsState.initialValues.publicRegistration);
     const shouldUpdatePublicReg = nextPublicReg !== prevPublicReg;
 
     try {
-      if (shouldUpdatePublicReg || shouldUpdateDefault) {
+      if (shouldUpdatePublicReg || shouldUpdateDefault || shouldUpdateRegistrationStatus) {
         const adminUpdates = {};
         if (shouldUpdatePublicReg) adminUpdates.public_registration = nextPublicReg;
+        if (shouldUpdateRegistrationStatus) adminUpdates.public_registration_status = nextRegistrationStatus;
         if (shouldUpdateDefault) adminUpdates.default_model_id = nextDefault || null;
 
         const res = await apiFetch('/api/admin/config', {
@@ -142,6 +166,11 @@ export function renderGeneralSettings(container, data) {
           settingsState.dirtyFields.publicRegistration = false;
         }
 
+        if (shouldUpdateRegistrationStatus) {
+          settingsState.initialValues.registrationStatus = nextRegistrationStatus;
+          settingsState.dirtyFields.registrationStatus = false;
+        }
+
         if (shouldUpdateDefault) {
           settingsState.initialValues.defaultModelId = nextDefault;
           settingsState.dirtyFields.defaultModelId = false;
@@ -151,8 +180,10 @@ export function renderGeneralSettings(container, data) {
 
       settingsState.loading = false;
       if (feedback) {
-        if (shouldUpdateDefault && shouldUpdatePublicReg) {
+        if ((shouldUpdateDefault && shouldUpdatePublicReg) || shouldUpdateRegistrationStatus && (shouldUpdateDefault || shouldUpdatePublicReg)) {
           feedback.textContent = 'Settings saved successfully.';
+        } else if (shouldUpdateRegistrationStatus) {
+          feedback.textContent = 'Registration status saved.';
         } else if (shouldUpdateDefault) {
           feedback.textContent = 'Default model saved.';
         } else if (shouldUpdatePublicReg) {
@@ -184,6 +215,7 @@ export function renderGeneralSettings(container, data) {
     settingsState.dirtyFields = {
       title: false,
       publicRegistration: false,
+      registrationStatus: false,
       defaultModelId: false,
     };
     if (isActiveTab()) render();
@@ -191,6 +223,7 @@ export function renderGeneralSettings(container, data) {
 
   const bindEvents = () => {
     const regToggle = container.querySelector('#public-reg-toggle');
+    const registrationStatusSelect = container.querySelector('#registration-status');
     const modelSelect = container.querySelector('#default-model');
     const saveBtn = container.querySelector('#save-settings');
     const feedback = container.querySelector('#settings-feedback');
@@ -208,6 +241,12 @@ export function renderGeneralSettings(container, data) {
       updateButtons();
     });
 
+    registrationStatusSelect?.addEventListener('change', (e) => {
+      settingsState.currentValues.registrationStatus = e.target.value;
+      settingsState.dirtyFields.registrationStatus = true;
+      updateButtons();
+    });
+
     saveBtn?.addEventListener('click', async () => {
       await saveSettings();
     });
@@ -217,11 +256,21 @@ export function renderGeneralSettings(container, data) {
     const dirty = isDirty();
     const dirtyBadge = container.querySelector('#settings-dirty');
     const saveBtn = container.querySelector('#save-settings');
+    const registrationStatusSelect = container.querySelector('#registration-status');
+    const registrationStatusHint = container.querySelector('#registration-status-hint');
     const modelSelect = container.querySelector('#default-model');
     const modelHint = container.querySelector('#default-model-hint');
     const modelDirty = settingsState.currentValues.defaultModelId !== settingsState.initialValues.defaultModelId;
+    const registrationStatusDirty = settingsState.currentValues.registrationStatus !== settingsState.initialValues.registrationStatus;
     if (dirtyBadge) {
       dirtyBadge.classList.toggle('invisible', !dirty);
+    }
+    if (registrationStatusSelect) {
+      registrationStatusSelect.classList.toggle('bg-amber-50', registrationStatusDirty);
+      registrationStatusSelect.classList.toggle('text-amber-700', registrationStatusDirty);
+    }
+    if (registrationStatusHint) {
+      registrationStatusHint.classList.toggle('text-amber-600', registrationStatusDirty);
     }
     if (modelSelect) {
       modelSelect.classList.toggle('bg-amber-50', modelDirty);
@@ -271,6 +320,12 @@ export function renderGeneralSettings(container, data) {
         if (!settingsState.dirtyFields.publicRegistration) {
           settingsState.currentValues.publicRegistration = next;
           settingsState.initialValues.publicRegistration = next;
+        }
+        const registrationStatusRaw = String(payload?.public_registration_status || 'pending').trim().toLowerCase();
+        const registrationStatus = registrationStatusRaw === 'active' ? 'active' : 'pending';
+        if (!settingsState.dirtyFields.registrationStatus) {
+          settingsState.currentValues.registrationStatus = registrationStatus;
+          settingsState.initialValues.registrationStatus = registrationStatus;
         }
         const defaultId = payload?.default_model_id || '';
         if (!settingsState.dirtyFields.defaultModelId) {
