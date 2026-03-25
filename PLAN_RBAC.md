@@ -1,28 +1,157 @@
 # RBAC Plan
 
-## Direction
+## Decision
 
-Use explicit groups and per-action permissions for admin access.
+- `admin` is a separate role with full access.
+- Groups are delegated permission bundles for non-admin staff.
+- A normal user can receive some admin-like controls through groups without becoming an admin.
+- There is no authorization-bearing default admin group.
+- If we want a human-friendly admin label, it can exist for reporting only, but it must not be checked in authorization.
 
-Recommended defaults:
+## Core Model
 
-- public signup defaults to `pending`
-- `/admin/settings/general` can switch signup to `active`
-- normal users see only a simple approved / waiting experience
-- admin users belong to a default admin group
-- risky admin actions use explicit per-action permissions
-- recovery uses a break-glass path, not a permanent special role
+- Role answers: "what trust tier is this account?"
+- Group answers: "which capability bundles apply?"
+- A user can belong to multiple groups.
+- Effective permissions are the union of the user's role permissions and all group permissions.
+- Permission answers: "what action is allowed?"
+- Scope answers: "where is it allowed?"
 
-This keeps day-to-day access understandable while preserving recovery if RBAC is misconfigured.
+The ceiling is important:
 
-## Product Goals
+- `admin` role = wildcard access
+- groups = explicit curated permissions only
+- admin-only permissions are never assignable through groups
+- groups only add permissions; they never subtract permissions
 
-- Keep onboarding low-friction.
-- Keep the default state explicit.
-- Avoid exposing normal users to policy complexity.
-- Make admin control precise, not ambiguous.
-- Reduce accidental privilege creep.
-- Preserve tenant separation without forcing enterprise-heavy setup.
+## Access Domains
+
+Use "access domains" or "permission families" instead of loose "access types". That keeps the model readable and easier to extend.
+
+### User-facing domains
+
+- `chat.*` for chat access and lifecycle
+- `model.use` for model invocation
+- `file.*` for uploads and file cleanup
+- `prompt.*` for prompt library management
+
+### Staff/admin domains
+
+- `admin.user.*` for user/account operations
+- `admin.group.*` for group management
+- `admin.settings.*` for platform settings
+- `admin.audit.*` for audit visibility
+- `admin.rbac.*` for role, permission, and policy management
+
+### Reserved domains
+
+- `admin.breakglass.*` for recovery only
+- `admin.secrets.*` for secret/config work if we add it later
+
+## Recommended Permission Keys
+
+### Base product permissions
+
+- `chat.read`
+- `chat.write`
+- `chat.delete`
+- `chat.share`
+- `model.use`
+- `model.admin`
+- `file.upload`
+- `file.delete`
+- `prompt.read`
+- `prompt.write`
+- `prompt.delete`
+- `prompt.publish`
+
+### Delegated staff permissions
+
+- `admin.user.read`
+- `admin.user.write`
+- `admin.user.approve`
+- `admin.user.deactivate`
+- `admin.user.reactivate`
+- `admin.group.read`
+- `admin.group.write`
+- `admin.group.members.manage`
+- `admin.settings.general.read`
+- `admin.settings.general.edit`
+- `admin.settings.models.read`
+- `admin.settings.models.edit`
+- `admin.settings.integrations.read`
+- `admin.audit.read`
+
+### Admin-only permissions
+
+- `admin.rbac.admin`
+- `admin.settings.integrations.edit`
+- `admin.secrets.edit`
+- `admin.user.delete`
+- `admin.group.delete`
+- `admin.breakglass.use`
+
+## Default Bundles
+
+### Onboarding stack
+
+These are the recommended default bundles for non-admin users.
+
+- `starter`: `chat.read`, `chat.write`, `model.use`
+- `member`: `starter` plus `chat.share`, `file.upload`
+- `creator`: `member` plus `chat.delete`, `file.delete`, `prompt.read`, `prompt.write`, `prompt.delete`
+
+### Staff bundles
+
+- `support`: `member` plus `admin.user.read`, `admin.user.approve`, `admin.audit.read`
+- `moderator`: `member` plus `chat.delete`, `file.delete`, `prompt.publish`
+- `model_operator`: `model.use`, `model.admin`, `admin.settings.models.read`, `admin.settings.models.edit`
+- `settings_operator`: `admin.settings.general.read`, `admin.settings.general.edit`
+- `security_reader`: `admin.audit.read`, `admin.user.read`
+
+### Assignment rules
+
+- New public signups should start with `starter`.
+- Approved regular users should move to `member`.
+- Trusted power users can be granted `creator`.
+- Staff bundles are additive and can be combined as needed.
+- No onboarding bundle should include `admin.*`, `admin.rbac.admin`, or `admin.secrets.edit`.
+
+### Admin role
+
+- `admin` is not a group.
+- `admin` gets all permissions directly.
+- The first admin should be provisioned with the `admin` role, not by putting them in a special group.
+- A user with multiple non-admin groups is still not an admin unless the `admin` role is assigned.
+
+## Why No Default Admin Group
+
+If the admin group can be granted everything, it becomes a second admin role in practice.
+That makes the boundary fuzzy and creates privilege creep.
+
+Better design:
+
+- `admin` role = full access, simple and explicit
+- groups = partial delegated access only and additive
+- the group editor should hide admin-only permissions entirely
+
+## Scope Rules
+
+Current schema already supports scoped roles through `user_roles`, but group permissions are global today.
+
+Plan for now:
+
+- keep group bundles narrow
+- do not rely on groups for sensitive global powers
+- if we need scoped delegation later, add scope-aware grants instead of widening the group editor
+- avoid deny-groups and exclusion rules in the first version
+
+Recommended scope labels:
+
+- `self`
+- `assigned`
+- `group`
+- `all`
 
 ## Policy Shape
 
@@ -30,91 +159,66 @@ Use these layers:
 
 - `global default`
 - `role default`
-- `group override`
+- `group bundle`
 - `user override`
 - `hard deny for irreversible actions`
 
-Use these permission buckets:
+Hard deny means some actions should require extra logic even if a user is broadly privileged.
 
-- `view`
-- `edit`
-- `save`
-- `approve`
-- `delete`
-- `assign`
-- `manage`
+Examples:
 
-Sensitive actions must be explicit permissions, not implied by page access.
+- removing the last admin
+- deleting the last recovery path
+- rotating or exposing secrets
+- deleting audit history
 
-## First Release Scope
+## Product Goals
 
-Start with:
-
-- signup approval flow
-- admin access control
-- user management safety rules
-- group-based admin delegation
-
-Defer until later:
-
-- BYOK controls
-- model access delegation
-- advanced settings inheritance
+- Keep onboarding low-friction.
+- Keep the default state explicit.
+- Avoid exposing normal users to policy complexity.
+- Make delegated admin control precise, not ambiguous.
+- Reduce accidental privilege creep.
+- Preserve recovery if RBAC is misconfigured.
 
 ## Backend Touchpoints
 
-- `src/index.js`
-- `src/routers/auth.js`
-- `src/routers/users.js`
+- `src/utils/authorize.js`
 - `src/routers/admin.js`
 - `src/routers/groups.js`
 - `src/routers/rbac.js`
-- `src/utils/authorize.js`
-- `src/routers/user-profile.js`
+- `src/routers/users.js`
+- `src/routers/models.js`
+- `src/routers/prompts.js`
+- `src/routers/chat.js`
+- `src/routers/files.js`
+- `src/index.js`
 
-## Suggested Permission Keys
+## Migration Plan
 
-Suggested admin permissions:
+### Phase 1
 
-- `admin.user.read`
-- `admin.user.write`
-- `admin.user.delete`
-- `admin.user.approve`
-- `admin.group.read`
-- `admin.group.write`
-- `admin.rbac.admin`
-- `admin.rbac.assign`
-- `admin.settings.view`
-- `admin.settings.edit`
-- `admin.settings.general.edit`
-- `admin.settings.general.signup_policy.edit`
-- `admin.settings.general.default_model.edit`
-- `admin.audit.read`
+- Keep existing schema shape.
+- Introduce the new permission taxonomy.
+- Map existing checks to the new names where needed.
+- Add seed bundles for the default groups.
 
-Suggested signup-state rules:
+### Phase 2
 
-- `pending` means not allowed to log in
-- `active` means allowed to log in
-- normal users only see waiting / approved
-- admin users see the status control
+- Split broad permissions that are doing too much.
+- Move platform settings out of `admin.user.write`.
+- Separate user management from configuration management.
 
-## Recovery Model
+### Phase 3
 
-Use a break-glass recovery path instead of a permanent special role.
+- Add UI for group templates and effective permissions.
+- Add audit visibility for RBAC changes.
+- Add break-glass recovery.
 
-Recommended shape:
+### Phase 4
 
-- server-side secret or env-controlled recovery route
-- only used when normal RBAC access is broken
-- can restore default admin group membership or permissions
-- must be auditable when used
-
-Why this is better:
-
-- no permanent special account to manage
-- no role lifecycle edge cases
-- normal access remains group-based
-- recovery is still possible after a bad config
+- Add scoped delegation only where we actually need it.
+- Do not add scope complexity before we need it.
 
 ## UI Plan
 
@@ -150,7 +254,7 @@ Users
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### `/admin/users/overview` Edit Modal
+### `/admin/users/overview` edit modal
 
 ```text
 ┌──────────────────────── Edit User ─────────────────────────┐
@@ -171,7 +275,7 @@ Users
 └────────────────────────────────────────────────────────────┘
 ```
 
-### `/admin/users/groups`
+### `/admin/groups`
 
 ```text
 ┌──────────────────────── Edit Group ────────────────────────┐
@@ -183,13 +287,12 @@ Users
 │   [x] Model use                                           │
 │   [ ] Delete chats                                        │
 │                                                           │
-│   Admin                                                   │
+│   Staff                                                   │
 │   [x] Read users                                          │
-│   [x] Write users                                         │
+│   [x] Approve users                                       │
 │   [ ] Delete users                                        │
-│   [ ] Approve users                                       │
-│   [ ] Edit admin settings                                 │
-│   [ ] Assign admin permissions                             │
+│   [ ] Edit RBAC                                           │
+│   [ ] Manage secrets                                      │
 │                                                           │
 │                                         [ Cancel ] [Save]  │
 └───────────────────────────────────────────────────────────┘
@@ -202,10 +305,10 @@ Admin / RBAC
 ┌────────────────────────────────────────────────────────────────────┐
 │ Roles        | Permissions             | Audit                    │
 ├────────────────────────────────────────────────────────────────────┤
-│ admin        | [x] user.read           | Recent events...         │
-│ manager      | [x] user.write          |                          │
-│ support      | [ ] user.delete         |                          │
-│ default      | [x] settings.edit       |                          │
+│ admin        | [x] all                  | Recent events...         │
+│ manager      | [x] user.read            |                          │
+│ support      | [x] user.approve         |                          │
+│ member       | [x] chat.write           |                          │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -214,21 +317,24 @@ The RBAC screen should make policy review readable, not expose every raw mechani
 ## Interaction Rules
 
 - Normal users should never need to understand the permission tree.
-- Admins should see the effective status first.
+- Admins should see effective access first.
 - Destructive actions should require explicit permission.
 - Hidden permissions should hide controls instead of leaving broken buttons.
 - Pending users should see one simple waiting message.
+- Partial staff access should always feel narrower than admin access.
 
 ## Build Order
 
-1. Lock signup approval behavior.
-2. Add admin access control for user management.
-3. Add default admin group behavior.
-4. Add per-action permission checks for delete / approve / edit-sensitive flows.
+1. Lock the permission taxonomy and decide the reserved admin-only keys.
+2. Update authorization to treat `admin` as wildcard access.
+3. Split broad settings permissions out of `admin.user.write`.
+4. Seed default user groups and their bundles.
 5. Add RBAC admin UI for auditing and review.
+6. Add break-glass recovery.
+7. Add tests for "group can be powerful but not admin".
 
 ## Open Questions
 
-- What exact recovery route should the break-glass path use?
-- Should the default admin group be editable, or only its membership and permissions?
-- Should admin settings edits live in the same permission family as user management, or a separate `admin.settings.*` family?
+- Do we want `settings_operator` to be able to edit general settings only, or also model defaults?
+- Should `admin.audit.read` be available to `security_reader` and `support`, or only to admin?
+- Do we want scoped group grants later, or is a narrow global bundle enough for v1?
