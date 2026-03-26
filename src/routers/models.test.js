@@ -44,8 +44,20 @@ vi.mock('../llm/connections.js', () => ({
 
 import { modelsRouter } from './models.js';
 
-function makeReq(path, method, headers = {}) {
-  return new Request(`https://example.com${path}`, { method, headers });
+function makeReq(path, method, bodyOrHeaders, headers = {}) {
+  const hasExplicitHeaders = arguments.length >= 4;
+  const init = { method, headers };
+  const shouldTreatAsHeaders =
+    !hasExplicitHeaders && method === 'GET' && bodyOrHeaders && typeof bodyOrHeaders === 'object' && !Array.isArray(bodyOrHeaders);
+
+  if (shouldTreatAsHeaders) {
+    init.headers = bodyOrHeaders;
+  } else if (bodyOrHeaders !== undefined) {
+    init.body = typeof bodyOrHeaders === 'string' ? bodyOrHeaders : JSON.stringify(bodyOrHeaders);
+    init.headers = { ...headers, 'Content-Type': 'application/json' };
+    init.duplex = 'half';
+  }
+  return new Request(`https://example.com${path}`, init);
 }
 
 describe('modelsRouter', () => {
@@ -208,5 +220,270 @@ describe('modelsRouter', () => {
     expect(google).toBeTruthy();
     expect(google.total).toBe(1);
     expect(google.active).toBe(1);
+  });
+
+  it('returns model access rules for an admin model', async () => {
+    const env = { DB: {} };
+    mocks.createDB.mockReturnValue({
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM groups')) {
+          return [
+            { id: 'g1', name: 'Team Alpha', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+            { id: 'g2', name: 'Team Beta', description: 'Review team', is_system: 0, created_at: 1, updated_at: 1 },
+          ];
+        }
+        if (String(sql).includes('FROM model_acl_rules')) {
+          return [{
+            id: 'rule-1',
+            model_id: 'gpt-5-mini',
+            principal_type: 'group',
+            principal_id: 'g2',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          }];
+        }
+        return [];
+      }),
+    });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models/gpt-5-mini/access', 'GET'),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/admin/models/gpt-5-mini/access'
+    );
+
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.model_id).toBe('gpt-5-mini');
+    expect(payload.rules).toEqual([
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g2',
+        effect: 'allow',
+        action: 'use',
+      }),
+    ]);
+    expect(payload.groups).toHaveLength(2);
+  });
+
+  it('decodes encoded model ids when loading access rules', async () => {
+    const env = { DB: {} };
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [];
+      }
+      if (String(sql).includes('FROM model_acl_rules')) {
+        return [{
+          id: 'rule-1',
+          model_id: 'openai/env-openai-0:deepseek-v3.2',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        }];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'GET'),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access'
+    );
+
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.model_id).toBe('openai/env-openai-0:deepseek-v3.2');
+    expect(payload.rules).toHaveLength(1);
+    expect(payload.rules[0].model_id).toBe('openai/env-openai-0:deepseek-v3.2');
+  });
+
+  it('loads encoded model ids through the single access endpoint filter', async () => {
+    const env = { DB: {} };
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [];
+      }
+      if (String(sql).includes('FROM model_acl_rules') && String(sql).includes('IN (')) {
+        return [{
+          id: 'rule-1',
+          model_id: 'openai%2Fenv-openai-0%3Adeepseek-v3.2',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        }];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'GET'),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access'
+    );
+
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.rules).toHaveLength(1);
+    expect(payload.rules[0]).toMatchObject({
+      model_id: 'openai/env-openai-0:deepseek-v3.2',
+      principal_type: 'group',
+      principal_id: 'g1',
+      effect: 'allow',
+      action: 'use',
+    });
+  });
+
+  it('rejects model access updates for disabled models', async () => {
+    const env = { DB: {} };
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('SELECT model_id, is_enabled FROM model_access')) {
+        return [{ model_id: 'gpt-5-mini', is_enabled: 0 }];
+      }
+      if (String(sql).includes('FROM groups')) {
+        return [{ id: 'g1', name: 'Team Alpha', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 }];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, run: vi.fn() });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models/gpt-5-mini/access', 'PUT', {
+        rules: [
+          { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+        ],
+      }),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/admin/models/gpt-5-mini/access'
+    );
+
+    expect(res.status).toBe(409);
+  });
+
+  it('updates model access rules for an admin model', async () => {
+    const env = { DB: {} };
+    const run = vi.fn().mockResolvedValue(undefined);
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Team Alpha', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g2', name: 'Team Beta', description: 'Review team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g3', name: 'Team Gamma', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      if (String(sql).includes('FROM model_acl_rules')) {
+        return [
+          {
+            id: 'rule-1',
+            model_id: 'gpt-5-mini',
+            principal_type: 'group',
+            principal_id: 'g1',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'rule-2',
+            model_id: 'gpt-5-mini',
+            principal_type: 'group',
+            principal_id: 'g3',
+            effect: 'deny',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, run });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models/gpt-5-mini/access', 'PUT', {
+        rules: [
+          { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+          { principal_type: 'group', principal_id: 'g3', effect: 'deny', action: 'use' },
+        ],
+      }),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/admin/models/gpt-5-mini/access'
+    );
+
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.rules).toEqual([
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g1',
+        effect: 'allow',
+        action: 'use',
+      }),
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g3',
+        effect: 'deny',
+        action: 'use',
+      }),
+    ]);
+    expect(run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO model_acl_rules'), expect.any(Array));
+  });
+
+  it('decodes encoded model ids when saving access rules', async () => {
+    const env = { DB: {} };
+    const run = vi.fn().mockResolvedValue(undefined);
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Team Alpha', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      if (String(sql).includes('FROM model_acl_rules')) {
+        return [];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, run });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'PUT', {
+        rules: [
+          { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+        ],
+      }),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access'
+    );
+
+    expect(res.status).toBe(200);
+    expect(run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO model_acl_rules'), expect.arrayContaining([
+      expect.any(String),
+      'openai/env-openai-0:deepseek-v3.2',
+      'group',
+      'g1',
+      'allow',
+      'use',
+    ]));
   });
 });

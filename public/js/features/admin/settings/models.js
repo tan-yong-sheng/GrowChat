@@ -12,6 +12,12 @@ import {
 } from './models-helpers.js';
 
 const getCapTooltip = getAttachmentCapTooltip;
+const escapeHtml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
 
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';
@@ -35,6 +41,7 @@ export function renderModelsSettings(container, data) {
     providerOptions: [],
     invalidateToken: null,
     needsReload: false,
+    aclDrafts: new Map(),
   });
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
@@ -80,6 +87,7 @@ export function renderModelsSettings(container, data) {
       if (!modelsState.originalDisabledModels.has(id)) return true;
     }
     if (hasCapsChanges()) return true;
+    if ((modelsState.aclDrafts?.size || 0) > 0) return true;
     return false;
   };
   data.settingsDirtyCheckers.models = hasChanges;
@@ -130,6 +138,247 @@ export function renderModelsSettings(container, data) {
     btn.classList.toggle('border-gray-200', !enabled);
   };
 
+  const cloneModelAclRules = (rules = []) => (Array.isArray(rules) ? rules : []).map((rule) => ({ ...rule }));
+  const getModelAclRulesSignature = (rules = []) => cloneModelAclRules(rules)
+    .map((rule) => ({
+      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
+      principal_id: String(rule?.principal_id || '').trim(),
+      effect: String(rule?.effect || '').trim().toLowerCase(),
+      action: String(rule?.action || '').trim().toLowerCase(),
+    }))
+    .sort((a, b) => (
+      a.principal_type.localeCompare(b.principal_type)
+      || a.principal_id.localeCompare(b.principal_id)
+      || a.action.localeCompare(b.action)
+      || a.effect.localeCompare(b.effect)
+    ))
+    .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
+    .join('|');
+
+  const openModelAccessModal = async (model, { onApply } = {}) => {
+    if (!model?.id) return;
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4';
+    modal.innerHTML = `
+      <div class="absolute inset-0 bg-black/25 backdrop-blur-sm"></div>
+      <div class="relative w-full max-w-3xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <div>
+            <div class="text-lg font-semibold">Model Access</div>
+            <div class="text-[11px] text-gray-500">${escapeHtml(model.name || model.id)}</div>
+            <div class="text-[11px] text-amber-600 font-medium">* Apply stages changes. Save the page to persist them.</div>
+          </div>
+          <button class="p-2 rounded-full hover:bg-gray-100 transition" data-close-model-access>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-900" id="model-acl-summary"></div>
+            <div class="text-xs text-gray-400" id="model-acl-count"></div>
+          </div>
+          <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600" id="model-acl-reason"></div>
+          <div id="model-acl-error" class="text-sm text-red-600 hidden"></div>
+          <div id="model-acl-list" class="space-y-2"></div>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0">
+          <div class="text-sm text-red-600" id="model-acl-save-error"></div>
+          <div class="flex items-center gap-2">
+            <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700" data-close-model-access>Cancel</button>
+            <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800" id="model-acl-save-btn">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const close = () => modal.remove();
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || e.target.closest('[data-close-model-access]')) close();
+    });
+
+    const listEl = modal.querySelector('#model-acl-list');
+    const errorEl = modal.querySelector('#model-acl-error');
+    const saveErrorEl = modal.querySelector('#model-acl-save-error');
+    const summaryEl = modal.querySelector('#model-acl-summary');
+    const countEl = modal.querySelector('#model-acl-count');
+    const reasonEl = modal.querySelector('#model-acl-reason');
+    const saveBtn = modal.querySelector('#model-acl-save-btn');
+    let baseRules = [];
+    const stagedRules = cloneModelAclRules(modelsState.aclDrafts?.get(model.id) || []);
+
+    const state = {
+      loading: true,
+      saving: false,
+      error: null,
+      groups: [],
+      rulesByGroup: new Map(),
+    };
+
+    const renderSummary = () => {
+      let reasonText = 'No explicit rules. Admin users can access by default.';
+      if (summaryEl) {
+        const allowCount = Array.from(state.rulesByGroup.values()).filter((value) => value === 'allow').length;
+        const denyCount = Array.from(state.rulesByGroup.values()).filter((value) => value === 'deny').length;
+        if (!allowCount && !denyCount) {
+          summaryEl.textContent = 'No access rules';
+          reasonText = 'No explicit rules. Admin users can access by default.';
+        } else {
+          const parts = [];
+          if (allowCount) parts.push(`${allowCount} allow`);
+          if (denyCount) parts.push(`${denyCount} deny`);
+          summaryEl.textContent = parts.join(', ');
+          if (allowCount && denyCount) {
+            reasonText = 'Explicit allow rules share this model with selected groups. Deny rules override allow rules.';
+          } else if (denyCount) {
+            reasonText = 'This model is explicitly blocked for selected groups.';
+          } else {
+            reasonText = 'This model is shared with selected groups.';
+          }
+        }
+      }
+      if (countEl) {
+        countEl.textContent = state.groups.length ? `${state.groups.length} groups` : '';
+      }
+      if (reasonEl) {
+        reasonEl.textContent = reasonText;
+      }
+    };
+
+    const updateSaveButton = () => {
+      if (!saveBtn) return;
+      saveBtn.disabled = state.saving;
+      saveBtn.classList.toggle('bg-gray-300', state.saving);
+      saveBtn.classList.toggle('cursor-not-allowed', state.saving);
+      saveBtn.classList.toggle('bg-gray-900', !state.saving);
+      saveBtn.textContent = state.saving ? 'Saving...' : 'Save';
+    };
+
+    const renderList = () => {
+      if (!listEl) return;
+      if (state.loading) {
+        listEl.innerHTML = `
+          <div class="space-y-2">
+            ${Array.from({ length: 5 }).map(() => `
+              <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 animate-pulse">
+                <div class="flex flex-col min-w-0 flex-1 space-y-2">
+                  <div class="h-3.5 w-40 bg-gray-200 rounded-full"></div>
+                  <div class="h-2.5 w-64 bg-gray-100 rounded-full"></div>
+                </div>
+                <div class="h-4 w-4 bg-gray-100 rounded border border-gray-200"></div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        return;
+      }
+      if (errorEl) {
+        errorEl.textContent = state.error || '';
+        errorEl.classList.toggle('hidden', !state.error);
+      }
+      if (!state.groups.length) {
+        listEl.innerHTML = '<div class="text-sm text-gray-500 py-6 text-center">No resource teams available.</div>';
+        return;
+      }
+      listEl.innerHTML = state.groups.map((group) => {
+        const groupId = group.id;
+        const effect = state.rulesByGroup.get(groupId) || 'none';
+        const badge = group.is_system ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">System</span>' : '';
+        return `
+          <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 hover:border-gray-300">
+            <div class="flex flex-col min-w-0">
+              <div class="flex items-center gap-2">
+                <div class="text-sm font-semibold text-gray-900 truncate">${escapeHtml(group.name || group.id)}</div>
+                ${badge}
+              </div>
+              <div class="text-[11px] text-gray-500 truncate">${escapeHtml(group.description || group.id)}</div>
+            </div>
+            <select class="model-acl-effect rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-gray-400" data-group-id="${escapeHtml(groupId)}">
+              <option value="none" ${effect === 'none' ? 'selected' : ''}>No access</option>
+              <option value="allow" ${effect === 'allow' ? 'selected' : ''}>Allow</option>
+              <option value="deny" ${effect === 'deny' ? 'selected' : ''}>Deny</option>
+            </select>
+          </div>
+        `;
+      }).join('');
+
+      listEl.querySelectorAll('.model-acl-effect').forEach((select) => {
+        select.addEventListener('change', () => {
+          const groupId = select.getAttribute('data-group-id');
+          if (!groupId) return;
+          const effect = String(select.value || 'none');
+          if (effect === 'none') {
+            state.rulesByGroup.delete(groupId);
+          } else {
+            state.rulesByGroup.set(groupId, effect === 'deny' ? 'deny' : 'allow');
+          }
+          renderSummary();
+        });
+      });
+    };
+
+    const loadAccess = async () => {
+      state.loading = true;
+      state.error = null;
+      renderList();
+      try {
+        const res = await apiFetch(`/api/admin/models/${encodeURIComponent(model.id)}/access`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || err.message || 'Failed to load model access');
+        }
+        const payload = await res.json();
+        state.groups = Array.isArray(payload.groups) ? payload.groups : [];
+        const sourceRules = modelsState.aclDrafts?.has(model.id) ? stagedRules : payload.rules;
+        baseRules = cloneModelAclRules(payload.rules || []);
+        state.rulesByGroup = new Map(
+          (Array.isArray(sourceRules) ? sourceRules : [])
+            .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
+            .map((rule) => [String(rule.principal_id || '').trim(), String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow'])
+            .filter(([groupId]) => Boolean(groupId))
+        );
+      } catch (err) {
+        state.error = err.message || 'Failed to load model access';
+      } finally {
+        state.loading = false;
+        renderSummary();
+        renderList();
+      }
+    };
+
+    saveBtn?.addEventListener('click', async () => {
+      if (state.saving) return;
+      if (saveErrorEl) saveErrorEl.textContent = '';
+      state.saving = true;
+      updateSaveButton();
+      try {
+        const rules = Array.from(state.rulesByGroup.entries()).map(([groupId, effect]) => ({
+          principal_type: 'group',
+          principal_id: groupId,
+          effect,
+          action: 'use',
+        }));
+        const sameAsBase = getModelAclRulesSignature(rules) === getModelAclRulesSignature(baseRules);
+        if (typeof onApply === 'function') {
+          await onApply(sameAsBase ? null : cloneModelAclRules(rules), model);
+        }
+        close();
+      } catch (err) {
+        if (saveErrorEl) saveErrorEl.textContent = err.message || 'Failed to save model access';
+      } finally {
+        state.saving = false;
+        updateSaveButton();
+      }
+    });
+
+    updateSaveButton();
+    renderSummary();
+    renderList();
+    loadAccess();
+    document.body.appendChild(modal);
+  };
+
   const render = () => {
     if (!isActiveTab()) return;
     const activeElement = document.activeElement;
@@ -158,7 +407,7 @@ export function renderModelsSettings(container, data) {
       allOption,
       ...enabledProviders.filter((option) => option.value !== 'all'),
     ];
-    const filteredModels = filterModelsBySearchAndProvider(sortModelsByActiveThenName(modelsState.models), {
+    const filteredModels = filterModelsBySearchAndProvider(modelsState.models, {
       query,
       provider: modelsState.provider,
     });
@@ -242,19 +491,35 @@ export function renderModelsSettings(container, data) {
                         </button>
                       `;
       }).join('');
+      const isDisabled = modelsState.disabledModels.has(model.id);
       return `
-                    <tr class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
+                    <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 text-gray-400 font-mono truncate" title="${model.id}">${model.id}</td>
+                      <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex flex-wrap items-center gap-1.5">
                           ${capButtons}
                         </div>
                       </td>
                       <td class="px-4 py-4 text-right">
-                        <button data-model-id="${model.id}" class="model-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!modelsState.disabledModels.has(model.id) ? 'bg-black' : 'bg-gray-200'}">
-                          <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${!modelsState.disabledModels.has(model.id) ? 'translate-x-4' : 'translate-x-0'}"></span>
-                        </button>
+                        <div class="flex items-center justify-end gap-2">
+                          ${isDisabled ? '' : `
+                            <button
+                              type="button"
+                              class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition"
+                              data-model-acl="${model.id}"
+                              title="Edit access rules"
+                              aria-label="Edit access rules"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
+                              </svg>
+                            </button>
+                          `}
+                          <button data-model-id="${model.id}" class="model-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!modelsState.disabledModels.has(model.id) ? 'bg-black' : 'bg-gray-200'}">
+                            <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${!modelsState.disabledModels.has(model.id) ? 'translate-x-4' : 'translate-x-0'}"></span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   `;
@@ -344,8 +609,14 @@ export function renderModelsSettings(container, data) {
         attachmentUpdates.push({ model_id: modelId, attachments: patch });
       }
     });
+    const aclUpdates = Array.from(modelsState.aclDrafts.entries())
+      .map(([modelId, rules]) => ({
+        modelId,
+        rules: cloneModelAclRules(rules),
+      }))
+      .filter((entry) => entry.modelId);
 
-    if (updates.length === 0 && attachmentUpdates.length === 0) {
+    if (updates.length === 0 && attachmentUpdates.length === 0 && aclUpdates.length === 0) {
       return;
     }
 
@@ -375,6 +646,17 @@ export function renderModelsSettings(container, data) {
         }
         modelsState.originalAttachmentCaps = cloneAttachmentCaps(modelsState.attachmentCaps);
       }
+      for (const entry of aclUpdates) {
+        const res = await apiFetch(`/api/admin/models/${encodeURIComponent(entry.modelId)}/access`, {
+          method: 'PUT',
+          body: JSON.stringify({ rules: entry.rules }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || err.message || `Failed to save access rules for ${entry.modelId}`);
+        }
+        modelsState.aclDrafts.delete(entry.modelId);
+      }
       broadcastModelsInvalidation();
       const feedback = container.querySelector('#models-feedback');
       if (feedback) {
@@ -402,6 +684,7 @@ export function renderModelsSettings(container, data) {
   data.settingsDiscardHandlers.models = () => {
     modelsState.disabledModels = new Set(modelsState.originalDisabledModels);
     modelsState.attachmentCaps = cloneAttachmentCaps(modelsState.originalAttachmentCaps);
+    modelsState.aclDrafts?.clear();
     if (isActiveTab()) render();
   };
 
@@ -434,12 +717,19 @@ export function renderModelsSettings(container, data) {
     container.querySelectorAll('.model-toggle').forEach(btn => {
       btn.onclick = () => {
         const modelId = btn.dataset.modelId;
+        const row = btn.closest('[data-model-row]');
         if (modelsState.disabledModels.has(modelId)) {
           modelsState.disabledModels.delete(modelId);
-          updateModelToggle(btn, true);
         } else {
           modelsState.disabledModels.add(modelId);
-          updateModelToggle(btn, false);
+        }
+        const enabled = !modelsState.disabledModels.has(modelId);
+        updateModelToggle(btn, enabled);
+        if (row) {
+          row.classList.toggle('bg-gray-50/80', !enabled);
+          row.classList.toggle('opacity-70', !enabled);
+          const aclBtn = row.querySelector('[data-model-acl]');
+          if (aclBtn) aclBtn.classList.toggle('hidden', !enabled);
         }
         updateButtons();
       };
@@ -455,6 +745,24 @@ export function renderModelsSettings(container, data) {
         setCapValue(modelId, kind, nextValue);
         updateCapButton(btn, nextValue);
         updateButtons();
+      };
+    });
+
+    container.querySelectorAll('[data-model-acl]').forEach((btn) => {
+      btn.onclick = () => {
+        const modelId = btn.getAttribute('data-model-acl');
+        if (!modelId) return;
+        const model = (modelsState.models || []).find((item) => item.id === modelId);
+        openModelAccessModal({ id: modelId, name: model?.name || modelId }, {
+          onApply: async (rules) => {
+            if (rules === null) {
+              modelsState.aclDrafts.delete(modelId);
+            } else {
+              modelsState.aclDrafts.set(modelId, cloneModelAclRules(rules));
+            }
+            updateButtons();
+          },
+        });
       };
     });
 

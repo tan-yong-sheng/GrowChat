@@ -44,7 +44,7 @@ describe('admin connections modal', () => {
     const data = {};
 
     renderConnectionsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections'));
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections?include_disabled=1'));
     await vi.waitFor(() => expect(data.connectionsSettings.originalSnapshot).not.toBeNull());
     await vi.waitFor(() => expect(container.querySelector('#save-connections')?.disabled).toBe(true));
 
@@ -116,13 +116,51 @@ describe('admin connections modal', () => {
     const data = {};
 
     renderConnectionsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections'));
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections?include_disabled=1'));
     await vi.waitFor(() => expect(data.connectionsSettings.originalSnapshot).not.toBeNull());
     await vi.waitFor(() => expect(container.querySelector('#save-connections')?.disabled).toBe(true));
 
     expect(container.querySelector('#openai-toggle')).toBeNull();
     expect(container.querySelector('#manage-connections-section')).not.toBeNull();
     expect(container.querySelector('#manage-connections-section')?.classList.contains('hidden')).toBe(false);
+  });
+
+  it('sorts enabled connections before disabled ones on reload', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/openai/connections')) {
+        return new Response(JSON.stringify({
+          enabled: true,
+          connections: [
+            {
+              id: 'conn-disabled',
+              name: 'Zulu Connection',
+              url: 'https://zulu.example.com',
+              providerType: 'openai',
+              enabled: false,
+            },
+            {
+              id: 'conn-enabled',
+              name: 'Alpha Connection',
+              url: 'https://alpha.example.com',
+              providerType: 'openai',
+              enabled: true,
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderConnectionsSettings(container, data);
+    await vi.waitFor(() => expect(container.querySelectorAll('[data-connection-row]').length).toBe(2));
+
+    const rows = Array.from(container.querySelectorAll('[data-connection-row]')).map((row) => row.textContent.trim());
+    expect(rows[0]).toContain('Alpha Connection');
+    expect(rows[1]).toContain('Zulu Connection');
   });
 
   it('saves env overrides when toggling a provider and invalidates models', async () => {
@@ -160,17 +198,56 @@ describe('admin connections modal', () => {
     const data = {};
 
     renderConnectionsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections'));
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections?include_disabled=1'));
     await vi.waitFor(() => expect(container.querySelector('.connection-toggle')).not.toBeNull());
+    expect(container.querySelector('.connection-acl-btn')).not.toBeNull();
 
     container.querySelector('.connection-toggle')?.click();
     expect(container.querySelector('#save-connections')?.disabled).toBe(false);
+    await vi.waitFor(() => expect(container.querySelector('.connection-acl-btn')?.classList.contains('hidden')).toBe(true));
+
+    container.querySelector('.connection-toggle')?.click();
+    await vi.waitFor(() => expect(container.querySelector('.connection-acl-btn')?.classList.contains('hidden')).toBe(false));
+
+    container.querySelector('.connection-toggle')?.click();
+    await vi.waitFor(() => expect(container.querySelector('.connection-acl-btn')?.classList.contains('hidden')).toBe(true));
 
     container.querySelector('#save-connections')?.click();
     await vi.waitFor(() => expect(lastPutBody).not.toBeNull());
     expect(lastPutBody.env_overrides).toEqual({ 'env-openai-0': false });
     await vi.waitFor(() => expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled());
     expect(data.modelsSettingsInvalidate).toBeTruthy();
+  });
+
+  it('keeps disabled connections visible on reload', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/openai/connections')) {
+        return new Response(JSON.stringify({
+          enabled: true,
+          connections: [
+            {
+              id: 'conn-disabled',
+              name: 'Archived Connection',
+              url: 'https://disabled.example.com',
+              providerType: 'openai',
+              enabled: false,
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderConnectionsSettings(container, data);
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections?include_disabled=1'));
+    await vi.waitFor(() => expect(container.textContent).toContain('Archived Connection'));
+    expect(container.textContent).toContain('Disabled');
+    expect(container.querySelector('.connection-toggle')?.classList.contains('bg-gray-200')).toBe(true);
+    expect(container.querySelector('[data-settings-tab="connections"] [class*="opacity-70"]')).not.toBeNull();
   });
 });
 

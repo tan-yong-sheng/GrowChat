@@ -9,11 +9,9 @@ const apiMocks = {
   fetchAdminGroups: vi.fn(),
   fetchAdminModels: vi.fn(),
   fetchAdminUsers: vi.fn(),
-  fetchGroupDefaultPermissions: vi.fn(),
   fetchGroupModelAccess: vi.fn(),
   removeGroupMembers: vi.fn(),
   updateAdminGroup: vi.fn(),
-  updateGroupDefaultPermissions: vi.fn(),
   updateGroupModelAccess: vi.fn(),
 };
 
@@ -31,10 +29,9 @@ describe('admin groups overview', () => {
     document.body.innerHTML = '<div id="root"></div>';
     vi.restoreAllMocks();
     Object.values(apiMocks).forEach((fn) => fn.mockReset());
-    apiMocks.fetchGroupDefaultPermissions.mockResolvedValue({ permissions: [] });
   });
 
-  it('renders the groups panel and wires the empty-state actions', async () => {
+  it('renders the groups panel and opens the membership-only modal', async () => {
     const { renderGroupsOverview } = await loadModule();
     const container = document.getElementById('root');
 
@@ -45,29 +42,27 @@ describe('admin groups overview', () => {
     });
 
     expect(container.textContent).toContain('Team One');
-    container.querySelector('#default-permissions-btn').click();
+    container.querySelector('#create-group-btn').click();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const modal = document.getElementById('default-permissions-modal');
+    const modal = document.getElementById('group-modal');
     expect(modal).toBeTruthy();
-    expect(modal?.textContent).toContain('Default permissions');
+    expect(modal?.textContent).toContain('General');
+    expect(modal?.textContent).toContain('Members');
+    expect(modal?.textContent).not.toContain('Permissions');
+    expect(modal?.querySelector('#group-policies-btn')).toBeNull();
   });
 
-  it('loads group model access without disabled providers', async () => {
+  it('does not render old permission bundle controls', async () => {
     const { renderGroupsOverview } = await loadModule();
     const container = document.getElementById('root');
     apiMocks.fetchAdminGroup.mockResolvedValue({
-      group: { id: 'g1', name: 'Group One', share_policy: 'members', permissions: ['model.use'] },
+      group: {
+        id: 'g1',
+        name: 'Group One',
+      },
       members: [],
     });
     apiMocks.fetchAdminUsers.mockResolvedValue({ users: [], total: 0 });
-    apiMocks.fetchGroupModelAccess.mockResolvedValue({ model_ids: [] });
-    apiMocks.fetchAdminModels.mockResolvedValue({
-      models: [],
-      providers: [
-        { value: 'openai', label: 'OpenAI', active: 1, total: 2 },
-        { value: 'claude', label: 'Claude', active: 0, total: 2 },
-      ],
-    });
 
     renderGroupsOverview(container, {
       groups: [{ id: 'g1', name: 'Group One', member_count: 0 }],
@@ -78,20 +73,21 @@ describe('admin groups overview', () => {
     const modal = document.getElementById('group-modal');
     expect(modal).toBeTruthy();
 
-    modal.querySelector('button[data-tab="permissions"]').click();
-    modal.querySelector('[data-model-access-btn]').click();
+    expect(modal.querySelector('button[data-tab="permissions"]')).toBeNull();
+    expect(modal.querySelector('#group-policies-btn')).toBeTruthy();
+  });
 
-    await tick();
-    await tick();
+  it('adds a row-level manage policies shortcut for groups', async () => {
+    const { renderGroupsOverview } = await loadModule();
+    const container = document.getElementById('root');
 
-    expect(apiMocks.fetchAdminModels).toHaveBeenCalledWith(expect.objectContaining({
-      includeDisabled: false,
-    }));
-    const providerSelect = document.querySelector('#model-access-provider');
-    const options = Array.from(providerSelect.options).map((option) => option.textContent.trim());
-    expect(options.length).toBe(2);
-    expect(options.join(' ')).toContain('OpenAI');
-    expect(options.join(' ')).not.toContain('Claude');
+    renderGroupsOverview(container, {
+      groups: [{ id: 'g1', name: 'Group One', member_count: 0 }],
+    });
+
+    const link = container.querySelector('a.btn-manage-group-policies');
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe('/admin/settings/policies?group=g1');
   });
 });
 

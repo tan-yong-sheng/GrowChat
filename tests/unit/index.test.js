@@ -24,6 +24,9 @@ function makeDb(overrides = {}) {
             if (statement.includes('SELECT role FROM users WHERE id = ?')) {
               return overrides.userRoleRow ?? { role: 'member' };
             }
+            if (statement.includes('SELECT account_status FROM users WHERE id = ?')) {
+              return overrides.userAccountStatusRow ?? { account_status: 'active' };
+            }
             return overrides.first ?? null;
           },
           all: async () => {
@@ -145,7 +148,14 @@ describe('worker entry point', () => {
   });
 
   it('resolves auth and passes the loaded role to protected routers', async () => {
-    const env = { DB: makeDb({ userRoleRow: { role: 'member' } }), SESSIONS: {}, ASSETS: {} };
+    const env = {
+      DB: makeDb({
+        userRoleRow: { role: 'member' },
+        userAccountStatusRow: { account_status: 'active', role: 'member' },
+      }),
+      SESSIONS: {},
+      ASSETS: {},
+    };
     const ctx = { waitUntil: vi.fn() };
     let receivedUser = null;
     mocks.chatRouter.mockImplementation(async (_req, _env, _ctx, user) => {
@@ -160,7 +170,7 @@ describe('worker entry point', () => {
 
     expect(res.status).toBe(200);
     expect(mocks.verifyJWT).toHaveBeenCalledWith('access-token', 'test-secret');
-    expect(receivedUser).toMatchObject({ sub: 'u1', role: 'member' });
+    expect(receivedUser).toMatchObject({ sub: 'u1', role: 'member', account_status: 'active' });
     expect(ctx.waitUntil).toHaveBeenCalled();
   });
 

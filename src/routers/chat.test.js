@@ -138,9 +138,11 @@ describe('chatRouter', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.servers).toEqual([
-      {
+      expect.objectContaining({
         id: 'server-1',
         name: 'Weather',
+        access_label: 'Admin',
+        access_variant: 'admin',
         enabled: true,
         tools: [
           {
@@ -150,7 +152,7 @@ describe('chatRouter', () => {
             enabled: true,
           },
         ],
-      },
+      }),
     ]);
   });
 
@@ -397,15 +399,59 @@ describe('chatRouter', () => {
     await expect(res.json()).resolves.toMatchObject({ error: 'message is required' });
   });
 
-  it('returns SSE llm_unavailable payload when LLM setup fails', async () => {
+  it('denies chat send when model access is not granted', async () => {
+    const adminUser = { ...user, role: 'admin' };
     mocks.db.first
       .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', model: 'gpt-4', current_message_id: null })
       .mockResolvedValueOnce({ id: 'm-user', role: 'user', content: 'hello' })
       .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', model: 'gpt-4', current_message_id: 'm-user' });
-    mocks.db.all.mockResolvedValueOnce([{ role: 'user', content: 'hello' }]);
+    mocks.db.all.mockImplementation(async (sql) => {
+      const query = String(sql || '');
+      if (query.includes('FROM group_members')) {
+        return [];
+      }
+      if (query.includes('FROM model_acl_rules')) {
+        return [
+          {
+            id: 'rule-1',
+            model_id: 'gpt-4',
+            principal_type: 'user',
+            principal_id: 'u1',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ];
+      }
+      if (query.includes('FROM connection_acl_rules')) {
+        return [
+          {
+            id: 'conn-rule-1',
+            connection_id: 'env-openai-0',
+            principal_type: 'user',
+            principal_id: 'u1',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ];
+      }
+      if (query.includes('FROM messages') || query.includes('FROM chat_messages')) {
+        return [{ role: 'user', content: 'hello' }];
+      }
+      return [];
+    });
     mocks.streamLLM.mockRejectedValueOnce(new Error('llm down'));
     const env = {
-      DB: {},
+      DB: {
+        prepare: () => ({
+          bind: () => ({
+            all: vi.fn().mockResolvedValue({ results: [] }),
+          }),
+        }),
+      },
       OPENAI_BASE_URL: 'https://api.example.com/v1',
       OPENAI_API_KEY: 'test-key-12345',
     };
@@ -414,15 +460,13 @@ describe('chatRouter', () => {
       makeReq('/api/chats/c1/messages', 'POST', { message: 'hello' }),
       env,
       {},
-      user,
+      adminUser,
       '/api/chats/c1/messages'
     );
 
-    expect(res.status).toBe(200);
-    expect(res.headers.get('Content-Type')).toContain('text/event-stream');
-    const text = await res.text();
-    expect(text).toContain('"error":"llm_unavailable"');
-    expect(text).toContain('data: [DONE]');
-    expect(mocks.db.batch).toHaveBeenCalled();
+    expect(res.status).toBe(403);
+    expect(res.headers.get('Content-Type')).toContain('application/json');
+    await expect(res.json()).resolves.toMatchObject({ error: 'missing_permission' });
+    expect(mocks.streamLLM).not.toHaveBeenCalled();
   });
 });

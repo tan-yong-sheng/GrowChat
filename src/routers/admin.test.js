@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   logAuditEvent: vi.fn(),
   getConfigBool: vi.fn(),
   getConfigValue: vi.fn(),
+  getAllOpenAIConnectionConfigs: vi.fn(),
   setConfigValue: vi.fn(),
   buildEnvOpenAIConnections: vi.fn(),
   getEnvOpenAIOverrides: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('../llm/connections.js', () => ({
   discoverConnectionModels: vi.fn(),
   ensureConnectionId: (conn, index = 0) => conn?.id || `conn-${index}`,
   extractConnectionModelId: vi.fn(),
+  getAllOpenAIConnectionConfigs: (...args) => mocks.getAllOpenAIConnectionConfigs(...args),
   getConnectionApiType: vi.fn((providerType) => {
     const raw = String(providerType || '').toLowerCase();
     if (raw === 'google' || raw === 'gemini-compatible') return 'stream-generate-content';
@@ -73,6 +75,24 @@ describe('adminRouter openai connections', () => {
     mocks.getConfigBool.mockResolvedValue(true);
     mocks.setConfigValue.mockResolvedValue(undefined);
     mocks.getEnvOpenAIOverrides.mockResolvedValue(new Map());
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'env-openai-0',
+        name: 'Env OpenAI',
+        url: 'https://api.openai.com/v1',
+        keyMasked: '••••1234',
+        hasKey: true,
+        headers: '',
+        providerType: 'openai',
+        providerFamily: 'openai',
+        providerId: 'openai/env-openai-0',
+        authType: 'bearer',
+        apiType: 'chat-completions',
+        readOnly: true,
+        source: 'env',
+        enabled: true,
+      },
+    ]);
     mocks.buildEnvOpenAIConnections.mockReturnValue([
       {
         id: 'env-openai-0',
@@ -125,6 +145,343 @@ describe('adminRouter openai connections', () => {
     expect(payload.connections.some((conn) => conn.id === 'config-gemini' && conn.source === 'config')).toBe(true);
     expect(mocks.getConfigValue).toHaveBeenCalledWith(expect.anything(), 'openai_connections', '[]');
     expect(mocks.getConfigValue).toHaveBeenCalledWith(expect.anything(), 'openai_enabled', 'true');
+  });
+
+  it('returns connection access groups for a connection', async () => {
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      if (String(sql).includes('FROM connection_acl_rules')) {
+        return [
+          {
+            id: 'rule-1',
+            connection_id: 'conn-1',
+            principal_type: 'group',
+            principal_id: 'g2',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, run: vi.fn() });
+
+    const res = await adminRouter(
+      makeReq('/api/admin/openai/connections/conn-1/access', 'GET'),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/openai/connections/conn-1/access'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.connection_id).toBe('conn-1');
+    expect(payload.rules).toEqual([
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g2',
+        effect: 'allow',
+        action: 'use',
+      }),
+    ]);
+    expect(payload.groups).toHaveLength(2);
+  });
+
+  it('updates connection access groups for a connection', async () => {
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-1',
+        name: 'Connection One',
+        enabled: true,
+        source: 'config',
+      },
+    ]);
+    const run = vi.fn().mockResolvedValue(undefined);
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g3', name: 'QA', description: 'QA team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      if (String(sql).includes('FROM connection_acl_rules')) {
+        return [
+          {
+            id: 'rule-1',
+            connection_id: 'conn-1',
+            principal_type: 'group',
+            principal_id: 'g1',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'rule-2',
+            connection_id: 'conn-1',
+            principal_type: 'group',
+            principal_id: 'g3',
+            effect: 'deny',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, run });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/openai/connections/conn-1/access', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rules: [
+            { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+            { principal_type: 'group', principal_id: 'g3', effect: 'deny', action: 'use' },
+          ],
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/openai/connections/conn-1/access'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.rules).toEqual([
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g1',
+        effect: 'allow',
+        action: 'use',
+      }),
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g3',
+        effect: 'deny',
+        action: 'use',
+      }),
+    ]);
+    expect(run).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM connection_acl_rules'), ['conn-1']);
+    expect(run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO connection_acl_rules'), expect.any(Array));
+  });
+
+  it('rejects connection access updates for disabled connections', async () => {
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-disabled',
+        name: 'Disabled Connection',
+        enabled: false,
+        source: 'config',
+      },
+    ]);
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/openai/connections/conn-disabled/access', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/openai/connections/conn-disabled/access'
+    );
+
+    expect(res.status).toBe(409);
+  });
+
+  it('returns MCP server access groups for a server', async () => {
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      if (String(sql).includes('FROM tool_server_acl_rules')) {
+        return [
+          {
+            id: 'rule-1',
+            tool_server_id: 'mcp-1',
+            principal_type: 'group',
+            principal_id: 'g2',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, run: vi.fn() });
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'tool_servers') {
+        return JSON.stringify([
+          {
+            id: 'mcp-1',
+            name: 'Server One',
+            url: 'https://example.com',
+            enabled: true,
+          },
+        ]);
+      }
+      return fallback;
+    });
+
+    const res = await adminRouter(
+      makeReq('/api/admin/tool-servers/mcp-1/access', 'GET'),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/tool-servers/mcp-1/access'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.tool_server_id).toBe('mcp-1');
+    expect(payload.rules).toEqual([
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g2',
+        effect: 'allow',
+        action: 'use',
+      }),
+    ]);
+    expect(payload.groups).toHaveLength(2);
+  });
+
+  it('rejects MCP server access updates for disabled servers', async () => {
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'tool_servers') {
+        return JSON.stringify([
+          {
+            id: 'mcp-disabled',
+            name: 'Disabled MCP',
+            url: 'https://example.com',
+            enabled: false,
+          },
+        ]);
+      }
+      return fallback;
+    });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/tool-servers/mcp-disabled/access', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/tool-servers/mcp-disabled/access'
+    );
+
+    expect(res.status).toBe(409);
+  });
+
+  it('updates MCP server access groups for a server', async () => {
+    const run = vi.fn().mockResolvedValue(undefined);
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g3', name: 'QA', description: 'QA team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      if (String(sql).includes('FROM tool_server_acl_rules')) {
+        return [
+          {
+            id: 'rule-1',
+            tool_server_id: 'mcp-1',
+            principal_type: 'group',
+            principal_id: 'g1',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'rule-2',
+            tool_server_id: 'mcp-1',
+            principal_type: 'group',
+            principal_id: 'g3',
+            effect: 'deny',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, run });
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'tool_servers') {
+        return JSON.stringify([
+          {
+            id: 'mcp-1',
+            name: 'Server One',
+            url: 'https://example.com',
+            enabled: true,
+          },
+        ]);
+      }
+      return fallback;
+    });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/tool-servers/mcp-1/access', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rules: [
+            { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+            { principal_type: 'group', principal_id: 'g3', effect: 'deny', action: 'use' },
+          ],
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/tool-servers/mcp-1/access'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.rules).toEqual([
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g1',
+        effect: 'allow',
+        action: 'use',
+      }),
+      expect.objectContaining({
+        principal_type: 'group',
+        principal_id: 'g3',
+        effect: 'deny',
+        action: 'use',
+      }),
+    ]);
+    expect(run).toHaveBeenCalled();
   });
 
   it('updates admin config settings', async () => {

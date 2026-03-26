@@ -1,14 +1,30 @@
-import { apiFetch } from '../../../shared/api.js';
+import { apiFetch, fetchAdminUserAccess } from '../../../shared/api.js';
+
+const escapeHtml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
 
 function roleBadgeClass(role) {
   if (role === 'admin') return 'bg-blue-100 text-blue-700';
   if (role === 'user') return 'bg-green-100 text-green-700';
-  if (role === 'inactive') return 'bg-gray-200 text-gray-600';
   return 'bg-gray-100 text-gray-700';
 }
 
 function roleDisplayName(role) {
-  return role === 'inactive' ? 'pending' : role;
+  return role;
+}
+
+function accountStatusBadgeClass(status) {
+  if (status === 'active') return 'bg-emerald-100 text-emerald-700';
+  if (status === 'pending') return 'bg-amber-100 text-amber-700';
+  return 'bg-gray-200 text-gray-600';
+}
+
+function accountStatusDisplayName(status) {
+  return status === 'pending' ? 'pending' : 'active';
 }
 
 function timeSince(timestampMs) {
@@ -32,6 +48,124 @@ function getActionError(payload, fallback) {
   return payload?.error || payload?.message || fallback;
 }
 
+function accessBadgeClass(value) {
+  if (value === 'allow') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  if (value === 'deny') return 'bg-rose-100 text-rose-700 border-rose-200';
+  if (value === 'admin') return 'bg-blue-100 text-blue-700 border-blue-200';
+  if (value === 'shared') return 'bg-amber-100 text-amber-700 border-amber-200';
+  if (value === 'personal') return 'bg-gray-100 text-gray-700 border-gray-200';
+  return 'bg-gray-100 text-gray-700 border-gray-200';
+}
+
+function renderChip(label, kind = 'neutral') {
+  return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${accessBadgeClass(kind)}">${escapeHtml(label)}</span>`;
+}
+
+function renderRuleList(rules = [], { showDisabled = false } = {}) {
+  const visibleRules = Array.isArray(rules)
+    ? rules.filter((rule) => showDisabled || rule?.resource_enabled !== false)
+    : [];
+
+  if (!visibleRules.length) {
+    return '<div class="rounded-2xl border border-gray-100 bg-gray-50/70 px-3 py-3 text-xs text-gray-400">No matching ACL rules</div>';
+  }
+
+  return `
+    <div class="space-y-2">
+      ${visibleRules.map((rule) => `
+        <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white px-3 py-2 text-xs text-gray-700 ${rule?.resource_enabled === false ? 'opacity-60' : ''}">
+          ${renderChip(rule.effect || 'allow', rule.effect)}
+          ${renderChip(rule.principal_label || rule.principal_type, 'neutral')}
+          <span class="font-semibold text-gray-900">${escapeHtml(rule.resource_id || 'All resources')}</span>
+          <span class="text-gray-400">·</span>
+          <span class="text-gray-500">${escapeHtml(rule.action || 'use')}</span>
+          ${rule?.resource_enabled === false ? '<span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Disabled</span>' : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderAccessInspectorContent(payload, showDisabled = false) {
+  const user = payload?.user || {};
+  const groups = Array.isArray(payload?.groups) ? payload.groups : [];
+  const rolePermissions = Array.isArray(payload?.role_permissions) ? payload.role_permissions : [];
+  const access = payload?.access || {};
+  const allRules = [...(access.models || []), ...(access.connections || []), ...(access.mcp_servers || [])];
+  const disabledRuleCount = allRules.filter((rule) => rule?.resource_enabled === false).length;
+  const families = [
+    ['Models', access.models || []],
+    ['Connections', access.connections || []],
+    ['MCP Servers', access.mcp_servers || []],
+  ];
+
+  return `
+    <div class="space-y-4">
+      <div class="rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-3">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="space-y-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
+              ${renderChip(user.role || 'member', user.role || 'member')}
+              ${renderChip(user.account_status || 'active', user.account_status === 'pending' ? 'shared' : 'admin')}
+            </div>
+            <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
+            ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
+          </div>
+          <button type="button" data-toggle-disabled-rules class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-50 ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}">
+            ${showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`}
+          </button>
+        </div>
+      </div>
+
+      <section class="space-y-2">
+        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Groups</div>
+        <div class="flex flex-wrap gap-2">
+          ${groups.length ? groups.map((group) => renderChip(group.name || group.id, 'neutral')).join('') : '<span class="text-xs text-gray-400">No group memberships</span>'}
+        </div>
+      </section>
+
+      <section class="space-y-2">
+        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Role Permissions</div>
+        <div class="flex flex-wrap gap-2">
+          ${rolePermissions.length ? rolePermissions.map((permission) => renderChip(permission, 'admin')).join('') : '<span class="text-xs text-gray-400">No resolved permissions</span>'}
+        </div>
+      </section>
+
+      ${families.map(([label, rules]) => `
+        <section class="space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">${escapeHtml(label)}</div>
+            <div class="text-[11px] text-gray-500">${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length} rule${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length === 1 ? '' : 's'}</div>
+          </div>
+          ${renderRuleList(rules, { showDisabled })}
+        </section>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderAclInspectorModal(user, body = '<div class="text-sm text-gray-400">Loading ACL inspector...</div>') {
+  return `
+    <div id="user-access-modal" class="fixed inset-0 z-[140] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="w-full max-w-2xl max-h-[85vh] rounded-[1.5rem] bg-white shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+        <div class="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-50">
+          <div>
+            <h3 class="text-xl font-semibold text-gray-900">ACL Inspector</h3>
+            <p class="mt-1 text-xs text-gray-500">Read-only effective access for ${escapeHtml(user?.name || user?.email || 'user')}</p>
+          </div>
+          <button type="button" data-close-access-user class="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="px-5 py-5 overflow-auto" id="user-access-modal-body">
+          ${body}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderUserRows(users) {
   return users.map((u) => `
     <tr class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
@@ -48,19 +182,27 @@ function renderUserRows(users) {
           <div class="truncate">${u.name}</div>
         </div>
       </td>
+      <td class="px-3 py-4 whitespace-nowrap">
+        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${accountStatusBadgeClass(u.account_status)} uppercase">${accountStatusDisplayName(u.account_status)}</span>
+      </td>
       <td class="px-3 py-4 text-gray-500 truncate" title="${u.email}">${u.email}</td>
       <td class="px-3 py-4 text-gray-400 font-normal uppercase text-[10px] whitespace-nowrap">${u.last_active_at ? timeSince(u.last_active_at * 1000) : 'N/A'}</td>
       <td class="px-3 py-4 text-gray-400 font-normal text-[10px] whitespace-nowrap">${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : 'N/A'}</td>
       <td class="px-3 py-4 text-right whitespace-nowrap">
         <div class="flex justify-end items-center gap-1">
-          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-edit-user" data-user-id="${u.id}" data-user-name="${u.name}" data-user-email="${u.email}" data-user-role="${u.role}" title="Edit User">
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-inspect-user-access" data-user-id="${u.id}" data-user-name="${u.name}" data-user-email="${u.email}" data-user-role="${u.role}" data-user-account-status="${u.account_status || 'active'}" title="Inspect ACL">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
+              <path fill-rule="evenodd" d="M10 1.75a4.25 4.25 0 0 0-4.25 4.25V8H5a2 2 0 0 0-2 2v5.5A2.5 2.5 0 0 0 5.5 18h9a2.5 2.5 0 0 0 2.5-2.5V10a2 2 0 0 0-2-2h-.75V6A4.25 4.25 0 0 0 10 1.75ZM7.25 6a2.75 2.75 0 1 1 5.5 0V8h-5.5V6Z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-edit-user" data-user-id="${u.id}" data-user-name="${u.name}" data-user-email="${u.email}" data-user-role="${u.role}" data-user-account-status="${u.account_status || 'active'}" title="Edit User">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path d="m2.695 14.763-1.262 3.154a.5.5 0 0 0 .65.65l3.154-1.262a.5.5 0 0 0 .145-.11l10.19-10.192-2.877-2.878L2.805 14.618a.5.5 0 0 0-.11.145Z" />
               <path d="M15.53 3.47a.75.75 0 0 1 1.06 0l1.44 1.44a.75.75 0 0 1 0 1.06l-1.44 1.44-2.5-2.5 1.44-1.44Z" />
             </svg>
           </button>
           ${u.role === 'admin' ? '' : `
-          <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors btn-delete-user" data-user-id="${u.id}" data-user-name="${u.name}" title="Delete User">
+          <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors btn-delete-user" data-user-id="${u.id}" data-user-name="${u.name}" title="Delete record">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
             </svg>
@@ -77,6 +219,7 @@ function renderLoadingRows(count = 10) {
     <tr class="bg-white text-xs animate-pulse">
       <td class="px-3 py-4"><div class="h-5 w-14 rounded bg-gray-100"></div></td>
       <td class="px-3 py-4"><div class="flex items-center gap-2.5"><div class="w-7 h-7 rounded-full bg-gray-100"></div><div class="h-4 w-28 rounded bg-gray-100"></div></div></td>
+      <td class="px-3 py-4"><div class="h-5 w-16 rounded bg-gray-100"></div></td>
       <td class="px-3 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
       <td class="px-3 py-4"><div class="h-4 w-16 rounded bg-gray-100"></div></td>
       <td class="px-3 py-4"><div class="h-4 w-14 rounded bg-gray-100"></div></td>
@@ -108,7 +251,13 @@ function renderAddUserModal() {
               <select name="role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
-                <option value="inactive">Pending</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="block text-sm text-gray-400 mb-2">Account Status</span>
+              <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
               </select>
             </label>
             <label class="block">
@@ -131,10 +280,10 @@ function renderAddUserModal() {
           <form id="add-user-csv-form" class="space-y-4 hidden">
             <label class="block">
               <span class="block text-sm text-gray-400 mb-2">CSV Content</span>
-              <textarea name="csv" rows="7" class="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 resize-none" placeholder="Name,Email,Password,Role&#10;Jane Doe,jane@example.com,Password123,user&#10;John Admin,john@example.com,Password123,admin"></textarea>
+              <textarea name="csv" rows="7" class="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 resize-none" placeholder="Name,Email,Password,Role,Account Status&#10;Jane Doe,jane@example.com,Password123,user,active&#10;John Admin,john@example.com,Password123,admin,active&#10;Pending User,pending@example.com,Password123,user,pending"></textarea>
             </label>
             <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              CSV order: <span class="font-medium text-gray-700">Name, Email, Password, Role</span>
+              CSV order: <span class="font-medium text-gray-700">Name, Email, Password, Role, Account Status (optional)</span>
             </div>
             <div id="add-user-csv-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
             <div id="add-user-csv-result" class="hidden rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-600 max-h-48 overflow-auto"></div>
@@ -166,7 +315,13 @@ function renderEditUserModal(user) {
             <select name="role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
               <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
               <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
-              <option value="inactive" ${user.role === 'inactive' ? 'selected' : ''}>Pending</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="block text-sm text-gray-400 mb-2">Account Status</span>
+            <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+              <option value="active" ${user.account_status !== 'pending' ? 'selected' : ''}>Active</option>
+              <option value="pending" ${user.account_status === 'pending' ? 'selected' : ''}>Pending</option>
             </select>
           </label>
           <label class="block">
@@ -195,6 +350,12 @@ export function renderUserOverview(container, data, actions) {
   const uiState = data.userOverviewUi || (data.userOverviewUi = {
     query: '',
     pending: {},
+    accessInspector: {
+      userId: null,
+      refreshToken: null,
+      payload: null,
+      showDisabled: false,
+    },
   });
 
   container.innerHTML = `
@@ -220,19 +381,22 @@ export function renderUserOverview(container, data, actions) {
       </div>
       <div class="relative flex-1 min-h-0 overflow-hidden w-full rounded-3xl border border-gray-100 bg-white">
         <div class="h-full overflow-auto">
-          <table class="w-full text-sm text-left text-gray-500 table-fixed">
-            <thead class="text-[11px] text-gray-900 font-bold uppercase bg-gray-50/50">
-              <tr class="border-b border-gray-100">
-                <th scope="col" class="px-3 py-3 w-24">Role</th>
-                <th scope="col" class="px-3 py-3 w-1/4">Name</th>
-                <th scope="col" class="px-3 py-3 w-1/3">Email</th>
-                <th scope="col" class="px-3 py-3 w-24">Last Active</th>
-                <th scope="col" class="px-3 py-3 w-28">Created At</th>
-                <th scope="col" class="px-3 py-3 w-24 text-right"></th>
-              </tr>
-            </thead>
-            <tbody id="users-table-body" class="divide-y divide-gray-50/50"></tbody>
-          </table>
+          <div class="min-w-[1120px]">
+            <table class="w-full text-sm text-left text-gray-500 table-fixed">
+              <thead class="text-[11px] text-gray-900 font-bold uppercase bg-gray-50/50">
+                <tr class="border-b border-gray-100">
+                  <th scope="col" class="px-3 py-3 w-24">Role</th>
+                  <th scope="col" class="px-3 py-3 w-1/4">Name</th>
+                  <th scope="col" class="px-3 py-3 w-24">Status</th>
+                  <th scope="col" class="px-3 py-3 w-1/3">Email</th>
+                  <th scope="col" class="px-3 py-3 w-24">Last Active</th>
+                  <th scope="col" class="px-3 py-3 w-28">Created At</th>
+                  <th scope="col" class="px-3 py-3 w-24 text-right"></th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body" class="divide-y divide-gray-50/50"></tbody>
+            </table>
+          </div>
         </div>
       </div>
       <div class="flex items-center justify-between gap-4 py-4 px-0.5 text-sm text-gray-500">
@@ -279,6 +443,34 @@ export function renderUserOverview(container, data, actions) {
     syncPendingState();
   }
 
+  async function refreshAccessInspector(userId) {
+    if (!userId) return;
+    const modal = document.getElementById('user-access-modal');
+    const body = document.getElementById('user-access-modal-body');
+    if (!modal || !body) return;
+    const currentToken = String(Date.now());
+    uiState.accessInspector.userId = userId;
+    uiState.accessInspector.refreshToken = currentToken;
+    body.innerHTML = '<div class="text-sm text-gray-400">Refreshing ACL inspector...</div>';
+    try {
+      const payload = await fetchAdminUserAccess(userId);
+      if (uiState.accessInspector.refreshToken !== currentToken) return;
+      uiState.accessInspector.payload = payload;
+      body.innerHTML = renderAccessInspectorContent(payload, uiState.accessInspector.showDisabled);
+    } catch (err) {
+      if (uiState.accessInspector.refreshToken !== currentToken) return;
+      body.innerHTML = `
+        <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+          ${escapeHtml(err.message || 'Failed to inspect user access')}
+        </div>
+      `;
+    } finally {
+      if (uiState.accessInspector.refreshToken === currentToken) {
+        uiState.accessInspector.refreshToken = null;
+      }
+    }
+  }
+
   function isPending(type, userId) {
     return Boolean(uiState.pending[getPendingKey(type, userId)]);
   }
@@ -294,6 +486,11 @@ export function renderUserOverview(container, data, actions) {
   function syncPendingState() {
     tbody.querySelectorAll('.btn-change-role').forEach((btn) => {
       btn.disabled = isPending('role', btn.dataset.userId);
+      btn.classList.toggle('opacity-50', btn.disabled);
+      btn.classList.toggle('pointer-events-none', btn.disabled);
+    });
+    tbody.querySelectorAll('.btn-inspect-user-access').forEach((btn) => {
+      btn.disabled = isPending('access', btn.dataset.userId);
       btn.classList.toggle('opacity-50', btn.disabled);
       btn.classList.toggle('pointer-events-none', btn.disabled);
     });
@@ -338,19 +535,73 @@ export function renderUserOverview(container, data, actions) {
     tbody.querySelectorAll('.btn-delete-user').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const userName = btn.dataset.userName;
-        if (!window.confirm(`Delete user ${userName}? This will deactivate the account.`)) return;
+        if (!window.confirm(`Delete user ${userName}? This will permanently remove the account record.`)) return;
         setPending('delete', btn.dataset.userId, true);
         try {
           const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, { method: 'DELETE' });
           const payload = await res.json().catch(() => ({}));
           if (!res.ok) {
-            throw new Error(getActionError(payload, `Failed to deactivate user (${res.status})`));
+            throw new Error(getActionError(payload, `Failed to delete user (${res.status})`));
           }
           actions.removeUser(btn.dataset.userId);
         } catch (err) {
           window.alert(err.message);
         } finally {
           setPending('delete', btn.dataset.userId, false);
+        }
+      });
+    });
+
+    tbody.querySelectorAll('.btn-inspect-user-access').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        setPending('access', btn.dataset.userId, true);
+        uiState.accessInspector.userId = btn.dataset.userId;
+        uiState.accessInspector.refreshToken = null;
+        uiState.accessInspector.payload = null;
+        uiState.accessInspector.showDisabled = false;
+        document.body.insertAdjacentHTML(
+          'beforeend',
+          renderAclInspectorModal({
+            name: btn.dataset.userName || '',
+            email: btn.dataset.userEmail || '',
+            role: btn.dataset.userRole || 'user',
+            account_status: btn.dataset.userAccountStatus || 'active',
+          })
+        );
+
+        const modal = document.getElementById('user-access-modal');
+        const body = document.getElementById('user-access-modal-body');
+        const close = () => {
+          uiState.accessInspector.userId = null;
+          uiState.accessInspector.refreshToken = null;
+          modal?.remove();
+        };
+
+        modal?.addEventListener('click', (e) => {
+          if (e.target === modal || e.target.closest('[data-close-access-user]')) {
+            close();
+            return;
+          }
+          if (e.target.closest('[data-toggle-disabled-rules]')) {
+            uiState.accessInspector.showDisabled = !uiState.accessInspector.showDisabled;
+            if (uiState.accessInspector.payload && body) {
+              body.innerHTML = renderAccessInspectorContent(uiState.accessInspector.payload, uiState.accessInspector.showDisabled);
+            }
+          }
+        });
+
+        try {
+          await refreshAccessInspector(btn.dataset.userId);
+        } catch (err) {
+          if (body) {
+            body.innerHTML = `
+              <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                ${escapeHtml(err.message || 'Failed to inspect user access')}
+              </div>
+            `;
+          }
+        } finally {
+          setPending('access', btn.dataset.userId, false);
         }
       });
     });
@@ -363,6 +614,7 @@ export function renderUserOverview(container, data, actions) {
             name: btn.dataset.userName || '',
             email: btn.dataset.userEmail || '',
             role: btn.dataset.userRole || 'user',
+            account_status: btn.dataset.userAccountStatus || 'active',
           };
           document.body.insertAdjacentHTML('beforeend', renderEditUserModal(user));
 
@@ -384,6 +636,7 @@ export function renderUserOverview(container, data, actions) {
             const fd = new FormData(form);
             const payload = {
               role: String(fd.get('role') || 'user'),
+              account_status: String(fd.get('account_status') || 'active'),
               name: String(fd.get('name') || '').trim(),
               email: String(fd.get('email') || '').trim(),
             };
@@ -415,6 +668,28 @@ export function renderUserOverview(container, data, actions) {
         }
       });
     });
+  }
+
+  if (!uiState.accessInspectorListenersBound) {
+    if (typeof window.__growchatAccessInspectorCleanup === 'function') {
+      window.__growchatAccessInspectorCleanup();
+    }
+    uiState.accessInspectorListenersBound = true;
+    const handleAccessInvalidation = () => {
+      if (uiState.accessInspector?.userId && document.getElementById('user-access-modal')) {
+        refreshAccessInspector(uiState.accessInspector.userId);
+      }
+    };
+    window.addEventListener('growchat:models-invalidated', handleAccessInvalidation);
+    window.addEventListener('growchat:connections-invalidated', handleAccessInvalidation);
+    window.addEventListener('growchat:tool-servers-invalidated', handleAccessInvalidation);
+    uiState.accessInspectorCleanup = () => {
+      window.removeEventListener('growchat:models-invalidated', handleAccessInvalidation);
+      window.removeEventListener('growchat:connections-invalidated', handleAccessInvalidation);
+      window.removeEventListener('growchat:tool-servers-invalidated', handleAccessInvalidation);
+      uiState.accessInspectorListenersBound = false;
+    };
+    window.__growchatAccessInspectorCleanup = uiState.accessInspectorCleanup;
   }
 
   function updateView() {
@@ -514,6 +789,7 @@ export function renderUserOverview(container, data, actions) {
           method: 'POST',
           body: JSON.stringify({
             role: String(fd.get('role') || 'user'),
+            account_status: String(fd.get('account_status') || 'active'),
             name: String(fd.get('name') || '').trim(),
             email: String(fd.get('email') || '').trim(),
             password: String(fd.get('password') || ''),

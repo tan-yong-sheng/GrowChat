@@ -1,6 +1,7 @@
 import { API_ROUTES, isPublicRoute } from './bootstrap/router-registry.js';
 import {
   getPath,
+  loadUserAccountStatus,
   loadUserRole,
   resolveAuthUser,
   touchLastActive,
@@ -33,10 +34,11 @@ export default {
           // Enforce account deactivation server-side, even if caller still has a valid JWT.
           if (user?.sub) {
             const role = await loadUserRole(env, user.sub);
-            if (!role || role === 'inactive') {
+            const accountStatus = await loadUserAccountStatus(env, user.sub);
+            if (!role || accountStatus !== 'active') {
               return error(req, 'Account deactivated', 403);
             }
-            user = { ...user, role };
+            user = { ...user, role, account_status: accountStatus };
             ctx.waitUntil(touchLastActive(env, user.sub));
           }
         }

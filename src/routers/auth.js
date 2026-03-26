@@ -10,14 +10,34 @@ import { createUserRepository } from '../repositories/user-repository.js';
 import { APP_TTLS } from '../config/app.js';
 import { ValidationError } from '../errors/http-errors.js';
 
-async function ensureUserRoleBinding(db, userId, role) {
-  if (!userId || !role || role === 'inactive') return;
+function normalizeAccountStatus(value, fallback = 'active') {
+  const status = String(value || fallback).trim().toLowerCase();
+  return status === 'pending' ? 'pending' : 'active';
+}
+
+function isActiveAccount(user) {
+  if (!user) return false;
+  return normalizeAccountStatus(user.account_status) === 'active';
+}
+
+async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active') {
+  if (!userId) return;
+  if (normalizeAccountStatus(accountStatus) !== 'active') {
+    try {
+      await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
+    } catch {
+      // Ignore missing RBAC tables during migrations.
+    }
+    return;
+  }
+  if (!role) return;
   const mappedRole = role === 'admin' ? 'admin' : 'member';
 
   try {
+    await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
     await db.run(
-      `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, scope_type, scope_id, created_at)
-       SELECT ?, ?, r.id, NULL, NULL, unixepoch()
+      `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
+       SELECT ?, ?, r.id, unixepoch()
        FROM roles r
        WHERE r.name = ?`,
       [crypto.randomUUID(), userId, mappedRole]
@@ -44,6 +64,7 @@ function sanitizeUser(user) {
     email: user.email,
     name: user.name,
     role: user.role,
+    account_status: normalizeAccountStatus(user.account_status),
     settings,
     created_at: user.created_at,
     last_active_at: user.last_active_at,
@@ -131,28 +152,31 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       passwordHash,
       name,
       role: 'user',
+      accountStatus: registrationStatus,
       settings: '{}',
     });
 
     // Open WebUI-style first-user elevation: decide admin after insert.
     const finalRole = (await users.count()) === 1
       ? 'admin'
-      : (registrationStatus === 'active' ? 'user' : 'inactive');
+      : 'user';
+    const finalAccountStatus = finalRole === 'admin' ? 'active' : registrationStatus;
     if (finalRole === 'admin') {
-      await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['admin', id]);
+      await db.run(
+        'UPDATE users SET role = ?, account_status = ?, updated_at = unixepoch() WHERE id = ?',
+        ['admin', 'active', id]
+      );
       // Disable public registration after first admin is created.
       await setConfigValue(db, 'public_registration', 'false');
-      user = { ...user, role: 'admin' };
-    } else if (finalRole === 'inactive') {
-      await db.run('UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?', ['inactive', id]);
-      user = { ...user, role: 'inactive' };
+      user = { ...user, role: 'admin', account_status: 'active' };
     } else {
-      user = { ...user, role: 'user' };
+      user = { ...user, role: 'user', account_status: finalAccountStatus };
     }
-    await ensureUserRoleBinding(db, id, finalRole);
-    if (finalRole === 'inactive') {
+    await ensureUserRoleBinding(db, id, finalRole, finalAccountStatus);
+    if (finalAccountStatus === 'pending') {
       return json(req, {
         user: sanitizeUser(user),
+        account_status: 'pending',
         status: 'pending',
         message: 'Account pending approval.',
       }, 201);
@@ -203,13 +227,13 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const user = await users.findByEmail(email);
     if (!user) return error(req, 'Invalid credentials', 401);
-    await ensureUserRoleBinding(db, user.id, user.role);
+    await ensureUserRoleBinding(db, user.id, user.role, user.account_status);
 
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
-    if (user.role === 'inactive') {
+    if (!isActiveAccount(user)) {
       return json(req, {
-        error: 'inactive_account',
+        error: 'pending_account',
         message: 'Account pending approval.',
       }, 403);
     }
@@ -252,7 +276,13 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const user = await users.findById(session.userId);
     if (!user) return error(req, 'User not found', 404);
-    await ensureUserRoleBinding(db, user.id, user.role);
+    await ensureUserRoleBinding(db, user.id, user.role, user.account_status);
+    if (!isActiveAccount(user)) {
+      return json(req, {
+        error: 'pending_account',
+        message: 'Account pending approval.',
+      }, 403);
+    }
 
     await users.touchLastActive(user.id);
     const freshUser = await users.findById(user.id);

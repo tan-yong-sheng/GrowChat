@@ -1,5 +1,10 @@
 import { getConfigValue, setConfigValue } from '../utils/app-config.js';
-import { MCP_PROTOCOL_VERSION } from '../mcp/client.js';
+import {
+  buildToolServerAclIndex,
+  evaluateToolServerAclAccess,
+  loadToolServerAclRules,
+} from '../utils/tool-server-acl.js';
+import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../mcp/client.js';
 
 const ATTACHMENT_CAP_TYPES = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
 
@@ -138,18 +143,270 @@ export function mergeToolSpecs(existingTools, incomingTools) {
     .filter(Boolean);
 }
 
-export async function loadToolServers(db) {
+export async function loadToolServers(db, options = {}) {
   const raw = await getConfigValue(db, 'tool_servers', '[]');
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const configServers = Array.isArray(parsed) ? parsed : [];
+    const userId = String(options.userId || '').trim();
+    if (!userId) return configServers;
+
+    const userServers = await loadUserToolServers(db, userId);
+    if (!db) return [...configServers, ...userServers];
+    if (typeof db.first !== 'function' || typeof db.all !== 'function') {
+      return [...configServers, ...userServers];
+    }
+
+    let userRole = 'member';
+    try {
+      const row = await db.first('SELECT role FROM users WHERE id = ?', [userId]);
+      userRole = String(row?.role || 'member').trim().toLowerCase() === 'admin' ? 'admin' : 'member';
+    } catch {
+      userRole = 'member';
+    }
+
+    let userGroupIds = new Set();
+    try {
+      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [userId]);
+      userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
+    } catch {
+      userGroupIds = new Set();
+    }
+
+    let aclIndex = new Map();
+    try {
+      const aclRules = await loadToolServerAclRules(db);
+      aclIndex = buildToolServerAclIndex(aclRules);
+    } catch (err) {
+      console.warn('Failed to load tool server ACL rules:', err?.message || err);
+      aclIndex = new Map();
+    }
+
+    const adminServers = configServers
+      .map((server) => {
+        const access = evaluateToolServerAclAccess(server, {
+          user: { sub: userId, role: userRole },
+          userGroupIds,
+          rules: aclIndex.get(server.id) || [],
+        });
+        return {
+          ...server,
+          access_label: access.access_label,
+          access_variant: access.access_variant,
+          allowed: access.allowed,
+        };
+      })
+      .filter((server) => server.allowed)
+      .map(({ allowed, ...server }) => server);
+
+    return [...adminServers, ...userServers];
   } catch {
-    return [];
+    const userId = String(options.userId || '').trim();
+    if (!userId) return [];
+    return loadUserToolServers(db, userId);
   }
 }
 
 export async function saveToolServers(db, servers) {
   await setConfigValue(db, 'tool_servers', JSON.stringify(servers));
+}
+
+async function ensureUserToolServersTable(db) {
+  await db.run(
+    `CREATE TABLE IF NOT EXISTS user_tool_servers (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      server_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      UNIQUE(user_id, id)
+    )`
+  );
+  await db.run('CREATE INDEX IF NOT EXISTS idx_user_tool_servers_user_id ON user_tool_servers(user_id)');
+}
+
+function parseToolServerJson(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(String(raw));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeUserToolServerRecord(raw, userId = '') {
+  const parsed = parseToolServerJson(raw);
+  if (!parsed) return null;
+  const merged = mergeToolServer(null, parsed);
+  if (!merged.url) return null;
+  return {
+    ...merged,
+    source: 'user',
+    owner_user_id: userId || raw?.user_id || null,
+    personal: true,
+  };
+}
+
+export async function loadUserToolServers(db, userId) {
+  if (!db || !userId) return [];
+  await ensureUserToolServersTable(db);
+  const rows = await db.all(
+    `SELECT id, user_id, server_json, created_at, updated_at
+     FROM user_tool_servers
+     WHERE user_id = ?
+     ORDER BY updated_at DESC, created_at DESC`,
+    [userId]
+  );
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => normalizeUserToolServerRecord({
+      ...(parseToolServerJson(row.server_json) || {}),
+      id: row.id,
+      user_id: row.user_id,
+    }, row.user_id))
+    .filter(Boolean);
+}
+
+export async function getUserToolServer(db, userId, serverId) {
+  if (!db || !userId || !serverId) return null;
+  await ensureUserToolServersTable(db);
+  const row = await db.first(
+    `SELECT id, user_id, server_json, created_at, updated_at
+     FROM user_tool_servers
+     WHERE user_id = ? AND id = ?`,
+    [userId, serverId]
+  );
+  if (!row) return null;
+  return normalizeUserToolServerRecord({
+    ...(parseToolServerJson(row.server_json) || {}),
+    id: row.id,
+    user_id: row.user_id,
+  }, row.user_id);
+}
+
+export async function createUserToolServer(db, userId, server = {}) {
+  if (!db || !userId) throw new Error('User id is required');
+  await ensureUserToolServersTable(db);
+  const merged = mergeToolServer(null, server);
+  if (!merged.name || !merged.url) {
+    throw new Error('name and url are required');
+  }
+  if (!isValidHttpUrl(merged.url)) {
+    throw new Error('url must start with http:// or https://');
+  }
+  const id = merged.id || crypto.randomUUID();
+  const record = {
+    ...merged,
+    id,
+    source: 'user',
+    owner_user_id: userId,
+    personal: true,
+  };
+  await db.run(
+    `INSERT INTO user_tool_servers (id, user_id, server_json, created_at, updated_at)
+     VALUES (?, ?, ?, unixepoch(), unixepoch())`,
+    [id, userId, JSON.stringify(record)]
+  );
+  return getUserToolServer(db, userId, id);
+}
+
+export async function updateUserToolServer(db, userId, serverId, server = {}) {
+  if (!db || !userId || !serverId) throw new Error('Server id is required');
+  await ensureUserToolServersTable(db);
+  const existing = await getUserToolServer(db, userId, serverId);
+  if (!existing) return null;
+  const merged = mergeToolServer(existing, server);
+  if (!merged.name || !merged.url) {
+    throw new Error('name and url are required');
+  }
+  if (!isValidHttpUrl(merged.url)) {
+    throw new Error('url must start with http:// or https://');
+  }
+  const record = {
+    ...merged,
+    id: serverId,
+    source: 'user',
+    owner_user_id: userId,
+    personal: true,
+  };
+  await db.run(
+    `UPDATE user_tool_servers
+     SET server_json = ?, updated_at = unixepoch()
+     WHERE user_id = ? AND id = ?`,
+    [JSON.stringify(record), userId, serverId]
+  );
+  return getUserToolServer(db, userId, serverId);
+}
+
+export async function deleteUserToolServer(db, userId, serverId) {
+  if (!db || !userId || !serverId) throw new Error('Server id is required');
+  await ensureUserToolServersTable(db);
+  const existing = await getUserToolServer(db, userId, serverId);
+  if (!existing) return false;
+  await db.run('DELETE FROM user_tool_servers WHERE user_id = ? AND id = ?', [userId, serverId]);
+  return true;
+}
+
+export async function testToolServerConnection(server, options = {}) {
+  const url = String(server?.url || '').trim();
+  if (!url) throw new Error('url is required');
+  const headers = options.headers || parseHeadersForRequest(server.headers);
+  const authType = normalizeAuthType(server.auth_type);
+  if (authType === 'bearer') {
+    const token = String(server.auth_bearer_token || '').trim();
+    if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
+  }
+  if (authType === 'basic') {
+    const user = String(server.auth_basic_username || '').trim();
+    const pass = String(server.auth_basic_password || '');
+    if (user && !headers.Authorization) headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`;
+  }
+
+  let sessionId;
+  const init = await mcpRequest({
+    url,
+    headers,
+    sessionId,
+    id: 0,
+    method: 'initialize',
+    params: {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: { name: 'GrowChat', version: '1.0.0' },
+    },
+  });
+  sessionId = init.sessionId;
+
+  const notified = await mcpNotify({
+    url,
+    headers,
+    sessionId,
+    method: 'notifications/initialized',
+  });
+  sessionId = notified.sessionId;
+
+  const toolsResult = await mcpRequest({
+    url,
+    headers,
+    sessionId,
+    id: 2,
+    method: 'tools/list',
+  });
+
+  const tools = Array.isArray(toolsResult.result?.tools) ? toolsResult.result.tools : [];
+  return {
+    tools: tools.map((tool) => ({
+      name: String(tool?.name || '').trim(),
+      title: String(tool?.title || '').trim(),
+      description: String(tool?.description || '').trim(),
+      parameters:
+        tool?.inputSchema && typeof tool.inputSchema === 'object'
+          ? tool.inputSchema
+          : (tool?.parameters && typeof tool.parameters === 'object' ? tool.parameters : {}),
+    })).filter((tool) => tool.name),
+    sessionId,
+  };
 }
 
 export function normalizeAuthType(value) {

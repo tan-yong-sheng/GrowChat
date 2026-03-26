@@ -40,7 +40,7 @@ describe('public auth bootstrap', () => {
 
   it('shows a pending approval message instead of logging in when registration does not return tokens', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-      user: { id: 'u1', role: 'inactive' },
+      user: { id: 'u1', role: 'user', account_status: 'pending' },
       status: 'pending',
       message: 'Account pending approval.',
     }), {

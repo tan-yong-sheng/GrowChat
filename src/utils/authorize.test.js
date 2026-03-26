@@ -42,8 +42,7 @@ describe('authorize.js - Authorization Core', () => {
   describe('DENIAL_REASONS constants', () => {
     it('should define all required denial reason codes', () => {
       expect(DENIAL_REASONS.MISSING_PERMISSION).toBe('missing_permission');
-      expect(DENIAL_REASONS.INACTIVE_ACCOUNT).toBe('inactive_account');
-      expect(DENIAL_REASONS.INSUFFICIENT_SCOPE).toBe('insufficient_scope');
+      expect(DENIAL_REASONS.ACCOUNT_NOT_ACTIVE).toBe('account_not_active');
       expect(DENIAL_REASONS.LAST_OWNER_PROTECTED).toBe('last_owner_protected');
       expect(DENIAL_REASONS.SYSTEM_ROLE_IMMUTABLE).toBe('system_role_immutable');
       expect(DENIAL_REASONS.INVALID_REQUEST).toBe('invalid_request');
@@ -91,7 +90,7 @@ describe('authorize.js - Authorization Core', () => {
       expect(result.allow).toBe(true);
     });
 
-    it('should respect scope context when resolving permissions', async () => {
+    it('should ignore extra context when resolving permissions', async () => {
       const user = { sub: 'user-789' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({
@@ -100,16 +99,15 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const context = { scope_type: 'chat', scope_id: 'chat-123' };
       await authorize(mockEnv, user, {
         action: 'chat.read',
-        context,
+        context: { resource: 'chat', resourceId: 'chat-123' },
       });
 
       expect(mockDB.prepare).toHaveBeenCalled();
       const sql = mockDB.prepare.mock.calls[0][0];
-      expect(sql).toContain('scope_type');
-      expect(sql).toContain('scope_id');
+      expect(sql).not.toContain('scope_type');
+      expect(sql).not.toContain('scope_id');
     });
   });
 
@@ -168,14 +166,14 @@ describe('authorize.js - Authorization Core', () => {
     });
   });
 
-  describe('authorize - Inactive Account Checks', () => {
+  describe('authorize - Account State Checks', () => {
     it('should deny request with no user', async () => {
       const result = await authorize(mockEnv, null, {
         action: 'chat.read',
       });
 
       expect(result.allow).toBe(false);
-      expect(result.reason).toBe(DENIAL_REASONS.INACTIVE_ACCOUNT);
+      expect(result.reason).toBe(DENIAL_REASONS.ACCOUNT_NOT_ACTIVE);
       expect(result.code).toBe('forbidden');
     });
 
@@ -185,7 +183,7 @@ describe('authorize.js - Authorization Core', () => {
       });
 
       expect(result.allow).toBe(false);
-      expect(result.reason).toBe(DENIAL_REASONS.INACTIVE_ACCOUNT);
+      expect(result.reason).toBe(DENIAL_REASONS.ACCOUNT_NOT_ACTIVE);
     });
 
     it('should deny request with user but no sub claim', async () => {
@@ -195,7 +193,7 @@ describe('authorize.js - Authorization Core', () => {
       });
 
       expect(result.allow).toBe(false);
-      expect(result.reason).toBe(DENIAL_REASONS.INACTIVE_ACCOUNT);
+      expect(result.reason).toBe(DENIAL_REASONS.ACCOUNT_NOT_ACTIVE);
     });
 
     it('should deny request with null sub claim', async () => {
@@ -205,7 +203,7 @@ describe('authorize.js - Authorization Core', () => {
       });
 
       expect(result.allow).toBe(false);
-      expect(result.reason).toBe(DENIAL_REASONS.INACTIVE_ACCOUNT);
+      expect(result.reason).toBe(DENIAL_REASONS.ACCOUNT_NOT_ACTIVE);
     });
   });
 
@@ -308,45 +306,22 @@ describe('authorize.js - Authorization Core', () => {
       expect(perms).toEqual(['chat.read', 'chat.write']);
     });
 
-    it('should merge group permissions with role permissions', async () => {
-      const user = { sub: 'user-123' };
+    it('should return role permissions without group-derived grants', async () => {
+      const user = { sub: 'user-456' };
       const roleStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({
           results: [{ key: 'chat.read' }],
         }),
       });
-      const groupStatement = createMockStatement({
-        all: vi.fn().mockResolvedValue({
-          results: [{ key: 'admin.user.read' }],
-        }),
-      });
       mockDB.prepare
         .mockImplementationOnce(() => roleStatement)
-        .mockImplementationOnce(() => groupStatement);
+        .mockImplementationOnce(() => createMockStatement({
+          first: vi.fn().mockResolvedValue({ role: null }),
+        }));
 
       const perms = await resolvePermissions(mockEnv, user);
 
-      expect(perms).toEqual(['chat.read', 'admin.user.read']);
-      expect(mockDB.prepare).toHaveBeenCalledTimes(2);
-    });
-
-    it('should return group permissions when role permissions are empty', async () => {
-      const user = { sub: 'user-456' };
-      const roleStatement = createMockStatement({
-        all: vi.fn().mockResolvedValue({ results: [] }),
-      });
-      const groupStatement = createMockStatement({
-        all: vi.fn().mockResolvedValue({
-          results: [{ key: 'chat.share' }],
-        }),
-      });
-      mockDB.prepare
-        .mockImplementationOnce(() => roleStatement)
-        .mockImplementationOnce(() => groupStatement);
-
-      const perms = await resolvePermissions(mockEnv, user);
-
-      expect(perms).toEqual(['chat.share']);
+      expect(perms).toEqual(['chat.read']);
     });
 
     it('should return empty array for user with no sub', async () => {
@@ -363,7 +338,7 @@ describe('authorize.js - Authorization Core', () => {
       expect(perms).toEqual([]);
     });
 
-    it('should use scope context in permission query', async () => {
+    it('should ignore extra context in permission query', async () => {
       const user = { sub: 'user-456' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({
@@ -372,17 +347,12 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const context = { scope_type: 'chat', scope_id: 'chat-789' };
-      await resolvePermissions(mockEnv, user, context);
+      await resolvePermissions(mockEnv, user, { resource: 'chat', resourceId: 'chat-789' });
 
-      expect(mockStatement.bind).toHaveBeenCalledWith(
-        'user-456',
-        'chat',
-        'chat-789'
-      );
+      expect(mockStatement.bind).toHaveBeenCalledWith('user-456');
     });
 
-    it('should fall back to null scope when context not provided', async () => {
+    it('should query permissions with just the user id when context is omitted', async () => {
       const user = { sub: 'user-123' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({ results: [] }),
@@ -391,11 +361,7 @@ describe('authorize.js - Authorization Core', () => {
 
       await resolvePermissions(mockEnv, user);
 
-      expect(mockStatement.bind).toHaveBeenCalledWith(
-        'user-123',
-        null,
-        null
-      );
+      expect(mockStatement.bind).toHaveBeenCalledWith('user-123');
     });
 
     it('should handle DB errors and return fallback permissions', async () => {
@@ -468,8 +434,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const context = { scope_type: 'chat', scope_id: 'chat-123' };
-      const result = await hasPermission(mockEnv, user, 'chat.read', context);
+      const result = await hasPermission(mockEnv, user, 'chat.read', { resource: 'chat', resourceId: 'chat-123' });
 
       expect(result).toBe(true);
     });
@@ -705,8 +670,8 @@ describe('authorize.js - Authorization Core', () => {
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({
           results: [
-            { id: 'ur1', role_id: 'r1', role_name: 'admin', scope_type: null, scope_id: null },
-            { id: 'ur2', role_id: 'r2', role_name: 'member', scope_type: 'org', scope_id: 'org-123' },
+            { id: 'ur1', role_id: 'r1', role_name: 'admin' },
+            { id: 'ur2', role_id: 'r2', role_name: 'member' },
           ],
         }),
       });
@@ -716,7 +681,7 @@ describe('authorize.js - Authorization Core', () => {
 
       expect(roles.length).toBe(2);
       expect(roles[0].role_name).toBe('admin');
-      expect(roles[1].scope_type).toBe('org');
+      expect(roles[1].role_name).toBe('member');
     });
 
     it('should return empty array when user has no roles', async () => {
@@ -968,11 +933,7 @@ describe('authorize.js - Authorization Core', () => {
       const user = { sub: 'user-123; DROP TABLE users;--' };
       await resolvePermissions(mockEnv, user);
 
-      expect(mockStatement.bind).toHaveBeenCalledWith(
-        'user-123; DROP TABLE users;--',
-        null,
-        null
-      );
+      expect(mockStatement.bind).toHaveBeenCalledWith('user-123; DROP TABLE users;--');
     });
 
     it('should use parameterized queries for role names', async () => {
@@ -1019,21 +980,19 @@ describe('authorize.js - Authorization Core', () => {
       expect(result.allow).toBe(true);
     });
 
-    it('should handle scope context with special characters', async () => {
+    it('should handle extra context with special characters', async () => {
       const user = { sub: 'user-123' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({ results: [] }),
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const context = {
-        scope_type: "type'; DROP TABLE;--",
-        scope_id: "id'; DROP TABLE;--",
-      };
-
       await authorize(mockEnv, user, {
         action: 'chat.read',
-        context,
+        context: {
+          resource: "type'; DROP TABLE;--",
+          resourceId: "id'; DROP TABLE;--",
+        },
       });
 
       expect(mockStatement.bind).toHaveBeenCalled();

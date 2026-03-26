@@ -19,7 +19,7 @@ describe('admin integrations settings', () => {
     document.body.innerHTML = '<div id="root" data-settings-tab="integrations"></div>';
     vi.clearAllMocks();
     mocks.apiFetch.mockImplementation(async (url) => {
-      if (String(url) === '/api/admin/tool-servers') {
+      if (String(url).includes('/api/admin/tool-servers')) {
         return new Response(JSON.stringify({
           servers: [
             {
@@ -52,16 +52,20 @@ describe('admin integrations settings', () => {
     const data = {};
 
     renderIntegrationsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers'));
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
     await vi.waitFor(() => expect(container.querySelector('.tool-toggle')).not.toBeNull());
+    expect(container.querySelector('.tool-access-btn')).not.toBeNull();
 
+    const initialRows = Array.from(container.querySelectorAll('[data-tool-server-row]')).map((row) => row.textContent.trim());
     expect(container.querySelector('.tool-toggle').disabled).toBe(false);
     expect(container.querySelector('.tool-toggle').getAttribute('aria-pressed')).toBe('true');
     expect(data.integrationsSettings.toolServers[0].tools[0].enabled).toBe(true);
 
     container.querySelector('.server-toggle').click();
+    expect(Array.from(container.querySelectorAll('[data-tool-server-row]')).map((row) => row.textContent.trim())).toEqual(initialRows);
     expect(container.querySelector('.tool-toggle').disabled).toBe(true);
     expect(container.querySelector('.tool-toggle').getAttribute('aria-disabled')).toBe('true');
+    await vi.waitFor(() => expect(container.querySelector('.tool-access-btn')?.classList.contains('hidden')).toBe(true));
     expect(data.integrationsSettings.toolServers[0].enabled).toBe(false);
     expect(data.integrationsSettings.toolServers[0].tools[0].enabled).toBe(true);
 
@@ -69,8 +73,10 @@ describe('admin integrations settings', () => {
     expect(data.integrationsSettings.toolServers[0].tools[0].enabled).toBe(true);
 
     container.querySelector('.server-toggle').click();
+    expect(Array.from(container.querySelectorAll('[data-tool-server-row]')).map((row) => row.textContent.trim())).toEqual(initialRows);
     expect(container.querySelector('.tool-toggle').disabled).toBe(false);
     expect(container.querySelector('.tool-toggle').getAttribute('aria-pressed')).toBe('true');
+    await vi.waitFor(() => expect(container.querySelector('.tool-access-btn')?.classList.contains('hidden')).toBe(false));
 
     container.querySelector('.tool-toggle').click();
     expect(data.integrationsSettings.toolServers[0].tools[0].enabled).toBe(false);
@@ -83,7 +89,7 @@ describe('admin integrations settings', () => {
     const data = {};
 
     renderIntegrationsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers'));
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
     await vi.waitFor(() => expect(data.integrationsSettings.originalSnapshot).not.toBeNull());
     await vi.waitFor(() => expect(container.querySelector('#save-integrations')?.disabled).toBe(true));
     vi.clearAllMocks();
@@ -136,6 +142,74 @@ describe('admin integrations settings', () => {
     await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
     window.removeEventListener('growchat:tool-servers-invalidated', listener);
   });
+
+  it('keeps disabled tool servers visible on reload', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/tool-servers')) {
+        return new Response(JSON.stringify({
+          servers: [
+            {
+              id: 'server-disabled',
+              name: 'Archived MCP',
+              url: 'https://disabled-mcp.example.com',
+              enabled: false,
+              toolsExpanded: true,
+              tools: [],
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderIntegrationsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderIntegrationsSettings(container, data);
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
+    await vi.waitFor(() => expect(container.textContent).toContain('Archived MCP'));
+    expect(container.textContent).toContain('Disabled');
+    expect(container.querySelector('.server-toggle')?.classList.contains('bg-gray-200')).toBe(true);
+    expect(container.querySelector('[data-settings-tab="integrations"] [class*="opacity-70"]')).not.toBeNull();
+  });
+
+  it('sorts enabled tool servers before disabled ones on reload', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/tool-servers')) {
+        return new Response(JSON.stringify({
+          servers: [
+            {
+              id: 'server-disabled',
+              name: 'Zulu MCP',
+              url: 'https://zulu-mcp.example.com',
+              enabled: false,
+              toolsExpanded: true,
+              tools: [],
+            },
+            {
+              id: 'server-enabled',
+              name: 'Alpha MCP',
+              url: 'https://alpha-mcp.example.com',
+              enabled: true,
+              toolsExpanded: true,
+              tools: [],
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderIntegrationsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderIntegrationsSettings(container, data);
+    await vi.waitFor(() => expect(container.querySelectorAll('[data-tool-server-row]').length).toBe(2));
+
+    const rows = Array.from(container.querySelectorAll('[data-tool-server-row]')).map((row) => row.textContent.trim());
+    expect(rows[0]).toContain('Alpha MCP');
+    expect(rows[1]).toContain('Zulu MCP');
+  });
 });
-
-

@@ -9,6 +9,7 @@ import {
   getConnectionModelDiscoveryUrls,
   isConnectionUrlRequired,
   normalizeConnectionManualModels,
+  loadUserOpenAIConnectionConfigs,
 } from './connections.js';
 
 describe('openai connection helpers', () => {
@@ -67,6 +68,16 @@ describe('openai connection helpers', () => {
     expect(connections).toHaveLength(2);
   });
 
+  it('prefers user-owned connections over config connections for matching signatures', () => {
+    const connections = dedupeConnectionConfigs([
+      { id: 'config-a', source: 'config', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
+      { id: 'user-a', source: 'user', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
+    ]);
+
+    expect(connections).toHaveLength(1);
+    expect(connections[0].id).toBe('user-a');
+  });
+
   it('normalizes manual models for a connection', () => {
     expect(normalizeConnectionManualModels([
       'gpt-oss-20b',
@@ -105,6 +116,40 @@ describe('openai connection helpers', () => {
       providerType: 'anthropic',
       baseUrl: 'https://api.anthropic.com',
     })).toEqual(['https://api.anthropic.com/v1/models', 'https://api.anthropic.com/models']);
+  });
+
+  it('loads personal connection configs from D1 rows', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue(undefined),
+      all: vi.fn().mockResolvedValue([
+        {
+          id: 'conn-user',
+          user_id: 'u1',
+          name: 'My Gateway',
+          provider_type: 'openai-compatible',
+          base_url: 'https://example.com/v1',
+          key: 'secret',
+          headers: '{"x-test":"1"}',
+          auth_type: 'bearer',
+          enabled: 1,
+          manual_models: '["gpt-5-mini"]',
+        },
+      ]),
+    };
+
+    const connections = await loadUserOpenAIConnectionConfigs(db, 'u1');
+
+    expect(db.run).toHaveBeenCalled();
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      id: 'conn-user',
+      source: 'user',
+      ownerUserId: 'u1',
+      providerType: 'openai-compatible',
+      providerFamily: 'openai',
+      enabled: true,
+      manualModels: [{ modelId: 'gpt-5-mini', name: 'gpt-5-mini' }],
+    });
   });
 
   it('discovers gemini models from the Google models payload shape', async () => {

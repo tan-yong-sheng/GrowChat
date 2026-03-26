@@ -1,7 +1,9 @@
-import { apiFetch } from '../../../shared/api.js';
+import { apiFetch, fetchAdminConnectionAccess, updateAdminConnectionAccess } from '../../../shared/api.js';
 import { filterModelsBySearch } from '../../../shared/utils/model-search.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
+import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
+import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import {
   applyModalDraft,
   applyModalModelPreview,
@@ -25,6 +27,13 @@ import {
   persistModalDraft,
   updateApiTypeDisplay,
 } from './connections-helpers.js';
+
+const escapeHtml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
 
 export function renderConnectionsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'connections';
@@ -52,6 +61,7 @@ export function renderConnectionsSettings(container, data) {
     modalDrafts: new Map(),
     newConnectionDraftId: null,
     modalMode: 'create',
+    aclDrafts: new Map(),
   });
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
@@ -112,11 +122,32 @@ export function renderConnectionsSettings(container, data) {
 
   const hasChanges = () => {
     if (!connectionsState.originalSnapshot) return false;
-    return buildSnapshot() !== connectionsState.originalSnapshot;
+    return buildSnapshot() !== connectionsState.originalSnapshot || (connectionsState.aclDrafts?.size || 0) > 0;
   };
   data.settingsDirtyCheckers.connections = hasChanges;
 
+  const renderLoadingSkeleton = () => `
+    <div class="space-y-2">
+      ${Array.from({ length: 5 }).map(() => `
+        <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 animate-pulse">
+          <div class="flex flex-col min-w-0 flex-1 space-y-2">
+            <div class="h-3.5 w-44 bg-gray-200 rounded-full"></div>
+            <div class="h-2.5 w-64 bg-gray-100 rounded-full"></div>
+            <div class="h-2.5 w-32 bg-gray-100 rounded-full"></div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <div class="h-6 w-12 rounded-full bg-gray-100 border border-gray-200"></div>
+            <div class="h-6 w-6 rounded-full bg-gray-100 border border-gray-200"></div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
   const getConnectionsListMarkup = () => {
+    if (connectionsState.loading) {
+      return renderLoadingSkeleton();
+    }
     if (connectionsState.openai.connections.length === 0) {
       return '<div class="py-10 text-center text-sm text-gray-400">No connections configured</div>';
     }
@@ -126,14 +157,25 @@ export function renderConnectionsSettings(container, data) {
       if (!deduped.has(key)) deduped.set(key, conn);
     });
     return Array.from(deduped.values()).map(conn => `
-      <div class="py-2.5 flex items-center justify-between pr-2 border-b border-gray-50 last:border-0">
+      <div data-connection-row="${conn.id}" class="py-2.5 flex items-center justify-between pr-2 border-b border-gray-50 last:border-0 ${conn.enabled === false ? 'opacity-70' : ''}">
         <div class="flex flex-col">
           <div class="text-xs font-medium text-gray-900">${conn.name || providerDisplayLabel(conn.providerType)}</div>
           <div class="text-[10px] text-gray-400 font-mono">${conn.url}</div>
           <div class="text-[10px] text-gray-400 mt-0.5">${providerDisplayLabel(conn.providerType)}</div>
+          <div data-connection-disabled-badge class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${conn.enabled === false ? '' : 'hidden'}">Disabled</div>
           ${conn.readOnly ? '<div class="text-[10px] text-gray-400 mt-0.5">From env (read-only)</div>' : ''}
         </div>
         <div class="flex items-center gap-3">
+          <button
+            data-id="${conn.id}"
+            class="connection-acl-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${conn.enabled === false ? 'hidden' : ''}"
+            title="Edit access rules"
+            aria-label="Edit access rules"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
+            </svg>
+          </button>
           <button data-id="${conn.id}" class="edit-connection-btn p-1 text-gray-400 hover:text-gray-600 transition-colors ${(conn.readOnly && conn.source !== 'env') ? 'hidden' : ''}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
@@ -172,6 +214,242 @@ export function renderConnectionsSettings(container, data) {
       saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
       saveBtn.textContent = connectionsState.saving ? 'Saving...' : 'Save';
     }
+  };
+
+  const cloneConnectionAclRules = (rules = []) => (Array.isArray(rules) ? rules : []).map((rule) => ({ ...rule }));
+  const getConnectionAclRulesSignature = (rules = []) => cloneConnectionAclRules(rules)
+    .map((rule) => ({
+      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
+      principal_id: String(rule?.principal_id || '').trim(),
+      effect: String(rule?.effect || '').trim().toLowerCase(),
+      action: String(rule?.action || '').trim().toLowerCase(),
+    }))
+    .sort((a, b) => (
+      a.principal_type.localeCompare(b.principal_type)
+      || a.principal_id.localeCompare(b.principal_id)
+      || a.action.localeCompare(b.action)
+      || a.effect.localeCompare(b.effect)
+    ))
+    .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
+    .join('|');
+
+  const openConnectionAccessModal = async (connection, { onApply } = {}) => {
+    if (!connection?.id) return;
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4';
+    modal.innerHTML = `
+      <div class="absolute inset-0 bg-black/25 backdrop-blur-sm"></div>
+      <div class="relative w-full max-w-3xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <div>
+            <div class="text-lg font-semibold">Connection Access</div>
+            <div class="text-[11px] text-gray-500">${escapeHtml(connection.name || connection.id)}</div>
+            <div class="text-[11px] text-amber-600 font-medium">* Apply stages changes. Save the page to persist them.</div>
+          </div>
+          <button class="p-2 rounded-full hover:bg-gray-100 transition" data-close-connection-access>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-900" id="connection-acl-summary"></div>
+            <div class="text-xs text-gray-400" id="connection-acl-count"></div>
+          </div>
+          <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600" id="connection-acl-reason"></div>
+          <div id="connection-acl-error" class="text-sm text-red-600 hidden"></div>
+          <div id="connection-acl-list" class="space-y-2"></div>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0">
+          <div class="text-sm text-red-600" id="connection-acl-save-error"></div>
+          <div class="flex items-center gap-2">
+            <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700" data-close-connection-access>Cancel</button>
+            <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800" id="connection-acl-save-btn">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const close = () => modal.remove();
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || e.target.closest('[data-close-connection-access]')) close();
+    });
+
+    const listEl = modal.querySelector('#connection-acl-list');
+    const errorEl = modal.querySelector('#connection-acl-error');
+    const saveErrorEl = modal.querySelector('#connection-acl-save-error');
+    const summaryEl = modal.querySelector('#connection-acl-summary');
+    const countEl = modal.querySelector('#connection-acl-count');
+    const reasonEl = modal.querySelector('#connection-acl-reason');
+    const saveBtn = modal.querySelector('#connection-acl-save-btn');
+    let baseRules = [];
+    const stagedRules = cloneConnectionAclRules(connectionsState.aclDrafts?.get(connection.id) || []);
+
+    const state = {
+      loading: true,
+      saving: false,
+      error: null,
+      groups: [],
+      rulesByGroup: new Map(),
+    };
+
+    const renderSummary = () => {
+      let reasonText = 'No explicit rules. Admin users can access by default.';
+      if (summaryEl) {
+        const allowCount = Array.from(state.rulesByGroup.values()).filter((value) => value === 'allow').length;
+        const denyCount = Array.from(state.rulesByGroup.values()).filter((value) => value === 'deny').length;
+        if (!allowCount && !denyCount) {
+          summaryEl.textContent = 'No access rules';
+          reasonText = 'No explicit rules. Admin users can access by default.';
+        } else {
+          const parts = [];
+          if (allowCount) parts.push(`${allowCount} allow`);
+          if (denyCount) parts.push(`${denyCount} deny`);
+          summaryEl.textContent = parts.join(', ');
+          if (allowCount && denyCount) {
+            reasonText = 'Explicit allow rules share this connection with selected groups. Deny rules override allow rules.';
+          } else if (denyCount) {
+            reasonText = 'This connection is explicitly blocked for selected groups.';
+          } else {
+            reasonText = 'This connection is shared with selected groups.';
+          }
+        }
+      }
+      if (countEl) {
+        countEl.textContent = state.groups.length ? `${state.groups.length} groups` : '';
+      }
+      if (reasonEl) {
+        reasonEl.textContent = reasonText;
+      }
+    };
+
+    const updateSaveButton = () => {
+      if (!saveBtn) return;
+      saveBtn.disabled = state.saving;
+      saveBtn.classList.toggle('bg-gray-300', state.saving);
+      saveBtn.classList.toggle('cursor-not-allowed', state.saving);
+      saveBtn.classList.toggle('bg-gray-900', !state.saving);
+      saveBtn.textContent = state.saving ? 'Saving...' : 'Save';
+    };
+
+    const renderList = () => {
+      if (!listEl) return;
+      if (state.loading) {
+        listEl.innerHTML = `
+          <div class="space-y-2">
+            ${Array.from({ length: 5 }).map(() => `
+              <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 animate-pulse">
+                <div class="flex flex-col min-w-0 flex-1 space-y-2">
+                  <div class="h-3.5 w-40 bg-gray-200 rounded-full"></div>
+                  <div class="h-2.5 w-64 bg-gray-100 rounded-full"></div>
+                </div>
+                <div class="h-4 w-4 bg-gray-100 rounded border border-gray-200"></div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        return;
+      }
+      if (errorEl) {
+        errorEl.textContent = state.error || '';
+        errorEl.classList.toggle('hidden', !state.error);
+      }
+      if (!state.groups.length) {
+        listEl.innerHTML = '<div class="text-sm text-gray-500 py-6 text-center">No resource teams available.</div>';
+        return;
+      }
+      listEl.innerHTML = state.groups.map((group) => {
+        const groupId = group.id;
+        const effect = state.rulesByGroup.get(groupId) || 'none';
+        const badge = group.is_system ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">System</span>' : '';
+        return `
+          <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 hover:border-gray-300">
+            <div class="flex flex-col min-w-0">
+              <div class="flex items-center gap-2">
+                <div class="text-sm font-semibold text-gray-900 truncate">${escapeHtml(group.name || group.id)}</div>
+                ${badge}
+              </div>
+              <div class="text-[11px] text-gray-500 truncate">${escapeHtml(group.description || group.id)}</div>
+            </div>
+            <select class="connection-acl-effect rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-gray-400" data-group-id="${escapeHtml(groupId)}">
+              <option value="none" ${effect === 'none' ? 'selected' : ''}>No access</option>
+              <option value="allow" ${effect === 'allow' ? 'selected' : ''}>Allow</option>
+              <option value="deny" ${effect === 'deny' ? 'selected' : ''}>Deny</option>
+            </select>
+          </div>
+        `;
+      }).join('');
+
+      listEl.querySelectorAll('.connection-acl-effect').forEach((select) => {
+        select.addEventListener('change', () => {
+          const groupId = select.getAttribute('data-group-id');
+          if (!groupId) return;
+          const effect = String(select.value || 'none');
+          if (effect === 'none') {
+            state.rulesByGroup.delete(groupId);
+          } else {
+            state.rulesByGroup.set(groupId, effect === 'deny' ? 'deny' : 'allow');
+          }
+          renderSummary();
+        });
+      });
+    };
+
+    const loadAccess = async () => {
+      state.loading = true;
+      state.error = null;
+      renderList();
+      try {
+        const payload = await fetchAdminConnectionAccess(connection.id);
+        state.groups = Array.isArray(payload.groups) ? payload.groups : [];
+        const sourceRules = stagedRules.length > 0 ? stagedRules : payload.rules;
+        baseRules = cloneConnectionAclRules(payload.rules || []);
+        state.rulesByGroup = new Map(
+          (Array.isArray(sourceRules) ? sourceRules : [])
+            .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
+            .map((rule) => [String(rule.principal_id || '').trim(), String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow'])
+            .filter(([groupId]) => Boolean(groupId))
+        );
+      } catch (err) {
+        state.error = err.message || 'Failed to load connection access';
+      } finally {
+        state.loading = false;
+        renderSummary();
+        renderList();
+      }
+    };
+
+    saveBtn?.addEventListener('click', async () => {
+      if (state.saving) return;
+      if (saveErrorEl) saveErrorEl.textContent = '';
+      state.saving = true;
+      updateSaveButton();
+      try {
+        const rules = Array.from(state.rulesByGroup.entries()).map(([groupId, effect]) => ({
+          principal_type: 'group',
+          principal_id: groupId,
+          effect,
+          action: 'use',
+        }));
+        const sameAsBase = getConnectionAclRulesSignature(rules) === getConnectionAclRulesSignature(baseRules);
+        if (typeof onApply === 'function') {
+          await onApply(sameAsBase ? null : cloneConnectionAclRules(rules), connection);
+        }
+        close();
+      } catch (err) {
+        if (saveErrorEl) saveErrorEl.textContent = err.message || 'Failed to save connection access';
+      } finally {
+        state.saving = false;
+        updateSaveButton();
+      }
+    });
+
+    updateSaveButton();
+    renderSummary();
+    renderList();
+    loadAccess();
+    document.body.appendChild(modal);
   };
 
   const render = () => {
@@ -338,15 +616,17 @@ export function renderConnectionsSettings(container, data) {
     if (connectionsState.loaded) return;
     connectionsState.loaded = true;
     try {
-      const res = await apiFetch('/api/admin/openai/connections');
+      const res = await apiFetch('/api/admin/openai/connections?include_disabled=1');
       if (!res.ok) {
         throw new Error('Failed to load connections');
       }
       const payload = await res.json();
       connectionsState.openai.enabled = payload?.enabled !== false;
-      connectionsState.openai.connections = Array.isArray(payload?.connections)
-        ? payload.connections.map((conn) => normalizeConnectionRecord(conn))
-        : [];
+      connectionsState.openai.connections = sortResourcesByEnabledThenLabel(
+        Array.isArray(payload?.connections)
+          ? payload.connections.map((conn) => normalizeConnectionRecord(conn))
+          : [],
+      );
       connectionsState.originalSnapshot = buildSnapshot();
       if (isActiveTab()) render();
     } catch (err) {
@@ -778,8 +1058,35 @@ export function renderConnectionsSettings(container, data) {
         const connection = connectionsState.openai.connections.find(c => c.id === id);
         if (connection) {
           connection.enabled = connection.enabled === false;
-          updateConnectionToggle(toggle, connection.enabled !== false);
+          const enabled = connection.enabled !== false;
+          const row = toggle.closest('[data-connection-row]');
+          updateConnectionToggle(toggle, enabled);
+          if (row) {
+            row.classList.toggle('opacity-70', !enabled);
+            const badge = row.querySelector('[data-connection-disabled-badge]');
+            if (badge) badge.classList.toggle('hidden', enabled);
+            const aclBtn = row.querySelector('.connection-acl-btn');
+            if (aclBtn) aclBtn.classList.toggle('hidden', !enabled);
+          }
           updateButtons();
+        }
+        return;
+      }
+      const aclBtn = e.target.closest('.connection-acl-btn');
+      if (aclBtn) {
+        const id = aclBtn.dataset.id;
+        const connection = connectionsState.openai.connections.find(c => c.id === id);
+        if (connection) {
+          openConnectionAccessModal(connection, {
+            onApply: async (rules) => {
+              if (!Array.isArray(rules) || rules.length === 0) {
+                connectionsState.aclDrafts.delete(connection.id);
+              } else {
+                connectionsState.aclDrafts.set(connection.id, cloneConnectionAclRules(rules));
+              }
+              updateButtons();
+            },
+          });
         }
         return;
       }
@@ -1048,8 +1355,19 @@ export function renderConnectionsSettings(container, data) {
           }
           connectionsState.modelOverrides.clear();
         }
+        const aclUpdates = Array.from(connectionsState.aclDrafts.entries())
+          .map(([connectionId, rules]) => ({
+            connectionId,
+            rules: cloneConnectionAclRules(rules),
+          }))
+          .filter((entry) => entry.connectionId && entry.rules.length > 0);
+        for (const entry of aclUpdates) {
+          await updateAdminConnectionAccess(entry.connectionId, entry.rules);
+          connectionsState.aclDrafts.delete(entry.connectionId);
+        }
         connectionsState.originalSnapshot = buildSnapshot();
         broadcastModelsInvalidation();
+        broadcastConnectionsInvalidation();
         if (feedback) {
           feedback.textContent = 'Connections saved. Chat model list will refresh.';
           feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
@@ -1079,6 +1397,7 @@ export function renderConnectionsSettings(container, data) {
     data.settingsDiscardHandlers.connections = () => {
       connectionsState.modelOverrides.clear();
       connectionsState.modalDrafts?.clear();
+      connectionsState.aclDrafts?.clear();
       connectionsState.newConnectionDraftId = null;
       connectionsState.modalModelsSelection = new Set();
       connectionsState.modalModelsOriginal = new Set();

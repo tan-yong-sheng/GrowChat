@@ -92,12 +92,21 @@ export function getClientSessionId() {
 }
 
 export async function apiFetch(path, options = {}) {
-  const auth = getAuthState();
+  let auth = getAuthState();
   const headers = new Headers(options.headers || {});
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
   if (!headers.has('Content-Type') && options.body && !isFormData) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  if (auth?.refresh_token && auth?.access_token && !isAccessTokenUsable(auth.access_token)) {
+    const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
+    if (refreshed) {
+      auth = refreshed;
+    } else {
+      auth = getAuthState();
+    }
   }
 
   if (auth?.access_token) {
@@ -110,17 +119,15 @@ export async function apiFetch(path, options = {}) {
     headers,
   });
 
-  let shouldRefresh = response.status === 401;
-  if (!shouldRefresh && response.status === 403) {
-    try {
-      const payload = await response.clone().json();
-      shouldRefresh = payload?.error === 'inactive_account';
-    } catch {
-      shouldRefresh = false;
+  if (response.status === 401 && auth?.refresh_token) {
+    const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
+    if (refreshed) {
+      headers.set('Authorization', `Bearer ${refreshed.access_token}`);
+      return fetch(path, { ...options, headers });
     }
   }
 
-  if (shouldRefresh && auth?.refresh_token) {
+  if (response.status === 403 && auth?.refresh_token && typeof path === 'string' && path.startsWith('/api/admin/')) {
     const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
     if (refreshed) {
       headers.set('Authorization', `Bearer ${refreshed.access_token}`);
@@ -166,7 +173,7 @@ export async function fetchChats({ q = '', limit = 20, offset = 0, signal } = {}
   return res.json();
 }
 
-export async function fetchModels({ signal, cache = 'default', cacheBust } = {}) {
+export async function fetchModels({ signal, cache = 'no-store', cacheBust } = {}) {
   const suffix = cacheBust ? `?t=${encodeURIComponent(cacheBust === true ? Date.now() : cacheBust)}` : '';
   const res = await apiFetch(`/api/models${suffix}`, { signal, cache });
   if (!res.ok) {
@@ -199,6 +206,157 @@ export async function fetchToolServers({ signal, cache = 'no-store' } = {}) {
   const res = await apiFetch('/api/tool-servers', { signal, cache });
   if (!res.ok) {
     const err = new Error(`Failed to fetch tool servers (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchUserConnections({ signal, cache = 'no-store' } = {}) {
+  const res = await apiFetch('/api/users/me/resources/connections', { signal, cache });
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch connections (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function createUserConnection(payload) {
+  const res = await apiFetch('/api/users/me/resources/connections', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let message = `Failed to create connection (${res.status})`;
+    try {
+      const data = await res.json();
+      message = data?.error || message;
+    } catch {
+    }
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function updateUserConnection(id, payload) {
+  const res = await apiFetch(`/api/users/me/resources/connections/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let message = `Failed to update connection (${res.status})`;
+    try {
+      const data = await res.json();
+      message = data?.error || message;
+    } catch {
+    }
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function deleteUserConnection(id) {
+  const res = await apiFetch(`/api/users/me/resources/connections/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    let message = `Failed to delete connection (${res.status})`;
+    try {
+      const data = await res.json();
+      message = data?.error || message;
+    } catch {
+    }
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function fetchUserMcpServers({ signal, cache = 'no-store' } = {}) {
+  const res = await apiFetch('/api/users/me/resources/mcp-servers', { signal, cache });
+  if (!res.ok) {
+    const err = new Error(`Failed to fetch MCP servers (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function testUserMcpServer(payload) {
+  const res = await apiFetch('/api/users/me/resources/mcp-servers/test', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let message = `Failed to test MCP server (${res.status})`;
+    try {
+      const data = await res.json();
+      message = data?.error || message;
+    } catch {
+    }
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function createUserMcpServer(payload) {
+  const res = await apiFetch('/api/users/me/resources/mcp-servers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let message = `Failed to create MCP server (${res.status})`;
+    try {
+      const data = await res.json();
+      message = data?.error || message;
+    } catch {
+    }
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function updateUserMcpServer(id, payload) {
+  const res = await apiFetch(`/api/users/me/resources/mcp-servers/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let message = `Failed to update MCP server (${res.status})`;
+    try {
+      const data = await res.json();
+      message = data?.error || message;
+    } catch {
+    }
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function deleteUserMcpServer(id) {
+  const res = await apiFetch(`/api/users/me/resources/mcp-servers/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    let message = `Failed to delete MCP server (${res.status})`;
+    try {
+      const data = await res.json();
+      message = data?.error || message;
+    } catch {
+    }
+    const err = new Error(message);
     err.status = res.status;
     throw err;
   }
@@ -423,6 +581,14 @@ export async function fetchAdminUsers({ limit = 200, offset = 0 } = {}) {
   return res.json();
 }
 
+export async function fetchAdminUserAccess(userId) {
+  const res = await apiFetch(`/api/admin/users/${encodeURIComponent(userId)}/access`, { cache: 'no-store' });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to inspect user access (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function fetchAdminGroups() {
   const res = await apiFetch('/api/admin/groups');
   if (!res.ok) {
@@ -441,6 +607,44 @@ export async function fetchAdminModels({ limit = 200, offset = 0, query = '', in
   const res = await apiFetch(`/api/admin/models?${params.toString()}`);
   if (!res.ok) {
     return parseApiError(res, `Failed to fetch models (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchAdminConnectionAccess(connectionId) {
+  const res = await apiFetch(`/api/admin/openai/connections/${encodeURIComponent(connectionId)}/access`);
+  if (!res.ok) {
+    return parseApiError(res, `Failed to fetch connection access (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function updateAdminConnectionAccess(connectionId, rules = []) {
+  const res = await apiFetch(`/api/admin/openai/connections/${encodeURIComponent(connectionId)}/access`, {
+    method: 'PUT',
+    body: JSON.stringify({ rules }),
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to update connection access (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchAdminToolServerAccess(toolServerId) {
+  const res = await apiFetch(`/api/admin/tool-servers/${encodeURIComponent(toolServerId)}/access`);
+  if (!res.ok) {
+    return parseApiError(res, `Failed to fetch MCP server access (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function updateAdminToolServerAccess(toolServerId, rules = []) {
+  const res = await apiFetch(`/api/admin/tool-servers/${encodeURIComponent(toolServerId)}/access`, {
+    method: 'PUT',
+    body: JSON.stringify({ rules }),
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to update MCP server access (${res.status})`);
   }
   return res.json();
 }
@@ -485,25 +689,6 @@ export async function deleteAdminGroup(groupId) {
   return res;
 }
 
-export async function fetchGroupDefaultPermissions() {
-  const res = await apiFetch('/api/admin/groups/default-permissions');
-  if (!res.ok) {
-    return parseApiError(res, `Failed to fetch default permissions (${res.status})`);
-  }
-  return res.json();
-}
-
-export async function updateGroupDefaultPermissions(payload) {
-  const res = await apiFetch('/api/admin/groups/default-permissions', {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    return parseApiError(res, `Failed to update default permissions (${res.status})`);
-  }
-  return res.json();
-}
-
 export async function addGroupMembers(groupId, userIds = []) {
   const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}/users`, {
     method: 'POST',
@@ -522,25 +707,6 @@ export async function removeGroupMembers(groupId, userIds = []) {
   });
   if (!res.ok) {
     return parseApiError(res, `Failed to remove group members (${res.status})`);
-  }
-  return res.json();
-}
-
-export async function fetchGroupModelAccess(groupId) {
-  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}/models`);
-  if (!res.ok) {
-    return parseApiError(res, `Failed to fetch group models (${res.status})`);
-  }
-  return res.json();
-}
-
-export async function updateGroupModelAccess(groupId, modelIds = []) {
-  const res = await apiFetch(`/api/admin/groups/${encodeURIComponent(groupId)}/models`, {
-    method: 'PUT',
-    body: JSON.stringify({ model_ids: modelIds }),
-  });
-  if (!res.ok) {
-    return parseApiError(res, `Failed to update group models (${res.status})`);
   }
   return res.json();
 }

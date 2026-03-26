@@ -105,6 +105,165 @@ describe('admin models settings', () => {
       mocks.apiFetch.mock.calls.some(([url]) => /provider=openai(\+|%20)main/.test(String(url)))
     ).toBe(true);
   });
+
+  it('dims disabled models and hides the ACL lock button for them', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    mocks.apiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith('/api/admin/models?')) {
+        return new Response(JSON.stringify({
+          models: [
+            { id: 'model-a', name: 'Model A', enabled: true, attachments: { image: false, pdf: false } },
+            { id: 'model-b', name: 'Model B', enabled: false, attachments: { image: false, pdf: false } },
+          ],
+          total: 2,
+          active_total: 1,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    renderModelsSettings(container, data);
+    await vi.waitFor(() => expect(container.querySelector('#models-table-body')).not.toBeNull());
+    await vi.waitFor(() => expect(container.textContent).toContain('Model B'));
+
+    const rows = Array.from(container.querySelectorAll('#models-table-body tr'));
+    const disabledRow = rows.find((row) => row.textContent.includes('Model B'));
+    expect(disabledRow).toBeTruthy();
+    expect(disabledRow.className).toContain('opacity-70');
+    expect(disabledRow.querySelector('[data-model-acl]')).toBeNull();
+    expect(disabledRow.querySelector('.model-toggle')).toBeTruthy();
+  });
+
+  it('hides and restores the model ACL lock button immediately when toggling enabled state', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    renderModelsSettings(container, data);
+    await vi.waitFor(() => expect(container.querySelector('[data-model-acl="model-a"]')).not.toBeNull());
+
+    container.querySelector('.model-toggle')?.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-model-acl="model-a"]')?.classList.contains('hidden')).toBe(true));
+
+    container.querySelector('.model-toggle')?.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-model-acl="model-a"]')?.classList.contains('hidden')).toBe(false));
+  });
+
+  it('keeps model rows in place while toggling enabled state', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    mocks.apiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith('/api/admin/models?')) {
+        return new Response(JSON.stringify({
+          models: [
+            { id: 'model-z', name: 'Model Z', enabled: true, attachments: { image: false, pdf: false } },
+            { id: 'model-a', name: 'Model A', enabled: false, attachments: { image: false, pdf: false } },
+          ],
+          total: 2,
+          active_total: 1,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    renderModelsSettings(container, data);
+    await vi.waitFor(() => expect(container.querySelectorAll('#models-table-body tr').length).toBe(2));
+
+    const initialRows = Array.from(container.querySelectorAll('#models-table-body tr')).map((row) => row.textContent.trim());
+    expect(initialRows[0]).toContain('Model Z');
+    expect(initialRows[1]).toContain('Model A');
+
+    const modelAToggle = Array.from(container.querySelectorAll('.model-toggle')).find((button) => button.dataset.modelId === 'model-a');
+    modelAToggle?.click();
+
+    await vi.waitFor(() => {
+      const rows = Array.from(container.querySelectorAll('#models-table-body tr')).map((row) => row.textContent.trim());
+      expect(rows[0]).toContain('Model Z');
+      expect(rows[1]).toContain('Model A');
+    });
+  });
+
+  it('keeps an explicit No Access ACL draft dirty and saves an empty rule set', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    mocks.apiFetch.mockImplementation(async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl.startsWith('/api/admin/models?')) {
+        return new Response(JSON.stringify({
+          models: [
+            {
+              id: 'openai/env-openai-0:gemini-2.5-flash',
+              name: 'gemini-2.5-flash',
+              enabled: true,
+              attachments: { image: false, pdf: false },
+            },
+          ],
+          total: 1,
+          active_total: 1,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (requestUrl === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' && (!options.method || options.method === 'GET')) {
+        return new Response(JSON.stringify({
+          model_id: 'openai/env-openai-0:gemini-2.5-flash',
+          groups: [
+            { id: 'group-1', name: 'test1', description: 'Test Group', is_system: false },
+          ],
+          rules: [
+            {
+              model_id: 'openai/env-openai-0:gemini-2.5-flash',
+              principal_type: 'group',
+              principal_id: 'group-1',
+              effect: 'allow',
+              action: 'use',
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (requestUrl === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' && options.method === 'PUT') {
+        return new Response(JSON.stringify({
+          model_id: 'openai/env-openai-0:gemini-2.5-flash',
+          rules: [],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    renderModelsSettings(container, data);
+    await vi.waitFor(() => expect(container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]')).not.toBeNull());
+
+    container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]').click();
+    await vi.waitFor(() => {
+      expect(mocks.apiFetch.mock.calls.some(([url]) => String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access')).toBe(true);
+    });
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Test Group'));
+
+    const select = document.querySelector('.model-acl-effect[data-group-id="group-1"]');
+    expect(select).toBeTruthy();
+    select.value = 'none';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await vi.waitFor(() => expect(container.querySelector('#save-models-top')).not.toBeNull());
+    expect(container.querySelector('#save-models-top').disabled).toBe(true);
+
+    document.querySelector('#model-acl-save-btn').click();
+    await vi.waitFor(() => expect(container.querySelector('#save-models-top').disabled).toBe(false));
+
+    container.querySelector('#save-models-top').click();
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ rules: [] }),
+      })
+    ));
+  });
 });
 
 

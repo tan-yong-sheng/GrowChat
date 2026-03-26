@@ -5,6 +5,7 @@ import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { buildMetadataSystemPrompt } from '../llm/system-prompt.js';
 import { trimTrailingAssistantMessages } from './chat-history.js';
+import { authorize } from '../utils/authorize.js';
 import {
   getOwnedChat,
   getMessageSnapshot,
@@ -28,14 +29,42 @@ import {
   normalizeAttachmentIds,
   isSupportedAttachmentType,
 } from '../chat/attachments.js';
-import { enforceGroupModelAccess } from '../utils/group-model-access.js';
+import { buildModelAclIndex, evaluateModelAclAccess, loadModelAclRules } from '../utils/model-acl.js';
 
-async function ensureModelAllowed(req, db, userId, model) {
-  const { allowed } = await enforceGroupModelAccess(db, userId, model);
-  if (!allowed) {
-    return error(req, 'Model not allowed for this group', 403);
+async function ensureModelAllowed(req, env, db, user, model) {
+  const useDecision = await authorize(env, user, {
+    action: 'model.use',
+    resource: 'model',
+    resourceId: model,
+  });
+  if (!useDecision.allow) {
+    return { error: error(req, useDecision.reason || 'Forbidden', 403) };
   }
-  return null;
+
+  const providerInfo = await resolveProviderForModel(env, model, {
+    userId: user?.sub || '',
+    userRole: user?.role || 'member',
+  });
+  if (providerInfo?.error) {
+    return { error: error(req, providerInfo.error, 400) };
+  }
+
+  const groupRows = user?.sub
+    ? await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub])
+    : [];
+  const userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
+  const aclRules = await loadModelAclRules(db, model);
+  const aclIndex = buildModelAclIndex(aclRules);
+  const access = evaluateModelAclAccess({ connection_source: providerInfo?.connection?.source }, {
+    user,
+    userGroupIds,
+    rules: aclIndex.get(model) || [],
+  });
+  if (!access.allowed) {
+    return { error: error(req, 'Model not allowed', 403) };
+  }
+
+  return { providerInfo, access };
 }
 
 function normalizeSelectedToolNames(input) {
@@ -95,13 +124,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       model = await resolveDefaultModel(env, db, user.sub);
     }
 
-    const accessError = await ensureModelAllowed(req, db, user.sub, model);
-    if (accessError) return accessError;
-
-    const providerInfo = await resolveProviderForModel(env, model);
-    if (providerInfo?.error) {
-      return error(req, providerInfo.error, 400);
-    }
+    const modelDecision = await ensureModelAllowed(req, env, db, user, model);
+    if (modelDecision?.error) return modelDecision.error;
+    const providerInfo = modelDecision.providerInfo;
 
     let attachmentParts = [];
     const rawAttachmentIds = Array.isArray(body.attachments) ? body.attachments : [];
@@ -383,13 +408,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       model = await resolveDefaultModel(env, db, user.sub);
     }
 
-    const accessError = await ensureModelAllowed(req, db, user.sub, model);
-    if (accessError) return accessError;
-
-    const providerInfo = await resolveProviderForModel(env, model);
-    if (providerInfo?.error) {
-      return error(req, providerInfo.error, 400);
-    }
+    const modelDecision = await ensureModelAllowed(req, env, db, user, model);
+    if (modelDecision?.error) return modelDecision.error;
+    const providerInfo = modelDecision.providerInfo;
 
     let attachmentParts = [];
     let attachmentDocs = [];
@@ -569,13 +590,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       model = await resolveDefaultModel(env, db, user.sub);
     }
 
-    const accessError = await ensureModelAllowed(req, db, user.sub, model);
-    if (accessError) return accessError;
-
-    const providerInfo = await resolveProviderForModel(env, model);
-    if (providerInfo?.error) {
-      return error(req, providerInfo.error, 400);
-    }
+    const modelDecision = await ensureModelAllowed(req, env, db, user, model);
+    if (modelDecision?.error) return modelDecision.error;
+    const providerInfo = modelDecision.providerInfo;
 
     let body = {};
     try {

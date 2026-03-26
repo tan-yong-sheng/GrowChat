@@ -14,6 +14,7 @@ import {
   buildAuthorizationUrl,
   discoverAuthorizationMetadata,
   isValidHttpUrl,
+  createUserToolServer,
   loadToolServers,
   mergeToolServer,
   mergeToolSpecs,
@@ -55,6 +56,89 @@ describe('admin tool server helpers', () => {
 
     await saveToolServers({}, [{ id: 's2' }]);
     expect(mocks.setConfigValue).toHaveBeenCalledWith({}, 'tool_servers', '[{"id":"s2"}]');
+  });
+
+  it('includes user-owned tool servers when a user id is provided', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn().mockResolvedValue([
+        {
+          id: 'mcp-user',
+          user_id: 'u1',
+          server_json: JSON.stringify({
+            id: 'mcp-user',
+            name: 'Personal MCP',
+            url: 'https://mcp.example.com',
+            enabled: true,
+          }),
+        },
+      ]),
+      first: vi.fn(),
+    };
+    mocks.getConfigValue.mockResolvedValueOnce('[]');
+
+    const servers = await loadToolServers(db, { userId: 'u1' });
+    expect(servers).toEqual([
+      expect.objectContaining({
+        id: 'mcp-user',
+        source: 'user',
+        personal: true,
+      }),
+    ]);
+  });
+
+  it('filters admin tool servers by ACL when a user id is provided', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM group_members')) {
+          return [{ group_id: 'g1' }];
+        }
+        if (String(sql).includes('FROM tool_server_acl_rules')) {
+          return [
+            {
+              id: 'rule-1',
+              tool_server_id: 'mcp-admin',
+              principal_type: 'group',
+              principal_id: 'g1',
+              effect: 'allow',
+              action: 'use',
+            },
+          ];
+        }
+        if (String(sql).includes('FROM user_tool_servers')) {
+          return [];
+        }
+        return [];
+      }),
+      first: vi.fn().mockResolvedValue({ role: 'user' }),
+    };
+    mocks.getConfigValue.mockResolvedValueOnce(JSON.stringify([
+      { id: 'mcp-admin', name: 'Admin MCP', url: 'https://mcp.example.com', enabled: true },
+      { id: 'mcp-hidden', name: 'Hidden MCP', url: 'https://hidden.example.com', enabled: true },
+    ]));
+
+    const servers = await loadToolServers(db, { userId: 'u1' });
+    expect(servers).toEqual([
+      expect.objectContaining({
+        id: 'mcp-admin',
+        access_label: 'Shared',
+        access_variant: 'shared',
+      }),
+    ]);
+  });
+
+  it('validates user-owned MCP server urls', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn(),
+      first: vi.fn().mockResolvedValue(null),
+    };
+
+    await expect(createUserToolServer(db, 'u1', {
+      name: 'Bad MCP',
+      url: 'ftp://example.com',
+    })).rejects.toThrow('url must start with http:// or https://');
   });
 
   it('merges and redacts tool server secrets', () => {

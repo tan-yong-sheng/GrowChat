@@ -19,6 +19,7 @@ export function serializeUserProfile(row) {
     email: row.email,
     name: row.name,
     role: row.role,
+    account_status: row.account_status === 'pending' ? 'pending' : 'active',
     settings: parseJsonObject(row.settings),
     avatar: row.avatar || null,
     avatar_emoji: row.avatar_emoji || null,

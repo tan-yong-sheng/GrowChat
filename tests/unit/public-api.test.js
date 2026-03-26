@@ -79,7 +79,7 @@ describe('public api helpers', () => {
     expect(readChatsCache(null)).toBeNull();
   });
 
-  it('refreshes auth and retries a request after 401', async () => {
+  it('refreshes auth before a request when the access token is stale', async () => {
     setAuthState({ access_token: 'old-access', refresh_token: 'old-refresh', user: { id: 'u1' } });
 
     const headerSnapshots = [];
@@ -92,9 +92,6 @@ describe('public api helpers', () => {
       });
 
       if (headerSnapshots.length === 1) {
-        return Promise.resolve(new Response('', { status: 401 }));
-      }
-      if (headerSnapshots.length === 2) {
         return Promise.resolve(jsonResponse({
           access_token: 'new-access',
           refresh_token: 'new-refresh',
@@ -111,14 +108,19 @@ describe('public api helpers', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     expect(headerSnapshots[0]).toMatchObject({
+      url: '/api/auth/refresh',
+      authorization: null,
+      contentType: null,
+    });
+    expect(headerSnapshots[1].clientSessionId).toBeTruthy();
+    expect(headerSnapshots[1]).toMatchObject({
       url: '/api/chats',
-      authorization: 'Bearer old-access',
+      authorization: 'Bearer new-access',
       contentType: 'application/json',
     });
-    expect(headerSnapshots[0].clientSessionId).toBeTruthy();
 
     expect(getAuthState()).toEqual({
       access_token: 'new-access',

@@ -10,8 +10,7 @@
  */
 export const DENIAL_REASONS = {
   MISSING_PERMISSION: 'missing_permission',
-  INACTIVE_ACCOUNT: 'inactive_account',
-  INSUFFICIENT_SCOPE: 'insufficient_scope',
+  ACCOUNT_NOT_ACTIVE: 'account_not_active',
   LAST_OWNER_PROTECTED: 'last_owner_protected',
   SYSTEM_ROLE_IMMUTABLE: 'system_role_immutable',
   INVALID_REQUEST: 'invalid_request',
@@ -32,16 +31,18 @@ const LEGACY_ROLE_PERMISSION_MAP = {
     'admin.audit.read',
     'admin.rbac.admin',
   ],
+  member: [
+    'chat.read',
+    'chat.write',
+    'model.use',
+    'file.upload',
+  ],
   user: [
     'chat.read',
     'chat.write',
-    'chat.delete',
-    'chat.share',
     'model.use',
     'file.upload',
-    'file.delete',
   ],
-  inactive: [],
 };
 
 function getLegacyFallbackPermissions(role) {
@@ -77,15 +78,13 @@ async function resolveRolePermissionsByRoleName(env, roleName) {
  *
  * @param {Object} env - Cloudflare environment with DB binding
  * @param {Object} user - User object with sub (user ID)
- * @param {Object} context - Optional context { scope_type, scope_id }
  * @returns {Promise<string[]>} Array of permission keys user has
  */
-export async function resolvePermissions(env, user, context = {}) {
+export async function resolvePermissions(env, user) {
   if (!user?.sub) return [];
 
   try {
     // Query: Get all permissions for user's roles
-    // Respects scope: if scope_type/scope_id provided, includes both global and scoped permissions
     const roleQuery = `
       SELECT DISTINCT p.key
       FROM permissions p
@@ -93,42 +92,19 @@ export async function resolvePermissions(env, user, context = {}) {
       INNER JOIN roles r ON rp.role_id = r.id
       INNER JOIN user_roles ur ON r.id = ur.role_id
       WHERE ur.user_id = ?
-        AND (ur.scope_type IS NULL OR (ur.scope_type = ? AND ur.scope_id = ?))
     `;
 
-    const roleResult = await env.DB.prepare(roleQuery).bind(
-      user.sub,
-      context.scope_type || null,
-      context.scope_id || null
-    ).all();
+    const roleResult = await env.DB.prepare(roleQuery).bind(user.sub).all();
 
     const rolePermissions = (roleResult.results || []).map((row) => row.key);
 
-    let groupPermissions = [];
-    try {
-      const groupQuery = `
-        SELECT DISTINCT p.key
-        FROM permissions p
-        INNER JOIN group_permissions gp ON p.id = gp.permission_id
-        INNER JOIN groups g ON gp.group_id = g.id
-        INNER JOIN group_members gm ON g.id = gm.group_id
-        WHERE gm.user_id = ?
-      `;
-      const groupResult = await env.DB.prepare(groupQuery).bind(user.sub).all();
-      groupPermissions = (groupResult.results || []).map((row) => row.key);
-    } catch (err) {
-      if (!/no such table:\s*(groups|group_members|group_permissions)/i.test(String(err?.message || ''))) {
-        throw err;
-      }
-    }
-
-    const resolved = [...rolePermissions, ...groupPermissions];
+    const resolved = [...rolePermissions];
     const uniqueResolved = Array.from(new Set(resolved));
     if (uniqueResolved.length > 0) return uniqueResolved;
 
-    // Compatibility fallback for legacy records without user_roles entries.
+    // Fallback for users that have not yet been materialized into user_roles.
     const persistedRole = await loadUserRoleFromUsersTable(env, user.sub);
-    if (!persistedRole || persistedRole === 'inactive') return [];
+    if (!persistedRole) return [];
 
     const mappedRole = persistedRole === 'admin' ? 'admin' : 'member';
     const mappedPermissions = await resolveRolePermissionsByRoleName(env, mappedRole);
@@ -150,12 +126,11 @@ export async function resolvePermissions(env, user, context = {}) {
  * @param {string} options.action - Permission action (e.g., 'admin.user.write')
  * @param {string} options.resource - Resource type (optional)
  * @param {string} options.resourceId - Resource ID (optional)
- * @param {Object} options.context - Additional context (optional)
  * @returns {Promise<Object>} { allow: boolean, reason?: string }
  */
 export async function authorize(env, user, options = {}) {
   // Default deny
-  const { action, context } = options;
+  const { action } = options;
 
   // Validate inputs
   if (!action || typeof action !== 'string') {
@@ -172,14 +147,14 @@ export async function authorize(env, user, options = {}) {
     return {
       allow: false,
       code: 'forbidden',
-      reason: DENIAL_REASONS.INACTIVE_ACCOUNT,
+      reason: DENIAL_REASONS.ACCOUNT_NOT_ACTIVE,
       action,
     };
   }
 
   try {
     // Resolve user's permissions
-    const permissions = await resolvePermissions(env, user, context);
+    const permissions = await resolvePermissions(env, user);
 
     // Check if user has required permission
     if (permissions.includes(action)) {
@@ -447,12 +422,12 @@ export async function getAuditLog(env, options = {}) {
  *
  * @param {Object} env - Cloudflare environment with DB binding
  * @param {string} userId - User ID
- * @returns {Promise<Object[]>} Array of { role_id, role_name, scope_type, scope_id }
+ * @returns {Promise<Object[]>} Array of { role_id, role_name }
  */
 export async function getUserRoles(env, userId) {
   try {
     const query = `
-      SELECT ur.id, ur.role_id, r.name as role_name, ur.scope_type, ur.scope_id
+      SELECT ur.id, ur.role_id, r.name as role_name
       FROM user_roles ur
       INNER JOIN roles r ON ur.role_id = r.id
       WHERE ur.user_id = ?

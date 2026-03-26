@@ -18,18 +18,22 @@ export class UserRepository {
 
   async create(user) {
     const id = user.id || crypto.randomUUID();
+    const accountStatus = String(user.accountStatus || user.account_status || 'active').trim().toLowerCase() === 'pending'
+      ? 'pending'
+      : 'active';
     try {
       await this.db.run(
         `INSERT INTO users (
-          id, email, password_hash, name, role, settings, preferences,
+          id, email, password_hash, name, role, account_status, settings, preferences,
           created_at, updated_at, last_active_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch(), unixepoch())`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch(), unixepoch())`,
         [
           id,
           user.email,
           user.passwordHash,
           user.name,
           user.role || 'user',
+          accountStatus,
           user.settings || '{}',
           user.preferences || '{}',
         ]
@@ -37,17 +41,18 @@ export class UserRepository {
     } catch (err) {
       if (/no such column:\s*last_active_at/i.test(String(err?.message || ''))) {
         await this.db.run(
-          'INSERT INTO users (id, email, password_hash, name, role, settings, preferences, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())',
+          'INSERT INTO users (id, email, password_hash, name, role, account_status, settings, preferences, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())',
           [
             id,
             user.email,
             user.passwordHash,
             user.name,
             user.role || 'user',
-            user.settings || '{}',
-            user.preferences || '{}',
-          ]
-        );
+            accountStatus,
+          user.settings || '{}',
+          user.preferences || '{}',
+        ]
+      );
       } else {
         throw err;
       }

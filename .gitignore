@@ -23,8 +23,9 @@ ClawRouter/
 dev-local.err.log
 dev-local.out.log
 
-package-lock.json
+.tmpdb/
 test-results/
+policies.yml
 
 .agents/*
 .claude/*

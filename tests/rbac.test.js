@@ -61,7 +61,7 @@ const authorizationTests = {
       test: async () => {
         // When: authorization fails
         // Then: response should include reason code
-        // Expected codes: missing_permission, inactive_account, insufficient_scope, last_owner_protected
+        // Expected codes: missing_permission, account_not_active, insufficient_scope, last_owner_protected
         return 'PASS: Should return denial codes';
       },
     },
@@ -300,11 +300,11 @@ const errorHandlingTests = {
     {
       name: 'Inactive user denied all requests',
       test: async () => {
-        // Given: user with role='inactive'
+        // Given: user with account_status='pending'
         // When: attempt any authenticated API call
         // Then: should return 403 Account deactivated
-        // Expected: enforcement in src/index.js loadUserRole()
-        return 'PASS: Should deny inactive users';
+        // Expected: enforcement in src/index.js account_status gate
+        return 'PASS: Should deny pending users';
       },
     },
   ],

@@ -57,6 +57,8 @@ function serializeAllowedToolServers(servers = []) {
         id: String(server.id),
         name: String(server.name || '').trim(),
         enabled: true,
+        access_label: server.access_label || (server.source === 'user' ? 'Personal' : 'Admin'),
+        access_variant: server.access_variant || (server.source === 'user' ? 'personal' : 'admin'),
         tools,
       };
     })
@@ -106,7 +108,7 @@ export async function chatRouter(req, env, ctx, user, path) {
   const originSessionId = getOriginSessionId(req);
 
   if (req.method === 'GET' && path === '/api/tool-servers') {
-    const servers = await loadToolServers(db);
+    const servers = await loadToolServers(db, { userId: user.sub });
     return json(req, { servers: serializeAllowedToolServers(servers) });
   }
 

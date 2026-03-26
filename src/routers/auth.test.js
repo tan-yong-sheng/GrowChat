@@ -94,6 +94,7 @@ describe('authRouter', () => {
       email: 'user@example.com',
       name: 'User',
       role: 'admin',
+      account_status: 'active',
       settings: '{}',
       created_at: 1,
       updated_at: 1,
@@ -114,6 +115,7 @@ describe('authRouter', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.user.email).toBe('user@example.com');
+    expect(body.user.account_status).toBe('active');
     expect(body.access_token).toBe('jwt-token');
     expect(body.refresh_token).toBe('refresh-token');
     expect(body.expires_in).toBe(900);
@@ -129,7 +131,8 @@ describe('authRouter', () => {
       id: 'u2',
       email: 'pending@example.com',
       name: 'Pending User',
-      role: 'inactive',
+      role: 'user',
+      account_status: 'pending',
       settings: '{}',
       created_at: 1,
       updated_at: 1,
@@ -149,15 +152,16 @@ describe('authRouter', () => {
 
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.user.role).toBe('inactive');
+    expect(body.user.role).toBe('user');
+    expect(body.user.account_status).toBe('pending');
     expect(body.status).toBe('pending');
     expect(body.message).toBe('Account pending approval.');
     expect(body.access_token).toBeUndefined();
     expect(body.refresh_token).toBeUndefined();
     expect(mocks.createRefreshToken).not.toHaveBeenCalled();
     expect(mocks.db.run).toHaveBeenCalledWith(
-      'UPDATE users SET role = ?, updated_at = unixepoch() WHERE id = ?',
-      ['inactive', expect.any(String)]
+      expect.stringContaining('INSERT INTO users'),
+      expect.arrayContaining(['pending', expect.any(String)])
     );
   });
 
@@ -190,6 +194,7 @@ describe('authRouter', () => {
       email: 'user@example.com',
       name: 'User',
       role: 'user',
+      account_status: 'active',
       password_hash: 'stored-hash',
       settings: '{}',
       created_at: 1,
@@ -219,6 +224,7 @@ describe('authRouter', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
+    expect(body.user.account_status).toBe('active');
     expect(body.access_token).toBe('jwt-token');
     expect(body.refresh_token).toBe('refresh-token');
     expect(mocks.verifyPassword).toHaveBeenCalledWith('password123', 'stored-hash');
@@ -230,7 +236,8 @@ describe('authRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'inactive',
+      role: 'user',
+      account_status: 'pending',
       password_hash: 'stored-hash',
       settings: '{}',
       created_at: 1,
@@ -251,7 +258,7 @@ describe('authRouter', () => {
 
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toMatchObject({
-      error: 'inactive_account',
+      error: 'pending_account',
       message: 'Account pending approval.',
     });
     expect(mocks.createRefreshToken).not.toHaveBeenCalled();
@@ -264,6 +271,7 @@ describe('authRouter', () => {
       email: 'user@example.com',
       name: 'User',
       role: 'user',
+      account_status: 'active',
       password_hash: 'stored-hash',
       settings: '{}',
       created_at: 1,
@@ -294,6 +302,7 @@ describe('authRouter', () => {
       email: 'user@example.com',
       name: 'User',
       role: 'user',
+      account_status: 'active',
       settings: '{}',
       created_at: 1,
       updated_at: 1,
@@ -302,6 +311,7 @@ describe('authRouter', () => {
       email: 'user@example.com',
       name: 'User',
       role: 'user',
+      account_status: 'active',
       settings: '{}',
       created_at: 1,
       updated_at: 1,
@@ -317,6 +327,7 @@ describe('authRouter', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
+    expect(body.user.account_status).toBe('active');
     expect(body.access_token).toBe('jwt-token');
     expect(body.refresh_token).toBe('refresh-token');
   });

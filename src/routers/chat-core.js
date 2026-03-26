@@ -58,14 +58,18 @@ export async function resolveDefaultModel(env, db, userId) {
   return defaultModel(env);
 }
 
-export async function resolveProviderForModel(env, model) {
+export async function resolveProviderForModel(env, model, options = {}) {
   if (!model) return { error: 'Model is required' };
+  const userId = String(options.userId || '').trim();
   let parsed = parseModelId(model);
   let connection = null;
   let providerFamily = null;
 
   if (!parsed) {
-    const enabledConnections = await getAllOpenAIConnectionConfigs(env);
+    const enabledConnections = await getAllOpenAIConnectionConfigs(env, {
+      userId,
+      userRole: options.userRole || 'member',
+    });
     if (enabledConnections.length === 0) {
       return { error: 'No provider connection configured' };
     }
@@ -78,7 +82,11 @@ export async function resolveProviderForModel(env, model) {
     if (!providerInfo?.connectionId) {
       return { error: 'Invalid provider id' };
     }
-    const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+    const allConnections = await getAllOpenAIConnectionConfigs(env, {
+      includeDisabled: true,
+      userId,
+      userRole: options.userRole || 'member',
+    });
     connection = allConnections.find((conn) => {
       if (String(conn.id) !== providerInfo.connectionId) return false;
       const family = normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai';

@@ -12,6 +12,7 @@ import { renderGeneralSettings } from './settings/general.js';
 import { renderConnectionsSettings } from './settings/connections.js';
 import { renderModelsSettings } from './settings/models.js';
 import { renderIntegrationsSettings } from './settings/integrations.js';
+import { renderPoliciesSettings } from './settings/policies.js';
 import { renderCurrentRoute } from '../../bootstrap/app.js';
 
 function wireSidebar(root) {
@@ -132,32 +133,32 @@ function renderSettingsLayout(subTab) {
   return `
     <div class="flex flex-col md:flex-row h-full w-full">
       <div id="settings-tabs-container" class="w-full md:w-52 flex-none flex flex-row md:flex-col p-2 md:p-4 gap-1 text-sm font-medium border-b md:border-b-0 md:border-r border-gray-50 overflow-x-auto">
-      <a href="/admin/settings/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-          <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
-        </svg>
-        <span class="whitespace-nowrap">General</span>
-      </a>
-      <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-          <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
-        </svg>
-        <span class="whitespace-nowrap">Connections</span>
-      </a>
-      <a href="/admin/settings/models" data-subnav="models" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'models' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-          <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
-          <path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" />
-        </svg>
-        <span class="whitespace-nowrap">Models</span>
-      </a>
-      <a href="/admin/settings/integrations" data-subnav="integrations" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'integrations' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-          <path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" />
-          <path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" />
-        </svg>
-        <span class="whitespace-nowrap">Integrations</span>
-      </a>
+        <a href="/admin/settings/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+            <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
+          </svg>
+          <span class="whitespace-nowrap">General</span>
+        </a>
+        <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+            <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
+          </svg>
+          <span class="whitespace-nowrap">Connections</span>
+        </a>
+        <a href="/admin/settings/models" data-subnav="models" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'models' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+            <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
+            <path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" />
+          </svg>
+          <span class="whitespace-nowrap">Models</span>
+        </a>
+        <a href="/admin/settings/integrations" data-subnav="integrations" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'integrations' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+            <path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" />
+            <path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" />
+          </svg>
+          <span class="whitespace-nowrap">Integrations</span>
+        </a>
       </div>
       <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden p-4 md:p-6"></div>
     </div>
@@ -179,6 +180,13 @@ function renderUsersLayout(subTab) {
           <path d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.156 11.763c.16-.629.44-1.21.813-1.72a2.5 2.5 0 0 0-2.725 1.377c-.136.287.102.58.418.58h1.449c.01-.077.025-.156.045-.237ZM12.847 11.763c.02.08.036.16.046.237h1.446c.316 0 .554-.293.417-.579a2.5 2.5 0 0 0-2.722-1.378c.374.51.653 1.09.813 1.72ZM14 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 13c-.552 0-1.013-.455-.876-.99a4.002 4.002 0 0 1 7.753 0c.136.535-.324.99-.877.99H5Z"/>
         </svg>
         <span class="whitespace-nowrap">Groups</span>
+      </a>
+      <a href="/admin/users/policies" data-subnav="policies" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'policies' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+          <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
+          <path d="M5 5.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 5.5ZM5 8a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8ZM5 10.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 5 10.5Z" />
+        </svg>
+        <span class="whitespace-nowrap">Policies</span>
       </a>
       </div>
       <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden p-4 md:p-6"></div>
@@ -212,7 +220,7 @@ export async function renderAdminPage(container) {
 
   const updateRouteInfo = () => {
     const path = window.location.pathname;
-    
+
     if (path === '/admin/users' || path === '/admin/users/') {
       window.history.replaceState({}, '', '/admin/users/overview');
       mainTab = 'users';
@@ -232,12 +240,15 @@ export async function renderAdminPage(container) {
       if (path.includes('/connections')) subTab = 'connections';
       else if (path.includes('/integrations')) subTab = 'integrations';
       else if (path.includes('/models')) subTab = 'models';
+      else if (path.includes('/policies')) subTab = 'policies';
       else subTab = 'general';
       return;
     }
 
     mainTab = 'users';
-    subTab = path.includes('/groups') ? 'groups' : 'overview';
+    if (path.includes('/policies')) subTab = 'policies';
+    else if (path.includes('/groups')) subTab = 'groups';
+    else subTab = 'overview';
   };
 
   const promptUnsavedChanges = () => new Promise((resolve) => {
@@ -308,9 +319,12 @@ export async function renderAdminPage(container) {
   const sortUsers = (users) => users
     .slice()
     .sort((a, b) => {
-      const roleOrder = { admin: 0, user: 1, inactive: 2 };
-      const roleDiff = (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3);
+      const roleOrder = { admin: 0, user: 1 };
+      const statusOrder = { active: 0, pending: 1 };
+      const roleDiff = (roleOrder[a.role] ?? 2) - (roleOrder[b.role] ?? 2);
       if (roleDiff !== 0) return roleDiff;
+      const statusDiff = (statusOrder[a.account_status] ?? 2) - (statusOrder[b.account_status] ?? 2);
+      if (statusDiff !== 0) return statusDiff;
       const nameDiff = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
       if (nameDiff !== 0) return nameDiff;
       return String(a.email || '').localeCompare(String(b.email || ''), undefined, { sensitivity: 'base' });
@@ -346,7 +360,7 @@ export async function renderAdminPage(container) {
     if (!mainContentEl) return;
 
     const tabsContainer = container.querySelector('#users-tabs-container') || container.querySelector('#settings-tabs-container');
-    
+
     if (!tabsContainer) {
       if (mainTab === 'users') {
         mainContentEl.innerHTML = renderUsersLayout(subTab);
@@ -369,6 +383,13 @@ export async function renderAdminPage(container) {
               <path d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.156 11.763c.16-.629.44-1.21.813-1.72a2.5 2.5 0 0 0-2.725 1.377c-.136.287.102.58.418.58h1.449c.01-.077.025-.156.045-.237ZM12.847 11.763c.02.08.036.16.046.237h1.446c.316 0 .554-.293.417-.579a2.5 2.5 0 0 0-2.722-1.378c.374.51.653 1.09.813 1.72ZM14 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 13c-.552 0-1.013-.455-.876-.99a4.002 4.002 0 0 1 7.753 0c.136.535-.324.99-.877.99H5Z"/>
             </svg>
             <span>Groups</span>
+          </a>
+          <a href="/admin/users/policies" data-subnav="policies" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'policies' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
+              <path d="M5 5.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 5.5ZM5 8a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8ZM5 10.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 5 10.5Z" />
+            </svg>
+            <span>Policies</span>
           </a>
         `;
       } else {
@@ -397,9 +418,9 @@ export async function renderAdminPage(container) {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
               <path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" />
               <path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" />
-            </svg>
-            <span>Integrations</span>
-          </a>
+              </svg>
+              <span>Integrations</span>
+            </a>
         `;
       }
       bindSubnav();
@@ -408,14 +429,17 @@ export async function renderAdminPage(container) {
     const subContentEl = container.querySelector('#admin-sub-content');
     if (!subContentEl) return;
 
+    subContentEl.dataset.settingsTab = subTab;
+
     if (mainTab === 'settings') {
-      subContentEl.dataset.settingsTab = subTab;
       if (subTab === 'general') {
         renderGeneralSettings(subContentEl, data);
       } else if (subTab === 'connections') {
         renderConnectionsSettings(subContentEl, data);
       } else if (subTab === 'models') {
         renderModelsSettings(subContentEl, data);
+      } else if (subTab === 'policies') {
+        renderPoliciesSettings(subContentEl, data);
       } else if (subTab === 'integrations') {
         renderIntegrationsSettings(subContentEl, data);
       } else {
@@ -431,6 +455,11 @@ export async function renderAdminPage(container) {
           </div>
         `;
       }
+      return;
+    }
+
+    if (mainTab === 'users' && subTab === 'policies') {
+      renderPoliciesSettings(subContentEl, data);
       return;
     }
 

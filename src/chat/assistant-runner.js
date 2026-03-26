@@ -94,7 +94,7 @@ export function createAssistantRunner(deps) {
     selectedToolNames = null,
   }) {
     const assistantMsgId = crypto.randomUUID();
-    const servers = await loadToolServers(db);
+    const servers = await loadToolServers(db, { userId: user?.sub || '' });
     const selectedToolNameList = Array.isArray(selectedToolNames)
       ? selectedToolNames.map((name) => String(name || '').trim()).filter(Boolean)
       : null;
@@ -201,6 +201,8 @@ export function createAssistantRunner(deps) {
                 stream = await streamLLM(env, model, messagesForModel, {
                   tools: toolsEnabled ? tools : undefined,
                   toolChoice,
+                  userId: user?.sub || '',
+                  userRole: user?.role || 'member',
                 });
               } catch (err) {
                 await recordAttachmentCapabilityFailure(db, model, attachmentKinds, err);

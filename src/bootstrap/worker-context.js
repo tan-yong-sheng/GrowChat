@@ -43,6 +43,18 @@ export async function loadUserRole(env, userId) {
   }
 }
 
+export async function loadUserAccountStatus(env, userId) {
+  if (!userId) return null;
+  try {
+    const row = await env.DB.prepare('SELECT account_status FROM users WHERE id = ?').bind(userId).first();
+    if (!row) return null;
+    const normalized = String(row.account_status || 'active').trim().toLowerCase();
+    return normalized === 'pending' ? 'pending' : 'active';
+  } catch {
+    return null;
+  }
+}
+
 export async function touchLastActive(env, userId) {
   if (!userId || !env?.DB) return;
   try {

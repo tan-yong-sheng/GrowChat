@@ -9,7 +9,7 @@ import { createDB } from '../db.js';
 import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue } from '../utils/app-config.js';
-import { filterModelsByAllowlist, loadGroupModelAccessForUser } from '../utils/group-model-access.js';
+import { buildModelAclIndex, evaluateModelAclAccess, loadModelAclRules, normalizeModelAclRule, saveModelAclRulesForModel } from '../utils/model-acl.js';
 import { dedupeConnectionConfigs, discoverConnectionModels, extractConnectionModelId, getAllOpenAIConnectionConfigs, normalizeConnectionManualModels } from '../llm/connections.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../llm/model-state.js';
 import { buildProviderId, formatModelId, normalizeProviderFamily } from '../llm/provider-registry.js';
@@ -147,6 +147,7 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
           provider_id: providerId,
           connection_id: conn.id,
           connection_name: conn.name || null,
+          connection_source: conn.source || null,
           free: false,
           description: `Model discovered from ${discovery.url || conn.baseUrl}`,
         });
@@ -172,6 +173,7 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
           provider_id: providerId,
           connection_id: conn.id,
           connection_name: conn.name || null,
+          connection_source: conn.source || null,
           free: false,
           description: 'Configured via OPENAI_MODELS',
         });
@@ -195,6 +197,7 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         provider_id: providerId,
         connection_id: conn.id,
         connection_name: conn.name || null,
+        connection_source: conn.source || null,
         free: false,
         description: 'Manually added to this connection',
         manual: true,
@@ -237,6 +240,7 @@ function toPublicModel(model) {
     provider_id: model.provider_id,
     connection_id: model.connection_id,
     connection_name: model.connection_name,
+    connection_source: model.connection_source || null,
     free: Boolean(model.free),
     description: model.description || '',
     suggestion_prompts: Array.isArray(model.suggestion_prompts) ? model.suggestion_prompts : [],
@@ -388,7 +392,10 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       // Load base models from OpenAI-compatible env configuration.
       // If this fails, log but continue with baseModels = []
       try {
-        modelConnections = await getAllOpenAIConnectionConfigs(env);
+        modelConnections = await getAllOpenAIConnectionConfigs(env, {
+          userId: user?.sub || '',
+          userRole: user?.role || 'member',
+        });
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
         console.warn('Failed to fetch base models from OpenAI-compatible sources:', err.message);
@@ -421,12 +428,29 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         if (disabledSet.size > 0) {
           publicModels = publicModels.filter((model) => !disabledSet.has(model.id));
         }
-        if (user?.sub) {
-          const allowlist = await loadGroupModelAccessForUser(db, user.sub);
-          if (allowlist.length) {
-            publicModels = filterModelsByAllowlist(publicModels, allowlist);
-          }
-        }
+        const userGroupRows = user?.sub
+          ? await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub])
+          : [];
+        const userGroupIds = new Set((Array.isArray(userGroupRows) ? userGroupRows : []).map((row) => row.group_id).filter(Boolean));
+        const aclRules = await loadModelAclRules(db);
+        const aclIndex = buildModelAclIndex(aclRules);
+
+        publicModels = publicModels
+          .map((model) => {
+            const access = evaluateModelAclAccess(model, {
+              user,
+              userGroupIds,
+              rules: aclIndex.get(model.id) || [],
+            });
+            return {
+              ...model,
+              access_label: access.access_label,
+              access_variant: access.access_variant,
+              allowed: access.allowed,
+            };
+          })
+          .filter((model) => model.allowed === true)
+          .map(({ allowed, ...model }) => model);
       }
       publicModels = sortModelsByActiveThenName(publicModels);
       const total = publicModels.length;
@@ -455,7 +479,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         offset: offset
       }, {
         etag,
-        cacheControl: 'public, max-age=60, stale-while-revalidate=300',
+        cacheControl: 'private, no-store',
       });
     } catch (err) {
       console.error('Unexpected error listing models:', err);
@@ -463,7 +487,150 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     }
   }
 
+  if (req.method === 'GET' && path === '/api/admin/models/access') {
+    const authDecision = await authorize(env, user, {
+      action: 'model.admin',
+      resource: 'model',
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    try {
+      const db = createDB(env.DB);
+      const url = new URL(req.url);
+      const ids = String(url.searchParams.get('ids') || '')
+        .split(',')
+        .map((value) => decodeURIComponent(String(value || '').trim()))
+        .filter(Boolean);
+      const groups = await db.all(
+        `SELECT id, name, description, is_system, created_at, updated_at
+         FROM groups
+         ORDER BY is_system DESC, name ASC`
+      );
+      const rules = await loadModelAclRules(db, null, ids.length ? ids : null);
+      return json(req, {
+        model_ids: ids,
+        groups,
+        rules,
+      });
+    } catch (err) {
+      console.error('Load model access failed:', err);
+      return error(req, 'Failed to load model access', 500);
+    }
+  }
+
   // GET /api/admin/models - List models with enabled state (admin only)
+  const modelAccessMatch = path.match(/^\/api\/admin\/models\/([^/]+)\/access$/);
+  if (modelAccessMatch) {
+    const modelId = (() => {
+      try {
+        return decodeURIComponent(modelAccessMatch[1]);
+      } catch {
+        return modelAccessMatch[1];
+      }
+    })();
+    const authDecision = await authorize(env, user, {
+      action: 'model.admin',
+      resource: 'model',
+      resourceId: modelId,
+    });
+
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    if (req.method === 'GET') {
+      try {
+        const db = createDB(env.DB);
+        const groups = await db.all(
+          `SELECT id, name, description, is_system, created_at, updated_at
+           FROM groups
+           ORDER BY is_system DESC, name ASC`
+        );
+        const rules = await loadModelAclRules(db, modelId);
+        return json(req, {
+          model_id: modelId,
+          groups,
+          rules,
+        });
+      } catch (err) {
+        console.error('Load model access failed:', err);
+        return error(req, 'Failed to load model access', 500);
+      }
+    }
+
+    if (req.method === 'PUT') {
+      let body;
+      try {
+        body = JSON.parse(await req.text());
+      } catch {
+        return error(req, 'Invalid JSON body', 400);
+      }
+
+      try {
+        const db = createDB(env.DB);
+        const accessMap = await getModelAccessMap(db);
+        const isEnabled = accessMap.has(modelId) ? accessMap.get(modelId) : true;
+        if (!isEnabled) {
+          return error(req, 'Disabled models cannot be edited', 409);
+        }
+        const groups = await db.all('SELECT id FROM groups');
+        const validGroupIds = new Set(groups.map((group) => group.id));
+        const incomingRules = Array.isArray(body.rules) ? body.rules : [];
+        const filteredRules = [];
+        const invalidPrincipalTypes = [];
+        for (const rule of incomingRules) {
+          const normalized = normalizeModelAclRule({ ...rule, model_id: modelId });
+          if (!normalized) continue;
+          if (normalized.principal_type !== 'group') {
+            invalidPrincipalTypes.push(normalized.principal_type);
+            continue;
+          }
+          if (!validGroupIds.has(normalized.principal_id)) continue;
+          filteredRules.push(normalized);
+        }
+        if (invalidPrincipalTypes.length) {
+          return error(req, 'Invalid principal_type for model access', 400, {
+            invalid: Array.from(new Set(invalidPrincipalTypes)),
+          });
+        }
+
+        const savedRules = await saveModelAclRulesForModel(db, modelId, filteredRules);
+
+        await logAuditEvent(env, {
+          actor_id: user.sub,
+          action: 'model_access_updated',
+          resource_type: 'model',
+          resource_id: modelId,
+          metadata: {
+            rules: savedRules.map((rule) => ({
+              principal_type: rule.principal_type,
+              principal_id: rule.principal_id,
+              effect: rule.effect,
+              action: rule.action,
+            })),
+          },
+        });
+
+        return json(req, {
+          model_id: modelId,
+          rules: savedRules.map((rule) => ({
+            principal_type: rule.principal_type,
+            principal_id: rule.principal_id,
+            effect: rule.effect,
+            action: rule.action,
+          })),
+        });
+      } catch (err) {
+        console.error('Update model access failed:', err);
+        return error(req, 'Failed to update model access', 500);
+      }
+    }
+
+    return error(req, 'Method not allowed', 405);
+  }
+
   if (req.method === 'GET' && path === '/api/admin/models') {
     const authDecision = await authorize(env, user, {
       action: 'model.admin',

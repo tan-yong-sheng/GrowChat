@@ -20,6 +20,8 @@ export function renderGeneralSettings(container, data) {
 
   const isDirty = () => isGeneralSettingsDirty(settingsState);
   data.settingsDirtyCheckers.general = isDirty;
+  let registrationStatusBox = null;
+  let modelBox = null;
 
   const updatePublicRegToggle = () => {
     const regToggle = container.querySelector('#public-reg-toggle');
@@ -44,6 +46,17 @@ export function renderGeneralSettings(container, data) {
     statusWrap.classList.toggle('hidden', !settingsState.currentValues.publicRegistration);
   };
 
+  const renderSelectBox = (id, optionsHtml, { ariaLabel } = {}) => `
+    <div class="relative rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
+      <select id="${id}" aria-label="${ariaLabel || id}" class="w-full appearance-none bg-transparent pr-8 text-sm text-gray-900 outline-none">
+        ${optionsHtml}
+      </select>
+      <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400">
+        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.942l3.71-3.71a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08Z" clip-rule="evenodd" />
+      </svg>
+    </div>
+  `;
+
   const render = () => {
     if (!isActiveTab()) return;
     const dirty = isDirty();
@@ -62,7 +75,6 @@ export function renderGeneralSettings(container, data) {
         <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden">
           <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
             <section class="space-y-1">
-              <div class="text-base font-medium text-gray-900 px-0.5">General</div>
               <hr class="border-gray-100/30 my-2" />
               
               <div class="py-2.5">
@@ -83,12 +95,10 @@ export function renderGeneralSettings(container, data) {
 
               <div id="registration-status-wrap" class="py-2.5 ${toggleState.isOn ? '' : 'hidden'}">
                 <div class="text-xs font-medium mb-1">Registration Status</div>
-                <div class="relative">
-                  <select id="registration-status" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 appearance-none pr-8 transition">
-                    <option value="active" ${settingsState.currentValues.registrationStatus === 'active' ? 'selected' : ''}>Active</option>
-                    <option value="pending" ${settingsState.currentValues.registrationStatus !== 'active' ? 'selected' : ''}>Pending</option>
-                  </select>
-                </div>
+                ${renderSelectBox('registration-status', `
+                  <option value="active" ${settingsState.currentValues.registrationStatus === 'active' ? 'selected' : ''}>Active</option>
+                  <option value="pending" ${settingsState.currentValues.registrationStatus !== 'active' ? 'selected' : ''}>Pending</option>
+                `, { ariaLabel: 'Registration Status' })}
                 <div id="registration-status-hint" class="text-[10px] text-gray-400 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
               </div>
             </section>
@@ -99,12 +109,10 @@ export function renderGeneralSettings(container, data) {
               
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">Global Default Model</div>
-                <div class="relative">
-                  <select id="default-model" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 appearance-none pr-8 transition">
-                    <option value="">Select a model</option>
-                    ${settingsState.models.map((m) => `<option value="${m.id}" ${settingsState.currentValues.defaultModelId === m.id ? 'selected' : ''}>${m.name || m.id}</option>`).join('')}
-                  </select>
-                </div>
+                ${renderSelectBox('default-model', `
+                  <option value="">Select a model</option>
+                  ${settingsState.models.map((m) => `<option value="${m.id}" ${settingsState.currentValues.defaultModelId === m.id ? 'selected' : ''}>${m.name || m.id}</option>`).join('')}
+                `, { ariaLabel: 'Global Default Model' })}
                 <div id="default-model-hint" class="text-[10px] text-amber-600 mt-1 hidden">Unsaved change</div>
               </div>
             </section>
@@ -227,6 +235,8 @@ export function renderGeneralSettings(container, data) {
     const modelSelect = container.querySelector('#default-model');
     const saveBtn = container.querySelector('#save-settings');
     const feedback = container.querySelector('#settings-feedback');
+    registrationStatusBox = container.querySelector('#registration-status')?.parentElement;
+    modelBox = container.querySelector('#default-model')?.parentElement;
 
     regToggle?.addEventListener('click', () => {
       settingsState.currentValues.publicRegistration = !settingsState.currentValues.publicRegistration;
@@ -269,12 +279,20 @@ export function renderGeneralSettings(container, data) {
       registrationStatusSelect.classList.toggle('bg-amber-50', registrationStatusDirty);
       registrationStatusSelect.classList.toggle('text-amber-700', registrationStatusDirty);
     }
+    if (registrationStatusBox) {
+      registrationStatusBox.classList.toggle('border-amber-200', registrationStatusDirty);
+      registrationStatusBox.classList.toggle('bg-amber-50/60', registrationStatusDirty);
+    }
     if (registrationStatusHint) {
       registrationStatusHint.classList.toggle('text-amber-600', registrationStatusDirty);
     }
     if (modelSelect) {
       modelSelect.classList.toggle('bg-amber-50', modelDirty);
       modelSelect.classList.toggle('text-amber-700', modelDirty);
+    }
+    if (modelBox) {
+      modelBox.classList.toggle('border-amber-200', modelDirty);
+      modelBox.classList.toggle('bg-amber-50/60', modelDirty);
     }
     if (modelHint) {
       modelHint.classList.toggle('hidden', !modelDirty);

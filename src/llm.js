@@ -5,7 +5,7 @@ export { SseLineParser, parseSseChunk } from './llm/stream-parser.js';
 
 export async function streamLLM(env, model, messages, options = {}) {
   if (!model) throw new Error('Model is required');
-  const { tools, toolChoice, stream = true } = options || {};
+  const { tools, toolChoice, stream = true, userId = '', userRole = 'member' } = options || {};
   const LLM_CONNECT_TIMEOUT_MS = 30000;
 
   if (model.startsWith('@cf/')) {
@@ -17,7 +17,7 @@ export async function streamLLM(env, model, messages, options = {}) {
   let providerInfo = null;
 
   if (!parsed) {
-    const enabledConnections = await getAllOpenAIConnectionConfigs(env);
+    const enabledConnections = await getAllOpenAIConnectionConfigs(env, { userId, userRole });
     if (enabledConnections.length === 0) {
       throw new Error('No provider connection configured');
     }
@@ -32,7 +32,7 @@ export async function streamLLM(env, model, messages, options = {}) {
       throw new Error('Invalid provider id');
     }
 
-    const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+    const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true, userId, userRole });
     primaryConn = allConnections.find((conn) => {
       if (String(conn.id) !== providerInfo.connectionId) return false;
       const family = normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai';

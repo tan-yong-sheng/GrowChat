@@ -10,7 +10,8 @@ import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../chat/attachments.js';
-import { buildConnectionHeaders, buildEnvOpenAIConnections, discoverConnectionModels, ensureConnectionId, extractConnectionModelId, getConnectionApiType, getConnectionDefaultBaseUrl, getEnvOpenAIOverrides, isConnectionUrlRequired, normalizeConnectionManualModels } from '../llm/connections.js';
+import { buildConnectionHeaders, buildEnvOpenAIConnections, discoverConnectionModels, ensureConnectionId, extractConnectionModelId, getAllOpenAIConnectionConfigs, getConnectionApiType, getConnectionDefaultBaseUrl, getEnvOpenAIOverrides, isConnectionUrlRequired, normalizeConnectionManualModels } from '../llm/connections.js';
+import { loadConnectionAclRules, normalizeConnectionAclRule, saveConnectionAclRulesForConnection } from '../utils/connection-acl.js';
 import { normalizeProviderFamily } from '../llm/provider-registry.js';
 import { MCP_PROTOCOL_VERSION } from '../mcp/client.js';
 import {
@@ -33,6 +34,11 @@ import {
   selectTokenAuthMethod,
   sha256Base64Url,
 } from '../admin/tool-servers.js';
+import {
+  loadToolServerAclRules,
+  normalizeToolServerAclRule,
+  saveToolServerAclRulesForToolServer,
+} from '../utils/tool-server-acl.js';
 import { mcpNotify, mcpRequest } from '../mcp/client.js';
 
 /**
@@ -49,6 +55,18 @@ export async function adminRouter(req, env, ctx, user, path) {
     requiredPermission = 'admin.rbac.admin';
   }
   if (path === '/api/admin/openai/connections' || path === '/api/admin/openai/connections/test' || path === '/api/admin/openai/env') {
+    requiredPermission = 'admin.rbac.admin';
+  }
+  if (path.startsWith('/api/admin/openai/connections/') && path.endsWith('/access')) {
+    requiredPermission = 'admin.rbac.admin';
+  }
+  if (path === '/api/admin/openai/connections/access') {
+    requiredPermission = 'admin.rbac.admin';
+  }
+  if (path.startsWith('/api/admin/tool-servers/') && path.endsWith('/access')) {
+    requiredPermission = 'admin.rbac.admin';
+  }
+  if (path === '/api/admin/tool-servers/access') {
     requiredPermission = 'admin.rbac.admin';
   }
   if (
@@ -68,6 +86,252 @@ export async function adminRouter(req, env, ctx, user, path) {
   }
 
   const db = createDB(env.DB);
+
+  if (req.method === 'GET' && path === '/api/admin/openai/connections/access') {
+    try {
+      const url = new URL(req.url);
+      const ids = String(url.searchParams.get('ids') || '')
+        .split(',')
+        .map((value) => decodeURIComponent(String(value || '').trim()))
+        .filter(Boolean);
+      const groups = await db.all(
+        `SELECT id, name, description, is_system, created_at, updated_at
+         FROM groups
+         ORDER BY is_system DESC, name ASC`
+      );
+      const rules = await loadConnectionAclRules(db, null, ids.length ? ids : null);
+      return json(req, {
+        connection_ids: ids,
+        groups,
+        rules,
+      });
+    } catch (err) {
+      console.error('Load connection access failed:', err);
+      return error(req, 'Failed to load connection access', 500);
+    }
+  }
+
+  const connectionAccessMatch = path.match(/^\/api\/admin\/openai\/connections\/([^/]+)\/access$/);
+  if (connectionAccessMatch) {
+    const connectionId = (() => {
+      try {
+        return decodeURIComponent(connectionAccessMatch[1]);
+      } catch {
+        return connectionAccessMatch[1];
+      }
+    })();
+
+    if (req.method === 'GET') {
+      try {
+        const groups = await db.all(
+          `SELECT id, name, description, is_system, created_at, updated_at
+           FROM groups
+           ORDER BY is_system DESC, name ASC`
+        );
+        const rules = await loadConnectionAclRules(db, connectionId);
+        return json(req, {
+          connection_id: connectionId,
+          groups,
+          rules,
+        });
+      } catch (err) {
+        console.error('Load connection access failed:', err);
+        return error(req, 'Failed to load connection access', 500);
+      }
+    }
+
+    if (req.method === 'PUT') {
+      let body;
+      try {
+        body = await req.json();
+      } catch {
+        return error(req, 'Invalid JSON body', 400);
+      }
+
+      try {
+        const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find((conn) => String(conn.id || '') === String(connectionId));
+        if (!currentConnection || currentConnection.enabled === false) {
+          return error(req, 'Disabled connections cannot be edited', 409);
+        }
+        const groups = await db.all('SELECT id FROM groups');
+        const validGroupIds = new Set(groups.map((group) => group.id));
+        const incomingRules = Array.isArray(body.rules) ? body.rules : [];
+        const filteredRules = [];
+        const invalidPrincipalTypes = [];
+        for (const rule of incomingRules) {
+          const normalized = normalizeConnectionAclRule({ ...rule, connection_id: connectionId });
+          if (!normalized) continue;
+          if (normalized.principal_type !== 'group') {
+            invalidPrincipalTypes.push(normalized.principal_type);
+            continue;
+          }
+          if (!validGroupIds.has(normalized.principal_id)) continue;
+          filteredRules.push(normalized);
+        }
+        if (invalidPrincipalTypes.length) {
+          return error(req, 'Invalid principal_type for connection access', 400, {
+            invalid: Array.from(new Set(invalidPrincipalTypes)),
+          });
+        }
+
+        const savedRules = await saveConnectionAclRulesForConnection(db, connectionId, filteredRules);
+
+        await logAuditEvent(env, {
+          actor_id: user.sub,
+          action: 'connection_access_updated',
+          resource_type: 'connection',
+          resource_id: connectionId,
+          metadata: {
+            rules: savedRules.map((rule) => ({
+              principal_type: rule.principal_type,
+              principal_id: rule.principal_id,
+              effect: rule.effect,
+              action: rule.action,
+            })),
+          },
+        });
+
+        return json(req, {
+          connection_id: connectionId,
+          rules: savedRules.map((rule) => ({
+            principal_type: rule.principal_type,
+            principal_id: rule.principal_id,
+            effect: rule.effect,
+            action: rule.action,
+          })),
+        });
+      } catch (err) {
+        console.error('Update connection access failed:', err);
+        return error(req, 'Failed to update connection access', 500);
+      }
+    }
+
+    return error(req, 'Method not allowed', 405);
+  }
+
+  if (req.method === 'GET' && path === '/api/admin/tool-servers/access') {
+    try {
+      const url = new URL(req.url);
+      const ids = String(url.searchParams.get('ids') || '')
+        .split(',')
+        .map((value) => decodeURIComponent(String(value || '').trim()))
+        .filter(Boolean);
+      const groups = await db.all(
+        `SELECT id, name, description, is_system, created_at, updated_at
+         FROM groups
+         ORDER BY is_system DESC, name ASC`
+      );
+      const rules = await loadToolServerAclRules(db, null, ids.length ? ids : null);
+      return json(req, {
+        tool_server_ids: ids,
+        groups,
+        rules,
+      });
+    } catch (err) {
+      console.error('Load tool server access failed:', err);
+      return error(req, 'Failed to load MCP server access', 500);
+    }
+  }
+
+  const toolServerAccessMatch = path.match(/^\/api\/admin\/tool-servers\/([^/]+)\/access$/);
+  if (toolServerAccessMatch) {
+    const toolServerId = (() => {
+      try {
+        return decodeURIComponent(toolServerAccessMatch[1]);
+      } catch {
+        return toolServerAccessMatch[1];
+      }
+    })();
+
+    if (req.method === 'GET') {
+      try {
+        const groups = await db.all(
+          `SELECT id, name, description, is_system, created_at, updated_at
+           FROM groups
+           ORDER BY is_system DESC, name ASC`
+        );
+        const rules = await loadToolServerAclRules(db, toolServerId);
+        return json(req, {
+          tool_server_id: toolServerId,
+          groups,
+          rules,
+        });
+      } catch (err) {
+        console.error('Load tool server access failed:', err);
+        return error(req, 'Failed to load MCP server access', 500);
+      }
+    }
+
+    if (req.method === 'PUT') {
+      let body;
+      try {
+        body = await req.json();
+      } catch {
+        return error(req, 'Invalid JSON body', 400);
+      }
+
+      try {
+        const servers = await loadToolServers(db);
+        const currentServer = (Array.isArray(servers) ? servers : []).find((server) => String(server.id || '') === String(toolServerId));
+        if (!currentServer || currentServer.enabled === false) {
+          return error(req, 'Disabled MCP servers cannot be edited', 409);
+        }
+        const groups = await db.all('SELECT id FROM groups');
+        const validGroupIds = new Set(groups.map((group) => group.id));
+        const incomingRules = Array.isArray(body.rules) ? body.rules : [];
+        const filteredRules = [];
+        const invalidPrincipalTypes = [];
+        for (const rule of incomingRules) {
+          const normalized = normalizeToolServerAclRule({ ...rule, tool_server_id: toolServerId, action: 'use' });
+          if (!normalized) continue;
+          if (normalized.principal_type !== 'group') {
+            invalidPrincipalTypes.push(normalized.principal_type);
+            continue;
+          }
+          if (!validGroupIds.has(normalized.principal_id)) continue;
+          filteredRules.push(normalized);
+        }
+        if (invalidPrincipalTypes.length) {
+          return error(req, 'Invalid principal_type for MCP server access', 400, {
+            invalid: Array.from(new Set(invalidPrincipalTypes)),
+          });
+        }
+
+        const savedRules = await saveToolServerAclRulesForToolServer(db, toolServerId, filteredRules);
+
+        await logAuditEvent(env, {
+          actor_id: user.sub,
+          action: 'tool_server_access_updated',
+          resource_type: 'tool-server',
+          resource_id: toolServerId,
+          metadata: {
+            rules: savedRules.map((rule) => ({
+              principal_type: rule.principal_type,
+              principal_id: rule.principal_id,
+              effect: rule.effect,
+              action: rule.action,
+            })),
+          },
+        });
+
+        return json(req, {
+          tool_server_id: toolServerId,
+          rules: savedRules.map((rule) => ({
+            principal_type: rule.principal_type,
+            principal_id: rule.principal_id,
+            effect: rule.effect,
+            action: rule.action,
+          })),
+        });
+      } catch (err) {
+        console.error('Update tool server access failed:', err);
+        return error(req, 'Failed to update MCP server access', 500);
+      }
+    }
+
+    return error(req, 'Method not allowed', 405);
+  }
 
   // GET /api/admin/config - Fetch admin configuration
   if (req.method === 'GET' && path === '/api/admin/config') {
@@ -284,6 +548,8 @@ export async function adminRouter(req, env, ctx, user, path) {
   // GET /api/admin/openai/connections - List OpenAI connections
   if (req.method === 'GET' && path === '/api/admin/openai/connections') {
     try {
+      const url = new URL(req.url);
+      const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
       const envConnections = buildEnvOpenAIConnections(env);
       const envOverrides = await getEnvOpenAIOverrides(env);
       envConnections.forEach((conn) => {
@@ -313,7 +579,9 @@ export async function adminRouter(req, env, ctx, user, path) {
 
       return json(req, {
         enabled,
-        connections: [...envConnections, ...manualConnections]
+        connections: includeDisabled
+          ? [...envConnections, ...manualConnections]
+          : [...envConnections, ...manualConnections].filter((connection) => connection.enabled !== false)
       });
     } catch (err) {
       console.error('OpenAI connections fetch failed:', err);
@@ -407,8 +675,11 @@ export async function adminRouter(req, env, ctx, user, path) {
   // GET /api/admin/tool-servers - List tool servers
   if (req.method === 'GET' && path === '/api/admin/tool-servers') {
     try {
+      const url = new URL(req.url);
+      const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
       const servers = await loadToolServers(db);
-      return json(req, { servers: servers.map(redactToolServer) });
+      const filtered = includeDisabled ? servers : servers.filter((server) => server.enabled !== false);
+      return json(req, { servers: filtered.map(redactToolServer) });
     } catch (err) {
       console.error('Tool servers fetch failed:', err);
       return error(req, 'Failed to fetch tool servers', 500);

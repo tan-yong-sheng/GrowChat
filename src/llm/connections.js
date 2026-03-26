@@ -1,5 +1,6 @@
 import { createDB } from '../db.js';
 import { getConfigValue } from '../utils/app-config.js';
+import { buildConnectionAclIndex, evaluateConnectionAclAccess, loadConnectionAclRules } from '../utils/connection-acl.js';
 import { getConnectionProviderFamily, normalizeProviderFamily } from './provider-registry.js';
 import { buildProviderId } from './provider-registry.js';
 
@@ -96,7 +97,13 @@ export function dedupeConnectionConfigs(connections = []) {
     const existing = deduped[existingIndex];
     const existingIsEnv = existing?.source === 'env';
     const incomingIsEnv = conn?.source === 'env';
-    if (existingIsEnv && !incomingIsEnv) {
+    const existingIsConfig = existing?.source === 'config';
+    const incomingIsConfig = conn?.source === 'config';
+    const existingIsUser = existing?.source === 'user';
+    const incomingIsUser = conn?.source === 'user';
+    const existingPriority = existingIsUser ? 2 : (existingIsConfig ? 1 : 0);
+    const incomingPriority = incomingIsUser ? 2 : (incomingIsConfig ? 1 : 0);
+    if (incomingPriority > existingPriority || (existingIsEnv && !incomingIsEnv)) {
       deduped[existingIndex] = conn;
     }
   }
@@ -474,8 +481,213 @@ export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
   }
 }
 
+async function ensureUserConnectionsTable(db) {
+  if (!db) return;
+  await db.run(
+    `CREATE TABLE IF NOT EXISTS user_connections (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      provider_type TEXT NOT NULL DEFAULT 'openai-compatible',
+      base_url TEXT NOT NULL,
+      key TEXT NOT NULL DEFAULT '',
+      headers TEXT NOT NULL DEFAULT '{}',
+      auth_type TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      manual_models TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      UNIQUE(user_id, id)
+    )`
+  );
+  await db.run('CREATE INDEX IF NOT EXISTS idx_user_connections_user_id ON user_connections(user_id)');
+  await db.run('CREATE INDEX IF NOT EXISTS idx_user_connections_enabled ON user_connections(enabled)');
+}
+
+function parseUserConnectionHeaders(raw) {
+  return safeParseHeaders(raw);
+}
+
+function parseUserConnectionManualModels(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return normalizeConnectionManualModels(raw);
+  try {
+    const parsed = JSON.parse(String(raw));
+    return normalizeConnectionManualModels(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeUserConnectionRow(row, index = 0) {
+  if (!row) return null;
+  const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
+  if (!baseUrl) return null;
+  const providerType = String(row.provider_type || row.providerType || 'openai-compatible').trim().toLowerCase() || 'openai-compatible';
+  const providerFamily = normalizeProviderFamily(row.provider_family || row.providerFamily || providerType) || 'openai';
+  const id = ensureConnectionId({
+    id: row.id,
+    providerType,
+    providerFamily,
+    baseUrl,
+    key: row.key || '',
+    headers: row.headers || '{}',
+  }, index);
+  return {
+    id,
+    name: String(row.name || `${labelFromFamily(providerFamily)} Personal`).slice(0, 120),
+    baseUrl,
+    url: baseUrl,
+    key: String(row.key || '').trim(),
+    headers: parseUserConnectionHeaders(row.headers),
+    source: 'user',
+    enabled: row.enabled !== 0 && row.enabled !== false,
+    providerType,
+    providerFamily,
+    providerId: buildProviderId({ id, providerType, providerFamily }),
+    authType: normalizeAuthType(row.auth_type || row.authType),
+    apiType: getConnectionApiType(providerType),
+    manualModels: parseUserConnectionManualModels(row.manual_models || row.manualModels),
+    ownerUserId: row.user_id || row.userId || null,
+    personal: true,
+  };
+}
+
+export async function loadUserOpenAIConnectionConfigs(db, userId, options = {}) {
+  const includeDisabled = options.includeDisabled === true;
+  if (!db || !userId) return [];
+  try {
+    await ensureUserConnectionsTable(db);
+    const rawRows = await db.all(
+      `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, created_at, updated_at
+       FROM user_connections
+       WHERE user_id = ?
+       ORDER BY updated_at DESC, created_at DESC, name ASC`,
+      [userId]
+    );
+    const rows = Array.isArray(rawRows) ? rawRows : [];
+    const normalized = rows
+      .map((row, index) => normalizeUserConnectionRow(row, index))
+      .filter(Boolean);
+    if (includeDisabled) return normalized;
+    return normalized.filter((conn) => conn.enabled !== false);
+  } catch (err) {
+    console.warn('Failed to load user connections:', err?.message || err);
+    return [];
+  }
+}
+
+export async function getUserOpenAIConnectionConfig(db, userId, connectionId) {
+  if (!db || !userId || !connectionId) return null;
+  try {
+    await ensureUserConnectionsTable(db);
+    const row = await db.first(
+      `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, created_at, updated_at
+       FROM user_connections
+       WHERE user_id = ? AND id = ?`,
+      [userId, connectionId]
+    );
+    return normalizeUserConnectionRow(row);
+  } catch (err) {
+    console.warn('Failed to load user connection:', err?.message || err);
+    return null;
+  }
+}
+
+function normalizeUserConnectionInput(input = {}, existing = null) {
+  const name = String(input.name || existing?.name || '').trim();
+  const providerType = String(input.provider_type || input.providerType || existing?.providerType || 'openai-compatible').trim().toLowerCase() || 'openai-compatible';
+  const providerFamily = normalizeProviderFamily(input.provider_family || input.providerFamily || existing?.providerFamily || providerType) || 'openai';
+  const baseUrlRaw = input.base_url !== undefined ? input.base_url : input.baseUrl;
+  const resolvedBaseUrl = normalizeBaseUrl(baseUrlRaw || existing?.baseUrl || getConnectionDefaultBaseUrl(providerType));
+  const keyRaw = input.key;
+  const headersRaw = input.headers !== undefined ? input.headers : existing?.headers;
+  const authType = normalizeAuthType(input.auth_type || input.authType || existing?.authType || '');
+  const enabled = input.enabled !== undefined ? input.enabled !== false : existing?.enabled !== false;
+  const manualModels = normalizeConnectionManualModels(
+    Array.isArray(input.manual_models) ? input.manual_models : (Array.isArray(input.manualModels) ? input.manualModels : (existing?.manualModels || []))
+  );
+  return {
+    name,
+    providerType,
+    providerFamily,
+    baseUrl: resolvedBaseUrl,
+    key: keyRaw !== undefined ? String(keyRaw || '').trim() : String(existing?.key || '').trim(),
+    headers: headersRaw !== undefined ? safeParseHeaders(headersRaw) : safeParseHeaders(existing?.headers),
+    authType,
+    enabled,
+    manualModels,
+  };
+}
+
+export async function createUserOpenAIConnection(db, userId, input = {}) {
+  if (!db || !userId) throw new Error('User id is required');
+  await ensureUserConnectionsTable(db);
+  const connection = normalizeUserConnectionInput(input);
+  if (!connection.name) throw new Error('name is required');
+  if (!connection.baseUrl) throw new Error('base_url is required');
+  const id = crypto.randomUUID();
+  await db.run(
+    `INSERT INTO user_connections (
+      id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
+    [
+      id,
+      userId,
+      connection.name,
+      connection.providerType,
+      connection.baseUrl,
+      connection.key,
+      JSON.stringify(connection.headers || {}),
+      connection.authType,
+      connection.enabled ? 1 : 0,
+      JSON.stringify(connection.manualModels || []),
+    ]
+  );
+  return getUserOpenAIConnectionConfig(db, userId, id);
+}
+
+export async function updateUserOpenAIConnection(db, userId, connectionId, input = {}) {
+  if (!db || !userId || !connectionId) throw new Error('Connection id is required');
+  await ensureUserConnectionsTable(db);
+  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
+  if (!existing) return null;
+  const connection = normalizeUserConnectionInput(input, existing);
+  if (!connection.name) throw new Error('name is required');
+  if (!connection.baseUrl) throw new Error('base_url is required');
+  await db.run(
+    `UPDATE user_connections
+     SET name = ?, provider_type = ?, base_url = ?, key = ?, headers = ?, auth_type = ?, enabled = ?, manual_models = ?, updated_at = unixepoch()
+     WHERE user_id = ? AND id = ?`,
+    [
+      connection.name,
+      connection.providerType,
+      connection.baseUrl,
+      connection.key,
+      JSON.stringify(connection.headers || {}),
+      connection.authType,
+      connection.enabled ? 1 : 0,
+      JSON.stringify(connection.manualModels || []),
+      userId,
+      connectionId,
+    ]
+  );
+  return getUserOpenAIConnectionConfig(db, userId, connectionId);
+}
+
+export async function deleteUserOpenAIConnection(db, userId, connectionId) {
+  if (!db || !userId || !connectionId) throw new Error('Connection id is required');
+  await ensureUserConnectionsTable(db);
+  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
+  if (!existing) return false;
+  await db.run('DELETE FROM user_connections WHERE user_id = ? AND id = ?', [userId, connectionId]);
+  return true;
+}
+
 export async function getAllOpenAIConnectionConfigs(env, options = {}) {
   const includeDisabled = options.includeDisabled === true;
+  const userId = options.userId ? String(options.userId).trim() : '';
+  const userRole = String(options.userRole || 'member').trim().toLowerCase() || 'member';
   const envConnections = getEnvOpenAIConnectionConfigs(env, { includeDisabled: true });
   const overrides = await getEnvOverrideMap(env);
   envConnections.forEach((conn) => {
@@ -483,9 +695,54 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     if (override === false) conn.enabled = false;
   });
   const storedConnections = await getStoredOpenAIConnectionConfigs(env, { includeDisabled });
-  const combined = [...envConnections, ...storedConnections];
-  if (includeDisabled) return combined;
-  return combined.filter((conn) => conn.enabled !== false);
+  let userConnections = [];
+  if (userId && env?.DB) {
+    try {
+      const db = createDB(env.DB);
+      userConnections = await loadUserOpenAIConnectionConfigs(db, userId, { includeDisabled });
+    } catch (err) {
+      console.warn('Failed to load user-owned connections:', err?.message || err);
+      userConnections = [];
+    }
+  }
+  const combined = [...envConnections, ...storedConnections, ...userConnections];
+
+  if (!env?.DB || !userId) {
+    if (includeDisabled) return combined;
+    return combined.filter((conn) => conn.enabled !== false);
+  }
+
+  try {
+    const db = createDB(env.DB);
+    const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [userId]);
+    const userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
+    const aclRules = await loadConnectionAclRules(db);
+    const aclIndex = buildConnectionAclIndex(aclRules);
+
+    const filtered = combined
+      .map((connection) => {
+        const access = evaluateConnectionAclAccess(connection, {
+          user: { sub: userId, role: userRole },
+          userGroupIds,
+          rules: aclIndex.get(connection.id) || [],
+        });
+        return {
+          ...connection,
+          access_label: access.access_label,
+          access_variant: access.access_variant,
+          allowed: access.allowed,
+        };
+      })
+      .filter((connection) => connection.source === 'user' || connection.allowed)
+      .map(({ allowed, ...connection }) => connection);
+
+    if (includeDisabled) return filtered;
+    return filtered.filter((conn) => conn.enabled !== false);
+  } catch (err) {
+    console.warn('Failed to apply connection ACL filtering:', err?.message || err);
+    if (includeDisabled) return combined;
+    return combined.filter((conn) => conn.enabled !== false);
+  }
 }
 
 export async function getPrimaryOpenAIConnection(env) {

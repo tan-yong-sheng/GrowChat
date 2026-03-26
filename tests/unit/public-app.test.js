@@ -170,7 +170,7 @@ describe('public app bootstrap', () => {
       offset: 1,
       has_more: false,
     });
-    mocks.readModelsCache.mockReturnValue({
+    mocks.fetchModels.mockResolvedValue({
       models: [{ id: 'm1', name: 'GPT Mini' }],
     });
     mocks.consumeModelsInvalidation.mockReturnValue(null);
@@ -184,7 +184,7 @@ describe('public app bootstrap', () => {
     expect(document.getElementById('app').dataset.view).toBe('chat');
   });
 
-  it('chooses the first alphabetical cached model when no default is configured', async () => {
+  it('chooses the first alphabetical fetched model when no default is configured', async () => {
     window.history.pushState({}, '', '/');
     mocks.getAuthState.mockReturnValue({ access_token: 'token' });
     mocks.isAccessTokenUsable.mockReturnValue(true);
@@ -198,7 +198,7 @@ describe('public app bootstrap', () => {
       }),
     });
     mocks.readChatsCache.mockReturnValue(null);
-    mocks.readModelsCache.mockReturnValue({
+    mocks.fetchModels.mockResolvedValue({
       models: [
         { id: 'm2', name: 'Zulu' },
         { id: 'm1', name: 'Alpha' },

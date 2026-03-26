@@ -17,10 +17,12 @@ describe('user repository', () => {
       passwordHash: 'hash',
       name: 'Test',
       role: 'user',
+      accountStatus: 'pending',
     });
 
     expect(created.id).toBe('u1');
     expect(db.run).toHaveBeenCalled();
+    expect(db.run.mock.calls[0][0]).toContain('account_status');
   });
 
   it('falls back when last_active_at is missing', async () => {

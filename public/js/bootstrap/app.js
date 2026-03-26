@@ -25,6 +25,12 @@ async function renderAdminRoute(container) {
   return renderAdminPage(container);
 }
 
+async function renderUserResourcesRoute(container) {
+  const { renderUserResources } = await import('../features/user/resources.js');
+  container.dataset.view = 'user-settings';
+  return renderUserResources(container);
+}
+
 let renderChatFn = null;
 async function ensureRenderChat() {
   if (renderChatFn) return renderChatFn;
@@ -40,12 +46,12 @@ const FALLBACK_PERMISSIONS = {
     'file.upload', 'file.delete', 'admin.user.read', 'admin.user.write',
     'admin.audit.read', 'admin.rbac.admin'
   ],
-  user: [
-    'chat.read', 'chat.write', 'chat.delete', 'chat.share',
-    'model.use', 'file.upload', 'file.delete'
+  member: [
+    'chat.read', 'chat.write',
+    'model.use', 'file.upload'
   ],
-  inactive: []
 };
+FALLBACK_PERMISSIONS.user = FALLBACK_PERMISSIONS.member;
 
 const AUTOFILL_OVERLAY_ERROR_MESSAGE = "Cannot read properties of null (reading 'includes')";
 const AUTOFILL_OVERLAY_SOURCE = 'bootstrap-autofill-overlay.js';
@@ -85,24 +91,12 @@ function checkModelsInvalidation() {
 }
 
 function prefetchModels({ allowCache = true, cacheBust = null, force = false } = {}) {
-  if (modelsPrefetchPromise && !force && !cacheBust && allowCache) return modelsPrefetchPromise;
-  const cached = allowCache ? readModelsCache() : null;
-  if (cached?.models?.length) {
-    const nextActiveModelId = getPreferredModelId(cached.models, [
-      state.activeModelId,
-      state.defaultModelId,
-      state.globalDefaultModelId,
-    ]);
-    setState({ models: cached.models, modelsLoading: false, activeModelId: nextActiveModelId });
-    return Promise.resolve(cached);
-  }
-
+  if (modelsPrefetchPromise && !force && !cacheBust) return modelsPrefetchPromise;
   if (!state.models?.length) {
     setState({ modelsLoading: true });
   }
-  const cacheMode = allowCache ? 'default' : 'no-store';
   const requestGeneration = modelsCacheGeneration;
-  const requestPromise = fetchModels({ cache: cacheMode, cacheBust })
+  const requestPromise = fetchModels({ cache: 'no-store', cacheBust })
     .then((data) => {
       if (requestGeneration !== modelsCacheGeneration) return data;
       const models = Array.isArray(data?.models) ? data.models : [];
@@ -117,6 +111,18 @@ function prefetchModels({ allowCache = true, cacheBust = null, force = false } =
     .catch((err) => {
       if (requestGeneration !== modelsCacheGeneration) return null;
       console.warn('Failed to prefetch models:', err);
+      if (allowCache) {
+        const cached = readModelsCache();
+        if (cached?.models?.length) {
+          const nextActiveModelId = getPreferredModelId(cached.models, [
+            state.activeModelId,
+            state.defaultModelId,
+            state.globalDefaultModelId,
+          ]);
+          setState({ models: cached.models, modelsLoading: false, activeModelId: nextActiveModelId });
+          return cached;
+        }
+      }
       setState({ modelsLoading: false });
       return null;
     })
@@ -208,7 +214,7 @@ async function initRBAC(user, preloaded = null) {
   } catch (err) {
     console.warn('RBAC initialization fallback:', err);
     setState({
-      permissions: FALLBACK_PERMISSIONS[user.role] || FALLBACK_PERMISSIONS.user,
+      permissions: FALLBACK_PERMISSIONS[user.role] || FALLBACK_PERMISSIONS.member,
       userRoles: [{ role_name: user.role }],
       rbacLoading: false
     });
@@ -258,18 +264,11 @@ async function ensureSession() {
   const cachedChats = readChatsCache(user.id);
   const invalidateToken = checkModelsInvalidation();
   const shouldInvalidateModels = Boolean(invalidateToken);
-  const cachedModels = shouldInvalidateModels ? null : readModelsCache();
-  const hasCachedModels = Array.isArray(cachedModels?.models) && cachedModels.models.length > 0;
 
   const cachedDefaultModelId = localStorage.getItem('defaultModelId');
   const serverDefaultModelId = user.preferences?.defaultModelId || null;
   const globalDefaultModelId = meData?.app_config?.default_model_id || null;
-  const initialModelId = getPreferredModelId(cachedModels?.models || [], [
-    modelParam,
-    serverDefaultModelId,
-    globalDefaultModelId,
-    cachedDefaultModelId,
-  ]);
+  const initialModelId = getPreferredModelId([], [modelParam, serverDefaultModelId, globalDefaultModelId, cachedDefaultModelId]);
 
   if (cachedChats?.chats?.length) {
     const cachedActiveChatId = resolveActiveChatId(routeChatId, cachedChats.chats, isHomeRoute);
@@ -286,7 +285,7 @@ async function ensureSession() {
       },
       activeChatId: cachedActiveChatId,
       messagesByChat: {},
-      models: cachedModels?.models || [],
+      models: [],
       modelsLoading: false,
       activeModelId: initialModelId,
       defaultModelId: serverDefaultModelId || null,
@@ -337,7 +336,7 @@ async function ensureSession() {
     },
     activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
     messagesByChat: {},
-    models: cachedModels?.models || state.models || [],
+    models: state.models || [],
     activeModelId: initialModelId,
     defaultModelId: serverDefaultModelId || null,
     globalDefaultModelId: globalDefaultModelId || null,
@@ -345,12 +344,7 @@ async function ensureSession() {
   if (serverDefaultModelId && serverDefaultModelId !== cachedDefaultModelId) {
     localStorage.setItem('defaultModelId', serverDefaultModelId);
   }
-  if (!hasCachedModels || shouldInvalidateModels) {
-    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 500));
-    idle(() => {
-      prefetchModels({ allowCache: !shouldInvalidateModels, cacheBust: invalidateToken });
-    });
-  }
+  prefetchModels({ allowCache: true, cacheBust: invalidateToken, force: true });
 
   bootstrapped = true;
   scheduleDeferredBootstrap(user, { permissions: meData.permissions, roles: meData.roles });
@@ -363,6 +357,7 @@ export async function renderCurrentRoute() {
   const app = document.getElementById('app');
   const sharedMatch = path.match(/^\/s\/([^/]+)$/);
   const routeChatId = getChatIdFromPath(path);
+  const isUserSettings = path.startsWith('/user/settings');
 
   if (sharedMatch) {
     try {
@@ -374,7 +369,7 @@ export async function renderCurrentRoute() {
     return;
   }
 
-  if (!path.startsWith('/admin') && !sharedMatch && (!bootstrapped || app.dataset.view === 'admin')) {
+  if (!path.startsWith('/admin') && !isUserSettings && !sharedMatch && (!bootstrapped || app.dataset.view === 'admin')) {
     renderChatSkeleton(app);
   }
 
@@ -389,6 +384,11 @@ export async function renderCurrentRoute() {
 
   if (path.startsWith('/admin')) {
     await renderAdminRoute(app);
+    return;
+  }
+
+  if (isUserSettings) {
+    await renderUserResourcesRoute(app);
     return;
   }
 
