@@ -379,7 +379,8 @@ describe('modelsRouter', () => {
 
   it('updates model access rules for an admin model', async () => {
     const env = { DB: {} };
-    const run = vi.fn().mockResolvedValue(undefined);
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
@@ -414,7 +415,7 @@ describe('modelsRouter', () => {
       }
       return [];
     });
-    mocks.createDB.mockReturnValue({ all, run });
+    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
 
     const res = await modelsRouter(
       makeReq('/api/admin/models/gpt-5-mini/access', 'PUT', {
@@ -445,12 +446,14 @@ describe('modelsRouter', () => {
         action: 'use',
       }),
     ]);
-    expect(run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO model_acl_rules'), expect.any(Array));
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO model_acl_rules'), expect.any(Array));
   });
 
   it('decodes encoded model ids when saving access rules', async () => {
     const env = { DB: {} };
-    const run = vi.fn().mockResolvedValue(undefined);
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
@@ -462,7 +465,7 @@ describe('modelsRouter', () => {
       }
       return [];
     });
-    mocks.createDB.mockReturnValue({ all, run });
+    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
 
     const res = await modelsRouter(
       makeReq('/api/admin/models/openai%2Fenv-openai-0%3Adeepseek-v3.2/access', 'PUT', {
@@ -477,7 +480,8 @@ describe('modelsRouter', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO model_acl_rules'), expect.arrayContaining([
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO model_acl_rules'), expect.arrayContaining([
       expect.any(String),
       'openai/env-openai-0:deepseek-v3.2',
       'group',
@@ -485,5 +489,135 @@ describe('modelsRouter', () => {
       'allow',
       'use',
     ]));
+  });
+
+  it('updates model access rules in bulk for policies saves', async () => {
+    const env = { DB: {} };
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('SELECT model_id, is_enabled FROM model_access')) {
+        return [
+          { model_id: 'm1', is_enabled: 1 },
+          { model_id: 'm2', is_enabled: 1 },
+        ];
+      }
+      if (String(sql).includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Team Alpha', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          { id: 'g2', name: 'Team Beta', description: 'Review team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models/access', 'PUT', {
+        updates: [
+          {
+            model_id: 'm1',
+            rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
+          },
+          {
+            model_id: 'm2',
+            rules: [{ principal_type: 'group', principal_id: 'g2', effect: 'deny', action: 'use' }],
+          },
+        ],
+      }),
+      env,
+      {},
+      { sub: 'user-1', primary_role: 'admin' },
+      '/api/admin/models/access'
+    );
+
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.updates).toHaveLength(2);
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM model_acl_rules'), expect.arrayContaining(['m1']));
+  });
+
+  it('updates model access and attachment caps together through the main models save contract', async () => {
+    const env = { DB: {} };
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const all = vi.fn(async (sql) => {
+      const text = String(sql);
+      if (text.includes('SELECT model_id, is_enabled FROM model_access')) {
+        return [{ model_id: 'openai/env-openai-0:gemini-2.5-flash', is_enabled: 1 }];
+      }
+      if (text.includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Team Alpha', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      if (text.includes('FROM model_acl_rules')) {
+        return [
+          {
+            id: 'rule-1',
+            model_id: 'openai/env-openai-0:gemini-2.5-flash',
+            principal_type: 'group',
+            principal_id: 'g1',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ];
+      }
+      return [];
+    });
+    const first = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM app_config') && String(sql).includes('model_attachment_caps_v1')) {
+        return { value: JSON.stringify({}) };
+      }
+      return null;
+    });
+    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
+    mocks.createDB.mockReturnValue({ all, first, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models', 'PUT', {
+        attachment_updates: [
+          {
+            model_id: 'openai/env-openai-0:gemini-2.5-flash',
+            attachments: { image: true },
+          },
+        ],
+        access_updates: [
+          {
+            modelId: 'openai/env-openai-0:gemini-2.5-flash',
+            rules: [],
+          },
+        ],
+      }),
+      env,
+      {},
+      { sub: 'user-1', primary_role: 'admin' },
+      '/api/admin/models'
+    );
+
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload).toEqual({
+      ok: true,
+      updates: 0,
+      attachment_updates: 1,
+      access_updates: [
+        {
+          model_id: 'openai/env-openai-0:gemini-2.5-flash',
+          rules: [],
+        },
+      ],
+    });
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO app_config'),
+      expect.arrayContaining(['model_attachment_caps_v1', expect.any(String)])
+    );
+    expect(prepare).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM model_acl_rules'),
+      expect.arrayContaining(['openai/env-openai-0:gemini-2.5-flash'])
+    );
   });
 });

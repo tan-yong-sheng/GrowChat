@@ -9,7 +9,8 @@ import { createDB } from '../db.js';
 import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue } from '../utils/app-config.js';
-import { buildModelAclIndex, evaluateModelAclAccess, loadModelAclRules, normalizeModelAclRule, saveModelAclRulesForModel } from '../utils/model-acl.js';
+import { normalizeAttachmentCaps, normalizeModelId } from '../admin/tool-servers.js';
+import { buildModelAclIndex, buildModelAclRuleSaveStatements, evaluateModelAclAccess, loadModelAclRules, normalizeModelAclRule, saveModelAclRulesForModel } from '../utils/model-acl.js';
 import { dedupeConnectionConfigs, discoverConnectionModels, extractConnectionModelId, getAllOpenAIConnectionConfigs, normalizeConnectionManualModels } from '../llm/connections.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../llm/model-state.js';
 import { buildProviderId, formatModelId, normalizeProviderFamily } from '../llm/provider-registry.js';
@@ -29,9 +30,7 @@ async function loadModelAttachmentCaps(db) {
   if (!db) return {};
   try {
     const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return parsed;
+    return loadAttachmentCapsFromRaw(raw);
   } catch {
     return {};
   }
@@ -94,16 +93,43 @@ async function getModelAccessMap(db) {
   }
 }
 
-async function upsertModelAccess(db, updates) {
-  if (!updates.length) return;
-  await ensureModelAccessTable(db);
-  const stmt = db.prepare(
-    `INSERT INTO model_access (model_id, is_enabled, updated_at)
-     VALUES (?, ?, unixepoch())
-     ON CONFLICT(model_id) DO UPDATE SET is_enabled = excluded.is_enabled, updated_at = unixepoch()`
+function loadAttachmentCapsFromRaw(raw = '{}') {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function applyAttachmentCapsPatch(caps, update) {
+  const modelId = normalizeModelId(update?.model_id || update?.modelId);
+  if (!modelId) {
+    throw new Error('model_id is required');
+  }
+  const patch = normalizeAttachmentCaps(update?.attachments, { allowNull: true });
+  const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
+  const nextAttachments = { ...(current.attachments || {}) };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) {
+      delete nextAttachments[key];
+    } else {
+      nextAttachments[key] = value;
+    }
+  }
+  caps[modelId] = {
+    ...current,
+    attachments: nextAttachments,
+    updated_at: Date.now(),
+  };
+}
+
+function buildModelAttachmentCapSaveStatement(db, caps) {
+  return db.prepare(
+    'INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()',
+    [MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(caps || {})]
   );
-  const batch = updates.map((item) => stmt.bind(item.id, item.enabled ? 1 : 0));
-  await db.batch(batch);
 }
 
 function splitModelList(value) {
@@ -394,7 +420,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       try {
         modelConnections = await getAllOpenAIConnectionConfigs(env, {
           userId: user?.sub || '',
-          userRole: user?.role || 'member',
+          userRole: user?.primary_role || 'member',
         });
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
@@ -517,6 +543,105 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     } catch (err) {
       console.error('Load model access failed:', err);
       return error(req, 'Failed to load model access', 500);
+    }
+  }
+
+  if (req.method === 'PUT' && path === '/api/admin/models/access') {
+    const authDecision = await authorize(env, user, {
+      action: 'model.admin',
+      resource: 'model',
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+    if (!env.DB) {
+      return error(req, 'Database unavailable', 500);
+    }
+
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const updates = Array.isArray(body.updates) ? body.updates : [];
+    if (!updates.length) {
+      return error(req, 'No model access updates provided', 400);
+    }
+    if (updates.length > 200) {
+      return error(req, 'Too many access updates (max 200)', 400);
+    }
+
+    try {
+      const db = createDB(env.DB);
+      const accessMap = await getModelAccessMap(db);
+      const groups = await db.all('SELECT id FROM groups');
+      const validGroupIds = new Set(groups.map((group) => group.id));
+      const statements = [];
+      const normalizedUpdates = [];
+      let includeSchemaStatements = true;
+
+      for (const update of updates) {
+        const modelId = normalizeModelId(update?.model_id || update?.modelId);
+        if (!modelId) {
+          return error(req, 'model_id is required', 400);
+        }
+        const isEnabled = accessMap.has(modelId) ? accessMap.get(modelId) : true;
+        if (!isEnabled) {
+          return error(req, 'Disabled models cannot be edited', 409);
+        }
+        const incomingRules = Array.isArray(update?.rules) ? update.rules : [];
+        const filteredRules = [];
+        const invalidPrincipalTypes = [];
+        for (const rule of incomingRules) {
+          const normalized = normalizeModelAclRule({ ...rule, model_id: modelId });
+          if (!normalized) continue;
+          if (normalized.principal_type !== 'group') {
+            invalidPrincipalTypes.push(normalized.principal_type);
+            continue;
+          }
+          if (!validGroupIds.has(normalized.principal_id)) continue;
+          filteredRules.push(normalized);
+        }
+        if (invalidPrincipalTypes.length) {
+          return error(req, 'Invalid principal_type for model access', 400, {
+            invalid: Array.from(new Set(invalidPrincipalTypes)),
+          });
+        }
+
+        const { statements: aclStatements } = buildModelAclRuleSaveStatements(
+          db,
+          modelId,
+          filteredRules,
+          { includeSchemaStatements }
+        );
+        includeSchemaStatements = false;
+        statements.push(...aclStatements);
+        normalizedUpdates.push({
+          model_id: modelId,
+          rules: filteredRules,
+        });
+      }
+
+      await db.batch(statements);
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'model_access_updated',
+        resource_type: 'model',
+        resource_id: 'model-access',
+        metadata: {
+          updates: normalizedUpdates.length,
+        },
+      });
+
+      return json(req, {
+        ok: true,
+        updates: normalizedUpdates,
+      });
+    } catch (err) {
+      console.error('Bulk model access update failed:', err);
+      return error(req, 'Failed to update model access', 500);
     }
   }
 
@@ -739,7 +864,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     }
   }
 
-  // PUT /api/admin/models - Update model enabled state (admin only)
+  // PUT /api/admin/models - Update model enabled state and staged admin model settings
   if (req.method === 'PUT' && path === '/api/admin/models') {
     const authDecision = await authorize(env, user, {
       action: 'model.admin',
@@ -754,6 +879,8 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       return error(req, 'Database unavailable', 500);
     }
 
+    const db = createDB(env.DB);
+
     let body;
     try {
       body = await req.json();
@@ -761,35 +888,190 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const updates = Array.isArray(body.updates) ? body.updates : [];
-    if (updates.length > 500) {
+    const updatesInput = Array.isArray(body.updates) ? body.updates : [];
+    const attachmentUpdatesInput = Array.isArray(body.attachment_updates)
+      ? body.attachment_updates
+      : Array.isArray(body.attachmentUpdates)
+        ? body.attachmentUpdates
+        : [];
+    const accessUpdatesInput = Array.isArray(body.access_updates)
+      ? body.access_updates
+      : Array.isArray(body.accessUpdates)
+        ? body.accessUpdates
+        : [];
+
+    if (updatesInput.length > 500 || attachmentUpdatesInput.length > 500 || accessUpdatesInput.length > 500) {
       return error(req, 'Too many updates (max 500)', 400);
     }
-    const sanitized = updates
+
+    const sanitizedUpdates = updatesInput
       .map((item) => ({
         id: String(item?.id || '').trim(),
         enabled: item?.enabled !== false,
       }))
       .filter((item) => isValidModelId(item.id));
-
-    if (sanitized.length !== updates.length) {
+    if (sanitizedUpdates.length !== updatesInput.length) {
       return error(req, 'Invalid model id in updates', 400);
     }
 
+    let attachmentCaps = null;
+    const sanitizedAttachmentUpdates = [];
     try {
-      const db = createDB(env.DB);
-      await upsertModelAccess(db, sanitized);
+      if (attachmentUpdatesInput.length) {
+        const rawCaps = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
+        attachmentCaps = loadAttachmentCapsFromRaw(rawCaps);
+        for (const update of attachmentUpdatesInput) {
+          applyAttachmentCapsPatch(attachmentCaps, update);
+          sanitizedAttachmentUpdates.push({
+            model_id: normalizeModelId(update?.model_id || update?.modelId),
+            attachments: normalizeAttachmentCaps(update?.attachments, { allowNull: true }),
+          });
+        }
+      }
+    } catch (err) {
+      return error(req, err?.message || 'Invalid attachment cap data', 400);
+    }
+
+    const sanitizedAccessUpdates = [];
+    try {
+      for (const update of accessUpdatesInput) {
+        const modelId = normalizeModelId(update?.model_id || update?.modelId);
+        if (!modelId) {
+          return error(req, 'model_id is required', 400);
+        }
+        const rules = Array.isArray(update?.rules) ? update.rules : [];
+        sanitizedAccessUpdates.push({
+          model_id: modelId,
+          rules,
+        });
+      }
+    } catch (err) {
+      return error(req, err?.message || 'Invalid model access data', 400);
+    }
+
+    if (!sanitizedUpdates.length && !sanitizedAttachmentUpdates.length && !sanitizedAccessUpdates.length) {
+      return error(req, 'No model changes provided', 400);
+    }
+
+    try {
+      const currentAccessMap = await getModelAccessMap(db);
+      const nextAccessMap = new Map(currentAccessMap);
+      for (const update of sanitizedUpdates) {
+        nextAccessMap.set(update.id, update.enabled);
+      }
+
+      const statements = [
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS model_access (
+            model_id TEXT PRIMARY KEY,
+            is_enabled INTEGER NOT NULL DEFAULT 1,
+            updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+          )`
+        ),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_model_access_enabled ON model_access (is_enabled)'),
+      ];
+
+      for (const update of sanitizedUpdates) {
+        statements.push(
+          db.prepare(
+            `INSERT INTO model_access (model_id, is_enabled, updated_at)
+             VALUES (?, ?, unixepoch())
+             ON CONFLICT(model_id) DO UPDATE SET is_enabled = excluded.is_enabled, updated_at = unixepoch()`,
+            [update.id, update.enabled ? 1 : 0]
+          )
+        );
+      }
+
+      if (sanitizedAttachmentUpdates.length > 0 && attachmentCaps) {
+        statements.push(buildModelAttachmentCapSaveStatement(db, attachmentCaps));
+      }
+
+      if (sanitizedAccessUpdates.length > 0) {
+        const groups = await db.all('SELECT id FROM groups');
+        const validGroupIds = new Set((Array.isArray(groups) ? groups : []).map((group) => group.id).filter(Boolean));
+        let includeSchemaStatements = true;
+        const normalizedAccessUpdates = [];
+
+        for (const update of sanitizedAccessUpdates) {
+          const modelId = update.model_id;
+          const isEnabled = nextAccessMap.has(modelId) ? nextAccessMap.get(modelId) : true;
+          if (!isEnabled) {
+            return error(req, 'Disabled models cannot be edited', 409);
+          }
+
+          const filteredRules = [];
+          const invalidPrincipalTypes = [];
+          for (const rule of Array.isArray(update.rules) ? update.rules : []) {
+            const normalized = normalizeModelAclRule({ ...rule, model_id: modelId });
+            if (!normalized) continue;
+            if (normalized.principal_type !== 'group') {
+              invalidPrincipalTypes.push(normalized.principal_type);
+              continue;
+            }
+            if (!validGroupIds.has(normalized.principal_id)) continue;
+            filteredRules.push(normalized);
+          }
+          if (invalidPrincipalTypes.length) {
+            return error(req, 'Invalid principal_type for model access', 400, {
+              invalid: Array.from(new Set(invalidPrincipalTypes)),
+            });
+          }
+
+          const { statements: aclStatements } = buildModelAclRuleSaveStatements(
+            db,
+            modelId,
+            filteredRules,
+            { includeSchemaStatements }
+          );
+          includeSchemaStatements = false;
+          statements.push(...aclStatements);
+          normalizedAccessUpdates.push({
+            model_id: modelId,
+            rules: filteredRules,
+          });
+        }
+
+        await db.batch(statements);
+        await logAuditEvent(env, {
+          actor_id: user.sub,
+          action: 'model_settings_updated',
+          resource_type: 'model',
+          resource_id: 'model-settings',
+          metadata: {
+            updates: sanitizedUpdates.length,
+            attachment_updates: sanitizedAttachmentUpdates.length,
+            access_updates: normalizedAccessUpdates.length,
+          },
+        });
+        return json(req, {
+          ok: true,
+          updates: sanitizedUpdates.length,
+          attachment_updates: sanitizedAttachmentUpdates.length,
+          access_updates: normalizedAccessUpdates,
+        });
+      }
+
+      await db.batch(statements);
       await logAuditEvent(env, {
         actor_id: user.sub,
-        action: 'model_access_updated',
+        action: 'model_settings_updated',
         resource_type: 'model',
-        resource_id: 'model-access',
-        metadata: { count: sanitized.length },
+        resource_id: 'model-settings',
+        metadata: {
+          updates: sanitizedUpdates.length,
+          attachment_updates: sanitizedAttachmentUpdates.length,
+          access_updates: sanitizedAccessUpdates.length,
+        },
       });
-      return json(req, { ok: true });
+      return json(req, {
+        ok: true,
+        updates: sanitizedUpdates.length,
+        attachment_updates: sanitizedAttachmentUpdates.length,
+        access_updates: sanitizedAccessUpdates,
+      });
     } catch (err) {
-      console.error('Model access update failed:', err);
-      return error(req, 'Failed to update model access', 500);
+      console.error('Model settings update failed:', err);
+      return error(req, 'Failed to update model settings', 500);
     }
   }
 

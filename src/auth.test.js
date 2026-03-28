@@ -26,14 +26,14 @@ describe('auth.js - JWT Token Management', () => {
     });
 
     it('should include iat and exp claims', async () => {
-      const payload = { sub: 'user123', role: 'admin' };
+      const payload = { sub: 'user123', primary_role: 'admin' };
       const token = await signJWT(payload, secret, 3600);
       const decoded = await verifyJWT(token, secret);
 
       expect(decoded).toHaveProperty('iat');
       expect(decoded).toHaveProperty('exp');
       expect(decoded.sub).toBe('user123');
-      expect(decoded.role).toBe('admin');
+      expect(decoded.primary_role).toBe('admin');
     });
   });
 
@@ -191,7 +191,7 @@ describe('auth.js - JWT Token Management', () => {
       const complexPayload = {
         sub: 'user-with-uuid-123e4567-e89b-12d3-a456-426614174000',
         email: 'test+alias@example.co.uk',
-        role: 'admin',
+        primary_role: 'admin',
         permissions: ['read', 'write', 'delete'],
         metadata: { org: 'acme', tier: 'enterprise' },
       };
@@ -201,7 +201,7 @@ describe('auth.js - JWT Token Management', () => {
 
       expect(decoded.sub).toBe(complexPayload.sub);
       expect(decoded.email).toBe(complexPayload.email);
-      expect(decoded.role).toBe(complexPayload.role);
+      expect(decoded.primary_role).toBe(complexPayload.primary_role);
       expect(decoded.permissions).toEqual(complexPayload.permissions);
       expect(decoded.metadata).toEqual(complexPayload.metadata);
     });

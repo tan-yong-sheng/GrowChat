@@ -4,6 +4,8 @@
  * Handles file uploads to R2 and metadata storage in D1
  */
 
+import { error } from '../utils/response.js';
+
 /**
  * Validate file before upload
  * @param {string} filename - Original filename
@@ -254,6 +256,36 @@ export async function getFileMetadata(db, documentId) {
 }
 
 /**
+ * Get file metadata owned by a user
+ * @param {Object} db - Database connection
+ * @param {string} documentId - Document ID
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} - Owned document metadata
+ */
+export async function getOwnedDocument(db, documentId, userId) {
+  return await db.first(
+    'SELECT * FROM documents WHERE id = ? AND user_id = ?',
+    [documentId, userId]
+  );
+}
+
+/**
+ * Require file metadata owned by a user
+ * @param {Object} req - Request object
+ * @param {Object} db - Database connection
+ * @param {string} documentId - Document ID
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} - { doc } or { error }
+ */
+export async function requireOwnedDocument(req, db, documentId, userId) {
+  const doc = await getOwnedDocument(db, documentId, userId);
+  if (!doc) {
+    return { error: error(req, 'Document not found', 404) };
+  }
+  return { doc };
+}
+
+/**
  * List user's documents
  * @param {Object} db - Database connection
  * @param {string} userId - User ID
@@ -283,10 +315,7 @@ export async function listUserDocuments(db, userId, limit = 20, offset = 0) {
  */
 export async function deleteDocument(env, db, documentId, userId) {
   // Check ownership
-  const doc = await db.first(
-    'SELECT r2_key FROM documents WHERE id = ? AND user_id = ?',
-    [documentId, userId]
-  );
+  const doc = await getOwnedDocument(db, documentId, userId);
 
   if (!doc) {
     throw new Error('Document not found');

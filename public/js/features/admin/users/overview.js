@@ -1,4 +1,8 @@
-import { apiFetch, fetchAdminUserAccess } from '../../../shared/api.js';
+import { apiFetch } from '../../../shared/api.js';
+import { fetchAdminUserAccess } from '../../../shared/admin-access.js';
+import { bindAdminDraftHandlers, clearAdminDraft, getAdminDraft, setAdminDraft } from '../modal-draft.js';
+import { setModalSaveButtonState } from '../modal-save-helpers.js';
+import { buildAdminModalShellMarkup } from '../modal-shell.js';
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -9,12 +13,17 @@ const escapeHtml = (value) => String(value || '')
 
 function roleBadgeClass(role) {
   if (role === 'admin') return 'bg-blue-100 text-blue-700';
-  if (role === 'user') return 'bg-green-100 text-green-700';
+  if (role === 'member') return 'bg-green-100 text-green-700';
   return 'bg-gray-100 text-gray-700';
 }
 
 function roleDisplayName(role) {
-  return role;
+  return role === 'admin' ? 'Admin' : 'Member';
+}
+
+function normalizeRole(role) {
+  const value = String(role || '').trim().toLowerCase();
+  return value === 'admin' ? 'admin' : 'member';
 }
 
 function accountStatusBadgeClass(status) {
@@ -52,6 +61,7 @@ function accessBadgeClass(value) {
   if (value === 'allow') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
   if (value === 'deny') return 'bg-rose-100 text-rose-700 border-rose-200';
   if (value === 'admin') return 'bg-blue-100 text-blue-700 border-blue-200';
+  if (value === 'member') return 'bg-green-100 text-green-700 border-green-200';
   if (value === 'shared') return 'bg-amber-100 text-amber-700 border-amber-200';
   if (value === 'personal') return 'bg-gray-100 text-gray-700 border-gray-200';
   return 'bg-gray-100 text-gray-700 border-gray-200';
@@ -106,7 +116,7 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
           <div class="space-y-1">
             <div class="flex flex-wrap items-center gap-2">
               <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
-              ${renderChip(user.role || 'member', user.role || 'member')}
+              ${renderChip(roleDisplayName(normalizeRole(user.primary_role)), normalizeRole(user.primary_role))}
               ${renderChip(user.account_status || 'active', user.account_status === 'pending' ? 'shared' : 'admin')}
             </div>
             <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
@@ -166,43 +176,57 @@ function renderAclInspectorModal(user, body = '<div class="text-sm text-gray-400
   `;
 }
 
-function renderUserRows(users) {
-  return users.map((u) => `
-    <tr class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
+function renderUserRows(users, stagedDraft = null) {
+  const stagedUserId = String(stagedDraft?.userId || '').trim();
+  const stagedKind = String(stagedDraft?.kind || '').trim();
+  return users.map((u) => {
+    const isStaged = stagedUserId && stagedUserId === u.id;
+    const isPendingDelete = isStaged && stagedKind === 'delete';
+    const isPendingEdit = isStaged && stagedKind === 'edit';
+    const stagedPayload = isPendingEdit ? (stagedDraft?.payload || {}) : {};
+    const role = normalizeRole(stagedPayload.primary_role || u.primary_role);
+    const accountStatus = String(stagedPayload.account_status || u.account_status || 'active');
+    const name = String(stagedPayload.name || u.name || '');
+    const email = String(stagedPayload.email || u.email || '');
+    return `
+    <tr data-user-row="${u.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isStaged ? 'opacity-60 bg-amber-50/40' : ''}">
       <td class="px-3 py-4 whitespace-nowrap">
-        <button class="btn-change-role" data-user-id="${u.id}" data-user-role="${u.role}" data-user-name="${u.name}">
-          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${roleBadgeClass(u.role)} uppercase">${roleDisplayName(u.role)}</span>
+        <button class="btn-change-role" data-user-id="${u.id}" data-user-role="${role}" data-user-name="${name}" data-user-email="${email}" data-user-account-status="${accountStatus}" ${isStaged ? 'disabled' : ''}>
+          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${roleBadgeClass(role)} uppercase">${roleDisplayName(role)}</span>
         </button>
       </td>
       <td class="px-3 py-4 font-medium text-gray-900 overflow-hidden">
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-600 overflow-hidden shrink-0">
-            ${u.avatar ? `<img class="w-full h-full object-cover" src="${u.avatar}" alt="">` : (u.name ? u.name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2) : '??')}
+            ${u.avatar ? `<img class="w-full h-full object-cover" src="${u.avatar}" alt="">` : (name ? name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2) : '??')}
           </div>
-          <div class="truncate">${u.name}</div>
+          <div class="truncate">${name}</div>
         </div>
       </td>
       <td class="px-3 py-4 whitespace-nowrap">
-        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${accountStatusBadgeClass(u.account_status)} uppercase">${accountStatusDisplayName(u.account_status)}</span>
+        ${isPendingDelete
+          ? '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 uppercase">Pending delete</span>'
+          : `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${accountStatusBadgeClass(accountStatus)} uppercase">${accountStatusDisplayName(accountStatus)}</span>`
+        }
       </td>
-      <td class="px-3 py-4 text-gray-500 truncate" title="${u.email}">${u.email}</td>
+      <td class="px-3 py-4 text-gray-500 truncate" title="${email}">${email}</td>
       <td class="px-3 py-4 text-gray-400 font-normal uppercase text-[10px] whitespace-nowrap">${u.last_active_at ? timeSince(u.last_active_at * 1000) : 'N/A'}</td>
       <td class="px-3 py-4 text-gray-400 font-normal text-[10px] whitespace-nowrap">${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : 'N/A'}</td>
       <td class="px-3 py-4 text-right whitespace-nowrap">
         <div class="flex justify-end items-center gap-1">
-          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-inspect-user-access" data-user-id="${u.id}" data-user-name="${u.name}" data-user-email="${u.email}" data-user-role="${u.role}" data-user-account-status="${u.account_status || 'active'}" title="Inspect ACL">
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-inspect-user-access" data-user-id="${u.id}" data-user-name="${name}" data-user-email="${email}" data-user-role="${role}" data-user-account-status="${accountStatus}" title="Inspect ACL" ${isStaged ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path fill-rule="evenodd" d="M10 1.75a4.25 4.25 0 0 0-4.25 4.25V8H5a2 2 0 0 0-2 2v5.5A2.5 2.5 0 0 0 5.5 18h9a2.5 2.5 0 0 0 2.5-2.5V10a2 2 0 0 0-2-2h-.75V6A4.25 4.25 0 0 0 10 1.75ZM7.25 6a2.75 2.75 0 1 1 5.5 0V8h-5.5V6Z" clip-rule="evenodd" />
             </svg>
           </button>
-          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-edit-user" data-user-id="${u.id}" data-user-name="${u.name}" data-user-email="${u.email}" data-user-role="${u.role}" data-user-account-status="${u.account_status || 'active'}" title="Edit User">
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-edit-user" data-user-id="${u.id}" data-user-name="${name}" data-user-email="${email}" data-user-role="${role}" data-user-account-status="${accountStatus}" title="Edit User" ${isStaged ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path d="m2.695 14.763-1.262 3.154a.5.5 0 0 0 .65.65l3.154-1.262a.5.5 0 0 0 .145-.11l10.19-10.192-2.877-2.878L2.805 14.618a.5.5 0 0 0-.11.145Z" />
               <path d="M15.53 3.47a.75.75 0 0 1 1.06 0l1.44 1.44a.75.75 0 0 1 0 1.06l-1.44 1.44-2.5-2.5 1.44-1.44Z" />
             </svg>
           </button>
-          ${u.role === 'admin' ? '' : `
-          <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors btn-delete-user" data-user-id="${u.id}" data-user-name="${u.name}" title="Delete record">
+          ${role === 'admin' ? '' : `
+          <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors btn-delete-user" data-user-id="${u.id}" data-user-name="${name}" title="Delete record" ${isStaged ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
             </svg>
@@ -210,8 +234,8 @@ function renderUserRows(users) {
           `}
         </div>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 function renderLoadingRows(count = 10) {
@@ -228,122 +252,128 @@ function renderLoadingRows(count = 10) {
   `).join('');
 }
 
-function renderAddUserModal() {
-  return `
-    <div id="add-user-modal" class="fixed inset-0 z-[140] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="w-full max-w-lg rounded-[1.5rem] bg-white shadow-2xl border border-gray-100 overflow-hidden">
-        <div class="flex items-center justify-between px-5 pt-5 pb-3">
-          <div>
-            <h3 class="text-xl font-semibold text-gray-900">Add User</h3>
-          </div>
-          <button type="button" data-close-add-user class="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+function renderAddUserModal(draft = null) {
+  const primaryRole = String(draft?.primary_role || 'member');
+  const accountStatus = String(draft?.account_status || 'active');
+  const csvValue = String(draft?.csv || '');
+  return buildAdminModalShellMarkup({
+    preset: 'compact',
+    title: 'Add User',
+    body: `
+      <div class="px-5 pb-5">
+        <div class="flex items-center gap-5 border-b border-gray-100 mb-4">
+          <button type="button" data-add-user-tab="form" class="pb-3 text-base font-medium text-gray-900 border-b-2 border-gray-900">Form</button>
+          <button type="button" data-add-user-tab="csv" class="pb-3 text-base font-medium text-gray-400 border-b-2 border-transparent">CSV Import</button>
         </div>
-        <div class="px-5 pb-5">
-          <div class="flex items-center gap-5 border-b border-gray-100 mb-4">
-            <button type="button" data-add-user-tab="form" class="pb-3 text-base font-medium text-gray-900 border-b-2 border-gray-900">Form</button>
-            <button type="button" data-add-user-tab="csv" class="pb-3 text-base font-medium text-gray-400 border-b-2 border-transparent">CSV Import</button>
-          </div>
-          <form id="add-user-form" class="space-y-3.5">
-            <label class="block">
-              <span class="block text-sm text-gray-400 mb-2">Role</span>
-              <select name="role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select>
-            </label>
-            <label class="block">
-              <span class="block text-sm text-gray-400 mb-2">Account Status</span>
-              <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-              </select>
-            </label>
-            <label class="block">
-              <span class="block text-sm text-gray-400 mb-2">Name</span>
-              <input name="name" type="text" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Full Name" required>
-            </label>
-            <label class="block">
-              <span class="block text-sm text-gray-400 mb-2">Email</span>
-              <input name="email" type="email" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Email" required>
-            </label>
-            <label class="block">
-              <span class="block text-sm text-gray-400 mb-2">Password</span>
-              <input name="password" type="password" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Password" minlength="8" required>
-            </label>
-            <div id="add-user-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
-            <div class="flex justify-end pt-2">
-              <button type="submit" class="rounded-full bg-black text-white px-5 py-2 text-sm font-semibold hover:bg-gray-800 transition-colors">Save</button>
-            </div>
-          </form>
-          <form id="add-user-csv-form" class="space-y-4 hidden">
-            <label class="block">
-              <span class="block text-sm text-gray-400 mb-2">CSV Content</span>
-              <textarea name="csv" rows="7" class="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 resize-none" placeholder="Name,Email,Password,Role,Account Status&#10;Jane Doe,jane@example.com,Password123,user,active&#10;John Admin,john@example.com,Password123,admin,active&#10;Pending User,pending@example.com,Password123,user,pending"></textarea>
-            </label>
-            <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              CSV order: <span class="font-medium text-gray-700">Name, Email, Password, Role, Account Status (optional)</span>
-            </div>
-            <div id="add-user-csv-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
-            <div id="add-user-csv-result" class="hidden rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-600 max-h-48 overflow-auto"></div>
-            <div class="flex justify-end pt-2">
-              <button type="submit" class="rounded-full bg-black text-white px-5 py-2 text-sm font-semibold hover:bg-gray-800 transition-colors">Save</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderEditUserModal(user) {
-  return `
-    <div id="edit-user-modal" class="fixed inset-0 z-[140] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="w-full max-w-lg rounded-[1.5rem] bg-white shadow-2xl border border-gray-100 overflow-hidden">
-        <div class="flex items-center justify-between px-5 pt-5 pb-3">
-          <div>
-            <h3 class="text-xl font-semibold text-gray-900">Edit User</h3>
-          </div>
-          <button type="button" data-close-edit-user class="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        </div>
-        <form id="edit-user-form" class="px-5 pb-5 space-y-3.5">
+        <form id="add-user-form" class="space-y-3.5">
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Role</span>
-            <select name="role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-              <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
-              <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+            <select name="primary_role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+              <option value="member" ${primaryRole === 'member' ? 'selected' : ''}>Member</option>
+              <option value="admin" ${primaryRole === 'admin' ? 'selected' : ''}>Admin</option>
             </select>
           </label>
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Account Status</span>
             <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-              <option value="active" ${user.account_status !== 'pending' ? 'selected' : ''}>Active</option>
-              <option value="pending" ${user.account_status === 'pending' ? 'selected' : ''}>Pending</option>
+              <option value="active" ${accountStatus === 'active' ? 'selected' : ''}>Active</option>
+              <option value="pending" ${accountStatus === 'pending' ? 'selected' : ''}>Pending</option>
             </select>
           </label>
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Name</span>
-            <input name="name" type="text" value="${user.name || ''}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" required>
+            <input name="name" type="text" value="${escapeHtml(draft?.name || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Full Name" required>
           </label>
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Email</span>
-            <input name="email" type="email" value="${user.email || ''}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" required>
+            <input name="email" type="email" value="${escapeHtml(draft?.email || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Email" required>
           </label>
           <label class="block">
-            <span class="block text-sm text-gray-400 mb-2">New Password</span>
-            <input name="password" type="password" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" minlength="8" placeholder="Leave blank to keep current password">
+            <span class="block text-sm text-gray-400 mb-2">Password</span>
+            <input name="password" type="password" value="${escapeHtml(draft?.password || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Password" minlength="8" required>
           </label>
-          <div id="edit-user-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
-          <div class="flex justify-end pt-2">
-            <button type="submit" class="rounded-full bg-black text-white px-5 py-2 text-sm font-semibold hover:bg-gray-800 transition-colors">Save Changes</button>
+          <div id="add-user-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
+        </form>
+        <form id="add-user-csv-form" class="space-y-4 hidden">
+          <label class="block">
+            <span class="block text-sm text-gray-400 mb-2">CSV Content</span>
+            <textarea name="csv" rows="7" required class="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 resize-none" placeholder="Name,Email,Password,Primary Role,Account Status&#10;Jane Doe,jane@example.com,Password123,member,active&#10;John Admin,john@example.com,Password123,admin,active&#10;Pending User,pending@example.com,Password123,member,pending">${escapeHtml(csvValue)}</textarea>
+          </label>
+          <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+            CSV order: <span class="font-medium text-gray-700">Name, Email, Password, Primary Role, Account Status (optional)</span>
           </div>
+          <div id="add-user-csv-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
+          <div id="add-user-csv-result" class="hidden rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-600 max-h-48 overflow-auto"></div>
         </form>
       </div>
-    </div>
-  `;
+    `,
+    footer: `
+      <div class="text-sm text-red-600"></div>
+      <div class="flex items-center justify-end gap-2">
+        <button type="button" data-close-add-user class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          Cancel
+        </button>
+        <button type="button" id="add-user-save-btn" class="px-4 py-2 rounded-xl text-sm font-semibold transition">
+          Save
+        </button>
+      </div>
+    `,
+    closeAttr: 'data-close-add-user',
+    rootAttrs: 'id="add-user-modal"',
+  });
+}
+
+function renderEditUserModal(user, draft = null) {
+  const primaryRole = String(draft?.primary_role || user.primary_role || 'member');
+  const accountStatus = String(draft?.account_status || user.account_status || 'active');
+  return buildAdminModalShellMarkup({
+    preset: 'userEditor',
+    title: 'Edit User',
+    body: `
+      <form id="edit-user-form" class="px-5 pb-5 space-y-3.5">
+        <label class="block">
+          <span class="block text-sm text-gray-400 mb-2">Role</span>
+          <select name="primary_role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+            <option value="member" ${normalizeRole(primaryRole) === 'member' ? 'selected' : ''}>Member</option>
+            <option value="admin" ${normalizeRole(primaryRole) === 'admin' ? 'selected' : ''}>Admin</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="block text-sm text-gray-400 mb-2">Account Status</span>
+          <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+            <option value="active" ${accountStatus !== 'pending' ? 'selected' : ''}>Active</option>
+            <option value="pending" ${accountStatus === 'pending' ? 'selected' : ''}>Pending</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="block text-sm text-gray-400 mb-2">Name</span>
+          <input name="name" type="text" value="${escapeHtml(draft?.name || user.name || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" required>
+        </label>
+        <label class="block">
+          <span class="block text-sm text-gray-400 mb-2">Email</span>
+          <input name="email" type="email" value="${escapeHtml(draft?.email || user.email || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" required>
+        </label>
+        <label class="block">
+          <span class="block text-sm text-gray-400 mb-2">New Password</span>
+          <input name="password" type="password" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" minlength="8" placeholder="Leave blank to keep current password">
+        </label>
+        <div id="edit-user-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
+      </form>
+    `,
+    footer: `
+      <div class="text-sm text-red-600"></div>
+      <div class="flex items-center justify-end gap-2">
+        <button type="button" data-close-edit-user class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          Cancel
+        </button>
+        <button type="button" id="edit-user-save-btn" class="px-4 py-2 rounded-xl text-sm font-semibold transition">
+          Save
+        </button>
+      </div>
+    `,
+    closeAttr: 'data-close-edit-user',
+    rootAttrs: 'id="edit-user-modal"',
+  });
 }
 
 export function renderUserOverview(container, data, actions) {
@@ -356,6 +386,108 @@ export function renderUserOverview(container, data, actions) {
       payload: null,
       showDisabled: false,
     },
+  });
+  const draftKey = 'overview';
+  let activeModalIsDirty = null;
+  let activeModalKind = null;
+  let activeModalUserId = null;
+  const draftRegistry = {
+    get: () => getAdminDraft(data, 'users', draftKey),
+    set: (value) => setAdminDraft(data, 'users', draftKey, value),
+    clear: () => clearAdminDraft(data, 'users', draftKey),
+  };
+
+  const commitOverviewDraft = async () => {
+    const draft = draftRegistry.get();
+    if (!draft) return;
+
+    const payload = draft.payload || {};
+    const normalizedPayload = {
+      primary_role: String(payload.primary_role || 'member'),
+      account_status: String(payload.account_status || 'active'),
+      name: String(payload.name || '').trim(),
+      email: String(payload.email || '').trim(),
+    };
+    const password = String(payload.password || '');
+    if (password) {
+      normalizedPayload.password = password;
+    }
+
+    if (draft.kind === 'import-csv') {
+      const csv = String(payload.csv || '').trim();
+      const res = await apiFetch('/api/admin/users/import', {
+        method: 'POST',
+        body: JSON.stringify({ csv }),
+      });
+      const responsePayload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(getActionError(responsePayload, `Failed to import users (${res.status})`));
+      }
+      actions.invalidateCache?.();
+      await actions.reload?.({ preserveContent: true });
+      draftRegistry.clear();
+      data.requestUsersFooterSync?.();
+      return;
+    }
+
+    if (draft.kind === 'delete') {
+      const res = await apiFetch(`/api/admin/users/${draft.userId}`, { method: 'DELETE' });
+      const responsePayload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(getActionError(responsePayload, `Failed to delete user (${res.status})`));
+      }
+      actions.removeUser(draft.userId);
+      draftRegistry.clear();
+      data.requestUsersFooterSync?.();
+      return;
+    }
+
+    if (draft.kind === 'create') {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(normalizedPayload),
+      });
+      const responsePayload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(getActionError(responsePayload, `Failed to create user (${res.status})`));
+      }
+      actions.prependUser(responsePayload.user);
+      draftRegistry.clear();
+      data.requestUsersFooterSync?.();
+      return;
+    }
+
+    if (draft.kind === 'edit') {
+      const res = await apiFetch(`/api/admin/users/${draft.userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(normalizedPayload),
+      });
+      const responsePayload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(getActionError(responsePayload, `Failed to update user (${res.status})`));
+      }
+      actions.updateUser(responsePayload.user);
+      draftRegistry.clear();
+      data.requestUsersFooterSync?.();
+    }
+  };
+
+  const discardOverviewDraft = () => {
+    draftRegistry.clear();
+    updateView();
+    data.requestUsersFooterSync?.();
+  };
+
+  const isOverviewDirty = () => Boolean(draftRegistry.get()) || Boolean(typeof activeModalIsDirty === 'function' && activeModalIsDirty());
+
+  data.usersDirtyCheckers = data.usersDirtyCheckers || {};
+  data.usersSaveHandlers = data.usersSaveHandlers || {};
+  data.usersDiscardHandlers = data.usersDiscardHandlers || {};
+  bindAdminDraftHandlers(data, 'users', draftKey, {
+    isDirty: isOverviewDirty,
+    save: commitOverviewDraft,
+    discard: discardOverviewDraft,
+    requestFooterSync: data.requestUsersFooterSync,
   });
 
   container.innerHTML = `
@@ -372,7 +504,14 @@ export function renderUserOverview(container, data, actions) {
                 <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
               </svg>
             </div>
-            <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search" id="user-search-input">
+            <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search users" id="user-search-input">
+            <div id="clear-search-container" class="hidden ml-1.5">
+              <button id="clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
           <button id="open-add-user-modal" class="w-10 h-10 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors flex items-center justify-center" title="Add User">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
@@ -426,6 +565,8 @@ export function renderUserOverview(container, data, actions) {
   `;
 
   const searchInput = container.querySelector('#user-search-input');
+  const clearSearchBtn = container.querySelector('#clear-search-btn');
+  const clearSearchContainer = container.querySelector('#clear-search-container');
   const tbody = container.querySelector('#users-table-body');
   const totalCount = container.querySelector('#users-total-count');
   const pageRange = container.querySelector('#users-page-range');
@@ -483,6 +624,15 @@ export function renderUserOverview(container, data, actions) {
     });
   }
 
+  function syncSearchClearState() {
+    if (!clearSearchContainer) return;
+    if (String(uiState.query || '').trim()) {
+      clearSearchContainer.classList.remove('hidden');
+    } else {
+      clearSearchContainer.classList.add('hidden');
+    }
+  }
+
   function syncPendingState() {
     tbody.querySelectorAll('.btn-change-role').forEach((btn) => {
       btn.disabled = isPending('role', btn.dataset.userId);
@@ -509,26 +659,24 @@ export function renderUserOverview(container, data, actions) {
   function bindRowActions() {
     tbody.querySelectorAll('.btn-change-role').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const currentRole = btn.dataset.userRole;
+        const currentRole = normalizeRole(btn.dataset.userRole || 'member');
         const userName = btn.dataset.userName;
-        const nextRole = currentRole === 'admin' ? 'user' : 'admin';
+        const userEmail = btn.dataset.userEmail || '';
+        const userStatus = btn.dataset.userAccountStatus || 'active';
+        const nextRole = currentRole === 'admin' ? 'member' : 'admin';
         if (!window.confirm(`Change role for ${userName} to ${nextRole.toUpperCase()}?`)) return;
-        setPending('role', btn.dataset.userId, true);
-        try {
-          const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
-            method: 'PUT',
-            body: JSON.stringify({ role: nextRole })
-          });
-          const payload = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            throw new Error(getActionError(payload, `Failed to update user (${res.status})`));
-          }
-          actions.updateUser(payload.user);
-        } catch (err) {
-          window.alert(err.message);
-        } finally {
-          setPending('role', btn.dataset.userId, false);
-        }
+        draftRegistry.set({
+          kind: 'edit',
+          userId: btn.dataset.userId,
+          payload: {
+            primary_role: nextRole,
+            account_status: userStatus,
+            name: userName,
+            email: userEmail,
+          },
+        });
+        updateView();
+        data.requestUsersFooterSync?.();
       });
     });
 
@@ -536,19 +684,15 @@ export function renderUserOverview(container, data, actions) {
       btn.addEventListener('click', async () => {
         const userName = btn.dataset.userName;
         if (!window.confirm(`Delete user ${userName}? This will permanently remove the account record.`)) return;
-        setPending('delete', btn.dataset.userId, true);
-        try {
-          const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, { method: 'DELETE' });
-          const payload = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            throw new Error(getActionError(payload, `Failed to delete user (${res.status})`));
-          }
-          actions.removeUser(btn.dataset.userId);
-        } catch (err) {
-          window.alert(err.message);
-        } finally {
-          setPending('delete', btn.dataset.userId, false);
-        }
+        draftRegistry.set({
+          kind: 'delete',
+          userId: btn.dataset.userId,
+          payload: {
+            name: userName,
+          },
+        });
+        updateView();
+        data.requestUsersFooterSync?.();
       });
     });
 
@@ -564,7 +708,7 @@ export function renderUserOverview(container, data, actions) {
           renderAclInspectorModal({
             name: btn.dataset.userName || '',
             email: btn.dataset.userEmail || '',
-            role: btn.dataset.userRole || 'user',
+            primary_role: normalizeRole(btn.dataset.userRole || 'member'),
             account_status: btn.dataset.userAccountStatus || 'active',
           })
         );
@@ -613,56 +757,100 @@ export function renderUserOverview(container, data, actions) {
             id: btn.dataset.userId,
             name: btn.dataset.userName || '',
             email: btn.dataset.userEmail || '',
-            role: btn.dataset.userRole || 'user',
+            primary_role: normalizeRole(btn.dataset.userRole || 'member'),
             account_status: btn.dataset.userAccountStatus || 'active',
           };
-          document.body.insertAdjacentHTML('beforeend', renderEditUserModal(user));
+          const stagedDraft = draftRegistry.get();
+          const initialDraft = stagedDraft?.kind === 'edit' && stagedDraft.userId === user.id ? stagedDraft.payload : null;
+          document.body.insertAdjacentHTML('beforeend', renderEditUserModal(user, initialDraft));
 
           const modal = document.getElementById('edit-user-modal');
           const form = document.getElementById('edit-user-form');
-          const errorBox = document.getElementById('edit-user-error');
-          const close = () => modal?.remove();
+          const saveBtn = modal?.querySelector('#edit-user-save-btn');
+          const fields = {
+            primaryRole: form?.querySelector('[name="primary_role"]'),
+            accountStatus: form?.querySelector('[name="account_status"]'),
+            name: form?.querySelector('[name="name"]'),
+            email: form?.querySelector('[name="email"]'),
+            password: form?.querySelector('[name="password"]'),
+          };
+          const modalState = {
+            dirty: false,
+          };
+          const baseValues = {
+            primary_role: normalizeRole(initialDraft?.primary_role || user.primary_role || 'member'),
+            account_status: String(initialDraft?.account_status || user.account_status || 'active'),
+            name: String(initialDraft?.name || user.name || '').trim(),
+            email: String(initialDraft?.email || user.email || '').trim(),
+            password: String(initialDraft?.password || ''),
+          };
 
-          modal?.addEventListener('click', (e) => {
-            if (e.target === modal || e.target.closest('[data-close-edit-user]')) {
-              close();
-            }
-          });
+          const close = () => {
+            activeModalIsDirty = null;
+            activeModalKind = null;
+            activeModalUserId = null;
+            data.requestUsersFooterSync?.();
+            modal?.remove();
+          };
 
-          form?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            errorBox?.classList.add('hidden');
-            setPending('edit', btn.dataset.userId, true);
+          const isDirty = () => (
+            normalizeRole(fields.primaryRole?.value || 'member') !== baseValues.primary_role
+            || String(fields.accountStatus?.value || 'active') !== baseValues.account_status
+            || String(fields.name?.value || '').trim() !== baseValues.name
+            || String(fields.email?.value || '').trim() !== baseValues.email
+            || String(fields.password?.value || '').trim() !== ''
+          );
+
+          const syncDirty = () => {
+            modalState.dirty = isDirty();
+            activeModalIsDirty = isDirty;
+            activeModalKind = 'edit';
+            activeModalUserId = user.id;
+            setModalSaveButtonState(saveBtn, { enabled: modalState.dirty, saving: false });
+            data.requestUsersFooterSync?.();
+          };
+
+          const saveEdit = async () => {
+            if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
             const fd = new FormData(form);
             const payload = {
-              role: String(fd.get('role') || 'user'),
+              primary_role: String(fd.get('primary_role') || 'member'),
               account_status: String(fd.get('account_status') || 'active'),
               name: String(fd.get('name') || '').trim(),
               email: String(fd.get('email') || '').trim(),
             };
             const password = String(fd.get('password') || '');
             if (password) payload.password = password;
+            draftRegistry.set({
+              kind: 'edit',
+              userId: user.id,
+              payload,
+            });
+            updateView();
+            data.requestUsersFooterSync?.();
+            close();
+          };
 
-            try {
-              const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
-                method: 'PUT',
-                body: JSON.stringify(payload)
-              });
-              const responsePayload = await res.json().catch(() => ({}));
-              if (!res.ok) {
-                throw new Error(getActionError(responsePayload, `Failed to update user (${res.status})`));
-              }
-              actions.updateUser(responsePayload.user);
+          modal?.addEventListener('click', (e) => {
+            if (e.target === modal || e.target.closest('[data-close-edit-user]')) {
               close();
-            } catch (err) {
-              if (errorBox) {
-                errorBox.textContent = err.message;
-                errorBox.classList.remove('hidden');
-              }
-            } finally {
-              setPending('edit', btn.dataset.userId, false);
             }
           });
+          saveBtn?.addEventListener('click', () => {
+            saveEdit();
+          });
+
+          form?.querySelectorAll('input, select, textarea').forEach((el) => {
+            el.addEventListener('input', syncDirty);
+            el.addEventListener('change', syncDirty);
+          });
+
+          form?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            saveEdit();
+          });
+
+          syncDirty();
         } catch (err) {
           window.alert(err.message);
         }
@@ -706,7 +894,7 @@ export function renderUserOverview(container, data, actions) {
 
     tbody.innerHTML = isTableLoading
       ? renderLoadingRows(Math.min(pageSize, 10))
-      : renderUserRows(users);
+      : renderUserRows(users, draftRegistry.get());
     pageRange.textContent = `${pageStart}-${pageEnd} of ${total}`;
     pageLabel.textContent = `Page ${page} / ${totalPages}`;
     prevButton.disabled = data.loading || page <= 1;
@@ -723,6 +911,16 @@ export function renderUserOverview(container, data, actions) {
 
   searchInput?.addEventListener('input', (e) => {
     uiState.query = String(e.target.value || '');
+    syncSearchClearState();
+    applySearchFilter();
+  });
+
+  clearSearchBtn?.addEventListener('click', () => {
+    if (!searchInput) return;
+    uiState.query = '';
+    searchInput.value = '';
+    syncSearchClearState();
+    searchInput.focus();
     applySearchFilter();
   });
 
@@ -746,19 +944,75 @@ export function renderUserOverview(container, data, actions) {
   });
 
   container.querySelector('#open-add-user-modal')?.addEventListener('click', () => {
-    document.body.insertAdjacentHTML('beforeend', renderAddUserModal());
+    const stagedDraft = draftRegistry.get();
+    const initialDraft = stagedDraft?.kind === 'create' || stagedDraft?.kind === 'import-csv'
+      ? stagedDraft.payload
+      : null;
+    document.body.insertAdjacentHTML('beforeend', renderAddUserModal({
+      primary_role: initialDraft?.primary_role || 'member',
+      account_status: initialDraft?.account_status || 'active',
+      name: initialDraft?.name || '',
+      email: initialDraft?.email || '',
+      password: initialDraft?.password || '',
+      csv: initialDraft?.csv || '',
+      tab: stagedDraft?.tab || (stagedDraft?.kind === 'import-csv' ? 'csv' : 'form'),
+    }));
     const modal = document.getElementById('add-user-modal');
     const form = document.getElementById('add-user-form');
     const csvForm = document.getElementById('add-user-csv-form');
-    const errorBox = document.getElementById('add-user-error');
-    const csvErrorBox = document.getElementById('add-user-csv-error');
-    const csvResultBox = document.getElementById('add-user-csv-result');
     const formTab = modal?.querySelector('[data-add-user-tab="form"]');
     const csvTab = modal?.querySelector('[data-add-user-tab="csv"]');
-    const close = () => modal?.remove();
+    const saveBtn = modal?.querySelector('#add-user-save-btn');
+    const fields = {
+      primaryRole: form?.querySelector('[name="primary_role"]'),
+      accountStatus: form?.querySelector('[name="account_status"]'),
+      name: form?.querySelector('[name="name"]'),
+      email: form?.querySelector('[name="email"]'),
+      password: form?.querySelector('[name="password"]'),
+      csv: csvForm?.querySelector('[name="csv"]'),
+    };
+    const modalState = {
+      activeTab: stagedDraft?.tab || (stagedDraft?.kind === 'import-csv' ? 'csv' : 'form'),
+      dirty: false,
+    };
+    const baseValues = {
+      primary_role: String(initialDraft?.primary_role || 'member'),
+      account_status: String(initialDraft?.account_status || 'active'),
+      name: String(initialDraft?.name || '').trim(),
+      email: String(initialDraft?.email || '').trim(),
+      password: String(initialDraft?.password || ''),
+      csv: String(initialDraft?.csv || '').trim(),
+    };
+
+    const isDirty = () => (
+      String(fields.primaryRole?.value || 'member') !== baseValues.primary_role
+      || String(fields.accountStatus?.value || 'active') !== baseValues.account_status
+      || String(fields.name?.value || '').trim() !== baseValues.name
+      || String(fields.email?.value || '').trim() !== baseValues.email
+      || String(fields.password?.value || '').trim() !== baseValues.password
+      || String(fields.csv?.value || '').trim() !== baseValues.csv
+    );
+
+    const syncDirty = () => {
+      modalState.dirty = isDirty();
+      activeModalIsDirty = isDirty;
+      activeModalKind = modalState.activeTab === 'csv' ? 'import-csv' : 'create';
+      activeModalUserId = null;
+      setModalSaveButtonState(saveBtn, { enabled: modalState.dirty, saving: false });
+      data.requestUsersFooterSync?.();
+    };
+
+    const close = () => {
+      activeModalIsDirty = null;
+      activeModalKind = null;
+      activeModalUserId = null;
+      modal?.remove();
+      data.requestUsersFooterSync?.();
+    };
 
     const setTab = (tab) => {
       const isForm = tab === 'form';
+      modalState.activeTab = tab;
       form?.classList.toggle('hidden', !isForm);
       csvForm?.classList.toggle('hidden', isForm);
       formTab?.classList.toggle('text-gray-900', isForm);
@@ -769,6 +1023,7 @@ export function renderUserOverview(container, data, actions) {
       csvTab?.classList.toggle('border-gray-900', !isForm);
       csvTab?.classList.toggle('text-gray-400', isForm);
       csvTab?.classList.toggle('border-transparent', isForm);
+      syncDirty();
     };
 
     formTab?.addEventListener('click', () => setTab('form'));
@@ -780,69 +1035,61 @@ export function renderUserOverview(container, data, actions) {
       }
     });
 
-    form?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(form);
-      errorBox?.classList.add('hidden');
-      try {
-        const res = await apiFetch('/api/admin/users', {
-          method: 'POST',
-          body: JSON.stringify({
-            role: String(fd.get('role') || 'user'),
+    const saveCurrent = () => {
+      if (modalState.activeTab === 'csv') {
+        if (typeof csvForm?.reportValidity === 'function' && !csvForm.reportValidity()) return;
+        const fd = new FormData(csvForm);
+        const csv = String(fd.get('csv') || '').trim();
+        draftRegistry.set({
+          kind: 'import-csv',
+          tab: 'csv',
+          payload: { csv },
+        });
+      } else {
+        if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
+        const fd = new FormData(form);
+        draftRegistry.set({
+          kind: 'create',
+          tab: 'form',
+          payload: {
+            primary_role: String(fd.get('primary_role') || 'member'),
             account_status: String(fd.get('account_status') || 'active'),
             name: String(fd.get('name') || '').trim(),
             email: String(fd.get('email') || '').trim(),
             password: String(fd.get('password') || ''),
-          })
+          },
         });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(getActionError(payload, `Failed to create user (${res.status})`));
-        }
-        actions.prependUser(payload.user);
-        close();
-      } catch (err) {
-        if (errorBox) {
-          errorBox.textContent = err.message;
-          errorBox.classList.remove('hidden');
-        }
       }
+      data.requestUsersFooterSync?.();
+      close();
+    };
+
+    saveBtn?.addEventListener('click', () => {
+      saveCurrent();
+    });
+
+    form?.querySelectorAll('input, select, textarea').forEach((el) => {
+      el.addEventListener('input', syncDirty);
+      el.addEventListener('change', syncDirty);
+    });
+    csvForm?.querySelectorAll('input, select, textarea').forEach((el) => {
+      el.addEventListener('input', syncDirty);
+      el.addEventListener('change', syncDirty);
+    });
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      saveCurrent();
     });
 
     csvForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const fd = new FormData(csvForm);
-      const csv = String(fd.get('csv') || '').trim();
-      csvErrorBox?.classList.add('hidden');
-      csvResultBox?.classList.add('hidden');
-
-      try {
-        const res = await apiFetch('/api/admin/users/import', {
-          method: 'POST',
-          body: JSON.stringify({ csv })
-        });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(getActionError(payload, `Failed to import users (${res.status})`));
-        }
-        actions.invalidateCache();
-        await actions.reload({ preserveContent: true });
-        if (csvResultBox) {
-          csvResultBox.textContent = payload.results
-            .map((result) => result.ok
-              ? `Row ${result.row}: created ${result.email} (${result.role})`
-              : `Row ${result.row}: ${result.error}`)
-            .join('\n');
-          csvResultBox.classList.remove('hidden');
-        }
-      } catch (err) {
-        if (csvErrorBox) {
-          csvErrorBox.textContent = err.message;
-          csvErrorBox.classList.remove('hidden');
-        }
-      }
+      saveCurrent();
     });
+
+    setTab(modalState.activeTab);
   });
 
   updateView();
+  syncSearchClearState();
 }

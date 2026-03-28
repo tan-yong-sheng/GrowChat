@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     run: vi.fn(),
     all: vi.fn(),
     batch: vi.fn(),
+    prepare: vi.fn((sql) => ({ sql })),
   },
   authorize: vi.fn(),
   logAuditEvent: vi.fn(),
@@ -112,7 +113,28 @@ describe('groupsRouter', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.group.name).toBe('Team Alpha');
-    expect(mocks.db.run).toHaveBeenCalled();
+    expect(mocks.db.batch).toHaveBeenCalledTimes(1);
+    expect(mocks.db.run).not.toHaveBeenCalled();
+  });
+
+  it('creates a group with members in one write path', async () => {
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups', 'POST', {
+        name: 'Team Alpha',
+        description: 'Core team',
+        member_ids: ['u2', 'u3'],
+      }),
+      env,
+      {},
+      user,
+      '/api/admin/groups'
+    );
+
+    expect(res.status).toBe(201);
+    expect(mocks.db.batch).toHaveBeenCalledTimes(1);
+    expect(mocks.db.run).not.toHaveBeenCalled();
+    const statements = mocks.db.batch.mock.calls[0][0];
+    expect(statements).toHaveLength(3);
   });
 
   it('updates a group without permissions', async () => {
@@ -137,6 +159,36 @@ describe('groupsRouter', () => {
     const body = await res.json();
     expect(body.group.name).toBe('Team Alpha');
     expect(body.permissions).toBeUndefined();
+    expect(mocks.db.batch).toHaveBeenCalledTimes(1);
+    expect(mocks.db.run).not.toHaveBeenCalled();
+  });
+
+  it('updates a group and replaces members in one write path when member_ids are provided', async () => {
+    mocks.db.first
+      .mockResolvedValueOnce({
+        id: 'g1',
+        name: 'Team Alpha',
+        description: null,
+        is_system: 0,
+      })
+      .mockResolvedValueOnce([{ user_id: 'u1' }]);
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/g1', 'PUT', {
+        name: 'Team Alpha',
+        member_ids: ['u2', 'u3'],
+      }),
+      env,
+      {},
+      user,
+      '/api/admin/groups/g1'
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.db.batch).toHaveBeenCalledTimes(1);
+    expect(mocks.db.run).not.toHaveBeenCalled();
+    const statements = mocks.db.batch.mock.calls[0][0];
+    expect(statements.length).toBeGreaterThan(1);
   });
 
   it('rejects group creation without name', async () => {

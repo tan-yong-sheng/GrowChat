@@ -21,7 +21,7 @@ function makeDb(overrides = {}) {
       return {
         bind: (...params) => ({
           first: async () => {
-            if (statement.includes('SELECT role FROM users WHERE id = ?')) {
+            if (statement.includes('FROM user_roles') || statement.includes('AS role')) {
               return overrides.userRoleRow ?? { role: 'member' };
             }
             if (statement.includes('SELECT account_status FROM users WHERE id = ?')) {
@@ -170,7 +170,7 @@ describe('worker entry point', () => {
 
     expect(res.status).toBe(200);
     expect(mocks.verifyJWT).toHaveBeenCalledWith('access-token', 'test-secret');
-    expect(receivedUser).toMatchObject({ sub: 'u1', role: 'member', account_status: 'active' });
+    expect(receivedUser).toMatchObject({ sub: 'u1', primary_role: 'member', account_status: 'active' });
     expect(ctx.waitUntil).toHaveBeenCalled();
   });
 

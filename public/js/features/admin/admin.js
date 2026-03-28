@@ -13,6 +13,22 @@ import { renderConnectionsSettings } from './settings/connections.js';
 import { renderModelsSettings } from './settings/models.js';
 import { renderIntegrationsSettings } from './settings/integrations.js';
 import { renderPoliciesSettings } from './settings/policies.js';
+import { renderRolesPage } from './users/roles.js';
+import { createAdminShellController } from './admin-shell-controller.js';
+import {
+  getAdminSubnavPath,
+  getAdminTopNavPath,
+  resolveAdminRouteState,
+} from './admin-route-state.js';
+import {
+  ADMIN_SHELL_BODY_PADDING_CLASS,
+  ADMIN_SHELL_FOOTER_PADDING_CLASS,
+  renderErrorState,
+  renderLoadingState,
+  renderSettingsLayout,
+  renderSettingsSkeleton,
+  renderUsersLayout,
+} from './admin-layout.js';
 import { renderCurrentRoute } from '../../bootstrap/app.js';
 
 function wireSidebar(root) {
@@ -86,114 +102,6 @@ function wireSidebar(root) {
   };
 }
 
-function renderLoadingState() {
-  return '<div class="flex items-center justify-center h-64"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 dark:border-white"></div></div>';
-}
-
-function renderSettingsSkeleton() {
-  return `
-    <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-150 w-full">
-      <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
-        <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
-          <div class="h-6 w-32 bg-gray-100 rounded animate-pulse"></div>
-        </div>
-      </div>
-      <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden">
-        <div class="max-w-2xl mx-auto w-full space-y-6 pb-6">
-          <div class="space-y-3">
-            <div class="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
-            <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
-            <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
-          </div>
-          <div class="space-y-3">
-            <div class="h-4 w-28 bg-gray-100 rounded animate-pulse"></div>
-            <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
-          </div>
-        </div>
-      </div>
-      <div class="shrink-0 flex justify-end pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white">
-        <div class="h-9 w-24 bg-gray-100 rounded-full animate-pulse"></div>
-      </div>
-    </div>
-  `;
-}
-
-function renderErrorState(message) {
-  return `
-    <div class="flex items-center justify-center h-full p-6">
-      <div class="max-w-md w-full rounded-3xl border border-red-100 bg-red-50/60 p-6 text-center">
-        <div class="text-sm font-semibold text-red-700">Unable to load admin content</div>
-        <div class="mt-2 text-sm text-red-600">${message}</div>
-      </div>
-    </div>
-  `;
-}
-
-function renderSettingsLayout(subTab) {
-  return `
-    <div class="flex flex-col md:flex-row h-full w-full">
-      <div id="settings-tabs-container" class="w-full md:w-52 flex-none flex flex-row md:flex-col p-2 md:p-4 gap-1 text-sm font-medium border-b md:border-b-0 md:border-r border-gray-50 overflow-x-auto">
-        <a href="/admin/settings/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
-          </svg>
-          <span class="whitespace-nowrap">General</span>
-        </a>
-        <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
-          </svg>
-          <span class="whitespace-nowrap">Connections</span>
-        </a>
-        <a href="/admin/settings/models" data-subnav="models" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'models' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
-            <path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" />
-          </svg>
-          <span class="whitespace-nowrap">Models</span>
-        </a>
-        <a href="/admin/settings/integrations" data-subnav="integrations" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'integrations' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" />
-            <path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" />
-          </svg>
-          <span class="whitespace-nowrap">Integrations</span>
-        </a>
-      </div>
-      <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden p-4 md:p-6"></div>
-    </div>
-  `;
-}
-
-function renderUsersLayout(subTab) {
-  return `
-    <div class="flex flex-col md:flex-row h-full w-full">
-      <div id="users-tabs-container" class="w-full md:w-52 flex-none flex flex-row md:flex-col p-2 md:p-4 gap-1 text-sm font-medium border-b md:border-b-0 md:border-r border-gray-50 overflow-x-auto">
-      <a href="/admin/users/overview" data-subnav="overview" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'overview' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-          <path d="M8.5 4.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10.9 12.006c.11.542-.348.994-.9.994H2c-.553 0-1.01-.452-.902-.994a5.002 5.002 0 0 1 9.803 0ZM14.002 12h-1.59a2.556 2.556 0 0 0-.04-.29 6.476 6.476 0 0 0-1.167-2.603 3.002 3.002 0 0 1 3.633 1.911c.18.522-.283.982-.836.982ZM12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>
-        </svg>
-        <span class="whitespace-nowrap">Overview</span>
-      </a>
-      <a href="/admin/users/groups" data-subnav="groups" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'groups' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-          <path d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.156 11.763c.16-.629.44-1.21.813-1.72a2.5 2.5 0 0 0-2.725 1.377c-.136.287.102.58.418.58h1.449c.01-.077.025-.156.045-.237ZM12.847 11.763c.02.08.036.16.046.237h1.446c.316 0 .554-.293.417-.579a2.5 2.5 0 0 0-2.722-1.378c.374.51.653 1.09.813 1.72ZM14 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 13c-.552 0-1.013-.455-.876-.99a4.002 4.002 0 0 1 7.753 0c.136.535-.324.99-.877.99H5Z"/>
-        </svg>
-        <span class="whitespace-nowrap">Groups</span>
-      </a>
-      <a href="/admin/users/policies" data-subnav="policies" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'policies' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-          <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
-          <path d="M5 5.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 5.5ZM5 8a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 8ZM5 10.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 5 10.5Z" />
-        </svg>
-        <span class="whitespace-nowrap">Policies</span>
-      </a>
-      </div>
-      <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden p-4 md:p-6"></div>
-    </div>
-  `;
-}
-
 export async function renderAdminPage(container) {
   let mainTab = 'users';
   let subTab = 'overview';
@@ -216,112 +124,38 @@ export async function renderAdminPage(container) {
     settingsDirtyCheckers: {},
     settingsSaveHandlers: {},
     settingsDiscardHandlers: {},
+    usersDirtyCheckers: {},
+    usersSaveHandlers: {},
+    usersDiscardHandlers: {},
   };
+
+  const shellController = createAdminShellController({
+    container,
+    data,
+    getMainTab: () => mainTab,
+    getSubTab: () => subTab,
+  });
+  const guardNavigation = shellController.guardNavigation;
+  const handleBeforeUnload = shellController.handleBeforeUnload;
+  const renderMainActionFooter = shellController.renderSharedActionFooter;
+  const updateMainActionFooter = shellController.updateSharedActionFooter;
+  const handleMainSave = shellController.handleSharedActionSave;
 
   const updateRouteInfo = () => {
-    const path = window.location.pathname;
-
-    if (path === '/admin/users' || path === '/admin/users/') {
-      window.history.replaceState({}, '', '/admin/users/overview');
-      mainTab = 'users';
-      subTab = 'overview';
-      return;
+    const routeState = resolveAdminRouteState(window.location.pathname);
+    mainTab = routeState.mainTab;
+    subTab = routeState.subTab;
+    if (routeState.canonicalPath !== window.location.pathname) {
+      window.history.replaceState({}, '', routeState.canonicalPath);
     }
-
-    if (path === '/admin/settings' || path === '/admin/settings/') {
-      window.history.replaceState({}, '', '/admin/settings/general');
-      mainTab = 'settings';
-      subTab = 'general';
-      return;
-    }
-
-    if (path.startsWith('/admin/settings')) {
-      mainTab = 'settings';
-      if (path.includes('/connections')) subTab = 'connections';
-      else if (path.includes('/integrations')) subTab = 'integrations';
-      else if (path.includes('/models')) subTab = 'models';
-      else if (path.includes('/policies')) subTab = 'policies';
-      else subTab = 'general';
-      return;
-    }
-
-    mainTab = 'users';
-    if (path.includes('/policies')) subTab = 'policies';
-    else if (path.includes('/groups')) subTab = 'groups';
-    else subTab = 'overview';
-  };
-
-  const promptUnsavedChanges = () => new Promise((resolve) => {
-    const existing = document.querySelector('#admin-unsaved-modal');
-    if (existing) existing.remove();
-    const overlay = document.createElement('div');
-    overlay.id = 'admin-unsaved-modal';
-    overlay.className = 'fixed inset-0 z-[200] flex items-center justify-center p-4';
-    overlay.innerHTML = `
-      <div class="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
-      <div class="relative w-full max-w-md rounded-3xl bg-white shadow-xl border border-gray-100">
-        <div class="px-6 pt-6 pb-3">
-          <div class="text-lg font-semibold text-gray-900">Unsaved changes</div>
-          <p class="text-sm text-gray-500 mt-2">You have unsaved changes. Save them before leaving this page?</p>
-        </div>
-        <div class="px-6 pb-6 flex items-center justify-end gap-2">
-          <button id="unsaved-cancel" class="px-4 py-2 rounded-full text-sm text-gray-500 hover:bg-gray-50">Cancel</button>
-          <button id="unsaved-discard" class="px-4 py-2 rounded-full text-sm text-gray-600 hover:bg-gray-100">Discard</button>
-          <button id="unsaved-save" class="px-4 py-2 rounded-full text-sm text-white bg-black hover:bg-gray-900">Save</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    const cleanup = () => overlay.remove();
-    overlay.querySelector('#unsaved-cancel')?.addEventListener('click', () => {
-      cleanup();
-      resolve('cancel');
-    });
-    overlay.querySelector('#unsaved-discard')?.addEventListener('click', () => {
-      cleanup();
-      resolve('discard');
-    });
-    overlay.querySelector('#unsaved-save')?.addEventListener('click', () => {
-      cleanup();
-      resolve('save');
-    });
-  });
-
-  const guardSettingsNavigation = async () => {
-    if (mainTab !== 'settings') return true;
-    const dirtyFn = data.settingsDirtyCheckers?.[subTab];
-    const isDirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
-    if (!isDirty) return true;
-    const action = await promptUnsavedChanges();
-    if (action === 'cancel') return false;
-    if (action === 'discard') {
-      const discard = data.settingsDiscardHandlers?.[subTab];
-      if (typeof discard === 'function') discard();
-      return true;
-    }
-    if (action === 'save') {
-      const save = data.settingsSaveHandlers?.[subTab];
-      if (typeof save === 'function') {
-        try {
-          await save();
-        } catch {
-          return false;
-        }
-        const stillDirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
-        return !stillDirty;
-      }
-      return true;
-    }
-    return true;
   };
 
   const sortUsers = (users) => users
     .slice()
     .sort((a, b) => {
-      const roleOrder = { admin: 0, user: 1 };
+      const roleOrder = { admin: 0, member: 1 };
       const statusOrder = { active: 0, pending: 1 };
-      const roleDiff = (roleOrder[a.role] ?? 2) - (roleOrder[b.role] ?? 2);
+      const roleDiff = (roleOrder[a.primary_role] ?? 2) - (roleOrder[b.primary_role] ?? 2);
       if (roleDiff !== 0) return roleDiff;
       const statusDiff = (statusOrder[a.account_status] ?? 2) - (statusOrder[b.account_status] ?? 2);
       if (statusDiff !== 0) return statusDiff;
@@ -378,6 +212,12 @@ export async function renderAdminPage(container) {
             </svg>
             <span>Overview</span>
           </a>
+          <a href="/admin/users/roles" data-subnav="roles" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'roles' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path d="M8 1.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5ZM2.5 13.25a5.5 5.5 0 0 1 11 0v.25H2.5v-.25Z"/>
+            </svg>
+            <span>Roles</span>
+          </a>
           <a href="/admin/users/groups" data-subnav="groups" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'groups' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
               <path d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3.156 11.763c.16-.629.44-1.21.813-1.72a2.5 2.5 0 0 0-2.725 1.377c-.136.287.102.58.418.58h1.449c.01-.077.025-.156.045-.237ZM12.847 11.763c.02.08.036.16.046.237h1.446c.316 0 .554-.293.417-.579a2.5 2.5 0 0 0-2.722-1.378c.374.51.653 1.09.813 1.72ZM14 7.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM3.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 13c-.552 0-1.013-.455-.876-.99a4.002 4.002 0 0 1 7.753 0c.136.535-.324.99-.877.99H5Z"/>
@@ -426,10 +266,12 @@ export async function renderAdminPage(container) {
       bindSubnav();
     }
 
-    const subContentEl = container.querySelector('#admin-sub-content');
+    const subContentEl = container.querySelector('#admin-sub-body') || container.querySelector('#admin-sub-content');
     if (!subContentEl) return;
 
     subContentEl.dataset.settingsTab = subTab;
+    data.sharedActionFooter = true;
+    renderMainActionFooter();
 
     if (mainTab === 'settings') {
       if (subTab === 'general') {
@@ -438,8 +280,6 @@ export async function renderAdminPage(container) {
         renderConnectionsSettings(subContentEl, data);
       } else if (subTab === 'models') {
         renderModelsSettings(subContentEl, data);
-      } else if (subTab === 'policies') {
-        renderPoliciesSettings(subContentEl, data);
       } else if (subTab === 'integrations') {
         renderIntegrationsSettings(subContentEl, data);
       } else {
@@ -455,11 +295,22 @@ export async function renderAdminPage(container) {
           </div>
         `;
       }
+      renderMainActionFooter();
+      updateMainActionFooter();
+      return;
+    }
+
+    if (mainTab === 'users' && subTab === 'roles') {
+      renderRolesPage(subContentEl, data);
+      renderMainActionFooter();
+      updateMainActionFooter();
       return;
     }
 
     if (mainTab === 'users' && subTab === 'policies') {
       renderPoliciesSettings(subContentEl, data);
+      renderMainActionFooter();
+      updateMainActionFooter();
       return;
     }
 
@@ -520,6 +371,8 @@ export async function renderAdminPage(container) {
         },
       });
     }
+    renderMainActionFooter();
+    updateMainActionFooter();
   };
 
   async function loadUsers({ preserveContent = true } = {}) {
@@ -589,14 +442,18 @@ export async function renderAdminPage(container) {
     }
   }
 
+  data.requestUsersFooterSync = updateMainActionFooter;
+  data.requestSettingsFooterSync = updateMainActionFooter;
+  data.requestSharedActionFooterSync = updateMainActionFooter;
+
   function bindTopNav() {
     container.querySelectorAll('a[data-nav]').forEach((link) => {
       link.onclick = async (e) => {
         e.preventDefault();
-        const allowed = await guardSettingsNavigation();
+        const allowed = await guardNavigation();
         if (!allowed) return;
         const nav = link.dataset.nav;
-        const newPath = nav === 'users' ? '/admin/users/overview' : '/admin/settings/general';
+        const newPath = getAdminTopNavPath(nav);
         window.history.pushState({}, '', newPath);
         updateRouteInfo();
 
@@ -618,15 +475,16 @@ export async function renderAdminPage(container) {
     container.querySelectorAll('a[data-subnav]').forEach((link) => {
       link.onclick = async (e) => {
         e.preventDefault();
-        const allowed = await guardSettingsNavigation();
+        const allowed = await guardNavigation();
         if (!allowed) return;
         const nav = link.dataset.subnav;
-        const basePath = mainTab === 'users' ? '/admin/users' : '/admin/settings';
-        window.history.pushState({}, '', `${basePath}/${nav}`);
+        window.history.pushState({}, '', getAdminSubnavPath(mainTab, nav));
         updateRouteInfo();
         const subContentEl = container.querySelector('#admin-sub-content');
         if (subContentEl && mainTab === 'settings') {
           subContentEl.innerHTML = renderSettingsSkeleton();
+          renderMainActionFooter();
+          updateMainActionFooter();
           requestAnimationFrame(() => renderSubContent());
           return;
         }
@@ -639,6 +497,7 @@ export async function renderAdminPage(container) {
   }
 
   function mountShell() {
+    const previousCleanup = typeof container.__cleanup === 'function' ? container.__cleanup : null;
     if (typeof container.__cleanup === 'function') {
       container.__cleanup();
     }
@@ -699,7 +558,22 @@ export async function renderAdminPage(container) {
 
     wireSidebar(container);
     bindTopNav();
+    if (!container.__sharedFooterClickBound) {
+      container.addEventListener('click', (event) => {
+        const saveBtn = event.target.closest?.('#save-users, #save-settings, #save-connections, #save-models-top, #save-integrations');
+        if (!saveBtn || saveBtn.disabled) return;
+        void handleMainSave();
+      });
+      container.__sharedFooterClickBound = true;
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
     shellMounted = true;
+    renderMainActionFooter();
+    const priorCleanup = previousCleanup;
+    container.__cleanup = () => {
+      priorCleanup?.();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }
 
   updateRouteInfo();

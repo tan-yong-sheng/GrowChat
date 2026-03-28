@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   renderCurrentRoute: vi.fn(),
   apiFetch: vi.fn(),
   fetchAdminGroups: vi.fn(),
+  renderUserOverview: vi.fn(),
+  renderRolesPage: vi.fn(),
   renderPoliciesSettings: vi.fn(),
 }));
 
@@ -34,7 +36,11 @@ vi.mock('../../public/js/shared/components/files-modal.js', () => ({
 }));
 
 vi.mock('../../public/js/features/admin/users/overview.js', () => ({
-  renderUserOverview: () => {},
+  renderUserOverview: (...args) => mocks.renderUserOverview(...args),
+}));
+
+vi.mock('../../public/js/features/admin/users/roles.js', () => ({
+  renderRolesPage: (...args) => mocks.renderRolesPage(...args),
 }));
 
 vi.mock('../../public/js/features/admin/users/groups.js', () => ({
@@ -53,7 +59,15 @@ vi.mock('../../public/js/features/admin/users/groups-list-helpers.js', () => ({
 }));
 
 vi.mock('../../public/js/features/admin/settings/general.js', () => ({
-  renderGeneralSettings: () => {},
+  renderGeneralSettings: (container, data) => {
+    data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+    data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+    data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
+    data.settingsDirtyCheckers.general = () => false;
+    data.settingsSaveHandlers.general = async () => {};
+    data.settingsDiscardHandlers.general = () => {};
+    container.innerHTML = '<div data-general-page>General settings</div>';
+  },
 }));
 
 vi.mock('../../public/js/features/admin/settings/connections.js', () => ({
@@ -82,7 +96,35 @@ describe('admin module', () => {
     document.body.innerHTML = '<div id="app"></div>';
     vi.clearAllMocks();
     mocks.renderCurrentRoute.mockReset();
+    mocks.renderUserOverview.mockReset();
+    mocks.renderRolesPage.mockReset();
     mocks.renderPoliciesSettings.mockReset();
+    mocks.renderUserOverview.mockImplementation((container, data) => {
+      data.usersDirtyCheckers = data.usersDirtyCheckers || {};
+      data.usersSaveHandlers = data.usersSaveHandlers || {};
+      data.usersDiscardHandlers = data.usersDiscardHandlers || {};
+      data.usersDirtyCheckers.overview = () => true;
+      data.usersSaveHandlers.overview = async () => {
+        data.usersDirtyCheckers.overview = () => false;
+      };
+      data.usersDiscardHandlers.overview = () => {
+        data.usersDirtyCheckers.overview = () => false;
+      };
+      container.innerHTML = '<div data-overview-page>Users overview</div>';
+    });
+    mocks.renderRolesPage.mockImplementation((container, data) => {
+      data.usersDirtyCheckers = data.usersDirtyCheckers || {};
+      data.usersSaveHandlers = data.usersSaveHandlers || {};
+      data.usersDiscardHandlers = data.usersDiscardHandlers || {};
+      data.usersDirtyCheckers.roles = () => true;
+      data.usersSaveHandlers.roles = async () => {
+        data.usersDirtyCheckers.roles = () => false;
+      };
+      data.usersDiscardHandlers.roles = () => {
+        data.usersDirtyCheckers.roles = () => false;
+      };
+      container.innerHTML = '<div data-role-page>Roles</div>';
+    });
   });
 
   it('imports without depending on the removed root app module', async () => {
@@ -119,5 +161,104 @@ describe('admin module', () => {
 
     expect(document.querySelector('#settings-tabs-container a[data-subnav="policies"]')).toBeNull();
     expect(document.body.textContent).toContain('General');
+  }, 15000);
+
+  it('renders the shared save footer for settings pages from the shell', async () => {
+    history.replaceState({}, '', '/admin/settings/general');
+    const { renderAdminPage } = await loadModule();
+
+    await renderAdminPage(document.getElementById('app'));
+
+    await vi.waitFor(() => expect(document.querySelector('#settings-action-footer')).not.toBeNull());
+    expect(document.querySelector('#settings-action-footer')?.classList.contains('hidden')).toBe(false);
+    expect(document.querySelector('#save-settings')).not.toBeNull();
+    expect(document.querySelector('#save-settings')?.disabled).toBe(true);
+  }, 15000);
+
+  it('prompts before leaving users when the roles draft is dirty', async () => {
+    history.replaceState({}, '', '/admin/users/roles');
+    const { renderAdminPage } = await loadModule();
+
+    await renderAdminPage(document.getElementById('app'));
+
+    expect(mocks.renderRolesPage).toHaveBeenCalled();
+    document.querySelector('a[data-nav="settings"]')?.click();
+
+    await vi.waitFor(() => expect(document.querySelector('#admin-unsaved-modal')).not.toBeNull());
+    expect(window.location.pathname).toBe('/admin/users/roles');
+
+    document.querySelector('#unsaved-discard')?.click();
+    await vi.waitFor(() => expect(window.location.pathname).toBe('/admin/settings/general'));
+  }, 15000);
+
+  it('shows a main save footer on dirty users overview drafts', async () => {
+    history.replaceState({}, '', '/admin/users/overview');
+    const { renderAdminPage } = await loadModule();
+    let activeOverviewData = null;
+    const overviewSaveSpy = vi.fn(async () => {
+      if (activeOverviewData) {
+        activeOverviewData.usersDirtyCheckers.overview = () => false;
+      }
+    });
+    mocks.renderUserOverview.mockImplementation((container, data) => {
+      activeOverviewData = data;
+      data.usersDirtyCheckers = data.usersDirtyCheckers || {};
+      data.usersSaveHandlers = data.usersSaveHandlers || {};
+      data.usersDiscardHandlers = data.usersDiscardHandlers || {};
+      data.usersDirtyCheckers.overview = () => true;
+      data.usersSaveHandlers.overview = overviewSaveSpy;
+      data.usersDiscardHandlers.overview = () => {
+        data.usersDirtyCheckers.overview = () => false;
+      };
+      container.innerHTML = '<div data-overview-page>Users overview</div>';
+    });
+
+    await renderAdminPage(document.getElementById('app'));
+
+    await vi.waitFor(() => expect(document.querySelector('#save-users')).not.toBeNull());
+    expect(document.querySelector('#users-action-footer')?.classList.contains('hidden')).toBe(false);
+
+    document.querySelector('#save-users')?.click();
+    await vi.waitFor(() => expect(overviewSaveSpy).toHaveBeenCalled());
+    await vi.waitFor(() => expect(activeOverviewData.usersDirtyCheckers.overview()).toBe(false));
+  }, 15000);
+
+  it('blocks browser unload when the active users draft is dirty', async () => {
+    history.replaceState({}, '', '/admin/users/overview');
+    const { renderAdminPage } = await loadModule();
+    mocks.renderUserOverview.mockImplementation((container, data) => {
+      data.usersDirtyCheckers = data.usersDirtyCheckers || {};
+      data.usersSaveHandlers = data.usersSaveHandlers || {};
+      data.usersDiscardHandlers = data.usersDiscardHandlers || {};
+      data.usersDirtyCheckers.overview = () => true;
+      container.innerHTML = '<div data-overview-page>Users overview</div>';
+    });
+
+    await renderAdminPage(document.getElementById('app'));
+
+    const event = new Event('beforeunload', { cancelable: true });
+    const dispatchResult = window.dispatchEvent(event);
+
+    expect(dispatchResult).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+  }, 15000);
+
+  it('keeps the users save footer visible on the overview page before edits', async () => {
+    history.replaceState({}, '', '/admin/users/overview');
+    const { renderAdminPage } = await loadModule();
+    mocks.renderUserOverview.mockImplementation((container, data) => {
+      data.usersDirtyCheckers = data.usersDirtyCheckers || {};
+      data.usersSaveHandlers = data.usersSaveHandlers || {};
+      data.usersDiscardHandlers = data.usersDiscardHandlers || {};
+      data.usersDirtyCheckers.overview = () => false;
+      container.innerHTML = '<div data-overview-page>Users overview</div>';
+    });
+
+    await renderAdminPage(document.getElementById('app'));
+
+    await vi.waitFor(() => expect(document.querySelector('#users-action-footer')).not.toBeNull());
+    expect(document.querySelector('#users-action-footer')?.classList.contains('hidden')).toBe(false);
+    expect(document.querySelector('#save-users')?.disabled).toBe(true);
+    expect(document.querySelector('#users-dirty')?.classList.contains('invisible')).toBe(true);
   }, 15000);
 });

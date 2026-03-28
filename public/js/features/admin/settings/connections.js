@@ -1,9 +1,13 @@
-import { apiFetch, fetchAdminConnectionAccess, updateAdminConnectionAccess } from '../../../shared/api.js';
+import { apiFetch } from '../../../shared/api.js';
+import { fetchAdminConnectionAccess } from '../../../shared/admin-access.js';
+import { cloneAclRules, createAclDraftRegistry, getAclRulesSignature } from '../acl-draft.js';
 import { filterModelsBySearch } from '../../../shared/utils/model-search.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
+import { createAdminAclModalShell } from '../acl-modal.js';
+import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
   applyModalDraft,
   applyModalModelPreview,
@@ -61,7 +65,6 @@ export function renderConnectionsSettings(container, data) {
     modalDrafts: new Map(),
     newConnectionDraftId: null,
     modalMode: 'create',
-    aclDrafts: new Map(),
   });
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
@@ -120,9 +123,11 @@ export function renderConnectionsSettings(container, data) {
     });
   };
 
+  const aclDraftRegistry = createAclDraftRegistry(connectionsState);
+
   const hasChanges = () => {
     if (!connectionsState.originalSnapshot) return false;
-    return buildSnapshot() !== connectionsState.originalSnapshot || (connectionsState.aclDrafts?.size || 0) > 0;
+    return buildSnapshot() !== connectionsState.originalSnapshot || aclDraftRegistry.isDirty();
   };
   data.settingsDirtyCheckers.connections = hasChanges;
 
@@ -157,15 +162,15 @@ export function renderConnectionsSettings(container, data) {
       if (!deduped.has(key)) deduped.set(key, conn);
     });
     return Array.from(deduped.values()).map(conn => `
-      <div data-connection-row="${conn.id}" class="py-2.5 flex items-center justify-between pr-2 border-b border-gray-50 last:border-0 ${conn.enabled === false ? 'opacity-70' : ''}">
-        <div class="flex flex-col">
+      <div data-connection-row="${conn.id}" class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2 border-b border-gray-50 last:border-0 ${conn.enabled === false ? 'opacity-70' : ''}">
+        <div class="flex flex-col min-w-0">
           <div class="text-xs font-medium text-gray-900">${conn.name || providerDisplayLabel(conn.providerType)}</div>
           <div class="text-[10px] text-gray-400 font-mono">${conn.url}</div>
           <div class="text-[10px] text-gray-400 mt-0.5">${providerDisplayLabel(conn.providerType)}</div>
           <div data-connection-disabled-badge class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${conn.enabled === false ? '' : 'hidden'}">Disabled</div>
           ${conn.readOnly ? '<div class="text-[10px] text-gray-400 mt-0.5">From env (read-only)</div>' : ''}
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
           <button
             data-id="${conn.id}"
             class="connection-acl-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${conn.enabled === false ? 'hidden' : ''}"
@@ -214,66 +219,16 @@ export function renderConnectionsSettings(container, data) {
       saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
       saveBtn.textContent = connectionsState.saving ? 'Saving...' : 'Save';
     }
+    data.requestSettingsFooterSync?.();
   };
-
-  const cloneConnectionAclRules = (rules = []) => (Array.isArray(rules) ? rules : []).map((rule) => ({ ...rule }));
-  const getConnectionAclRulesSignature = (rules = []) => cloneConnectionAclRules(rules)
-    .map((rule) => ({
-      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
-      principal_id: String(rule?.principal_id || '').trim(),
-      effect: String(rule?.effect || '').trim().toLowerCase(),
-      action: String(rule?.action || '').trim().toLowerCase(),
-    }))
-    .sort((a, b) => (
-      a.principal_type.localeCompare(b.principal_type)
-      || a.principal_id.localeCompare(b.principal_id)
-      || a.action.localeCompare(b.action)
-      || a.effect.localeCompare(b.effect)
-    ))
-    .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
-    .join('|');
 
   const openConnectionAccessModal = async (connection, { onApply } = {}) => {
     if (!connection?.id) return;
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4';
-    modal.innerHTML = `
-      <div class="absolute inset-0 bg-black/25 backdrop-blur-sm"></div>
-      <div class="relative w-full max-w-3xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <div>
-            <div class="text-lg font-semibold">Connection Access</div>
-            <div class="text-[11px] text-gray-500">${escapeHtml(connection.name || connection.id)}</div>
-            <div class="text-[11px] text-amber-600 font-medium">* Apply stages changes. Save the page to persist them.</div>
-          </div>
-          <button class="p-2 rounded-full hover:bg-gray-100 transition" data-close-connection-access>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
-          <div class="flex items-center justify-between">
-            <div class="text-sm font-semibold text-gray-900" id="connection-acl-summary"></div>
-            <div class="text-xs text-gray-400" id="connection-acl-count"></div>
-          </div>
-          <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600" id="connection-acl-reason"></div>
-          <div id="connection-acl-error" class="text-sm text-red-600 hidden"></div>
-          <div id="connection-acl-list" class="space-y-2"></div>
-        </div>
-        <div class="px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0">
-          <div class="text-sm text-red-600" id="connection-acl-save-error"></div>
-          <div class="flex items-center gap-2">
-            <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700" data-close-connection-access>Cancel</button>
-            <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800" id="connection-acl-save-btn">Save</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const close = () => modal.remove();
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.closest('[data-close-connection-access]')) close();
+    const { modal, close } = createAdminAclModalShell({
+      idsPrefix: 'connection-acl',
+      title: 'Connection Access',
+      subtitle: connection.name || connection.id,
+      closeAttr: 'data-close-connection-access',
     });
 
     const listEl = modal.querySelector('#connection-acl-list');
@@ -284,7 +239,7 @@ export function renderConnectionsSettings(container, data) {
     const reasonEl = modal.querySelector('#connection-acl-reason');
     const saveBtn = modal.querySelector('#connection-acl-save-btn');
     let baseRules = [];
-    const stagedRules = cloneConnectionAclRules(connectionsState.aclDrafts?.get(connection.id) || []);
+    const stagedRules = aclDraftRegistry.get(connection.id);
 
     const state = {
       loading: true,
@@ -326,11 +281,13 @@ export function renderConnectionsSettings(container, data) {
 
     const updateSaveButton = () => {
       if (!saveBtn) return;
-      saveBtn.disabled = state.saving;
-      saveBtn.classList.toggle('bg-gray-300', state.saving);
-      saveBtn.classList.toggle('cursor-not-allowed', state.saving);
-      saveBtn.classList.toggle('bg-gray-900', !state.saving);
-      saveBtn.textContent = state.saving ? 'Saving...' : 'Save';
+      setModalSaveButtonState(saveBtn, {
+        enabled: true,
+        saving: state.saving,
+        label: 'Save',
+        enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+        disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+      });
     };
 
     const renderList = () => {
@@ -404,7 +361,7 @@ export function renderConnectionsSettings(container, data) {
         const payload = await fetchAdminConnectionAccess(connection.id);
         state.groups = Array.isArray(payload.groups) ? payload.groups : [];
         const sourceRules = stagedRules.length > 0 ? stagedRules : payload.rules;
-        baseRules = cloneConnectionAclRules(payload.rules || []);
+        baseRules = cloneAclRules(payload.rules || []);
         state.rulesByGroup = new Map(
           (Array.isArray(sourceRules) ? sourceRules : [])
             .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
@@ -432,9 +389,9 @@ export function renderConnectionsSettings(container, data) {
           effect,
           action: 'use',
         }));
-        const sameAsBase = getConnectionAclRulesSignature(rules) === getConnectionAclRulesSignature(baseRules);
+        const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
         if (typeof onApply === 'function') {
-          await onApply(sameAsBase ? null : cloneConnectionAclRules(rules), connection);
+          await onApply(sameAsBase ? null : cloneAclRules(rules), connection);
         }
         close();
       } catch (err) {
@@ -456,8 +413,9 @@ export function renderConnectionsSettings(container, data) {
     if (!isActiveTab()) return;
     const isEnvConnection = connectionsState.selectedConnection?.source === 'env';
     const dirty = hasChanges();
+    const useSharedActionFooter = Boolean(data.sharedActionFooter);
     container.innerHTML = `
-      <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300 w-full">
+      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
           <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">
@@ -466,10 +424,10 @@ export function renderConnectionsSettings(container, data) {
           </div>
         </div>
 
-        <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden">
+        <div class="flex-1 min-h-0 overflow-y-auto">
           <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
             <section class="space-y-1">
-              <div class="py-2.5 flex items-center justify-between pr-2">
+              <div class="py-2.5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between pr-2">
                 <div class="flex flex-col">
                   <div class="text-xs font-medium text-gray-900">LLM Providers</div>
                   <div class="text-[10px] text-gray-400">Manage each provider directly below.</div>
@@ -497,12 +455,13 @@ export function renderConnectionsSettings(container, data) {
           </div>
         </div>
 
+        ${useSharedActionFooter ? '' : `
         <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
           <div id="connections-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
           <button id="save-connections" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || connectionsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || connectionsState.saving) ? 'disabled' : ''}>
             ${connectionsState.saving ? 'Saving...' : 'Save'}
           </button>
-        </div>
+        </div>`}
       </div>
 
       <!-- Edit Connection Modal -->
@@ -1079,11 +1038,7 @@ export function renderConnectionsSettings(container, data) {
         if (connection) {
           openConnectionAccessModal(connection, {
             onApply: async (rules) => {
-              if (!Array.isArray(rules) || rules.length === 0) {
-                connectionsState.aclDrafts.delete(connection.id);
-              } else {
-                connectionsState.aclDrafts.set(connection.id, cloneConnectionAclRules(rules));
-              }
+              aclDraftRegistry.stage(connection.id, rules);
               updateButtons();
             },
           });
@@ -1335,36 +1290,22 @@ export function renderConnectionsSettings(container, data) {
           body: JSON.stringify({
             enabled: connectionsState.openai.enabled,
             connections: manualConnections,
-            env_overrides: envOverrides
+            env_overrides: envOverrides,
+            model_updates: Array.from(connectionsState.modelOverrides.entries())
+              .map(([id, enabled]) => ({ id, enabled })),
+            access_updates: Array.from(aclDraftRegistry.entries())
+              .map(([connectionId, rules]) => ({
+                connection_id: connectionId,
+                rules: cloneAclRules(rules),
+              })),
           })
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || err.message || 'Failed to save connections');
         }
-        const modelOverrides = Array.from(connectionsState.modelOverrides.entries())
-          .map(([id, enabled]) => ({ id, enabled }));
-        if (modelOverrides.length > 0) {
-          const modelRes = await apiFetch('/api/admin/models', {
-            method: 'PUT',
-            body: JSON.stringify({ updates: modelOverrides })
-          });
-          if (!modelRes.ok) {
-            const err = await modelRes.json().catch(() => ({}));
-            throw new Error(err.error || err.message || 'Failed to save model settings');
-          }
-          connectionsState.modelOverrides.clear();
-        }
-        const aclUpdates = Array.from(connectionsState.aclDrafts.entries())
-          .map(([connectionId, rules]) => ({
-            connectionId,
-            rules: cloneConnectionAclRules(rules),
-          }))
-          .filter((entry) => entry.connectionId && entry.rules.length > 0);
-        for (const entry of aclUpdates) {
-          await updateAdminConnectionAccess(entry.connectionId, entry.rules);
-          connectionsState.aclDrafts.delete(entry.connectionId);
-        }
+        connectionsState.modelOverrides.clear();
+        Array.from(aclDraftRegistry.entries()).forEach(([connectionId]) => aclDraftRegistry.clear(connectionId));
         connectionsState.originalSnapshot = buildSnapshot();
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
@@ -1397,7 +1338,7 @@ export function renderConnectionsSettings(container, data) {
     data.settingsDiscardHandlers.connections = () => {
       connectionsState.modelOverrides.clear();
       connectionsState.modalDrafts?.clear();
-      connectionsState.aclDrafts?.clear();
+      aclDraftRegistry.clear();
       connectionsState.newConnectionDraftId = null;
       connectionsState.modalModelsSelection = new Set();
       connectionsState.modalModelsOriginal = new Set();

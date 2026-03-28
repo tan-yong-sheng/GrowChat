@@ -4,7 +4,9 @@ import {
   apiFetch,
   clearAuthState,
   clearModelsCache,
+  createAdminRbacRole,
   fetchArchivedChats,
+  fetchAdminRbacRoles,
   fetchChats,
   fetchSharedChats,
   fetchModels,
@@ -14,6 +16,7 @@ import {
   readChatsCache,
   readModelsCache,
   setAuthState,
+  updateAdminRbacRole,
   writeChatsCache,
   writeModelsCache,
 } from '../../public/js/shared/api.js';
@@ -150,6 +153,25 @@ describe('public api helpers', () => {
     expect(fetchMock.mock.calls[3][1]).toMatchObject({ cache: 'no-store' });
     expect(readModelsCache()).toEqual({ models: [{ id: 'm1' }] });
   });
+
+  it('builds admin RBAC role requests with the expected methods and paths', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ roles: [] }))
+      .mockResolvedValueOnce(jsonResponse({ role: { id: 'r1' } }))
+      .mockResolvedValueOnce(jsonResponse({ role: { id: 'r1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchAdminRbacRoles();
+    await createAdminRbacRole({ name: 'Support', permissions: ['chat.read'] });
+    await updateAdminRbacRole('r1', { name: 'Support+', permissions: ['chat.read'] });
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/rbac/roles');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/rbac/roles');
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'POST' });
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/admin/rbac/roles/r1');
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'PUT' });
+  });
+
 });
 
 

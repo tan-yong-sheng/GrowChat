@@ -75,6 +75,7 @@ describe('admin groups overview', () => {
 
     expect(modal.querySelector('button[data-tab="permissions"]')).toBeNull();
     expect(modal.querySelector('#group-policies-btn')).toBeTruthy();
+    expect(modal.querySelector('#group-save-btn')).toBeTruthy();
   });
 
   it('adds a row-level manage policies shortcut for groups', async () => {
@@ -87,7 +88,47 @@ describe('admin groups overview', () => {
 
     const link = container.querySelector('a.btn-manage-group-policies');
     expect(link).toBeTruthy();
-    expect(link.getAttribute('href')).toBe('/admin/settings/policies?group=g1');
+    expect(link.getAttribute('href')).toBe('/admin/users/policies?group=g1');
+  });
+
+  it('stages group modal edits and persists them from the shared footer save', async () => {
+    const { renderGroupsOverview } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    apiMocks.fetchAdminUsers.mockResolvedValue({ users: [], total: 0 });
+    apiMocks.createAdminGroup.mockResolvedValue({ group: { id: 'g2', name: 'Team Two', member_count: 0 } });
+
+    renderGroupsOverview(container, data, {
+      reload: vi.fn(),
+      onCreate: vi.fn(),
+      onUpdate: vi.fn(),
+      onDelete: vi.fn(),
+      onMemberDelta: vi.fn(),
+    });
+
+    container.querySelector('#create-group-btn').click();
+    await tick();
+
+    document.querySelector('#group-name-input').value = 'Team Two';
+    document.querySelector('#group-name-input').dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('#group-description-input').value = 'Team description';
+    document.querySelector('#group-description-input').dispatchEvent(new Event('input', { bubbles: true }));
+
+    document.querySelector('#group-save-btn').click();
+    await tick();
+
+    expect(apiMocks.createAdminGroup).not.toHaveBeenCalled();
+    expect(data.usersDirtyCheckers?.groups?.() ?? true).toBe(true);
+
+    await data.usersSaveHandlers.groups();
+    await vi.waitFor(() => expect(apiMocks.createAdminGroup).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Team Two',
+      description: 'Team description',
+      member_ids: [],
+    })));
+    expect(data.usersDirtyCheckers.groups()).toBe(false);
+    expect(apiMocks.addGroupMembers).not.toHaveBeenCalled();
+    expect(apiMocks.removeGroupMembers).not.toHaveBeenCalled();
   });
 });
 

@@ -84,9 +84,9 @@ describe('authRouter', () => {
     mocks.db.run.mockResolvedValue({ success: true });
   });
 
-  it('registers a user and returns tokens', async () => {
+  it('registers the first user as an active admin and returns tokens', async () => {
     const env = { DB: {}, JWT_SECRET: 'secret' };
-    queryResponses.countUsers = [{ count: 0 }, { count: 1 }];
+    queryResponses.countUsers = [{ count: 0 }];
     queryResponses.appConfig = [null];
     queryResponses.existingUser = [null];
     queryResponses.userById = [{
@@ -115,11 +115,16 @@ describe('authRouter', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.user.email).toBe('user@example.com');
+    expect(body.user.primary_role).toBe('admin');
     expect(body.user.account_status).toBe('active');
     expect(body.access_token).toBe('jwt-token');
     expect(body.refresh_token).toBe('refresh-token');
     expect(body.expires_in).toBe(900);
-    expect(mocks.db.run).toHaveBeenCalled();
+    expect(
+      mocks.db.run.mock.calls.some(([sql, params]) =>
+        String(sql).includes('INSERT INTO users') && Array.isArray(params) && params[4] === 'active'
+      )
+    ).toBe(true);
   });
 
   it('creates pending registrations when the default registration status is pending', async () => {
@@ -131,7 +136,7 @@ describe('authRouter', () => {
       id: 'u2',
       email: 'pending@example.com',
       name: 'Pending User',
-      role: 'user',
+      role: 'member',
       account_status: 'pending',
       settings: '{}',
       created_at: 1,
@@ -152,7 +157,7 @@ describe('authRouter', () => {
 
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.user.role).toBe('user');
+    expect(body.user.primary_role).toBe('member');
     expect(body.user.account_status).toBe('pending');
     expect(body.status).toBe('pending');
     expect(body.message).toBe('Account pending approval.');
@@ -193,7 +198,7 @@ describe('authRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
       password_hash: 'stored-hash',
       settings: '{}',
@@ -204,7 +209,7 @@ describe('authRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'user',
+      role: 'member',
       password_hash: 'stored-hash',
       settings: '{}',
       created_at: 1,
@@ -236,7 +241,7 @@ describe('authRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'user',
+      role: 'member',
       account_status: 'pending',
       password_hash: 'stored-hash',
       settings: '{}',
@@ -270,7 +275,7 @@ describe('authRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
       password_hash: 'stored-hash',
       settings: '{}',
@@ -301,7 +306,7 @@ describe('authRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
       settings: '{}',
       created_at: 1,
@@ -310,7 +315,7 @@ describe('authRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
       settings: '{}',
       created_at: 1,

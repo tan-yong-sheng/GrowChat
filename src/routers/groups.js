@@ -88,24 +88,33 @@ export async function groupsRouter(req, env, _ctx, user, path) {
     if (description && description.length > 500) {
       return error(req, 'Description too long (max 500 chars)', 400);
     }
+    const memberIds = normalizePermissionsList(body.member_ids);
 
     try {
       const existing = await db.first('SELECT id FROM groups WHERE name = ?', [name]);
       if (existing) return error(req, 'Group name already exists', 409);
 
       const groupId = crypto.randomUUID();
-      await db.run(
-        `INSERT INTO groups (id, name, description, is_system, created_at, updated_at)
-         VALUES (?, ?, ?, 0, unixepoch(), unixepoch())`,
-        [groupId, name, description]
-      );
+      const statements = [
+        db.prepare(
+          `INSERT INTO groups (id, name, description, is_system, created_at, updated_at)
+           VALUES (?, ?, ?, 0, unixepoch(), unixepoch())`,
+          [groupId, name, description]
+        ),
+        ...memberIds.map((userId) => db.prepare(
+          `INSERT INTO group_members (id, group_id, user_id, created_at)
+           VALUES (?, ?, ?, unixepoch())`,
+          [crypto.randomUUID(), groupId, userId]
+        )),
+      ];
+      await db.batch(statements);
 
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'group_created',
         resource_type: 'group',
         resource_id: groupId,
-        metadata: { name },
+        metadata: { name, member_ids: memberIds },
       });
 
       return json(
@@ -116,6 +125,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
             name,
             description,
             is_system: 0,
+            member_count: memberIds.length,
           },
         },
         201
@@ -184,20 +194,39 @@ export async function groupsRouter(req, env, _ctx, user, path) {
       if (description && description.length > 500) {
         return error(req, 'Description too long (max 500 chars)', 400);
       }
+      const hasMemberIds = Object.prototype.hasOwnProperty.call(body, 'member_ids');
+      const memberIds = hasMemberIds ? normalizePermissionsList(body.member_ids) : null;
 
-      await db.run(
-        `UPDATE groups
-         SET name = ?, description = ?, updated_at = unixepoch()
-         WHERE id = ?`,
-        [name, description || null, groupId]
-      );
+      const statements = [
+        db.prepare(
+          `UPDATE groups
+           SET name = ?, description = ?, updated_at = unixepoch()
+           WHERE id = ?`,
+          [name, description || null, groupId]
+        ),
+      ];
+      if (hasMemberIds) {
+        statements.push(
+          db.prepare('DELETE FROM group_members WHERE group_id = ?', [groupId]),
+          ...memberIds.map((userId) => db.prepare(
+            `INSERT INTO group_members (id, group_id, user_id, created_at)
+             VALUES (?, ?, ?, unixepoch())`,
+            [crypto.randomUUID(), groupId, userId]
+          ))
+        );
+      }
+
+      await db.batch(statements);
 
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'group_updated',
         resource_type: 'group',
         resource_id: groupId,
-        metadata: { name },
+        metadata: {
+          name,
+          ...(hasMemberIds ? { member_ids: memberIds } : {}),
+        },
       });
 
       return json(req, {
@@ -206,6 +235,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
           name,
           description: description || null,
           is_system: group.is_system || 0,
+          ...(hasMemberIds ? { member_count: memberIds.length } : {}),
         },
       });
     } catch (err) {

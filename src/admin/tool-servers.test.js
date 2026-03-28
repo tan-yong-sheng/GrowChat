@@ -111,7 +111,7 @@ describe('admin tool server helpers', () => {
         }
         return [];
       }),
-      first: vi.fn().mockResolvedValue({ role: 'user' }),
+      first: vi.fn().mockResolvedValue({ role: 'member' }),
     };
     mocks.getConfigValue.mockResolvedValueOnce(JSON.stringify([
       { id: 'mcp-admin', name: 'Admin MCP', url: 'https://mcp.example.com', enabled: true },

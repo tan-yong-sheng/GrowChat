@@ -4,6 +4,7 @@ import {
   evaluateToolServerAclAccess,
   loadToolServerAclRules,
 } from '../utils/tool-server-acl.js';
+import { loadPrimaryRole } from '../utils/user-role.js';
 import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../mcp/client.js';
 
 const ATTACHMENT_CAP_TYPES = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
@@ -157,13 +158,7 @@ export async function loadToolServers(db, options = {}) {
       return [...configServers, ...userServers];
     }
 
-    let userRole = 'member';
-    try {
-      const row = await db.first('SELECT role FROM users WHERE id = ?', [userId]);
-      userRole = String(row?.role || 'member').trim().toLowerCase() === 'admin' ? 'admin' : 'member';
-    } catch {
-      userRole = 'member';
-    }
+    const userRole = (await loadPrimaryRole(db, userId)) || 'member';
 
     let userGroupIds = new Set();
     try {
@@ -185,7 +180,7 @@ export async function loadToolServers(db, options = {}) {
     const adminServers = configServers
       .map((server) => {
         const access = evaluateToolServerAclAccess(server, {
-          user: { sub: userId, role: userRole },
+          user: { sub: userId, primary_role: userRole },
           userGroupIds,
           rules: aclIndex.get(server.id) || [],
         });

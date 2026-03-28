@@ -133,7 +133,8 @@ describe('admin models settings', () => {
     const disabledRow = rows.find((row) => row.textContent.includes('Model B'));
     expect(disabledRow).toBeTruthy();
     expect(disabledRow.className).toContain('opacity-70');
-    expect(disabledRow.querySelector('[data-model-acl]')).toBeNull();
+    expect(disabledRow.querySelector('[data-model-acl]')).not.toBeNull();
+    expect(disabledRow.querySelector('[data-model-acl]')?.classList.contains('hidden')).toBe(true);
     expect(disabledRow.querySelector('.model-toggle')).toBeTruthy();
   });
 
@@ -188,7 +189,7 @@ describe('admin models settings', () => {
     });
   });
 
-  it('keeps an explicit No Access ACL draft dirty and saves an empty rule set', async () => {
+  it('keeps an explicit No Access ACL draft dirty and saves a combined model settings payload', async () => {
     const { renderModelsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -238,6 +239,10 @@ describe('admin models settings', () => {
     renderModelsSettings(container, data);
     await vi.waitFor(() => expect(container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]')).not.toBeNull());
 
+    const capButton = container.querySelector('[data-cap-model="openai/env-openai-0:gemini-2.5-flash"][data-cap-kind="image"]');
+    expect(capButton).toBeTruthy();
+    capButton.click();
+
     container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]').click();
     await vi.waitFor(() => {
       expect(mocks.apiFetch.mock.calls.some(([url]) => String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access')).toBe(true);
@@ -250,19 +255,47 @@ describe('admin models settings', () => {
     select.dispatchEvent(new Event('change', { bubbles: true }));
 
     await vi.waitFor(() => expect(container.querySelector('#save-models-top')).not.toBeNull());
-    expect(container.querySelector('#save-models-top').disabled).toBe(true);
+    expect(container.querySelector('#save-models-top').disabled).toBe(false);
 
     document.querySelector('#model-acl-save-btn').click();
     await vi.waitFor(() => expect(container.querySelector('#save-models-top').disabled).toBe(false));
 
+    expect(
+      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/model-attachment-caps' && String(options?.method || 'GET').toUpperCase() === 'PUT')
+    ).toBe(false);
+    expect(
+      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' && String(options?.method || 'GET').toUpperCase() === 'PUT')
+    ).toBe(false);
+
     container.querySelector('#save-models-top').click();
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
-      '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access',
+      '/api/admin/models',
       expect.objectContaining({
         method: 'PUT',
-        body: JSON.stringify({ rules: [] }),
+        body: expect.any(String),
       })
     ));
+
+    const combinedWriteCall = mocks.apiFetch.mock.calls.find(([url, options]) => {
+      return String(url) === '/api/admin/models' && String(options?.method || 'GET').toUpperCase() === 'PUT';
+    });
+    expect(combinedWriteCall).toBeTruthy();
+    const [, combinedOptions] = combinedWriteCall;
+    expect(JSON.parse(combinedOptions.body)).toEqual({
+      updates: [],
+      attachment_updates: [
+        {
+          model_id: 'openai/env-openai-0:gemini-2.5-flash',
+          attachments: { image: true },
+        },
+      ],
+      access_updates: [
+        {
+          modelId: 'openai/env-openai-0:gemini-2.5-flash',
+          rules: [],
+        },
+      ],
+    });
   });
 });
 

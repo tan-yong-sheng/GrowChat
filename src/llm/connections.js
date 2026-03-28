@@ -722,7 +722,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     const filtered = combined
       .map((connection) => {
         const access = evaluateConnectionAclAccess(connection, {
-          user: { sub: userId, role: userRole },
+          user: { sub: userId, primary_role: userRole },
           userGroupIds,
           rules: aclIndex.get(connection.id) || [],
         });

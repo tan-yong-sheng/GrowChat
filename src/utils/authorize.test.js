@@ -255,7 +255,7 @@ describe('authorize.js - Authorization Core', () => {
   });
 
   describe('authorize - Error Handling', () => {
-    it('should handle DB errors gracefully by using fallback permissions', async () => {
+    it('should deny when DB errors prevent permission resolution', async () => {
       const user = { sub: 'user-123', role: 'user' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockRejectedValue(new Error('DB connection failed')),
@@ -266,12 +266,12 @@ describe('authorize.js - Authorization Core', () => {
         action: 'chat.read',
       });
 
-      // Should return fallback permissions for 'user' role, which includes 'chat.read'
-      expect(result.allow).toBe(true);
-      expect(result.code).toBe('ok');
+      expect(result.allow).toBe(false);
+      expect(result.code).toBe('forbidden');
+      expect(result.reason).toBe(DENIAL_REASONS.MISSING_PERMISSION);
     });
 
-    it('should handle null result from DB query by trying legacy fallback', async () => {
+    it('should deny when RBAC query returns no permissions', async () => {
       const user = { sub: 'user-123', role: 'user' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue(null),
@@ -282,9 +282,8 @@ describe('authorize.js - Authorization Core', () => {
         action: 'chat.read',
       });
 
-      // With null result, falls back to legacy permissions which includes chat.read for user
-      expect(result.allow).toBe(true);
-      expect(result.reason).toBeUndefined();
+      expect(result.allow).toBe(false);
+      expect(result.reason).toBe(DENIAL_REASONS.MISSING_PERMISSION);
     });
   });
 
@@ -364,7 +363,7 @@ describe('authorize.js - Authorization Core', () => {
       expect(mockStatement.bind).toHaveBeenCalledWith('user-123');
     });
 
-    it('should handle DB errors and return fallback permissions', async () => {
+    it('should handle DB errors and return no permissions', async () => {
       const user = { sub: 'user-123', role: 'admin' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockRejectedValue(new Error('DB error')),
@@ -374,7 +373,7 @@ describe('authorize.js - Authorization Core', () => {
       const perms = await resolvePermissions(mockEnv, user);
 
       expect(Array.isArray(perms)).toBe(true);
-      expect(perms.length).toBeGreaterThan(0);
+      expect(perms).toEqual([]);
     });
 
     it('should not include duplicate permissions', async () => {

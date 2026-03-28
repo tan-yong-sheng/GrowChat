@@ -3,8 +3,8 @@
 import { spawnSync } from 'node:child_process';
 
 const steps = [
-  ['test', ['npm', ['test']]],
-  ['coverage', ['npm', ['run', 'test:coverage']]],
+  ['test', ['npm', ['test', '--', '--pool', 'forks', '--maxWorkers=1']]],
+  ['coverage', ['npm', ['run', 'test:coverage', '--', '--pool', 'forks', '--maxWorkers=1']]],
   ['css', ['npm', ['run', 'build:css']]],
   ['migrations', ['node', ['scripts/validate-migrations.js']]],
 ];

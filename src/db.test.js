@@ -59,8 +59,8 @@ describe('db.js - Database Abstraction', () => {
     });
 
     it('should handle multiple parameters', () => {
-      const sql = 'INSERT INTO users (email, name, role) VALUES (?, ?, ?)';
-      const params = ['user@example.com', 'John Doe', 'admin'];
+      const sql = 'INSERT INTO users (email, name, account_status) VALUES (?, ?, ?)';
+      const params = ['user@example.com', 'John Doe', 'active'];
       const mockStatement = { bind: vi.fn() };
       mockD1.prepare.mockReturnValue(mockStatement);
 

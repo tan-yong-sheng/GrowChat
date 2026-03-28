@@ -13,7 +13,7 @@ import {
   resolveContentType,
   uploadFileToR2,
   storeFileMetadata,
-  getFileMetadata,
+  requireOwnedDocument,
   listUserDocuments,
   deleteDocument,
 } from '../services/uploads.js';
@@ -215,13 +215,10 @@ export async function filesRouter(req, env, ctx, user, path) {
     const db = createDB(env.DB);
 
     try {
-      const doc = await getFileMetadata(db, documentId);
+      const owned = await requireOwnedDocument(req, db, documentId, user.sub);
+      if (owned.error) return owned.error;
 
-      if (!doc || doc.user_id !== user.sub) {
-        return error(req, 'Not found', 404);
-      }
-
-      return json(req, doc);
+      return json(req, owned.doc);
     } catch (err) {
       console.error('Get document failed:', err);
       return error(req, 'Failed to get document', 500);
@@ -312,16 +309,9 @@ export async function filesRouter(req, env, ctx, user, path) {
     const db = createDB(env.DB);
 
     try {
-      const doc = await db.first(
-        `SELECT id, filename, content_type, r2_key
-         FROM documents
-         WHERE id = ? AND user_id = ?`,
-        [documentId, user.sub]
-      );
-
-      if (!doc) {
-        return error(req, 'Document not found', 404);
-      }
+      const owned = await requireOwnedDocument(req, db, documentId, user.sub);
+      if (owned.error) return owned.error;
+      const doc = owned.doc;
 
       const object = await env.FILES.get(doc.r2_key);
       if (!object || !object.body) {
@@ -348,18 +338,9 @@ export async function filesRouter(req, env, ctx, user, path) {
     const db = createDB(env.DB);
 
     try {
-      const doc = await db.first(
-        `SELECT
-          id, filename, extraction_status, extraction_error,
-          created_at, updated_at
-        FROM documents
-        WHERE id = ? AND user_id = ?`,
-        [documentId, user.sub]
-      );
-
-      if (!doc) {
-        return error(req, 'Document not found', 404);
-      }
+      const owned = await requireOwnedDocument(req, db, documentId, user.sub);
+      if (owned.error) return owned.error;
+      const doc = owned.doc;
 
       // Map numeric status to human-readable state
       const extractionState = doc.extraction_status === 1 ? 'done' :
@@ -388,17 +369,9 @@ export async function filesRouter(req, env, ctx, user, path) {
     const db = createDB(env.DB);
 
     try {
-      const doc = await db.first(
-        `SELECT
-          id, filename, content_type, text_excerpt, extraction_status
-        FROM documents
-        WHERE id = ? AND user_id = ?`,
-        [documentId, user.sub]
-      );
-
-      if (!doc) {
-        return error(req, 'Document not found', 404);
-      }
+      const owned = await requireOwnedDocument(req, db, documentId, user.sub);
+      if (owned.error) return owned.error;
+      const doc = owned.doc;
 
       // Determine safe representation based on content type
       let responseType = 'text/plain';

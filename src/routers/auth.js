@@ -9,6 +9,7 @@ import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../service
 import { createUserRepository } from '../repositories/user-repository.js';
 import { APP_TTLS } from '../config/app.js';
 import { ValidationError } from '../errors/http-errors.js';
+import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback).trim().toLowerCase();
@@ -31,7 +32,7 @@ async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active')
     return;
   }
   if (!role) return;
-  const mappedRole = role === 'admin' ? 'admin' : 'member';
+  const mappedRole = normalizePublicRole(role);
 
   try {
     await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
@@ -52,7 +53,7 @@ async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active')
   }
 }
 
-function sanitizeUser(user) {
+function sanitizeUser(user, primaryRole = 'member') {
   let settings = {};
   try {
     settings = user.settings ? JSON.parse(user.settings) : {};
@@ -63,8 +64,8 @@ function sanitizeUser(user) {
     id: user.id,
     email: user.email,
     name: user.name,
-    role: user.role,
     account_status: normalizeAccountStatus(user.account_status),
+    primary_role: normalizePublicRole(primaryRole),
     settings,
     created_at: user.created_at,
     last_active_at: user.last_active_at,
@@ -78,9 +79,9 @@ function readBearerToken(req) {
   return header.slice('Bearer '.length).trim();
 }
 
-async function createAccessToken(secret, user) {
+async function createAccessToken(secret, user, primaryRole) {
   return signJWT(
-    { sub: user.id, email: user.email, role: user.role, name: user.name },
+    { sub: user.id, email: user.email, primary_role: normalizePublicRole(primaryRole), name: user.name },
     secret,
     APP_TTLS.accessTokenSeconds
   );
@@ -146,47 +147,39 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const registrationStatus = String(registrationStatusRaw || 'pending').trim().toLowerCase() === 'active'
       ? 'active'
       : 'pending';
+    // Bootstrap the very first account as the admin owner of the fresh workspace.
+    const finalRole = hasUsers ? 'member' : 'admin';
+    const finalAccountStatus = finalRole === 'admin' ? 'active' : registrationStatus;
     let user = await users.create({
       id,
       email,
       passwordHash,
       name,
-      role: 'user',
-      accountStatus: registrationStatus,
+      accountStatus: finalAccountStatus,
       settings: '{}',
     });
-
-    // Open WebUI-style first-user elevation: decide admin after insert.
-    const finalRole = (await users.count()) === 1
-      ? 'admin'
-      : 'user';
-    const finalAccountStatus = finalRole === 'admin' ? 'active' : registrationStatus;
     if (finalRole === 'admin') {
-      await db.run(
-        'UPDATE users SET role = ?, account_status = ?, updated_at = unixepoch() WHERE id = ?',
-        ['admin', 'active', id]
-      );
       // Disable public registration after first admin is created.
       await setConfigValue(db, 'public_registration', 'false');
-      user = { ...user, role: 'admin', account_status: 'active' };
+      user = { ...user, primary_role: 'admin', account_status: 'active' };
     } else {
-      user = { ...user, role: 'user', account_status: finalAccountStatus };
+      user = { ...user, primary_role: 'member', account_status: finalAccountStatus };
     }
     await ensureUserRoleBinding(db, id, finalRole, finalAccountStatus);
     if (finalAccountStatus === 'pending') {
       return json(req, {
-        user: sanitizeUser(user),
+        user: sanitizeUser(user, finalRole),
         account_status: 'pending',
         status: 'pending',
         message: 'Account pending approval.',
       }, 201);
     }
 
-    const accessToken = await createAccessToken(jwtSecret, user);
+    const accessToken = await createAccessToken(jwtSecret, user, finalRole);
     const refresh = await createRefreshToken(env, user.id);
 
     return json(req, {
-      user: sanitizeUser(user),
+      user: sanitizeUser(user, finalRole),
       access_token: accessToken,
       refresh_token: refresh.token,
       expires_in: 900,
@@ -227,9 +220,10 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const user = await users.findByEmail(email);
     if (!user) return error(req, 'Invalid credentials', 401);
-    await ensureUserRoleBinding(db, user.id, user.role, user.account_status);
+    const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
+    await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
 
-    const ok = await verifyPassword(password, user.password_hash);
+      const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
     if (!isActiveAccount(user)) {
       return json(req, {
@@ -240,12 +234,17 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     await users.touchLastActive(user.id);
     const freshUser = await users.findById(user.id);
+    const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
 
-    const accessToken = await createAccessToken(jwtSecret, freshUser);
+    const accessToken = await signJWT(
+      { sub: freshUser.id, email: freshUser.email, primary_role: primaryRole, name: freshUser.name },
+      jwtSecret,
+      APP_TTLS.accessTokenSeconds
+    );
     const refresh = await createRefreshToken(env, freshUser.id);
 
     return json(req, {
-      user: sanitizeUser(freshUser),
+      user: sanitizeUser(freshUser, primaryRole),
       access_token: accessToken,
       refresh_token: refresh.token,
       expires_in: 900,
@@ -276,7 +275,8 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const user = await users.findById(session.userId);
     if (!user) return error(req, 'User not found', 404);
-    await ensureUserRoleBinding(db, user.id, user.role, user.account_status);
+    const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
+    await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
     if (!isActiveAccount(user)) {
       return json(req, {
         error: 'pending_account',
@@ -286,12 +286,17 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     await users.touchLastActive(user.id);
     const freshUser = await users.findById(user.id);
+    const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
 
-    const accessToken = await createAccessToken(jwtSecret, freshUser);
+    const accessToken = await signJWT(
+      { sub: freshUser.id, email: freshUser.email, primary_role: primaryRole, name: freshUser.name },
+      jwtSecret,
+      APP_TTLS.accessTokenSeconds
+    );
     const refresh = await createRefreshToken(env, freshUser.id);
 
     return json(req, {
-      user: sanitizeUser(freshUser),
+      user: sanitizeUser(freshUser, primaryRole),
       access_token: accessToken,
       refresh_token: refresh.token,
       expires_in: 900,

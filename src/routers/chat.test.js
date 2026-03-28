@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createRealtimeEvent: vi.fn((event) => event),
   getOriginSessionId: vi.fn(() => 's1'),
   publishRealtimeEvent: vi.fn().mockResolvedValue(true),
+  authorize: vi.fn(),
 }));
 
 vi.mock('../db.js', () => ({
@@ -26,6 +27,10 @@ vi.mock('../llm.js', async () => {
     streamLLM: (...args) => mocks.streamLLM(...args),
   };
 });
+
+vi.mock('../utils/authorize.js', () => ({
+  authorize: (...args) => mocks.authorize(...args),
+}));
 
 vi.mock('../chat/mcp.js', async () => {
   const actual = await vi.importActual('../chat/mcp.js');
@@ -64,6 +69,7 @@ describe('chatRouter', () => {
       sql,
       bind: (...params) => ({ sql, params }),
     }));
+    mocks.authorize.mockResolvedValue({ allow: true, code: 'ok', action: 'chat.read' });
   });
 
   it('returns 401 for unauthenticated /api/chats', async () => {
@@ -401,6 +407,15 @@ describe('chatRouter', () => {
 
   it('denies chat send when model access is not granted', async () => {
     const adminUser = { ...user, role: 'admin' };
+    mocks.authorize.mockImplementation(async (_env, _user, options = {}) => {
+      if (options.action === 'chat.write') {
+        return { allow: true, code: 'ok', action: 'chat.write' };
+      }
+      if (options.action === 'model.use') {
+        return { allow: false, code: 'forbidden', reason: 'missing_permission', action: 'model.use' };
+      }
+      return { allow: true, code: 'ok', action: options.action };
+    });
     mocks.db.first
       .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', model: 'gpt-4', current_message_id: null })
       .mockResolvedValueOnce({ id: 'm-user', role: 'user', content: 'hello' })

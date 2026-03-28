@@ -23,6 +23,7 @@ import {
 } from '../admin/tool-servers.js';
 import { parsePagination, requirePlainObject, requireString, validateEmail } from '../validation/request.js';
 import { isValidEmail } from '../utils/rbac.js';
+import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 import { ValidationError } from '../errors/http-errors.js';
 import { buildSelfProfileUpdate, buildUserProfileResponse } from './user-profile.js';
 
@@ -31,12 +32,16 @@ function normalizeAccountStatus(value, fallback = 'active') {
   return status === 'pending' ? 'pending' : 'active';
 }
 
+function normalizeRole(value) {
+  return normalizePublicRole(value);
+}
+
 async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
   try {
     await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
 
     if (normalizeAccountStatus(accountStatus) !== 'active') return;
-    const mappedRole = role === 'admin' ? 'admin' : 'member';
+    const mappedRole = normalizeRole(role);
     await db.run(
       `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
        SELECT ?, ?, r.id, unixepoch()
@@ -51,12 +56,6 @@ async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
     }
     throw err;
   }
-}
-
-function normalizeRole(value) {
-  const role = String(value || 'user').trim().toLowerCase();
-  if (role === 'admin') return 'admin';
-  return 'user';
 }
 
 async function loadModelEnabledMap(db) {
@@ -160,7 +159,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       const ownConnections = await loadUserOpenAIConnectionConfigs(db, user.sub, { includeDisabled: true });
       const connections = await getAllOpenAIConnectionConfigs(env, {
         userId: user.sub,
-        userRole: user.role || 'member',
+        userRole: normalizeRole(user.primary_role),
         includeDisabled: true,
       });
       const accessible = connections
@@ -385,11 +384,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const includeRoles = include.has('roles') || include.has('all');
 
     const row = await db.first(
-      'SELECT id, email, name, role, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at, last_active_at FROM users WHERE id = ?',
+      'SELECT id, email, name, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at, last_active_at FROM users WHERE id = ?',
       [user.sub]
     );
 
     if (!row) return error(req, 'User not found', 404);
+    const primaryRole = (await loadPrimaryRole(db, user.sub)) || 'member';
+    const roles = await getUserRoles(env, user.sub);
     let globalDefaultModelId = null;
     try {
       const rawDefault = await getConfigValue(db, 'default_model_id', null);
@@ -398,13 +399,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
       globalDefaultModelId = null;
     }
 
-    const payload = buildUserProfileResponse(row, { defaultModelId: globalDefaultModelId });
+    const payload = buildUserProfileResponse(row, { defaultModelId: globalDefaultModelId, primaryRole });
 
     if (includePermissions) {
       payload.permissions = await resolvePermissions(env, user);
     }
     if (includeRoles) {
-      payload.roles = await getUserRoles(env, user.sub);
+      payload.roles = roles;
     }
 
     return json(req, payload);
@@ -433,12 +434,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
       );
 
       const row = await db.first(
-        'SELECT id, email, name, role, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
+        'SELECT id, email, name, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
         [user.sub]
       );
       if (!row) return error(req, 'User not found', 404);
 
-      return json(req, buildUserProfileResponse(row));
+      const primaryRole = (await loadPrimaryRole(db, user.sub)) || 'member';
+      return json(req, buildUserProfileResponse(row, { primaryRole }));
     } catch (err) {
       if (err instanceof ValidationError) {
         return error(req, err.message, 400);
@@ -470,12 +472,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
       );
 
       const row = await db.first(
-        'SELECT id, email, name, role, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
+        'SELECT id, email, name, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
         [user.sub]
       );
       if (!row) return error(req, 'User not found', 404);
 
-      return json(req, buildUserProfileResponse(row));
+      const primaryRole = (await loadPrimaryRole(db, user.sub)) || 'member';
+      return json(req, buildUserProfileResponse(row, { primaryRole }));
     } catch (err) {
       if (err instanceof ValidationError) {
         return error(req, err.message, 400);
@@ -502,12 +505,35 @@ export async function usersRouter(req, env, _ctx, user, path) {
     try {
       const totalRow = await db.first('SELECT COUNT(*) as count FROM users');
       const users = await db.all(
-        `SELECT id, email, name, role, account_status, settings, created_at, updated_at, last_active_at
-         FROM users
+        `SELECT
+           u.id,
+           u.email,
+           u.name,
+           u.account_status,
+           u.settings,
+           u.created_at,
+           u.updated_at,
+           u.last_active_at,
+           COALESCE((
+             SELECT r.name
+             FROM user_roles ur
+             INNER JOIN roles r ON r.id = ur.role_id
+             WHERE ur.user_id = u.id
+             ORDER BY r.name ASC
+             LIMIT 1
+           ), 'member') AS primary_role
+         FROM users u
          ORDER BY
-           CASE role
+           CASE COALESCE((
+             SELECT r.name
+             FROM user_roles ur
+             INNER JOIN roles r ON r.id = ur.role_id
+             WHERE ur.user_id = u.id
+             ORDER BY r.name ASC
+             LIMIT 1
+           ), 'member')
              WHEN 'admin' THEN 0
-             WHEN 'user' THEN 1
+             WHEN 'member' THEN 1
              ELSE 2
            END,
            CASE COALESCE(account_status, 'active')
@@ -526,7 +552,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         id: u.id,
         email: u.email,
         name: u.name,
-        role: u.role,
+        primary_role: normalizeRole(u.primary_role),
         account_status: normalizeAccountStatus(u.account_status),
         settings: parseSettings(u.settings),
         created_at: u.created_at,
@@ -571,12 +597,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const db = createDB(env.DB);
     try {
       const targetUser = await db.first(
-        'SELECT id, email, name, role, account_status FROM users WHERE id = ?',
+        'SELECT id, email, name, account_status FROM users WHERE id = ?',
         [userId]
       );
       if (!targetUser) {
         return error(req, 'User not found', 404);
       }
+      const primaryRole = (await loadPrimaryRole(db, userId)) || 'member';
 
       const groupRows = await db.all(
         `SELECT g.id, g.name, g.description, g.is_system
@@ -588,7 +615,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       );
       const groupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((group) => group.id).filter(Boolean));
       const groupMap = new Map((Array.isArray(groupRows) ? groupRows : []).map((group) => [group.id, group.name]));
-      const userPermissions = await resolvePermissions(env, { sub: userId, role: targetUser.role });
+      const userPermissions = await resolvePermissions(env, { sub: userId, role: primaryRole });
       const modelEnabledMap = await loadModelEnabledMap(db);
       const connectionEnabledMap = new Map(
         (await getAllOpenAIConnectionConfigs(env, { includeDisabled: true }))
@@ -630,8 +657,8 @@ export async function usersRouter(req, env, _ctx, user, path) {
           id: targetUser.id,
           email: targetUser.email,
           name: targetUser.name,
-          role: targetUser.role,
           account_status: normalizeAccountStatus(targetUser.account_status),
+          primary_role: primaryRole,
         },
         groups: Array.from(groupMap.entries()).map(([id, name]) => ({ id, name })),
         role_permissions: userPermissions,
@@ -680,7 +707,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       }
       throw err;
     }
-    const requestedRole = String(body.role || 'user').trim().toLowerCase();
+    const requestedRole = String(body.primary_role || 'member').trim().toLowerCase();
     const role = normalizeRole(requestedRole);
     const accountStatus = normalizeAccountStatus(body.account_status, 'active');
 
@@ -688,8 +715,8 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'Password must be at least 8 characters', 400);
     }
 
-    if (!['user', 'admin'].includes(requestedRole)) {
-      return error(req, 'Role must be "user" or "admin"', 400);
+    if (!['member', 'admin'].includes(requestedRole)) {
+      return error(req, 'primary_role must be "member" or "admin"', 400);
     }
 
     const existing = await db.first('SELECT id FROM users WHERE email = ?', [email]);
@@ -702,16 +729,16 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     await db.run(
       `INSERT INTO users (
-        id, email, password_hash, name, role, account_status, settings, preferences,
+        id, email, password_hash, name, account_status, settings, preferences,
         created_at, updated_at, last_active_at
-      ) VALUES (?, ?, ?, ?, ?, ?, '{}', '{}', unixepoch(), unixepoch(), unixepoch())`,
-      [id, email, passwordHash, name, role, accountStatus]
+      ) VALUES (?, ?, ?, ?, ?, '{}', '{}', unixepoch(), unixepoch(), unixepoch())`,
+      [id, email, passwordHash, name, accountStatus]
     );
 
     await syncGlobalRoleBinding(db, id, role, accountStatus);
 
     const createdUser = await db.first(
-      'SELECT id, email, name, role, account_status, settings, created_at, updated_at, last_active_at FROM users WHERE id = ?',
+      'SELECT id, email, name, account_status, settings, created_at, updated_at, last_active_at FROM users WHERE id = ?',
       [id]
     );
 
@@ -720,7 +747,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       action: 'user_created',
       resource_type: 'user',
       resource_id: id,
-      metadata: { email, role }
+      metadata: { email, primary_role: role }
     });
 
     return json(req, {
@@ -728,7 +755,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         id: createdUser.id,
         email: createdUser.email,
         name: createdUser.name,
-        role: createdUser.role,
+        primary_role: role,
         account_status: normalizeAccountStatus(createdUser.account_status, accountStatus),
         settings: parseSettings(createdUser.settings),
         created_at: createdUser.created_at,
@@ -780,18 +807,18 @@ export async function usersRouter(req, env, _ctx, user, path) {
       const line = rows[index];
       const rowNumber = index + 1;
 
-      if (index === 0 && /^name\s*,\s*email\s*,\s*password\s*,\s*role$/i.test(line)) {
+      if (index === 0 && /^name\s*,\s*email\s*,\s*password\s*,\s*primary_role$/i.test(line)) {
         continue;
       }
 
       const [name, emailRaw, password, roleRaw, accountStatusRaw] = parseRow(line);
       const email = String(emailRaw || '').toLowerCase();
-      const requestedRole = String(roleRaw || 'user').toLowerCase();
+      const requestedRole = String(roleRaw || 'member').toLowerCase();
       const role = normalizeRole(requestedRole);
       const accountStatus = normalizeAccountStatus(accountStatusRaw, 'active');
 
       if (!name || !email || !password || !requestedRole) {
-        results.push({ row: rowNumber, ok: false, error: 'Each row must include name, email, password, role' });
+        results.push({ row: rowNumber, ok: false, error: 'Each row must include name, email, password, primary_role' });
         continue;
       }
 
@@ -800,13 +827,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
         continue;
       }
 
-      if (password.length < 8) {
-        results.push({ row: rowNumber, ok: false, error: 'Password must be at least 8 characters' });
+      if (!['member', 'admin'].includes(requestedRole)) {
+        results.push({ row: rowNumber, ok: false, error: 'primary_role must be "member" or "admin"' });
         continue;
       }
 
-      if (!['user', 'admin'].includes(requestedRole)) {
-        results.push({ row: rowNumber, ok: false, error: 'Role must be user or admin' });
+      if (password.length < 8) {
+        results.push({ row: rowNumber, ok: false, error: 'Password must be at least 8 characters' });
         continue;
       }
 
@@ -820,13 +847,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
       const passwordHash = await hashPassword(password);
       await db.run(
         `INSERT INTO users (
-          id, email, password_hash, name, role, account_status, settings, preferences,
+          id, email, password_hash, name, account_status, settings, preferences,
           created_at, updated_at, last_active_at
-        ) VALUES (?, ?, ?, ?, ?, ?, '{}', '{}', unixepoch(), unixepoch(), unixepoch())`,
-        [id, email, passwordHash, name, role, accountStatus]
+        ) VALUES (?, ?, ?, ?, ?, '{}', '{}', unixepoch(), unixepoch(), unixepoch())`,
+        [id, email, passwordHash, name, accountStatus]
       );
       await syncGlobalRoleBinding(db, id, role, accountStatus);
-      results.push({ row: rowNumber, ok: true, email, role, account_status: accountStatus });
+      results.push({ row: rowNumber, ok: true, email, primary_role: role, account_status: accountStatus });
       created += 1;
     }
 
@@ -863,7 +890,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     try {
       const userData = await db.first(
-        'SELECT id, email, name, role, account_status, settings, created_at, updated_at FROM users WHERE id = ?',
+        'SELECT id, email, name, account_status, settings, created_at, updated_at FROM users WHERE id = ?',
         [userId]
       );
 
@@ -884,7 +911,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
           id: userData.id,
           email: userData.email,
           name: userData.name,
-          role: userData.role,
+          primary_role: (await loadPrimaryRole(db, userId)) || 'member',
           account_status: normalizeAccountStatus(userData.account_status),
           settings: parseSettings(userData.settings),
           created_at: userData.created_at,
@@ -922,7 +949,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     // Verify user exists
-    const existing = await db.first('SELECT id, role, account_status, email, name FROM users WHERE id = ?', [userId]);
+    const existing = await db.first('SELECT id, account_status, email, name FROM users WHERE id = ?', [userId]);
     if (!existing) {
       return error(req, 'User not found', 404);
     }
@@ -930,16 +957,16 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const updates = [];
     const values = [];
     const updatedFields = [];
-    let oldRole = existing.role;
+    let oldRole = (await loadPrimaryRole(db, userId)) || 'member';
     let oldAccountStatus = normalizeAccountStatus(existing.account_status);
     let newRole = oldRole;
     let newAccountStatus = oldAccountStatus;
 
-    // Allow updating role (for admin promotion/demotion)
-    if (body.role !== undefined) {
-      const requestedRole = String(body.role).toLowerCase();
-      if (requestedRole === 'user' || requestedRole === 'admin') {
-        newRole = requestedRole;
+    // Allow updating primary role (for admin promotion/demotion)
+    if (body.primary_role !== undefined) {
+      const requestedRole = String(body.primary_role).toLowerCase();
+      if (requestedRole === 'member' || requestedRole === 'admin') {
+        newRole = normalizeRole(requestedRole);
         // Check last-owner protection for admin role or admin account disablement
         if (oldRole === 'admin' && (newRole !== 'admin' || newAccountStatus !== 'active')) {
           const isLastAdmin = await isLastOwnerOfRole(env, userId, 'admin');
@@ -947,11 +974,9 @@ export async function usersRouter(req, env, _ctx, user, path) {
             return error(req, 'Cannot demote last admin', 409);
           }
         }
-        updates.push('role = ?');
-        values.push(newRole);
-        updatedFields.push('role');
+        updatedFields.push('primary_role');
       } else {
-        return error(req, 'Role must be "user" or "admin"', 400);
+        return error(req, 'primary_role must be "member" or "admin"', 400);
       }
     }
 
@@ -1049,8 +1074,8 @@ export async function usersRouter(req, env, _ctx, user, path) {
           resource_type: 'user',
           resource_id: userId,
           metadata: {
-            old_role: oldRole,
-            new_role: newRole,
+            old_primary_role: oldRole,
+            new_primary_role: newRole,
             old_account_status: oldAccountStatus,
             new_account_status: newAccountStatus,
           }
@@ -1068,7 +1093,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
       // Return updated user
       const updated = await db.first(
-        'SELECT id, email, name, role, account_status, settings, created_at, updated_at FROM users WHERE id = ?',
+        'SELECT id, email, name, account_status, settings, created_at, updated_at FROM users WHERE id = ?',
         [userId]
       );
 
@@ -1077,7 +1102,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
           id: updated.id,
           email: updated.email,
           name: updated.name,
-          role: updated.role,
+          primary_role: newRole,
           account_status: normalizeAccountStatus(updated.account_status),
           settings: parseSettings(updated.settings),
           created_at: updated.created_at,
@@ -1114,18 +1139,18 @@ export async function usersRouter(req, env, _ctx, user, path) {
       }
 
       // Verify user exists
-      const existing = await db.first('SELECT id, role, account_status FROM users WHERE id = ?', [userId]);
+      const existing = await db.first('SELECT id, account_status FROM users WHERE id = ?', [userId]);
       if (!existing) {
         return error(req, 'User not found', 404);
       }
 
       // Cannot delete the only admin
       const isLastAdmin = await isLastOwnerOfRole(env, userId, 'admin');
-      if (existing.role === 'admin' && isLastAdmin) {
+      if ((await loadPrimaryRole(db, userId)) === 'admin' && isLastAdmin) {
         return error(req, 'Cannot delete the last admin', 400);
       }
 
-      const oldRole = existing.role;
+      const oldRole = (await loadPrimaryRole(db, userId)) || 'member';
       const oldAccountStatus = normalizeAccountStatus(existing.account_status);
       await db.run('DELETE FROM users WHERE id = ?', [userId]);
 
@@ -1135,7 +1160,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         action: 'user_deleted',
         resource_type: 'user',
         resource_id: userId,
-        metadata: { previous_role: oldRole, previous_account_status: oldAccountStatus }
+        metadata: { previous_primary_role: oldRole, previous_account_status: oldAccountStatus }
       });
 
       return json(req, { success: true, message: 'User deleted successfully' });

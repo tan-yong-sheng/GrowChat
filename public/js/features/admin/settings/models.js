@@ -1,8 +1,12 @@
 import { apiFetch } from '../../../shared/api.js';
+import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
+import { cloneAclRules, createAclDraftRegistry, getAclRulesSignature } from '../acl-draft.js';
+import { createAdminAclModalShell } from '../acl-modal.js';
 import { normalizeModelSearchQuery } from '../../../shared/utils/model-search.js';
 import { buildProviderOptions, filterModelsBySearchAndProvider } from '../../../shared/utils/model-filters.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
+import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
   ATTACHMENT_CAP_TYPES,
   cloneAttachmentCaps,
@@ -41,8 +45,8 @@ export function renderModelsSettings(container, data) {
     providerOptions: [],
     invalidateToken: null,
     needsReload: false,
-    aclDrafts: new Map(),
   });
+  const aclDraftRegistry = createAclDraftRegistry(modelsState);
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
   data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
@@ -87,7 +91,7 @@ export function renderModelsSettings(container, data) {
       if (!modelsState.originalDisabledModels.has(id)) return true;
     }
     if (hasCapsChanges()) return true;
-    if ((modelsState.aclDrafts?.size || 0) > 0) return true;
+    if (aclDraftRegistry.isDirty()) return true;
     return false;
   };
   data.settingsDirtyCheckers.models = hasChanges;
@@ -110,6 +114,7 @@ export function renderModelsSettings(container, data) {
       saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
       saveBtn.textContent = modelsState.saving ? 'Saving...' : 'Save';
     }
+    data.requestSettingsFooterSync?.();
   };
 
   const updateModelToggle = (btn, enabled) => {
@@ -138,64 +143,13 @@ export function renderModelsSettings(container, data) {
     btn.classList.toggle('border-gray-200', !enabled);
   };
 
-  const cloneModelAclRules = (rules = []) => (Array.isArray(rules) ? rules : []).map((rule) => ({ ...rule }));
-  const getModelAclRulesSignature = (rules = []) => cloneModelAclRules(rules)
-    .map((rule) => ({
-      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
-      principal_id: String(rule?.principal_id || '').trim(),
-      effect: String(rule?.effect || '').trim().toLowerCase(),
-      action: String(rule?.action || '').trim().toLowerCase(),
-    }))
-    .sort((a, b) => (
-      a.principal_type.localeCompare(b.principal_type)
-      || a.principal_id.localeCompare(b.principal_id)
-      || a.action.localeCompare(b.action)
-      || a.effect.localeCompare(b.effect)
-    ))
-    .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
-    .join('|');
-
   const openModelAccessModal = async (model, { onApply } = {}) => {
     if (!model?.id) return;
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4';
-    modal.innerHTML = `
-      <div class="absolute inset-0 bg-black/25 backdrop-blur-sm"></div>
-      <div class="relative w-full max-w-3xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <div>
-            <div class="text-lg font-semibold">Model Access</div>
-            <div class="text-[11px] text-gray-500">${escapeHtml(model.name || model.id)}</div>
-            <div class="text-[11px] text-amber-600 font-medium">* Apply stages changes. Save the page to persist them.</div>
-          </div>
-          <button class="p-2 rounded-full hover:bg-gray-100 transition" data-close-model-access>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
-          <div class="flex items-center justify-between">
-            <div class="text-sm font-semibold text-gray-900" id="model-acl-summary"></div>
-            <div class="text-xs text-gray-400" id="model-acl-count"></div>
-          </div>
-          <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600" id="model-acl-reason"></div>
-          <div id="model-acl-error" class="text-sm text-red-600 hidden"></div>
-          <div id="model-acl-list" class="space-y-2"></div>
-        </div>
-        <div class="px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0">
-          <div class="text-sm text-red-600" id="model-acl-save-error"></div>
-          <div class="flex items-center gap-2">
-            <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700" data-close-model-access>Cancel</button>
-            <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800" id="model-acl-save-btn">Save</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const close = () => modal.remove();
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.closest('[data-close-model-access]')) close();
+    const { modal, close } = createAdminAclModalShell({
+      idsPrefix: 'model-acl',
+      title: 'Model Access',
+      subtitle: model.name || model.id,
+      closeAttr: 'data-close-model-access',
     });
 
     const listEl = modal.querySelector('#model-acl-list');
@@ -206,7 +160,7 @@ export function renderModelsSettings(container, data) {
     const reasonEl = modal.querySelector('#model-acl-reason');
     const saveBtn = modal.querySelector('#model-acl-save-btn');
     let baseRules = [];
-    const stagedRules = cloneModelAclRules(modelsState.aclDrafts?.get(model.id) || []);
+    const stagedRules = aclDraftRegistry.get(model.id);
 
     const state = {
       loading: true,
@@ -248,11 +202,13 @@ export function renderModelsSettings(container, data) {
 
     const updateSaveButton = () => {
       if (!saveBtn) return;
-      saveBtn.disabled = state.saving;
-      saveBtn.classList.toggle('bg-gray-300', state.saving);
-      saveBtn.classList.toggle('cursor-not-allowed', state.saving);
-      saveBtn.classList.toggle('bg-gray-900', !state.saving);
-      saveBtn.textContent = state.saving ? 'Saving...' : 'Save';
+      setModalSaveButtonState(saveBtn, {
+        enabled: true,
+        saving: state.saving,
+        label: 'Save',
+        enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+        disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+      });
     };
 
     const renderList = () => {
@@ -323,15 +279,15 @@ export function renderModelsSettings(container, data) {
       state.error = null;
       renderList();
       try {
-        const res = await apiFetch(`/api/admin/models/${encodeURIComponent(model.id)}/access`);
+        const res = await apiFetch(getAdminAclAccessPath('models', { resourceId: model.id }));
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || err.message || 'Failed to load model access');
         }
         const payload = await res.json();
         state.groups = Array.isArray(payload.groups) ? payload.groups : [];
-        const sourceRules = modelsState.aclDrafts?.has(model.id) ? stagedRules : payload.rules;
-        baseRules = cloneModelAclRules(payload.rules || []);
+        const sourceRules = aclDraftRegistry.has(model.id) ? stagedRules : payload.rules;
+        baseRules = cloneAclRules(payload.rules || []);
         state.rulesByGroup = new Map(
           (Array.isArray(sourceRules) ? sourceRules : [])
             .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
@@ -359,9 +315,9 @@ export function renderModelsSettings(container, data) {
           effect,
           action: 'use',
         }));
-        const sameAsBase = getModelAclRulesSignature(rules) === getModelAclRulesSignature(baseRules);
+        const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
         if (typeof onApply === 'function') {
-          await onApply(sameAsBase ? null : cloneModelAclRules(rules), model);
+          await onApply(sameAsBase ? null : cloneAclRules(rules), model);
         }
         close();
       } catch (err) {
@@ -418,8 +374,10 @@ export function renderModelsSettings(container, data) {
     const pageStart = pageTotal === 0 ? 0 : modelsState.offset + 1;
     const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
 
+    const useSharedActionFooter = Boolean(data.sharedActionFooter);
+
     container.innerHTML = `
-      <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300 w-full">
+      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div class="pt-0.5 pb-2.5 flex justify-between items-center sticky top-0 z-10 bg-white">
           <div class="flex items-center text-xl font-medium px-0.5 gap-2">
             <div class="flex-shrink-0 text-gray-900">Models</div>
@@ -432,7 +390,14 @@ export function renderModelsSettings(container, data) {
                   <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
                 </svg>
               </div>
-              <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search" id="model-search-input" value="${modelsState.query}">
+              <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search models" id="model-search-input" value="${modelsState.query}">
+              <div id="model-clear-search-container" class="${modelsState.query ? '' : 'hidden'} ml-1.5">
+                <button type="button" id="model-clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <select id="model-provider-select" class="rounded-xl border border-gray-100/30 bg-gray-50/50 px-3 py-1.5 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
               ${mergedProviders.map((option) => `
@@ -503,19 +468,18 @@ export function renderModelsSettings(container, data) {
                       </td>
                       <td class="px-4 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
-                          ${isDisabled ? '' : `
-                            <button
-                              type="button"
-                              class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition"
-                              data-model-acl="${model.id}"
-                              title="Edit access rules"
-                              aria-label="Edit access rules"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
-                              </svg>
-                            </button>
-                          `}
+                          <button
+                            type="button"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${isDisabled ? 'hidden' : ''}"
+                            data-model-acl="${model.id}"
+                            title="Edit access rules"
+                            aria-label="Edit access rules"
+                            ${isDisabled ? 'tabindex="-1" aria-hidden="true"' : ''}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
+                            </svg>
+                          </button>
                           <button data-model-id="${model.id}" class="model-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!modelsState.disabledModels.has(model.id) ? 'bg-black' : 'bg-gray-200'}">
                             <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${!modelsState.disabledModels.has(model.id) ? 'translate-x-4' : 'translate-x-0'}"></span>
                           </button>
@@ -553,12 +517,13 @@ export function renderModelsSettings(container, data) {
           <div id="models-feedback" class="hidden mt-2 rounded-xl border px-4 py-3 text-sm"></div>
         </div>
 
+        ${useSharedActionFooter ? '' : `
         <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
           <div id="models-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
           <button id="save-models-top" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || modelsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || modelsState.saving) ? 'disabled' : ''}>
             ${modelsState.saving ? 'Saving...' : 'Save'}
           </button>
-        </div>
+        </div>`}
       </div>
     `;
 
@@ -609,10 +574,10 @@ export function renderModelsSettings(container, data) {
         attachmentUpdates.push({ model_id: modelId, attachments: patch });
       }
     });
-    const aclUpdates = Array.from(modelsState.aclDrafts.entries())
+    const aclUpdates = Array.from(aclDraftRegistry.entries())
       .map(([modelId, rules]) => ({
         modelId,
-        rules: cloneModelAclRules(rules),
+        rules: cloneAclRules(rules),
       }))
       .filter((entry) => entry.modelId);
 
@@ -623,40 +588,23 @@ export function renderModelsSettings(container, data) {
     modelsState.saving = true;
     updateButtons();
     try {
-      if (updates.length > 0) {
-        const res = await apiFetch('/api/admin/models', {
-          method: 'PUT',
-          body: JSON.stringify({ updates })
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || 'Failed to save model settings');
-        }
-        modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
+      const res = await apiFetch('/api/admin/models', {
+        method: 'PUT',
+        body: JSON.stringify({
+          updates,
+          attachment_updates: attachmentUpdates,
+          access_updates: aclUpdates,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || err.message || 'Failed to save model settings');
       }
-
-      if (attachmentUpdates.length > 0) {
-        const res = await apiFetch('/api/admin/model-attachment-caps', {
-          method: 'PUT',
-          body: JSON.stringify({ updates: attachmentUpdates })
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || 'Failed to save attachment caps');
-        }
-        modelsState.originalAttachmentCaps = cloneAttachmentCaps(modelsState.attachmentCaps);
-      }
-      for (const entry of aclUpdates) {
-        const res = await apiFetch(`/api/admin/models/${encodeURIComponent(entry.modelId)}/access`, {
-          method: 'PUT',
-          body: JSON.stringify({ rules: entry.rules }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || `Failed to save access rules for ${entry.modelId}`);
-        }
-        modelsState.aclDrafts.delete(entry.modelId);
-      }
+      modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
+      modelsState.originalAttachmentCaps = cloneAttachmentCaps(modelsState.attachmentCaps);
+      aclUpdates.forEach((entry) => {
+        aclDraftRegistry.clear(entry.modelId);
+      });
       broadcastModelsInvalidation();
       const feedback = container.querySelector('#models-feedback');
       if (feedback) {
@@ -684,16 +632,19 @@ export function renderModelsSettings(container, data) {
   data.settingsDiscardHandlers.models = () => {
     modelsState.disabledModels = new Set(modelsState.originalDisabledModels);
     modelsState.attachmentCaps = cloneAttachmentCaps(modelsState.originalAttachmentCaps);
-    modelsState.aclDrafts?.clear();
+    aclDraftRegistry.clear();
     if (isActiveTab()) render();
   };
 
   const bindEvents = () => {
     const searchInput = container.querySelector('#model-search-input');
+    const clearSearchBtn = container.querySelector('#model-clear-search-btn');
+    const clearSearchContainer = container.querySelector('#model-clear-search-container');
+    let searchDebounce = null;
     if (searchInput) {
-      let searchDebounce = null;
       searchInput.oninput = (e) => {
         const nextValue = e.target.value;
+        clearSearchContainer?.classList.toggle('hidden', !nextValue);
         if (searchDebounce) clearTimeout(searchDebounce);
         searchDebounce = setTimeout(() => {
           modelsState.query = nextValue;
@@ -705,6 +656,19 @@ export function renderModelsSettings(container, data) {
         }, 120);
       };
     }
+    clearSearchBtn?.addEventListener('click', () => {
+      if (searchDebounce) clearTimeout(searchDebounce);
+      modelsState.query = '';
+      modelsState.offset = 0;
+      if (searchInput) {
+        searchInput.value = '';
+      }
+      if (clearSearchContainer) {
+        clearSearchContainer.classList.add('hidden');
+      }
+      loadModels(true);
+      searchInput?.focus();
+    });
     const providerSelect = container.querySelector('#model-provider-select');
     if (providerSelect) {
       providerSelect.onchange = (e) => {
@@ -729,7 +693,16 @@ export function renderModelsSettings(container, data) {
           row.classList.toggle('bg-gray-50/80', !enabled);
           row.classList.toggle('opacity-70', !enabled);
           const aclBtn = row.querySelector('[data-model-acl]');
-          if (aclBtn) aclBtn.classList.toggle('hidden', !enabled);
+          if (aclBtn) {
+            aclBtn.classList.toggle('hidden', !enabled);
+            if (enabled) {
+              aclBtn.removeAttribute('tabindex');
+              aclBtn.removeAttribute('aria-hidden');
+            } else {
+              aclBtn.setAttribute('tabindex', '-1');
+              aclBtn.setAttribute('aria-hidden', 'true');
+            }
+          }
         }
         updateButtons();
       };
@@ -755,11 +728,7 @@ export function renderModelsSettings(container, data) {
         const model = (modelsState.models || []).find((item) => item.id === modelId);
         openModelAccessModal({ id: modelId, name: model?.name || modelId }, {
           onApply: async (rules) => {
-            if (rules === null) {
-              modelsState.aclDrafts.delete(modelId);
-            } else {
-              modelsState.aclDrafts.set(modelId, cloneModelAclRules(rules));
-            }
+            aclDraftRegistry.stage(modelId, rules);
             updateButtons();
           },
         });

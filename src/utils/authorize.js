@@ -16,63 +16,6 @@ export const DENIAL_REASONS = {
   INVALID_REQUEST: 'invalid_request',
 };
 
-const LEGACY_ROLE_PERMISSION_MAP = {
-  admin: [
-    'chat.read',
-    'chat.write',
-    'chat.delete',
-    'chat.share',
-    'model.use',
-    'model.admin',
-    'file.upload',
-    'file.delete',
-    'admin.user.read',
-    'admin.user.write',
-    'admin.audit.read',
-    'admin.rbac.admin',
-  ],
-  member: [
-    'chat.read',
-    'chat.write',
-    'model.use',
-    'file.upload',
-  ],
-  user: [
-    'chat.read',
-    'chat.write',
-    'model.use',
-    'file.upload',
-  ],
-};
-
-function getLegacyFallbackPermissions(role) {
-  return LEGACY_ROLE_PERMISSION_MAP[role] || LEGACY_ROLE_PERMISSION_MAP.user;
-}
-
-async function loadUserRoleFromUsersTable(env, userId) {
-  try {
-    const row = await env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(userId).first();
-    return row?.role || null;
-  } catch {
-    return null;
-  }
-}
-
-async function resolveRolePermissionsByRoleName(env, roleName) {
-  try {
-    const result = await env.DB.prepare(
-      `SELECT DISTINCT p.key
-       FROM permissions p
-       INNER JOIN role_permissions rp ON p.id = rp.permission_id
-       INNER JOIN roles r ON rp.role_id = r.id
-       WHERE r.name = ?`
-    ).bind(roleName).all();
-    return (result.results || []).map((row) => row.key);
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Resolve user's permissions from database
  *
@@ -97,23 +40,10 @@ export async function resolvePermissions(env, user) {
     const roleResult = await env.DB.prepare(roleQuery).bind(user.sub).all();
 
     const rolePermissions = (roleResult.results || []).map((row) => row.key);
-
-    const resolved = [...rolePermissions];
-    const uniqueResolved = Array.from(new Set(resolved));
-    if (uniqueResolved.length > 0) return uniqueResolved;
-
-    // Fallback for users that have not yet been materialized into user_roles.
-    const persistedRole = await loadUserRoleFromUsersTable(env, user.sub);
-    if (!persistedRole) return [];
-
-    const mappedRole = persistedRole === 'admin' ? 'admin' : 'member';
-    const mappedPermissions = await resolveRolePermissionsByRoleName(env, mappedRole);
-    if (mappedPermissions.length > 0) return mappedPermissions;
-
-    return getLegacyFallbackPermissions(persistedRole);
+    return Array.from(new Set(rolePermissions));
   } catch (err) {
     console.error('Permission resolution failed:', err);
-    return getLegacyFallbackPermissions(user.role);
+    return [];
   }
 }
 

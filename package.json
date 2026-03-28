@@ -6,7 +6,8 @@
 	"scripts": {
 		"build:css": "npx tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
 		"deploy": "npm run build:css && wrangler deploy",
-		"dev": "npm run build:css && wrangler dev --ip 0.0.0.0 -- --log-level debug",
+		"dev": "npm run build:css && node scripts/init-local-db.js && wrangler dev --ip 0.0.0.0 -- --log-level debug",
+		"dev:db": "node scripts/init-local-db.js",
 		"dev:remote": "npm run build:css && wrangler dev --remote --ip 0.0.0.0 -- --log-level debug",
 		"predeploy": "node scripts/pre-deploy.js",
 		"generate:api-docs": "node scripts/generate-api-docs.js",
@@ -31,6 +32,7 @@
 		"wrangler": "^4.75.0"
 	},
 	"dependencies": {
-		"@codesandbox/sdk": "^2.4.2"
+		"@codesandbox/sdk": "^2.4.2",
+		"@tencent-ai/codebuddy-code": "^2.66.2"
 	}
 }

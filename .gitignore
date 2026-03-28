@@ -20,6 +20,7 @@ ClawRouter/
 .playwright-artifacts/
 # Ignore all .claude/ contents by default
 
+auth.json
 dev-local.err.log
 dev-local.out.log
 

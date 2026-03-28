@@ -240,6 +240,14 @@ export function getOwnedChat(db, chatId, userId) {
   return createChatRepository(db).findOwnedChat(chatId, userId);
 }
 
+export async function requireOwnedChat(req, db, chatId, userId) {
+  const chat = await getOwnedChat(db, chatId, userId);
+  if (!chat) {
+    return { error: error(req, 'Chat not found', 404) };
+  }
+  return { chat };
+}
+
 export function getMessageSnapshot(db, messageId) {
   return createChatRepository(db).getMessageSnapshot(messageId);
 }

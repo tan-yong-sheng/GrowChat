@@ -202,7 +202,7 @@ export function createAssistantRunner(deps) {
                   tools: toolsEnabled ? tools : undefined,
                   toolChoice,
                   userId: user?.sub || '',
-                  userRole: user?.role || 'member',
+                  userRole: user?.primary_role || 'member',
                 });
               } catch (err) {
                 await recordAttachmentCapabilityFailure(db, model, attachmentKinds, err);

@@ -1,15 +1,16 @@
 import {
-  addGroupMembers,
   createAdminGroup,
   deleteAdminGroup,
   fetchAdminGroup,
   fetchAdminGroups,
   fetchAdminUsers,
-  removeGroupMembers,
   updateAdminGroup,
 } from '../../../shared/api.js';
-import { buildMemberSet, clampUserLimit, diffMemberSets, filterUsers } from './groups-members-helpers.js';
-import { formatSortLabel, nextGroupSort, sortGroups } from './groups-list-helpers.js';
+import { bindAdminDraftHandlers, clearAdminDraft, getAdminDraft, setAdminDraft } from '../modal-draft.js';
+import { setModalSaveButtonState } from '../modal-save-helpers.js';
+import { createAdminModalShell } from '../modal-shell.js';
+import { buildMemberSet, clampUserLimit, filterUsers } from './groups-members-helpers.js';
+import { sortGroups } from './groups-list-helpers.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -39,55 +40,50 @@ function renderGroupModal({
   mode,
   group = null,
   members = [],
+  draft = null,
   users = [],
   usersTotal = 0,
   usersError = null,
   onSave,
   onDelete,
+  navigationState = null,
 }) {
   const groupId = group?.id || '';
   const isEdit = mode === 'edit';
-  const selectedMembers = buildMemberSet(members);
-  const originalMembers = buildMemberSet(members);
+  const selectedMembers = buildMemberSet(draft?.member_ids || members);
+  const originalMembers = buildMemberSet(draft?.member_ids || members);
+  const originalName = String(draft?.name || group?.name || '');
+  const originalDescription = String(draft?.description || group?.description || '');
   const memberState = {
     query: '',
   };
+  const originalMembersSignature = Array.from(originalMembers).sort().join('|');
   const allUsers = Array.isArray(users) ? users : [];
   const theme = getGroupModalTheme();
-  const overlay = document.createElement('div');
-  overlay.id = 'group-modal';
-  overlay.className = 'fixed inset-0 z-[140] flex items-center justify-center p-3 sm:p-4';
-  overlay.innerHTML = `
-    <div class="absolute inset-0 ${theme.overlay}"></div>
-    <div class="relative w-full max-w-6xl ${theme.container} rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
-      <div class="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 shrink-0">
-        <div class="text-lg font-semibold">${isEdit ? 'Edit User Group' : 'Add User Group'}</div>
-        <button class="p-2 rounded-full hover:bg-gray-100 transition" data-close-group-modal>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
+  const { modal: overlay } = createAdminModalShell({
+    preset: 'groupEditor',
+    title: isEdit ? 'Edit User Group' : 'Add User Group',
+    body: `
       <div class="flex flex-1 min-h-0 flex-col md:flex-row">
         <div class="w-full md:w-32 lg:w-36 ${theme.sidebar} border-r-0 md:border-r p-3 md:p-3.5 text-sm shrink-0 border-b md:border-b-0">
           <div class="flex flex-wrap md:flex-col gap-2 md:gap-1.5">
             <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-xl transition ${theme.sidebarActive}" data-tab="general">
-            <span class="flex items-center gap-2">General</span>
-          </button>
+              <span class="flex items-center gap-2">General</span>
+            </button>
             <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-xl transition ${theme.sidebarInactive}" data-tab="members">
-            <span class="flex items-center gap-2">Members</span>
-          </button>
+              <span class="flex items-center gap-2">Members</span>
+            </button>
           </div>
         </div>
         <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 md:p-6">
           <div data-panel="general" class="space-y-5">
             <div class="space-y-2">
               <label class="text-xs uppercase tracking-wider text-gray-600 font-semibold">Name</label>
-              <input id="group-name-input" class="w-full ${theme.input} rounded-2xl px-4 py-3 text-sm outline-none" placeholder="Group Name" value="${group?.name || ''}">
+              <input id="group-name-input" class="w-full ${theme.input} rounded-2xl px-4 py-3 text-sm outline-none" placeholder="Group Name" value="${escapeHtml(draft?.name || group?.name || '')}">
             </div>
             <div class="space-y-2">
               <label class="text-xs uppercase tracking-wider text-gray-600 font-semibold">Description</label>
-              <textarea id="group-description-input" rows="3" class="w-full ${theme.input} rounded-2xl px-4 py-3 text-sm outline-none resize-none" placeholder="Group Description">${group?.description || ''}</textarea>
+              <textarea id="group-description-input" rows="3" class="w-full ${theme.input} rounded-2xl px-4 py-3 text-sm outline-none resize-none" placeholder="Group Description">${escapeHtml(draft?.description || group?.description || '')}</textarea>
             </div>
           </div>
           <div data-panel="members" class="space-y-4 hidden">
@@ -98,26 +94,58 @@ function renderGroupModal({
               </div>
               <div class="text-[11px] text-gray-400">${usersTotal ? `Showing ${Math.min(allUsers.length, usersTotal)} of ${usersTotal}` : ''}</div>
             </div>
-            <div class="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2">
-              <input id="group-member-search" class="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 outline-none" placeholder="Search users">
+            <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30">
+              <div class="flex-shrink-0 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
+                  <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+                </svg>
+              </div>
+              <input id="group-member-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Search users">
+              <div id="group-member-clear-container" class="hidden ml-1.5">
+                <button type="button" id="group-member-clear-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div id="group-members-error" class="text-sm text-red-500 ${usersError ? '' : 'hidden'}">${usersError || ''}</div>
             <div id="group-members-list" class="space-y-2 max-h-64 overflow-y-auto scrollbar-hidden pr-1"></div>
           </div>
         </div>
       </div>
-      <div class="px-5 py-3 ${theme.footer} flex items-center justify-between shrink-0">
-        <div class="text-sm text-red-600" id="group-modal-error"></div>
-        <div class="flex items-center gap-2">
-          ${isEdit ? `<button id="group-policies-btn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Manage Policies</button>` : ''}
-          ${isEdit ? '<button id="group-delete-btn" class="px-4 py-2 text-sm text-red-500 hover:text-red-600">Delete</button>' : ''}
-          <button id="group-save-btn" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800">Save</button>
-        </div>
+    `,
+    footer: `
+      <div class="text-sm text-red-600" id="group-modal-error"></div>
+      <div class="flex items-center gap-2">
+        ${isEdit ? `<button id="group-policies-btn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Manage Policies</button>` : ''}
+        ${isEdit ? '<button id="group-delete-btn" class="px-4 py-2 text-sm text-red-500 hover:text-red-600">Delete</button>' : ''}
+        <button type="button" id="group-save-btn" class="px-4 py-2 text-sm font-semibold rounded-xl transition">Save</button>
       </div>
-    </div>
-  `;
+    `,
+    closeAttr: 'data-close-group-modal',
+    rootAttrs: 'id="group-modal"',
+  });
 
-  const close = () => overlay.remove();
+  const modalState = {
+    dirty: false,
+    saving: false,
+  };
+
+  const isDirty = () => {
+    const name = String(overlay.querySelector('#group-name-input')?.value || '').trim();
+    const description = String(overlay.querySelector('#group-description-input')?.value || '').trim();
+    const membersSignature = Array.from(selectedMembers).sort().join('|');
+    return name !== originalName.trim() || description !== originalDescription.trim() || membersSignature !== originalMembersSignature;
+  };
+
+  const close = () => {
+    if (navigationState) {
+      navigationState.__groupsActiveModalIsDirty = null;
+    }
+    overlay.remove();
+    navigationState?.requestUsersFooterSync?.();
+  };
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay || e.target.closest('[data-close-group-modal]')) close();
   });
@@ -140,6 +168,25 @@ function renderGroupModal({
   const membersListEl = overlay.querySelector('#group-members-list');
   const membersCountEl = overlay.querySelector('#members-count');
   const membersSearchInput = overlay.querySelector('#group-member-search');
+  const membersClearContainer = overlay.querySelector('#group-member-clear-container');
+  const membersClearBtn = overlay.querySelector('#group-member-clear-btn');
+  const nameInput = overlay.querySelector('#group-name-input');
+  const descriptionInput = overlay.querySelector('#group-description-input');
+  const saveBtn = overlay.querySelector('#group-save-btn');
+
+  const registerNavigationHandlers = () => {
+    if (!navigationState) return;
+    navigationState.__groupsActiveModalIsDirty = isDirty;
+  };
+
+  const syncDirty = () => {
+    modalState.dirty = isDirty();
+    if (navigationState) {
+      navigationState.__groupsActiveModalIsDirty = isDirty;
+    }
+    setModalSaveButtonState(saveBtn, { enabled: modalState.dirty, saving: modalState.saving });
+    navigationState?.requestUsersFooterSync?.();
+  };
 
   const renderMembers = () => {
     if (!membersListEl) return;
@@ -187,6 +234,7 @@ function renderGroupModal({
           selectedMembers.add(userId);
         }
         renderMembers();
+        syncDirty();
       });
     });
   };
@@ -194,33 +242,60 @@ function renderGroupModal({
   if (membersSearchInput) {
     membersSearchInput.addEventListener('input', (e) => {
       memberState.query = e.target.value || '';
+      if (membersClearContainer) {
+        membersClearContainer.classList.toggle('hidden', !memberState.query);
+      }
       renderMembers();
     });
   }
 
+  nameInput?.addEventListener('input', syncDirty);
+  descriptionInput?.addEventListener('input', syncDirty);
+
+  membersClearBtn?.addEventListener('click', () => {
+    memberState.query = '';
+    if (membersSearchInput) {
+      membersSearchInput.value = '';
+    }
+    if (membersClearContainer) {
+      membersClearContainer.classList.add('hidden');
+    }
+    renderMembers();
+    membersSearchInput?.focus();
+  });
+
   renderMembers();
+  syncDirty();
 
   const showError = (message) => {
     const el = overlay.querySelector('#group-modal-error');
     if (el) el.textContent = message || '';
   };
 
-  overlay.querySelector('#group-save-btn')?.addEventListener('click', async () => {
-    const name = overlay.querySelector('#group-name-input')?.value || '';
-    const description = overlay.querySelector('#group-description-input')?.value || '';
-    const memberIds = Array.from(selectedMembers);
+  const saveGroup = async () => {
+    if (modalState.saving) return;
+    modalState.saving = true;
+    syncDirty();
     try {
+      const name = String(nameInput?.value || '').trim();
+      const description = String(descriptionInput?.value || '').trim();
+      const memberIds = Array.from(selectedMembers);
       await onSave({
-        name: name.trim(),
-        description: description.trim(),
+        name,
+        description,
         member_ids: memberIds,
-        original_member_ids: Array.from(originalMembers),
       });
       close();
     } catch (err) {
       showError(err?.message || 'Failed to save group.');
+    } finally {
+      modalState.saving = false;
+      syncDirty();
     }
-  });
+  };
+
+  registerNavigationHandlers();
+  navigationState?.requestUsersFooterSync?.();
 
   overlay.querySelector('#group-delete-btn')?.addEventListener('click', async () => {
     if (!group?.id) return;
@@ -234,13 +309,17 @@ function renderGroupModal({
 
   overlay.querySelector('#group-policies-btn')?.addEventListener('click', () => {
     if (!groupId) return;
-    window.location.href = `/admin/settings/policies?group=${encodeURIComponent(groupId)}`;
+    window.location.href = `/admin/users/policies?group=${encodeURIComponent(groupId)}`;
+  });
+
+  saveBtn?.addEventListener('click', () => {
+    void saveGroup();
   });
 
   return overlay;
 }
 
-async function openCreateModal({ onRefresh, onCreate }) {
+async function openCreateModal({ onRefresh, onCreate, navigationState }) {
   let users = [];
   let usersTotal = 0;
   let usersError = null;
@@ -252,32 +331,27 @@ async function openCreateModal({ onRefresh, onCreate }) {
     usersError = err.message || 'Unable to load users.';
   }
 
+  const draftRegistry = navigationState?.__groupsDraftRegistry;
+  const stagedDraft = draftRegistry?.get?.();
+  const initialDraft = stagedDraft?.mode === 'create' ? stagedDraft.payload : null;
   const modal = renderGroupModal({
     mode: 'create',
+    draft: initialDraft,
     users,
     usersTotal,
     usersError,
+    navigationState,
     onSave: async (payload) => {
       if (!payload.name) throw new Error('Group name is required.');
-      const created = await createAdminGroup(payload);
-      const groupId = created?.group?.id;
-      if (groupId && payload.member_ids?.length) {
-        await addGroupMembers(groupId, payload.member_ids);
-      }
-      if (typeof onCreate === 'function') {
-        onCreate({
-          ...created.group,
-          member_count: payload.member_ids?.length || 0,
-        });
-      } else {
-        await onRefresh?.();
-      }
+      draftRegistry?.set({
+        mode: 'create',
+        payload,
+      });
     },
   });
-  document.body.appendChild(modal);
 }
 
-async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, onMemberDelta }) {
+async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, navigationState }) {
   const detail = await fetchAdminGroup(groupId);
   let users = [];
   let usersTotal = 0;
@@ -289,36 +363,25 @@ async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, onMemberD
   } catch (err) {
     usersError = err.message || 'Unable to load users.';
   }
+  const draftRegistry = navigationState?.__groupsDraftRegistry;
+  const stagedDraft = draftRegistry?.get?.();
+  const initialDraft = stagedDraft?.mode === 'edit' && stagedDraft.groupId === groupId ? stagedDraft.payload : null;
   const modal = renderGroupModal({
     mode: 'edit',
     group: detail.group,
     members: detail.members || [],
+    draft: initialDraft,
     users,
     usersTotal,
     usersError,
+    navigationState,
     onSave: async (payload) => {
       if (!payload.name) throw new Error('Group name is required.');
-      const updated = await updateAdminGroup(groupId, payload);
-      const before = new Set(payload.original_member_ids || []);
-      const after = new Set(payload.member_ids || []);
-      const diff = diffMemberSets(before, after);
-      if (diff.add.length) {
-        await addGroupMembers(groupId, diff.add);
-      }
-      if (diff.remove.length) {
-        await removeGroupMembers(groupId, diff.remove);
-      }
-      if (typeof onUpdate === 'function') {
-        onUpdate({
-          ...updated.group,
-        });
-      }
-      if (typeof onMemberDelta === 'function') {
-        onMemberDelta(groupId, diff.add.length - diff.remove.length);
-      }
-      if (!onUpdate) {
-        await onRefresh?.();
-      }
+      draftRegistry?.set({
+        mode: 'edit',
+        groupId,
+        payload,
+      });
     },
     onDelete: async () => {
       await deleteAdminGroup(groupId);
@@ -329,7 +392,6 @@ async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, onMemberD
       }
     },
   });
-  document.body.appendChild(modal);
 }
 
 function renderEmptyState() {
@@ -349,21 +411,93 @@ function renderEmptyState() {
 }
 
 export function renderGroupsOverview(container, data, actions = {}) {
+  const draftKey = 'groups';
+  let activeModalIsDirty = null;
+  const draftRegistry = {
+    get: () => getAdminDraft(data, 'users', draftKey),
+    set: (value) => setAdminDraft(data, 'users', draftKey, value),
+    clear: () => clearAdminDraft(data, 'users', draftKey),
+  };
+
+  const commitGroupsDraft = async () => {
+    const draft = draftRegistry.get();
+    if (!draft) return;
+
+    const payload = draft.payload || {};
+    const name = String(payload.name || '').trim();
+    if (!name) {
+      throw new Error('Group name is required.');
+    }
+    const memberIds = Array.isArray(payload.member_ids) ? payload.member_ids : [];
+    draftRegistry.clear();
+    data.__groupsActiveModalIsDirty = null;
+
+    if (draft.mode === 'create') {
+      const created = await createAdminGroup({
+        name,
+        description: String(payload.description || '').trim(),
+        member_ids: memberIds,
+      });
+      if (typeof actions.onCreate === 'function') {
+        actions.onCreate({
+          ...created.group,
+          member_count: created?.group?.member_count ?? (memberIds.length || 0),
+        });
+      } else {
+        await actions.reload?.();
+      }
+    } else if (draft.mode === 'edit') {
+      const updated = await updateAdminGroup(draft.groupId, {
+        name,
+        description: String(payload.description || '').trim(),
+        member_ids: memberIds,
+      });
+      if (typeof actions.onUpdate === 'function') {
+        actions.onUpdate({
+          ...updated.group,
+          member_count: updated?.group?.member_count ?? memberIds.length,
+        });
+      }
+      if (!actions.onUpdate) {
+        await actions.reload?.();
+      }
+    }
+
+    data.requestUsersFooterSync?.();
+  };
+
+  const discardGroupsDraft = () => {
+    draftRegistry.clear();
+    data.requestUsersFooterSync?.();
+  };
+
+  const isGroupsDirty = () => Boolean(draftRegistry.get()) || Boolean(typeof data.__groupsActiveModalIsDirty === 'function' && data.__groupsActiveModalIsDirty());
+
+  data.usersDirtyCheckers = data.usersDirtyCheckers || {};
+  data.usersSaveHandlers = data.usersSaveHandlers || {};
+  data.usersDiscardHandlers = data.usersDiscardHandlers || {};
+  bindAdminDraftHandlers(data, 'users', draftKey, {
+    isDirty: isGroupsDirty,
+    save: commitGroupsDraft,
+    discard: discardGroupsDraft,
+    requestFooterSync: data.requestUsersFooterSync,
+  });
+  data.__groupsDraftRegistry = draftRegistry;
   const sortKey = data.groupsSort || 'members';
   const groups = sortGroups(data.groups || [], sortKey);
   const isLoading = data.groupsLoading;
   const error = data.groupsError;
 
   container.innerHTML = `
-    <div class="flex flex-col h-full animate-in fade-in duration-300">
+    <div class="flex flex-col flex-1 min-h-0 h-full animate-in fade-in duration-300">
       <div class="flex flex-col gap-1 px-1 mt-1.5 mb-3">
-        <div class="flex justify-between items-center">
+        <div class="flex items-center justify-between gap-2">
           <div class="flex items-center md:self-center text-xl font-medium px-0.5 gap-2 shrink-0">
             <div class="text-gray-900">Groups</div>
             <div class="text-lg font-medium text-gray-500">${groups.length}</div>
           </div>
-          <div class="flex w-full justify-end gap-1.5">
-            <button class="px-4 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 font-semibold text-xs flex items-center shadow-sm" id="create-group-btn">
+          <div class="flex items-center justify-end gap-1.5 shrink-0">
+            <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-group-btn">
               <span class="mr-2 text-sm">+</span>
               <span>New Group</span>
             </button>
@@ -371,8 +505,8 @@ export function renderGroupsOverview(container, data, actions = {}) {
         </div>
       </div>
 
-      <div class="py-2.5 bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden">
-        <div class="flex items-center w-full space-x-2 py-1 px-4 mb-1">
+      <div class="flex-1 min-h-0 py-2.5 bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden flex flex-col">
+        <div class="flex flex-col sm:flex-row sm:items-center w-full gap-2 py-1 px-4 mb-1">
           <div class="flex flex-1 items-center bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30">
             <div class="text-gray-400 mr-2.5">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="size-3.5">
@@ -389,12 +523,6 @@ export function renderGroupsOverview(container, data, actions = {}) {
               </button>
             </div>
           </div>
-          <button class="relative flex items-center gap-1.5 px-3 py-2 text-sm bg-gray-50/50 hover:bg-gray-100 border border-gray-100/30 rounded-xl shrink-0 transition-colors" id="sort-groups-btn">
-            <span class="text-xs font-medium text-gray-700">${formatSortLabel(sortKey)}</span>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-3.5 text-gray-400">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-            </svg>
-          </button>
         </div>
 
         ${isLoading ? `
@@ -402,32 +530,34 @@ export function renderGroupsOverview(container, data, actions = {}) {
         ` : error ? `
           <div class="p-10 text-center text-sm text-red-500">${error}</div>
         ` : groups.length ? `
-          <div class="my-2 px-4 grid grid-cols-1 gap-1">
-            ${groups.map((group) => `
-              <div class="flex items-center justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50" data-group-row="${group.id}">
-                <div class="flex items-center gap-3.5">
-                  <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-                    </svg>
+          <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-2 pr-5">
+            <div class="grid grid-cols-1 gap-1">
+              ${groups.map((group) => `
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50" data-group-row="${group.id}">
+                  <div class="flex items-center gap-3.5">
+                    <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                      </svg>
+                    </div>
+                    <div class="flex flex-col">
+                      <div class="font-semibold text-gray-900 text-sm">${group.name}</div>
+                      <div class="text-[11px] text-gray-500 font-medium">${group.member_count || 0} members</div>
+                    </div>
                   </div>
-                  <div class="flex flex-col">
-                    <div class="font-semibold text-gray-900 text-sm">${group.name}</div>
-                    <div class="text-[11px] text-gray-500 font-medium">${group.member_count || 0} members</div>
+                  <div class="flex items-center justify-end gap-1.5 self-end sm:self-auto">
+                    <a href="/admin/users/policies?group=${encodeURIComponent(group.id)}" class="px-2.5 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 transition-all hover:bg-gray-50 btn-manage-group-policies">
+                      Manage Policies
+                    </a>
+                    <button class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-group" data-group-id="${group.id}">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
-                <div class="flex items-center gap-1.5">
-                  <a href="/admin/settings/policies?group=${encodeURIComponent(group.id)}" class="px-2.5 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 transition-all hover:bg-gray-50 btn-manage-group-policies">
-                    Manage Policies
-                  </a>
-                  <button class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-group" data-group-id="${group.id}">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            `).join('')}
+              `).join('')}
+            </div>
           </div>
         ` : renderEmptyState()}
       </div>
@@ -443,6 +573,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
     await openCreateModal({
       onRefresh: reload,
       onCreate: actions.onCreate,
+      navigationState: data,
     });
   });
   container.querySelectorAll('.btn-edit-group').forEach((btn) => btn.addEventListener('click', async (e) => {
@@ -451,7 +582,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
       onRefresh: reload,
       onUpdate: actions.onUpdate,
       onDelete: actions.onDelete,
-      onMemberDelta: actions.onMemberDelta,
+      navigationState: data,
     });
   }));
 
@@ -482,10 +613,6 @@ export function renderGroupsOverview(container, data, actions = {}) {
     searchInput.dispatchEvent(new Event('input'));
   });
 
-  container.querySelector('#sort-groups-btn')?.addEventListener('click', () => {
-    const next = nextGroupSort(sortKey);
-    actions.onSortChange?.(next);
-  });
 }
 
 export async function preloadGroupsData() {

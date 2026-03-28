@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
   account_status TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'pending')),
   settings TEXT NOT NULL DEFAULT '{}',
   preferences TEXT NOT NULL DEFAULT '{}',
@@ -19,7 +18,6 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_last_active_at ON users(last_active_at DESC);
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status);
 
 CREATE TABLE IF NOT EXISTS chats (
@@ -334,18 +332,3 @@ INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, created_at) 
   ('rp-member-chat-write', 'role-member', 'perm-chat-write', unixepoch()),
   ('rp-member-model-use', 'role-member', 'perm-model-use', unixepoch()),
   ('rp-member-file-upload', 'role-member', 'perm-file-upload', unixepoch());
-
-INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
-SELECT
-  'ur-' || u.id || '-' || r.id,
-  u.id,
-  r.id,
-  unixepoch()
-FROM users u
-INNER JOIN roles r ON r.name = CASE WHEN u.role = 'admin' THEN 'admin' ELSE 'member' END
-WHERE u.role IN ('admin', 'user')
-  AND NOT EXISTS (
-    SELECT 1
-    FROM user_roles ur
-    WHERE ur.user_id = u.id
-  );

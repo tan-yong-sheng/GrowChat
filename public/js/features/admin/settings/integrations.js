@@ -1,8 +1,12 @@
 import {
   apiFetch,
+} from '../../../shared/api.js';
+import {
   fetchAdminToolServerAccess,
   updateAdminToolServerAccess,
-} from '../../../shared/api.js';
+} from '../../../shared/admin-access.js';
+import { cloneAclRules, createAclDraftRegistry, getAclRulesSignature } from '../acl-draft.js';
+import { createAdminAclModalShell } from '../acl-modal.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import {
   buildIntegrationsSnapshot,
@@ -11,6 +15,7 @@ import {
   shouldShowAuthField,
 } from './integrations-helpers.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
+import { setModalSaveButtonState } from '../modal-save-helpers.js';
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -39,8 +44,8 @@ export function renderIntegrationsSettings(container, data) {
     selectedServer: null,
     originalSnapshot: null,
     modalMode: 'create',
-    aclDrafts: new Map(),
   });
+  const aclDraftRegistry = createAclDraftRegistry(integrationsState);
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
   data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
@@ -49,7 +54,7 @@ export function renderIntegrationsSettings(container, data) {
 
   const hasChanges = () => {
     if (!integrationsState.originalSnapshot) return false;
-    return buildSnapshot() !== integrationsState.originalSnapshot || (integrationsState.aclDrafts?.size || 0) > 0;
+    return buildSnapshot() !== integrationsState.originalSnapshot || aclDraftRegistry.isDirty();
   };
   data.settingsDirtyCheckers.integrations = hasChanges;
 
@@ -71,6 +76,7 @@ export function renderIntegrationsSettings(container, data) {
       saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
       saveBtn.textContent = integrationsState.saving ? 'Saving...' : 'Save';
     }
+    data.requestSettingsFooterSync?.();
   };
 
   const updateServerToggle = (btn, enabled) => {
@@ -172,64 +178,13 @@ export function renderIntegrationsSettings(container, data) {
     };
   };
 
-  const cloneToolServerAclRules = (rules = []) => (Array.isArray(rules) ? rules : []).map((rule) => ({ ...rule }));
-  const getToolServerAclRulesSignature = (rules = []) => cloneToolServerAclRules(rules)
-    .map((rule) => ({
-      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
-      principal_id: String(rule?.principal_id || '').trim(),
-      effect: String(rule?.effect || '').trim().toLowerCase(),
-      action: String(rule?.action || '').trim().toLowerCase(),
-    }))
-    .sort((a, b) => (
-      a.principal_type.localeCompare(b.principal_type)
-      || a.principal_id.localeCompare(b.principal_id)
-      || a.action.localeCompare(b.action)
-      || a.effect.localeCompare(b.effect)
-    ))
-    .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
-    .join('|');
-
   const openToolServerAccessModal = async (server, { onApply } = {}) => {
     if (!server?.id) return;
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4';
-    modal.innerHTML = `
-      <div class="absolute inset-0 bg-black/25 backdrop-blur-sm"></div>
-      <div class="relative w-full max-w-3xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <div>
-            <div class="text-lg font-semibold">MCP Server Access</div>
-            <div class="text-[11px] text-gray-500">${escapeHtml(server.name || server.id)}</div>
-            <div class="text-[11px] text-amber-600 font-medium">* Apply stages changes. Save the page to persist them.</div>
-          </div>
-          <button class="p-2 rounded-full hover:bg-gray-100 transition" data-close-tool-server-access>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
-          <div class="flex items-center justify-between">
-            <div class="text-sm font-semibold text-gray-900" id="tool-server-acl-summary"></div>
-            <div class="text-xs text-gray-400" id="tool-server-acl-count"></div>
-          </div>
-          <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600" id="tool-server-acl-reason"></div>
-          <div id="tool-server-acl-error" class="text-sm text-red-600 hidden"></div>
-          <div id="tool-server-acl-list" class="space-y-2"></div>
-        </div>
-        <div class="px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0">
-          <div class="text-sm text-red-600" id="tool-server-acl-save-error"></div>
-          <div class="flex items-center gap-2">
-            <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700" data-close-tool-server-access>Cancel</button>
-            <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800" id="tool-server-acl-save-btn">Save</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const close = () => modal.remove();
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.closest('[data-close-tool-server-access]')) close();
+    const { modal, close } = createAdminAclModalShell({
+      idsPrefix: 'tool-server-acl',
+      title: 'MCP Server Access',
+      subtitle: server.name || server.id,
+      closeAttr: 'data-close-tool-server-access',
     });
 
     const listEl = modal.querySelector('#tool-server-acl-list');
@@ -240,7 +195,7 @@ export function renderIntegrationsSettings(container, data) {
     const reasonEl = modal.querySelector('#tool-server-acl-reason');
     const saveBtn = modal.querySelector('#tool-server-acl-save-btn');
     let baseRules = [];
-    const stagedRules = cloneToolServerAclRules(integrationsState.aclDrafts?.get(server.id) || []);
+    const stagedRules = aclDraftRegistry.get(server.id);
 
     const state = {
       loading: true,
@@ -282,11 +237,13 @@ export function renderIntegrationsSettings(container, data) {
 
     const updateSaveButton = () => {
       if (!saveBtn) return;
-      saveBtn.disabled = state.saving;
-      saveBtn.classList.toggle('bg-gray-300', state.saving);
-      saveBtn.classList.toggle('cursor-not-allowed', state.saving);
-      saveBtn.classList.toggle('bg-gray-900', !state.saving);
-      saveBtn.textContent = state.saving ? 'Saving...' : 'Save';
+      setModalSaveButtonState(saveBtn, {
+        enabled: true,
+        saving: state.saving,
+        label: 'Save',
+        enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+        disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+      });
     };
 
     const renderList = () => {
@@ -360,7 +317,7 @@ export function renderIntegrationsSettings(container, data) {
         const payload = await fetchAdminToolServerAccess(server.id);
         state.groups = Array.isArray(payload.groups) ? payload.groups : [];
         const sourceRules = stagedRules.length > 0 ? stagedRules : payload.rules;
-        baseRules = cloneToolServerAclRules(payload.rules || []);
+        baseRules = cloneAclRules(payload.rules || []);
         state.rulesByGroup = new Map(
           (Array.isArray(sourceRules) ? sourceRules : [])
             .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
@@ -388,9 +345,9 @@ export function renderIntegrationsSettings(container, data) {
           effect,
           action: 'use',
         }));
-        const sameAsBase = getToolServerAclRulesSignature(rules) === getToolServerAclRulesSignature(baseRules);
+        const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
         if (typeof onApply === 'function') {
-          await onApply(sameAsBase ? null : cloneToolServerAclRules(rules), server);
+          await onApply(sameAsBase ? null : cloneAclRules(rules), server);
         }
         close();
       } catch (err) {
@@ -442,8 +399,8 @@ export function renderIntegrationsSettings(container, data) {
         const totalCount = tools.length;
         return `
       <div data-tool-server-row="${server.id}" class="border-b border-gray-50 last:border-0 ${serverEnabled ? '' : 'opacity-70'}">
-        <div class="py-2.5 flex items-center justify-between pr-2">
-          <div class="flex flex-col">
+        <div class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2">
+          <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-2">
               <div class="text-xs font-medium text-gray-900">${server.name}</div>
               <span data-server-disabled-badge class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${serverEnabled ? 'hidden' : ''}">Disabled</span>
@@ -454,7 +411,7 @@ export function renderIntegrationsSettings(container, data) {
               ${server.toolsError ? '<span class="text-red-500 ml-2">Last verify failed</span>' : ''}
             </div>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
             <button
               data-id="${server.id}"
               class="tool-access-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${serverEnabled ? '' : 'hidden'}"
@@ -569,8 +526,9 @@ export function renderIntegrationsSettings(container, data) {
   const render = () => {
     if (!isActiveTab()) return;
     const dirty = hasChanges();
+    const useSharedActionFooter = Boolean(data.sharedActionFooter);
     container.innerHTML = `
-      <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300 w-full">
+      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
           <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">
@@ -579,7 +537,7 @@ export function renderIntegrationsSettings(container, data) {
           </div>
         </div>
 
-        <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden">
+        <div class="flex-1 min-h-0 overflow-y-auto">
           <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
             <section class="space-y-1">
               <div class="flex items-center justify-between px-0.5">
@@ -601,12 +559,13 @@ export function renderIntegrationsSettings(container, data) {
           </div>
         </div>
 
+        ${useSharedActionFooter ? '' : `
         <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
           <div id="integrations-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
           <button id="save-integrations" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || integrationsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || integrationsState.saving) ? 'disabled' : ''}>
             ${integrationsState.saving ? 'Saving...' : 'Save'}
           </button>
-        </div>
+        </div>`}
       </div>
 
       <!-- Edit Connection Modal -->
@@ -815,15 +774,15 @@ export function renderIntegrationsSettings(container, data) {
     updateButtons();
     try {
       await persistServers({ showFeedback: false });
-      const aclUpdates = Array.from(integrationsState.aclDrafts.entries())
-        .map(([serverId, rules]) => ({
-          serverId,
-          rules: cloneToolServerAclRules(rules),
-        }))
+        const aclUpdates = Array.from(aclDraftRegistry.entries())
+          .map(([serverId, rules]) => ({
+            serverId,
+            rules: cloneAclRules(rules),
+          }))
         .filter((entry) => entry.serverId && entry.rules.length > 0);
       for (const entry of aclUpdates) {
         await updateAdminToolServerAccess(entry.serverId, entry.rules);
-        integrationsState.aclDrafts.delete(entry.serverId);
+          aclDraftRegistry.clear(entry.serverId);
       }
       broadcastToolServersInvalidation();
       if (feedback) {
@@ -851,7 +810,7 @@ export function renderIntegrationsSettings(container, data) {
     integrationsState.loaded = false;
     integrationsState.originalSnapshot = null;
     integrationsState.toolServers = [];
-    integrationsState.aclDrafts?.clear();
+    aclDraftRegistry.clear();
     loadIntegrations();
   };
 
@@ -926,11 +885,7 @@ export function renderIntegrationsSettings(container, data) {
         if (server) {
           void openToolServerAccessModal(server, {
             onApply: async (rules) => {
-              if (!Array.isArray(rules) || rules.length === 0) {
-                integrationsState.aclDrafts.delete(server.id);
-              } else {
-                integrationsState.aclDrafts.set(server.id, cloneToolServerAclRules(rules));
-              }
+              aclDraftRegistry.stage(server.id, rules);
               updateButtons();
             },
           });

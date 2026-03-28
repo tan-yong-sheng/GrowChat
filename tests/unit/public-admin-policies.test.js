@@ -549,9 +549,83 @@ describe('admin policies settings', () => {
     await vi.waitFor(() => expect(container.querySelector('#policy-page-save').disabled).toBe(false));
     container.querySelector('#policy-page-save')?.click();
 
+    await vi.waitFor(() => expect(
+      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/models/access' && String(options?.method || '').toUpperCase() === 'PUT')
+    ).toBe(true));
+    expect(
+      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/models/') && String(url).endsWith('/access') && String(url) !== '/api/admin/models/access' && String(options?.method || '').toUpperCase() === 'PUT')
+    ).toBe(false);
+    expect(
+      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/openai/connections/') && String(url).endsWith('/access') && String(url) !== '/api/admin/openai/connections/access' && String(options?.method || '').toUpperCase() === 'PUT')
+    ).toBe(false);
+    expect(
+      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/tool-servers/') && String(url).endsWith('/access') && String(url) !== '/api/admin/tool-servers/access' && String(options?.method || '').toUpperCase() === 'PUT')
+    ).toBe(false);
+
     await vi.waitFor(() => expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled());
     expect(mocks.broadcastConnectionsInvalidation).toHaveBeenCalled();
     expect(mocks.broadcastToolServersInvalidation).toHaveBeenCalled();
+  });
+
+  it('disables the policy ACL save button while the access update is saving', async () => {
+    let resolveSave;
+    const saveResponse = new Promise((resolve) => {
+      resolveSave = resolve;
+    });
+
+    mocks.apiFetch.mockImplementation(async (url, init = {}) => {
+      const path = String(url);
+      if (path === '/api/admin/openai/connections') {
+        return new Response(JSON.stringify({
+          connections: [
+            { id: 'c1', name: 'Conn 1', providerType: 'openai-compatible', baseUrl: 'https://example.com', source: 'config' },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (path === '/api/admin/tool-servers') {
+        return new Response(JSON.stringify({ servers: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (path === '/api/admin/models/access?ids=m1') {
+        return new Response(JSON.stringify({
+          groups: [
+            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
+          ],
+          rules: [
+            { model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (path.includes('/access') && init.method === 'PUT') {
+        return saveResponse;
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderPoliciesSettings } = await loadModule();
+    const container = document.getElementById('root');
+
+    renderPoliciesSettings(container);
+
+    await vi.waitFor(() => expect(container.querySelector('[data-edit-resource]')).not.toBeNull());
+    container.querySelector('[data-edit-resource]')?.click();
+    await vi.waitFor(() => expect(document.querySelector('#policy-acl-save')).not.toBeNull());
+
+    const modal = document.querySelector('[role="dialog"]') || document.body;
+    const select = modal.querySelector('.resource-acl-effect');
+    expect(select).not.toBeNull();
+    select.value = 'deny';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const saveBtn = document.querySelector('#policy-acl-save');
+    saveBtn?.click();
+    expect(saveBtn?.disabled).toBe(true);
+
+    resolveSave(new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await vi.waitFor(() => expect(document.querySelector('#policy-acl-save')).toBeNull());
   });
 
   it('re-sorts policy rows when the selected group changes', async () => {

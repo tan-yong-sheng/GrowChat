@@ -18,7 +18,6 @@ export function serializeUserProfile(row) {
     id: row.id,
     email: row.email,
     name: row.name,
-    role: row.role,
     account_status: row.account_status === 'pending' ? 'pending' : 'active',
     settings: parseJsonObject(row.settings),
     avatar: row.avatar || null,
@@ -31,9 +30,12 @@ export function serializeUserProfile(row) {
   };
 }
 
-export function buildUserProfileResponse(row, { defaultModelId = null } = {}) {
+export function buildUserProfileResponse(row, { defaultModelId = null, primaryRole = 'member' } = {}) {
   return {
-    user: serializeUserProfile(row),
+    user: {
+      ...serializeUserProfile(row),
+      primary_role: primaryRole || 'member',
+    },
     app_config: {
       default_model_id: defaultModelId || null,
     },

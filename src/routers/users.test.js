@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   updateUserOpenAIConnection: vi.fn(),
   deleteUserOpenAIConnection: vi.fn(),
   loadUserToolServers: vi.fn(),
+  loadToolServers: vi.fn(),
   createUserToolServer: vi.fn(),
   updateUserToolServer: vi.fn(),
   deleteUserToolServer: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock('../admin/tool-servers.js', () => ({
   deleteUserToolServer: (...args) => mocks.deleteUserToolServer(...args),
   loadToolServers: (...args) => mocks.loadToolServers?.(...args),
   loadUserToolServers: (...args) => mocks.loadUserToolServers(...args),
+  loadToolServers: (...args) => mocks.loadToolServers?.(...args),
   testToolServerConnection: (...args) => mocks.testToolServerConnection(...args),
   updateUserToolServer: (...args) => mocks.updateUserToolServer(...args),
 }));
@@ -76,7 +78,7 @@ function makeReq(path, method, body, headers = {}) {
 }
 
 describe('usersRouter', () => {
-  const user = { sub: 'u1', role: 'user', email: 'user@example.com' };
+  const user = { sub: 'u1', role: 'member', email: 'user@example.com' };
   const env = { DB: {} };
 
   beforeEach(() => {
@@ -95,7 +97,7 @@ describe('usersRouter', () => {
     mocks.authorize.mockResolvedValue({ allow: true });
     mocks.logAuditEvent.mockResolvedValue(undefined);
     mocks.resolvePermissions.mockResolvedValue(['chat.read']);
-    mocks.getUserRoles.mockResolvedValue([{ role_name: 'user' }]);
+    mocks.getUserRoles.mockResolvedValue([{ role_name: 'member' }]);
     mocks.getConfigValue.mockResolvedValue('gpt-5-mini');
     mocks.hashPassword.mockResolvedValue('hashed');
     mocks.isLastOwnerOfRole.mockResolvedValue(false);
@@ -105,6 +107,7 @@ describe('usersRouter', () => {
     mocks.updateUserOpenAIConnection.mockResolvedValue(null);
     mocks.deleteUserOpenAIConnection.mockResolvedValue(false);
     mocks.loadUserToolServers.mockResolvedValue([]);
+    mocks.loadToolServers.mockResolvedValue([]);
     mocks.createUserToolServer.mockResolvedValue(null);
     mocks.updateUserToolServer.mockResolvedValue(null);
     mocks.deleteUserToolServer.mockResolvedValue(false);
@@ -116,7 +119,7 @@ describe('usersRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
       settings: '{"theme":"dark"}',
       avatar: 'https://example.com/avatar.png',
@@ -142,7 +145,7 @@ describe('usersRouter', () => {
         id: 'u1',
         email: 'user@example.com',
         name: 'User',
-        role: 'user',
+        primary_role: 'member',
         account_status: 'active',
         settings: { theme: 'dark' },
         avatar: 'https://example.com/avatar.png',
@@ -164,7 +167,7 @@ describe('usersRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'User',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
       settings: '{}',
       preferences: '{}',
@@ -184,7 +187,7 @@ describe('usersRouter', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.permissions).toEqual(['chat.read']);
-    expect(body.roles).toEqual([{ role_name: 'user' }]);
+    expect(body.roles).toEqual([{ role_name: 'member' }]);
     expect(mocks.resolvePermissions).toHaveBeenCalledWith(env, user);
     expect(mocks.getUserRoles).toHaveBeenCalledWith(env, user.sub);
   });
@@ -194,7 +197,7 @@ describe('usersRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'Updated User',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
       settings: '{"theme":"light"}',
       avatar: 'https://example.com/new-avatar.png',
@@ -251,7 +254,7 @@ describe('usersRouter', () => {
       id: 'u1',
       email: 'user@example.com',
       name: 'Updated User',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
       settings: '{}',
       avatar: null,
@@ -581,6 +584,7 @@ describe('usersRouter', () => {
       .mockResolvedValueOnce([
         { id: 'g1', name: 'test1', description: 'Team 1', is_system: 0 },
       ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         { id: 'r1', model_id: 'model-1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
       ])
@@ -605,7 +609,7 @@ describe('usersRouter', () => {
     expect(body.user).toMatchObject({
       id: 'u2',
       email: 'ada@example.com',
-      role: 'admin',
+      primary_role: 'member',
     });
     expect(body.groups).toEqual([{ id: 'g1', name: 'test1' }]);
     expect(body.role_permissions).toEqual(['admin.user.read', 'admin.audit.read']);
@@ -638,7 +642,7 @@ describe('usersRouter', () => {
   it('deletes a user record instead of deactivating it', async () => {
     mocks.db.first.mockResolvedValueOnce({
       id: 'u2',
-      role: 'user',
+      role: 'member',
       account_status: 'active',
     });
 

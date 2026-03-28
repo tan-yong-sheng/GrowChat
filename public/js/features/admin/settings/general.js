@@ -61,9 +61,10 @@ export function renderGeneralSettings(container, data) {
     if (!isActiveTab()) return;
     const dirty = isDirty();
     const toggleState = getGeneralSettingsToggleState(settingsState.currentValues.publicRegistration);
+    const useSharedActionFooter = Boolean(data.sharedActionFooter);
 
     container.innerHTML = `
-      <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300 w-full">
+        <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
           <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">
@@ -121,12 +122,13 @@ export function renderGeneralSettings(container, data) {
           </div>
         </div>
 
+        ${useSharedActionFooter ? '' : `
         <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
           <div id="settings-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
           <button id="save-settings" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${!dirty || settingsState.loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${!dirty || settingsState.loading ? 'disabled' : ''}>
             ${settingsState.loading ? 'Saving...' : 'Save'}
           </button>
-        </div>
+        </div>`}
       </div>
     `;
 
@@ -307,6 +309,7 @@ export function renderGeneralSettings(container, data) {
       saveBtn.classList.toggle('hover:bg-gray-900', dirty && !settingsState.loading);
       saveBtn.textContent = settingsState.loading ? 'Saving...' : 'Save';
     }
+    data.requestSettingsFooterSync?.();
   };
 
   const loadModels = async () => {

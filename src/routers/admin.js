@@ -11,7 +11,7 @@ import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../chat/attachments.js';
 import { buildConnectionHeaders, buildEnvOpenAIConnections, discoverConnectionModels, ensureConnectionId, extractConnectionModelId, getAllOpenAIConnectionConfigs, getConnectionApiType, getConnectionDefaultBaseUrl, getEnvOpenAIOverrides, isConnectionUrlRequired, normalizeConnectionManualModels } from '../llm/connections.js';
-import { loadConnectionAclRules, normalizeConnectionAclRule, saveConnectionAclRulesForConnection } from '../utils/connection-acl.js';
+import { buildConnectionAclRuleSaveStatements, loadConnectionAclRules, normalizeConnectionAclRule, saveConnectionAclRulesForConnection } from '../utils/connection-acl.js';
 import { normalizeProviderFamily } from '../llm/provider-registry.js';
 import { MCP_PROTOCOL_VERSION } from '../mcp/client.js';
 import {
@@ -35,11 +35,20 @@ import {
   sha256Base64Url,
 } from '../admin/tool-servers.js';
 import {
+  buildToolServerAclRuleSaveStatements,
   loadToolServerAclRules,
   normalizeToolServerAclRule,
   saveToolServerAclRulesForToolServer,
 } from '../utils/tool-server-acl.js';
 import { mcpNotify, mcpRequest } from '../mcp/client.js';
+
+function isValidModelAccessId(value) {
+  const id = String(value || '').trim();
+  if (!id) return false;
+  if (id.length > 200) return false;
+  if (/\s/.test(id)) return false;
+  return true;
+}
 
 /**
  * Admin Router Handler
@@ -108,6 +117,89 @@ export async function adminRouter(req, env, ctx, user, path) {
     } catch (err) {
       console.error('Load connection access failed:', err);
       return error(req, 'Failed to load connection access', 500);
+    }
+  }
+
+  if (req.method === 'PUT' && path === '/api/admin/openai/connections/access') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const updates = Array.isArray(body.updates) ? body.updates : [];
+    if (!updates.length) {
+      return error(req, 'No connection access updates provided', 400);
+    }
+    if (updates.length > 200) {
+      return error(req, 'Too many access updates (max 200)', 400);
+    }
+
+    try {
+      const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+      const groups = await db.all('SELECT id FROM groups');
+      const validGroupIds = new Set(groups.map((group) => group.id));
+      const statements = [];
+      const normalizedUpdates = [];
+      let includeSchemaStatements = true;
+
+      for (const update of updates) {
+        const connectionId = String(update?.connection_id || update?.connectionId || '').trim();
+        if (!connectionId) {
+          return error(req, 'connection_id is required', 400);
+        }
+        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find((conn) => String(conn.id || '') === String(connectionId));
+        if (!currentConnection || currentConnection.enabled === false) {
+          return error(req, 'Disabled connections cannot be edited', 409);
+        }
+        const incomingRules = Array.isArray(update?.rules) ? update.rules : [];
+        const filteredRules = [];
+        const invalidPrincipalTypes = [];
+        for (const rule of incomingRules) {
+          const normalized = normalizeConnectionAclRule({ ...rule, connection_id: connectionId });
+          if (!normalized) continue;
+          if (normalized.principal_type !== 'group') {
+            invalidPrincipalTypes.push(normalized.principal_type);
+            continue;
+          }
+          if (!validGroupIds.has(normalized.principal_id)) continue;
+          filteredRules.push(normalized);
+        }
+        if (invalidPrincipalTypes.length) {
+          return error(req, 'Invalid principal_type for connection access', 400, {
+            invalid: Array.from(new Set(invalidPrincipalTypes)),
+          });
+        }
+        const { statements: aclStatements } = buildConnectionAclRuleSaveStatements(
+          db,
+          connectionId,
+          filteredRules,
+          { includeSchemaStatements }
+        );
+        includeSchemaStatements = false;
+        statements.push(...aclStatements);
+        normalizedUpdates.push({
+          connection_id: connectionId,
+          rules: filteredRules,
+        });
+      }
+
+      await db.batch(statements);
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'connection_access_updated',
+        resource_type: 'connection',
+        resource_id: 'connection-access',
+        metadata: { updates: normalizedUpdates.length },
+      });
+      return json(req, {
+        ok: true,
+        updates: normalizedUpdates,
+      });
+    } catch (err) {
+      console.error('Bulk connection access update failed:', err);
+      return error(req, 'Failed to update connection access', 500);
     }
   }
 
@@ -231,6 +323,89 @@ export async function adminRouter(req, env, ctx, user, path) {
     } catch (err) {
       console.error('Load tool server access failed:', err);
       return error(req, 'Failed to load MCP server access', 500);
+    }
+  }
+
+  if (req.method === 'PUT' && path === '/api/admin/tool-servers/access') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const updates = Array.isArray(body.updates) ? body.updates : [];
+    if (!updates.length) {
+      return error(req, 'No tool server access updates provided', 400);
+    }
+    if (updates.length > 200) {
+      return error(req, 'Too many access updates (max 200)', 400);
+    }
+
+    try {
+      const servers = await loadToolServers(db);
+      const groups = await db.all('SELECT id FROM groups');
+      const validGroupIds = new Set(groups.map((group) => group.id));
+      const statements = [];
+      const normalizedUpdates = [];
+      let includeSchemaStatements = true;
+
+      for (const update of updates) {
+        const toolServerId = String(update?.tool_server_id || update?.toolServerId || '').trim();
+        if (!toolServerId) {
+          return error(req, 'tool_server_id is required', 400);
+        }
+        const currentServer = (Array.isArray(servers) ? servers : []).find((server) => String(server.id || '') === String(toolServerId));
+        if (!currentServer || currentServer.enabled === false) {
+          return error(req, 'Disabled MCP servers cannot be edited', 409);
+        }
+        const incomingRules = Array.isArray(update?.rules) ? update.rules : [];
+        const filteredRules = [];
+        const invalidPrincipalTypes = [];
+        for (const rule of incomingRules) {
+          const normalized = normalizeToolServerAclRule({ ...rule, tool_server_id: toolServerId });
+          if (!normalized) continue;
+          if (normalized.principal_type !== 'group') {
+            invalidPrincipalTypes.push(normalized.principal_type);
+            continue;
+          }
+          if (!validGroupIds.has(normalized.principal_id)) continue;
+          filteredRules.push(normalized);
+        }
+        if (invalidPrincipalTypes.length) {
+          return error(req, 'Invalid principal_type for MCP server access', 400, {
+            invalid: Array.from(new Set(invalidPrincipalTypes)),
+          });
+        }
+        const { statements: aclStatements } = buildToolServerAclRuleSaveStatements(
+          db,
+          toolServerId,
+          filteredRules,
+          { includeSchemaStatements }
+        );
+        includeSchemaStatements = false;
+        statements.push(...aclStatements);
+        normalizedUpdates.push({
+          tool_server_id: toolServerId,
+          rules: filteredRules,
+        });
+      }
+
+      await db.batch(statements);
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'tool_server_access_updated',
+        resource_type: 'tool-server',
+        resource_id: 'tool-server-access',
+        metadata: { updates: normalizedUpdates.length },
+      });
+      return json(req, {
+        ok: true,
+        updates: normalizedUpdates,
+      });
+    } catch (err) {
+      console.error('Bulk tool server access update failed:', err);
+      return error(req, 'Failed to update MCP server access', 500);
     }
   }
 
@@ -1096,9 +1271,14 @@ export async function adminRouter(req, env, ctx, user, path) {
     const envOverridesInput = body.env_overrides && typeof body.env_overrides === 'object'
       ? body.env_overrides
       : {};
+    const modelUpdatesInput = Array.isArray(body.model_updates) ? body.model_updates : [];
+    const accessUpdatesInput = Array.isArray(body.access_updates) ? body.access_updates : [];
 
     if (connections.length > 100) {
       return error(req, 'Too many connections (max 100)', 400);
+    }
+    if (modelUpdatesInput.length > 500) {
+      return error(req, 'Too many model updates (max 500)', 400);
     }
 
     let sanitized;
@@ -1151,24 +1331,153 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, err.message || 'Invalid connection data', 400);
     }
 
+    const modelUpdates = modelUpdatesInput
+      .map((item) => ({
+        id: String(item?.id || '').trim(),
+        enabled: item?.enabled !== false,
+      }))
+      .filter((item) => isValidModelAccessId(item.id));
+    if (modelUpdates.length !== modelUpdatesInput.length) {
+      return error(req, 'Invalid model id in updates', 400);
+    }
+
     try {
-      await setConfigValue(db, 'openai_connections', JSON.stringify(sanitized));
-      await setConfigValue(db, 'openai_enabled', enabled ? 'true' : 'false');
-      const envOverrides = {};
+      const groups = await db.all('SELECT id FROM groups');
+      const validGroupIds = new Set(groups.map((group) => group.id));
+      const currentConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+      const currentConnectionMap = new Map(
+        (Array.isArray(currentConnections) ? currentConnections : []).map((connection) => [String(connection.id || ''), connection])
+      );
+
+      const normalizedEnvOverrides = {};
       for (const [key, value] of Object.entries(envOverridesInput)) {
         if (!/^env-[a-z0-9-]+$/i.test(String(key))) continue;
         if (value === false) {
-          envOverrides[String(key)] = false;
+          normalizedEnvOverrides[String(key)] = false;
         }
       }
-      await setConfigValue(db, 'openai_env_overrides', JSON.stringify(envOverrides));
+
+      const normalizedAccessUpdates = [];
+      for (const entry of accessUpdatesInput) {
+        const connectionId = String(entry?.connection_id || entry?.connectionId || '').trim();
+        const currentConnection = currentConnectionMap.get(connectionId);
+        if (!connectionId || !currentConnection) {
+          return error(req, 'Invalid connection_id in access_updates', 400);
+        }
+        if (currentConnection.enabled === false) {
+          return error(req, 'Disabled connections cannot be edited', 409);
+        }
+        const incomingRules = Array.isArray(entry?.rules) ? entry.rules : [];
+        const filteredRules = [];
+        const invalidPrincipalTypes = [];
+        for (const rule of incomingRules) {
+          const normalized = normalizeConnectionAclRule({ ...rule, connection_id: connectionId });
+          if (!normalized) continue;
+          if (normalized.principal_type !== 'group') {
+            invalidPrincipalTypes.push(normalized.principal_type);
+            continue;
+          }
+          if (!validGroupIds.has(normalized.principal_id)) continue;
+          filteredRules.push(normalized);
+        }
+        if (invalidPrincipalTypes.length) {
+          return error(req, 'Invalid principal_type for connection access', 400, {
+            invalid: Array.from(new Set(invalidPrincipalTypes)),
+          });
+        }
+        normalizedAccessUpdates.push({
+          connection_id: connectionId,
+          rules: filteredRules,
+        });
+      }
+
+      const statements = [
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS model_access (
+            model_id TEXT PRIMARY KEY,
+            is_enabled INTEGER NOT NULL DEFAULT 1,
+            updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+          )`
+        ),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_model_access_enabled ON model_access (is_enabled)'),
+        db.prepare(
+          `CREATE TABLE IF NOT EXISTS connection_acl_rules (
+            id TEXT PRIMARY KEY,
+            connection_id TEXT NOT NULL,
+            principal_type TEXT NOT NULL CHECK (principal_type IN ('user', 'group')),
+            principal_id TEXT NOT NULL,
+            effect TEXT NOT NULL CHECK (effect IN ('allow', 'deny')),
+            action TEXT NOT NULL DEFAULT 'use',
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            UNIQUE(connection_id, principal_type, principal_id, effect, action)
+          )`
+        ),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_connection_id ON connection_acl_rules(connection_id)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)'),
+        db.prepare('INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()', ['openai_connections', JSON.stringify(sanitized)]),
+        db.prepare('INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()', ['openai_enabled', enabled ? 'true' : 'false']),
+        db.prepare('INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()', ['openai_env_overrides', JSON.stringify(normalizedEnvOverrides)]),
+      ];
+
+      for (const update of modelUpdates) {
+        statements.push(
+          db.prepare(
+            `INSERT INTO model_access (model_id, is_enabled, updated_at)
+             VALUES (?, ?, unixepoch())
+             ON CONFLICT(model_id) DO UPDATE SET is_enabled = excluded.is_enabled, updated_at = unixepoch()`,
+            [update.id, update.enabled ? 1 : 0]
+          )
+        );
+      }
+
+      for (const entry of normalizedAccessUpdates) {
+        statements.push(
+          db.prepare('DELETE FROM connection_acl_rules WHERE connection_id = ?', [entry.connection_id])
+        );
+        for (const rule of entry.rules) {
+          statements.push(
+            db.prepare(
+              `INSERT INTO connection_acl_rules (id, connection_id, principal_type, principal_id, effect, action, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
+              [
+                crypto.randomUUID(),
+                rule.connection_id,
+                rule.principal_type,
+                rule.principal_id,
+                rule.effect,
+                rule.action,
+              ]
+            )
+          );
+        }
+      }
+
+      await db.batch(statements);
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'openai_connections_updated',
         resource_type: 'admin',
         resource_id: 'openai-connections',
+        metadata: {
+          connections: sanitized.length,
+          model_updates: modelUpdates.length,
+          access_updates: normalizedAccessUpdates.length,
+        },
       });
-      return json(req, { ok: true });
+      return json(req, {
+        ok: true,
+        model_updates: modelUpdates.length,
+        access_updates: normalizedAccessUpdates.map((entry) => ({
+          connection_id: entry.connection_id,
+          rules: entry.rules.map((rule) => ({
+            principal_type: rule.principal_type,
+            principal_id: rule.principal_id,
+            effect: rule.effect,
+            action: rule.action,
+          })),
+        })),
+      });
     } catch (err) {
       console.error('OpenAI connections update failed:', err);
       return error(req, 'Failed to update connections', 500);

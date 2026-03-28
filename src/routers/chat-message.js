@@ -8,6 +8,7 @@ import { trimTrailingAssistantMessages } from './chat-history.js';
 import { authorize } from '../utils/authorize.js';
 import {
   getOwnedChat,
+  requireOwnedChat,
   getMessageSnapshot,
   normalizeErrorMessage,
   resolveDefaultModel,
@@ -43,7 +44,7 @@ async function ensureModelAllowed(req, env, db, user, model) {
 
   const providerInfo = await resolveProviderForModel(env, model, {
     userId: user?.sub || '',
-    userRole: user?.role || 'member',
+    userRole: user?.primary_role || 'member',
   });
   if (providerInfo?.error) {
     return { error: error(req, providerInfo.error, 400) };
@@ -88,12 +89,28 @@ async function publishRealtimeNow(env, event) {
   }
 }
 
+async function requireChatPermission(req, env, user, action, chatId) {
+  const authDecision = await authorize(env, user, {
+    action,
+    resource: 'chat',
+    resourceId: chatId,
+  });
+  if (!authDecision.allow) {
+    return error(req, authDecision.reason || 'Forbidden', 403);
+  }
+  return null;
+}
+
 export async function chatMessageRouter({ req, env, ctx, db, user, path, originSessionId, assistantStreamRunner }) {
   const sendMatch = path.match(/^\/api\/chats\/([^/]+)\/messages$/);
   if (sendMatch && req.method === 'POST') {
     const chatId = sendMatch[1];
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
+    if (permissionError) return permissionError;
+
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const sendLimit = await checkRateLimit(env.CACHE, {
       action: 'chat-send',
@@ -196,7 +213,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     ]);
 
     const createdUserMessage = await getMessageSnapshot(db, userMsgId);
-    const updatedChatAfterUserMessage = await getOwnedChat(db, chatId, user.sub);
+    const updatedChatAfterUserMessage = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
 
     if (attachmentDocs.length > 0) {
       try {
@@ -323,8 +340,11 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       );
     }
 
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
+    const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
+    if (permissionError) return permissionError;
 
     const sourceMsg = await db.first(
       'SELECT role, parent_id, model, citations FROM messages WHERE id = ? AND chat_id = ?',
@@ -389,7 +409,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
         'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ?',
         [newAssistantMsgId]
       );
-      const updatedChat = await getOwnedChat(db, chatId, user.sub);
+      const updatedChat = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
 
       await publishRealtimeNow(env, createRealtimeEvent({
         type: 'message.completed',
@@ -493,7 +513,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     ]);
 
     const createdBranchUserMessage = await getMessageSnapshot(db, newUserMsgId);
-    const updatedBranchChat = await getOwnedChat(db, chatId, user.sub);
+    const updatedBranchChat = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
 
     if (attachmentDocs.length > 0) {
       try {
@@ -574,9 +594,12 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
   if (regenerateMatch && req.method === 'POST') {
     const chatId = regenerateMatch[1];
     const msgId = regenerateMatch[2];
+    const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
+    if (permissionError) return permissionError;
 
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const sourceMsg = await db.first(
       'SELECT role, parent_id FROM messages WHERE id = ? AND chat_id = ?',
@@ -643,9 +666,12 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
   if (cancelMatch && req.method === 'POST') {
     const chatId = cancelMatch[1];
     const msgId = cancelMatch[2];
+    const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
+    if (permissionError) return permissionError;
 
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const msg = await db.first(
       'SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?',
@@ -686,12 +712,15 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
   if (resumeMatch && req.method === 'GET') {
     const chatId = resumeMatch[1];
     const msgId = resumeMatch[2];
+    const permissionError = await requireChatPermission(req, env, user, 'chat.read', chatId);
+    if (permissionError) return permissionError;
     const url = new URL(req.url);
     const afterSeq = Number(url.searchParams.get('after_seq') || 0);
     const lastSeq = Number.isFinite(afterSeq) && afterSeq > 0 ? Math.floor(afterSeq) : 0;
 
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const msg = await db.first('SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?', [msgId, chatId]);
     if (!msg) return error(req, 'Message not found', 404);
@@ -742,9 +771,12 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
   if (statusMatch && req.method === 'GET') {
     const chatId = statusMatch[1];
     const msgId = statusMatch[2];
+    const permissionError = await requireChatPermission(req, env, user, 'chat.read', chatId);
+    if (permissionError) return permissionError;
 
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const msg = await db.first(
       'SELECT id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, message_blocks, created_at FROM messages WHERE id = ? AND chat_id = ?',
@@ -759,9 +791,12 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
   if (updateMessageMatch && req.method === 'PUT') {
     const chatId = updateMessageMatch[1];
     const msgId = updateMessageMatch[2];
+    const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
+    if (permissionError) return permissionError;
 
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const message = await db.first(
       'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ? AND chat_id = ?',
@@ -813,9 +848,12 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
   if (deleteMatch && req.method === 'DELETE') {
     const chatId = deleteMatch[1];
     const msgId = deleteMatch[2];
+    const permissionError = await requireChatPermission(req, env, user, 'chat.delete', chatId);
+    if (permissionError) return permissionError;
 
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const msg = await db.first('SELECT id FROM messages WHERE id = ? AND chat_id = ?', [msgId, chatId]);
     if (!msg) return error(req, 'Message not found', 404);

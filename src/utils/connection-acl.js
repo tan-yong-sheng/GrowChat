@@ -73,7 +73,7 @@ export function evaluateConnectionAclAccess(connection, { user = null, userGroup
     return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
   }
 
-  if (allowAdmin && user?.role === 'admin') {
+  if (allowAdmin && user?.primary_role === 'admin') {
     return { allowed: true, access_label: 'Admin', access_variant: 'admin' };
   }
 
@@ -101,6 +101,53 @@ export async function ensureConnectionAclRulesTable(db) {
   } catch (err) {
     console.warn('Failed to ensure connection_acl_rules table:', err?.message || err);
   }
+}
+
+export function buildConnectionAclRuleSaveStatements(db, connectionId, rules = [], { includeSchemaStatements = true } = {}) {
+  if (!db || !connectionId) throw new Error('Connection id is required');
+  const normalized = (Array.isArray(rules) ? rules : [])
+    .map((rule) => normalizeConnectionAclRule({ ...rule, connection_id: connectionId }))
+    .filter(Boolean);
+  const statements = [];
+  if (includeSchemaStatements) {
+    statements.push(
+      db.prepare(
+        `CREATE TABLE IF NOT EXISTS connection_acl_rules (
+          id TEXT PRIMARY KEY,
+          connection_id TEXT NOT NULL,
+          principal_type TEXT NOT NULL CHECK (principal_type IN ('user', 'group')),
+          principal_id TEXT NOT NULL,
+          effect TEXT NOT NULL CHECK (effect IN ('allow', 'deny')),
+          action TEXT NOT NULL DEFAULT 'use',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(connection_id, principal_type, principal_id, effect, action)
+        )`
+      ),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_connection_id ON connection_acl_rules(connection_id)'),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)')
+    );
+  }
+  statements.push(
+    db.prepare('DELETE FROM connection_acl_rules WHERE connection_id = ?', [connectionId])
+  );
+  for (const rule of normalized) {
+    statements.push(
+      db.prepare(
+        `INSERT INTO connection_acl_rules (id, connection_id, principal_type, principal_id, effect, action, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
+        [
+          crypto.randomUUID(),
+          rule.connection_id,
+          rule.principal_type,
+          rule.principal_id,
+          rule.effect,
+          rule.action,
+        ]
+      )
+    );
+  }
+  return { normalized, statements };
 }
 
 function buildIdFilterClause(columnName, ids = []) {
@@ -149,25 +196,7 @@ export async function loadConnectionAclRules(db, connectionId = null, connection
 }
 
 export async function saveConnectionAclRulesForConnection(db, connectionId, rules = []) {
-  if (!db || !connectionId) throw new Error('Connection id is required');
-  await ensureConnectionAclRulesTable(db);
-  const normalized = (Array.isArray(rules) ? rules : [])
-    .map((rule) => normalizeConnectionAclRule({ ...rule, connection_id: connectionId }))
-    .filter(Boolean);
-  await db.run('DELETE FROM connection_acl_rules WHERE connection_id = ?', [connectionId]);
-  for (const rule of normalized) {
-    await db.run(
-      `INSERT INTO connection_acl_rules (id, connection_id, principal_type, principal_id, effect, action, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
-      [
-        crypto.randomUUID(),
-        rule.connection_id,
-        rule.principal_type,
-        rule.principal_id,
-        rule.effect,
-        rule.action,
-      ]
-    );
-  }
+  const { normalized, statements } = buildConnectionAclRuleSaveStatements(db, connectionId, rules);
+  await db.batch(statements);
   return loadConnectionAclRules(db, connectionId);
 }

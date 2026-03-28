@@ -187,9 +187,6 @@ describe('admin connections modal', () => {
           ],
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
-      if (target.includes('/api/admin/models')) {
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
-      }
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
     });
 
@@ -217,6 +214,8 @@ describe('admin connections modal', () => {
     expect(lastPutBody.env_overrides).toEqual({ 'env-openai-0': false });
     await vi.waitFor(() => expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled());
     expect(data.modelsSettingsInvalidate).toBeTruthy();
+    expect(lastPutBody.model_updates).toEqual([]);
+    expect(lastPutBody.access_updates).toEqual([]);
   });
 
   it('keeps disabled connections visible on reload', async () => {

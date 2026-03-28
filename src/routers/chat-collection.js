@@ -2,7 +2,8 @@ import { createDB } from '../db.js';
 import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
-import { resolveDefaultModel, getOwnedChat, getChatMessages, attachDocumentsToMessages } from './chat-core.js';
+import { authorize } from '../utils/authorize.js';
+import { resolveDefaultModel, getOwnedChat, requireOwnedChat, getChatMessages, attachDocumentsToMessages } from './chat-core.js';
 
 async function publishRealtimeNow(env, event) {
   try {
@@ -16,6 +17,14 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   const db = createDB(env.DB);
 
   if (req.method === 'GET' && path === '/api/chats') {
+    const authDecision = await authorize(env, user, {
+      action: 'chat.read',
+      resource: 'chat',
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     const url = new URL(req.url);
     let qRaw = url.searchParams.get('q') || '';
     qRaw = qRaw.trim();
@@ -79,6 +88,14 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   }
 
   if (req.method === 'POST' && path === '/api/chats') {
+    const authDecision = await authorize(env, user, {
+      action: 'chat.write',
+      resource: 'chat',
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     let body = {};
     try {
       body = await req.json();
@@ -108,6 +125,14 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   }
 
   if (req.method === 'GET' && path === '/api/chats/shared') {
+    const authDecision = await authorize(env, user, {
+      action: 'chat.read',
+      resource: 'chat',
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     const sharedChats = await db.all(
       'SELECT id, title, model, pinned, share_id, created_at, updated_at FROM chats WHERE user_id = ? AND share_id IS NOT NULL ORDER BY updated_at DESC',
       [user.sub]
@@ -116,6 +141,14 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   }
 
   if (req.method === 'GET' && path === '/api/chats/archived') {
+    const authDecision = await authorize(env, user, {
+      action: 'chat.read',
+      resource: 'chat',
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
     const archivedChats = await db.all(
       'SELECT id, title, model, pinned, created_at, updated_at FROM chats WHERE user_id = ? AND archived = 1 ORDER BY updated_at DESC',
       [user.sub]
@@ -128,8 +161,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     const chatId = chatIdMatch[1];
 
     if (req.method === 'GET') {
-      const chat = await getOwnedChat(db, chatId, user.sub);
-      if (!chat) return error(req, 'Chat not found', 404);
+      const authDecision = await authorize(env, user, {
+        action: 'chat.read',
+        resource: 'chat',
+        resourceId: chatId,
+      });
+      if (!authDecision.allow) {
+        return error(req, authDecision.reason || 'Forbidden', 403);
+      }
+
+      const owned = await requireOwnedChat(req, db, chatId, user.sub);
+      if (owned.error) return owned.error;
+      const chat = owned.chat;
 
       const messages = await getChatMessages(db, chatId);
       const withAttachments = await attachDocumentsToMessages(db, messages);
@@ -146,8 +189,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     }
 
     if (req.method === 'PUT') {
-      const chat = await getOwnedChat(db, chatId, user.sub);
-      if (!chat) return error(req, 'Chat not found', 404);
+      const authDecision = await authorize(env, user, {
+        action: 'chat.write',
+        resource: 'chat',
+        resourceId: chatId,
+      });
+      if (!authDecision.allow) {
+        return error(req, authDecision.reason || 'Forbidden', 403);
+      }
+
+      const owned = await requireOwnedChat(req, db, chatId, user.sub);
+      if (owned.error) return owned.error;
+      const chat = owned.chat;
 
       let body;
       try {
@@ -164,7 +217,8 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         [title || 'New Chat', pinned, chatId, user.sub]
       );
 
-      const updated = await getOwnedChat(db, chatId, user.sub);
+      const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
+      const updated = updatedOwned.chat || null;
       await publishRealtimeNow(env, createRealtimeEvent({
         type: 'chat.updated',
         userId: user.sub,
@@ -176,8 +230,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     }
 
     if (req.method === 'DELETE') {
-      const chat = await getOwnedChat(db, chatId, user.sub);
-      if (!chat) return error(req, 'Chat not found', 404);
+      const authDecision = await authorize(env, user, {
+        action: 'chat.delete',
+        resource: 'chat',
+        resourceId: chatId,
+      });
+      if (!authDecision.allow) {
+        return error(req, authDecision.reason || 'Forbidden', 403);
+      }
+
+      const owned = await requireOwnedChat(req, db, chatId, user.sub);
+      if (owned.error) return owned.error;
+      const chat = owned.chat;
 
       await db.run('DELETE FROM chats WHERE id = ? AND user_id = ?', [chatId, user.sub]);
       await publishRealtimeNow(env, createRealtimeEvent({
@@ -191,7 +255,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         userId: user.sub,
         chatId,
         originSessionId,
-        data: { shared: false, chat: await getOwnedChat(db, chatId, user.sub) },
+        data: { shared: false, chat: null },
       }));
 
       return json(req, { ok: true });
@@ -201,8 +265,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   const pinMatch = path.match(/^\/api\/chats\/([^/]+)\/pin$/);
   if (pinMatch && req.method === 'POST') {
     const chatId = pinMatch[1];
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const authDecision = await authorize(env, user, {
+      action: 'chat.write',
+      resource: 'chat',
+      resourceId: chatId,
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const nextPinned = chat.pinned ? 0 : 1;
     await db.run(
@@ -210,7 +284,8 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       [nextPinned, chatId, user.sub]
     );
 
-    const updated = await getOwnedChat(db, chatId, user.sub);
+    const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
+    const updated = updatedOwned.chat || null;
     await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.updated',
       userId: user.sub,
@@ -225,8 +300,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   const cloneMatch = path.match(/^\/api\/chats\/([^/]+)\/clone$/);
   if (cloneMatch && req.method === 'POST') {
     const sourceChatId = cloneMatch[1];
-    const sourceChat = await getOwnedChat(db, sourceChatId, user.sub);
-    if (!sourceChat) return error(req, 'Chat not found', 404);
+    const authDecision = await authorize(env, user, {
+      action: 'chat.write',
+      resource: 'chat',
+      resourceId: sourceChatId,
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    const sourceOwned = await requireOwnedChat(req, db, sourceChatId, user.sub);
+    if (sourceOwned.error) return sourceOwned.error;
+    const sourceChat = sourceOwned.chat;
 
     const sourceMessages = await db.all(
       'SELECT id, role, content, model, citations, parent_id, created_at FROM messages WHERE chat_id = ? ORDER BY created_at ASC, rowid ASC',
@@ -298,8 +383,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   const shareMatch = path.match(/^\/api\/chats\/([^/]+)\/share$/);
   if (shareMatch && req.method === 'POST') {
     const chatId = shareMatch[1];
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const authDecision = await authorize(env, user, {
+      action: 'chat.share',
+      resource: 'chat',
+      resourceId: chatId,
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     let shareId = chat.share_id;
     if (!shareId) {
@@ -310,12 +405,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       );
     }
 
+    const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
     await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.updated',
       userId: user.sub,
       chatId,
       originSessionId,
-      data: { shared: true, chat: await getOwnedChat(db, chatId, user.sub) },
+      data: { shared: true, chat: updatedOwned.chat || null },
     }));
 
     return json(req, {
@@ -328,8 +424,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   const unshareMatch = path.match(/^\/api\/chats\/([^/]+)\/share$/);
   if (unshareMatch && req.method === 'DELETE') {
     const chatId = unshareMatch[1];
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const authDecision = await authorize(env, user, {
+      action: 'chat.share',
+      resource: 'chat',
+      resourceId: chatId,
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     if (chat.share_id) {
       await db.run(
@@ -344,8 +450,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
   const archiveMatch = path.match(/^\/api\/chats\/([^/]+)\/archive$/);
   if (archiveMatch && req.method === 'POST') {
     const chatId = archiveMatch[1];
-    const chat = await getOwnedChat(db, chatId, user.sub);
-    if (!chat) return error(req, 'Chat not found', 404);
+    const authDecision = await authorize(env, user, {
+      action: 'chat.write',
+      resource: 'chat',
+      resourceId: chatId,
+    });
+    if (!authDecision.allow) {
+      return error(req, authDecision.reason || 'Forbidden', 403);
+    }
+
+    const owned = await requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return owned.error;
+    const chat = owned.chat;
 
     const newArchived = chat.archived ? 0 : 1;
     await db.run(
@@ -353,7 +469,8 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       [newArchived, chatId, user.sub]
     );
 
-    const updated = await getOwnedChat(db, chatId, user.sub);
+    const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
+    const updated = updatedOwned.chat || null;
     await publishRealtimeNow(env, createRealtimeEvent({
       type: 'chat.updated',
       userId: user.sub,

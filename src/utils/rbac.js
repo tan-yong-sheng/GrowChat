@@ -11,7 +11,7 @@
  * @returns {boolean} - True if user is admin
  */
 export function isAdmin(user) {
-  return user && user.role === 'admin';
+  return user && user.primary_role === 'admin';
 }
 
 /**
@@ -33,7 +33,7 @@ export function requireAdmin(user) {
  * @returns {boolean} - True if user has allowed role
  */
 export function requireRole(user, allowedRoles = ['admin']) {
-  return user && user.role && allowedRoles.includes(user.role);
+  return user && user.primary_role && allowedRoles.includes(user.primary_role);
 }
 
 /**

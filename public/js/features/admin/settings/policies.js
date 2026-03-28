@@ -3,6 +3,10 @@ import { broadcastModelsInvalidation, consumeModelsInvalidation } from '../../..
 import { consumeConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import { broadcastToolServersInvalidation, consumeToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
+import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
+import { cloneAclRules, getAclRulesSignature } from '../acl-draft.js';
+import { setModalSaveButtonState } from '../modal-save-helpers.js';
+import { createAdminModalShell } from '../modal-shell.js';
 
 const FAMILIES = [
   { key: 'connections', label: 'Connections' },
@@ -50,41 +54,15 @@ function resourceBadge(label, kind = 'neutral', compact = false) {
   return `<span class="inline-flex items-center rounded-full border ${sizeClass} font-semibold uppercase tracking-wide ${map[kind] || map.neutral}">${escapeHtml(label)}</span>`;
 }
 
-function createModal({ title, subtitle, body, footer, widthClass = 'max-w-3xl' }) {
-  const modal = document.createElement('div');
-  modal.className = 'fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4';
-  modal.innerHTML = `
-    <div class="absolute inset-0 bg-black/25 backdrop-blur-sm"></div>
-    <div class="relative w-full ${widthClass} bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]">
-      <div class="flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0">
-        <div>
-          <div class="text-lg font-semibold">${escapeHtml(title)}</div>
-          ${subtitle ? `<div class="text-[11px] text-gray-500 mt-1">${escapeHtml(subtitle)}</div>` : ''}
-        </div>
-        <button type="button" class="p-2 rounded-full hover:bg-gray-100 transition" data-close-modal aria-label="Close">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div class="p-5 sm:p-6 overflow-y-auto flex-1 min-h-0">
-        ${body}
-      </div>
-      <div class="px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0">
-        <div class="text-sm text-red-600" data-modal-error></div>
-        <div class="flex items-center gap-2">
-          ${footer}
-        </div>
-      </div>
-    </div>
-  `;
-
-  const close = () => modal.remove();
-  modal.addEventListener('click', (event) => {
-    if (event.target === modal || event.target.closest('[data-close-modal]')) close();
+function createModal({ preset = 'access', title, subtitle, body, footer }) {
+  return createAdminModalShell({
+    preset,
+    title,
+    subtitle,
+    body,
+    footer,
+    closeAttr: 'data-close-modal',
   });
-  document.body.appendChild(modal);
-  return { modal, close };
 }
 
 function renderSkeleton() {
@@ -339,25 +317,6 @@ function normalizeAclRule(rule) {
   };
 }
 
-function cloneAclRules(rules = []) {
-  return (Array.isArray(rules) ? rules : []).map(normalizeAclRule).filter(Boolean);
-}
-
-function getAclRulesSignature(rules = []) {
-  return cloneAclRules(rules)
-    .sort((a, b) => {
-      const typeDiff = String(a.principal_type).localeCompare(String(b.principal_type));
-      if (typeDiff !== 0) return typeDiff;
-      const idDiff = String(a.principal_id).localeCompare(String(b.principal_id));
-      if (idDiff !== 0) return idDiff;
-      const effectDiff = String(a.effect).localeCompare(String(b.effect));
-      if (effectDiff !== 0) return effectDiff;
-      return String(a.action).localeCompare(String(b.action));
-    })
-    .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.effect}:${rule.action}`)
-    .join('|');
-}
-
 function renderResourceList({
   familyKey,
   resources,
@@ -471,28 +430,10 @@ function buildAclRows(groups, rules = []) {
   }).join('');
 }
 
-async function loadResourceAccess({ familyKey, resourceId }) {
-  const endpoint = familyKey === 'models'
-    ? `/api/admin/models/${encodeURIComponent(resourceId)}/access`
-    : familyKey === 'connections'
-      ? `/api/admin/openai/connections/${encodeURIComponent(resourceId)}/access`
-      : `/api/admin/tool-servers/${encodeURIComponent(resourceId)}/access`;
-  const res = await apiFetch(endpoint);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || err.message || 'Failed to load access');
-  }
-  return res.json();
-}
-
 async function loadFamilyAccess({ familyKey, resourceIds = [], signal } = {}) {
   const ids = Array.isArray(resourceIds) ? resourceIds.map((id) => String(id || '').trim()).filter(Boolean) : [];
   const query = ids.length ? `?ids=${encodeURIComponent(ids.join(','))}` : '';
-  const endpoint = familyKey === 'models'
-    ? `/api/admin/models/access${query}`
-    : familyKey === 'connections'
-      ? `/api/admin/openai/connections/access${query}`
-      : `/api/admin/tool-servers/access${query}`;
+  const endpoint = getAdminAclAccessPath(familyKey, { bulk: true, query });
   const res = await apiFetch(endpoint, { signal });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -501,15 +442,11 @@ async function loadFamilyAccess({ familyKey, resourceIds = [], signal } = {}) {
   return res.json();
 }
 
-async function saveResourceAccess({ familyKey, resourceId, rules }) {
-  const endpoint = familyKey === 'models'
-    ? `/api/admin/models/${encodeURIComponent(resourceId)}/access`
-    : familyKey === 'connections'
-      ? `/api/admin/openai/connections/${encodeURIComponent(resourceId)}/access`
-      : `/api/admin/tool-servers/${encodeURIComponent(resourceId)}/access`;
+async function saveFamilyAccess({ familyKey, updates }) {
+  const endpoint = getAdminAclAccessPath(familyKey, { bulk: true });
   const res = await apiFetch(endpoint, {
     method: 'PUT',
-    body: JSON.stringify({ rules }),
+    body: JSON.stringify({ updates }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -572,6 +509,7 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
     </div>
   `;
   const modal = createModal({
+    preset: 'access',
     title: bulkCount > 1
       ? `Bulk ${getFamilyBulkSummary(familyKey, bulkCount)} ACL`
       : `${familyKey === 'models' ? 'Model' : familyKey === 'connections' ? 'Connection' : 'MCP Server'} Access`,
@@ -588,8 +526,8 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
   const saveBtn = modal.modal.querySelector('#policy-acl-save');
 
   let rules = [];
-  const initialRules = cloneAclRules(targetResources[0]?.draftRules || targetResources[0]?.rules || []);
-  rules = cloneAclRules(initialRules);
+  const initialRules = cloneAclRules(targetResources[0]?.draftRules || targetResources[0]?.rules || [], normalizeAclRule);
+  rules = cloneAclRules(initialRules, normalizeAclRule);
 
   const rulesByGroup = new Map();
   for (const rule of rules) {
@@ -622,7 +560,13 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
 
   saveBtn?.addEventListener('click', async () => {
     if (!saveBtn) return;
-    saveBtn.disabled = true;
+    setModalSaveButtonState(saveBtn, {
+      enabled: true,
+      saving: true,
+      label: 'Save',
+      enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+      disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+    });
     try {
       const nextRules = Array.from(rulesByGroup.entries()).map(([groupId, effect]) => ({
         principal_type: 'group',
@@ -638,7 +582,13 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
       errorEl.textContent = err?.message || 'Failed to save access';
       errorEl.classList.remove('hidden');
     } finally {
-      saveBtn.disabled = false;
+      setModalSaveButtonState(saveBtn, {
+        enabled: true,
+        saving: false,
+        label: 'Save',
+        enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+        disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+      });
     }
   });
 
@@ -774,7 +724,7 @@ export function renderPoliciesSettings(container, data = {}) {
           : Array.isArray(resource?.rules)
             ? resource.rules
             : [];
-        map.set(connectionId, cloneAclRules(rules));
+        map.set(connectionId, cloneAclRules(rules, normalizeAclRule));
       }
       return map;
     }
@@ -804,7 +754,7 @@ export function renderPoliciesSettings(container, data = {}) {
   };
 
   const hasChanges = () => FAMILIES.some((family) => (state.resources[family.key] || []).some((resource) => (
-    getAclRulesSignature(resource.draftRules || resource.rules || []) !== getAclRulesSignature(resource.originalRules || [])
+    getAclRulesSignature(resource.draftRules || resource.rules || [], normalizeAclRule) !== getAclRulesSignature(resource.originalRules || [], normalizeAclRule)
   )));
 
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
@@ -814,25 +764,30 @@ export function renderPoliciesSettings(container, data = {}) {
   const applyResourceRules = (familyKey, resourceIds, nextRules) => {
     const ids = new Set((Array.isArray(resourceIds) ? resourceIds : [resourceIds]).map((id) => String(id || '').trim()).filter(Boolean));
     if (!ids.size) return;
-    const clonedRules = cloneAclRules(nextRules);
+    const clonedRules = cloneAclRules(nextRules, normalizeAclRule);
     state.resources[familyKey] = (state.resources[familyKey] || []).map((resource) => {
       if (!ids.has(String(resource.id || '').trim())) return resource;
       return {
         ...resource,
-        draftRules: cloneAclRules(clonedRules),
+        draftRules: cloneAclRules(clonedRules, normalizeAclRule),
       };
     });
   };
 
   const persistFamilyRules = async (familyKey) => {
     const dirtyResources = (state.resources[familyKey] || []).filter((resource) => (
-      getAclRulesSignature(resource.draftRules || resource.rules || []) !== getAclRulesSignature(resource.originalRules || [])
+      getAclRulesSignature(resource.draftRules || resource.rules || [], normalizeAclRule) !== getAclRulesSignature(resource.originalRules || [], normalizeAclRule)
     ));
+    if (!dirtyResources.length) return;
+    const updates = dirtyResources.map((resource) => ({
+      [familyKey === 'models' ? 'model_id' : familyKey === 'connections' ? 'connection_id' : 'tool_server_id']: resource.id,
+      rules: cloneAclRules(resource.draftRules || resource.rules || [], normalizeAclRule),
+    }));
+    await saveFamilyAccess({ familyKey, updates });
     for (const resource of dirtyResources) {
-      const nextRules = cloneAclRules(resource.draftRules || resource.rules || []);
-      await saveResourceAccess({ familyKey, resourceId: resource.id, rules: nextRules });
-      resource.rules = cloneAclRules(nextRules);
-      resource.originalRules = cloneAclRules(nextRules);
+      const nextRules = cloneAclRules(resource.draftRules || resource.rules || [], normalizeAclRule);
+      resource.rules = cloneAclRules(nextRules, normalizeAclRule);
+      resource.originalRules = cloneAclRules(nextRules, normalizeAclRule);
       delete resource.draftRules;
     }
   };
@@ -858,7 +813,7 @@ export function renderPoliciesSettings(container, data = {}) {
     for (const family of FAMILIES) {
       state.resources[family.key] = (state.resources[family.key] || []).map((resource) => ({
         ...resource,
-        rules: cloneAclRules(resource.originalRules || []),
+        rules: cloneAclRules(resource.originalRules || [], normalizeAclRule),
         draftRules: undefined,
       }));
     }
@@ -1032,8 +987,8 @@ export function renderPoliciesSettings(container, data = {}) {
 
       state.resources[familyKey] = sortedResources.map((resource) => ({
         ...resource,
-        rules: cloneAclRules(rulesByResource.get(resource.id) || []),
-        originalRules: cloneAclRules(rulesByResource.get(resource.id) || []),
+        rules: cloneAclRules(rulesByResource.get(resource.id) || [], normalizeAclRule),
+        originalRules: cloneAclRules(rulesByResource.get(resource.id) || [], normalizeAclRule),
         draftRules: undefined,
       }));
       if (state.pendingDeepLink && state.pendingDeepLink.familyKey === familyKey) {
@@ -1164,7 +1119,7 @@ export function renderPoliciesSettings(container, data = {}) {
       </div>
     `;
     const stickyHeader = `
-      <div class="shrink-0 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 relative z-40 isolate">
+      <div class="shrink-0 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 relative z-10 isolate">
         <div class="max-w-6xl mx-auto w-full space-y-1 py-1.5">
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">

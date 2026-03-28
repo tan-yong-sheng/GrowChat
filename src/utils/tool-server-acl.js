@@ -73,7 +73,7 @@ export function evaluateToolServerAclAccess(toolServer, { user = null, userGroup
     return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
   }
 
-  if (allowAdmin && user?.role === 'admin') {
+  if (allowAdmin && user?.primary_role === 'admin') {
     return { allowed: true, access_label: 'Admin', access_variant: 'admin' };
   }
 
@@ -101,6 +101,53 @@ export async function ensureToolServerAclRulesTable(db) {
   } catch (err) {
     console.warn('Failed to ensure tool_server_acl_rules table:', err?.message || err);
   }
+}
+
+export function buildToolServerAclRuleSaveStatements(db, toolServerId, rules = [], { includeSchemaStatements = true } = {}) {
+  if (!db || !toolServerId) throw new Error('Tool server id is required');
+  const normalized = (Array.isArray(rules) ? rules : [])
+    .map((rule) => normalizeToolServerAclRule({ ...rule, tool_server_id: toolServerId }))
+    .filter(Boolean);
+  const statements = [];
+  if (includeSchemaStatements) {
+    statements.push(
+      db.prepare(
+        `CREATE TABLE IF NOT EXISTS tool_server_acl_rules (
+          id TEXT PRIMARY KEY,
+          tool_server_id TEXT NOT NULL,
+          principal_type TEXT NOT NULL CHECK (principal_type IN ('user', 'group')),
+          principal_id TEXT NOT NULL,
+          effect TEXT NOT NULL CHECK (effect IN ('allow', 'deny')),
+          action TEXT NOT NULL DEFAULT 'use',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(tool_server_id, principal_type, principal_id, effect, action)
+        )`
+      ),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_tool_server_id ON tool_server_acl_rules(tool_server_id)'),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_principal ON tool_server_acl_rules(principal_type, principal_id)')
+    );
+  }
+  statements.push(
+    db.prepare('DELETE FROM tool_server_acl_rules WHERE tool_server_id = ?', [toolServerId])
+  );
+  for (const rule of normalized) {
+    statements.push(
+      db.prepare(
+        `INSERT INTO tool_server_acl_rules (id, tool_server_id, principal_type, principal_id, effect, action, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
+        [
+          crypto.randomUUID(),
+          rule.tool_server_id,
+          rule.principal_type,
+          rule.principal_id,
+          rule.effect,
+          rule.action,
+        ]
+      )
+    );
+  }
+  return { normalized, statements };
 }
 
 function buildIdFilterClause(columnName, ids = []) {
@@ -149,25 +196,7 @@ export async function loadToolServerAclRules(db, toolServerId = null, toolServer
 }
 
 export async function saveToolServerAclRulesForToolServer(db, toolServerId, rules = []) {
-  if (!db || !toolServerId) throw new Error('Tool server id is required');
-  await ensureToolServerAclRulesTable(db);
-  const normalized = (Array.isArray(rules) ? rules : [])
-    .map((rule) => normalizeToolServerAclRule({ ...rule, tool_server_id: toolServerId }))
-    .filter(Boolean);
-  await db.run('DELETE FROM tool_server_acl_rules WHERE tool_server_id = ?', [toolServerId]);
-  for (const rule of normalized) {
-    await db.run(
-      `INSERT INTO tool_server_acl_rules (id, tool_server_id, principal_type, principal_id, effect, action, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
-      [
-        crypto.randomUUID(),
-        rule.tool_server_id,
-        rule.principal_type,
-        rule.principal_id,
-        rule.effect,
-        rule.action,
-      ]
-    );
-  }
+  const { normalized, statements } = buildToolServerAclRuleSaveStatements(db, toolServerId, rules);
+  await db.batch(statements);
   return loadToolServerAclRules(db, toolServerId);
 }

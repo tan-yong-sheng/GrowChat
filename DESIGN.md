@@ -4,290 +4,183 @@
 
 Show access control in a way that is simple for normal users and explicit for admins.
 
-## Page Map
+## Navigation Map
 
 ```text
-GrowChat
-├── /auth
-│   └── Approval screen for pending accounts
-├── /user/settings/resources
-│   ├── My resources
-│   └── Accessible resources (shared + platform, with badges)
-└── /admin
-    ├── /admin/settings/general
-    ├── /admin/settings/policies
-    ├── /admin/settings/models
-    ├── /admin/settings/mcp-servers
-    ├── /admin/settings/connections
-    ├── /admin/users/overview
-    │   └── /admin/users/policies
-    └── /admin/groups
+/admin
+|-- Users
+|   |-- /admin/users/overview
+|   |   - user list
+|   |   - single-role assignment
+|   |   - effective access drawer
+|   |
+|   |-- /admin/users/roles        [new, visible]
+|   |   - edit Admin template
+|   |   - edit Member template
+|   |   - clone to custom role later
+|   |
+|   `-- /admin/users/policies
+|       - visible ACL entry point
+|
+|-- Settings
+|   |-- /admin/settings/general
+|   |-- /admin/settings/models
+|   |-- /admin/settings/connections
+|   `-- /admin/settings/integrations
+|
+`-- Audit
+    `-- /admin/audit              [optional later]
 ```
 
-## Route Split
+## Route Rules
 
-```text
-Policies UI
-├── /admin/settings/policies
-│   ├── canonical route
-│   ├── deep-link target
-│   └── warning links point here
-└── /admin/users/policies
-    ├── visible entry point in the Users area
-    ├── mounts the same PoliciesSettings component
-    └── shares the same store, save, and discard handlers
-```
+- `/admin/users/roles` is the primary visible role-management page.
+- `/admin/settings/roles` and `/admin/settings/policies` are compatibility-only if they exist.
+- `/admin/users/policies` is the sole active Users-area ACL entry point and mounts the same ACL component.
 
-## Add
+## Permission Labels
 
-```text
-Add
-├── /admin/settings/policies
-├── /admin/users/policies
-├── Read-only ACL inspector from user rows
-├── Shared ACL editor modal
-├── Policy entry points on models / connections / MCP servers
-├── Group filter on policies page
-├── Manage Policies shortcut from group modal
-└── Members-only group modal
-```
+Use these labels in the UI:
 
-## Remove / Deprecate
+- `admin.*` for platform-wide admin actions
+- `chat.read`, `chat.write`, `chat.delete`, `chat.share` for owned chats
+- `file.upload`, `file.delete` for owned files
+- `model.use` for allowed model access
+- `model.admin` for model catalog management
 
-```text
-Remove / Deprecate
-├── Group ACL tab
-├── Group default-permissions modal
-├── Any group config default for sharing
-└── Any UI that stores generic permissions on groups
-```
+Behavior cues:
+
+- `Read` means the user can open the resource.
+- `Write` means the user can modify owned content.
+- `Delete` means the user can remove their own resource.
+- `Share link` means the chat becomes a public read-only page.
+- `Use only` means the resource is accessible but not editable.
 
 ## User Pages
 
-### `/auth`
-
-Pending users can log in, but they see an approval screen instead of the main app.
+### `/admin/users/overview`
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ GrowChat                                                     │
-├──────────────────────────────────────────────────────────────┤
-│ Your account is pending approval.                            │
-│                                                              │
-│ Status: Pending                                              │
-│                                                              │
-│ [Back to Sign In]                                            │
-└──────────────────────────────────────────────────────────────┘
++---------------------------------------------------------------+
+| Users                                                         |
+|---------------------------------------------------------------|
+| Role   Name   Email     Status   Last Active   Actions        |
+|---------------------------------------------------------------|
+| member Bob    b@x.com   pending  never        [Edit]         |
+| admin  Alice  a@x.com   active   2m ago      [Edit]         |
++---------------------------------------------------------------+
+
+User drawer:
++---------------------------------------------------------------+
+| Role:  [ admin | member ]                                     |
+| Status: [ active | pending ]                                  |
+|                                                               |
+| Effective access                                              |
+| - chat.read                                                  |
+| - chat.write                                                 |
+| - file.upload                                                |
+| - admin.user.read                                            |
+|                                                               |
+| [Open role template]   [Save]                                 |
++---------------------------------------------------------------+
 ```
 
-### `/user/settings/resources`
-
-This page shows what the user owns, what they can access, and what is platform-owned.
+### `/admin/users/roles`
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ User / Settings / Resources                                  │
-├──────────────────────────────────────────────────────────────┤
-│ My Resources                                                 │
-│ ┌──────────────────────────────────────────────────────────┐  │
-│ │ My MCP Servers      [Manage] [Use]                       │  │
-│ │ My Connections      [Manage] [Use]                       │  │
-│ └──────────────────────────────────────────────────────────┘  │
-│                                                              │
-│ Accessible Resources                                          │
-│ ┌──────────────────────────────────────────────────────────┐  │
-│ │ Shared MCP Server A [Use only]  [Shared] [MCP]          │  │
-│ │ Shared Connection B  [Use only]  [Shared] [Connection]   │  │
-│ │ Admin MCP Server X   [Read only] [Admin]  [MCP]         │  │
-│ │ Admin Connection Y   [Read only] [Admin]  [Connection]  │  │
-│ └──────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------------------+
+| Roles                                               [Create Role]         |
+|                                                                          |
+| Admin   [system] [12 perms]  full platform                       [Edit] |
+| Member  [system] [4 perms]   base app                            [Edit] |
+| Support [custom] [8 perms]   cloned template                     [Edit] |
++--------------------------------------------------------------------------+
+| Clicking Edit opens a compact modal                                     |
+| - role name for custom roles only                                       |
+| - permission search + grouped toggles                                   |
+| - last-admin guardrail note                                              |
+| - reset / discard / save                                                 |
++--------------------------------------------------------------------------+
 ```
 
-Behavior:
-- users can create and manage their own MCP servers and connections
-- accessible resources are visible read only unless the user has a use right
-- badges show whether an accessible resource is shared or platform-owned
-- no ACL editor is shown here
+Notes:
+- This page is a role list first, not a full-width matrix.
+- Edit happens in a modal so the page stays easy to scan.
+- Custom roles can be introduced later by cloning a template.
+- Keep the page visually aligned with `/admin/users/policies` density and spacing.
+- Borrow the compact row rhythm from `/admin/users/groups` wherever possible.
+- The modal can reuse the compact permissions-group treatment from policies.
+- Show raw permission keys only in advanced mode.
+- Keep warnings visible but not dominant.
+
+### `/admin/users/policies`
+
+```text
++------------------------------------------------------------------+
+| Admin / Users / Policies                                         |
+|                                                                  |
+| Same PoliciesSettings component as the canonical ACL editor     |
+| Sole active ACL route                                            |
+| Shared store, save, discard, and deep-link behavior             |
++------------------------------------------------------------------+
+```
 
 ## Admin Pages
 
 ### `/admin/settings/general`
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ Admin / Settings / General                                   │
-├──────────────────────────────────────────────────────────────┤
-│ Public Registration      [ On / Off ]                        │
-│ Registration Status      [ Pending v ]                       │
-│ Global Default Model     [ gpt-5-mini v ]                    │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### `/admin/settings/policies`
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Admin / Settings / Policies                                  │
-├──────────────────────────────────────────────────────────────┤
-│ Group [All groups v]  Resources [Models v] Search [_____]   │
-│                 [Visibility v]                               │
-├──────────────────────────────────────────────────────────────┤
-│ model name              [badge]   [Lock]                    │
-│ connection name          [badge]   [Lock]                    │
-│ ...                                                          │
-└──────────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-                ┌──────────────────────┐
-                │ ACL Editor           │
-                ├──────────────────────┤
-                │ Effect    [Allow v]  │
-                │ Principal [Group v]  │
-                │ Target    [group]    │
-                │ Action    [use v]    │
-                │ Resource  [This item]│
-                │                      │
-                │ Existing rules       │
-                │ - allow group:ops    │
-                │ - deny user:bob      │
-                │                      │
-                │ [Add Rule] [Save]    │
-                └──────────────────────┘
-```
-
-Notes:
-- admins edit policies here
-- resource pages open the same editor
-- policy data stays in the existing resource ACL tables
-- the group filter scopes the list to rules targeted at one group
-- v1 only shows `Models`, `Connections`, and `MCP Servers`
-- the compact resource selector is the primary family switcher
-- this is the canonical policies URL, even when the same component is mounted under `/admin/users/policies`
-
-### `/admin/users/policies`
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Admin / Users / Policies                                     │
-├──────────────────────────────────────────────────────────────┤
-│ Same PoliciesSettings component as /admin/settings/policies  │
-│ Same group filter, same resource selector, same ACL modal    │
-│ Disabled resources hidden by default                          │
-│ Visible navigation entry for admins who think in user/group  │
-└──────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------+
+| Admin / Settings / General                                   |
+|--------------------------------------------------------------|
+| Public Registration      [ On / Off ]                        |
+| Registration Status      [ Pending v ]                       |
+| Global Default Model     [ gpt-5-mini v ]                    |
++--------------------------------------------------------------+
 ```
 
 ### `/admin/settings/models`
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ Admin / Settings / Models                                    │
-├──────────────────────────────────────────────────────────────┤
-│ gpt-5-mini     [Edit] [Policy]                               │
-│ llama-3.1-8b    [Edit] [Policy]                               │
-│ ...                                                          │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### `/admin/settings/mcp-servers`
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Admin / Settings / MCP Servers                               │
-├──────────────────────────────────────────────────────────────┤
-│ Server A       [Edit] [Policy]                               │
-│ Server B       [Edit] [Policy]                               │
-│ ...                                                          │
-└──────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------+
+| Admin / Settings / Models                                    |
+|--------------------------------------------------------------|
+| gpt-5-mini     [Edit] [Policy]                               |
+| llama-3.1-8b    [Edit] [Policy]                               |
+| ...                                                          |
++--------------------------------------------------------------+
 ```
 
 ### `/admin/settings/connections`
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ Admin / Settings / Connections                               │
-├──────────────────────────────────────────────────────────────┤
-│ Admin Connection X   [Edit] [Policy]                         │
-│ Admin Connection Y   [Edit] [Policy]                         │
-│ ...                                                          │
-└──────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------+
+| Admin / Settings / Connections                               |
+|--------------------------------------------------------------|
+| Admin Connection X   [Edit] [Policy]                         |
+| Admin Connection Y   [Edit] [Policy]                         |
+| ...                                                          |
++--------------------------------------------------------------+
 ```
 
-### `/admin/users/overview`
+### `/admin/settings/integrations`
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│ Admin / Users / Overview                                     │
-├──────────────────────────────────────────────────────────────┤
-│ Role   Name   Email     Status   Last Active   Actions       │
-│ user   Bob    b@x.com   pending  never        [Lock] [Edit] │
-│ admin  Alice   a@x.com   active   2m ago      [Lock] [Edit] │
-└──────────────────────────────────────────────────────────────┘
-
-Edit modal:
-┌──────────────────────────────────────────────────────────────┐
-│ Edit User                                                    │
-├──────────────────────────────────────────────────────────────┤
-│ General | Groups | Access                                    │
-│                                                              │
-│ Effective access only                                        │
-│ - model.use via member                                       │
-│ - admin.user.read via admin                                  │
-│ - no direct overrides in v1                                  │
-└──────────────────────────────────────────────────────────────┘
-
-Inspect modal:
-┌──────────────────────────────────────────────────────────────┐
-│ ACL Inspector                                                │
-├──────────────────────────────────────────────────────────────┤
-│ Effective access only                                        │
-│ - model.use via member                                       │
-│ - mcp_server.use via group                                   │
-│ - denied by explicit deny                                    │
-│                                                              │
-│ Reason chain                                                │
-│ - user grant / group grant / admin-owned / blocked / denied │
-└──────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------+
+| Admin / Settings / Integrations                              |
+|--------------------------------------------------------------|
+| Server A       [Edit] [Policy]                               |
+| Server B       [Edit] [Policy]                               |
+| ...                                                          |
++--------------------------------------------------------------+
 ```
 
-### `/admin/groups`
+## Visual Rules
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Admin / Groups                                               │
-├──────────────────────────────────────────────────────────────┤
-│ model-ops   [Edit]                                           │
-│ mcp-ops     [Edit]                                           │
-│ ...                                                          │
-└──────────────────────────────────────────────────────────────┘
-
-Edit modal:
-┌──────────────────────────────────────────────────────────────┐
-│ Edit Group                                                   │
-├──────────────────────────────────────────────────────────────┤
-│ General | Members                                            │
-│                                                              │
-│ Members                                                      │
-│ + Add member                                                 │
-│                                                              │
-│ alice@example.com                                            │
-│ bob@example.com                                              │
-│                                                              │
-│ [Manage Policies] -> /admin/settings/policies?group=...      │
-└──────────────────────────────────────────────────────────────┘
-```
-
-## Design Rules
-
-- Use pages for browsing and modals for rule edits.
-- Keep ownership visible with `My`, `Shared`, and `Admin` labels.
-- Keep ACL editing admin-only in v1.
-- Keep user-owned resources separate from admin-owned resources.
-- Keep model policies and connection policies separate; do not imply one is required before the other.
-- Do not show scopes in the UI.
-- Show effective access by default, not raw policy internals.
-- Do not show a permissions section in the group modal.
-- Keep the group modal as a shortcut into the central policies page, not a second policy editor.
-- The canonical policies route is `/admin/settings/policies`; `/admin/users/policies` is a visible alias only.
-- Keep the user lock inspector read-only.
+- Keep role management under Users, not Settings, for better discoverability.
+- Keep ACL management under Users as the sole active access-control namespace.
+- Use one role picker per user.
+- Keep groups out of the role editor.
+- Show effective access summaries instead of exposing raw joins everywhere.
+- Use warnings for last-admin and self-lockout cases.
+- Keep `/admin/users/roles` visually aligned with `/admin/users/policies` so admins learn one pattern.

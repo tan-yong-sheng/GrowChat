@@ -1,6 +1,7 @@
 import { verifyJWT } from '../shared/auth.js';
 import { getJwtSecret } from '../shared/jwt-secret.js';
 import { error } from '../utils/response.js';
+import { loadPrimaryRole as loadPrimaryRoleFromDb } from '../utils/user-role.js';
 
 export function getPath(req) {
   return new URL(req.url).pathname;
@@ -33,14 +34,8 @@ export async function resolveAuthUser(req, env) {
   }
 }
 
-export async function loadUserRole(env, userId) {
-  if (!userId) return null;
-  try {
-    const row = await env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(userId).first();
-    return row?.role || null;
-  } catch {
-    return null;
-  }
+export async function loadPrimaryRole(env, userId) {
+  return loadPrimaryRoleFromDb(env?.DB, userId);
 }
 
 export async function loadUserAccountStatus(env, userId) {

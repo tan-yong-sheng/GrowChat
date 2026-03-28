@@ -11,12 +11,12 @@ describe('user repository', () => {
 
     const repo = createUserRepository(db);
     expect(await repo.count()).toBe(2);
-    const created = await repo.create({
+      const created = await repo.create({
       id: 'u1',
       email: 'test@example.com',
       passwordHash: 'hash',
       name: 'Test',
-      role: 'user',
+      role: 'member',
       accountStatus: 'pending',
     });
 

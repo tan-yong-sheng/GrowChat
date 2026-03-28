@@ -7,7 +7,7 @@ describe('ACL evaluators', () => {
   it('denies non-admin model access when no ACL rules match', () => {
     const result = evaluateModelAclAccess(
       { id: 'model-1', connection_source: 'config' },
-      { user: { sub: 'user-1', role: 'user' }, rules: [] }
+      { user: { sub: 'user-1', primary_role: 'member' }, rules: [] }
     );
 
     expect(result).toEqual({
@@ -20,7 +20,7 @@ describe('ACL evaluators', () => {
   it('denies non-admin connection access when no ACL rules match', () => {
     const result = evaluateConnectionAclAccess(
       { id: 'conn-1', source: 'config' },
-      { user: { sub: 'user-1', role: 'user' }, rules: [] }
+      { user: { sub: 'user-1', primary_role: 'member' }, rules: [] }
     );
 
     expect(result).toEqual({
@@ -33,7 +33,7 @@ describe('ACL evaluators', () => {
   it('denies non-admin tool server access when no ACL rules match', () => {
     const result = evaluateToolServerAclAccess(
       { id: 'mcp-1', source: 'config' },
-      { user: { sub: 'user-1', role: 'user' }, rules: [] }
+      { user: { sub: 'user-1', primary_role: 'member' }, rules: [] }
     );
 
     expect(result).toEqual({
