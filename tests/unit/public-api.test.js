@@ -5,6 +5,7 @@ import {
   clearAuthState,
   clearModelsCache,
   createAdminRbacRole,
+  deleteAdminRbacRole,
   fetchArchivedChats,
   fetchAdminRbacRoles,
   fetchChats,
@@ -158,18 +159,22 @@ describe('public api helpers', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ roles: [] }))
       .mockResolvedValueOnce(jsonResponse({ role: { id: 'r1' } }))
-      .mockResolvedValueOnce(jsonResponse({ role: { id: 'r1' } }));
+      .mockResolvedValueOnce(jsonResponse({ role: { id: 'r1' } }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await fetchAdminRbacRoles();
     await createAdminRbacRole({ name: 'Support', permissions: ['chat.read'] });
     await updateAdminRbacRole('r1', { name: 'Support+', permissions: ['chat.read'] });
+    await deleteAdminRbacRole('r1');
 
     expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/rbac/roles');
     expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/rbac/roles');
     expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'POST' });
     expect(fetchMock.mock.calls[2][0]).toBe('/api/admin/rbac/roles/r1');
     expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'PUT' });
+    expect(fetchMock.mock.calls[3][0]).toBe('/api/admin/rbac/roles/r1');
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({ method: 'DELETE' });
   });
 
 });

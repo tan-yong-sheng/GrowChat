@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildAdminModalShellMarkup, createAdminModalShell, getAdminModalPreset } from '../../public/js/features/admin/modal-shell.js';
 
 afterEach(() => {
@@ -8,16 +8,26 @@ afterEach(() => {
 
 describe('admin modal shell', () => {
   it('exposes named presets for common admin modal layouts', () => {
+    expect(getAdminModalPreset('standard').outerClass).toContain('items-start');
+    expect(getAdminModalPreset('standard').outerClass).toContain('overflow-y-auto');
     expect(getAdminModalPreset('compact').shellClass).toContain('relative z-10');
     expect(getAdminModalPreset('compact').shellClass).toContain('max-w-lg');
-    expect(getAdminModalPreset('userEditor').overlayClass).toContain('bg-black/80');
+    expect(getAdminModalPreset('compact').outerClass).toContain('items-start');
+    expect(getAdminModalPreset('userEditor').overlayClass).toContain('backdrop-blur-sm');
+    expect(getAdminModalPreset('userEditor').outerClass).toContain('overflow-y-auto');
     expect(getAdminModalPreset('userEditor').shellClass).toContain('relative z-10');
     expect(getAdminModalPreset('access').shellClass).toContain('relative z-10');
     expect(getAdminModalPreset('access').widthClass).toBe('max-w-3xl');
+    expect(getAdminModalPreset('access').outerClass).toContain('items-start');
+    expect(getAdminModalPreset('aclEditor').shellClass).toContain('max-w-4xl');
+    expect(getAdminModalPreset('aclEditor').outerClass).toContain('items-start');
+    expect(getAdminModalPreset('aclEditor').zIndex).toBe(250);
     expect(getAdminModalPreset('roleEditor').shellClass).toContain('relative z-10');
     expect(getAdminModalPreset('roleEditor').shellClass).toContain('max-w-5xl');
+    expect(getAdminModalPreset('roleEditor').outerClass).toContain('items-start');
     expect(getAdminModalPreset('groupEditor').shellClass).toContain('relative z-10');
     expect(getAdminModalPreset('groupEditor').shellClass).toContain('max-w-6xl');
+    expect(getAdminModalPreset('groupEditor').outerClass).toContain('overflow-y-auto');
 
     const markup = buildAdminModalShellMarkup({
       preset: 'compact',
@@ -50,5 +60,20 @@ describe('admin modal shell', () => {
     expect(document.body.contains(modal)).toBe(false);
 
     close();
+  });
+
+  it('invokes the onClose callback when the modal is dismissed', () => {
+    const onClose = vi.fn();
+    const { modal } = createAdminModalShell({
+      title: 'Connection Access',
+      body: '<div>Body</div>',
+      closeAttr: 'data-test-close',
+      onClose,
+    });
+
+    modal.querySelector('[data-test-close]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(document.body.contains(modal)).toBe(false);
   });
 });

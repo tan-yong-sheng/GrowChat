@@ -1,4 +1,5 @@
 import { discardAdminDraft, isAdminDraftDirty, saveAdminDraft } from './admin-draft-state.js';
+import { createAdminModalShell } from './modal-shell.js';
 
 export function getAdminSharedActionFooterConfig(mainTab, subTab) {
   if (mainTab === 'users' && subTab !== 'policies') {
@@ -61,37 +62,49 @@ function createUnsavedChangesPrompt() {
     const existing = document.querySelector('#admin-unsaved-modal');
     if (existing) existing.remove();
 
-    const overlay = document.createElement('div');
-    overlay.id = 'admin-unsaved-modal';
-    overlay.className = 'fixed inset-0 z-[200] flex items-center justify-center p-4';
-    overlay.innerHTML = `
-      <div class="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
-      <div class="relative w-full max-w-md rounded-3xl bg-white shadow-xl border border-gray-100">
-        <div class="px-6 pt-6 pb-3">
-          <div class="text-lg font-semibold text-gray-900">Unsaved changes</div>
-          <p class="text-sm text-gray-500 mt-2">You have unsaved changes. Save them before leaving this page?</p>
-        </div>
-        <div class="px-6 pb-6 flex items-center justify-end gap-2">
-          <button id="unsaved-cancel" class="px-4 py-2 rounded-full text-sm text-gray-500 hover:bg-gray-50">Cancel</button>
-          <button id="unsaved-discard" class="px-4 py-2 rounded-full text-sm text-gray-600 hover:bg-gray-100">Discard</button>
-          <button id="unsaved-save" class="px-4 py-2 rounded-full text-sm text-white bg-black hover:bg-gray-900">Save</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
+    let resolved = false;
+    const finish = (value) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(value);
+    };
 
-    const cleanup = () => overlay.remove();
-    overlay.querySelector('#unsaved-cancel')?.addEventListener('click', () => {
-      cleanup();
-      resolve('cancel');
+    const { modal, close } = createAdminModalShell({
+      preset: 'standard',
+      title: 'Unsaved changes',
+      subtitle: 'You have unsaved changes. Save them before leaving this page?',
+      body: '<div class="h-1"></div>',
+      footer: `
+        <button id="unsaved-cancel" class="px-4 py-2 rounded-full text-sm text-gray-500 hover:bg-gray-50">Cancel</button>
+        <button id="unsaved-discard" class="px-4 py-2 rounded-full text-sm text-gray-600 hover:bg-gray-100">Discard</button>
+        <button id="unsaved-save" class="px-4 py-2 rounded-full text-sm text-white bg-black hover:bg-gray-900">Save</button>
+      `,
+      closeClass: 'hidden',
+      shellClass: 'relative z-10 w-full max-w-md rounded-3xl bg-white shadow-xl border border-gray-100 overflow-hidden flex flex-col',
+      headerClass: 'px-6 pt-6 pb-3 shrink-0',
+      bodyClass: 'px-6 pb-2',
+      footerClass: 'px-6 pb-6 flex items-center justify-end gap-2',
+      overlayClass: 'absolute inset-0 bg-black/30 backdrop-blur-sm z-0',
+      zIndex: 200,
+      rootAttrs: 'id="admin-unsaved-modal"',
+      onClose: (reason) => {
+        if (reason === 'dismiss') {
+          finish('cancel');
+        }
+      },
     });
-    overlay.querySelector('#unsaved-discard')?.addEventListener('click', () => {
-      cleanup();
-      resolve('discard');
+
+    modal.querySelector('#unsaved-cancel')?.addEventListener('click', () => {
+      close('cancel');
+      finish('cancel');
     });
-    overlay.querySelector('#unsaved-save')?.addEventListener('click', () => {
-      cleanup();
-      resolve('save');
+    modal.querySelector('#unsaved-discard')?.addEventListener('click', () => {
+      close('discard');
+      finish('discard');
+    });
+    modal.querySelector('#unsaved-save')?.addEventListener('click', () => {
+      close('save');
+      finish('save');
     });
   });
 }

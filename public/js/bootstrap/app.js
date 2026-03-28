@@ -19,12 +19,6 @@ async function renderAdminRoute(container) {
   return renderAdminPage(container);
 }
 
-async function renderUserResourcesRoute(container) {
-  const { renderUserResources } = await import('../features/user/resources.js');
-  container.dataset.view = 'user-settings';
-  return renderUserResources(container);
-}
-
 let renderChatFn = null;
 async function ensureRenderChat() {
   if (renderChatFn) return renderChatFn;
@@ -39,7 +33,6 @@ export async function renderCurrentRoute() {
   const app = document.getElementById('app');
   const sharedMatch = path.match(/^\/s\/([^/]+)$/);
   const routeChatId = getChatIdFromPath(path);
-  const isUserSettings = path.startsWith('/user/settings');
 
   if (path === '/admin/settings/roles' || path.startsWith('/admin/settings/roles/')) {
     const url = new URL(window.location.href);
@@ -55,6 +48,11 @@ export async function renderCurrentRoute() {
     return renderCurrentRoute();
   }
 
+  if (path === '/user/settings/resources' || path.startsWith('/user/settings/resources/')) {
+    window.history.replaceState({}, '', '/');
+    return renderCurrentRoute();
+  }
+
   if (sharedMatch) {
     try {
       const data = await fetchPublicSharedChat(sharedMatch[1]);
@@ -65,7 +63,7 @@ export async function renderCurrentRoute() {
     return;
   }
 
-  if (!path.startsWith('/admin') && !isUserSettings && !sharedMatch && (!state.user || app.dataset.view === 'admin')) {
+  if (!path.startsWith('/admin') && !sharedMatch && (!state.user || app.dataset.view === 'admin')) {
     renderChatSkeleton(app);
   }
 
@@ -78,11 +76,6 @@ export async function renderCurrentRoute() {
 
   if (path.startsWith('/admin')) {
     await renderAdminRoute(app);
-    return;
-  }
-
-  if (isUserSettings) {
-    await renderUserResourcesRoute(app);
     return;
   }
 

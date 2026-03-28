@@ -1,4 +1,6 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
+import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
+import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 
 export function bindChatMessageActions({
   messagesList,
@@ -474,343 +476,59 @@ export function bindChatMessageActions({
     });
   });
 
-  messagesList.querySelectorAll('[data-delete-message]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const originalId = btn.getAttribute('data-delete-message');
-      const getDeleteKey = (messageId) => `${chatId}:${String(messageId)}`;
-      const isDeletePending = (messageId) => Boolean((state.ui?.pendingDeleteMessageKeys || {})[getDeleteKey(messageId)]);
-      const setDeletePending = (messageIds, pending) => {
-        const ids = Array.isArray(messageIds) ? messageIds : [messageIds];
-        setState((prev) => {
-          const next = { ...(prev.ui?.pendingDeleteMessageKeys || {}) };
-          ids.forEach((messageId) => {
-            if (!messageId) return;
-            const key = getDeleteKey(messageId);
-            if (pending) next[key] = true;
-            else delete next[key];
-          });
-          return { ui: { ...prev.ui, pendingDeleteMessageKeys: next } };
-        });
-      };
-      const syncDeleteButtonState = (locked) => {
-        btn.disabled = locked;
-        btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
-        btn.classList.toggle('opacity-50', locked);
-        btn.classList.toggle('cursor-not-allowed', locked);
-        btn.classList.toggle('pointer-events-none', locked);
-      };
-
-      if (!confirm('Are you sure you want to delete this message and all subsequent messages?')) return;
-      if (isDeletePending(originalId) || isDeletePending(resolveTempMessageId(chatId, originalId))) return;
-
-      let id = originalId;
-      const pendingIds = new Set([String(originalId)]);
-      setDeletePending(originalId, true);
-      syncDeleteButtonState(true);
-
-      const prevMessages = state.messagesByChat[chatId] || [];
-      const prevLeaf = currentLeafByChatId.get(chatId) || null;
-      const prevBranchMap = branchSelectionByChat.get(chatId)
-        ? new Map(branchSelectionByChat.get(chatId))
-        : null;
-
-      const byParent = new Map();
-      prevMessages.forEach((msg) => {
-        const parentKey = msg.parent_id ? String(msg.parent_id) : '__root__';
-        if (!byParent.has(parentKey)) byParent.set(parentKey, []);
-        byParent.get(parentKey).push(String(msg.id));
-      });
-      const idsToDelete = new Set();
-      const stack = [String(id)];
-      while (stack.length) {
-        const current = stack.pop();
-        if (!current || idsToDelete.has(current)) continue;
-        idsToDelete.add(current);
-        const children = byParent.get(String(current)) || [];
-        children.forEach((child) => stack.push(String(child)));
-      }
-
-      const rollbackDelete = () => {
-        if (!prevMessages.length) return;
-        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: prevMessages } }));
-        if (prevLeaf) currentLeafByChatId.set(chatId, String(prevLeaf));
-        else currentLeafByChatId.delete(chatId);
-        if (prevBranchMap) branchSelectionByChat.set(chatId, prevBranchMap);
-        if (state.activeChatId === chatId) drawMessages(prevMessages);
-      };
-
-      const applyOptimisticDelete = () => {
-        if (idsToDelete.size > 0) {
-          const streamingTarget = streamingOverrideByChat.get(chatId)?.targetMsgId;
-          const streamingId = streamingTarget ? resolveTempMessageId(chatId, streamingTarget) : null;
-          if (streamingId && idsToDelete.has(String(streamingId))) {
-            const activeAbort = getActiveStreamAbort();
-            activeAbort?.();
-            clearGlobalStreamAbort(activeAbort);
-            setActiveStreamAbort(null);
-            streamingOverrideByChat.delete(chatId);
-          }
-
-          const remaining = prevMessages.filter((msg) => !idsToDelete.has(String(msg.id)));
-          const nextLeaf = remaining.length ? remaining[remaining.length - 1].id : null;
-          if (nextLeaf) currentLeafByChatId.set(chatId, String(nextLeaf));
-          else currentLeafByChatId.delete(chatId);
-
-          if (prevBranchMap) {
-            const nextMap = new Map();
-            for (const [k, v] of prevBranchMap.entries()) {
-              if (idsToDelete.has(String(k)) || idsToDelete.has(String(v))) continue;
-              nextMap.set(k, v);
-            }
-            branchSelectionByChat.set(chatId, nextMap);
-          }
-
-          setState((prev) => ({
-            messagesByChat: { ...prev.messagesByChat, [chatId]: remaining },
-          }));
-          if (state.activeChatId === chatId) {
-            requestAnimationFrame(() => {
-              drawMessages(remaining);
-            });
-          }
-        }
-      };
-      applyOptimisticDelete();
-
-      const runDelete = async (resolvedId) => {
-        pendingIds.add(String(resolvedId));
-        setDeletePending(resolvedId, true);
-        try {
-          const res = await apiFetch(`/api/chats/${chatId}/messages/${resolvedId}`, {
-            method: 'DELETE',
-          });
-
-          if (res.status === 404) {
-            await loadMessages(chatId);
-            return;
-          }
-
-          if (res.ok) {
-            await loadMessages(chatId);
-          } else {
-            const err = await res.json().catch(() => ({}));
-            alert(err.error || 'Failed to delete message');
-            rollbackDelete();
-          }
-        } catch (e) {
-          console.error('Delete failed', e);
-          alert('An error occurred while deleting the message.');
-          rollbackDelete();
-        } finally {
-          setDeletePending([...pendingIds], false);
-          syncDeleteButtonState(false);
-        }
-      };
-
-      if (isTempMessageId(id)) {
-        waitForResolvedMessageId(chatId, id).then((resolved) => {
-          if (!resolved) {
-            setDeletePending(id, false);
-            syncDeleteButtonState(false);
-            showToast('Delete queued while message saves.');
-            return;
-          }
-          runDelete(resolved);
-        });
-        return;
-      }
-
-      runDelete(id);
-    });
+  bindChatMessageDeleteActions({
+    messagesList,
+    chatId,
+    state,
+    setState,
+    apiFetch,
+    loadMessages,
+    resolveTempMessageId,
+    waitForResolvedMessageId,
+    currentLeafByChatId,
+    branchSelectionByChat,
+    streamingOverrideByChat,
+    getActiveStreamAbort,
+    setActiveStreamAbort,
+    clearGlobalStreamAbort,
+    drawMessages,
+    showToast,
   });
 
-  messagesList.querySelectorAll('[data-retry-message]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      let id = btn.getAttribute('data-retry-message');
-      if (isTempMessageId(id)) {
-        const resolved = await waitForResolvedMessageId(state.activeChatId, id);
-        if (!resolved) {
-          showToast('Message still saving. Please wait.');
-          return;
-        }
-        id = resolved;
-      }
-      const sourceMsg = getMessageById(chatId, id) || projectedMessages.find((msg) => String(msg.id) === String(id));
-      if (!sourceMsg) return;
-      const branchParentId = sourceMsg.parent_id || null;
-
-      const tempAssistantId = `temp-assistant-${Date.now()}`;
-      const nowTs = Math.floor(Date.now() / 1000);
-
-      let localMessages = [...(state.messagesByChat[chatId] || [])];
-      localMessages.push({
-        id: tempAssistantId,
-        role: 'assistant',
-        content: '',
-        model: state.activeModelId,
-        parent_id: branchParentId,
-        created_at: nowTs,
-        done: false,
-      });
-
-      currentLeafByChatId.set(chatId, tempAssistantId);
-      setBranchSelection(chatId, branchParentId, tempAssistantId);
-      setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-      if (state.activeChatId === chatId) drawMessages(localMessages);
-
-      const controller = new AbortController();
-      setActiveStreamAbort(() => controller.abort());
-      setGlobalStreamAbort(getActiveStreamAbort());
-
-      try {
-        setStreamingState(chatId, true);
-        const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/regenerate`, {
-          method: 'POST',
-          signal: controller.signal,
-        });
-
-        if (!res.ok || !res.body) {
-          setStreamingState(chatId, false);
-          const err = await res.json().catch(() => ({}));
-          alert(err.error || 'backend api not found');
-          return;
-        }
-
-        let assistantMessageId = tempAssistantId;
-        let errorMessage = null;
-        let errorActive = false;
-        let assistantText = '';
-        await consumeSseTextStream(res.body, {
-          onEvent: (payload) => {
-            if (payload?.event === 'start' && payload?.message_id) {
-              assistantMessageId = String(payload.message_id);
-              replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
-              if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
-                thinkingActiveByMessageId.set(String(assistantMessageId), true);
-              }
-              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-              }
-              applyAssistantText(true);
-            }
-            if (payload?.event === 'reasoning_start') {
-              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-              }
-              thinkingActiveByMessageId.set(String(assistantMessageId), true);
-              ensureThinkingBlock(messageBlocksById, assistantMessageId);
-              applyAssistantText();
-            }
-            if (payload?.event === 'reasoning_delta') {
-              const delta = String(payload.delta || '');
-              if (delta) {
-                appendBlock(messageBlocksById, assistantMessageId, 'thinking', delta);
-                thinkingActiveByMessageId.set(String(assistantMessageId), true);
-                applyAssistantText();
-              }
-            }
-            if (payload?.event === 'reasoning_end') {
-              const duration = Number(payload.duration_ms);
-              if (Number.isFinite(duration) && duration > 0) {
-                thinkingDurationByMessageId.set(String(assistantMessageId), duration);
-              }
-              thinkingActiveByMessageId.delete(String(assistantMessageId));
-            }
-            if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-              const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
-              updateToolCallState(toolCallsByMessageId, messageBlocksById, targetId, payload);
-              applyAssistantText();
-            }
-            if (payload?.error) {
-              errorMessage = payload.message || payload.error || 'LLM request failed';
-              errorActive = true;
-              assistantText = '';
-              applyAssistantText();
-            }
-            notePayloadSeq(payload, assistantMessageId);
-          },
-          onDelta: (delta) => {
-            if (!delta) return;
-            assistantText += delta;
-            appendBlock(messageBlocksById, assistantMessageId, 'text', delta);
-            applyAssistantText();
-          },
-        });
-
-        function applyAssistantText(streaming = true) {
-          streamingOverrideByChat.set(chatId, {
-            targetMsgId: assistantMessageId,
-            content: assistantText,
-          });
-
-          const currentMessages = [...(state.messagesByChat[chatId] || [])];
-          const targetIdx = currentMessages.findIndex((m) => String(m.id) === String(assistantMessageId));
-          if (targetIdx >= 0) {
-            currentMessages[targetIdx] = {
-              ...currentMessages[targetIdx],
-              content: assistantText,
-              status: errorActive ? 'error' : currentMessages[targetIdx].status,
-              error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
-            };
-            setState((prev) => ({
-              messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
-            }));
-          }
-          if (state.activeChatId === chatId) {
-            updateMessageContentDom(assistantMessageId, assistantText, { isError: errorActive, isStreaming: streaming });
-          }
-        }
-
-        const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
-        if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
-          thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
-        }
-        thinkingActiveByMessageId.delete(String(assistantMessageId));
-        applyAssistantText(false);
-        streamingOverrideByChat.delete(chatId);
-          const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-            content: assistantText,
-            errorActive,
-            errorMessage,
-            model: state.activeModelId,
-            parentId: branchParentId,
-          });
-          await loadMessages(chatId, {
-            draw: state.activeChatId === chatId,
-            updateActiveModel: state.activeChatId === chatId,
-            preferredLeafId: assistantMessageId,
-            fallbackMessage: fallback,
-          });
-        } catch (e) {
-          if (e?.name !== 'AbortError') {
-            console.error('Regeneration failed', e);
-          if (!errorActive) {
-            errorMessage = String(e?.message || 'LLM request failed');
-            errorActive = true;
-            assistantText = '';
-            applyAssistantText(false);
-          }
-            const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-              content: assistantText,
-              errorActive,
-              errorMessage,
-              model: state.activeModelId,
-              parentId: branchParentId,
-            });
-            await loadMessages(chatId, {
-              draw: state.activeChatId === chatId,
-              updateActiveModel: state.activeChatId === chatId,
-              preferredLeafId: assistantMessageId,
-              fallbackMessage: fallback,
-            });
-          }
-        } finally {
-        streamingOverrideByChat.delete(chatId);
-        clearGlobalStreamAbort(getActiveStreamAbort());
-        setActiveStreamAbort(null);
-        setStreamingState(chatId, false);
-      }
-    });
+  bindChatMessageRetryActions({
+    messagesList,
+    chatId,
+    state,
+    setState,
+    drawMessages,
+    projectedMessages,
+    apiFetch,
+    loadMessages,
+    waitForResolvedMessageId,
+    showToast,
+    getMessageById,
+    resolveTempMessageId,
+    replaceTempMessageId,
+    setBranchSelection,
+    currentLeafByChatId,
+    streamingOverrideByChat,
+    setStreamingState,
+    getActiveStreamAbort,
+    setActiveStreamAbort,
+    clearGlobalStreamAbort,
+    setGlobalStreamAbort,
+    consumeSseTextStream,
+    appendBlock,
+    ensureThinkingBlock,
+    updateToolCallState,
+    notePayloadSeq,
+    buildFallbackAssistantMessage,
+    updateMessageContentDom,
+    thinkingStartByMessageId,
+    thinkingDurationByMessageId,
+    thinkingActiveByMessageId,
+    toolCallsByMessageId,
+    messageBlocksById,
   });
 
   messagesList.querySelectorAll('[data-citation-id]').forEach((btn) => {

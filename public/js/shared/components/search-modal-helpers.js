@@ -21,10 +21,18 @@ export function normalizeBackendQuery(query) {
   return String(query || '').replace(/(pinned|shared|archived):\S*/gi, '').trim();
 }
 
+export function getSearchChatDateLabel(dateString) {
+  if (!dateString) return 'Unknown date';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Unknown date';
+  const label = formatDate(dateString);
+  return label || 'Unknown date';
+}
+
 export function groupChatsByDate(chats) {
   const groups = {};
   chats.forEach((chat) => {
-    const dateLabel = formatDate(chat.updated_at || chat.created_at);
+    const dateLabel = getSearchChatDateLabel(chat.updated_at || chat.created_at);
     if (!groups[dateLabel]) groups[dateLabel] = [];
     groups[dateLabel].push(chat);
   });
@@ -57,7 +65,7 @@ export function renderSearchResultsMarkup(results = [], query = '') {
               </div>
               <div class="flex-grow min-w-0 flex flex-col">
                 <span class="truncate font-medium text-gray-700 group-hover:text-gray-900">${highlightText(c.title, query)}</span>
-                <span class="text-[10px] text-gray-400">${formatDate(c.updated_at || c.created_at)}</span>
+                <span class="text-[10px] text-gray-400">${getSearchChatDateLabel(c.updated_at || c.created_at)}</span>
               </div>
             </button>
           `;

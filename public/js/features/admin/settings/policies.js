@@ -54,7 +54,7 @@ function resourceBadge(label, kind = 'neutral', compact = false) {
   return `<span class="inline-flex items-center rounded-full border ${sizeClass} font-semibold uppercase tracking-wide ${map[kind] || map.neutral}">${escapeHtml(label)}</span>`;
 }
 
-function createModal({ preset = 'access', title, subtitle, body, footer }) {
+function createModal({ preset = 'aclEditor', title, subtitle, body, footer }) {
   return createAdminModalShell({
     preset,
     title,

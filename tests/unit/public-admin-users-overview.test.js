@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
   fetchAdminUserAccess: vi.fn(),
+  fetchAdminRbacRoles: vi.fn(),
 }));
 
 vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
+  fetchAdminRbacRoles: (...args) => mocks.fetchAdminRbacRoles(...args),
 }));
 
 vi.mock('../../public/js/shared/admin-access.js', () => ({
@@ -27,6 +29,8 @@ describe('admin users overview', () => {
     vi.restoreAllMocks();
     mocks.apiFetch.mockReset();
     mocks.fetchAdminUserAccess.mockReset();
+    mocks.fetchAdminRbacRoles.mockReset();
+    mocks.fetchAdminRbacRoles.mockResolvedValue({ roles: [] });
   });
 
   it('renders rows and filters them with search input', async () => {
@@ -140,6 +144,7 @@ describe('admin users overview', () => {
     await tick();
 
     expect(document.querySelector('#add-user-save-btn')).toBeTruthy();
+    expect(document.querySelector('#add-user-modal > div:first-child')?.className).toContain('backdrop-blur-sm');
 
     document.querySelector('[name="name"]').value = 'Grace Hopper';
     document.querySelector('[name="name"]').dispatchEvent(new Event('input', { bubbles: true }));
@@ -164,7 +169,7 @@ describe('admin users overview', () => {
     await tick();
 
     expect(document.querySelector('#edit-user-save-btn')).toBeTruthy();
-    expect(document.querySelector('#edit-user-modal > div:first-child')?.className).not.toContain('backdrop-blur-sm');
+    expect(document.querySelector('#edit-user-modal > div:first-child')?.className).toContain('backdrop-blur-sm');
     document.querySelector('[name="name"]').value = 'Ada Lovelace II';
     document.querySelector('[name="name"]').dispatchEvent(new Event('input', { bubbles: true }));
     document.querySelector('[name="password"]').value = '';
@@ -174,6 +179,41 @@ describe('admin users overview', () => {
     expect(data.usersDirtyCheckers.overview()).toBe(true);
     await data.usersSaveHandlers.overview();
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/users/u1', expect.objectContaining({ method: 'PUT' })));
+  });
+
+  it('shows custom roles in the row badge and role selector', async () => {
+    const { renderUserOverview } = await loadModule();
+    const container = document.getElementById('root');
+    mocks.fetchAdminRbacRoles.mockResolvedValue({
+      roles: [
+        { id: 'support-role', name: 'Support', system: false },
+      ],
+    });
+
+    renderUserOverview(container, {
+      users: [
+        { id: 'u1', name: 'Ada Lovelace', email: 'ada@example.com', role: 'Support', primary_role: 'Support' },
+      ],
+      total: 1,
+      pagination: { page: 1, pageSize: 20 },
+      loading: false,
+      loadingMode: 'idle',
+    }, {
+      reload: vi.fn(),
+      updateUser: vi.fn(),
+      removeUser: vi.fn(),
+      prependUser: vi.fn(),
+      invalidateCache: vi.fn(),
+    });
+
+    expect(container.querySelector('.btn-change-role')?.textContent).toContain('Support');
+
+    await container.querySelector('#open-add-user-modal').click();
+    await tick();
+
+    const roleSelect = document.querySelector('#add-user-form [name="primary_role"]');
+    expect(roleSelect?.textContent).toContain('Support');
+    expect(Array.from(roleSelect?.querySelectorAll('option') || []).map((option) => option.value)).toContain('Support');
   });
 
   it('opens a read-only ACL inspector from the lock action', async () => {
@@ -224,7 +264,11 @@ describe('admin users overview', () => {
     await container.querySelector('.btn-inspect-user-access').click();
     await tick();
 
-    expect(document.getElementById('user-access-modal')).toBeTruthy();
+    const modal = document.getElementById('user-access-modal');
+    expect(modal).toBeTruthy();
+    expect(modal.className).toContain('items-start');
+    expect(modal.className).toContain('overflow-y-auto');
+    expect(document.querySelector('#user-access-modal [data-admin-modal-body]')?.className).toContain('overflow-y-auto');
     expect(document.body.textContent).toContain('ACL Inspector');
     expect(document.body.textContent).toContain('Role Permissions');
     expect(document.body.textContent).toContain('admin.user.read');
@@ -357,7 +401,7 @@ describe('admin users overview', () => {
     await tick();
 
     expect(document.body.textContent).toContain('model-disabled');
-    expect(document.querySelector('#user-access-modal-body .opacity-60')).toBeTruthy();
+    expect(document.querySelector('#user-access-modal [data-admin-modal-body] .opacity-60')).toBeTruthy();
   });
 
   it('stages inline delete actions until the shared footer save commits them', async () => {

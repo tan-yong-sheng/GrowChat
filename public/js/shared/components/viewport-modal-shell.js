@@ -1,0 +1,76 @@
+const DEFAULT_OUTER_CLASS = 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
+const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-black/25 backdrop-blur-sm transition-opacity';
+const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
+const DEFAULT_HEADER_CLASS = 'shrink-0';
+const DEFAULT_BODY_CLASS = 'overflow-y-auto flex-1 min-h-0';
+const DEFAULT_FOOTER_CLASS = 'shrink-0';
+const DEFAULT_CLOSE_CLASS = 'p-2 rounded-full hover:bg-gray-100 transition';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+export function buildViewportModalShellMarkup({
+  rootId = 'modal-root',
+  title = '',
+  subtitle = '',
+  header = '',
+  body = '',
+  footer = '',
+  ariaLabelledBy = 'modal-title',
+  outerClass = DEFAULT_OUTER_CLASS,
+  overlayClass = DEFAULT_OVERLAY_CLASS,
+  shellClass = DEFAULT_SHELL_CLASS,
+  headerClass = DEFAULT_HEADER_CLASS,
+  bodyClass = DEFAULT_BODY_CLASS,
+  footerClass = DEFAULT_FOOTER_CLASS,
+  closeClass = DEFAULT_CLOSE_CLASS,
+  closeAriaLabel = 'Close',
+  closeId = 'close-modal',
+  overlayId = 'modal-overlay',
+  rootAttrs = '',
+  zIndex = 100,
+} = {}) {
+  const headerMarkup = header || `
+    <div class="flex items-start justify-between gap-4 p-4 sm:p-5 border-b border-gray-100">
+      <div class="flex flex-col min-w-0">
+        ${title ? `<h2 class="text-xl font-bold text-gray-800 truncate" id="${escapeHtml(ariaLabelledBy)}">${escapeHtml(title)}</h2>` : ''}
+        ${subtitle ? `<p class="text-xs text-gray-400">${escapeHtml(subtitle)}</p>` : ''}
+      </div>
+      <button id="${escapeHtml(closeId)}" class="${closeClass}" aria-label="${escapeHtml(closeAriaLabel)}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  `;
+
+  return `
+    <div id="${escapeHtml(rootId)}" class="${outerClass}" role="dialog" aria-modal="true" aria-labelledby="${escapeHtml(ariaLabelledBy)}" style="z-index: ${zIndex};" ${rootAttrs}>
+      <div class="${overlayClass}" id="${escapeHtml(overlayId)}" aria-hidden="true"></div>
+      <div class="${shellClass}">
+        <div class="${headerClass}">${headerMarkup}</div>
+        <div class="${bodyClass}">${body}</div>
+        ${footer ? `<div class="${footerClass}">${footer}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+export function createViewportModalShell(options = {}) {
+  const modal = document.createElement('div');
+  modal.innerHTML = buildViewportModalShellMarkup(options).trim();
+  const rendered = modal.firstElementChild;
+  document.body.appendChild(rendered);
+  return {
+    modal: rendered,
+    overlay: rendered.querySelector(`#${CSS.escape(options.overlayId || 'modal-overlay')}`),
+    closeBtn: rendered.querySelector(`#${CSS.escape(options.closeId || 'close-modal')}`),
+    bodyEl: rendered.querySelector('.overflow-y-auto.flex-1,.overflow-y-auto'),
+  };
+}

@@ -33,7 +33,11 @@ describe('search modal', () => {
 
     const destroy = renderSearchModal(container, createChatFn, loadMessagesFn);
 
-    expect(container.querySelector('#modal-root')?.classList.contains('hidden')).toBe(false);
+    const modalRoot = container.querySelector('#modal-root');
+    expect(modalRoot?.classList.contains('hidden')).toBe(false);
+    expect(modalRoot?.className).toContain('items-start');
+    expect(modalRoot?.className).toContain('overflow-y-auto');
+    expect(modalRoot?.querySelector('.max-w-3xl')).not.toBeNull();
     container.querySelector('#action-new-chat')?.click();
     expect(createChatFn).toHaveBeenCalledTimes(1);
 

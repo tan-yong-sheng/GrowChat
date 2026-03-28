@@ -7,6 +7,7 @@
  *   GET    /api/admin/rbac/roles               - List all roles
  *   POST   /api/admin/rbac/roles               - Create new role
  *   PUT    /api/admin/rbac/roles/:id           - Update role
+ *   DELETE /api/admin/rbac/roles/:id           - Delete role
  *   GET    /api/admin/rbac/permissions         - List all permissions
  *   POST   /api/admin/rbac/bindings            - Create role-permission binding
  *   GET    /api/admin/audit                    - List audit log entries (paginated)
@@ -255,6 +256,35 @@ export async function rbacRouter(req, env, _ctx, user, path) {
     } catch (err) {
       console.error('Update role failed:', err);
       return error(req, 'Failed to update role', 500);
+    }
+  }
+
+  // DELETE /api/admin/rbac/roles/:id - Delete custom role
+  if (roleUpdateMatch && req.method === 'DELETE') {
+    const roleId = roleUpdateMatch[1];
+
+    try {
+      const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
+      if (!role) return error(req, 'Role not found', 404);
+
+      if (role.system) {
+        return error(req, 'Cannot delete system role', 403);
+      }
+
+      await db.run('DELETE FROM roles WHERE id = ?', [roleId]);
+
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'role_deleted',
+        resource_type: 'role',
+        resource_id: roleId,
+        metadata: { name: role.name, system: 0 }
+      });
+
+      return new Response(null, { status: 204 });
+    } catch (err) {
+      console.error('Delete role failed:', err);
+      return error(req, 'Failed to delete role', 500);
     }
   }
 

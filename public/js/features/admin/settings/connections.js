@@ -7,6 +7,7 @@ import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
+import { getAdminModalPreset } from '../modal-shell.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
   applyModalDraft,
@@ -38,6 +39,8 @@ const escapeHtml = (value) => String(value || '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
+
+const STANDARD_MODAL_PRESET = getAdminModalPreset('standard');
 
 export function renderConnectionsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'connections';
@@ -465,8 +468,8 @@ export function renderConnectionsSettings(container, data) {
       </div>
 
       <!-- Edit Connection Modal -->
-      <div id="edit-connection-modal" class="${connectionsState.showModal ? 'fixed' : 'hidden'} inset-0 z-[100] flex items-center justify-center p-4">
-        <div class="fixed inset-0 bg-black/20 backdrop-blur-sm"></div>
+      <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} ${connectionsState.showModal ? '' : 'hidden'}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};">
+        <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-gray-50">
             <h3 id="modal-title" class="text-lg font-medium text-gray-900">${connectionsState.selectedConnection ? 'Edit Connection' : 'Add Connection'}</h3>
@@ -979,7 +982,6 @@ export function renderConnectionsSettings(container, data) {
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.remove('hidden');
-      modal.classList.add('fixed');
     }
     if (connectionsState.selectedConnection && applyModalDraft(connectionsState, connectionsState.selectedConnection)) {
       persistModalDraft(connectionsState, connectionsState.selectedConnection);
@@ -1000,7 +1002,6 @@ export function renderConnectionsSettings(container, data) {
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.add('hidden');
-      modal.classList.remove('fixed');
     }
   };
 
@@ -1349,7 +1350,6 @@ export function renderConnectionsSettings(container, data) {
       const modal = container.querySelector('#edit-connection-modal');
       if (modal) {
         modal.classList.add('hidden');
-        modal.classList.remove('fixed');
       }
       connectionsState.loaded = false;
       connectionsState.originalSnapshot = null;

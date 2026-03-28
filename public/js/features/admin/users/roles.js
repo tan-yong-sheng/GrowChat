@@ -1,5 +1,6 @@
 import {
   createAdminRbacRole,
+  deleteAdminRbacRole,
   fetchAdminRbacRoles,
   updateAdminRbacRole,
 } from '../../../shared/api.js';
@@ -267,7 +268,7 @@ function createRoleDraft(role, { isNew = false, sourceRoleId = null, nextCustomI
   return cloned;
 }
 
-function createModalShell({ title, subtitle } = {}) {
+function createModalShell({ title, subtitle, showDelete = false } = {}) {
   const { modal } = createAdminModalShell({
     preset: 'roleEditor',
     title,
@@ -276,6 +277,7 @@ function createModalShell({ title, subtitle } = {}) {
     footer: `
       <div class="text-[9px] text-gray-500 leading-tight" data-modal-note></div>
       <div class="flex items-center gap-1.5">
+        ${showDelete ? '<button type="button" class="rounded-full border border-red-200 bg-white px-2 py-0.75 text-[9px] font-semibold text-red-600 hover:bg-red-50" data-role-modal-delete>Delete</button>' : ''}
         <button type="button" class="rounded-full border border-gray-200 px-2 py-0.75 text-[9px] font-semibold text-gray-700 hover:bg-gray-50" data-modal-discard>
           Discard
         </button>
@@ -336,7 +338,7 @@ function renderPermissionGroup(group, draft, modalState) {
   `;
 }
 
-function openRoleModal(container, state, data, { roleId = null, isNew = false } = {}) {
+function openRoleModal(container, state, data, { roleId = null, isNew = false, onDeleteRole = null } = {}) {
   const sourceRole = roleId ? state.roles.find((role) => role.id === roleId) || null : null;
   const stagedDraft = data.__rolesDraftRegistry?.get?.();
   const initialDraft = stagedDraft?.isNew === isNew && (isNew || stagedDraft?.roleId === roleId)
@@ -367,6 +369,7 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false } 
     subtitle: isNew
       ? 'Start from Member and adjust the permissions you need.'
       : 'Edit one role at a time. Permissions are the source of truth.',
+    showDelete: !isNew && !Boolean(sourceRole?.system),
   });
 
   const bodyEl = modal.querySelector('[data-modal-body]');
@@ -375,6 +378,7 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false } 
   const discardBtn = modal.querySelector('[data-modal-discard]');
   const closeBtn = modal.querySelector('[data-modal-close]');
   const saveBtn = modal.querySelector('[data-role-save]');
+  const deleteBtn = modal.querySelector('[data-role-modal-delete]');
   const draftRegistry = data.__rolesDraftRegistry;
 
   const isSystemRole = Boolean(modalState.draft.system);
@@ -462,7 +466,7 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false } 
   const renderShell = () => {
     bodyEl.innerHTML = `
     <div class="space-y-1.5 p-1.5 sm:p-2">
-      <div class="grid gap-1 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
+      <div class="space-y-2">
         <div class="rounded-2xl border border-gray-200 bg-gray-50 px-2 py-1">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
@@ -589,6 +593,13 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false } 
     close();
   };
 
+  deleteBtn?.addEventListener('click', () => {
+    void (async () => {
+      const staged = await onDeleteRole?.(modalState.draft.id);
+      if (staged) close();
+    })();
+  });
+
   resetBtn.addEventListener('click', () => {
     modalState.draft = modalState.isNew
       ? createRoleDraft(
@@ -625,34 +636,50 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false } 
   return close;
 }
 
-function renderRoleRow(role) {
+function renderRoleRow(role, stagedDraft = null) {
   const initials = String(role.name || '?').trim().charAt(0).toUpperCase() || '?';
+  const isPendingDelete = stagedDraft?.kind === 'delete' && String(stagedDraft.roleId || '').trim() === role.id;
+  const rowClasses = isPendingDelete
+    ? 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl transition-all border border-amber-200 bg-amber-50/40 opacity-60 cursor-default'
+    : 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50';
+  const openAttr = isPendingDelete ? '' : `data-role-open="${escapeHtml(role.id)}"`;
+  const deleteButton = role.system ? '' : `
+        <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all btn-delete-role" data-role-delete="${escapeHtml(role.id)}" aria-label="Delete role" ${isPendingDelete ? 'disabled' : ''}>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" class="size-4">
+            <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      `;
   return `
     <div
-      data-role-open="${escapeHtml(role.id)}"
-      class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50"
+      ${openAttr}
+      class="${rowClasses}"
     >
       <div class="flex items-center gap-3.5 min-w-0">
         <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-[11px] font-semibold shrink-0">
           ${escapeHtml(initials)}
         </div>
         <div class="flex flex-col min-w-0">
-          <div class="font-semibold text-gray-900 text-sm">${escapeHtml(role.name)}</div>
+          <div class="flex items-center gap-1.5 min-w-0">
+            <div class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(role.name)}</div>
+            ${isPendingDelete ? '<span class="rounded-full border border-rose-200 bg-rose-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-rose-700 whitespace-nowrap">Pending delete</span>' : ''}
+          </div>
           <div class="text-[11px] text-gray-500 font-medium">${escapeHtml(role.description)} · ${escapeHtml(formatRoleSummary(role))}</div>
         </div>
       </div>
       <div class="flex items-center justify-end gap-1.5 shrink-0 self-end sm:self-auto">
-        <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-role" data-role-edit="${escapeHtml(role.id)}" aria-label="Edit role">
+        <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-role" data-role-edit="${escapeHtml(role.id)}" aria-label="Edit role" ${isPendingDelete ? 'disabled' : ''}>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
             <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
           </svg>
         </button>
+        ${deleteButton}
       </div>
     </div>
   `;
 }
 
-function bindRoleRowEvents(container, openRole) {
+function bindRoleRowEvents(container, openRole, stageRoleDelete) {
   container.querySelectorAll('[data-role-open]').forEach((button) => {
     button.addEventListener('click', () => {
       const roleId = String(button.dataset.roleOpen || '').trim();
@@ -669,9 +696,18 @@ function bindRoleRowEvents(container, openRole) {
       openRole(roleId, false);
     });
   });
+
+  container.querySelectorAll('[data-role-delete]').forEach((button) => {
+    button.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      const roleId = String(button.dataset.roleDelete || '').trim();
+      if (!roleId) return;
+      await stageRoleDelete?.(roleId);
+    });
+  });
 }
 
-function renderRoleList(container, state, openRole) {
+function renderRoleList(container, state, openRole, stageRoleDelete, stagedDraft) {
   const list = container.querySelector('[data-role-list]');
   if (!list) return;
 
@@ -683,19 +719,17 @@ function renderRoleList(container, state, openRole) {
 
   if (sortedRoles.length) {
     list.innerHTML = `
-      <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-2 pr-5">
-        <div class="grid grid-cols-1 gap-1">
-          ${sortedRoles.map((role) => renderRoleRow(role)).join('')}
-        </div>
+      <div class="grid grid-cols-1 gap-1">
+        ${sortedRoles.map((role) => renderRoleRow(role, stagedDraft)).join('')}
       </div>
     `;
   } else {
     list.innerHTML = `
-      <div class="flex-1 min-h-0 flex items-center justify-center px-4 py-6 text-center text-sm text-gray-500">No roles found.</div>
+      <div class="flex min-h-full items-center justify-center px-4 py-6 text-center text-sm text-gray-500">No roles found.</div>
     `;
   }
 
-  bindRoleRowEvents(container, openRole);
+  bindRoleRowEvents(container, openRole, stageRoleDelete);
 }
 
 export function renderRolesPage(container, data = {}) {
@@ -710,6 +744,24 @@ export function renderRolesPage(container, data = {}) {
   const commitRoleDraft = async () => {
     const draft = draftRegistry.get();
     if (!draft) return;
+
+    if (draft.kind === 'delete') {
+      const roleId = String(draft.roleId || '').trim();
+      if (!roleId) {
+        throw new Error('Role not found.');
+      }
+
+      await deleteAdminRbacRole(roleId);
+      state.roles = state.roles.filter((role) => role.id !== roleId);
+      if (state.focusedRoleId === roleId) {
+        state.focusedRoleId = state.roles[0]?.id || null;
+      }
+      state.nextCustomIndex = getNextCustomIndex(state.roles);
+      draftRegistry.clear();
+      renderRolesPage(container, data);
+      data.requestUsersFooterSync?.();
+      return;
+    }
 
     const payload = draft.payload || {};
     const trimmedName = String(payload.name || '').trim();
@@ -745,6 +797,7 @@ export function renderRolesPage(container, data = {}) {
 
   const discardRoleDraft = () => {
     draftRegistry.clear();
+    renderRolesPage(container, data);
     data.requestUsersFooterSync?.();
   };
 
@@ -808,6 +861,7 @@ export function renderRolesPage(container, data = {}) {
   }
 
   const roleCount = state.roles.length;
+  const stagedDraft = draftRegistry.get();
 
   container.innerHTML = `
     <div class="flex flex-col flex-1 min-h-0 h-full animate-in fade-in duration-300">
@@ -845,14 +899,32 @@ export function renderRolesPage(container, data = {}) {
           </div>
         </div>
 
-        <div data-role-list class="flex-1 min-h-0"></div>
+        <div data-role-list class="flex-1 min-h-0 overflow-y-auto px-4 pb-2 pr-5"></div>
       </div>
     </div>
   `;
 
+  const stageRoleDelete = async (roleId) => {
+    const role = state.roles.find((item) => item.id === roleId) || null;
+    if (!role || role.system) return false;
+    if (!window.confirm(`Delete role ${role.name}? This will permanently remove the role and its assignments.`)) return false;
+
+    draftRegistry.set({
+      kind: 'delete',
+      roleId: role.id,
+      payload: {
+        name: role.name,
+      },
+      draft: cloneRole(role),
+    });
+    data.requestUsersFooterSync?.();
+    renderRolesPage(container, data);
+    return true;
+  };
+
   const openRole = (roleId, isNew = false) => {
     closeModal();
-    state.modalCleanup = openRoleModal(container, state, data, { roleId, isNew });
+    state.modalCleanup = openRoleModal(container, state, data, { roleId, isNew, onDeleteRole: stageRoleDelete });
   };
 
   container.querySelector('#create-role-btn')?.addEventListener('click', () => {
@@ -881,5 +953,5 @@ export function renderRolesPage(container, data = {}) {
     renderRoleList(container, state, openRole);
   });
 
-  renderRoleList(container, state, openRole);
+  renderRoleList(container, state, openRole, stageRoleDelete, stagedDraft);
 }

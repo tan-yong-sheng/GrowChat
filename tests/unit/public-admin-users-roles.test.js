@@ -33,12 +33,14 @@ const backend = vi.hoisted(() => ({
 const mocks = vi.hoisted(() => ({
   fetchAdminRbacRoles: vi.fn(),
   createAdminRbacRole: vi.fn(),
+  deleteAdminRbacRole: vi.fn(),
   updateAdminRbacRole: vi.fn(),
 }));
 
 vi.mock('../../public/js/shared/api.js', () => ({
   fetchAdminRbacRoles: (...args) => mocks.fetchAdminRbacRoles(...args),
   createAdminRbacRole: (...args) => mocks.createAdminRbacRole(...args),
+  deleteAdminRbacRole: (...args) => mocks.deleteAdminRbacRole(...args),
   updateAdminRbacRole: (...args) => mocks.updateAdminRbacRole(...args),
 }));
 
@@ -53,6 +55,8 @@ describe('admin users roles', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>';
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    Object.defineProperty(window, 'confirm', { value: vi.fn(() => false), configurable: true });
     backend.roles = [
       {
         id: 'admin',
@@ -86,6 +90,10 @@ describe('admin users roles', () => {
       backend.roles = [...backend.roles, role];
       return { role: { ...role, permissions: [...role.permissions] } };
     });
+    mocks.deleteAdminRbacRole.mockImplementation(async (id) => {
+      backend.roles = backend.roles.filter((role) => role.id !== id);
+      return new Response(null, { status: 204 });
+    });
     mocks.updateAdminRbacRole.mockImplementation(async (id, payload) => {
       backend.roles = backend.roles.map((role) => (
         role.id === id
@@ -115,6 +123,26 @@ describe('admin users roles', () => {
 
     renderRolesPage(container);
     await vi.waitFor(() => expect(container.textContent).toContain('Support'));
+  });
+
+  it('renders the roles list as the scroll container itself', async () => {
+    backend.roles.push({
+      id: 'custom-1',
+      name: 'Support',
+      description: 'Custom role',
+      system: false,
+      permissions: ['chat.read', 'chat.write'],
+    });
+
+    const { renderRolesPage } = await loadModule();
+    const container = document.getElementById('root');
+
+    renderRolesPage(container);
+    await vi.waitFor(() => expect(container.querySelector('[data-role-list]')).not.toBeNull());
+
+    const list = container.querySelector('[data-role-list]');
+    expect(list.className).toContain('overflow-y-auto');
+    expect(list.firstElementChild?.classList.contains('grid')).toBe(true);
   });
 
   it('stages a newly created role in the modal and persists it from the shared footer save', async () => {
@@ -200,5 +228,67 @@ describe('admin users roles', () => {
 
     document.querySelector('[data-modal-discard]').click();
     await vi.waitFor(() => expect(data.usersDirtyCheckers.roles()).toBe(false));
+  });
+
+  it('stages delete from the role card list and commits it from the shared footer', async () => {
+    const { renderRolesPage } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    backend.roles.push({
+      id: 'custom-1',
+      name: 'Support',
+      description: 'Custom role',
+      system: false,
+      permissions: ['chat.read'],
+    });
+
+    renderRolesPage(container, data);
+    await vi.waitFor(() => expect(container.textContent).toContain('Support'));
+
+    Object.defineProperty(window, 'confirm', { value: vi.fn(() => true), configurable: true });
+    container.querySelector('[data-role-delete="custom-1"]').click();
+    await tick();
+
+    expect(container.textContent).toContain('Pending delete');
+    expect(data.usersDirtyCheckers.roles()).toBe(true);
+
+    await data.usersSaveHandlers.roles();
+
+    await vi.waitFor(() => expect(mocks.deleteAdminRbacRole).toHaveBeenCalledWith('custom-1'));
+    await vi.waitFor(() => expect(container.textContent).not.toContain('Support'));
+  });
+
+  it('stages delete from the role modal and closes the modal', async () => {
+    const { renderRolesPage } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    backend.roles.push({
+      id: 'custom-2',
+      name: 'Billing',
+      description: 'Custom role',
+      system: false,
+      permissions: ['chat.read'],
+    });
+
+    renderRolesPage(container, data);
+    await vi.waitFor(() => expect(container.textContent).toContain('Billing'));
+
+    Object.defineProperty(window, 'confirm', { value: vi.fn(() => true), configurable: true });
+    container.querySelector('[data-role-edit="custom-2"]').click();
+    await tick();
+
+    expect(document.querySelector('#role-name')).toBeTruthy();
+    document.querySelector('[data-role-modal-delete]').click();
+    await tick();
+
+    expect(document.querySelector('#role-name')).toBeNull();
+    expect(container.textContent).toContain('Pending delete');
+
+    await data.usersSaveHandlers.roles();
+
+    await vi.waitFor(() => expect(mocks.deleteAdminRbacRole).toHaveBeenCalledWith('custom-2'));
+    await vi.waitFor(() => expect(container.textContent).not.toContain('Billing'));
   });
 });

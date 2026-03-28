@@ -300,8 +300,7 @@ function renderGroupModal({
   overlay.querySelector('#group-delete-btn')?.addEventListener('click', async () => {
     if (!group?.id) return;
     try {
-      await onDelete?.(group.id);
-      close();
+      await onDelete?.(group.id, close);
     } catch (err) {
       showError(err?.message || 'Failed to delete group.');
     }
@@ -309,7 +308,12 @@ function renderGroupModal({
 
   overlay.querySelector('#group-policies-btn')?.addEventListener('click', () => {
     if (!groupId) return;
-    window.location.href = `/admin/users/policies?group=${encodeURIComponent(groupId)}`;
+    const navigate = async () => {
+      const allowed = await navigationState?.guardNavigation?.();
+      if (!allowed) return;
+      window.location.href = `/admin/users/policies?group=${encodeURIComponent(groupId)}`;
+    };
+    void navigate();
   });
 
   saveBtn?.addEventListener('click', () => {
@@ -383,13 +387,11 @@ async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, navigatio
         payload,
       });
     },
-    onDelete: async () => {
-      await deleteAdminGroup(groupId);
+    onDelete: async (targetGroupId, closeModal) => {
       if (typeof onDelete === 'function') {
-        onDelete(groupId);
-      } else {
-        await onRefresh?.();
+        return onDelete(targetGroupId || groupId, closeModal);
       }
+      return false;
     },
   });
 }
@@ -423,15 +425,32 @@ export function renderGroupsOverview(container, data, actions = {}) {
     const draft = draftRegistry.get();
     if (!draft) return;
 
+    if (draft.mode === 'delete') {
+      const groupId = String(draft.groupId || '').trim();
+      if (!groupId) {
+        throw new Error('Group not found.');
+      }
+
+      await deleteAdminGroup(groupId);
+      draftRegistry.clear();
+      data.__groupsActiveModalIsDirty = null;
+
+      if (typeof actions.onDelete === 'function') {
+        actions.onDelete(groupId);
+      } else {
+        await actions.reload?.();
+      }
+
+      data.requestUsersFooterSync?.();
+      return;
+    }
+
     const payload = draft.payload || {};
     const name = String(payload.name || '').trim();
     if (!name) {
       throw new Error('Group name is required.');
     }
     const memberIds = Array.isArray(payload.member_ids) ? payload.member_ids : [];
-    draftRegistry.clear();
-    data.__groupsActiveModalIsDirty = null;
-
     if (draft.mode === 'create') {
       const created = await createAdminGroup({
         name,
@@ -463,11 +482,14 @@ export function renderGroupsOverview(container, data, actions = {}) {
       }
     }
 
+    draftRegistry.clear();
+    data.__groupsActiveModalIsDirty = null;
     data.requestUsersFooterSync?.();
   };
 
   const discardGroupsDraft = () => {
     draftRegistry.clear();
+    renderGroupsOverview(container, data, actions);
     data.requestUsersFooterSync?.();
   };
 
@@ -483,10 +505,29 @@ export function renderGroupsOverview(container, data, actions = {}) {
     requestFooterSync: data.requestUsersFooterSync,
   });
   data.__groupsDraftRegistry = draftRegistry;
+  const stageGroupDelete = async (groupId, closeModal = null) => {
+    const group = (data.groups || []).find((item) => item.id === groupId) || null;
+    if (!group || group.is_system) return false;
+    if (!window.confirm(`Delete group ${group.name}? This will permanently remove the group when you save changes.`)) return false;
+
+    draftRegistry.set({
+      mode: 'delete',
+      groupId: group.id,
+      payload: {
+        name: group.name,
+      },
+    });
+    data.requestUsersFooterSync?.();
+    renderGroupsOverview(container, data, actions);
+    closeModal?.();
+    return true;
+  };
   const sortKey = data.groupsSort || 'members';
   const groups = sortGroups(data.groups || [], sortKey);
   const isLoading = data.groupsLoading;
   const error = data.groupsError;
+  const stagedDraft = draftRegistry.get();
+  const stagedGroupId = stagedDraft?.mode === 'delete' ? String(stagedDraft.groupId || '') : '';
 
   container.innerHTML = `
     <div class="flex flex-col flex-1 min-h-0 h-full animate-in fade-in duration-300">
@@ -532,31 +573,45 @@ export function renderGroupsOverview(container, data, actions = {}) {
         ` : groups.length ? `
           <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-2 pr-5">
             <div class="grid grid-cols-1 gap-1">
-              ${groups.map((group) => `
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50" data-group-row="${group.id}">
+              ${groups.map((group) => {
+                const isPendingDelete = stagedGroupId === group.id;
+                const rowClasses = `flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl transition-all border border-transparent hover:border-gray-100/50 ${isPendingDelete ? 'opacity-60 bg-amber-50/40 cursor-default' : 'hover:bg-gray-50/80 group cursor-pointer'}`;
+                const deleteButton = group.is_system ? '' : `
+                    <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all btn-delete-group" data-group-id="${group.id}" data-group-name="${escapeHtml(group.name)}" aria-label="Delete group" ${isPendingDelete ? 'disabled' : ''}>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" class="size-4">
+                        <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
+                      </svg>
+                    </button>
+                  `;
+                return `
+                <div class="${rowClasses}" data-group-row="${group.id}">
                   <div class="flex items-center gap-3.5">
                     <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                       </svg>
                     </div>
-                    <div class="flex flex-col">
-                      <div class="font-semibold text-gray-900 text-sm">${group.name}</div>
+                    <div class="flex flex-col min-w-0">
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <div class="font-semibold text-gray-900 text-sm truncate">${group.name}</div>
+                        ${isPendingDelete ? '<span class="rounded-full border border-rose-200 bg-rose-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-rose-700 whitespace-nowrap">Pending delete</span>' : ''}
+                      </div>
                       <div class="text-[11px] text-gray-500 font-medium">${group.member_count || 0} members</div>
                     </div>
                   </div>
                   <div class="flex items-center justify-end gap-1.5 self-end sm:self-auto">
-                    <a href="/admin/users/policies?group=${encodeURIComponent(group.id)}" class="px-2.5 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 transition-all hover:bg-gray-50 btn-manage-group-policies">
+                    <a href="/admin/users/policies?group=${encodeURIComponent(group.id)}" class="px-2.5 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 transition-all hover:bg-gray-50 btn-manage-group-policies" ${isPendingDelete ? 'aria-disabled="true" tabindex="-1"' : ''}>
                       Manage Policies
                     </a>
-                    <button class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-group" data-group-id="${group.id}">
+                    <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-group" data-group-id="${group.id}" aria-label="Edit group" ${isPendingDelete ? 'disabled' : ''}>
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
                       </svg>
                     </button>
+                    ${deleteButton}
                   </div>
                 </div>
-              `).join('')}
+              `; }).join('')}
             </div>
           </div>
         ` : renderEmptyState()}
@@ -581,9 +636,14 @@ export function renderGroupsOverview(container, data, actions = {}) {
     await openEditModal(btn.dataset.groupId, {
       onRefresh: reload,
       onUpdate: actions.onUpdate,
-      onDelete: actions.onDelete,
+      onDelete: stageGroupDelete,
       navigationState: data,
     });
+  }));
+
+  container.querySelectorAll('.btn-delete-group').forEach((btn) => btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await stageGroupDelete(btn.dataset.groupId);
   }));
 
   const searchInput = container.querySelector('#group-search-input');

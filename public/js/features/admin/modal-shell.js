@@ -1,4 +1,4 @@
-const DEFAULT_OUTER_CLASS = 'fixed inset-0 flex items-center justify-center p-3 sm:p-4';
+const DEFAULT_OUTER_CLASS = 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
 const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0';
 const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
 const DEFAULT_HEADER_CLASS = 'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0';
@@ -20,7 +20,7 @@ const ADMIN_MODAL_PRESETS = {
     zIndex: 150,
   },
   compact: {
-    outerClass: 'fixed inset-0 flex items-center justify-center p-3 sm:p-4',
+    outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
     shellClass: 'relative z-10 w-full max-w-lg rounded-[1.5rem] bg-white shadow-2xl border border-gray-100 overflow-hidden flex flex-col',
     headerClass: 'flex items-center justify-between px-5 pt-5 pb-3 shrink-0',
     bodyClass: 'p-0 overflow-y-auto flex-1 min-h-0',
@@ -29,8 +29,8 @@ const ADMIN_MODAL_PRESETS = {
     widthClass: '',
   },
   userEditor: {
-    outerClass: 'fixed inset-0 flex items-center justify-center p-3 sm:p-4',
-    overlayClass: 'absolute inset-0 bg-black/80 z-0',
+    outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
+    overlayClass: DEFAULT_OVERLAY_CLASS,
     shellClass: 'relative z-10 w-full max-w-lg rounded-[1.5rem] bg-white shadow-2xl border border-gray-200 overflow-hidden flex flex-col',
     headerClass: 'flex items-center justify-between px-5 pt-5 pb-3 shrink-0 bg-white',
     bodyClass: 'p-5 sm:p-6 overflow-y-auto flex-1 min-h-0 bg-white',
@@ -46,6 +46,16 @@ const ADMIN_MODAL_PRESETS = {
     zIndex: 150,
     widthClass: 'max-w-3xl',
   },
+  aclEditor: {
+    outerClass: DEFAULT_OUTER_CLASS,
+    overlayClass: DEFAULT_OVERLAY_CLASS,
+    shellClass: 'relative z-10 w-full max-w-4xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
+    headerClass: DEFAULT_HEADER_CLASS,
+    bodyClass: DEFAULT_BODY_CLASS,
+    footerClass: DEFAULT_FOOTER_CLASS,
+    zIndex: 250,
+    widthClass: '',
+  },
   wide: {
     shellClass: 'relative z-10 w-full max-w-6xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
     headerClass: 'flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 shrink-0',
@@ -55,11 +65,13 @@ const ADMIN_MODAL_PRESETS = {
     widthClass: '',
   },
   roleEditor: {
-    shellClass: 'relative z-10 w-full max-w-5xl max-h-[84vh] overflow-hidden bg-white shadow-2xl flex flex-col rounded-[2rem] border border-gray-200',
+    outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
+    overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
+    shellClass: 'relative z-10 w-full max-w-5xl max-h-[84vh] overflow-hidden bg-white text-gray-900 shadow-2xl flex flex-col rounded-[2rem] border border-gray-200',
     headerClass: 'flex items-center justify-between gap-3 border-b border-gray-100 px-3 sm:px-4 py-1.5 shrink-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 sticky top-0 z-10',
     bodyClass: 'min-h-0 flex-1 overflow-y-auto p-0',
     footerClass: 'flex items-center justify-between gap-2 border-t border-gray-200 bg-white px-3 sm:px-4 py-1.5 shrink-0 sticky bottom-0 z-10',
-    zIndex: 180,
+    zIndex: 140,
     widthClass: '',
   },
   groupEditor: {
@@ -100,6 +112,7 @@ export function createAdminModalShell({
   subtitle = '',
   body = '',
   footer = '',
+  onClose = null,
   widthClass,
   zIndex,
   outerClass,
@@ -135,10 +148,18 @@ export function createAdminModalShell({
   const modal = document.createElement('div');
   modal.innerHTML = markup.trim();
   const rendered = modal.firstElementChild;
-  const close = () => rendered.remove();
+  let closed = false;
+  const close = (reason = 'dismiss') => {
+    if (closed) return;
+    closed = true;
+    rendered.remove();
+    if (typeof onClose === 'function') {
+      onClose(reason);
+    }
+  };
   rendered.addEventListener('click', (event) => {
     if (event.target === rendered || event.target.closest(`[${closeAttr}]`)) {
-      close();
+      close('dismiss');
     }
   });
   document.body.appendChild(rendered);
@@ -188,8 +209,9 @@ export function buildAdminModalShellMarkup({
     closeAttr,
     rootAttrs,
   });
+  const zIndexStyle = typeof config.zIndex === 'number' ? ` style="z-index: ${config.zIndex};"` : '';
   return `
-    <div class="${config.outerClass} z-[${config.zIndex}]" ${config.rootAttrs}>
+    <div class="${config.outerClass}"${zIndexStyle} ${config.rootAttrs}>
       <div class="${config.overlayClass}"></div>
       <div class="${config.shellClass} ${config.widthClass}">
         <div class="${config.headerClass}" data-admin-modal-header>

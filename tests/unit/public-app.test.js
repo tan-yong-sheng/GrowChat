@@ -184,6 +184,31 @@ describe('public app bootstrap', () => {
     expect(document.getElementById('app').dataset.view).toBe('chat');
   });
 
+  it('redirects removed user settings resources routes to the chat shell', async () => {
+    window.history.pushState({}, '', '/user/settings/resources');
+    mocks.getAuthState.mockReturnValue({ access_token: 'token' });
+    mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'u1', role: 'user', preferences: {} },
+        permissions: ['chat.read'],
+        roles: [{ role_name: 'user' }],
+        app_config: { default_model_id: 'gpt-4' },
+      }),
+    });
+    mocks.readChatsCache.mockReturnValue(null);
+    mocks.readModelsCache.mockReturnValue(null);
+    mocks.fetchChats.mockResolvedValue({ chats: [], limit: 30, offset: 0, has_more: false });
+
+    await loadApp();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(window.location.pathname).toBe('/');
+    expect(mocks.renderChat).toHaveBeenCalledTimes(1);
+    expect(mocks.initShortcuts).toHaveBeenCalledTimes(1);
+  });
+
   it('chooses the first alphabetical fetched model when no default is configured', async () => {
     window.history.pushState({}, '', '/');
     mocks.getAuthState.mockReturnValue({ access_token: 'token' });

@@ -33,7 +33,29 @@ function normalizeAccountStatus(value, fallback = 'active') {
 }
 
 function normalizeRole(value) {
-  return normalizePublicRole(value);
+  return String(value || '').trim();
+}
+
+async function resolveRequestedRole(db, requestedRole) {
+  const roleName = normalizeRole(requestedRole);
+  if (!roleName) return null;
+
+  try {
+    const role = await db.first(
+      'SELECT name FROM roles WHERE LOWER(name) = LOWER(?)',
+      [roleName]
+    );
+    if (role?.name) return String(role.name).trim();
+  } catch (err) {
+    if (/no such table:\s*roles/i.test(String(err?.message || ''))) {
+      const fallbackRole = roleName.toLowerCase();
+      return ['member', 'admin'].includes(fallbackRole) ? fallbackRole : null;
+    }
+    throw err;
+  }
+
+  const fallbackRole = roleName.toLowerCase();
+  return ['member', 'admin'].includes(fallbackRole) ? fallbackRole : null;
 }
 
 async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
@@ -42,11 +64,12 @@ async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
 
     if (normalizeAccountStatus(accountStatus) !== 'active') return;
     const mappedRole = normalizeRole(role);
+    if (!mappedRole) return;
     await db.run(
       `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
        SELECT ?, ?, r.id, unixepoch()
        FROM roles r
-       WHERE r.name = ?`,
+       WHERE LOWER(r.name) = LOWER(?)`,
       [crypto.randomUUID(), userId, mappedRole]
     );
   } catch (err) {
@@ -707,16 +730,16 @@ export async function usersRouter(req, env, _ctx, user, path) {
       }
       throw err;
     }
-    const requestedRole = String(body.primary_role || 'member').trim().toLowerCase();
-    const role = normalizeRole(requestedRole);
+    const requestedRole = String(body.primary_role || 'member').trim();
+    const role = await resolveRequestedRole(db, requestedRole);
     const accountStatus = normalizeAccountStatus(body.account_status, 'active');
 
     if (password.length < 8) {
       return error(req, 'Password must be at least 8 characters', 400);
     }
 
-    if (!['member', 'admin'].includes(requestedRole)) {
-      return error(req, 'primary_role must be "member" or "admin"', 400);
+    if (!role) {
+      return error(req, 'primary_role must match an existing role', 400);
     }
 
     const existing = await db.first('SELECT id FROM users WHERE email = ?', [email]);
@@ -814,7 +837,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       const [name, emailRaw, password, roleRaw, accountStatusRaw] = parseRow(line);
       const email = String(emailRaw || '').toLowerCase();
       const requestedRole = String(roleRaw || 'member').toLowerCase();
-      const role = normalizeRole(requestedRole);
+      const role = await resolveRequestedRole(db, requestedRole);
       const accountStatus = normalizeAccountStatus(accountStatusRaw, 'active');
 
       if (!name || !email || !password || !requestedRole) {
@@ -827,8 +850,8 @@ export async function usersRouter(req, env, _ctx, user, path) {
         continue;
       }
 
-      if (!['member', 'admin'].includes(requestedRole)) {
-        results.push({ row: rowNumber, ok: false, error: 'primary_role must be "member" or "admin"' });
+      if (!role) {
+        results.push({ row: rowNumber, ok: false, error: 'primary_role must match an existing role' });
         continue;
       }
 
@@ -961,23 +984,25 @@ export async function usersRouter(req, env, _ctx, user, path) {
     let oldAccountStatus = normalizeAccountStatus(existing.account_status);
     let newRole = oldRole;
     let newAccountStatus = oldAccountStatus;
+    let roleChanged = false;
 
     // Allow updating primary role (for admin promotion/demotion)
     if (body.primary_role !== undefined) {
-      const requestedRole = String(body.primary_role).toLowerCase();
-      if (requestedRole === 'member' || requestedRole === 'admin') {
-        newRole = normalizeRole(requestedRole);
-        // Check last-owner protection for admin role or admin account disablement
-        if (oldRole === 'admin' && (newRole !== 'admin' || newAccountStatus !== 'active')) {
-          const isLastAdmin = await isLastOwnerOfRole(env, userId, 'admin');
-          if (isLastAdmin) {
-            return error(req, 'Cannot demote last admin', 409);
-          }
-        }
-        updatedFields.push('primary_role');
-      } else {
-        return error(req, 'primary_role must be "member" or "admin"', 400);
+      const requestedRole = String(body.primary_role || '').trim();
+      const resolvedRole = await resolveRequestedRole(db, requestedRole);
+      if (!resolvedRole) {
+        return error(req, 'primary_role must match an existing role', 400);
       }
+      newRole = resolvedRole;
+      roleChanged = newRole !== oldRole;
+      // Check last-owner protection for admin role or admin account disablement
+      if (oldRole === 'admin' && (newRole !== 'admin' || newAccountStatus !== 'active')) {
+        const isLastAdmin = await isLastOwnerOfRole(env, userId, 'admin');
+        if (isLastAdmin) {
+          return error(req, 'Cannot demote last admin', 409);
+        }
+      }
+      updatedFields.push('primary_role');
     }
 
     if (body.account_status !== undefined) {
@@ -1053,7 +1078,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       updatedFields.push('settings');
     }
 
-    if (updates.length === 0) {
+    if (updates.length === 0 && !roleChanged) {
       return error(req, 'No valid fields to update', 400);
     }
 

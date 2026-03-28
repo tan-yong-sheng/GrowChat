@@ -31,7 +31,7 @@ import {
 } from './admin-layout.js';
 import { renderCurrentRoute } from '../../bootstrap/app.js';
 
-function wireSidebar(root) {
+function wireSidebar(root, guardNavigation) {
   const newChatBtn = root.querySelector('#new-chat');
   const homeLink = root.querySelector('#admin-home-link');
   const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
@@ -44,7 +44,7 @@ function wireSidebar(root) {
 
   const destroySidebar = renderSidebar(sidebar, root);
 
-  createUserProfileFooter().then((footer) => {
+  createUserProfileFooter({ guardNavigation }).then((footer) => {
     const footerMount = root.querySelector('#sidebar-footer');
     if (footerMount) {
       footerMount.replaceChildren(footer);
@@ -71,15 +71,23 @@ function wireSidebar(root) {
     }
   };
   const onOpenSearch = () => setState({ showSearch: true });
-  const onNewChat = () => navigateHome();
+  const onNewChat = async () => {
+    if (typeof guardNavigation === 'function') {
+      const allowed = await guardNavigation();
+      if (!allowed) return;
+    }
+    navigateHome();
+  };
 
   toggleSidebarMobile.addEventListener('click', onToggleSidebar);
   toggleSidebarDesktop.addEventListener('click', onToggleSidebar);
   openSearchBtn.addEventListener('click', onOpenSearch);
-  newChatBtn.addEventListener('click', onNewChat);
+  newChatBtn.addEventListener('click', () => {
+    void onNewChat();
+  });
   homeLink?.addEventListener('click', (e) => {
     e.preventDefault();
-    navigateHome();
+    void onNewChat();
   });
 
   const unsubscribe = subscribe((currentState) => {
@@ -445,6 +453,7 @@ export async function renderAdminPage(container) {
   data.requestUsersFooterSync = updateMainActionFooter;
   data.requestSettingsFooterSync = updateMainActionFooter;
   data.requestSharedActionFooterSync = updateMainActionFooter;
+  data.guardNavigation = guardNavigation;
 
   function bindTopNav() {
     container.querySelectorAll('a[data-nav]').forEach((link) => {
@@ -556,7 +565,7 @@ export async function renderAdminPage(container) {
       <div id="files-modal-container"></div>
     `;
 
-    wireSidebar(container);
+    wireSidebar(container, guardNavigation);
     bindTopNav();
     if (!container.__sharedFooterClickBound) {
       container.addEventListener('click', (event) => {

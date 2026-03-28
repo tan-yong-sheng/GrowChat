@@ -30,7 +30,7 @@ export function createAdminAclModalShell({
 } = {}) {
   const ids = buildAclModalIds(idsPrefix);
   const { modal, close, bodyEl, footerEl } = createAdminModalShell({
-    preset: 'access',
+    preset: 'aclEditor',
     title,
     subtitle,
     closeAttr,

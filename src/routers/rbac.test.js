@@ -175,4 +175,48 @@ describe('rbacRouter', () => {
     expect(mocks.db.run.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM role_permissions'))).toBe(true);
     expect(mocks.db.run.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO role_permissions')).length).toBe(2);
   });
+
+  it('deletes custom roles and logs the audit event', async () => {
+    const res = await rbacRouter(
+      makeReq('/api/admin/rbac/roles/custom-1', 'DELETE'),
+      { DB: {} },
+      {},
+      { sub: 'u1' },
+      '/api/admin/rbac/roles/custom-1',
+    );
+
+    expect(res.status).toBe(204);
+    expect(mocks.db.run.mock.calls.some(([sql, params]) => String(sql).includes('DELETE FROM roles WHERE id = ?') && params?.[0] === 'custom-1')).toBe(true);
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: 'role_deleted',
+      resource_type: 'role',
+      resource_id: 'custom-1',
+    }));
+  });
+
+  it('prevents deleting system roles', async () => {
+    mocks.db.first.mockImplementation(async (sql, params = []) => {
+      const query = String(sql || '');
+      if (query.includes('SELECT * FROM roles WHERE id = ?') && params[0] === 'admin') {
+        return {
+          id: 'admin',
+          name: 'Admin',
+          system: 1,
+        };
+      }
+      return null;
+    });
+
+    const res = await rbacRouter(
+      makeReq('/api/admin/rbac/roles/admin', 'DELETE'),
+      { DB: {} },
+      {},
+      { sub: 'u1' },
+      '/api/admin/rbac/roles/admin',
+    );
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error || body.message).toMatch(/cannot delete system role/i);
+  });
 });

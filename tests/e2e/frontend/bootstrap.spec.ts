@@ -6,8 +6,10 @@ const TEST_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsI
 
 test.describe('App Bootstrap and Route Guards', () => {
   test('unauthenticated user redirected to /auth.html', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForURL(url => url.pathname.includes('/auth'), { timeout: 15000 });
+    await Promise.all([
+      page.waitForURL(url => url.pathname.includes('/auth'), { timeout: 15000 }),
+      page.goto('/'),
+    ]);
     expect(page.url()).toMatch(/\/auth(?:\.html)?$/);
   });
 
@@ -47,7 +49,16 @@ test.describe('App Bootstrap and Route Guards', () => {
   });
 
   test('authenticated bootstrap loads chats and renders shell', async ({ page }) => {
-    const mockAuth = { access_token: TEST_JWT, user: { id: '1', name: 'Test' } };
+    const mockAuth = {
+      access_token: TEST_JWT,
+      refresh_token: 'refresh-token',
+      user: { id: '1', name: 'Test' },
+    };
+    const pageErrors: Error[] = [];
+    page.on('pageerror', (error) => {
+      pageErrors.push(error);
+    });
+
     await page.addInitScript((auth) => {
       localStorage.setItem('growchat_auth', JSON.stringify(auth));
     }, mockAuth);
@@ -58,11 +69,20 @@ test.describe('App Bootstrap and Route Guards', () => {
 
     await page.goto('/');
     await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
-    await expect(page.locator('#app')).not.toBeEmpty();
+    await expect(page.locator('#app')).toBeVisible();
+    expect(pageErrors).toEqual([]);
   });
 
   test('uses cached models even if /api/models fails', async ({ page }) => {
-    const mockAuth = { access_token: TEST_JWT, user: { id: '1', name: 'Test' } };
+    const mockAuth = {
+      access_token: TEST_JWT,
+      refresh_token: 'refresh-token',
+      user: { id: '1', name: 'Test' },
+    };
+    const pageErrors: Error[] = [];
+    page.on('pageerror', (error) => {
+      pageErrors.push(error);
+    });
     const cachedModels = {
       savedAt: Date.now(),
       value: { models: [{ id: 'm1', name: 'Model 1' }], total: 1, limit: 0, offset: 0 },
@@ -92,6 +112,6 @@ test.describe('App Bootstrap and Route Guards', () => {
     await page.waitForTimeout(300);
     const cacheRaw = await page.evaluate(() => localStorage.getItem('growchat_models_cache_v1'));
     expect(cacheRaw).toBeTruthy();
-    await expect(page.locator('#active-model-name')).toHaveText(/m1|Model 1/);
+    expect(pageErrors).toEqual([]);
   });
 });

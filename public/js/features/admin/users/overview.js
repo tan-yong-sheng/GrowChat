@@ -1,8 +1,8 @@
-import { apiFetch } from '../../../shared/api.js';
+import { apiFetch, fetchAdminRbacRoles } from '../../../shared/api.js';
 import { fetchAdminUserAccess } from '../../../shared/admin-access.js';
 import { bindAdminDraftHandlers, clearAdminDraft, getAdminDraft, setAdminDraft } from '../modal-draft.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
-import { buildAdminModalShellMarkup } from '../modal-shell.js';
+import { buildAdminModalShellMarkup, createAdminModalShell } from '../modal-shell.js';
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -12,18 +12,56 @@ const escapeHtml = (value) => String(value || '')
   .replace(/'/g, '&#39;');
 
 function roleBadgeClass(role) {
-  if (role === 'admin') return 'bg-blue-100 text-blue-700';
-  if (role === 'member') return 'bg-green-100 text-green-700';
+  const value = String(role || '').trim().toLowerCase();
+  if (value === 'admin') return 'bg-blue-100 text-blue-700';
+  if (value === 'member') return 'bg-green-100 text-green-700';
   return 'bg-gray-100 text-gray-700';
 }
 
 function roleDisplayName(role) {
-  return role === 'admin' ? 'Admin' : 'Member';
+  const value = String(role || '').trim();
+  if (!value) return 'Member';
+  const normalized = value.toLowerCase();
+  if (normalized === 'admin') return 'Admin';
+  if (normalized === 'member') return 'Member';
+  return value;
 }
 
 function normalizeRole(role) {
-  const value = String(role || '').trim().toLowerCase();
-  return value === 'admin' ? 'admin' : 'member';
+  return String(role || '').trim().toLowerCase();
+}
+
+function buildRoleSelectOptions(roles, selectedRole = 'member') {
+  const selected = normalizeRole(selectedRole);
+  const orderedRoles = [];
+  const seen = new Set();
+
+  const pushRole = (roleName) => {
+    const value = String(roleName || '').trim();
+    if (!value) return;
+    const key = value.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    orderedRoles.push(value);
+  };
+
+  pushRole('member');
+  pushRole('admin');
+  (Array.isArray(roles) ? roles : []).forEach((role) => pushRole(role?.name));
+  pushRole(selectedRole);
+
+  return orderedRoles.map((roleName) => `
+    <option value="${escapeHtml(roleName)}" ${normalizeRole(roleName) === selected ? 'selected' : ''}>${escapeHtml(roleDisplayName(roleName))}</option>
+  `).join('');
+}
+
+async function loadAdminRoles() {
+  try {
+    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
+    return Array.isArray(payload?.roles) ? payload.roles : [];
+  } catch {
+    return [];
+  }
 }
 
 function accountStatusBadgeClass(status) {
@@ -103,6 +141,7 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
   const access = payload?.access || {};
   const allRules = [...(access.models || []), ...(access.connections || []), ...(access.mcp_servers || [])];
   const disabledRuleCount = allRules.filter((rule) => rule?.resource_enabled === false).length;
+  const primaryRole = String(user.primary_role || 'member').trim();
   const families = [
     ['Models', access.models || []],
     ['Connections', access.connections || []],
@@ -116,7 +155,7 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
           <div class="space-y-1">
             <div class="flex flex-wrap items-center gap-2">
               <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
-              ${renderChip(roleDisplayName(normalizeRole(user.primary_role)), normalizeRole(user.primary_role))}
+              ${renderChip(roleDisplayName(primaryRole), normalizeRole(primaryRole))}
               ${renderChip(user.account_status || 'active', user.account_status === 'pending' ? 'shared' : 'admin')}
             </div>
             <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
@@ -155,25 +194,20 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
   `;
 }
 
-function renderAclInspectorModal(user, body = '<div class="text-sm text-gray-400">Loading ACL inspector...</div>') {
-  return `
-    <div id="user-access-modal" class="fixed inset-0 z-[140] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="w-full max-w-2xl max-h-[85vh] rounded-[1.5rem] bg-white shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
-        <div class="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-50">
-          <div>
-            <h3 class="text-xl font-semibold text-gray-900">ACL Inspector</h3>
-            <p class="mt-1 text-xs text-gray-500">Read-only effective access for ${escapeHtml(user?.name || user?.email || 'user')}</p>
-          </div>
-          <button type="button" data-close-access-user class="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        </div>
-        <div class="px-5 py-5 overflow-auto" id="user-access-modal-body">
-          ${body}
-        </div>
-      </div>
-    </div>
-  `;
+function renderAclInspectorModal(
+  user,
+  body = '<div class="text-sm text-gray-400">Loading ACL inspector...</div>',
+  onClose = null,
+) {
+  return createAdminModalShell({
+    preset: 'aclEditor',
+    title: 'ACL Inspector',
+    subtitle: `Read-only effective access for ${escapeHtml(user?.name || user?.email || 'user')}`,
+    body,
+    closeAttr: 'data-close-access-user',
+    rootAttrs: 'id="user-access-modal"',
+    onClose,
+  });
 }
 
 function renderUserRows(users, stagedDraft = null) {
@@ -184,15 +218,16 @@ function renderUserRows(users, stagedDraft = null) {
     const isPendingDelete = isStaged && stagedKind === 'delete';
     const isPendingEdit = isStaged && stagedKind === 'edit';
     const stagedPayload = isPendingEdit ? (stagedDraft?.payload || {}) : {};
-    const role = normalizeRole(stagedPayload.primary_role || u.primary_role);
+    const role = String(stagedPayload.primary_role || u.primary_role || 'member').trim();
+    const normalizedRole = normalizeRole(role);
     const accountStatus = String(stagedPayload.account_status || u.account_status || 'active');
     const name = String(stagedPayload.name || u.name || '');
     const email = String(stagedPayload.email || u.email || '');
     return `
     <tr data-user-row="${u.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isStaged ? 'opacity-60 bg-amber-50/40' : ''}">
       <td class="px-3 py-4 whitespace-nowrap">
-        <button class="btn-change-role" data-user-id="${u.id}" data-user-role="${role}" data-user-name="${name}" data-user-email="${email}" data-user-account-status="${accountStatus}" ${isStaged ? 'disabled' : ''}>
-          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${roleBadgeClass(role)} uppercase">${roleDisplayName(role)}</span>
+        <button class="btn-change-role" data-user-id="${u.id}" data-user-role="${escapeHtml(role)}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-account-status="${escapeHtml(accountStatus)}" ${isStaged ? 'disabled' : ''}>
+          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${roleBadgeClass(role)} uppercase">${escapeHtml(roleDisplayName(role))}</span>
         </button>
       </td>
       <td class="px-3 py-4 font-medium text-gray-900 overflow-hidden">
@@ -214,18 +249,18 @@ function renderUserRows(users, stagedDraft = null) {
       <td class="px-3 py-4 text-gray-400 font-normal text-[10px] whitespace-nowrap">${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : 'N/A'}</td>
       <td class="px-3 py-4 text-right whitespace-nowrap">
         <div class="flex justify-end items-center gap-1">
-          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-inspect-user-access" data-user-id="${u.id}" data-user-name="${name}" data-user-email="${email}" data-user-role="${role}" data-user-account-status="${accountStatus}" title="Inspect ACL" ${isStaged ? 'disabled' : ''}>
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-inspect-user-access" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-role="${escapeHtml(role)}" data-user-account-status="${escapeHtml(accountStatus)}" title="Inspect ACL" ${isStaged ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path fill-rule="evenodd" d="M10 1.75a4.25 4.25 0 0 0-4.25 4.25V8H5a2 2 0 0 0-2 2v5.5A2.5 2.5 0 0 0 5.5 18h9a2.5 2.5 0 0 0 2.5-2.5V10a2 2 0 0 0-2-2h-.75V6A4.25 4.25 0 0 0 10 1.75ZM7.25 6a2.75 2.75 0 1 1 5.5 0V8h-5.5V6Z" clip-rule="evenodd" />
             </svg>
           </button>
-          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-edit-user" data-user-id="${u.id}" data-user-name="${name}" data-user-email="${email}" data-user-role="${role}" data-user-account-status="${accountStatus}" title="Edit User" ${isStaged ? 'disabled' : ''}>
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-edit-user" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-role="${escapeHtml(role)}" data-user-account-status="${escapeHtml(accountStatus)}" title="Edit User" ${isStaged ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path d="m2.695 14.763-1.262 3.154a.5.5 0 0 0 .65.65l3.154-1.262a.5.5 0 0 0 .145-.11l10.19-10.192-2.877-2.878L2.805 14.618a.5.5 0 0 0-.11.145Z" />
               <path d="M15.53 3.47a.75.75 0 0 1 1.06 0l1.44 1.44a.75.75 0 0 1 0 1.06l-1.44 1.44-2.5-2.5 1.44-1.44Z" />
             </svg>
           </button>
-          ${role === 'admin' ? '' : `
+          ${normalizedRole === 'admin' ? '' : `
           <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors btn-delete-user" data-user-id="${u.id}" data-user-name="${name}" title="Delete record" ${isStaged ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
@@ -252,16 +287,16 @@ function renderLoadingRows(count = 10) {
   `).join('');
 }
 
-function renderAddUserModal(draft = null) {
-  const primaryRole = String(draft?.primary_role || 'member');
+function renderAddUserModal(draft = null, roles = []) {
+  const primaryRole = String(draft?.primary_role || 'member').trim();
   const accountStatus = String(draft?.account_status || 'active');
   const csvValue = String(draft?.csv || '');
   return buildAdminModalShellMarkup({
-    preset: 'compact',
+    preset: 'userEditor',
     title: 'Add User',
     body: `
-      <div class="px-5 pb-5">
-        <div class="flex items-center gap-5 border-b border-gray-100 mb-4">
+      <div class="space-y-4">
+        <div class="flex items-center gap-5 border-b border-gray-100 -mx-5 px-5 -mt-1">
           <button type="button" data-add-user-tab="form" class="pb-3 text-base font-medium text-gray-900 border-b-2 border-gray-900">Form</button>
           <button type="button" data-add-user-tab="csv" class="pb-3 text-base font-medium text-gray-400 border-b-2 border-transparent">CSV Import</button>
         </div>
@@ -269,8 +304,7 @@ function renderAddUserModal(draft = null) {
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Role</span>
             <select name="primary_role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-              <option value="member" ${primaryRole === 'member' ? 'selected' : ''}>Member</option>
-              <option value="admin" ${primaryRole === 'admin' ? 'selected' : ''}>Admin</option>
+              ${buildRoleSelectOptions(roles, primaryRole)}
             </select>
           </label>
           <label class="block">
@@ -323,8 +357,8 @@ function renderAddUserModal(draft = null) {
   });
 }
 
-function renderEditUserModal(user, draft = null) {
-  const primaryRole = String(draft?.primary_role || user.primary_role || 'member');
+function renderEditUserModal(user, draft = null, roles = []) {
+  const primaryRole = String(draft?.primary_role || user.primary_role || 'member').trim();
   const accountStatus = String(draft?.account_status || user.account_status || 'active');
   return buildAdminModalShellMarkup({
     preset: 'userEditor',
@@ -334,8 +368,7 @@ function renderEditUserModal(user, draft = null) {
         <label class="block">
           <span class="block text-sm text-gray-400 mb-2">Role</span>
           <select name="primary_role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-            <option value="member" ${normalizeRole(primaryRole) === 'member' ? 'selected' : ''}>Member</option>
-            <option value="admin" ${normalizeRole(primaryRole) === 'admin' ? 'selected' : ''}>Admin</option>
+            ${buildRoleSelectOptions(roles, primaryRole)}
           </select>
         </label>
         <label class="block">
@@ -385,6 +418,8 @@ export function renderUserOverview(container, data, actions) {
       refreshToken: null,
       payload: null,
       showDisabled: false,
+      modalEl: null,
+      bodyEl: null,
     },
   });
   const draftKey = 'overview';
@@ -586,8 +621,8 @@ export function renderUserOverview(container, data, actions) {
 
   async function refreshAccessInspector(userId) {
     if (!userId) return;
-    const modal = document.getElementById('user-access-modal');
-    const body = document.getElementById('user-access-modal-body');
+    const modal = uiState.accessInspector.modalEl;
+    const body = uiState.accessInspector.bodyEl;
     if (!modal || !body) return;
     const currentToken = String(Date.now());
     uiState.accessInspector.userId = userId;
@@ -703,33 +738,27 @@ export function renderUserOverview(container, data, actions) {
         uiState.accessInspector.refreshToken = null;
         uiState.accessInspector.payload = null;
         uiState.accessInspector.showDisabled = false;
-        document.body.insertAdjacentHTML(
-          'beforeend',
-          renderAclInspectorModal({
-            name: btn.dataset.userName || '',
-            email: btn.dataset.userEmail || '',
-            primary_role: normalizeRole(btn.dataset.userRole || 'member'),
-            account_status: btn.dataset.userAccountStatus || 'active',
-          })
-        );
-
-        const modal = document.getElementById('user-access-modal');
-        const body = document.getElementById('user-access-modal-body');
-        const close = () => {
+        const shell = renderAclInspectorModal({
+          name: btn.dataset.userName || '',
+          email: btn.dataset.userEmail || '',
+          primary_role: String(btn.dataset.userRole || 'member').trim(),
+          account_status: btn.dataset.userAccountStatus || 'active',
+        }, '<div class="text-sm text-gray-400">Loading ACL inspector...</div>', () => {
           uiState.accessInspector.userId = null;
           uiState.accessInspector.refreshToken = null;
-          modal?.remove();
-        };
+          uiState.accessInspector.payload = null;
+          uiState.accessInspector.modalEl = null;
+          uiState.accessInspector.bodyEl = null;
+        });
+        uiState.accessInspector.modalEl = shell.modal;
+        uiState.accessInspector.bodyEl = shell.bodyEl;
+        shell.modal.classList.add('user-access-modal-shell');
 
-        modal?.addEventListener('click', (e) => {
-          if (e.target === modal || e.target.closest('[data-close-access-user]')) {
-            close();
-            return;
-          }
+        shell.modal?.addEventListener('click', (e) => {
           if (e.target.closest('[data-toggle-disabled-rules]')) {
             uiState.accessInspector.showDisabled = !uiState.accessInspector.showDisabled;
-            if (uiState.accessInspector.payload && body) {
-              body.innerHTML = renderAccessInspectorContent(uiState.accessInspector.payload, uiState.accessInspector.showDisabled);
+            if (uiState.accessInspector.payload && uiState.accessInspector.bodyEl) {
+              uiState.accessInspector.bodyEl.innerHTML = renderAccessInspectorContent(uiState.accessInspector.payload, uiState.accessInspector.showDisabled);
             }
           }
         });
@@ -737,8 +766,8 @@ export function renderUserOverview(container, data, actions) {
         try {
           await refreshAccessInspector(btn.dataset.userId);
         } catch (err) {
-          if (body) {
-            body.innerHTML = `
+          if (uiState.accessInspector.bodyEl) {
+            uiState.accessInspector.bodyEl.innerHTML = `
               <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
                 ${escapeHtml(err.message || 'Failed to inspect user access')}
               </div>
@@ -753,16 +782,17 @@ export function renderUserOverview(container, data, actions) {
     tbody.querySelectorAll('.btn-edit-user').forEach((btn) => {
       btn.addEventListener('click', async () => {
         try {
+          const roles = await loadAdminRoles();
           const user = {
             id: btn.dataset.userId,
             name: btn.dataset.userName || '',
             email: btn.dataset.userEmail || '',
-            primary_role: normalizeRole(btn.dataset.userRole || 'member'),
+            primary_role: String(btn.dataset.userRole || 'member').trim(),
             account_status: btn.dataset.userAccountStatus || 'active',
           };
           const stagedDraft = draftRegistry.get();
           const initialDraft = stagedDraft?.kind === 'edit' && stagedDraft.userId === user.id ? stagedDraft.payload : null;
-          document.body.insertAdjacentHTML('beforeend', renderEditUserModal(user, initialDraft));
+          document.body.insertAdjacentHTML('beforeend', renderEditUserModal(user, initialDraft, roles));
 
           const modal = document.getElementById('edit-user-modal');
           const form = document.getElementById('edit-user-form');
@@ -814,7 +844,7 @@ export function renderUserOverview(container, data, actions) {
             if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
             const fd = new FormData(form);
             const payload = {
-              primary_role: String(fd.get('primary_role') || 'member'),
+              primary_role: String(fd.get('primary_role') || 'member').trim(),
               account_status: String(fd.get('account_status') || 'active'),
               name: String(fd.get('name') || '').trim(),
               email: String(fd.get('email') || '').trim(),
@@ -864,7 +894,7 @@ export function renderUserOverview(container, data, actions) {
     }
     uiState.accessInspectorListenersBound = true;
     const handleAccessInvalidation = () => {
-      if (uiState.accessInspector?.userId && document.getElementById('user-access-modal')) {
+      if (uiState.accessInspector?.userId && uiState.accessInspector.modalEl) {
         refreshAccessInspector(uiState.accessInspector.userId);
       }
     };
@@ -943,7 +973,8 @@ export function renderUserOverview(container, data, actions) {
     await actions.reload({ preserveContent: true });
   });
 
-  container.querySelector('#open-add-user-modal')?.addEventListener('click', () => {
+  container.querySelector('#open-add-user-modal')?.addEventListener('click', async () => {
+    const roles = await loadAdminRoles();
     const stagedDraft = draftRegistry.get();
     const initialDraft = stagedDraft?.kind === 'create' || stagedDraft?.kind === 'import-csv'
       ? stagedDraft.payload
@@ -956,7 +987,7 @@ export function renderUserOverview(container, data, actions) {
       password: initialDraft?.password || '',
       csv: initialDraft?.csv || '',
       tab: stagedDraft?.tab || (stagedDraft?.kind === 'import-csv' ? 'csv' : 'form'),
-    }));
+    }, roles));
     const modal = document.getElementById('add-user-modal');
     const form = document.getElementById('add-user-form');
     const csvForm = document.getElementById('add-user-csv-form');
@@ -1052,7 +1083,7 @@ export function renderUserOverview(container, data, actions) {
           kind: 'create',
           tab: 'form',
           payload: {
-            primary_role: String(fd.get('primary_role') || 'member'),
+            primary_role: String(fd.get('primary_role') || 'member').trim(),
             account_status: String(fd.get('account_status') || 'active'),
             name: String(fd.get('name') || '').trim(),
             email: String(fd.get('email') || '').trim(),

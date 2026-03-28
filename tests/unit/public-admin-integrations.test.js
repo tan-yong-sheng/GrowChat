@@ -115,6 +115,8 @@ describe('admin integrations settings', () => {
 
     container.querySelector('#add-tool-server')?.click();
     expect(container.querySelector('#server-modal-title')?.textContent).toBe('Add MCP Server');
+    expect(container.querySelector('#edit-connection-modal')?.className).toContain('items-start');
+    expect(container.querySelector('#edit-connection-modal')?.className).toContain('overflow-y-auto');
 
     container.querySelector('#close-modal')?.click();
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));

@@ -50,6 +50,8 @@ describe('admin connections modal', () => {
 
     container.querySelector('#add-connection')?.click();
     expect(container.querySelector('#modal-title')?.textContent).toBe('Add Connection');
+    expect(container.querySelector('#edit-connection-modal')?.className).toContain('items-start');
+    expect(container.querySelector('#edit-connection-modal')?.className).toContain('overflow-y-auto');
     container.querySelector('#modal-conn-name').value = 'OpenAI';
     container.querySelector('#modal-conn-url').value = 'https://api.openai.com/v1';
     container.querySelector('#modal-conn-key').value = 'secret';

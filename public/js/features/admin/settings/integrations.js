@@ -7,6 +7,7 @@ import {
 } from '../../../shared/admin-access.js';
 import { cloneAclRules, createAclDraftRegistry, getAclRulesSignature } from '../acl-draft.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
+import { getAdminModalPreset } from '../modal-shell.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import {
   buildIntegrationsSnapshot,
@@ -23,6 +24,8 @@ const escapeHtml = (value) => String(value || '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
+
+const STANDARD_MODAL_PRESET = getAdminModalPreset('standard');
 
 const escapeSelector = (value) => {
   const text = String(value || '');
@@ -569,8 +572,8 @@ export function renderIntegrationsSettings(container, data) {
       </div>
 
       <!-- Edit Connection Modal -->
-      <div id="edit-connection-modal" class="${integrationsState.showModal ? 'fixed' : 'hidden'} inset-0 z-[100] flex items-center justify-center p-4">
-        <div class="fixed inset-0 bg-black/20 backdrop-blur-sm"></div>
+      <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} ${integrationsState.showModal ? '' : 'hidden'}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};">
+        <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center">
             <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${integrationsState.modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server'}</h3>
@@ -752,7 +755,6 @@ export function renderIntegrationsSettings(container, data) {
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.remove('hidden');
-      modal.classList.add('fixed');
     }
     fillModalFields(integrationsState.selectedServer);
   };
@@ -763,7 +765,6 @@ export function renderIntegrationsSettings(container, data) {
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.add('hidden');
-      modal.classList.remove('fixed');
     }
   };
 

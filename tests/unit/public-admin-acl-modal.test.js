@@ -24,6 +24,9 @@ describe('admin acl modal shell', () => {
     expect(elements.listEl?.id).toBe('connection-acl-list');
     expect(elements.saveErrorEl?.id).toBe('connection-acl-save-error');
     expect(elements.saveButton?.id).toBe('connection-acl-save-btn');
+    expect(modal.className).toContain('items-start');
+    expect(modal.querySelector('div.relative.z-10')?.className).toContain('max-w-4xl');
+    expect(modal.querySelector('[data-admin-modal-body]')?.className).toContain('overflow-y-auto');
     expect(modal.textContent).toContain('Connection Access');
     expect(modal.textContent).toContain('Shared ACL modal');
     expect(modal.querySelector('[data-test-close]')).toBeTruthy();

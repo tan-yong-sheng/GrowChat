@@ -41,7 +41,11 @@ describe('files modal', () => {
 
     const destroy = renderFilesModal(container);
 
-    expect(container.querySelector('#files-modal-root')?.classList.contains('hidden')).toBe(false);
+    const modalRoot = container.querySelector('#files-modal-root');
+    expect(modalRoot?.classList.contains('hidden')).toBe(false);
+    expect(modalRoot?.className).toContain('items-start');
+    expect(modalRoot?.className).toContain('overflow-y-auto');
+    expect(modalRoot?.querySelector('.max-w-2xl')).not.toBeNull();
     container.querySelector('#attach-selected-btn')?.click();
 
     expect(onAttach).toHaveBeenCalled();

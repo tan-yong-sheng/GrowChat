@@ -19,16 +19,11 @@ import { renderPlaceholder } from '../../shared/components/chat-placeholder.js';
 import { renderMessageInput } from './message-input.js';
 import { renderModelSelector } from './model-selector.js';
 import { renderSidebar } from '../../shared/components/sidebar.js';
-import {
-  renderAttachmentPills,
-  renderAssistantMessageBody,
-} from './chat-message-rendering.js';
+import { renderAssistantMessageBody } from './chat-message-rendering.js';
 import { createChatMessageDom } from './chat-message-dom.js';
 import {
   appendBlock,
   ensureThinkingBlock,
-  syncMessageBlocksForMessage,
-  syncToolCallsForMessage,
   updateToolCallState,
 } from './chat-message-blocks.js';
 import {
@@ -38,28 +33,28 @@ import {
   isAttachmentAllowedByModel,
   isSupportedAttachmentType,
 } from '../../shared/utils/attachment-types.js';
-import { projectConversation, resolveConversationLeafId } from '../../shared/utils/conversation.js';
-import { isTempMessageId, normalizeCitations, touchRecentChat } from '../../shared/utils/chat-cache.js';
+import { isTempMessageId, touchRecentChat } from '../../shared/utils/chat-cache.js';
 import { consumeToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
 import {
   formatApiErrorMessage,
   extractThinkingBlocks,
-  formatModelDisplayName,
 } from './chat-message-utils.js';
 import { createChatCacheController } from './chat-cache-controller.js';
-import { bindChatMessageActions } from './chat-message-actions.js';
 import { createChatMessageIdentityTracker } from './chat-message-identity.js';
 import { createChatMessageStream } from './chat-message-stream.js';
+import { createChatRealtimeController } from './chat-realtime-controller.js';
+import { createChatDataController } from './chat-data-controller.js';
+import { createChatMessageListController } from './chat-message-list-controller.js';
+import { createChatRenderController } from './chat-render-controller.js';
+import { createChatShellController } from './chat-shell-controller.js';
 import { createChatStreamController } from './chat-stream-controller.js';
 import { createChatStreamState } from './chat-stream-state.js';
-import { setupEditTextarea } from './edit-textarea.js';
 import { consumeSseTextStream } from './chat-stream.js';
 import { createChatListHandlers } from './chat-list-actions.js';
 import { createChatModals } from './chat-modals.js';
 import { bindChatFileEvents } from './chat-file-events.js';
 import { createMessageSequenceTracker } from './chat-message-seq.js';
 import { createChatUiResources } from './chat-ui-resources.js';
-import { buildChatMessageListHtml } from './chat-message-list-html.js';
 import { buildChatSidebarListFragment } from './chat-sidebar-list.js';
 
 export function renderChat(container) {
@@ -176,13 +171,24 @@ export function renderChat(container) {
 }
 
 function wireChat(root) {
-  const pathForChat = (chatId) => (chatId ? `/c/${encodeURIComponent(chatId)}` : '/');
-  const syncChatUrl = (chatId, { replace = false } = {}) => {
-    const nextPath = pathForChat(chatId);
-    if (window.location.pathname === nextPath) return;
-    const method = replace ? 'replaceState' : 'pushState';
-    window.history[method]({}, '', nextPath);
-  };
+  let syncChatUrlImpl = () => {};
+  const syncChatUrl = (...args) => syncChatUrlImpl(...args);
+  let startNewChatImpl = () => {};
+  const startNewChat = (...args) => startNewChatImpl(...args);
+  let loadMoreChatsImpl = async () => null;
+  const loadMoreChats = (...args) => loadMoreChatsImpl(...args);
+  let refreshChatListObserverImpl = () => {};
+  const refreshChatListObserver = (...args) => refreshChatListObserverImpl(...args);
+  let refreshShareStateImpl = async () => {};
+  const refreshShareState = (...args) => refreshShareStateImpl(...args);
+  let loadChatsImpl = async () => {};
+  const loadChats = (...args) => loadChatsImpl(...args);
+  let loadMessagesImpl = async () => {};
+  const loadMessages = (...args) => loadMessagesImpl(...args);
+  let drawMessagesImpl = () => {};
+  const drawMessages = (...args) => drawMessagesImpl(...args);
+  let openCitationImpl = () => {};
+  const openCitation = (...args) => openCitationImpl(...args);
 
   const MAX_CACHED_CHATS = 6;
   const recentChatIds = [];
@@ -201,11 +207,6 @@ function wireChat(root) {
     consumeToolServersInvalidation,
     getFileBlob,
   });
-
-  const scrollToMessage = (msgId) => {
-    const el = messagesList.querySelector(`[data-message-id="${msgId}"]`);
-    if (el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
-  };
 
   const toggleChatsBtn = root.querySelector('#toggle-chats-btn');
   const toggleChatsIcon = root.querySelector('#toggle-chats-icon');
@@ -357,6 +358,7 @@ function wireChat(root) {
     waitForResolvedMessageId,
     setBranchSelection,
   } = messageIdentityTracker;
+  const isTempChatId = (id) => String(id || '').startsWith('temp-');
 
   const {
     setStreamingState,
@@ -373,6 +375,34 @@ function wireChat(root) {
     clearGlobalStreamAbort,
   });
   window.__growchatRequestCancel = requestCancelStream;
+
+  const realtimeController = createChatRealtimeController({
+    state,
+    setState,
+    drawMessages,
+    loadChats,
+    loadMessages,
+    touchRecentChat,
+    schedulePrune,
+    currentLeafByChatId,
+    streamingOverrideByChat,
+    setStreamingState,
+    updateToolCallState,
+    updateMessageContentDom,
+    matchPendingTempMessage,
+    getActiveStreamAbort: () => activeStreamAbort,
+    setActiveStreamAbort: (value) => { activeStreamAbort = value; },
+    clearGlobalStreamAbort,
+    clientSessionId,
+    processedRealtimeEvents,
+    toolCallsByMessageId,
+    messageBlocksById,
+    isTempChatId,
+  });
+  const {
+    onRealtimeEvent,
+    updateChatTitleLocal,
+  } = realtimeController;
 
   const buildFallbackAssistantMessage = (chatId, messageId, options = {}) => {
     if (!chatId || !messageId) return null;
@@ -412,11 +442,56 @@ function wireChat(root) {
     return list.find((msg) => String(msg.id) === String(messageId)) || null;
   };
 
-  const isTempChatId = (id) => String(id || '').startsWith('temp-');
+  const hydrateAttachmentImages = (containerEl) => uiResources.hydrateAttachmentImages(containerEl);
+
+  const renderController = createChatRenderController({
+    state,
+    setState,
+    messagesList,
+    welcomeScreenContainer,
+    messagesContainer,
+    hydrateAttachmentImages,
+    branchSelectionByChat,
+    currentLeafByChatId,
+    streamingOverrideByChat,
+    errorExpandedByMessageId,
+    thinkingCollapsedByKey,
+    toolExpandedByKey,
+    thinkingActiveByMessageId,
+    thinkingDurationByMessageId,
+    thinkingStartByMessageId,
+    toolCallsByMessageId,
+    messageBlocksById,
+    showToast,
+    apiFetch,
+    loadMessages,
+    waitForResolvedMessageId,
+    getMessageById,
+    resolveTempMessageId,
+    replaceTempMessageId,
+    registerPendingTempMessage,
+    setBranchSelection,
+    setStreamingState,
+    getActiveStreamAbort: () => activeStreamAbort,
+    setActiveStreamAbort: (value) => { activeStreamAbort = value; },
+    clearGlobalStreamAbort,
+    setGlobalStreamAbort,
+    consumeSseTextStream,
+    appendBlock,
+    ensureThinkingBlock,
+    updateToolCallState,
+    notePayloadSeq,
+    buildFallbackAssistantMessage,
+    formatApiErrorMessage,
+    updateMessageContentDom,
+    applyAssistantErrorMessage,
+    openCitation,
+  });
+  drawMessagesImpl = renderController.drawMessages;
 
   const {
     renderShareModal,
-    openCitation,
+    openCitation: openCitationModal,
     openArchivedModal,
   } = createChatModals({
     state,
@@ -433,6 +508,14 @@ function wireChat(root) {
     shareModalContainer,
     archivedModalContainer,
     citationModalContainer,
+  });
+  openCitationImpl = openCitationModal;
+
+  const destroyMessageListInteractions = createChatMessageListController({
+    messagesList,
+    thinkingCollapsedByKey,
+    toolExpandedByKey,
+    openCitation,
   });
 
   const getChatHandlers = createChatListHandlers({
@@ -465,6 +548,58 @@ function wireChat(root) {
       updated_at: nowTs,
     };
   };
+
+  const shellController = createChatShellController({
+    state,
+    setState,
+    fetchChats,
+    drawMessages,
+    loadMessages,
+    buildTempChat,
+    pruneTempChats,
+    setDraftToolNames,
+    isTempChatId,
+    openArchivedModal,
+    ensureSearchModal,
+    chatListContainerEl,
+    root,
+    sidebarHomeBtn,
+    toggleSidebarMobile,
+    toggleSidebarDesktop,
+    openSearchBtn,
+    newChatBtn,
+    sidebarBackdrop,
+    toggleChatsBtn,
+    toggleChatsIcon,
+    headerMenuBtn,
+    headerMenuDropdown,
+    getChatHandlers,
+  });
+  syncChatUrlImpl = shellController.syncChatUrl;
+  startNewChatImpl = shellController.startNewChat;
+  loadMoreChatsImpl = shellController.loadMoreChats;
+  refreshChatListObserverImpl = shellController.refreshChatListObserver;
+  const destroyShellEvents = shellController.bindShellEvents();
+
+  const dataController = createChatDataController({
+    state,
+    setState,
+    apiFetch,
+    fetchChats,
+    fetchSharedChats,
+    sharedByChatId,
+    recentChatIds,
+    currentLeafByChatId,
+    streamSession,
+    drawMessages,
+    startResumeStream,
+    touchRecentChat,
+    schedulePrune,
+    isTempChatId,
+  });
+  refreshShareStateImpl = dataController.refreshShareState;
+  loadChatsImpl = dataController.loadChats;
+  loadMessagesImpl = dataController.loadMessages;
 
   chatMessageFlow = createChatMessageStream({
     state,
@@ -575,1014 +710,10 @@ function wireChat(root) {
     chatList.appendChild(fragment);
   }
 
-  let loadMoreChatsPromise = null;
-
-  async function loadMoreChats() {
-    if (loadMoreChatsPromise || !state.chatsPagination?.hasMore || state.chatsPagination?.loading) {
-      return loadMoreChatsPromise;
-    }
-
-    setState({ chatsPagination: { loading: true } });
-    const { limit, offset } = state.chatsPagination;
-    loadMoreChatsPromise = fetchChats({ limit, offset })
-      .then((data) => {
-        const nextChats = data.chats || [];
-        const existingIds = new Set(state.chats.map((chat) => chat.id));
-        const mergedChats = state.chats.concat(nextChats.filter((chat) => !existingIds.has(chat.id)));
-        setState({
-          chats: mergedChats,
-          chatsPagination: {
-            limit: data.limit || limit,
-            offset: (data.offset || offset) + nextChats.length,
-            hasMore: data.has_more === true,
-            loading: false,
-          },
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to load more chats:', err);
-        setState({ chatsPagination: { loading: false } });
-      })
-      .finally(() => {
-        loadMoreChatsPromise = null;
-      });
-
-    return loadMoreChatsPromise;
-  }
-
-  let chatListLoadObserver = null;
-  function refreshChatListObserver() {
-    if (chatListLoadObserver) {
-      chatListLoadObserver.disconnect();
-      chatListLoadObserver = null;
-    }
-
-    if (!state.chatsPagination?.hasMore || !chatListContainerEl) return;
-    const sentinel = root.querySelector('#chat-list-load-more');
-    if (!sentinel) return;
-
-    chatListLoadObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          loadMoreChats();
-        }
-      });
-    }, {
-      root: chatListContainerEl,
-      rootMargin: '120px 0px',
-      threshold: 0.1,
-    });
-
-    chatListLoadObserver.observe(sentinel);
-  }
-
-  const getAttachmentImageUrl = (fileId) => uiResources.getAttachmentImageUrl(fileId);
-  const hydrateAttachmentImages = (containerEl) => uiResources.hydrateAttachmentImages(containerEl);
-
-  function drawMessages(messages) {
-    const welcomeScreen = welcomeScreenContainer.firstElementChild;
-    const chatId = state.activeChatId;
-    const rawMessages = Array.isArray(messages) ? messages : [];
-    const branchSelectionMap = chatId ? (branchSelectionByChat.get(chatId) || new Map()) : new Map();
-    const preferredLeafId = chatId ? currentLeafByChatId.get(chatId) : null;
-    const isLoading = !!chatId && state.ui?.loadingChatId === chatId;
-
-    const { visible: projectedMessages, roundsByMessageId } = projectConversation(
-      rawMessages,
-      preferredLeafId,
-      branchSelectionMap
-    );
-
-    if (projectedMessages.length === 0) {
-      if (isLoading) {
-        if (welcomeScreen) welcomeScreen.classList.add('hidden');
-        messagesList.classList.remove('hidden');
-        messagesList.innerHTML = `
-          <div class="flex flex-col gap-5 py-6">
-            <div class="flex justify-end">
-              <div class="h-8 w-2/3 rounded-2xl bg-gray-100 animate-pulse"></div>
-            </div>
-            <div class="flex gap-4">
-              <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
-              <div class="flex-1 space-y-2">
-                <div class="h-3 w-32 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-4 w-3/4 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-4 w-2/3 bg-gray-100 rounded animate-pulse"></div>
-              </div>
-            </div>
-            <div class="flex justify-end">
-              <div class="h-8 w-1/2 rounded-2xl bg-gray-100 animate-pulse"></div>
-            </div>
-            <div class="flex gap-4">
-              <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
-              <div class="flex-1 space-y-2">
-                <div class="h-3 w-40 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-4 w-5/6 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-4 w-2/3 bg-gray-100 rounded animate-pulse"></div>
-              </div>
-            </div>
-          </div>
-        `;
-      } else {
-        if (welcomeScreen) welcomeScreen.classList.remove('hidden');
-        messagesList.classList.add('hidden');
-      }
-      return;
-    }
-
-    if (welcomeScreen) welcomeScreen.classList.add('hidden');
-    messagesList.classList.remove('hidden');
-
-    const editingMessages = state.ui.editingMessages || {};
-    const pendingDeleteMessageKeys = state.ui.pendingDeleteMessageKeys || {};
-    const firstUserMsg = projectedMessages.find((m) => m.role === 'user');
-    const isDeletePending = (messageId) => Boolean(pendingDeleteMessageKeys[`${chatId}:${String(messageId)}`]);
-
-    const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 40;
-    const streamingOverride = chatId ? streamingOverrideByChat.get(chatId) : null;
-
-    const messagesHtml = buildChatMessageListHtml({
-      projectedMessages,
-      roundsByMessageId,
-      state,
-      branchSelectionByChat,
-      currentLeafByChatId,
-      streamingOverrideByChat,
-      messageBlocksById,
-      toolCallsByMessageId,
-      thinkingActiveByMessageId,
-      thinkingDurationByMessageId,
-      errorExpandedByMessageId,
-      thinkingCollapsedByKey,
-      toolExpandedByKey,
-      renderAttachmentPills,
-      renderAssistantMessageBody,
-      syncMessageBlocksForMessage,
-      syncToolCallsForMessage,
-    });
-
-    // Update innerHTML only once to minimize layout shifts
-    messagesList.innerHTML = messagesHtml;
-    hydrateAttachmentImages(messagesList);
-
-    // Keep edit textareas stable so typing does not shift the thread.
-    messagesList.querySelectorAll('.edit-message-textarea').forEach(ta => {
-      setupEditTextarea(ta);
-    });
-
-    bindChatMessageActions({
-      messagesList,
-      messages,
-      projectedMessages,
-      roundsByMessageId,
-      state,
-      setState,
-      drawMessages,
-      chatId,
-      errorExpandedByMessageId,
-      showToast,
-      apiFetch,
-      loadMessages,
-      waitForResolvedMessageId,
-      getMessageById,
-      resolveTempMessageId,
-      replaceTempMessageId,
-      registerPendingTempMessage,
-      setBranchSelection,
-      currentLeafByChatId,
-      branchSelectionByChat,
-      streamingOverrideByChat,
-      setStreamingState,
-      getActiveStreamAbort: () => activeStreamAbort,
-      setActiveStreamAbort: (value) => { activeStreamAbort = value; },
-      clearGlobalStreamAbort,
-      setGlobalStreamAbort,
-      consumeSseTextStream,
-      appendBlock,
-      ensureThinkingBlock,
-      updateToolCallState,
-      notePayloadSeq,
-      buildFallbackAssistantMessage,
-      formatApiErrorMessage,
-      updateMessageContentDom,
-      applyAssistantErrorMessage,
-      openCitation,
-      thinkingStartByMessageId,
-      thinkingDurationByMessageId,
-      thinkingActiveByMessageId,
-      toolCallsByMessageId,
-      toolExpandedByKey,
-      thinkingCollapsedByKey,
-      messageBlocksById,
-    });
-
-    if (isAtBottom) {
-      setTimeout(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      }, 10);
-    }
-  }
-
-  async function refreshShareState() {
-    try {
-      const data = await fetchSharedChats();
-      sharedByChatId.clear();
-      (data.chats || []).forEach((chat) => {
-        if (chat?.id && chat?.share_id) {
-          sharedByChatId.set(chat.id, {
-            share_id: chat.share_id,
-            share_url: `/s/${chat.share_id}`,
-            chat_id: chat.id,
-          });
-        }
-      });
-    } catch {
-      sharedByChatId.clear();
-    }
-  }
-
-  async function loadChats() {
-    const limit = state.chatsPagination?.offset || state.chatsPagination?.limit || 30;
-    const data = await fetchChats({ limit, offset: 0 });
-    const serverChats = data.chats || [];
-    const tempChats = state.chats.filter((chat) => isTempChatId(chat?.id));
-    const tempIds = new Set(tempChats.map((chat) => String(chat.id)));
-    const chats = [...tempChats, ...serverChats.filter((chat) => !tempIds.has(String(chat.id)))];
-
-    let nextActiveChatId = state.activeChatId;
-    if (nextActiveChatId && !chats.some((chat) => chat.id === nextActiveChatId)) {
-      nextActiveChatId = chats[0]?.id || null;
-    }
-
-    setState({
-      chats,
-      chatsPagination: {
-        limit: data.limit || limit,
-        offset: (data.offset || 0) + chats.length,
-        hasMore: data.has_more === true,
-        loading: false,
-      },
-      activeChatId: nextActiveChatId,
-    });
-  }
-
-  const STREAM_STALE_MS = 5 * 60 * 1000;
-
-  async function loadMessages(chatId, options = {}) {
-    const { draw = true, updateActiveModel = draw, modelMode = 'keep', preferredLeafId = null, fallbackMessage = null } = options;
-    if (!chatId) {
-      if (draw) drawMessages([]);
-      return;
-    }
-    if (isTempChatId(chatId)) {
-      if (draw) {
-        setState({ ui: { loadingChatId: null, streaming: false, streamingChatId: null } });
-        const existing = state.messagesByChat[chatId] || [];
-        drawMessages(existing);
-      }
-      return;
-    }
-    touchRecentChat(recentChatIds, chatId);
-    schedulePrune();
-
-    if (draw) {
-      setState({ ui: { loadingChatId: chatId } });
-      const existing = state.messagesByChat[chatId] || [];
-      drawMessages(existing);
-    }
-
-    const res = await apiFetch(`/api/chats/${chatId}`, { cache: 'no-store' });
-    if (!res.ok) {
-      setState({ ui: { loadingChatId: null } });
-      return;
-    }
-    const data = await res.json();
-
-    const now = Date.now();
-    const isMessageLive = (message) => {
-      const status = String(message?.status || '');
-      const isRunning = message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
-      if (!isRunning) return false;
-      const createdAtMs = Number(message?.created_at || 0) * 1000;
-      if (!createdAtMs) return false;
-      return now - createdAtMs <= STREAM_STALE_MS;
-    };
-
-    let messages = (data.messages || []).map((m) => ({
-      ...m,
-      done: !isMessageLive(m),
-    }));
-    let appliedFallbackId = null;
-    if (fallbackMessage?.id) {
-      let resolvedFallback = fallbackMessage;
-      const fallbackId = String(resolvedFallback.id);
-      const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
-      const fallbackParent = resolvedFallback.parent_id ? String(resolvedFallback.parent_id) : '';
-      const hasSibling = fallbackParent
-        ? messages.some((msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent)
-        : false;
-      if (!hasExact && !hasSibling) {
-        const parentExists = fallbackParent && messages.some((msg) => String(msg.id) === fallbackParent);
-        if (!parentExists) {
-          const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
-          resolvedFallback = { ...resolvedFallback, parent_id: lastUser ? lastUser.id : null };
-        }
-        messages = [...messages, { ...resolvedFallback, done: true }];
-        messages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
-        appliedFallbackId = String(resolvedFallback.id);
-      }
-    }
-
-    const priorLeafId = currentLeafByChatId.get(chatId) || null;
-    const resolvedLeafId = resolveConversationLeafId(messages, {
-      preferredLeafId,
-      currentMessageId: data.chat?.current_message_id || null,
-      fallbackMessageId: appliedFallbackId,
-      previousLeafId: priorLeafId,
-    });
-    if (resolvedLeafId) {
-      currentLeafByChatId.set(chatId, String(resolvedLeafId));
-    }
-
-    const hasRunning = messages.some((m) => isMessageLive(m));
-
-    const nextState = {
-      messagesByChat: { ...state.messagesByChat, [chatId]: messages },
-    };
-    if (updateActiveModel) {
-      let preferredModelId = state.activeModelId;
-      if (modelMode === 'default') {
-        preferredModelId =
-          state.defaultModelId ||
-          state.globalDefaultModelId ||
-          data?.chat?.model ||
-          state.activeModelId;
-      } else if (modelMode === 'chat') {
-        preferredModelId =
-          data?.chat?.model ||
-          state.activeModelId ||
-          state.defaultModelId ||
-          state.globalDefaultModelId;
-      }
-      nextState.activeModelId = preferredModelId;
-    }
-    nextState.ui = {
-      loadingChatId: null,
-      streaming: hasRunning,
-      streamingChatId: hasRunning ? String(chatId) : null,
-    };
-    setState(nextState);
-
-    if (draw) drawMessages(messages);
-    if (hasRunning && state.activeChatId === chatId) {
-      const runningId = streamSession.getRunningMessageId(messages);
-      if (runningId) startResumeStream(chatId, runningId);
-    }
-  }
-
-  function upsertChatFromEvent(chat) {
-    if (!chat?.id) return;
-    const nextChats = [...state.chats];
-    const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
-    if (index >= 0) {
-      const existing = nextChats[index];
-      const merged = { ...existing, ...chat };
-      if (existing?.title && existing.title !== 'New Chat' && chat.title === 'New Chat') {
-        merged.title = existing.title;
-      }
-      nextChats[index] = merged;
-    } else {
-      nextChats.unshift(chat);
-    }
-    nextChats.sort((a, b) => {
-      const updatedDelta = Number(b?.updated_at || 0) - Number(a?.updated_at || 0);
-      if (updatedDelta !== 0) return updatedDelta;
-      return Number(b?.created_at || 0) - Number(a?.created_at || 0);
-    });
-    setState({ chats: nextChats });
-  }
-
-  function updateChatTitleLocal(chatId, title) {
-    setState((prev) => ({
-      chats: prev.chats.map((chat) => (
-        String(chat.id) === String(chatId)
-          ? { ...chat, title, updated_at: Math.floor(Date.now() / 1000) }
-          : chat
-      )),
-    }));
-  }
-
-  function upsertMessageFromEvent(chatId, message, { draw = true } = {}) {
-    if (!chatId || !message?.id) return;
-    const existingMessages = [...(state.messagesByChat[chatId] || [])];
-    const index = existingMessages.findIndex((item) => String(item?.id) === String(message.id));
-    const normalized = { ...message, done: true };
-    if (index >= 0) {
-      existingMessages[index] = { ...existingMessages[index], ...normalized };
-    } else {
-      existingMessages.push(normalized);
-      existingMessages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
-    }
-    currentLeafByChatId.set(chatId, String(message.id));
-    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: existingMessages } });
-    if (draw && state.activeChatId === chatId) drawMessages(existingMessages);
-  }
-
-  const onRealtimeEvent = async (evt) => {
-    const event = evt?.detail || {};
-    const type = String(event.type || '');
-    if (!type) return;
-    const eventKey = [
-      type,
-      String(event.chat_id || ''),
-      String(event.message_id || ''),
-      String(event.user_id || ''),
-      String(event.ts || ''),
-      String(event?.data?.seq || ''),
-    ].join('|');
-    const now = Date.now();
-    const seenAt = processedRealtimeEvents.get(eventKey);
-    if (seenAt && now - seenAt < 120000) return;
-    processedRealtimeEvents.set(eventKey, now);
-    if (processedRealtimeEvents.size > 1000) {
-      for (const [key, ts] of processedRealtimeEvents.entries()) {
-        if (now - ts >= 120000) processedRealtimeEvents.delete(key);
-      }
-    }
-
-    const isSameSession = !!event.origin_session_id && event.origin_session_id === clientSessionId;
-    const eventChat = event?.data?.chat || null;
-    const eventMessage = event?.data?.message || null;
-
-    if (type.startsWith('chat.')) {
-      if (type === 'chat.deleted') {
-        const nextChats = state.chats.filter((chat) => String(chat?.id) !== String(event.chat_id || ''));
-        const nextActiveChatId = state.activeChatId === event.chat_id ? (nextChats[0]?.id || null) : state.activeChatId;
-        setState({ chats: nextChats, activeChatId: nextActiveChatId });
-        if (!nextActiveChatId) drawMessages([]);
-        return;
-      }
-
-      if (eventChat) {
-        upsertChatFromEvent(eventChat);
-        return;
-      }
-
-      const previousActiveChatId = state.activeChatId;
-      await loadChats();
-      if (isSameSession && activeStreamAbort && event.chat_id === previousActiveChatId) {
-        return;
-      }
-      if (state.activeChatId && (event.chat_id === state.activeChatId || state.activeChatId !== previousActiveChatId)) {
-        await loadMessages(state.activeChatId);
-      }
-      if (!state.activeChatId) {
-        drawMessages([]);
-      }
-      return;
-    }
-
-    if (type === 'tool.status' || type === 'tool.result') {
-      const chatId = event.chat_id;
-      if (!chatId) return;
-      const messageId = String(event.message_id || '');
-      if (!messageId) return;
-      const payload = event?.data || {};
-      updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload);
-      if (state.activeChatId === chatId) {
-        updateMessageContentDom(messageId, state.messagesByChat[chatId]?.find((m) => String(m.id) === messageId)?.content || '', {
-          isError: false,
-          isStreaming: true,
-        });
-      }
-      return;
-    }
-
-    if (type === 'message.cancelled') {
-      if (eventChat) {
-        upsertChatFromEvent(eventChat);
-      } else {
-        await loadChats();
-      }
-
-      if (eventMessage) {
-        upsertMessageFromEvent(event.chat_id, eventMessage, { draw: event.chat_id === state.activeChatId });
-      } else if (event.chat_id && event.chat_id === state.activeChatId) {
-        await loadMessages(event.chat_id);
-      }
-
-      if (event.chat_id && event.chat_id === state.activeChatId) {
-        streamingOverrideByChat.delete(event.chat_id);
-        setStreamingState(event.chat_id, false);
-        if (activeStreamAbort) {
-          clearGlobalStreamAbort(activeStreamAbort);
-          activeStreamAbort = null;
-        }
-      }
-      return;
-    }
-
-    if ((type === 'message.created' || type === 'message.delta' || type === 'message.completed') && isSameSession && activeStreamAbort) {
-      return;
-    }
-
-    if (type === 'message.delta') {
-      if (!event.chat_id || event.chat_id !== state.activeChatId) return;
-      // Avoid double-rendering deltas produced by this same browser session.
-      if (activeStreamAbort && (!event.origin_session_id || event.origin_session_id === clientSessionId)) return;
-      const delta = String(event?.data?.delta || '');
-      if (!delta) return;
-
-      const chatId = event.chat_id;
-      const messageId = String(event.message_id || '');
-      const model = event?.data?.model || state.activeModelId;
-      const messages = [...(state.messagesByChat[chatId] || [])];
-      const existingIdx = messageId
-        ? messages.findIndex((m) => String(m?.id || '') === messageId)
-        : -1;
-
-      if (existingIdx >= 0) {
-        const existing = messages[existingIdx] || {};
-        messages[existingIdx] = {
-          ...existing,
-          id: messageId,
-          role: 'assistant',
-          model: existing.model || model,
-          content: `${existing.content || ''}${delta}`,
-          done: false,
-        };
-      } else {
-        messages.push({
-          id: messageId || `remote-${Date.now()}`,
-          role: 'assistant',
-          model,
-          content: delta,
-          done: false,
-        });
-      }
-
-      setState({ messagesByChat: { ...state.messagesByChat, [chatId]: messages } });
-      drawMessages(messages);
-      return;
-    }
-
-    if (type === 'message.created' || type === 'message.completed') {
-      if (eventChat) {
-        upsertChatFromEvent(eventChat);
-      } else {
-        await loadChats();
-      }
-
-      if (eventMessage) {
-        if (isSameSession && eventMessage?.role === 'user') {
-          matchPendingTempMessage(event.chat_id, eventMessage);
-        }
-        upsertMessageFromEvent(event.chat_id, eventMessage, { draw: event.chat_id === state.activeChatId });
-        return;
-      }
-
-      if (event.chat_id && event.chat_id === state.activeChatId) {
-        await loadMessages(event.chat_id);
-      }
-    }
-  };
   window.addEventListener('growchat:realtime', onRealtimeEvent);
-
-  function startNewChat() {
-    const activeTempId = state.activeChatId && isTempChatId(state.activeChatId) ? state.activeChatId : null;
-    if (activeTempId && (state.messagesByChat[activeTempId] || []).length === 0) {
-      setState({ activeChatId: activeTempId, newChatDraft: '' });
-      if (state.newChatToolSelection !== null) {
-        setDraftToolNames(activeTempId, state.newChatToolSelection);
-        setDraftToolNames(null, null);
-      }
-      syncChatUrl(activeTempId);
-      drawMessages([]);
-      return;
-    }
-
-    const tempChat = buildTempChat();
-    if (state.newChatToolSelection !== null) {
-      setDraftToolNames(tempChat.id, state.newChatToolSelection);
-      setDraftToolNames(null, null);
-    }
-    setState((prev) => ({
-      chats: [tempChat, ...pruneTempChats(prev.chats)],
-      activeChatId: tempChat.id,
-      activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
-      newChatDraft: '',
-    }));
-    syncChatUrl(tempChat.id);
-    drawMessages([]);
-  }
 
   async function sendSingleMessage(text, hooks = {}, options = {}) {
     return chatMessageFlow?.sendSingleMessage?.(text, hooks, options);
-    let chatId = state.activeChatId;
-    let tempChatId = null;
-    let autoTitle = null;
-    const isTempChat = chatId && isTempChatId(chatId);
-    const hadMessagesBefore = chatId ? (state.messagesByChat[chatId] || []).length > 0 : false;
-
-    if (!chatId) {
-      const tempChat = buildTempChat();
-      tempChatId = tempChat.id;
-      if (state.newChatToolSelection !== null) {
-        setDraftToolNames(tempChatId, state.newChatToolSelection);
-        setDraftToolNames(null, null);
-      }
-
-      setState((prev) => ({
-        chats: [tempChat, ...pruneTempChats(prev.chats)],
-        activeChatId: tempChatId,
-        activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
-      }));
-
-      chatId = tempChatId;
-      syncChatUrl(tempChatId);
-    } else if (isTempChat) {
-      tempChatId = chatId;
-      const exists = state.chats.some((chat) => String(chat.id) === String(chatId));
-      if (!exists) {
-        const tempChat = buildTempChat(chatId);
-        setState((prev) => ({
-          chats: [tempChat, ...pruneTempChats(prev.chats)],
-          activeChatId: chatId,
-          activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
-        }));
-      }
-      syncChatUrl(chatId);
-    }
-
-    if (!state.attachmentsByChat?.[chatId] && (state.newChatAttachments || []).length > 0) {
-      setState({
-        attachmentsByChat: {
-          ...(state.attachmentsByChat || {}),
-          [chatId]: state.newChatAttachments,
-        },
-        newChatAttachments: [],
-      });
-    }
-
-    if (tempChatId) {
-      const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
-      if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
-        const snippet = String(text).trim().replace(/\s+/g, ' ').slice(0, 60);
-        if (snippet) {
-          autoTitle = snippet;
-          updateChatTitleLocal(chatId, snippet);
-        }
-      }
-    }
-
-    const branchParentId = currentLeafByChatId.get(chatId) || null;
-    const tempUserId = `temp-user-${Date.now()}`;
-    const tempAssistantId = `temp-assistant-${Date.now()}`;
-    const nowTs = Math.floor(Date.now() / 1000);
-    let localMessages = [...(state.messagesByChat[chatId] || [])];
-    const draftAttachments = getDraftAttachments(chatId);
-    const tempUserMessage = {
-      id: tempUserId,
-      role: 'user',
-      content: text,
-      model: state.activeModelId,
-      attachments: draftAttachments,
-      parent_id: branchParentId,
-      created_at: nowTs,
-      done: true,
-    };
-    localMessages.push(tempUserMessage);
-    registerPendingTempMessage(chatId, tempUserMessage);
-    setBranchSelection(chatId, branchParentId, tempUserId);
-    localMessages.push({
-      id: tempAssistantId,
-      role: 'assistant',
-      content: '',
-      model: state.activeModelId,
-      parent_id: tempUserId,
-      created_at: nowTs + 1,
-      done: false,
-    });
-    registerPendingTempMessage(chatId, {
-      id: tempAssistantId,
-      role: 'assistant',
-      content: '',
-      parent_id: tempUserId,
-      created_at: nowTs + 1,
-    });
-
-    // Ensure branch projection follows the optimistic in-flight path.
-    currentLeafByChatId.set(chatId, tempAssistantId);
-
-    setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-    if (state.activeChatId === chatId) drawMessages(localMessages);
-
-    if (tempChatId) {
-    const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
-      const payload = modelToUse ? { model: modelToUse } : {};
-      const res = await apiFetch('/api/chats', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        // Roll back optimistic chat on failure.
-        setState((prev) => {
-          const nextChats = prev.chats.filter((c) => String(c.id) !== String(tempChatId));
-          const nextActiveChatId = prev.activeChatId === tempChatId ? (nextChats[0]?.id || null) : prev.activeChatId;
-          const nextMessagesByChat = { ...prev.messagesByChat };
-          delete nextMessagesByChat[tempChatId];
-          return { chats: nextChats, activeChatId: nextActiveChatId, messagesByChat: nextMessagesByChat };
-        });
-        hooks.onFinished?.();
-        return;
-      }
-      const data = await res.json();
-      const realChatId = data.chat.id;
-
-      setState((prev) => {
-        let replaced = false;
-        let nextChats = prev.chats.map((c) => {
-          if (String(c.id) === String(tempChatId)) {
-            replaced = true;
-            const nextChat = { ...data.chat };
-            if (c.title && c.title !== 'New Chat' && data.chat.title === 'New Chat') {
-              nextChat.title = c.title;
-            }
-            return nextChat;
-          }
-          return c;
-        });
-        if (!replaced) {
-          nextChats = [data.chat, ...nextChats];
-        }
-        // De-dupe by id (realtime chat.created can arrive before this response).
-        const seen = new Set();
-        const deduped = [];
-        for (const chat of nextChats) {
-          const key = String(chat.id);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          deduped.push(chat);
-        }
-
-        const nextMessagesByChat = { ...prev.messagesByChat };
-        if (nextMessagesByChat[tempChatId]) {
-          nextMessagesByChat[realChatId] = nextMessagesByChat[tempChatId];
-          delete nextMessagesByChat[tempChatId];
-        }
-        const nextAttachmentsByChat = { ...(prev.attachmentsByChat || {}) };
-        if (nextAttachmentsByChat[tempChatId]) {
-          nextAttachmentsByChat[realChatId] = nextAttachmentsByChat[tempChatId];
-          delete nextAttachmentsByChat[tempChatId];
-        }
-        const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
-        if (nextToolSelectionsByChat[tempChatId] !== undefined) {
-          nextToolSelectionsByChat[realChatId] = nextToolSelectionsByChat[tempChatId];
-          delete nextToolSelectionsByChat[tempChatId];
-        }
-        return {
-          chats: deduped,
-          activeChatId: realChatId,
-          activeModelId: prev.activeModelId || data.chat.model || prev.defaultModelId || prev.globalDefaultModelId,
-          messagesByChat: nextMessagesByChat,
-          attachmentsByChat: nextAttachmentsByChat,
-          toolSelectionsByChat: nextToolSelectionsByChat,
-        };
-      });
-
-      if (currentLeafByChatId.has(tempChatId)) {
-        const leafId = currentLeafByChatId.get(tempChatId);
-        currentLeafByChatId.delete(tempChatId);
-        currentLeafByChatId.set(realChatId, leafId);
-      }
-      if (streamingOverrideByChat.has(tempChatId)) {
-        const override = streamingOverrideByChat.get(tempChatId);
-        streamingOverrideByChat.delete(tempChatId);
-        streamingOverrideByChat.set(realChatId, override);
-      }
-
-      chatId = realChatId;
-      syncChatUrl(realChatId);
-
-      if (autoTitle) {
-        apiFetch(`/api/chats/${realChatId}`, {
-          method: 'PUT',
-          body: JSON.stringify({ title: autoTitle })
-        }).catch(() => {});
-      }
-    }
-
-    if (!autoTitle) {
-      const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
-      if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
-        const snippet = String(text).trim().replace(/\s+/g, ' ').slice(0, 60);
-        if (snippet) {
-          autoTitle = snippet;
-          updateChatTitleLocal(chatId, snippet);
-          if (!String(chatId).startsWith('temp-')) {
-            apiFetch(`/api/chats/${chatId}`, {
-              method: 'PUT',
-              body: JSON.stringify({ title: snippet })
-            }).catch(() => {});
-          }
-        }
-      }
-    }
-
-    const controller = new AbortController();
-    activeStreamAbort = () => controller.abort();
-    setGlobalStreamAbort(activeStreamAbort);
-    hooks.onAbortable?.(activeStreamAbort);
-
-    let res;
-    setStreamingState(chatId, true);
-    try {
-      const attachmentIds = (draftAttachments || [])
-        .map((item) => item?.id)
-        .filter(Boolean);
-      const payload = {
-        message: text,
-        model: state.activeModelId || undefined,
-        ...(attachmentIds.length ? { attachments: attachmentIds } : {}),
-      };
-      res = await apiFetch(`/api/chats/${chatId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    } catch (err) {
-      setStreamingState(chatId, false);
-      const isAbort = err?.name === 'AbortError';
-      if (isAbort) {
-        if (localMessages.length > 0) {
-          localMessages[localMessages.length - 1].done = true;
-          localMessages[localMessages.length - 1].content = 'Stopped.';
-          setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-          if (state.activeChatId === chatId) drawMessages(localMessages);
-        }
-      } else {
-        applyAssistantErrorMessage(chatId, tempAssistantId, 'Failed to connect to the server.');
-      }
-      return;
-    }
-
-    if (!res.ok || !res.body) {
-      setStreamingState(chatId, false);
-      let errorText = 'Failed to connect to the server.';
-      try {
-        const errPayload = await res.json();
-        errorText = formatApiErrorMessage(errPayload, errorText);
-      } catch {}
-      applyAssistantErrorMessage(chatId, tempAssistantId, errorText);
-      return;
-    }
-
-    if (draftAttachments.length > 0) {
-      setDraftAttachments(chatId, []);
-    }
-
-    let assistantMessageId = tempAssistantId;
-    let errorMessage = null;
-    let errorActive = false;
-    let assistantText = '';
-    await consumeSseTextStream(res.body, {
-      onEvent: (payload) => {
-      if (payload?.event === 'start' && payload?.user_message_id) {
-        replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
-      }
-      if (payload?.event === 'start' && payload?.message_id) {
-        assistantMessageId = String(payload.message_id);
-        replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
-        if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
-          thinkingActiveByMessageId.set(String(assistantMessageId), true);
-        }
-        if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-          thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-        }
-        applyAssistantText(true);
-      }
-      if (payload?.event === 'reasoning_start') {
-        if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-          thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-        }
-        thinkingActiveByMessageId.set(String(assistantMessageId), true);
-        ensureThinkingBlock(messageBlocksById, assistantMessageId);
-        applyAssistantText(true);
-      }
-      if (payload?.event === 'reasoning_delta') {
-        const delta = String(payload.delta || '');
-        if (delta) {
-          appendBlock(messageBlocksById, assistantMessageId, 'thinking', delta);
-          thinkingActiveByMessageId.set(String(assistantMessageId), true);
-          applyAssistantText(true);
-        }
-      }
-      if (payload?.event === 'reasoning_end') {
-        const duration = Number(payload.duration_ms);
-        if (Number.isFinite(duration) && duration > 0) {
-          thinkingDurationByMessageId.set(String(assistantMessageId), duration);
-        }
-        thinkingActiveByMessageId.delete(String(assistantMessageId));
-      }
-      if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-        const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
-        updateToolCallState(toolCallsByMessageId, messageBlocksById, targetId, payload);
-        applyAssistantText();
-      }
-      if (payload?.error) {
-        errorMessage = payload.message || payload.error || 'LLM request failed';
-        errorActive = true;
-        const label = `Error: ${errorMessage}`;
-        assistantText = assistantText ? `${assistantText}\n\n${label}` : label;
-        applyAssistantText();
-      }
-      notePayloadSeq(payload, assistantMessageId);
-      },
-      onDelta: (delta) => {
-        if (!delta) return;
-        assistantText += delta;
-        appendBlock(messageBlocksById, assistantMessageId, 'text', delta);
-        applyAssistantText();
-      },
-    });
-
-    function applyAssistantText(streaming = true) {
-      // 1. Update streaming override for immediate projection rendering
-      streamingOverrideByChat.set(chatId, {
-        targetMsgId: assistantMessageId,
-        content: assistantText,
-      });
-
-      // 2. ALSO update global state so drawMessages(messagesByChat[chatId]) sees the new content
-      // and keeps other messages visible.
-      const currentMessages = [...(state.messagesByChat[chatId] || [])];
-      const targetIdx = currentMessages.findIndex(m => String(m.id) === String(assistantMessageId));
-      if (targetIdx >= 0) {
-        currentMessages[targetIdx] = { 
-          ...currentMessages[targetIdx], 
-          content: assistantText,
-          status: errorActive ? 'error' : currentMessages[targetIdx].status,
-          error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
-        };
-        setState((prev) => ({ 
-          messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages } 
-        }));
-      }
-
-      if (state.activeChatId === chatId) {
-        updateMessageContentDom(assistantMessageId, assistantText, { isError: errorActive, isStreaming: streaming });
-      }
-    }
-
-    try {
-      const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
-      if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
-        thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
-      }
-      thinkingActiveByMessageId.delete(String(assistantMessageId));
-      applyAssistantText(false);
-      streamingOverrideByChat.delete(chatId);
-      const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-        content: assistantText,
-        errorActive,
-        errorMessage,
-        model: state.activeModelId,
-        parentId: resolveTempMessageId(chatId, tempUserId),
-      });
-      await loadMessages(chatId, {
-        draw: state.activeChatId === chatId,
-        updateActiveModel: state.activeChatId === chatId,
-        fallbackMessage: fallback,
-      });
-    } catch (err) {
-      if (err?.name !== 'AbortError') {
-        console.error('Stream error:', err);
-              if (!errorActive) {
-                errorMessage = String(err?.message || 'LLM request failed');
-                errorActive = true;
-                assistantText = '';
-                applyAssistantText(false);
-              }
-        const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-          content: assistantText,
-          errorActive,
-          errorMessage,
-          model: state.activeModelId,
-          parentId: resolveTempMessageId(chatId, tempUserId),
-        });
-        await loadMessages(chatId, {
-          draw: state.activeChatId === chatId,
-          updateActiveModel: state.activeChatId === chatId,
-          fallbackMessage: fallback,
-        });
-      }
-    } finally {
-      streamingOverrideByChat.delete(chatId);
-      clearGlobalStreamAbort(activeStreamAbort);
-      activeStreamAbort = null;
-      setStreamingState(chatId, false);
-      hooks.onFinished?.();
-    }
   }
 
   async function sendMessage(text, hooks = {}, options = {}) {
@@ -1593,92 +724,6 @@ function wireChat(root) {
     }
     return chatMessageFlow?.sendMessage?.(prompt, hooks, options);
   }
-
-  const onToggleSidebar = () => {
-    if (state.isMobile) {
-      setState({ showSidebar: !state.showSidebar });
-    } else {
-      // On desktop, toggle between expanded and slim
-      // If it's hidden, show it first
-      if (!state.showSidebar) {
-        setState({ showSidebar: true });
-      } else {
-        setState({ sidebarCollapsed: !state.sidebarCollapsed });
-      }
-    }
-  };
-  const onOpenSearch = async () => {
-    await ensureSearchModal();
-    setState({ showSearch: true });
-  };
-  const onNewChat = () => startNewChat();
-  const onHome = () => {
-    window.history.pushState({}, '', '/');
-    setState({ activeChatId: null });
-    syncChatUrl(null);
-    drawMessages([]);
-  };
-  const onOpenArchivedEvent = () => openArchivedModal();
-  const onPopState = async () => {
-    const match = window.location.pathname.match(/^\/c\/([^/]+)$/);
-    const routeChatId = match ? decodeURIComponent(match[1]) : null;
-
-    if (!routeChatId) {
-      setState({ activeChatId: null });
-      drawMessages([]);
-      return;
-    }
-
-    const exists = state.chats.some((chat) => chat.id === routeChatId);
-    if (!exists) {
-      syncChatUrl(state.activeChatId, { replace: true });
-      return;
-    }
-
-    setState({ activeChatId: routeChatId });
-    await loadMessages(routeChatId, { modelMode: 'default' });
-  };
-
-  sidebarHomeBtn?.addEventListener('click', onHome);
-  toggleSidebarMobile.addEventListener('click', onToggleSidebar);
-  toggleSidebarDesktop.addEventListener('click', onToggleSidebar);
-  openSearchBtn.addEventListener('click', onOpenSearch);
-  newChatBtn.addEventListener('click', onNewChat);
-
-  messagesList.addEventListener('click', (event) => {
-    const thinkingTarget = event.target?.closest?.('[data-thinking-toggle]');
-    if (thinkingTarget) {
-      const key = thinkingTarget.getAttribute('data-thinking-toggle');
-      if (!key) return;
-      const isCollapsed = thinkingCollapsedByKey.get(key) ?? false;
-      const next = !isCollapsed;
-      thinkingCollapsedByKey.set(key, next);
-      const body = messagesList.querySelector(`[data-thinking-body="${key}"]`);
-      const chevron = messagesList.querySelector(`[data-thinking-chevron="${key}"]`);
-      if (body) body.classList.toggle('hidden', next);
-      if (chevron) {
-        chevron.classList.toggle('-rotate-90', next);
-        chevron.classList.toggle('rotate-0', !next);
-      }
-      return;
-    }
-    const target = event.target?.closest?.('[data-tool-toggle]');
-    if (!target) return;
-    const key = target.getAttribute('data-tool-toggle');
-    if (!key) return;
-    const expanded = toolExpandedByKey.get(key) === true;
-    const next = !expanded;
-    toolExpandedByKey.set(key, next);
-    const body = messagesList.querySelector(`[data-tool-body="${key}"]`);
-    const chevron = messagesList.querySelector(`[data-tool-chevron="${key}"]`);
-    if (body) body.classList.toggle('hidden', !next);
-    if (chevron) {
-      chevron.classList.toggle('-rotate-90', !next);
-      chevron.classList.toggle('rotate-0', next);
-    }
-  });
-  window.addEventListener('growchat:open-archived', onOpenArchivedEvent);
-  window.addEventListener('popstate', onPopState);
 
   const destroyChatFileEvents = bindChatFileEvents({
     state,
@@ -1692,40 +737,6 @@ function wireChat(root) {
     getFileContentType,
     isAttachmentAllowedByModel,
     isSupportedAttachmentType,
-  });
-
-  let isChatsCollapsed = false;
-  toggleChatsBtn.addEventListener('click', () => {
-    isChatsCollapsed = !isChatsCollapsed;
-    if (isChatsCollapsed) {
-      chatListContainer.classList.add('hidden');
-      toggleChatsIcon.classList.add('rotate-180');
-    } else {
-      chatListContainer.classList.remove('hidden');
-      toggleChatsIcon.classList.remove('rotate-180');
-    }
-  });
-
-  headerMenuBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    headerMenuDropdown.classList.toggle('hidden');
-  });
-
-  headerMenuDropdown.addEventListener('click', async (e) => {
-    const actionBtn = e.target.closest('button[data-action]');
-    if (!actionBtn || !state.activeChatId) return;
-    
-    const action = actionBtn.dataset.action;
-    const chatId = state.activeChatId;
-    const chat = state.chats.find(c => c.id === chatId);
-    const handlers = getChatHandlers(chat);
-
-    if (action === 'share') handlers.share(chatId);
-    else if (action === 'rename') handlers.rename(chatId);
-    else if (action === 'archive') handlers.archive(chatId);
-    else if (action === 'delete') handlers.delete(chatId);
-
-    headerMenuDropdown.classList.add('hidden');
   });
 
   let lastActiveChatId = state.activeChatId;
@@ -1757,15 +768,6 @@ function wireChat(root) {
     drawChats(currentState.chats, currentState.activeChatId);
     refreshChatListObserver();
   });
-
-  sidebarBackdrop.addEventListener('click', () => setState({ showSidebar: false }));
-
-  const onDocumentClickForHeaderMenu = (e) => {
-    if (!headerMenuBtn.contains(e.target) && !headerMenuDropdown.contains(e.target)) {
-      headerMenuDropdown.classList.add('hidden');
-    }
-  };
-  document.addEventListener('click', onDocumentClickForHeaderMenu);
 
   drawChats(state.chats, state.activeChatId);
   refreshChatListObserver();
@@ -1832,7 +834,6 @@ function wireChat(root) {
   return () => {
     if (activeStreamAbort) activeStreamAbort();
     streamSession.dispose();
-    if (chatListLoadObserver) chatListLoadObserver.disconnect();
     unsubscribe();
     uiResources.clearAttachmentCaches();
     destroySearchModal?.();
@@ -1841,16 +842,12 @@ function wireChat(root) {
     destroySidebar?.();
     inputComponent?.destroy?.();
     destroyPlaceholder?.();
-    sidebarHomeBtn?.removeEventListener('click', onHome);
-    toggleSidebarMobile.removeEventListener('click', onToggleSidebar);
-    toggleSidebarDesktop.removeEventListener('click', onToggleSidebar);
-    openSearchBtn.removeEventListener('click', onOpenSearch);
-    newChatBtn.removeEventListener('click', onNewChat);
-    window.removeEventListener('growchat:open-archived', onOpenArchivedEvent);
     destroyChatFileEvents?.();
+    destroyMessageListInteractions?.();
     window.removeEventListener('growchat:realtime', onRealtimeEvent);
-    window.removeEventListener('popstate', onPopState);
     unbindToolServersInvalidationListener();
+    destroyShellEvents?.();
+    shellController.dispose?.();
     root.__cleanup = null;
   };
 }

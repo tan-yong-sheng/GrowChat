@@ -22,6 +22,16 @@ export async function updateAdminRbacRole(id, payload) {
   return readJsonResponse(res, `Failed to update role (${res.status})`);
 }
 
+export async function deleteAdminRbacRole(id) {
+  const res = await apiFetch(`/api/admin/rbac/roles/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    return parseApiError(res, `Failed to delete role (${res.status})`);
+  }
+  return res;
+}
+
 export async function fetchAdminUsers({ limit = 200, offset = 0 } = {}) {
   const params = new URLSearchParams();
   params.set('limit', String(limit));

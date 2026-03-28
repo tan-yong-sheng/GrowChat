@@ -639,6 +639,103 @@ describe('usersRouter', () => {
     ]);
   });
 
+  it('creates users with custom roles', async () => {
+    mocks.db.first.mockImplementation(async (sql, params = []) => {
+      const query = String(sql || '');
+      if (query.includes('SELECT name FROM roles WHERE LOWER(name) = LOWER(?)')) {
+        return { name: 'Support' };
+      }
+      if (query.includes('SELECT id FROM users WHERE email = ?')) {
+        return null;
+      }
+      if (query.includes('SELECT id, email, name, account_status, settings, created_at, updated_at, last_active_at FROM users WHERE id = ?')) {
+        return {
+          id: 'u2',
+          email: 'support@example.com',
+          name: 'Support Agent',
+          account_status: 'active',
+          settings: '{}',
+          created_at: 10,
+          updated_at: 10,
+          last_active_at: 10,
+        };
+      }
+      return null;
+    });
+
+    const res = await usersRouter(
+      makeReq('/api/admin/users', 'POST', {
+        email: 'support@example.com',
+        name: 'Support Agent',
+        password: 'Password123',
+        primary_role: 'Support',
+      }),
+      env,
+      {},
+      { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+      '/api/admin/users'
+    );
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user).toMatchObject({
+      email: 'support@example.com',
+      name: 'Support Agent',
+      primary_role: 'Support',
+    });
+    expect(mocks.db.run.mock.calls.some(([sql, params]) => String(sql).includes('INSERT OR IGNORE INTO user_roles') && params?.[2] === 'Support')).toBe(true);
+  });
+
+  it('updates users with custom roles', async () => {
+    mocks.db.first.mockImplementation(async (sql) => {
+      const query = String(sql || '');
+      if (query.includes('SELECT id, account_status, email, name FROM users WHERE id = ?')) {
+        return {
+          id: 'u2',
+          account_status: 'active',
+          email: 'user@example.com',
+          name: 'User',
+        };
+      }
+      if (query.includes('SELECT name FROM roles WHERE LOWER(name) = LOWER(?)')) {
+        return { name: 'Support' };
+      }
+      if (query.includes('SELECT COALESCE((')) {
+        return { role: 'member' };
+      }
+      if (query.includes('SELECT id, email, name, account_status, settings, created_at, updated_at FROM users WHERE id = ?')) {
+        return {
+          id: 'u2',
+          email: 'user@example.com',
+          name: 'User',
+          account_status: 'active',
+          settings: '{}',
+          created_at: 10,
+          updated_at: 11,
+        };
+      }
+      return null;
+    });
+
+    const res = await usersRouter(
+      makeReq('/api/admin/users/u2', 'PUT', {
+        primary_role: 'Support',
+      }),
+      env,
+      {},
+      { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+      '/api/admin/users/u2'
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.user).toMatchObject({
+      id: 'u2',
+      primary_role: 'Support',
+    });
+    expect(mocks.db.run.mock.calls.some(([sql, params]) => String(sql).includes('INSERT OR IGNORE INTO user_roles') && params?.[2] === 'Support')).toBe(true);
+  });
+
   it('deletes a user record instead of deactivating it', async () => {
     mocks.db.first.mockResolvedValueOnce({
       id: 'u2',
