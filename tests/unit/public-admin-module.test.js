@@ -153,26 +153,27 @@ describe('admin module', () => {
     expect(document.querySelector('#users-tabs-container a[data-subnav="policies"]')).not.toBeNull();
   }, 15000);
 
-  it('hides the policies link from the settings sidebar while keeping the route reachable', async () => {
-    history.replaceState({}, '', '/admin/settings/general');
+  it('mounts the general renderer from the canonical system route', async () => {
+    history.replaceState({}, '', '/admin/system/general');
     const { renderAdminPage } = await loadModule();
 
     await renderAdminPage(document.getElementById('app'));
 
-    expect(document.querySelector('#settings-tabs-container a[data-subnav="policies"]')).toBeNull();
+    expect(document.querySelector('a[data-nav="system"]')).not.toBeNull();
+    expect(document.querySelector('#system-tabs-container a[data-subnav="general"]')).not.toBeNull();
     expect(document.body.textContent).toContain('General');
   }, 15000);
 
-  it('renders the shared save footer for settings pages from the shell', async () => {
-    history.replaceState({}, '', '/admin/settings/general');
+  it('renders the shared save footer for system pages from the shell', async () => {
+    history.replaceState({}, '', '/admin/system/general');
     const { renderAdminPage } = await loadModule();
 
     await renderAdminPage(document.getElementById('app'));
 
-    await vi.waitFor(() => expect(document.querySelector('#settings-action-footer')).not.toBeNull());
-    expect(document.querySelector('#settings-action-footer')?.classList.contains('hidden')).toBe(false);
-    expect(document.querySelector('#save-settings')).not.toBeNull();
-    expect(document.querySelector('#save-settings')?.disabled).toBe(true);
+    await vi.waitFor(() => expect(document.querySelector('#system-action-footer')).not.toBeNull());
+    expect(document.querySelector('#system-action-footer')?.classList.contains('hidden')).toBe(false);
+    expect(document.querySelector('#save-system')).not.toBeNull();
+    expect(document.querySelector('#save-system')?.disabled).toBe(true);
   }, 15000);
 
   it('prompts before leaving users when the roles draft is dirty', async () => {
@@ -188,7 +189,7 @@ describe('admin module', () => {
     expect(window.location.pathname).toBe('/admin/users/roles');
 
     document.querySelector('#unsaved-discard')?.click();
-    await vi.waitFor(() => expect(window.location.pathname).toBe('/admin/settings/general'));
+    await vi.waitFor(() => expect(window.location.pathname).toBe('/admin/settings/connections'));
   }, 15000);
 
   it('shows a main save footer on dirty users overview drafts', async () => {

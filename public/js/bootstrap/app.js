@@ -19,6 +19,12 @@ async function renderAdminRoute(container) {
   return renderAdminPage(container);
 }
 
+async function renderAccountRoute(container) {
+  const { renderAccountPage } = await import('../features/account/account.js');
+  container.dataset.view = 'account';
+  return renderAccountPage(container);
+}
+
 let renderChatFn = null;
 async function ensureRenderChat() {
   if (renderChatFn) return renderChatFn;
@@ -48,8 +54,52 @@ export async function renderCurrentRoute() {
     return renderCurrentRoute();
   }
 
+  if (path === '/admin/settings/general' || path.startsWith('/admin/settings/general/')) {
+    const url = new URL(window.location.href);
+    url.pathname = '/admin/system/general';
+    window.history.replaceState({}, '', url);
+    return renderCurrentRoute();
+  }
+
+  if (path === '/admin/settings' || path === '/admin/settings/') {
+    const url = new URL(window.location.href);
+    url.pathname = '/admin/settings/connections';
+    window.history.replaceState({}, '', url);
+    return renderCurrentRoute();
+  }
+
   if (path === '/user/settings/resources' || path.startsWith('/user/settings/resources/')) {
     window.history.replaceState({}, '', '/');
+    return renderCurrentRoute();
+  }
+
+  if (path === '/account/settings' || path === '/account/settings/') {
+    window.history.replaceState({}, '', '/account/settings/connections');
+    return renderCurrentRoute();
+  }
+
+  if (path === '/account/settings/general' || path.startsWith('/account/settings/general/')) {
+    window.history.replaceState({}, '', '/account/profile/overview');
+    return renderCurrentRoute();
+  }
+
+  if (path === '/account/settings/preferences' || path.startsWith('/account/settings/preferences/')) {
+    window.history.replaceState({}, '', '/account/profile/overview');
+    return renderCurrentRoute();
+  }
+
+  if (path === '/account/profile/general' || path.startsWith('/account/profile/general/')) {
+    window.history.replaceState({}, '', '/account/profile/overview');
+    return renderCurrentRoute();
+  }
+
+  if (path === '/account/profile/preferences' || path.startsWith('/account/profile/preferences/')) {
+    window.history.replaceState({}, '', '/account/profile/overview');
+    return renderCurrentRoute();
+  }
+
+  if (path === '/account/profile' || path === '/account/profile/') {
+    window.history.replaceState({}, '', '/account/profile/overview');
     return renderCurrentRoute();
   }
 
@@ -76,6 +126,11 @@ export async function renderCurrentRoute() {
 
   if (path.startsWith('/admin')) {
     await renderAdminRoute(app);
+    return;
+  }
+
+  if (path.startsWith('/account')) {
+    await renderAccountRoute(app);
     return;
   }
 

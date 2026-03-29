@@ -62,6 +62,31 @@ describe('user profile footer', () => {
 
     footer.__cleanup?.();
   });
+
+  it('navigates settings to the account settings shell', async () => {
+    localStorage.setItem('growchat_auth', JSON.stringify({
+      user: { name: 'Sam', avatar_emoji: 'S', status: 'away' },
+    }));
+
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+    const guardNavigation = vi.fn(async () => true);
+
+    const { createUserProfileFooter } = await loadModules();
+    const { state: currentState } = await import('../../public/js/shared/store.js');
+    currentState.permissions = [];
+
+    const footer = await createUserProfileFooter({ guardNavigation });
+    document.body.appendChild(footer);
+
+    footer.querySelector('[data-action="preferences"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+
+    expect(guardNavigation).toHaveBeenCalledTimes(1);
+    expect(pushStateSpy).toHaveBeenCalledWith({}, '', '/account/profile/overview');
+    expect(window.location.pathname).toBe('/account/profile/overview');
+
+    footer.__cleanup?.();
+  });
 });
 
 

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   publicRouter: vi.fn(),
   authRouter: vi.fn(),
   chatRouter: vi.fn(),
+  userSettingsRouter: vi.fn(),
   usersRouter: vi.fn(),
   filesRouter: vi.fn(),
   adminRouter: vi.fn(),
@@ -91,6 +92,9 @@ vi.mock('../../src/routers/auth.js', () => ({
 vi.mock('../../src/routers/chat/index.js', () => ({
   chatRouter: (...args) => mocks.chatRouter(...args),
 }));
+vi.mock('../../src/routers/user-settings.js', () => ({
+  userSettingsRouter: (...args) => mocks.userSettingsRouter(...args),
+}));
 vi.mock('../../src/routers/users.js', () => ({
   usersRouter: (...args) => mocks.usersRouter(...args),
 }));
@@ -122,6 +126,7 @@ describe('worker entry point', () => {
     mocks.publicRouter.mockResolvedValue(null);
     mocks.authRouter.mockResolvedValue(null);
     mocks.chatRouter.mockResolvedValue(null);
+    mocks.userSettingsRouter.mockResolvedValue(null);
     mocks.usersRouter.mockResolvedValue(null);
     mocks.filesRouter.mockResolvedValue(null);
     mocks.adminRouter.mockResolvedValue(null);
@@ -205,6 +210,21 @@ describe('worker entry point', () => {
     expect(res.status).toBe(204);
     expect(mocks.publicRouter).not.toHaveBeenCalled();
     expect(mocks.chatRouter).not.toHaveBeenCalled();
+  });
+
+  it('routes account settings requests to the user settings router', async () => {
+    const env = { DB: makeDb(), SESSIONS: {}, ASSETS: {} };
+    const ctx = { waitUntil: vi.fn() };
+    mocks.userSettingsRouter.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    const res = await app.fetch(makeReq('/api/users/me/settings', 'GET', { headers: { Authorization: 'Bearer access-token' } }), env, ctx);
+
+    expect(res.status).toBe(200);
+    expect(mocks.userSettingsRouter).toHaveBeenCalled();
+    expect(mocks.usersRouter).not.toHaveBeenCalled();
   });
 });
 

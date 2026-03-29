@@ -12,12 +12,12 @@ export function getAdminSharedActionFooterConfig(mainTab, subTab) {
     };
   }
 
-  if (mainTab === 'settings' && subTab !== 'policies') {
+  if ((mainTab === 'settings' || mainTab === 'system') && subTab !== 'policies') {
     if (subTab === 'general') {
       return {
-        footerId: 'settings-action-footer',
-        dirtyId: 'settings-dirty',
-        saveId: 'save-settings',
+        footerId: mainTab === 'system' ? 'system-action-footer' : 'settings-action-footer',
+        dirtyId: mainTab === 'system' ? 'system-dirty' : 'settings-dirty',
+        saveId: mainTab === 'system' ? 'save-system' : 'save-settings',
         buttonLabel: 'Save',
         dirtyLabel: 'Unsaved changes',
       };
@@ -163,14 +163,14 @@ export function createAdminShellController({
     const config = getFooterConfig(mainTab, subTab);
     if (!config) return;
 
-    const dirtyFn = mainTab === 'settings'
+    const dirtyFn = mainTab === 'settings' || mainTab === 'system'
       ? data.settingsDirtyCheckers?.[subTab]
       : data.usersDirtyCheckers?.[subTab];
-    const saveFn = mainTab === 'settings'
+    const saveFn = mainTab === 'settings' || mainTab === 'system'
       ? data.settingsSaveHandlers?.[subTab]
       : data.usersSaveHandlers?.[subTab];
     const dirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
-    const saving = mainTab === 'settings'
+    const saving = mainTab === 'settings' || mainTab === 'system'
       ? Boolean(
         (subTab === 'general' && data.generalSettings?.loading)
         || (subTab === 'connections' && data.connectionsSettings?.saving)
@@ -209,14 +209,14 @@ export function createAdminShellController({
       return;
     }
 
-    const dirtyFn = mainTab === 'settings'
+    const dirtyFn = mainTab === 'settings' || mainTab === 'system'
       ? data.settingsDirtyCheckers?.[subTab]
       : data.usersDirtyCheckers?.[subTab];
-    const saveFn = mainTab === 'settings'
+    const saveFn = mainTab === 'settings' || mainTab === 'system'
       ? data.settingsSaveHandlers?.[subTab]
       : data.usersSaveHandlers?.[subTab];
     const dirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
-    const saving = mainTab === 'settings'
+    const saving = mainTab === 'settings' || mainTab === 'system'
       ? Boolean(
         (subTab === 'general' && data.generalSettings?.loading)
         || (subTab === 'connections' && data.connectionsSettings?.saving)
@@ -239,7 +239,7 @@ export function createAdminShellController({
   const handleSharedActionSave = async () => {
     const mainTab = getMainTab();
     const subTab = getSubTab();
-    const saveFn = mainTab === 'settings'
+    const saveFn = mainTab === 'settings' || mainTab === 'system'
       ? data.settingsSaveHandlers?.[subTab]
       : data.usersSaveHandlers?.[subTab];
     if (typeof saveFn !== 'function') return false;

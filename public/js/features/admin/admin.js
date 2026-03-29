@@ -1,9 +1,8 @@
 import { state, setState, subscribe } from '../../shared/store.js';
 import { apiFetch, fetchAdminGroups } from '../../shared/api.js';
-import { renderSidebar } from '../../shared/components/sidebar.js';
-import { createUserProfileFooter } from '../../shared/components/user-profile-footer.js';
-import { renderSearchModal } from '../../shared/components/search-modal.js';
-import { renderFilesModal } from '../../shared/components/files-modal.js';
+import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
+import { renderWorkspaceSidebar, wireWorkspaceSidebar } from '../../shared/components/workspace-sidebar.js';
+import { renderWorkspaceTopTabs } from '../../shared/components/workspace-top-tabs.js';
 import { renderUserOverview } from './users/overview.js';
 import { preloadGroupsData, renderGroupsOverview } from './users/groups.js';
 import { shouldLoadGroups } from './users/groups-helpers.js';
@@ -27,88 +26,10 @@ import {
   renderLoadingState,
   renderSettingsLayout,
   renderSettingsSkeleton,
+  renderSystemLayout,
   renderUsersLayout,
 } from './admin-layout.js';
 import { renderCurrentRoute } from '../../bootstrap/app.js';
-
-function wireSidebar(root, guardNavigation) {
-  const newChatBtn = root.querySelector('#new-chat');
-  const homeLink = root.querySelector('#admin-home-link');
-  const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
-  const toggleSidebarDesktop = root.querySelector('#toggle-sidebar-desktop');
-  const sidebar = root.querySelector('#sidebar');
-  const sidebarBackdrop = root.querySelector('#sidebar-backdrop');
-  const openSearchBtn = root.querySelector('#open-search');
-  const searchModalContainer = root.querySelector('#search-modal-container');
-  const filesModalContainer = root.querySelector('#files-modal-container');
-
-  const destroySidebar = renderSidebar(sidebar, root);
-
-  createUserProfileFooter({ guardNavigation }).then((footer) => {
-    const footerMount = root.querySelector('#sidebar-footer');
-    if (footerMount) {
-      footerMount.replaceChildren(footer);
-    } else {
-      sidebar.appendChild(footer);
-    }
-  });
-
-  const navigateHome = () => {
-    window.history.pushState({}, '', '/');
-    renderCurrentRoute();
-  };
-
-  const destroySearchModal = renderSearchModal(searchModalContainer, navigateHome, navigateHome);
-  const destroyFilesModal = renderFilesModal(filesModalContainer);
-
-  const onToggleSidebar = () => {
-    if (state.isMobile) {
-      setState({ showSidebar: !state.showSidebar });
-    } else if (!state.showSidebar) {
-      setState({ showSidebar: true });
-    } else {
-      setState({ sidebarCollapsed: !state.sidebarCollapsed });
-    }
-  };
-  const onOpenSearch = () => setState({ showSearch: true });
-  const onNewChat = async () => {
-    if (typeof guardNavigation === 'function') {
-      const allowed = await guardNavigation();
-      if (!allowed) return;
-    }
-    navigateHome();
-  };
-
-  toggleSidebarMobile.addEventListener('click', onToggleSidebar);
-  toggleSidebarDesktop.addEventListener('click', onToggleSidebar);
-  openSearchBtn.addEventListener('click', onOpenSearch);
-  newChatBtn.addEventListener('click', () => {
-    void onNewChat();
-  });
-  homeLink?.addEventListener('click', (e) => {
-    e.preventDefault();
-    void onNewChat();
-  });
-
-  const unsubscribe = subscribe((currentState) => {
-    if (currentState.showSidebar && currentState.isMobile) {
-      sidebarBackdrop.classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
-    } else {
-      sidebarBackdrop.classList.add('hidden');
-      document.body.style.overflow = '';
-    }
-  });
-
-  sidebarBackdrop.addEventListener('click', () => setState({ showSidebar: false }));
-
-  root.__cleanup = () => {
-    unsubscribe();
-    destroySearchModal?.();
-    destroyFilesModal?.();
-    destroySidebar?.();
-  };
-}
 
 export async function renderAdminPage(container) {
   let mainTab = 'users';
@@ -201,11 +122,15 @@ export async function renderAdminPage(container) {
     const mainContentEl = container.querySelector('#admin-main-content');
     if (!mainContentEl) return;
 
-    const tabsContainer = container.querySelector('#users-tabs-container') || container.querySelector('#settings-tabs-container');
+    const tabsContainer = container.querySelector('#users-tabs-container')
+      || container.querySelector('#settings-tabs-container')
+      || container.querySelector('#system-tabs-container');
 
     if (!tabsContainer) {
       if (mainTab === 'users') {
         mainContentEl.innerHTML = renderUsersLayout(subTab);
+      } else if (mainTab === 'system') {
+        mainContentEl.innerHTML = renderSystemLayout(subTab);
       } else {
         mainContentEl.innerHTML = renderSettingsLayout(subTab);
       }
@@ -240,15 +165,19 @@ export async function renderAdminPage(container) {
             <span>Policies</span>
           </a>
         `;
-      } else {
-        tabsContainer.id = 'settings-tabs-container';
+      } else if (mainTab === 'system') {
+        tabsContainer.id = 'system-tabs-container';
         tabsContainer.innerHTML = `
-          <a href="/admin/settings/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+          <a href="/admin/system/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
               <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
             </svg>
             <span>General</span>
           </a>
+        `;
+      } else {
+        tabsContainer.id = 'settings-tabs-container';
+        tabsContainer.innerHTML = `
           <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
               <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
@@ -282,9 +211,7 @@ export async function renderAdminPage(container) {
     renderMainActionFooter();
 
     if (mainTab === 'settings') {
-      if (subTab === 'general') {
-        renderGeneralSettings(subContentEl, data);
-      } else if (subTab === 'connections') {
+      if (subTab === 'connections') {
         renderConnectionsSettings(subContentEl, data);
       } else if (subTab === 'models') {
         renderModelsSettings(subContentEl, data);
@@ -299,6 +226,27 @@ export async function renderAdminPage(container) {
               </svg>
             </div>
             <h3 class="text-lg font-medium text-gray-900 mb-1">${subTab.charAt(0).toUpperCase() + subTab.slice(1)} Settings</h3>
+            <p class="text-sm text-gray-500 max-w-xs">This section is currently under development.</p>
+          </div>
+        `;
+      }
+      renderMainActionFooter();
+      updateMainActionFooter();
+      return;
+    }
+
+    if (mainTab === 'system') {
+      if (subTab === 'general') {
+        renderGeneralSettings(subContentEl, data);
+      } else {
+        subContentEl.innerHTML = `
+          <div class="flex flex-col items-center justify-center h-full text-center p-10">
+            <div class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 text-gray-300">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.978 2.978 0 01-3.34-3.34L15 2.25 10.5 2.25l-4.5 4.5v1.5a1.5 1.5 0 001.5 1.5h1.5l3.93 3.93m2.856 2.856l1.5 1.5a1.5 1.5 0 001.5-1.5V10.5l-4.5-4.5H6" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-1">${subTab.charAt(0).toUpperCase() + subTab.slice(1)} System</h3>
             <p class="text-sm text-gray-500 max-w-xs">This section is currently under development.</p>
           </div>
         `;
@@ -490,7 +438,7 @@ export async function renderAdminPage(container) {
         window.history.pushState({}, '', getAdminSubnavPath(mainTab, nav));
         updateRouteInfo();
         const subContentEl = container.querySelector('#admin-sub-content');
-        if (subContentEl && mainTab === 'settings') {
+        if (subContentEl && (mainTab === 'settings' || mainTab === 'system')) {
           subContentEl.innerHTML = renderSettingsSkeleton();
           renderMainActionFooter();
           updateMainActionFooter();
@@ -511,65 +459,49 @@ export async function renderAdminPage(container) {
       container.__cleanup();
     }
 
-    container.innerHTML = `
-      <div class="flex h-[100dvh] w-full bg-white overflow-hidden font-primary text-gray-900">
-        <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
-        <aside id="sidebar" class="fixed md:relative h-[100dvh] md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
-          <div class="p-3 flex-shrink-0">
-            <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
-              <a href="/" id="admin-home-link" class="flex items-center gap-3 sidebar-full-only rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300">
-                <div class="w-7 h-7 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
-                  <img src="/logo.png" alt="GrowChat" class="w-5 h-5 object-contain" />
-                </div>
-                <span class="font-bold text-lg text-gray-800 font-primary">GrowChat</span>
-              </a>
-              <button id="toggle-sidebar-desktop" class="sidebar-full-only md:block p-1 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors ml-auto" title="Close Sidebar">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-              </button>
-            </div>
-            <div class="space-y-1">
-              <button id="new-chat" class="flex items-center justify-between px-3 py-2 w-full hover:bg-white rounded-xl transition text-sm font-semibold text-gray-700 font-primary group/new-chat">
-                <div class="flex items-center gap-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-collapsed-scale transition-transform duration-300"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
-                  <span class="sidebar-full-only">New Chat</span>
-                </div>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-full-only"><path d="M12 5v14M5 12h14"></path></svg>
-              </button>
-              <button id="open-search" class="flex items-center gap-3 px-3 py-2 w-full hover:bg-white rounded-xl transition text-sm font-semibold text-gray-700 font-primary group/search">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-collapsed-scale transition-transform duration-300"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
-                <span class="sidebar-full-only">Search</span>
-              </button>
-            </div>
-          </div>
-          <div class="flex-1 min-h-0"></div>
-          <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));"></div>
-        </aside>
-        <div class="flex-1 flex flex-col min-w-0">
+    container.innerHTML = renderWorkspaceShell({
+      sidebarHtml: renderWorkspaceSidebar({
+        homeHref: '/',
+        homeId: 'workspace-home-link',
+        homeLabel: 'GrowChat',
+        footerId: 'sidebar-footer',
+      }),
+      mainHtml: `
           <nav class="px-4 pt-2 border-b border-gray-50 bg-white/80 backdrop-blur-md sticky top-0 z-20">
             <div class="flex items-center gap-1">
               <button id="toggle-sidebar-mobile" class="p-2 mr-2 hover:bg-gray-100 rounded-lg transition text-gray-500 md:hidden" title="Open Sidebar">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
               </button>
-              <div class="flex w-full">
-                <div class="flex gap-1 scrollbar-none overflow-x-auto w-fit text-center text-sm font-medium pt-1">
-                  <a href="/admin/users" data-nav="users" class="min-w-fit p-1.5 transition select-none ${mainTab === 'users' ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}">Users</a>
-                  <a href="/admin/settings" data-nav="settings" class="min-w-fit p-1.5 transition select-none ${mainTab === 'settings' ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}">Settings</a>
-                </div>
-              </div>
+              ${renderWorkspaceTopTabs({
+                tabs: [
+                  { href: '/admin/users', key: 'users', label: 'Users' },
+                  { href: '/admin/settings/connections', key: 'settings', label: 'Settings' },
+                  { href: '/admin/system/general', key: 'system', label: 'System' },
+                ],
+                activeKey: mainTab,
+                dataAttrName: 'data-nav',
+              })}
             </div>
           </nav>
           <div class="flex-1 flex overflow-hidden" id="admin-main-content"></div>
-        </div>
-      </div>
-      <div id="search-modal-container"></div>
-      <div id="files-modal-container"></div>
-    `;
+        `,
+    });
+    container.insertAdjacentHTML('beforeend', '<div id="search-modal-container"></div><div id="files-modal-container"></div>');
 
-    wireSidebar(container, guardNavigation);
+    wireWorkspaceSidebar(container, {
+      guardNavigation,
+      navigateHome: async () => {
+        window.history.pushState({}, '', '/');
+        renderCurrentRoute();
+      },
+      searchModalContainerSelector: '#search-modal-container',
+      filesModalContainerSelector: '#files-modal-container',
+      footerId: 'sidebar-footer',
+    });
     bindTopNav();
     if (!container.__sharedFooterClickBound) {
       container.addEventListener('click', (event) => {
-        const saveBtn = event.target.closest?.('#save-users, #save-settings, #save-connections, #save-models-top, #save-integrations');
+        const saveBtn = event.target.closest?.('#save-users, #save-settings, #save-system, #save-connections, #save-models-top, #save-integrations');
         if (!saveBtn || saveBtn.disabled) return;
         void handleMainSave();
       });

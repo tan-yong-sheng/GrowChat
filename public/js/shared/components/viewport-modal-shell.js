@@ -15,6 +15,14 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function escapeSelector(value) {
+  const raw = String(value ?? '');
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(raw);
+  }
+  return raw.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
+
 export function buildViewportModalShellMarkup({
   rootId = 'modal-root',
   title = '',
@@ -69,8 +77,8 @@ export function createViewportModalShell(options = {}) {
   document.body.appendChild(rendered);
   return {
     modal: rendered,
-    overlay: rendered.querySelector(`#${CSS.escape(options.overlayId || 'modal-overlay')}`),
-    closeBtn: rendered.querySelector(`#${CSS.escape(options.closeId || 'close-modal')}`),
+    overlay: rendered.querySelector(`#${escapeSelector(options.overlayId || 'modal-overlay')}`),
+    closeBtn: rendered.querySelector(`#${escapeSelector(options.closeId || 'close-modal')}`),
     bodyEl: rendered.querySelector('.overflow-y-auto.flex-1,.overflow-y-auto'),
   };
 }

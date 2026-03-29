@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getAuthState: vi.fn(),
   isAccessTokenUsable: vi.fn(),
   initShortcuts: vi.fn(),
+  renderAccountPage: vi.fn(),
   readChatsCache: vi.fn(),
   readModelsCache: vi.fn(),
   renderAdminPage: vi.fn(),
@@ -59,6 +60,10 @@ vi.mock('../../public/js/features/admin/admin.js', () => ({
   renderAdminPage: (...args) => mocks.renderAdminPage(...args),
 }));
 
+vi.mock('../../public/js/features/account/account.js', () => ({
+  renderAccountPage: (...args) => mocks.renderAccountPage(...args),
+}));
+
 vi.mock('../../public/js/features/chat/chat.js', () => ({
   renderChat: (...args) => mocks.renderChat(...args),
 }));
@@ -99,6 +104,7 @@ describe('public app bootstrap', () => {
     mocks.getAuthState.mockReset();
     mocks.isAccessTokenUsable.mockReset();
     mocks.initShortcuts.mockReset();
+    mocks.renderAccountPage.mockReset();
     mocks.readChatsCache.mockReset();
     mocks.readModelsCache.mockReset();
     mocks.renderAdminPage.mockReset();
@@ -147,6 +153,31 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    expect(mocks.renderAdminPage).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('app').dataset.view).toBe('admin');
+  });
+
+  it('redirects old admin settings general routes to the system page', async () => {
+    window.history.pushState({}, '', '/admin/settings/general');
+    mocks.getAuthState.mockReturnValue({ access_token: 'token' });
+    mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'u1', role: 'admin', preferences: {} },
+        permissions: ['chat.read'],
+        roles: [{ role_name: 'admin' }],
+        app_config: { default_model_id: 'gpt-4' },
+      }),
+    });
+    mocks.readChatsCache.mockReturnValue(null);
+    mocks.readModelsCache.mockReturnValue(null);
+    mocks.fetchChats.mockResolvedValue({ chats: [], limit: 30, offset: 0, has_more: false });
+
+    await loadApp();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(window.location.pathname).toBe('/admin/system/general');
     expect(mocks.renderAdminPage).toHaveBeenCalledTimes(1);
     expect(document.getElementById('app').dataset.view).toBe('admin');
   });
@@ -207,6 +238,104 @@ describe('public app bootstrap', () => {
     expect(window.location.pathname).toBe('/');
     expect(mocks.renderChat).toHaveBeenCalledTimes(1);
     expect(mocks.initShortcuts).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders account routes through the account shell', async () => {
+    window.history.pushState({}, '', '/account/profile/overview');
+    mocks.getAuthState.mockReturnValue({ access_token: 'token' });
+    mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'u1', role: 'user', preferences: {} },
+        permissions: ['chat.read'],
+        roles: [{ role_name: 'user' }],
+        settings: {
+          general: { name: 'User' },
+          preferences: { theme: 'system' },
+          connections: { my_connections: [], connections: [] },
+          integrations: { servers: [] },
+          tool_servers: { servers: [] },
+          models: { default_model_id: null },
+        },
+        app_config: { default_model_id: 'gpt-4' },
+      }),
+    });
+    mocks.readChatsCache.mockReturnValue(null);
+    mocks.readModelsCache.mockReturnValue(null);
+    mocks.fetchChats.mockResolvedValue({ chats: [], limit: 30, offset: 0, has_more: false });
+
+    await loadApp();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.renderAccountPage).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('app').dataset.view).toBe('account');
+  });
+
+  it('redirects old account settings general routes to the profile overview', async () => {
+    window.history.pushState({}, '', '/account/settings/general');
+    mocks.getAuthState.mockReturnValue({ access_token: 'token' });
+    mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'u1', role: 'user', preferences: {} },
+        permissions: ['chat.read'],
+        roles: [{ role_name: 'user' }],
+        settings: {
+          general: { name: 'User' },
+          preferences: { theme: 'system' },
+          connections: { my_connections: [], connections: [] },
+          integrations: { servers: [] },
+          tool_servers: { servers: [] },
+          models: { default_model_id: null },
+        },
+        app_config: { default_model_id: 'gpt-4' },
+      }),
+    });
+    mocks.readChatsCache.mockReturnValue(null);
+    mocks.readModelsCache.mockReturnValue(null);
+    mocks.fetchChats.mockResolvedValue({ chats: [], limit: 30, offset: 0, has_more: false });
+
+    await loadApp();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(window.location.pathname).toBe('/account/profile/overview');
+    expect(mocks.renderAccountPage).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('app').dataset.view).toBe('account');
+  });
+
+  it('redirects old account settings preferences routes to the profile overview', async () => {
+    window.history.pushState({}, '', '/account/settings/preferences');
+    mocks.getAuthState.mockReturnValue({ access_token: 'token' });
+    mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'u1', role: 'user', preferences: {} },
+        permissions: ['chat.read'],
+        roles: [{ role_name: 'user' }],
+        settings: {
+          general: { name: 'User' },
+          preferences: { theme: 'system' },
+          connections: { my_connections: [], connections: [] },
+          integrations: { servers: [] },
+          tool_servers: { servers: [] },
+          models: { default_model_id: null },
+        },
+        app_config: { default_model_id: 'gpt-4' },
+      }),
+    });
+    mocks.readChatsCache.mockReturnValue(null);
+    mocks.readModelsCache.mockReturnValue(null);
+    mocks.fetchChats.mockResolvedValue({ chats: [], limit: 30, offset: 0, has_more: false });
+
+    await loadApp();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(window.location.pathname).toBe('/account/profile/overview');
+    expect(mocks.renderAccountPage).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('app').dataset.view).toBe('account');
   });
 
   it('chooses the first alphabetical fetched model when no default is configured', async () => {

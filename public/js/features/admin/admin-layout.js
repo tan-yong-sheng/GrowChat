@@ -1,3 +1,6 @@
+import { renderSettingsShell } from '../../shared/components/settings-shell.js';
+import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-vertical-tabs.js';
+
 export const ADMIN_SHELL_BODY_PADDING_CLASS = 'px-2 sm:px-3 md:px-0';
 export const ADMIN_SHELL_FOOTER_PADDING_CLASS = 'px-2 md:px-0';
 
@@ -45,44 +48,59 @@ export function renderErrorState(message) {
 }
 
 export function renderSettingsLayout(subTab) {
-  return `
-    <div class="flex flex-col md:flex-row h-full w-full">
-      <div id="settings-tabs-container" class="w-full md:w-52 flex-none flex flex-row md:flex-col p-2 md:p-4 gap-1 text-sm font-medium border-b md:border-b-0 md:border-r border-gray-50 overflow-x-auto">
-        <a href="/admin/settings/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
-          </svg>
-          <span class="whitespace-nowrap">General</span>
-        </a>
-        <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
-          </svg>
-          <span class="whitespace-nowrap">Connections</span>
-        </a>
-        <a href="/admin/settings/models" data-subnav="models" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'models' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" />
-            <path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" />
-          </svg>
-          <span class="whitespace-nowrap">Models</span>
-        </a>
-        <a href="/admin/settings/integrations" data-subnav="integrations" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'integrations' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-            <path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" />
-            <path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" />
-          </svg>
-          <span class="whitespace-nowrap">Integrations</span>
-        </a>
-      </div>
-      <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div id="admin-sub-content" class="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div id="admin-sub-body" class="flex-1 min-h-0 flex flex-col overflow-hidden ${ADMIN_SHELL_BODY_PADDING_CLASS}"></div>
-          <div id="admin-main-action-footer-host" class="shrink-0 ${ADMIN_SHELL_FOOTER_PADDING_CLASS}" style="transform: translateY(-24px);"></div>
-        </div>
-      </div>
-    </div>
-  `;
+  return renderSettingsShell({
+    navPaneHtml: renderWorkspaceVerticalTabs({
+      id: 'settings-tabs-container',
+      items: [
+        {
+          href: '/admin/settings/connections',
+          key: 'connections',
+          label: 'Connections',
+          active: subTab === 'connections',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/></svg>',
+        },
+        {
+          href: '/admin/settings/models',
+          key: 'models',
+          label: 'Models',
+          active: subTab === 'models',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" /><path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" /></svg>',
+        },
+        {
+          href: '/admin/settings/integrations',
+          key: 'integrations',
+          label: 'Integrations',
+          active: subTab === 'integrations',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" /></svg>',
+        },
+      ],
+    }),
+    bodyId: 'admin-sub-body',
+    contentId: 'admin-sub-content',
+    footerId: 'admin-main-action-footer-host',
+    bodyPaddingClass: ADMIN_SHELL_BODY_PADDING_CLASS,
+    footerPaddingClass: ADMIN_SHELL_FOOTER_PADDING_CLASS,
+  });
+}
+
+export function renderSystemLayout(subTab) {
+  return renderSettingsShell({
+    navPaneHtml: renderWorkspaceVerticalTabs({
+      id: 'system-tabs-container',
+      items: [{
+        href: '/admin/system/general',
+        key: 'general',
+        label: 'General',
+        active: subTab === 'general',
+        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/></svg>',
+      }],
+    }),
+    bodyId: 'admin-sub-body',
+    contentId: 'admin-sub-content',
+    footerId: 'admin-main-action-footer-host',
+    bodyPaddingClass: ADMIN_SHELL_BODY_PADDING_CLASS,
+    footerPaddingClass: ADMIN_SHELL_FOOTER_PADDING_CLASS,
+  });
 }
 
 export function renderUsersLayout(subTab) {

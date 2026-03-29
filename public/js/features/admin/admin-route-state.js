@@ -4,7 +4,11 @@ export function resolveAdminRouteState(pathname) {
   }
 
   if (pathname === '/admin/settings' || pathname === '/admin/settings/') {
-    return { mainTab: 'settings', subTab: 'general', canonicalPath: '/admin/settings/general' };
+    return { mainTab: 'settings', subTab: 'connections', canonicalPath: '/admin/settings/connections' };
+  }
+
+  if (pathname === '/admin/system' || pathname === '/admin/system/') {
+    return { mainTab: 'system', subTab: 'general', canonicalPath: '/admin/system/general' };
   }
 
   if (pathname === '/admin/users/roles' || pathname.startsWith('/admin/users/roles/')) {
@@ -23,12 +27,24 @@ export function resolveAdminRouteState(pathname) {
     return { mainTab: 'users', subTab: 'policies', canonicalPath: '/admin/users/policies' };
   }
 
+  if (pathname === '/admin/settings/general' || pathname.startsWith('/admin/settings/general/')) {
+    return { mainTab: 'system', subTab: 'general', canonicalPath: '/admin/system/general' };
+  }
+
+  if (pathname === '/admin/system/general' || pathname.startsWith('/admin/system/general/')) {
+    return { mainTab: 'system', subTab: 'general', canonicalPath: '/admin/system/general' };
+  }
+
   if (pathname.startsWith('/admin/settings')) {
-    let subTab = 'general';
+    let subTab = 'connections';
     if (pathname.includes('/connections')) subTab = 'connections';
     else if (pathname.includes('/integrations')) subTab = 'integrations';
     else if (pathname.includes('/models')) subTab = 'models';
     return { mainTab: 'settings', subTab, canonicalPath: pathname };
+  }
+
+  if (pathname.startsWith('/admin/system')) {
+    return { mainTab: 'system', subTab: 'general', canonicalPath: '/admin/system/general' };
   }
 
   let subTab = 'overview';
@@ -39,11 +55,19 @@ export function resolveAdminRouteState(pathname) {
 }
 
 export function getAdminTopNavPath(mainTab) {
-  return mainTab === 'users' ? '/admin/users/overview' : '/admin/settings/general';
+  if (mainTab === 'users') return '/admin/users/overview';
+  if (mainTab === 'system') return '/admin/system/general';
+  return '/admin/settings/connections';
 }
 
 export function getAdminSubnavPath(mainTab, subTab) {
-  return mainTab === 'users'
-    ? `/admin/users/${subTab}`
-    : `/admin/settings/${subTab}`;
+  if (mainTab === 'users') {
+    return `/admin/users/${subTab}`;
+  }
+
+  if (mainTab === 'system') {
+    return `/admin/system/${subTab}`;
+  }
+
+  return `/admin/settings/${subTab}`;
 }

@@ -1,5 +1,5 @@
 function getAdminDraftRegistry(data, mainTab) {
-  if (mainTab === 'settings') {
+  if (mainTab === 'settings' || mainTab === 'system') {
     return {
       dirtyCheckers: data?.settingsDirtyCheckers || {},
       saveHandlers: data?.settingsSaveHandlers || {},

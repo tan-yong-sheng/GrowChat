@@ -15,8 +15,14 @@ describe('admin route state', () => {
 
     expect(resolveAdminRouteState('/admin/settings')).toEqual({
       mainTab: 'settings',
+      subTab: 'connections',
+      canonicalPath: '/admin/settings/connections',
+    });
+
+    expect(resolveAdminRouteState('/admin/system')).toEqual({
+      mainTab: 'system',
       subTab: 'general',
-      canonicalPath: '/admin/settings/general',
+      canonicalPath: '/admin/system/general',
     });
   });
 
@@ -32,12 +38,20 @@ describe('admin route state', () => {
       subTab: 'policies',
       canonicalPath: '/admin/users/policies',
     });
+
+    expect(resolveAdminRouteState('/admin/settings/general')).toEqual({
+      mainTab: 'system',
+      subTab: 'general',
+      canonicalPath: '/admin/system/general',
+    });
   });
 
   it('builds top and sub navigation paths consistently', () => {
     expect(getAdminTopNavPath('users')).toBe('/admin/users/overview');
-    expect(getAdminTopNavPath('settings')).toBe('/admin/settings/general');
+    expect(getAdminTopNavPath('settings')).toBe('/admin/settings/connections');
+    expect(getAdminTopNavPath('system')).toBe('/admin/system/general');
     expect(getAdminSubnavPath('users', 'groups')).toBe('/admin/users/groups');
     expect(getAdminSubnavPath('settings', 'connections')).toBe('/admin/settings/connections');
+    expect(getAdminSubnavPath('system', 'general')).toBe('/admin/system/general');
   });
 });

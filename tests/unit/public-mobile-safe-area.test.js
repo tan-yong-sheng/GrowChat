@@ -20,9 +20,10 @@ describe('mobile safe-area shell', () => {
   });
 
   it('uses the dynamic viewport and safe-area footer padding in the admin shell', () => {
-    const admin = readText('../../public/js/features/admin/admin.js');
+    const shell = readText('../../public/js/shared/components/workspace-shell.js');
+    const sidebar = readText('../../public/js/shared/components/workspace-sidebar.js');
 
-    expect(admin).toContain('h-[100dvh] w-full bg-white overflow-hidden');
-    expect(admin).toContain('padding-bottom: calc(1rem + env(safe-area-inset-bottom));');
+    expect(shell).toContain('h-[100dvh] w-full bg-white overflow-hidden');
+    expect(sidebar).toContain('padding-bottom: calc(1rem + env(safe-area-inset-bottom));');
   });
 });
