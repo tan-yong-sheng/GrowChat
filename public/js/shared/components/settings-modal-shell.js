@@ -74,7 +74,8 @@ export function createSettingsModalShell(options = {}) {
   const modal = document.createElement('div');
   modal.innerHTML = buildSettingsModalShellMarkup(options).trim();
   const rendered = modal.firstElementChild;
-  document.body.appendChild(rendered);
+  const mountTarget = options.mountTarget || document.body;
+  mountTarget.appendChild(rendered);
   return {
     modal: rendered,
     overlay: rendered.querySelector(`#${escapeSelector(options.overlayId || 'settings-modal-overlay')}`),

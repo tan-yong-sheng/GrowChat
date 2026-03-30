@@ -1,6 +1,7 @@
 import { authRouter } from '../routers/auth.js';
 import { chatRouter } from '../routers/chat/index.js';
 import { usersRouter } from '../routers/users.js';
+import { userSettingsRouter } from '../routers/user-settings.js';
 import { filesRouter } from '../routers/files.js';
 import { adminRouter } from '../routers/admin/index.js';
 import { modelsRouter } from '../routers/models/index.js';
@@ -13,6 +14,7 @@ export const API_ROUTES = [
   publicRouter,
   authRouter,
   chatRouter,
+  userSettingsRouter,
   usersRouter,
   filesRouter,
   adminRouter,
@@ -31,6 +33,7 @@ export const PUBLIC_ROUTES = [
   { method: 'POST', path: '/api/auth/refresh', description: 'Token refresh' },
   { method: 'POST', path: '/api/auth/logout', description: 'Logout' },
   { method: 'GET', path: /^\/s\/[^/]+$/, description: 'View shared chat' },
+  { method: 'GET', path: '/api/users/me/resources/mcp-servers/oauth/callback', description: 'User MCP server OAuth callback' },
 ];
 
 export function isPublicRoute(req, path) {

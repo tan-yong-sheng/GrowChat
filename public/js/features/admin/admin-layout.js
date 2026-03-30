@@ -1,8 +1,15 @@
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
+import {
+  DEFAULT_SETTINGS_BODY_PADDING_CLASS,
+  DEFAULT_SETTINGS_FOOTER_PADDING_CLASS,
+  renderSettingsViewport,
+} from '../../shared/components/settings-viewport.js';
+import { buildWorkspaceSettingsSubnavItems } from '../../shared/components/workspace-settings-subnav-config.js';
 import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-vertical-tabs.js';
 
-export const ADMIN_SHELL_BODY_PADDING_CLASS = 'px-2 sm:px-3 md:px-0';
-export const ADMIN_SHELL_FOOTER_PADDING_CLASS = 'px-2 md:px-0';
+export const ADMIN_SHELL_BODY_PADDING_CLASS = DEFAULT_SETTINGS_BODY_PADDING_CLASS;
+export const ADMIN_SHELL_FOOTER_PADDING_CLASS = DEFAULT_SETTINGS_FOOTER_PADDING_CLASS;
+export const ADMIN_SETTINGS_VIEWPORT_CLASS = 'w-full px-4 py-6 flex-1 min-h-0 overflow-hidden';
 
 export function renderLoadingState() {
   return '<div class="flex items-center justify-center h-64"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 dark:border-white"></div></div>';
@@ -10,23 +17,25 @@ export function renderLoadingState() {
 
 export function renderSettingsSkeleton() {
   return `
-    <div id="admin-sub-body" class="flex-1 min-h-0 flex flex-col overflow-hidden ${ADMIN_SHELL_BODY_PADDING_CLASS}">
-      <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-150 w-full">
-        <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
-          <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
-            <div class="h-6 w-32 bg-gray-100 rounded animate-pulse"></div>
-          </div>
-        </div>
-        <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden">
-          <div class="max-w-2xl mx-auto w-full space-y-6 pb-6">
-            <div class="space-y-3">
-              <div class="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
-              <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
-              <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+    <div class="${ADMIN_SETTINGS_VIEWPORT_CLASS}">
+      <div id="admin-sub-body" class="flex-1 min-h-0 flex flex-col overflow-hidden ${ADMIN_SHELL_BODY_PADDING_CLASS}">
+        <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-150 w-full">
+          <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
+            <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
+              <div class="h-6 w-32 bg-gray-100 rounded animate-pulse"></div>
             </div>
-            <div class="space-y-3">
-              <div class="h-4 w-28 bg-gray-100 rounded animate-pulse"></div>
-              <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+          </div>
+          <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden">
+            <div class="max-w-2xl mx-auto w-full space-y-6 pb-6">
+              <div class="space-y-3">
+                <div class="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
+                <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+                <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+              </div>
+              <div class="space-y-3">
+                <div class="h-4 w-28 bg-gray-100 rounded animate-pulse"></div>
+                <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -48,59 +57,50 @@ export function renderErrorState(message) {
 }
 
 export function renderSettingsLayout(subTab) {
-  return renderSettingsShell({
-    navPaneHtml: renderWorkspaceVerticalTabs({
-      id: 'settings-tabs-container',
-      items: [
-        {
-          href: '/admin/settings/connections',
-          key: 'connections',
-          label: 'Connections',
-          active: subTab === 'connections',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/></svg>',
-        },
-        {
-          href: '/admin/settings/models',
-          key: 'models',
-          label: 'Models',
-          active: subTab === 'models',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" /><path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" /></svg>',
-        },
-        {
-          href: '/admin/settings/integrations',
-          key: 'integrations',
-          label: 'Integrations',
-          active: subTab === 'integrations',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" /></svg>',
-        },
-      ],
-    }),
-    bodyId: 'admin-sub-body',
-    contentId: 'admin-sub-content',
-    footerId: 'admin-main-action-footer-host',
-    bodyPaddingClass: ADMIN_SHELL_BODY_PADDING_CLASS,
-    footerPaddingClass: ADMIN_SHELL_FOOTER_PADDING_CLASS,
-  });
+  return `
+    ${renderSettingsViewport({
+      viewportClass: ADMIN_SETTINGS_VIEWPORT_CLASS,
+      contentHtml: renderSettingsShell({
+        navPaneHtml: renderWorkspaceVerticalTabs({
+          id: 'settings-tabs-container',
+          items: buildWorkspaceSettingsSubnavItems({
+            basePath: '/admin/settings',
+            currentKey: subTab,
+          }),
+        }),
+        bodyId: 'admin-sub-body',
+        contentId: 'admin-sub-content',
+        footerId: 'admin-main-action-footer-host',
+        bodyPaddingClass: ADMIN_SHELL_BODY_PADDING_CLASS,
+        footerPaddingClass: ADMIN_SHELL_FOOTER_PADDING_CLASS,
+      }),
+    })}
+  `;
 }
 
 export function renderSystemLayout(subTab) {
-  return renderSettingsShell({
-    navPaneHtml: renderWorkspaceVerticalTabs({
-      id: 'system-tabs-container',
-      items: [{
-        href: '/admin/system/general',
-        key: 'general',
-        label: 'General',
-        active: subTab === 'general',
-        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/></svg>',
-      }],
-    }),
-    bodyId: 'admin-sub-body',
-    contentId: 'admin-sub-content',
-    footerId: 'admin-main-action-footer-host',
-    bodyPaddingClass: ADMIN_SHELL_BODY_PADDING_CLASS,
-    footerPaddingClass: ADMIN_SHELL_FOOTER_PADDING_CLASS,
-  });
+  return `
+    ${renderSettingsViewport({
+      viewportClass: ADMIN_SETTINGS_VIEWPORT_CLASS,
+      contentHtml: renderSettingsShell({
+        navPaneHtml: renderWorkspaceVerticalTabs({
+          id: 'system-tabs-container',
+          items: [{
+            href: '/admin/system/general',
+            key: 'general',
+            label: 'General',
+            active: subTab === 'general',
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/></svg>',
+          }],
+        }),
+        bodyId: 'admin-sub-body',
+        contentId: 'admin-sub-content',
+        footerId: 'admin-main-action-footer-host',
+        bodyPaddingClass: ADMIN_SHELL_BODY_PADDING_CLASS,
+        footerPaddingClass: ADMIN_SHELL_FOOTER_PADDING_CLASS,
+      }),
+    })}
+  `;
 }
 
 export function renderUsersLayout(subTab) {

@@ -1,11 +1,16 @@
+import {
+  DEFAULT_SETTINGS_BODY_PADDING_CLASS,
+  DEFAULT_SETTINGS_FOOTER_PADDING_CLASS,
+} from './settings-viewport.js';
+
 export function renderSettingsShell({
   navPaneHtml = '',
   contentHtml = '',
   bodyId = 'settings-body',
   contentId = 'settings-content',
   footerId = 'settings-footer',
-  bodyPaddingClass = 'px-2 sm:px-3 md:px-0',
-  footerPaddingClass = 'px-2 md:px-0',
+  bodyPaddingClass = DEFAULT_SETTINGS_BODY_PADDING_CLASS,
+  footerPaddingClass = DEFAULT_SETTINGS_FOOTER_PADDING_CLASS,
 } = {}) {
   return `
     <div class="flex flex-col md:flex-row h-full w-full">

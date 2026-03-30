@@ -120,6 +120,7 @@ describe('account integrations section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush(4);
 
+    expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
     const addBtn = document.querySelector('[data-account-integration-add]');
     expect(addBtn).not.toBeNull();
     addBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -129,10 +130,9 @@ describe('account integrations section', () => {
     expect(modalRoot).not.toBeNull();
     expect(modalRoot?.className).toContain('items-start');
     expect(modalRoot?.className).toContain('overflow-y-auto');
-    expect(modalRoot?.textContent).toContain('Create a personal MCP server for your account.');
-    expect(modalRoot?.querySelector('[class*="max-h-[90vh]"]')).not.toBeNull();
-    expect(modalRoot?.querySelector('[class*="rounded-[2.5rem]"]')).not.toBeNull();
-    expect(modalRoot?.textContent).toContain('Add Integration');
+    expect(modalRoot?.querySelector('[class*="rounded-3xl"]')).not.toBeNull();
+    expect(modalRoot?.querySelector('#server-modal-title')).not.toBeNull();
+    expect(modalRoot?.textContent).toContain('Add MCP Server');
   }, 10000);
 
   it('saves a personal integration and refreshes the list', async () => {
@@ -165,6 +165,7 @@ describe('account integrations section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush(4);
 
+    expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
     const addBtn = document.querySelector('[data-account-integration-add]');
     expect(addBtn).not.toBeNull();
     addBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -172,12 +173,12 @@ describe('account integrations section', () => {
     const modal = document.getElementById('account-integration-modal');
     expect(modal).not.toBeNull();
 
-    modal.querySelector('[name="name"]').value = 'Updated MCP';
-    modal.querySelector('[name="url"]').value = 'https://tools.example.com';
-    modal.querySelector('[name="auth_type"]').value = 'basic';
-    modal.querySelector('[name="auth_basic_username"]').value = 'sam';
-    modal.querySelector('[name="auth_basic_password"]').value = 'secret';
-    modal.querySelector('[data-account-integration-save]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    modal.querySelector('#server-name').value = 'Updated MCP';
+    modal.querySelector('#server-url').value = 'https://tools.example.com';
+    modal.querySelector('#server-auth-type').value = 'basic';
+    modal.querySelector('#server-auth-basic-username').value = 'sam';
+    modal.querySelector('#server-auth-basic-password').value = 'secret';
+    modal.querySelector('#save-modal')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(6);
 
     expect(mocks.apiFetch).toHaveBeenCalledWith('/api/users/me/resources/mcp-servers', expect.objectContaining({
@@ -191,7 +192,7 @@ describe('account integrations section', () => {
       auth_basic_password: 'secret',
       enabled: true,
     }));
-    expect(document.querySelector('[data-account-personal-integrations]')?.textContent).toContain('Updated MCP');
+    expect(document.body.textContent).toContain('Updated MCP');
   });
 
   it('deletes a personal integration after confirmation and refreshes the list', async () => {
@@ -208,13 +209,16 @@ describe('account integrations section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush(4);
 
-    const deleteBtn = document.querySelector('[data-account-integration-delete="mcp-1"]');
-    expect(deleteBtn).not.toBeNull();
-    deleteBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
+    const editBtn = document.querySelector('[data-account-integration-edit="mcp-1"]');
+    expect(editBtn).not.toBeNull();
+    editBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(2);
+    document.querySelector('#delete-server')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(6);
 
     expect(confirmSpy).toHaveBeenCalled();
     expect(mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/users/me/resources/mcp-servers/mcp-1' && String(options?.method || '').toUpperCase() === 'DELETE')).toBe(true);
-    expect(document.querySelector('[data-account-personal-integrations]')?.textContent).toContain('No personal integrations yet');
+    expect(document.body.textContent).toContain('No tool servers configured');
   });
 });

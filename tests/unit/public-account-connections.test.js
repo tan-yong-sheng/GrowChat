@@ -113,15 +113,17 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await Promise.resolve();
 
+    expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
     document.querySelector('[data-account-connection-add]')?.click();
 
     const modalRoot = document.getElementById('account-connection-modal');
     expect(modalRoot).not.toBeNull();
     expect(modalRoot?.className).toContain('items-start');
     expect(modalRoot?.className).toContain('overflow-y-auto');
-    expect(modalRoot?.textContent).toContain('Create a personal connection for your account.');
-    expect(modalRoot?.querySelector('[class*="max-h-[90vh]"]')).not.toBeNull();
-    expect(modalRoot?.querySelector('[class*="rounded-[2.5rem]"]')).not.toBeNull();
+    expect(modalRoot?.querySelector('#modal-title')).not.toBeNull();
+    expect(modalRoot?.querySelector('[class*="max-h-[70vh]"]')).not.toBeNull();
+    expect(modalRoot?.querySelector('[class*="rounded-3xl"]')).not.toBeNull();
+    expect(modalRoot?.querySelector('#toggle-key-visibility')).not.toBeNull();
     expect(modalRoot?.textContent).toContain('Add Connection');
   });
 
@@ -141,11 +143,12 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await Promise.resolve();
 
+    expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
     document.querySelector('[data-account-connection-edit="conn-1"]')?.click();
     expect(document.getElementById('account-connection-modal')?.textContent).toContain('Edit Connection');
 
     const modal = document.getElementById('account-connection-modal');
-    const nameInput = modal?.querySelector('[name="name"]');
+    const nameInput = modal?.querySelector('#modal-conn-name');
     expect(nameInput).not.toBeNull();
     nameInput.value = 'Updated Conn';
 
@@ -162,7 +165,7 @@ describe('account connections section', () => {
       auth_type: 'bearer',
       headers: expect.stringContaining('"X-Test": "1"'),
     }));
-    expect(document.querySelector('[data-account-personal-connections]')?.textContent).toContain('Updated Conn');
+    expect(document.body.textContent).toContain('Updated Conn');
   });
 
   it('deletes a connection after confirmation and refreshes the list', async () => {
@@ -192,11 +195,14 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await Promise.resolve();
 
-    document.querySelector('[data-account-connection-delete="conn-1"]')?.click();
+    expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
+    document.querySelector('[data-account-connection-edit="conn-1"]')?.click();
+    await flush(2);
+    document.querySelector('[data-account-connection-delete-modal]')?.click();
     await flush(4);
 
     expect(confirmSpy).toHaveBeenCalled();
     expect(mocks.deleteUserConnection).toHaveBeenCalledWith('conn-1');
-    expect(document.querySelector('[data-account-personal-connections]')?.textContent).toContain('No personal connections yet');
+    expect(document.body.textContent).toContain('No connections configured');
   });
 });

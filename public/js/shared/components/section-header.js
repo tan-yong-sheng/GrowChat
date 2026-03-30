@@ -6,7 +6,7 @@ export function renderSectionHeader({
   title = '',
   subtitle = '',
   label = '', // e.g., "LLM PROVIDERS"
-  actionButton = null, // { label, key, className }
+  actionButton = null, // { label, key, className, attrs }
 } = {}) {
   return `
     <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
@@ -20,6 +20,7 @@ export function renderSectionHeader({
           <button
             type="button"
             ${actionButton.key ? `data-action="${actionButton.key}"` : ''}
+            ${actionButton.attrs || ''}
             class="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 ${actionButton.className || ''}"
             title="${actionButton.label}"
             aria-label="${actionButton.label}"

@@ -6,18 +6,29 @@ import { hashPassword } from '../shared/auth.js';
 import {
   createUserOpenAIConnection,
   deleteUserOpenAIConnection,
+  discoverConnectionModels,
   getAllOpenAIConnectionConfigs,
+  buildConnectionHeaders,
   loadUserOpenAIConnectionConfigs,
+  getConnectionDefaultBaseUrl,
+  isConnectionUrlRequired,
   updateUserOpenAIConnection,
 } from '../llm/connections.js';
 import { loadModelAclRules } from '../utils/model-acl.js';
 import { loadConnectionAclRules } from '../utils/connection-acl.js';
 import { loadToolServerAclRules } from '../utils/tool-server-acl.js';
 import {
+  buildAuthorizationUrl,
+  discoverAuthorizationMetadata,
   createUserToolServer,
   deleteUserToolServer,
   loadToolServers,
   loadUserToolServers,
+  normalizeAuthType,
+  normalizeTokenAuthMethod,
+  randomString,
+  selectTokenAuthMethod,
+  sha256Base64Url,
   testToolServerConnection,
   updateUserToolServer,
 } from '../admin/tool-servers.js';
@@ -148,6 +159,41 @@ function toAccessibleToolServerSummary(server) {
   };
 }
 
+function parseJsonObject(raw) {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(String(raw));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveUserToolServerJson(db, userId, serverId, server) {
+  await db.run(
+    `UPDATE user_tool_servers
+     SET server_json = ?, updated_at = unixepoch()
+     WHERE user_id = ? AND id = ?`,
+    [JSON.stringify(server), userId, serverId]
+  );
+}
+
+async function findUserToolServerByOauthState(db, state) {
+  if (!db || !state) return null;
+  await loadUserToolServers(db, '__oauth__');
+  const rows = await db.all('SELECT id, user_id, server_json FROM user_tool_servers');
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const server = parseJsonObject(row.server_json);
+    if (server?.oauth_state !== state) continue;
+    return {
+      ...server,
+      id: row.id,
+      user_id: row.user_id,
+    };
+  }
+  return null;
+}
+
 export async function usersRouter(req, env, _ctx, user, path) {
   const isUsersPath =
     path === '/api/users/me' ||
@@ -157,6 +203,8 @@ export async function usersRouter(req, env, _ctx, user, path) {
     path === '/api/users/me/resources/connections' ||
     path === '/api/users/me/resources/mcp-servers' ||
     path === '/api/users/me/resources/mcp-servers/test' ||
+    path === '/api/users/me/resources/mcp-servers/oauth/start' ||
+    path === '/api/users/me/resources/mcp-servers/oauth/callback' ||
     /^\/api\/users\/me\/resources\/mcp-servers\/[^/]+$/.test(path) ||
     path === '/api/admin/users' ||
     path === '/api/admin/users/import' ||
@@ -164,6 +212,82 @@ export async function usersRouter(req, env, _ctx, user, path) {
     /^\/api\/admin\/users\/[^/]+$/.test(path);
 
   if (!isUsersPath) return null;
+  if (req.method === 'GET' && path === '/api/users/me/resources/mcp-servers/oauth/callback') {
+    const db = createDB(env.DB);
+    const url = new URL(req.url);
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+    const errParam = url.searchParams.get('error');
+    if (errParam) {
+      return new Response(`Authorization failed: ${errParam}`, { status: 400 });
+    }
+    if (!code || !state) {
+      return new Response('Missing authorization code or state', { status: 400 });
+    }
+
+    const server = await findUserToolServerByOauthState(db, state);
+    if (!server) {
+      return new Response('OAuth session not found or expired', { status: 400 });
+    }
+
+    const tokenEndpoint = server.oauth_token_endpoint || new URL('/token', server.oauth_authorization_server || server.url).toString();
+    const clientId = String(server.oauth_client_id || '').trim();
+    const clientSecret = String(server.oauth_client_secret || '').trim();
+    const codeVerifier = String(server.oauth_code_verifier || '').trim();
+    const tokenAuthMethod = normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
+    const redirectUri = new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      code_verifier: codeVerifier,
+      redirect_uri: redirectUri,
+      client_id: clientId,
+    });
+
+    const headers = new Headers({
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    });
+
+    if (tokenAuthMethod === 'client_secret_basic' && clientSecret) {
+      headers.set('Authorization', `Basic ${btoa(`${clientId}:${clientSecret}`)}`);
+      params.delete('client_id');
+    } else if (tokenAuthMethod === 'client_secret_post' && clientSecret) {
+      params.set('client_secret', clientSecret);
+    }
+
+    try {
+      const tokenRes = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers,
+        body: params,
+      });
+      if (!tokenRes.ok) {
+        const text = await tokenRes.text().catch(() => '');
+        return new Response(`Token exchange failed: ${text}`, { status: 400 });
+      }
+      const tokenData = await tokenRes.json();
+      const connectedAt = new Date().toISOString();
+      const updatedServer = {
+        ...server,
+        oauth_tokens: {
+          ...tokenData,
+          connected_at: connectedAt,
+        },
+        oauth_connected_at: connectedAt,
+        oauth_state: null,
+        oauth_code_verifier: null,
+      };
+      await saveUserToolServerJson(db, server.user_id, server.id, updatedServer);
+      return new Response(
+        '<html><body><h2>OAuth connected.</h2><p>You can return to GrowChat and click Verify.</p></body></html>',
+        { headers: { 'Content-Type': 'text/html' } }
+      );
+    } catch (err) {
+      return new Response(`Token exchange failed: ${err?.message || String(err)}`, { status: 400 });
+    }
+  }
   if (!user) return error(req, 'Unauthorized', 401);
 
   if (req.method === 'GET' && path === '/api/users/me/permissions') {
@@ -282,6 +406,73 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
   }
 
+  if (req.method === 'POST' && path === '/api/users/me/resources/connections/test') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const providerType = String(body.provider_type || body.providerType || 'openai-compatible').trim().toLowerCase() || 'openai-compatible';
+    const baseUrlRaw = String(body.base_url || body.baseUrl || '').trim();
+    const baseUrl = baseUrlRaw || getConnectionDefaultBaseUrl(providerType);
+    if (isConnectionUrlRequired(providerType) && !baseUrlRaw) {
+      return error(req, 'Connection URL is required for compatible providers', 400);
+    }
+    if (!/^https?:\/\//i.test(baseUrl)) {
+      return error(req, 'Connection URL must start with http:// or https://', 400);
+    }
+
+    let headers = {};
+    try {
+      if (typeof body.headers === 'string' && body.headers.trim()) {
+        const parsed = JSON.parse(body.headers);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Headers must be a JSON object');
+        }
+        headers = parsed;
+      } else if (body.headers && typeof body.headers === 'object' && !Array.isArray(body.headers)) {
+        headers = body.headers;
+      }
+    } catch (err) {
+      return error(req, err?.message || 'Headers must be valid JSON', 400);
+    }
+
+    const connection = {
+      providerType,
+      providerFamily: providerType,
+      baseUrl,
+      key: String(body.key || '').trim(),
+      headers,
+      authType: String(body.auth_type || body.authType || '').trim().toLowerCase(),
+    };
+
+    try {
+      const discovery = await discoverConnectionModels(connection, { headers: buildConnectionHeaders(connection) });
+      if (!discovery.items.length) {
+        const message = discovery.error?.message || 'No models discovered';
+        return error(req, 'Connection failed', 502, { message: String(message).slice(0, 200) });
+      }
+
+      return json(req, {
+        ok: true,
+        message: 'Connection successful',
+        discovery_url: discovery.url,
+        models: discovery.items.map((item) => {
+          const rawId = String(item?.id || item?.modelId || item?.model_id || item?.name || '').trim();
+          const displayName = String(item?.displayName || item?.display_name || item?.name || rawId || '').trim();
+          return {
+            id: rawId.startsWith('models/') ? rawId.slice('models/'.length) : rawId,
+            name: displayName.startsWith('models/') ? displayName.slice('models/'.length) : displayName,
+          };
+        }).filter((item) => Boolean(item.id)),
+      });
+    } catch (err) {
+      return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
+    }
+  }
+
   if (req.method === 'GET' && path === '/api/users/me/resources/mcp-servers') {
     const db = createDB(env.DB);
     try {
@@ -346,6 +537,119 @@ export async function usersRouter(req, env, _ctx, user, path) {
     } catch (err) {
       return error(req, err?.message || 'Failed to test MCP server', 400);
     }
+  }
+
+  if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers/oauth/start') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const serverId = String(body.id || '').trim();
+    if (!serverId) {
+      return error(req, 'Server must be saved before OAuth connect', 400);
+    }
+
+    const db = createDB(env.DB);
+    const servers = await loadUserToolServers(db, user.sub);
+    const serverIndex = servers.findIndex((entry) => String(entry.id) === serverId);
+    const existingServer = serverIndex === -1 ? null : servers[serverIndex];
+    if (!existingServer) {
+      return error(req, 'Server must be saved before OAuth connect', 400);
+    }
+
+    const serverUrl = String(body.url || existingServer?.url || '').trim();
+    if (!serverUrl || !/^https?:\/\//i.test(serverUrl)) {
+      return error(req, 'Server URL must start with http:// or https://', 400);
+    }
+
+    const oauthClientName = String(body.oauth_client_name || existingServer.oauth_client_name || 'GrowChat MCP Client').trim();
+    const oauthScope = String(body.oauth_scope || existingServer.oauth_scope || '').trim();
+    const authServerUrl = String(body.oauth_authorization_server || existingServer.oauth_authorization_server || serverUrl).trim();
+
+    let metadata = null;
+    try {
+      metadata = await discoverAuthorizationMetadata(authServerUrl);
+    } catch {
+      metadata = null;
+    }
+
+    let clientId = String(body.oauth_client_id || existingServer.oauth_client_id || '').trim();
+    let clientSecret = String(body.oauth_client_secret || existingServer.oauth_client_secret || '').trim();
+    const registrationEndpoint = metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
+    const redirectUri = new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+
+    if (!clientId) {
+      if (!registrationEndpoint) {
+        return error(req, 'Authorization server does not support dynamic client registration', 400);
+      }
+      try {
+        const registrationPayload = {
+          client_name: oauthClientName,
+          redirect_uris: [redirectUri],
+          grant_types: ['authorization_code', 'refresh_token'],
+          response_types: ['code'],
+        };
+        const registrationRes = await fetch(registrationEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(registrationPayload),
+        });
+        if (!registrationRes.ok) {
+          const text = await registrationRes.text().catch(() => '');
+          return error(req, 'Client registration failed', 502, { message: text });
+        }
+        const registrationData = await registrationRes.json();
+        clientId = String(registrationData.client_id || '').trim();
+        clientSecret = String(registrationData.client_secret || '').trim();
+      } catch (err) {
+        return error(req, 'Client registration failed', 502, { message: err?.message || String(err) });
+      }
+    }
+
+    if (!clientId) {
+      return error(req, 'OAuth client ID is required', 400);
+    }
+
+    const tokenAuthMethod = normalizeTokenAuthMethod(
+      body.oauth_token_auth_method || existingServer.oauth_token_auth_method
+    ) || selectTokenAuthMethod(metadata?.token_endpoint_auth_methods_supported || [], Boolean(clientSecret));
+
+    const codeVerifier = randomString(64);
+    const codeChallenge = await sha256Base64Url(codeVerifier);
+    const state = randomString(32);
+    const authorizationEndpoint = metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
+    const tokenEndpoint = metadata?.token_endpoint || new URL('/token', authServerUrl).toString();
+
+    const authorizationUrl = buildAuthorizationUrl({
+      authorizationEndpoint,
+      clientId,
+      redirectUri,
+      scope: oauthScope,
+      state,
+      codeChallenge,
+    });
+
+    const persistedServer = {
+      ...existingServer,
+      auth_type: 'oauth',
+      oauth_client_name: oauthClientName,
+      oauth_scope: oauthScope,
+      oauth_client_id: clientId,
+      oauth_client_secret: clientSecret,
+      oauth_authorization_server: authServerUrl,
+      oauth_token_endpoint: tokenEndpoint,
+      oauth_registration_endpoint: registrationEndpoint,
+      oauth_token_auth_method: tokenAuthMethod,
+      oauth_state: state,
+      oauth_code_verifier: codeVerifier,
+    };
+
+    await saveUserToolServerJson(db, user.sub, serverId, persistedServer);
+
+    return json(req, { ok: true, authorization_url: authorizationUrl.toString() });
   }
 
   const personalMcpMatch = path.match(/^\/api\/users\/me\/resources\/mcp-servers\/([^/]+)$/);

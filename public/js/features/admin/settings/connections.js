@@ -1,7 +1,7 @@
 import { apiFetch } from '../../../shared/api.js';
 import { fetchAdminConnectionAccess } from '../../../shared/admin-access.js';
+import { buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
 import { cloneAclRules, createAclDraftRegistry, getAclRulesSignature } from '../acl-draft.js';
-import { filterModelsBySearch } from '../../../shared/utils/model-search.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
@@ -694,40 +694,21 @@ export function renderConnectionsSettings(container, data) {
       return;
     }
     const models = sortModelsByActiveThenName(connectionsState.modalModels);
+    const selected = connectionsState.modalModelsSelection || new Set();
     if (!models.length) {
       list.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">No models discovered for this connection.</div>';
       status.textContent = '';
       return;
     }
-    const filtered = filterModelsBySearch(models, connectionsState.modalModelsQuery);
+    list.innerHTML = buildConnectionModalModelsMarkup(
+      models,
+      connectionsState.modalModelsQuery,
+      selected,
+      connectionsState.modalModelsLoading,
+      connectionsState.modalModelsError || '',
+    );
     status.classList.remove('text-red-500');
-    const selected = connectionsState.modalModelsSelection || new Set();
-    const hasQuery = Boolean(String(connectionsState.modalModelsQuery || '').trim());
-    if (!filtered.length) {
-      list.innerHTML = hasQuery
-        ? '<div class="px-4 py-3 text-xs text-gray-400">No models match the current search.</div>'
-        : '<div class="px-4 py-3 text-xs text-gray-400">No models discovered for this connection.</div>';
-      status.textContent = `${selected.size} of ${models.length} enabled`;
-      return;
-    }
-    list.innerHTML = filtered.map((model) => {
-      const checked = selected.has(model.id);
-      const label = model.name || model.id;
-      const manualBadge = model.manual ? '<span class="ml-2 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">Manual</span>' : '';
-      return `
-        <label class="flex items-center gap-3 px-4 py-2 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50">
-          <input type="checkbox" data-model-id="${model.id}" class="h-4 w-4 rounded border-gray-300" ${checked ? 'checked' : ''} />
-          <div class="flex flex-col min-w-0">
-            <div class="flex items-center min-w-0">
-              <span class="text-sm text-gray-900 truncate">${label}</span>
-              ${manualBadge}
-            </div>
-            <span class="text-[11px] text-gray-400 font-mono truncate">${model.id}</span>
-          </div>
-        </label>
-      `;
-    }).join('');
-    status.textContent = `${selected.size} of ${models.length} enabled`;
+    status.textContent = models.length ? `${selected.size} of ${models.length} enabled` : '';
   };
 
   const addManualModalModel = (scope = container) => {

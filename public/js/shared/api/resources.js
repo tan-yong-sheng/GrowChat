@@ -34,6 +34,14 @@ export async function deleteUserConnection(id) {
   return readJsonResponse(res, `Failed to delete connection (${res.status})`);
 }
 
+export async function testUserConnection(payload) {
+  const res = await apiFetch('/api/users/me/resources/connections/test', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return readJsonResponse(res, `Failed to test connection (${res.status})`);
+}
+
 export async function fetchUserMcpServers({ signal, cache = 'no-store' } = {}) {
   const res = await apiFetch('/api/users/me/resources/mcp-servers', { signal, cache });
   return readJsonResponse(res, `Failed to fetch MCP servers (${res.status})`);

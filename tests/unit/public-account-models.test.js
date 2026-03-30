@@ -71,7 +71,7 @@ describe('account models section', () => {
     mocks.fetchModels.mockReset();
   });
 
-  it('renders the model catalog without a personal default editor', async () => {
+  it('renders an admin-style model table without the ACL lock button', async () => {
     mocks.apiFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -89,10 +89,15 @@ describe('account models section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush();
 
+    expect(document.querySelector('#account-main-footer #save-models-top')).not.toBeNull();
     expect(document.querySelector('[data-account-model-form]')).toBeNull();
     expect(document.querySelector('#account-model-search-input')).not.toBeNull();
-    expect(document.body.textContent).toContain('Available Models');
+    expect(document.body.textContent).toContain('All Providers');
+    expect(document.body.textContent).toContain('Show');
     expect(document.body.textContent).toContain('Model One');
     expect(document.body.textContent).toContain('Model Two');
-  });
+    expect(document.querySelector('[data-model-row]')).not.toBeNull();
+    expect(document.querySelector('[data-model-acl]')).toBeNull();
+    expect(document.querySelector('.model-toggle')).not.toBeNull();
+  }, 10000);
 });

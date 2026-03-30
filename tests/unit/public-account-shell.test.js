@@ -77,8 +77,10 @@ describe('account shell tabs', () => {
     expect(tabs[0].className).toContain('text-gray-900');
     expect(tabs[0].className).toContain('underline');
     expect(tabs[1].className).toContain('text-gray-300');
+    expect(document.querySelector('#toggle-sidebar-mobile')).not.toBeNull();
     expect(document.body.textContent).toContain('Profile');
     expect(document.body.textContent).toContain('Settings');
+    expect(document.querySelector('#account-main-footer')).not.toBeNull();
 
     const innerTabs = Array.from(document.querySelectorAll('#account-tabs-container [data-subnav]'));
     expect(innerTabs.map((tab) => tab.textContent?.trim())).toEqual(['Overview']);
@@ -96,13 +98,16 @@ describe('account shell tabs', () => {
 
     const tabs = Array.from(document.querySelectorAll('[data-account-area-tab]'));
     expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Profile', 'Settings']);
+    expect(tabs[0].getAttribute('href')).toBe('/account/profile/overview');
+    expect(tabs[1].getAttribute('href')).toBe('/account/settings/connections');
     expect(tabs[0].className).toContain('text-gray-300');
     expect(tabs[1].className).toContain('text-gray-900');
     expect(tabs[1].className).toContain('underline');
-    expect(document.querySelector('h1')?.textContent).toBe('Connections');
-    expect(document.body.textContent).toContain('Profile');
+    expect(document.querySelector('#toggle-sidebar-mobile')).not.toBeNull();
+    expect(document.querySelector('h1')).toBeNull();
     expect(document.body.textContent).toContain('Settings');
     expect(document.querySelector('[data-subnav="connections"]')?.className).toContain('bg-gray-100');
+    expect(document.querySelector('#account-main-footer')).not.toBeNull();
 
     const innerTabs = Array.from(document.querySelectorAll('#account-tabs-container [data-subnav]'));
     expect(innerTabs.map((tab) => tab.textContent?.trim())).toEqual([

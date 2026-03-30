@@ -2,7 +2,11 @@ import { state, setState, subscribe } from '../../shared/store.js';
 import { apiFetch, fetchAdminGroups } from '../../shared/api.js';
 import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
 import { renderWorkspaceSidebar, wireWorkspaceSidebar } from '../../shared/components/workspace-sidebar.js';
-import { renderWorkspaceTopTabs } from '../../shared/components/workspace-top-tabs.js';
+import { buildWorkspaceTopNavConfig } from '../../shared/components/workspace-top-nav-config.js';
+import {
+  renderWorkspaceTopNav,
+  renderWorkspaceTopNavSidebarToggle,
+} from '../../shared/components/settings-top-nav.js';
 import { renderUserOverview } from './users/overview.js';
 import { preloadGroupsData, renderGroupsOverview } from './users/groups.js';
 import { shouldLoadGroups } from './users/groups-helpers.js';
@@ -467,22 +471,17 @@ export async function renderAdminPage(container) {
         footerId: 'sidebar-footer',
       }),
       mainHtml: `
-          <nav class="px-4 pt-2 border-b border-gray-50 bg-white/80 backdrop-blur-md sticky top-0 z-20">
-            <div class="flex items-center gap-1">
-              <button id="toggle-sidebar-mobile" class="p-2 mr-2 hover:bg-gray-100 rounded-lg transition text-gray-500 md:hidden" title="Open Sidebar">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-              </button>
-              ${renderWorkspaceTopTabs({
-                tabs: [
-                  { href: '/admin/users', key: 'users', label: 'Users' },
-                  { href: '/admin/settings/connections', key: 'settings', label: 'Settings' },
-                  { href: '/admin/system/general', key: 'system', label: 'System' },
-                ],
-                activeKey: mainTab,
-                dataAttrName: 'data-nav',
-              })}
-            </div>
-          </nav>
+          ${renderWorkspaceTopNav({
+            ...buildWorkspaceTopNavConfig({
+              variant: 'admin',
+              currentKey: mainTab,
+            }),
+            leadingSlotHtml: renderWorkspaceTopNavSidebarToggle({
+              id: 'toggle-sidebar-mobile',
+              title: 'Open Sidebar',
+              className: 'p-2 mr-2 hover:bg-gray-100 rounded-lg transition text-gray-500 md:hidden',
+            }),
+          })}
           <div class="flex-1 flex overflow-hidden" id="admin-main-content"></div>
         `,
     });

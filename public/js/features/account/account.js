@@ -1,9 +1,15 @@
 import { apiFetch } from '../../shared/api.js';
 import { ensureMarkedReady } from '../../shared/utils.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
+import { renderSettingsViewport } from '../../shared/components/settings-viewport.js';
 import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
 import { renderWorkspaceSidebar, wireWorkspaceSidebar } from '../../shared/components/workspace-sidebar.js';
-import { renderWorkspaceTopTabs } from '../../shared/components/workspace-top-tabs.js';
+import { buildWorkspaceTopNavConfig } from '../../shared/components/workspace-top-nav-config.js';
+import { buildWorkspaceSettingsSubnavItems } from '../../shared/components/workspace-settings-subnav-config.js';
+import {
+  renderWorkspaceTopNav,
+  renderWorkspaceTopNavSidebarToggle,
+} from '../../shared/components/settings-top-nav.js';
 import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-vertical-tabs.js';
 import { renderAccountConnectionsSection } from './account-connections.js';
 import { renderAccountIntegrationsSection } from './account-integrations.js';
@@ -16,10 +22,6 @@ function getSection(pathname) {
   if (pathname.startsWith('/account/settings/models')) return 'models';
   if (pathname.startsWith('/account/settings/integrations')) return 'integrations';
   return 'overview';
-}
-
-function getAccountArea(section) {
-  return section === 'overview' ? 'profile' : 'settings';
 }
 
 function escapeHtml(value) {
@@ -87,29 +89,10 @@ function getAccountNavItems(section) {
     }];
   }
 
-  return [
-    {
-      href: '/account/settings/connections',
-      key: 'connections',
-      label: 'Connections',
-      active: section === 'connections',
-      icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/></svg>',
-    },
-    {
-      href: '/account/settings/models',
-      key: 'models',
-      label: 'Models',
-      active: section === 'models',
-      icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v7.5A2.25 2.25 0 0 1 11.75 14h-7.5A2.25 2.25 0 0 1 2 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75v7.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75h-7.5Z" clip-rule="evenodd" /><path d="M4.75 5.5a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75ZM4.75 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.75 8ZM5.5 9.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" /></svg>',
-    },
-    {
-      href: '/account/settings/integrations',
-      key: 'integrations',
-      label: 'Integrations',
-      active: section === 'integrations',
-      icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path fill-rule="evenodd" d="M3.75 3A1.75 1.75 0 0 0 2 4.75v6.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 11.25v-6.5A1.75 1.75 0 0 0 12.25 3h-8.5ZM12.5 4.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-6.5Z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M6 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 7a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM6 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0ZM10 9a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" clip-rule="evenodd" /></svg>',
-    },
-  ];
+  return buildWorkspaceSettingsSubnavItems({
+    basePath: '/account/settings',
+    currentKey: section,
+  });
 }
 
 function renderReadOnlySection(title, items = [], emptyText = 'Nothing to show yet.') {
@@ -131,6 +114,7 @@ function renderReadOnlySection(title, items = [], emptyText = 'Nothing to show y
 export async function renderAccountPage(container) {
   ensureMarkedReady();
   const section = getSection(window.location.pathname);
+  const isOverview = section === 'overview';
   container.dataset.view = 'account';
   let accountState = null;
 
@@ -148,20 +132,19 @@ export async function renderAccountPage(container) {
     }),
     mainHtml: `
       <div class="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#fafafa] text-gray-900">
-        <div class="w-full px-4 py-6 flex-1 min-h-0 overflow-hidden">
-          <div class="px-4 pt-2 border-b border-gray-50 bg-white/80 backdrop-blur-md sticky top-0 z-20">
-            <div class="flex items-center gap-1">
-              ${renderWorkspaceTopTabs({
-                tabs: [
-                  { href: '/account/profile/overview', key: 'profile', label: 'Profile' },
-                  { href: '/account/settings/connections', key: 'settings', label: 'Settings' },
-                ],
-                activeKey: getAccountArea(section),
-                dataAttrName: 'data-account-area-tab',
-              })}
-            </div>
-          </div>
-          ${renderSettingsShell({
+          ${renderWorkspaceTopNav({
+            ...buildWorkspaceTopNavConfig({
+              variant: 'account',
+              currentKey: section,
+            }),
+            leadingSlotHtml: renderWorkspaceTopNavSidebarToggle({
+              id: 'toggle-sidebar-mobile',
+              title: 'Open Sidebar',
+              className: 'p-2 mr-2 hover:bg-gray-100 rounded-lg transition text-gray-500 md:hidden',
+            }),
+          })}
+        ${renderSettingsViewport({
+          contentHtml: renderSettingsShell({
             navPaneHtml: renderWorkspaceVerticalTabs({
               id: 'account-tabs-container',
               items: getAccountNavItems(section),
@@ -170,17 +153,19 @@ export async function renderAccountPage(container) {
             contentId: 'account-main-content',
             footerId: 'account-main-footer',
             contentHtml: `
-              <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
-              <div class="w-full">
-                <h1 data-account-section-title class="text-xl font-medium text-gray-900"></h1>
-              </div>
-            </div>
-                <div data-account-content class="h-full min-h-0">
-                  <div class="text-sm text-gray-500">Loading account settings...</div>
+              ${isOverview ? `
+                <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
+                  <div class="w-full">
+                    <h1 data-account-section-title class="text-xl font-medium text-gray-900"></h1>
+                  </div>
                 </div>
-              `,
-          })}
-        </div>
+              ` : ''}
+              <div data-account-content class="h-full min-h-0">
+                <div class="text-sm text-gray-500">Loading account settings...</div>
+              </div>
+            `,
+          }),
+        })}
       </div>
     `,
   });
@@ -198,17 +183,18 @@ export async function renderAccountPage(container) {
 
   const content = container.querySelector('[data-account-content]');
   const sectionTitle = container.querySelector('[data-account-section-title]');
+  const footerHost = container.querySelector('#account-main-footer');
 
   try {
     await loadCurrentState();
     if (sectionTitle) {
-      const isOverview = section === 'overview';
       sectionTitle.classList.toggle('hidden', !isOverview);
       sectionTitle.textContent = formatSectionLabel(section);
     }
 
     if (section === 'overview') {
       content.innerHTML = renderOverview(accountState);
+      if (footerHost) footerHost.innerHTML = '';
     } else if (section === 'connections') {
       const rerenderConnections = async () => {
         await loadCurrentState();
@@ -216,9 +202,12 @@ export async function renderAccountPage(container) {
       };
       renderAccountConnectionsSection(content, accountState, {
         onRefresh: rerenderConnections,
+        footerHost,
       });
     } else if (section === 'models') {
-      renderAccountModelsSection(content, accountState);
+      renderAccountModelsSection(content, accountState, {
+        footerHost,
+      });
     } else if (section === 'integrations') {
       const refreshIntegrations = async () => {
         await loadCurrentState();
@@ -226,11 +215,14 @@ export async function renderAccountPage(container) {
       };
       renderAccountIntegrationsSection(content, accountState, {
         onRefresh: refreshIntegrations,
+        footerHost,
       });
     } else {
       content.innerHTML = renderOverview(accountState);
+      if (footerHost) footerHost.innerHTML = '';
     }
   } catch (err) {
     content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
+    if (footerHost) footerHost.innerHTML = '';
   }
 }
