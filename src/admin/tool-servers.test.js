@@ -128,6 +128,82 @@ describe('admin tool server helpers', () => {
     ]);
   });
 
+  it('marks shared tool visibility from user overrides', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM group_members')) {
+          return [{ group_id: 'g1' }];
+        }
+        if (String(sql).includes('FROM tool_server_acl_rules')) {
+          return [
+            {
+              id: 'rule-1',
+              tool_server_id: 'mcp-admin',
+              principal_type: 'group',
+              principal_id: 'g1',
+              effect: 'allow',
+              action: 'use',
+            },
+          ];
+        }
+        if (String(sql).includes('FROM user_tool_servers')) {
+          return [];
+        }
+        return [];
+      }),
+      first: vi.fn(async (sql) => {
+        if (String(sql).includes('SELECT preferences FROM users WHERE id = ?')) {
+          return {
+            preferences: JSON.stringify({
+              resource_overrides: {
+                tool_servers: {
+                  tools: {
+                    'mcp-admin': {
+                      hidden_ids: ['shared_search'],
+                    },
+                  },
+                },
+              },
+            }),
+          };
+        }
+        return { role: 'member' };
+      }),
+    };
+    mocks.getConfigValue.mockResolvedValueOnce(JSON.stringify([
+      {
+        id: 'mcp-admin',
+        name: 'Admin MCP',
+        url: 'https://mcp.example.com',
+        enabled: true,
+        tools: [
+          { name: 'shared_search', title: 'Shared Search', enabled: true },
+          { name: 'shared_news', title: 'Shared News', enabled: true },
+        ],
+      },
+    ]));
+
+    const servers = await loadToolServers(db, { userId: 'u1' });
+    expect(servers).toEqual([
+      expect.objectContaining({
+        id: 'mcp-admin',
+        tools: [
+          expect.objectContaining({
+            name: 'shared_search',
+            visible_for_user: false,
+            hidden_for_user: true,
+          }),
+          expect.objectContaining({
+            name: 'shared_news',
+            visible_for_user: true,
+            hidden_for_user: false,
+          }),
+        ],
+      }),
+    ]);
+  });
+
   it('validates user-owned MCP server urls', async () => {
     const db = {
       run: vi.fn().mockResolvedValue({ success: true }),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countEnabledModels, sortModelsByActiveThenName } from '../../public/js/shared/utils/model-state.js';
+import { countEnabledModels, filterEnabledModels, sortModelsByActiveThenName } from '../../public/js/shared/utils/model-state.js';
 
 describe('public model state helpers', () => {
   it('counts enabled models from arrays and ignores non-arrays', () => {
@@ -9,6 +9,17 @@ describe('public model state helpers', () => {
       { id: 'c' },
     ])).toBe(2);
     expect(countEnabledModels(null)).toBe(0);
+  });
+
+  it('filters enabled models from arrays and ignores non-arrays', () => {
+    const models = [
+      { id: 'a', enabled: true },
+      { id: 'b', enabled: false },
+      { id: 'c' },
+    ];
+
+    expect(filterEnabledModels(models).map((model) => model.id)).toEqual(['a', 'c']);
+    expect(filterEnabledModels(null)).toEqual([]);
   });
 
   it('sorts enabled models first and breaks ties consistently', () => {

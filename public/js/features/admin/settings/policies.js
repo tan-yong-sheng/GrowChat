@@ -7,6 +7,7 @@ import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
 import { cloneAclRules, getAclRulesSignature } from '../acl-draft.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
+import { captureRenderState, restoreRenderState } from '../../../shared/components/search-bar.js';
 
 const FAMILIES = [
   { key: 'connections', label: 'Connections' },
@@ -1017,11 +1018,10 @@ export function renderPoliciesSettings(container, data = {}) {
 
   const render = () => {
     if (!isActiveTab(container)) return;
-    const previousScrollTop = container.querySelector('[data-policies-scroll]')?.scrollTop || 0;
-    const previousSearchInput = container.querySelector('#policy-search');
-    const wasSearchFocused = previousSearchInput && document.activeElement === previousSearchInput;
-    const selectionStart = wasSearchFocused ? previousSearchInput.selectionStart : null;
-    const selectionEnd = wasSearchFocused ? previousSearchInput.selectionEnd : null;
+    const renderSnapshot = captureRenderState(container, {
+      inputId: 'policy-search',
+      scrollSelector: '[data-policies-scroll]',
+    });
     if (state.loading) {
       container.innerHTML = `
         <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-150 w-full">
@@ -1411,24 +1411,10 @@ export function renderPoliciesSettings(container, data = {}) {
       });
     });
 
-    const nextScrollContainer = container.querySelector('[data-policies-scroll]');
-    if (nextScrollContainer) {
-      nextScrollContainer.scrollTop = previousScrollTop;
-    }
-    if (wasSearchFocused) {
-      const searchInput = container.querySelector('#policy-search');
-      if (searchInput) {
-        const len = searchInput.value.length;
-        const start = selectionStart === null ? len : Math.min(selectionStart, len);
-        const end = selectionEnd === null ? len : Math.min(selectionEnd, len);
-        searchInput.focus();
-        try {
-          searchInput.setSelectionRange(start, end);
-        } catch {
-          // Ignore selection restore errors.
-        }
-      }
-    }
+    restoreRenderState(container, renderSnapshot, {
+      inputId: 'policy-search',
+      scrollSelector: '[data-policies-scroll]',
+    });
   };
 
   const load = async () => {

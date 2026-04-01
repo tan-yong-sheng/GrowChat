@@ -1,5 +1,4 @@
 const ACCOUNT_TOP_NAV_TABS = Object.freeze([
-  Object.freeze({ href: '/account/profile/overview', key: 'profile', label: 'Profile' }),
   Object.freeze({ href: '/account/settings/connections', key: 'settings', label: 'Settings' }),
 ]);
 
@@ -20,7 +19,7 @@ export function buildWorkspaceTopNavConfig({
   if (variant === 'account') {
     return {
       tabs: cloneTabs(ACCOUNT_TOP_NAV_TABS),
-      activeKey: currentKey === 'overview' ? 'profile' : 'settings',
+      activeKey: 'settings',
       dataAttrName: 'data-account-area-tab',
     };
   }

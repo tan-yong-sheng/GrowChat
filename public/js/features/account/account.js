@@ -1,23 +1,22 @@
 import { apiFetch } from '../../shared/api.js';
 import { ensureMarkedReady } from '../../shared/utils.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
-import { renderSettingsViewport } from '../../shared/components/settings-viewport.js';
+import { renderSettingsDrawerShell } from '../../shared/components/settings-drawer-shell.js';
 import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
 import { renderWorkspaceSidebar, wireWorkspaceSidebar } from '../../shared/components/workspace-sidebar.js';
 import { buildWorkspaceTopNavConfig } from '../../shared/components/workspace-top-nav-config.js';
-import { buildWorkspaceSettingsSubnavItems } from '../../shared/components/workspace-settings-subnav-config.js';
 import {
   renderWorkspaceTopNav,
-  renderWorkspaceTopNavSidebarToggle,
 } from '../../shared/components/settings-top-nav.js';
 import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-vertical-tabs.js';
+import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
+import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { renderAccountConnectionsSection } from './account-connections.js';
 import { renderAccountIntegrationsSection } from './account-integrations.js';
 import { renderAccountModelsSection } from './account-models.js';
 
-function getSection(pathname) {
+export function resolveAccountSectionFromPath(pathname) {
   if (pathname === '/account' || pathname === '/account/') return 'overview';
-  if (pathname.startsWith('/account/profile/overview')) return 'overview';
   if (pathname.startsWith('/account/settings/connections')) return 'connections';
   if (pathname.startsWith('/account/settings/models')) return 'models';
   if (pathname.startsWith('/account/settings/integrations')) return 'integrations';
@@ -81,7 +80,7 @@ function renderOverview(state) {
 function getAccountNavItems(section) {
   if (section === 'overview') {
     return [{
-      href: '/account/profile/overview',
+      href: '#overview',
       key: 'overview',
       label: 'Overview',
       active: section === 'overview',
@@ -89,10 +88,26 @@ function getAccountNavItems(section) {
     }];
   }
 
-  return buildWorkspaceSettingsSubnavItems({
-    basePath: '/account/settings',
-    currentKey: section,
-  });
+  return [
+    {
+      href: '#connections',
+      key: 'connections',
+      label: 'Connections',
+      active: section === 'connections',
+    },
+    {
+      href: '#models',
+      key: 'models',
+      label: 'Models',
+      active: section === 'models',
+    },
+    {
+      href: '#integrations',
+      key: 'integrations',
+      label: 'Integrations',
+      active: section === 'integrations',
+    },
+  ];
 }
 
 function renderReadOnlySection(title, items = [], emptyText = 'Nothing to show yet.') {
@@ -111,15 +126,75 @@ function renderReadOnlySection(title, items = [], emptyText = 'Nothing to show y
   `;
 }
 
+async function renderAccountSection({
+  section,
+  accountState,
+  content,
+  footerHost,
+  settingsRouteCache,
+  onRefresh,
+}) {
+  if (section === 'overview') {
+    content.innerHTML = renderOverview(accountState);
+    if (footerHost) footerHost.innerHTML = '';
+    return;
+  }
+
+  if (section === 'connections') {
+    const rerenderConnections = async () => {
+      await onRefresh?.();
+      return accountState;
+    };
+    renderAccountConnectionsSection(content, accountState, {
+      onRefresh: rerenderConnections,
+      footerHost,
+      routeCache: settingsRouteCache,
+    });
+    return;
+  }
+
+  if (section === 'models') {
+    const refreshModels = async () => {
+      await onRefresh?.();
+      return accountState;
+    };
+    renderAccountModelsSection(content, accountState, {
+      onRefresh: refreshModels,
+      footerHost,
+      routeCache: settingsRouteCache,
+    });
+    return;
+  }
+
+  if (section === 'integrations') {
+    const refreshIntegrations = async () => {
+      await onRefresh?.();
+      return accountState;
+    };
+    renderAccountIntegrationsSection(content, accountState, {
+      onRefresh: refreshIntegrations,
+      footerHost,
+      routeCache: settingsRouteCache,
+    });
+    return;
+  }
+
+  content.innerHTML = renderOverview(accountState);
+  if (footerHost) footerHost.innerHTML = '';
+}
+
 export async function renderAccountPage(container) {
   ensureMarkedReady();
-  const section = getSection(window.location.pathname);
-  const isOverview = section === 'overview';
+  const section = resolveAccountSectionFromPath(window.location.pathname);
   container.dataset.view = 'account';
+  const previousCleanup = typeof container.__cleanup === 'function' ? container.__cleanup : null;
+  previousCleanup?.();
+  const settingsRouteCache = createSettingsRouteCache();
+  let removeSettingsRouteCache = null;
   let accountState = null;
 
   const loadCurrentState = async () => {
-    accountState = await loadAccountState();
+    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
     return accountState;
   };
 
@@ -131,40 +206,38 @@ export async function renderAccountPage(container) {
       footerId: 'sidebar-footer',
     }),
     mainHtml: `
-      <div class="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#fafafa] text-gray-900">
-          ${renderWorkspaceTopNav({
-            ...buildWorkspaceTopNavConfig({
-              variant: 'account',
-              currentKey: section,
-            }),
-            leadingSlotHtml: renderWorkspaceTopNavSidebarToggle({
-              id: 'toggle-sidebar-mobile',
-              title: 'Open Sidebar',
-              className: 'p-2 mr-2 hover:bg-gray-100 rounded-lg transition text-gray-500 md:hidden',
-            }),
-          })}
-        ${renderSettingsViewport({
-          contentHtml: renderSettingsShell({
-            navPaneHtml: renderWorkspaceVerticalTabs({
-              id: 'account-tabs-container',
-              items: getAccountNavItems(section),
-            }),
-            bodyId: 'account-main-body',
-            contentId: 'account-main-content',
-            footerId: 'account-main-footer',
-            contentHtml: `
-              ${isOverview ? `
-                <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
-                  <div class="w-full">
-                    <h1 data-account-section-title class="text-xl font-medium text-gray-900"></h1>
+      <div class="relative flex-1 min-h-0 overflow-hidden bg-[#fafafa] text-gray-900">
+        ${renderSettingsDrawerShell({
+          rootId: 'account-settings-drawer',
+          title: 'My Settings',
+          subtitle: 'Personal account preferences and tools.',
+          scopeLabel: 'Personal',
+          closeId: 'account-settings-close',
+          overlayId: 'account-settings-overlay',
+          body: `
+            <div class="flex h-full min-h-0 flex-col overflow-hidden">
+              ${renderWorkspaceTopNav({
+                ...buildWorkspaceTopNavConfig({
+                  variant: 'account',
+                  currentKey: section,
+                }),
+              })}
+              ${renderSettingsShell({
+                navPaneHtml: renderWorkspaceVerticalTabs({
+                  id: 'account-tabs-container',
+                  items: getAccountNavItems(section),
+                }),
+                bodyId: 'account-main-body',
+                contentId: 'account-main-content',
+                footerId: 'account-main-footer',
+                contentHtml: `
+                  <div data-account-content class="h-full min-h-0">
+                    <div class="text-sm text-gray-500">Loading account settings...</div>
                   </div>
-                </div>
-              ` : ''}
-              <div data-account-content class="h-full min-h-0">
-                <div class="text-sm text-gray-500">Loading account settings...</div>
-              </div>
-            `,
-          }),
+                `,
+              })}
+            </div>
+          `,
         })}
       </div>
     `,
@@ -182,47 +255,138 @@ export async function renderAccountPage(container) {
   });
 
   const content = container.querySelector('[data-account-content]');
-  const sectionTitle = container.querySelector('[data-account-section-title]');
   const footerHost = container.querySelector('#account-main-footer');
+  removeSettingsRouteCache = settingsRouteCache.bind();
+  container.__cleanup = () => {
+    removeSettingsRouteCache?.();
+  };
 
   try {
     await loadCurrentState();
-    if (sectionTitle) {
-      sectionTitle.classList.toggle('hidden', !isOverview);
-      sectionTitle.textContent = formatSectionLabel(section);
-    }
-
-    if (section === 'overview') {
-      content.innerHTML = renderOverview(accountState);
-      if (footerHost) footerHost.innerHTML = '';
-    } else if (section === 'connections') {
-      const rerenderConnections = async () => {
-        await loadCurrentState();
-        return accountState;
-      };
-      renderAccountConnectionsSection(content, accountState, {
-        onRefresh: rerenderConnections,
-        footerHost,
-      });
-    } else if (section === 'models') {
-      renderAccountModelsSection(content, accountState, {
-        footerHost,
-      });
-    } else if (section === 'integrations') {
-      const refreshIntegrations = async () => {
-        await loadCurrentState();
-        return accountState;
-      };
-      renderAccountIntegrationsSection(content, accountState, {
-        onRefresh: refreshIntegrations,
-        footerHost,
-      });
-    } else {
-      content.innerHTML = renderOverview(accountState);
-      if (footerHost) footerHost.innerHTML = '';
-    }
+    await renderAccountSection({
+      section,
+      accountState,
+      content,
+      footerHost,
+      settingsRouteCache,
+      onRefresh: loadCurrentState,
+    });
   } catch (err) {
     content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
     if (footerHost) footerHost.innerHTML = '';
   }
+
+  const closeBtn = container.querySelector('#account-settings-close');
+  const closeOverlay = container.querySelector('#account-settings-overlay');
+  const closeSettings = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.history.pushState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
+  closeBtn?.addEventListener('click', closeSettings);
+  closeOverlay?.addEventListener('click', closeSettings);
+}
+
+export async function openAccountSettingsDrawer({ section = 'connections' } = {}) {
+  ensureMarkedReady();
+  const existing = document.getElementById('account-settings-drawer-modal');
+  existing?.remove();
+
+  const mount = document.createElement('div');
+  document.body.appendChild(mount);
+
+  const settingsRouteCache = createSettingsRouteCache();
+  let removeSettingsRouteCache = null;
+  let accountState = null;
+  let currentSection = section;
+  let drawer = null;
+  let content = null;
+  let footerHost = null;
+
+  const loadCurrentState = async () => {
+    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
+    return accountState;
+  };
+
+  removeSettingsRouteCache = settingsRouteCache.bind();
+
+  const closeDrawer = () => {
+    removeSettingsRouteCache?.();
+    drawer?.remove();
+    mount.remove();
+  };
+
+  const renderDrawer = async () => {
+    mount.innerHTML = renderSettingsDrawerShell({
+      rootId: 'account-settings-drawer-modal',
+      title: 'My Settings',
+      subtitle: 'Personal account preferences and tools.',
+      scopeLabel: 'Personal',
+      closeId: 'account-settings-drawer-close',
+      overlayId: 'account-settings-drawer-overlay',
+      body: `
+        <div class="flex h-full min-h-0 flex-col overflow-hidden">
+          ${renderSettingsShell({
+            navPaneHtml: renderWorkspaceVerticalTabs({
+              id: 'account-drawer-tabs-container',
+              items: getAccountNavItems(currentSection),
+            }),
+            bodyId: 'account-drawer-body',
+            contentId: 'account-drawer-content',
+            footerId: 'account-drawer-footer',
+            contentHtml: `
+              <div data-account-drawer-content class="h-full min-h-0">
+                <div class="text-sm text-gray-500">Loading account settings...</div>
+              </div>
+            `,
+          })}
+        </div>
+      `,
+    });
+
+    drawer = mount.querySelector('#account-settings-drawer-modal');
+    content = mount.querySelector('[data-account-drawer-content]');
+    footerHost = mount.querySelector('#account-drawer-footer');
+
+    drawer?.querySelector('#account-settings-drawer-close')?.addEventListener('click', closeDrawer);
+    drawer?.querySelector('#account-settings-drawer-overlay')?.addEventListener('click', closeDrawer);
+    drawer?.querySelectorAll('a[data-subnav]').forEach((link) => {
+      link.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const nav = link.dataset.accountAreaTab || link.dataset.subnav;
+        if (!nav) return;
+        currentSection = nav === 'overview' ? 'overview' : nav;
+        await renderDrawer();
+      });
+    });
+
+    await loadCurrentState();
+    await renderAccountSection({
+      section: currentSection,
+      accountState,
+      content,
+      footerHost,
+      settingsRouteCache,
+      onRefresh: loadCurrentState,
+    });
+  };
+
+  try {
+    await renderDrawer();
+  } catch (err) {
+    content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
+    if (footerHost) footerHost.innerHTML = '';
+  }
+
+  mount.__cleanup = () => {
+    removeSettingsRouteCache?.();
+    drawer?.remove();
+    mount.remove();
+  };
+
+  return drawer;
 }

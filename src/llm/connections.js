@@ -1,8 +1,9 @@
 import { createDB } from '../db.js';
 import { getConfigValue } from '../utils/app-config.js';
 import { buildConnectionAclIndex, evaluateConnectionAclAccess, loadConnectionAclRules } from '../utils/connection-acl.js';
-import { getConnectionProviderFamily, normalizeProviderFamily } from './provider-registry.js';
-import { buildProviderId } from './provider-registry.js';
+import { buildProviderId, getConnectionProviderFamily, normalizeConnectionModelId, normalizeProviderFamily } from './provider-registry.js';
+import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
+import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 
 function splitEnvList(value) {
   if (!value) return [];
@@ -470,6 +471,7 @@ export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
         authType: normalizeAuthType(conn.authType),
         apiType: getConnectionApiType(conn.providerType || providerFamily),
         manualModels: normalizeConnectionManualModels(conn.manualModels),
+        manualModelsMode: normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all',
       };
       })
       .filter(Boolean);
@@ -495,6 +497,7 @@ async function ensureUserConnectionsTable(db) {
       auth_type TEXT NOT NULL DEFAULT '',
       enabled INTEGER NOT NULL DEFAULT 1,
       manual_models TEXT NOT NULL DEFAULT '[]',
+      manual_models_mode TEXT NOT NULL DEFAULT 'all',
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
       UNIQUE(user_id, id)
@@ -502,6 +505,17 @@ async function ensureUserConnectionsTable(db) {
   );
   await db.run('CREATE INDEX IF NOT EXISTS idx_user_connections_user_id ON user_connections(user_id)');
   await db.run('CREATE INDEX IF NOT EXISTS idx_user_connections_enabled ON user_connections(enabled)');
+  try {
+    const columns = await db.all('PRAGMA table_info(user_connections)');
+    const hasModeColumn = Array.isArray(columns) && columns.some((column) => String(column.name || '') === 'manual_models_mode');
+    if (!hasModeColumn) {
+      await db.run("ALTER TABLE user_connections ADD COLUMN manual_models_mode TEXT NOT NULL DEFAULT 'all'");
+    }
+  } catch (err) {
+    if (!/duplicate column name/i.test(String(err?.message || ''))) {
+      throw err;
+    }
+  }
 }
 
 function parseUserConnectionHeaders(raw) {
@@ -548,6 +562,7 @@ function normalizeUserConnectionRow(row, index = 0) {
     authType: normalizeAuthType(row.auth_type || row.authType),
     apiType: getConnectionApiType(providerType),
     manualModels: parseUserConnectionManualModels(row.manual_models || row.manualModels),
+    manualModelsMode: normalizeConnectionModelSelectionMode(row.manual_models_mode || row.manualModelsMode) || 'all',
     ownerUserId: row.user_id || row.userId || null,
     personal: true,
   };
@@ -559,7 +574,7 @@ export async function loadUserOpenAIConnectionConfigs(db, userId, options = {}) 
   try {
     await ensureUserConnectionsTable(db);
     const rawRows = await db.all(
-      `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, created_at, updated_at
+      `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, manual_models_mode, created_at, updated_at
        FROM user_connections
        WHERE user_id = ?
        ORDER BY updated_at DESC, created_at DESC, name ASC`,
@@ -582,7 +597,7 @@ export async function getUserOpenAIConnectionConfig(db, userId, connectionId) {
   try {
     await ensureUserConnectionsTable(db);
     const row = await db.first(
-      `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, created_at, updated_at
+      `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, manual_models_mode, created_at, updated_at
        FROM user_connections
        WHERE user_id = ? AND id = ?`,
       [userId, connectionId]
@@ -607,6 +622,9 @@ function normalizeUserConnectionInput(input = {}, existing = null) {
   const manualModels = normalizeConnectionManualModels(
     Array.isArray(input.manual_models) ? input.manual_models : (Array.isArray(input.manualModels) ? input.manualModels : (existing?.manualModels || []))
   );
+  const manualModelsMode = normalizeConnectionModelSelectionMode(
+    input.manual_models_mode || input.manualModelsMode || existing?.manualModelsMode
+  ) || 'all';
   return {
     name,
     providerType,
@@ -617,6 +635,7 @@ function normalizeUserConnectionInput(input = {}, existing = null) {
     authType,
     enabled,
     manualModels,
+    manualModelsMode,
   };
 }
 
@@ -629,8 +648,8 @@ export async function createUserOpenAIConnection(db, userId, input = {}) {
   const id = crypto.randomUUID();
   await db.run(
     `INSERT INTO user_connections (
-      id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
+      id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, manual_models_mode, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
     [
       id,
       userId,
@@ -642,6 +661,7 @@ export async function createUserOpenAIConnection(db, userId, input = {}) {
       connection.authType,
       connection.enabled ? 1 : 0,
       JSON.stringify(connection.manualModels || []),
+      connection.manualModelsMode || 'all',
     ]
   );
   return getUserOpenAIConnectionConfig(db, userId, id);
@@ -657,7 +677,7 @@ export async function updateUserOpenAIConnection(db, userId, connectionId, input
   if (!connection.baseUrl) throw new Error('base_url is required');
   await db.run(
     `UPDATE user_connections
-     SET name = ?, provider_type = ?, base_url = ?, key = ?, headers = ?, auth_type = ?, enabled = ?, manual_models = ?, updated_at = unixepoch()
+     SET name = ?, provider_type = ?, base_url = ?, key = ?, headers = ?, auth_type = ?, enabled = ?, manual_models = ?, manual_models_mode = ?, updated_at = unixepoch()
      WHERE user_id = ? AND id = ?`,
     [
       connection.name,
@@ -668,6 +688,7 @@ export async function updateUserOpenAIConnection(db, userId, connectionId, input
       connection.authType,
       connection.enabled ? 1 : 0,
       JSON.stringify(connection.manualModels || []),
+      connection.manualModelsMode || 'all',
       userId,
       connectionId,
     ]
@@ -686,6 +707,7 @@ export async function deleteUserOpenAIConnection(db, userId, connectionId) {
 
 export async function getAllOpenAIConnectionConfigs(env, options = {}) {
   const includeDisabled = options.includeDisabled === true;
+  const includeHiddenForUser = options.includeHiddenForUser === true;
   const userId = options.userId ? String(options.userId).trim() : '';
   const userRole = String(options.userRole || 'member').trim().toLowerCase() || 'member';
   const envConnections = getEnvOpenAIConnectionConfigs(env, { includeDisabled: true });
@@ -714,6 +736,8 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
 
   try {
     const db = createDB(env.DB);
+    const userOverrides = await loadUserResourceOverrides(db, userId);
+    const hiddenConnectionIds = new Set(userOverrides.connections.hidden_ids || []);
     const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [userId]);
     const userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
     const aclRules = await loadConnectionAclRules(db);
@@ -726,14 +750,18 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
           userGroupIds,
           rules: aclIndex.get(connection.id) || [],
         });
+        const hiddenForUser = connection.source !== 'user' && hiddenConnectionIds.has(String(connection.id || '').trim());
         return {
           ...connection,
           access_label: access.access_label,
           access_variant: access.access_variant,
           allowed: access.allowed,
+          visible_for_user: !hiddenForUser,
+          hidden_for_user: hiddenForUser,
         };
       })
       .filter((connection) => connection.source === 'user' || connection.allowed)
+      .filter((connection) => includeHiddenForUser || connection.source === 'user' || connection.visible_for_user)
       .map(({ allowed, ...connection }) => connection);
 
     if (includeDisabled) return filtered;

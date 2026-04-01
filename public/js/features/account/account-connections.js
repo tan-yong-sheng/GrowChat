@@ -1,12 +1,24 @@
 import {
   createUserConnection,
   deleteUserConnection,
+  fetchUserConnections,
   testUserConnection,
   updateUserConnection,
 } from '../../shared/api/resources.js';
+import { apiFetch } from '../../shared/api.js';
 import { buildConnectionModalMarkup, buildConnectionModalModelsMarkup } from '../../shared/components/connection-modal.js';
-import { renderSettingsActionFooter } from '../../shared/components/settings-action-footer.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
+import { renderSettingsActionFooter } from '../../shared/components/settings-action-footer.js';
+import { broadcastConnectionsInvalidation } from '../../shared/utils/connection-sync.js';
+import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
+import { createStagedSaveQueue } from '../../shared/utils/staged-save.js';
+import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
+import {
+  normalizeConnectionModelSelectionMode,
+  resolveConnectionModelSelectionMode,
+} from '../../shared/utils/connection-model-selection.js';
+import { isResourceHidden, setResourceVisibility, normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
+import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import {
   connectionApiTypeDetails,
@@ -14,6 +26,8 @@ import {
   getConnectionProviderId,
   inflateManualConnectionModels,
   isCompatibleProviderType,
+  previewConnectionModalModels,
+  buildSelectedConnectionModels,
   normalizeConnectionManualModels,
   normalizeModelRecord,
   providerDisplayLabel as adminProviderDisplayLabel,
@@ -94,13 +108,32 @@ function normalizePersonalConnection(connection = {}) {
     base_url: String(connection.base_url || connection.baseUrl || '').trim(),
     auth_type: String(connection.auth_type || connection.authType || '').trim().toLowerCase(),
     enabled: connection.enabled !== false,
-    has_key: Boolean(String(connection.key || '').trim()),
+    has_key: connection.has_key !== undefined
+      ? Boolean(connection.has_key)
+      : Boolean(String(connection.key || '').trim()),
+    manualModelsMode: normalizeConnectionModelSelectionMode(connection.manual_models_mode || connection.manualModelsMode) || 'all',
     headers,
     manual_models: Array.isArray(connection.manual_models || connection.manualModels)
       ? [...(connection.manual_models || connection.manualModels)]
       : [],
     note: connection.note || connection.base_url || connection.baseUrl || '',
   };
+}
+
+function clonePreferences(value = {}) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(source);
+    } catch {
+      return { ...source };
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify(source));
+  } catch {
+    return { ...source };
+  }
 }
 
 function formatHeadersValue(headers) {
@@ -271,16 +304,25 @@ function buildFormBodyMarkup(connection = null, modalState = {}) {
   `;
 }
 
-function buildListCard(connection) {
+function buildListCard(connection, canManageConnections = true) {
   const providerLabel = connection.provider_label || providerDisplayLabel(connection.provider_type);
   const baseUrl = connection.base_url || connection.note || '';
   const readOnlyText = connection.readOnly
     ? (connection.readOnlyLabel || 'Shared from admin')
     : '';
+  const actionButtonClass = canManageConnections
+    ? 'p-1 text-gray-400 hover:text-gray-600 transition-colors'
+    : 'p-1 text-gray-300 opacity-50 cursor-not-allowed';
+  const toggleClass = canManageConnections
+    ? `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${connection.enabled === false ? 'bg-gray-200' : 'bg-black'}`
+    : 'relative inline-flex h-5 w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
   return `
     <div data-connection-row="${escapeHtml(connection.id)}" data-id="${escapeHtml(connection.id)}" class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2 border-b border-gray-50 last:border-0 ${connection.enabled === false ? 'opacity-70' : ''}">
       <div class="flex flex-col min-w-0">
-        <div class="text-xs font-medium text-gray-900">${escapeHtml(connection.name || providerLabel)}</div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs font-medium text-gray-900">${escapeHtml(connection.name || providerLabel)}</div>
+          ${renderSummaryPill('Personal', 'green')}
+        </div>
         <div class="text-[10px] text-gray-400 font-mono">${escapeHtml(baseUrl)}</div>
         <div class="text-[10px] text-gray-400 mt-0.5">${escapeHtml(providerLabel)}</div>
         <div class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${connection.enabled === false ? '' : 'hidden'}">Disabled</div>
@@ -291,14 +333,15 @@ function buildListCard(connection) {
           type="button"
           data-list-action="edit"
           data-account-connection-edit="${escapeHtml(connection.id)}"
-          class="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+          class="${actionButtonClass}"
+          ${canManageConnections ? '' : 'disabled aria-disabled="true"'}
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
           </svg>
         </button>
-        <button data-id="${escapeHtml(connection.id)}" class="connection-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${connection.enabled === false ? 'bg-gray-200' : 'bg-black'}">
+        <button data-id="${escapeHtml(connection.id)}" class="connection-toggle ${toggleClass}" ${canManageConnections ? '' : 'disabled aria-disabled="true"'}>
           <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${connection.enabled === false ? 'translate-x-0' : 'translate-x-4'}"></span>
         </button>
       </div>
@@ -306,19 +349,29 @@ function buildListCard(connection) {
   `;
 }
 
-function buildAccessibleCard(connection) {
+function buildAccessibleCard(connection, hiddenForUser = false, canManageConnections = true) {
+  const toggleClass = canManageConnections
+    ? `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${hiddenForUser ? 'bg-gray-200' : 'bg-black'}`
+    : 'relative inline-flex h-5 w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
   return `
-    <div class="py-2.5 border-b border-gray-50 last:border-0">
-      <div class="flex flex-wrap items-center gap-2">
+    <div data-connection-row="${escapeHtml(connection.id)}" data-id="${escapeHtml(connection.id)}" class="py-2.5 border-b border-gray-50 last:border-0 ${hiddenForUser ? 'opacity-70' : ''}">
+      <div class="flex items-center gap-2">
         <div class="truncate text-sm font-semibold text-gray-900">${escapeHtml(connection.name || connection.id || 'Connection')}</div>
-        ${renderSummaryPill(connection.access_label || 'Shared', 'gray')}
+        ${renderSummaryPill('Shared', 'gray')}
       </div>
       <div class="mt-1 truncate text-xs text-gray-500">${escapeHtml(connection.note || connection.base_url || '')}</div>
+      <div class="mt-2 flex items-center justify-end">
+        <button data-id="${escapeHtml(connection.id)}" data-toggle-scope="shared" class="connection-toggle ${toggleClass}" ${canManageConnections ? '' : 'disabled aria-disabled="true"'} aria-pressed="${hiddenForUser ? 'false' : 'true'}" aria-label="${hiddenForUser ? 'Show for me' : 'Hide for me'}">
+          <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${hiddenForUser ? 'translate-x-0' : 'translate-x-4'}"></span>
+        </button>
+      </div>
     </div>
   `;
 }
 
-export function renderAccountConnectionsSection(container, state = {}, { onRefresh, footerHost } = {}) {
+export function renderAccountConnectionsSection(container, state = {}, { onRefresh, footerHost, routeCache } = {}) {
+  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, { route: 'account' });
+  const canManageConnections = capabilities.canManageConnections !== false;
   const getConnections = () => {
     const connections = state.settings?.connections || {};
     return {
@@ -331,6 +384,8 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
           name: String(connection.name || connection.id || '').trim(),
           note: String(connection.note || connection.base_url || '').trim(),
           access_label: String(connection.access_label || 'Shared').trim(),
+          hidden_for_user: Boolean(connection.hidden_for_user),
+          visible_for_user: connection.visible_for_user !== false,
         }))
         : [],
     };
@@ -354,22 +409,142 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
   };
 
   const refreshConnections = async () => {
-    if (typeof onRefresh !== 'function') {
-      render();
-      return;
-    }
-    const nextState = await onRefresh();
-    viewState.error = '';
-    if (nextState) {
-      state.settings = nextState.settings;
+    try {
+      const payload = await fetchUserConnections({ cache: 'no-store' });
+      state.settings = {
+        ...state.settings,
+        connections: {
+          my_connections: Array.isArray(payload?.my_connections) ? payload.my_connections : [],
+          connections: Array.isArray(payload?.connections) ? payload.connections : [],
+        },
+      };
       const nextConnections = getConnections();
       viewState.personal = nextConnections.personal;
       viewState.accessible = nextConnections.accessible;
+      viewState.error = '';
+    } catch (err) {
+      if (typeof onRefresh === 'function') {
+        const nextState = await onRefresh();
+        viewState.error = '';
+        if (nextState) {
+          state.settings = nextState.settings;
+          const nextConnections = getConnections();
+          viewState.personal = nextConnections.personal;
+          viewState.accessible = nextConnections.accessible;
+        }
+      } else {
+        viewState.error = err?.message || 'Failed to load connections';
+      }
     }
     render();
   };
 
+  routeCache?.registerConnectionsRefresh?.(async () => {
+    await refreshConnections();
+  });
+
+  const upsertPersonalConnection = (nextConnection) => {
+    const normalized = normalizePersonalConnection(nextConnection);
+    if (!normalized.id) return;
+    viewState.personal = upsertItemById(viewState.personal, normalized);
+    viewState.error = '';
+  };
+
+  const mergeSavedConnection = (payload, savedConnection, existingConnection = null) => {
+    const normalized = normalizePersonalConnection({
+      ...existingConnection,
+      ...payload,
+      ...savedConnection,
+      id: savedConnection?.id || existingConnection?.id || '',
+      name: savedConnection?.name || payload.name || existingConnection?.name || '',
+      base_url: savedConnection?.base_url || payload.base_url || existingConnection?.base_url || '',
+      provider_type: savedConnection?.provider_type || payload.provider_type || existingConnection?.provider_type || 'openai-compatible',
+      provider_family: savedConnection?.provider_family || existingConnection?.provider_family || 'openai',
+      auth_type: savedConnection?.auth_type || payload.auth_type || existingConnection?.auth_type || '',
+      enabled: typeof savedConnection?.enabled === 'boolean'
+        ? savedConnection.enabled
+        : (payload.enabled ?? existingConnection?.enabled),
+      manual_models_mode: normalizeConnectionModelSelectionMode(
+        savedConnection?.manual_models_mode
+        || savedConnection?.manualModelsMode
+        || payload.manual_models_mode
+        || payload.manualModelsMode
+        || existingConnection?.manualModelsMode
+      ) || existingConnection?.manualModelsMode || 'all',
+      headers: savedConnection?.headers || existingConnection?.headers || {},
+      key: savedConnection?.key || payload.key || existingConnection?.key || '',
+      manual_models: Array.isArray(savedConnection?.manual_models)
+        ? savedConnection.manual_models
+        : Array.isArray(payload.manual_models)
+          ? payload.manual_models
+          : existingConnection?.manual_models || [],
+    });
+    if (existingConnection?.has_key && !normalized.has_key) {
+      normalized.has_key = true;
+    }
+    return normalized;
+  };
+
+  const removePersonalConnection = (connectionId) => {
+    viewState.personal = removeItemById(viewState.personal, connectionId);
+    viewState.error = '';
+  };
+
+  const stagedPreferencesSave = createStagedSaveQueue({
+    getSnapshot: () => clonePreferences(state.settings?.preferences || {}),
+    saveSnapshot: async (preferences) => {
+      const res = await apiFetch('/api/users/me', {
+        method: 'PUT',
+        body: JSON.stringify({ preferences }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || err.message || 'Failed to save preferences');
+      }
+      return res.json().catch(() => ({}));
+    },
+    onCommit: (snapshot, _version, payload = {}) => {
+      state.settings = {
+        ...(state.settings || {}),
+        preferences: payload?.user?.preferences || snapshot,
+      };
+      viewState.error = '';
+      broadcastConnectionsInvalidation();
+      broadcastModelsInvalidation();
+      render();
+      syncFooter();
+    },
+    onError: (err) => {
+      viewState.error = err?.message || 'Failed to save preferences';
+      render();
+      syncFooter();
+    },
+  });
+
+  const syncFooter = () => {
+    if (!footerHost) return;
+    footerHost.innerHTML = renderSettingsActionFooter({
+      footerId: 'connections-footer-actions',
+      dirtyId: 'connections-dirty',
+      saveId: 'save-connections',
+      dirtyLabel: 'Unsaved changes',
+      buttonLabel: 'Save',
+      dirty: stagedPreferencesSave.pending,
+      saving: stagedPreferencesSave.saving,
+      canSave: canManageConnections && stagedPreferencesSave.pending,
+    });
+    footerHost.querySelector('#save-connections')?.addEventListener('click', async () => {
+      if (!canManageConnections || stagedPreferencesSave.saving || !stagedPreferencesSave.pending) return;
+      try {
+        await stagedPreferencesSave.flush();
+      } catch {
+        // Errors are surfaced by the queue callbacks.
+      }
+    });
+  };
+
   const openConnectionModal = (connection = null) => {
+    if (!canManageConnections) return;
     closeModal();
     const isEdit = Boolean(connection?.id);
     const title = isEdit ? 'Edit Connection' : 'Add Connection';
@@ -391,13 +566,16 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     const modalMarkup = buildConnectionModalMarkup({
       rootId: 'account-connection-modal',
       title,
+      canManage: canManageConnections,
       connection: connection ? {
         ...connection,
         url: String(connection.base_url || connection.baseUrl || connection.url || '').trim(),
         providerType: String(connection.provider_type || connection.providerType || 'openai').trim().toLowerCase() || 'openai',
         headers: formatHeadersValue(connection.headers),
         key: String(connection.key || connection.keyMasked || '').trim(),
+        has_key: Boolean(connection.has_key || String(connection.key || connection.keyMasked || '').trim()),
         enabled: connection.enabled !== false,
+        manualModelsMode: normalizeConnectionModelSelectionMode(connection.manual_models_mode || connection.manualModelsMode) || 'all',
       } : null,
       isVisible: true,
       showAccountHooks: true,
@@ -430,6 +608,13 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     const deleteBtn = modal.querySelector('[data-account-connection-delete-modal], #delete-connection');
     const closeBtn = modal.querySelector('#close-modal');
     const toggleKeyBtn = modal.querySelector('#toggle-key-visibility');
+
+    const updateToggleLabel = () => {
+      if (!toggleKeyBtn || !keyInput) return;
+      toggleKeyBtn.setAttribute('aria-label', keyInput.type === 'password' ? 'Show key' : 'Hide key');
+      const label = toggleKeyBtn.querySelector('[data-password-toggle-label]');
+      if (label) label.textContent = keyInput.type === 'password' ? 'Show' : 'Hide';
+    };
 
     const setError = (message) => {
       setTestMessage(message, message ? 'error' : 'idle');
@@ -524,7 +709,7 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
         '',
       );
       modelsStatus.classList.remove('text-red-500');
-      modelsStatus.textContent = models.length ? `${selected.size} of ${models.length} enabled` : '';
+      modelsStatus.textContent = models.length ? `Models enabled in this connection: ${selected.size} of ${models.length}` : '';
       if (searchInput) searchInput.value = modalState.query;
     };
 
@@ -550,17 +735,17 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       const resolvedUrl = isCompatibleProviderType(providerType)
         ? baseUrl
         : (baseUrl || adminProviderUrlPlaceholder(providerType));
-      const selectedModels = Array.from(modalState.selection || new Set())
-        .map((modelId) => {
-          const model = (modalState.models || []).find((item) => item.id === modelId);
-          if (!model) return null;
-          return {
-            modelId: String(model.manualModelId || model.id || '').trim(),
-            name: String(model.name || model.id || '').trim(),
-          };
-        })
-        .filter(Boolean);
+      const selectedModels = buildSelectedConnectionModels(
+        modalState.models,
+        modalState.selection,
+        connection,
+      );
+      const existingMode = normalizeConnectionModelSelectionMode(connection?.manual_models_mode || connection?.manualModelsMode) || 'all';
+      const manualModelsMode = Array.isArray(modalState.models) && modalState.models.length > 0
+        ? resolveConnectionModelSelectionMode(modalState.models, modalState.selection)
+        : existingMode;
       const payload = {
+        id: isEdit ? String(connection?.id || '').trim() : undefined,
         name: String(nameInput?.value || '').trim(),
         provider_type: providerType,
         base_url: resolvedUrl,
@@ -569,10 +754,12 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
         auth_type: String(connection?.auth_type || connection?.authType || '').trim().toLowerCase(),
         enabled: connection?.enabled !== false,
         manual_models: selectedModels,
+        manual_models_mode: manualModelsMode,
       };
       if (!payload.key) delete payload.key;
       if (!payload.headers) delete payload.headers;
       if (!payload.auth_type) delete payload.auth_type;
+      if (!payload.id) delete payload.id;
       return payload;
     };
 
@@ -592,14 +779,9 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
             manual: false,
           })).filter(Boolean)
           : [];
-        const existingManual = (modalState.models || []).filter((model) => model.manual);
-        const merged = [...existingManual, ...discovered];
-        const unique = new Map();
-        merged.forEach((model) => {
-          if (!unique.has(model.id)) unique.set(model.id, model);
-        });
-        modalState.models = sortModelsByActiveThenName(Array.from(unique.values()));
-        modalState.selection = new Set(modalState.models.map((model) => model.id));
+        const preview = previewConnectionModalModels(modalState.models, modalState.selection, discovered, connection);
+        modalState.models = preview.models;
+        modalState.selection = preview.selection;
         modalState.modelsError = '';
         setTestMessage(result?.message || `Connection successful. ${discovered.length} models loaded.`, 'success');
       } catch (err) {
@@ -623,24 +805,37 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       }
 
       if (isEdit) {
-        await updateUserConnection(connection.id, payload);
-      } else {
-        await createUserConnection(payload);
+        return {
+          payload,
+          result: await updateUserConnection(connection.id, payload),
+        };
       }
+      return {
+        payload,
+        result: await createUserConnection(payload),
+      };
     };
 
-    const finishAndRefresh = async () => {
+    const finishAndRender = () => {
       closeModal();
-      await refreshConnections();
+      render();
     };
 
-    saveBtn?.addEventListener('click', async () => {
+    saveBtn?.addEventListener('click', async (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
       if (viewState.saving) return;
       setError('');
       setSaving(true);
       try {
-        await saveConnection();
-        await finishAndRefresh();
+        const { payload, result } = await saveConnection();
+        const savedConnection = result?.connection || result?.saved_connection || result?.data?.connection || null;
+        if (savedConnection || isEdit) {
+          upsertPersonalConnection(mergeSavedConnection(payload, savedConnection, isEdit ? connection : null));
+        }
+        broadcastConnectionsInvalidation();
+        broadcastModelsInvalidation();
+        finishAndRender();
       } catch (err) {
         setError(err?.message || 'Failed to save connection');
       } finally {
@@ -655,7 +850,10 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       setSaving(true);
       try {
         await deleteUserConnection(connection.id);
-        await finishAndRefresh();
+        removePersonalConnection(connection.id);
+        broadcastConnectionsInvalidation();
+        broadcastModelsInvalidation();
+        finishAndRender();
       } catch (err) {
         setError(err?.message || 'Failed to delete connection');
       } finally {
@@ -669,7 +867,9 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     toggleKeyBtn?.addEventListener('click', () => {
       if (!keyInput) return;
       keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+      updateToggleLabel();
     });
+    updateToggleLabel();
     testBtn?.addEventListener('click', async () => {
       if (viewState.saving) return;
       setError('');
@@ -726,6 +926,12 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     });
     syncProviderUi();
     renderModels();
+    if (isEdit) {
+      window.setTimeout(() => {
+        if (!modal?.isConnected) return;
+        void testConnection();
+      }, 0);
+    }
     return modal;
   };
 
@@ -744,7 +950,10 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       showPageError('');
       try {
         await deleteUserConnection(connection.id);
-        await refreshConnections();
+        removePersonalConnection(connection.id);
+        broadcastConnectionsInvalidation();
+        broadcastModelsInvalidation();
+        render();
       } catch (err) {
         showPageError(err?.message || 'Failed to delete connection');
       }
@@ -752,29 +961,19 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
   };
 
   const render = () => {
-    const combinedConnections = [
-      ...viewState.personal.map((connection) => ({ ...connection })),
-      ...viewState.accessible.map((connection) => ({
-        id: connection.id,
-        name: connection.name,
-        base_url: connection.note,
-        provider_type: 'openai-compatible',
-        provider_label: connection.access_label || 'Shared',
-        readOnly: true,
-        readOnlyLabel: connection.access_label ? `Shared from ${connection.access_label.toLowerCase()}` : 'Shared from admin',
-        enabled: true,
-        note: connection.note,
-      })),
-    ];
-    const personalMarkup = combinedConnections.length
-      ? combinedConnections.map((connection) => buildListCard(connection)).join('')
-      : '<div class="py-8 text-center text-sm text-gray-500">No connections configured</div>';
+    const hiddenConnections = new Set(normalizeUserResourceOverrides(state.settings?.preferences).connections.hidden_ids || []);
+    const personalMarkup = viewState.personal.length
+      ? viewState.personal.map((connection) => buildListCard(connection, canManageConnections)).join('')
+      : '<div class="py-8 text-center text-sm text-gray-500">No personal connections configured</div>';
+    const accessibleMarkup = viewState.accessible.length
+      ? viewState.accessible.map((connection) => buildAccessibleCard(connection, hiddenConnections.has(connection.id), canManageConnections)).join('')
+      : '';
 
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         ${viewState.error ? renderErrorBanner({ message: viewState.error }) : ''}
         <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
-          <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
+          <div class="max-w-2xl mx-auto w-full flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">
               <div class="flex-shrink-0 text-gray-900">Connections</div>
             </div>
@@ -793,9 +992,9 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
             </section>
 
             <section id="manage-connections-section" class="space-y-1 mt-4">
-              <div class="flex items-center justify-between px-0.5">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-0.5">
                 <div class="text-base font-medium text-gray-900">Manage LLM Chat Providers</div>
-                <button id="add-connection" data-account-connection-add class="p-1 text-gray-400 hover:text-gray-600 transition-colors" title="Add Connection" aria-label="Add Connection">
+                <button id="add-connection" data-account-connection-add class="shrink-0 p-1 transition-colors ${canManageConnections ? 'text-gray-400 hover:text-gray-600' : 'text-gray-300 opacity-50 cursor-not-allowed'}" title="Add Connection" aria-label="Add Connection"${canManageConnections ? '' : ' disabled aria-disabled="true"'}>
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
@@ -806,6 +1005,7 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
               <div data-account-personal-connections class="space-y-2">
                 ${personalMarkup}
               </div>
+              ${accessibleMarkup ? `<div class="mt-3 space-y-2">${accessibleMarkup}</div>` : ''}
             </section>
 
             <div id="connections-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>
@@ -814,20 +1014,14 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       </div>
     `;
 
-    if (footerHost) {
-      footerHost.innerHTML = renderSettingsActionFooter({
-        footerId: 'connections-action-footer',
-        dirtyId: 'connections-dirty',
-        saveId: 'save-connections',
-      });
-    }
-
     container.querySelector('[data-action="add-connection"], #add-connection, [data-account-connection-add]')?.addEventListener('click', () => {
+      if (!canManageConnections) return;
       openConnectionModal(null);
     });
 
     container.querySelectorAll('[data-list-action="edit"]').forEach((button) => {
       button.addEventListener('click', () => {
+        if (!canManageConnections) return;
         const connectionId = button.dataset.accountConnectionEdit || button.closest('[data-connection-row]')?.dataset.id;
         const connection = viewState.personal.find((item) => item.id === connectionId);
         if (connection) {
@@ -838,26 +1032,42 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
 
     container.querySelectorAll('.connection-toggle').forEach((toggleBtn) => {
       toggleBtn.addEventListener('click', async () => {
+        if (!canManageConnections) return;
         const id = toggleBtn.dataset.id;
+        const scope = toggleBtn.dataset.toggleScope || 'personal';
+        if (scope === 'shared') {
+          const connection = viewState.accessible.find((item) => item.id === id);
+          if (!connection) return;
+          const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'connections', id);
+          const nextPreferences = setResourceVisibility(state.settings?.preferences || {}, 'connections', id, currentHidden);
+          state.settings = {
+            ...(state.settings || {}),
+            preferences: nextPreferences,
+          };
+          viewState.error = '';
+          stagedPreferencesSave.stage();
+          render();
+          syncFooter();
+          return;
+        }
         const connection = viewState.personal.find((item) => item.id === id);
         if (!connection) return;
-        const nextEnabled = connection.enabled === false;
+        const previousEnabled = connection.enabled !== false;
+        const nextEnabled = !previousEnabled;
         connection.enabled = nextEnabled;
-        const row = toggleBtn.closest('[data-connection-row]');
-        updateConnectionToggle(toggleBtn, nextEnabled);
-        if (row) {
-          row.classList.toggle('opacity-70', !nextEnabled);
-          const badge = row.querySelector('[data-connection-disabled-badge]');
-          if (badge) badge.classList.toggle('hidden', nextEnabled);
-        }
+        render();
         try {
           await updateUserConnection(connection.id, { enabled: nextEnabled });
+          broadcastConnectionsInvalidation();
+          broadcastModelsInvalidation();
         } catch (err) {
+          connection.enabled = previousEnabled;
           showPageError(err?.message || 'Failed to update connection');
-          await refreshConnections();
+          render();
         }
       });
     });
+    syncFooter();
   };
 
   render();

@@ -73,14 +73,16 @@ describe('model selector', () => {
 
     store.setState({
       models: [
-        { id: 'm1', name: 'GPT Mini' },
-        { id: 'm2', name: 'Claude' },
+        { id: 'm1', name: 'GPT Mini', access_label: 'Personal', access_variant: 'personal' },
+        { id: 'm2', name: 'Claude', access_label: 'Shared', access_variant: 'shared' },
       ],
       activeModelId: 'm1',
     });
 
     const destroy = renderModelSelector(container);
     container.querySelector('#model-selector-btn').click();
+    expect(container.textContent).toContain('Personal');
+    expect(container.textContent).toContain('Shared');
     container.querySelector('button[data-model-id="m2"]').click();
 
     expect(store.state.activeModelId).toBe('m2');

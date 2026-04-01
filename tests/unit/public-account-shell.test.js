@@ -21,6 +21,20 @@ async function loadModule() {
 }
 
 function makeAccountState() {
+  const capabilities = {
+    permissions: [
+      'chat.read',
+      'user.settings.profile.write',
+      'user.settings.preferences.write',
+      'user.settings.connections.write',
+      'user.settings.integrations.write',
+      'user.settings.tool-servers.write',
+    ],
+    canManageConnections: true,
+    canManageToolServers: true,
+    canManageModels: true,
+    canManageAcls: false,
+  };
   return {
     user: {
       id: 'u1',
@@ -30,8 +44,9 @@ function makeAccountState() {
       avatar_emoji: 'S',
       status: 'online',
     },
-    permissions: ['chat.read'],
+    permissions: capabilities.permissions,
     roles: [{ role_name: 'member' }],
+    capabilities,
     app_config: { default_model_id: 'gpt-5-mini' },
     settings: {
       general: {
@@ -60,8 +75,8 @@ describe('account shell tabs', () => {
     mocks.apiFetch.mockReset();
   });
 
-  it('renders Profile and Settings tabs on the profile overview route', async () => {
-    window.history.pushState({}, '', '/account/profile/overview');
+  it('renders the Settings tab on the account route', async () => {
+    window.history.pushState({}, '', '/account/settings/connections');
     mocks.apiFetch.mockResolvedValue({
       ok: true,
       json: async () => makeAccountState(),
@@ -71,19 +86,22 @@ describe('account shell tabs', () => {
     await renderAccountPage(document.getElementById('app'));
 
     const tabs = Array.from(document.querySelectorAll('[data-account-area-tab]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Profile', 'Settings']);
-    expect(tabs[0].getAttribute('href')).toBe('/account/profile/overview');
-    expect(tabs[1].getAttribute('href')).toBe('/account/settings/connections');
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Settings']);
+    expect(tabs[0].getAttribute('href')).toBe('/account/settings/connections');
     expect(tabs[0].className).toContain('text-gray-900');
     expect(tabs[0].className).toContain('underline');
-    expect(tabs[1].className).toContain('text-gray-300');
-    expect(document.querySelector('#toggle-sidebar-mobile')).not.toBeNull();
-    expect(document.body.textContent).toContain('Profile');
+    expect(document.querySelector('#account-settings-drawer')).not.toBeNull();
+    expect(document.querySelector('#account-settings-overlay')).not.toBeNull();
+    expect(document.querySelector('#account-settings-close')).not.toBeNull();
     expect(document.body.textContent).toContain('Settings');
     expect(document.querySelector('#account-main-footer')).not.toBeNull();
 
     const innerTabs = Array.from(document.querySelectorAll('#account-tabs-container [data-subnav]'));
-    expect(innerTabs.map((tab) => tab.textContent?.trim())).toEqual(['Overview']);
+    expect(innerTabs.map((tab) => tab.textContent?.trim())).toEqual([
+      'Connections',
+      'Models',
+      'Integrations',
+    ]);
   }, 10000);
 
   it('keeps Settings active on a settings subsection route', async () => {
@@ -97,13 +115,11 @@ describe('account shell tabs', () => {
     await renderAccountPage(document.getElementById('app'));
 
     const tabs = Array.from(document.querySelectorAll('[data-account-area-tab]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Profile', 'Settings']);
-    expect(tabs[0].getAttribute('href')).toBe('/account/profile/overview');
-    expect(tabs[1].getAttribute('href')).toBe('/account/settings/connections');
-    expect(tabs[0].className).toContain('text-gray-300');
-    expect(tabs[1].className).toContain('text-gray-900');
-    expect(tabs[1].className).toContain('underline');
-    expect(document.querySelector('#toggle-sidebar-mobile')).not.toBeNull();
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Settings']);
+    expect(tabs[0].getAttribute('href')).toBe('/account/settings/connections');
+    expect(tabs[0].className).toContain('text-gray-900');
+    expect(tabs[0].className).toContain('underline');
+    expect(document.querySelector('#account-settings-drawer')).not.toBeNull();
     expect(document.querySelector('h1')).toBeNull();
     expect(document.body.textContent).toContain('Settings');
     expect(document.querySelector('[data-subnav="connections"]')?.className).toContain('bg-gray-100');
@@ -118,7 +134,7 @@ describe('account shell tabs', () => {
   });
 
   it('renders the shared workspace sidebar chrome', async () => {
-    window.history.pushState({}, '', '/account/profile/overview');
+    window.history.pushState({}, '', '/account/settings/connections');
     mocks.apiFetch.mockResolvedValue({
       ok: true,
       json: async () => makeAccountState(),

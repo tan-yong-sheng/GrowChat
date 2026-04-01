@@ -46,12 +46,14 @@ function serializeAllowedToolServers(servers = []) {
     .filter((server) => server?.enabled !== false && server?.id && server?.url)
     .map((server) => {
       const tools = (Array.isArray(server.tools) ? server.tools : [])
-        .filter((tool) => tool?.enabled !== false && String(tool?.name || '').trim())
+        .filter((tool) => tool?.enabled !== false && tool?.visible_for_user !== false && String(tool?.name || '').trim())
         .map((tool) => ({
           name: String(tool.name || '').trim(),
           title: String(tool.title || '').trim(),
           description: String(tool.description || '').trim(),
           enabled: true,
+          visible_for_user: tool.visible_for_user !== false,
+          hidden_for_user: tool.hidden_for_user === true,
         }));
       return {
         id: String(server.id),

@@ -16,7 +16,7 @@ import { state, setState } from '../shared/store.js';
 import { initShortcuts } from '../shared/shortcuts.js';
 import { startRealtimeSync, stopRealtimeSync } from '../shared/realtime.js';
 import { consumeModelsInvalidation } from '../shared/utils/model-sync.js';
-import { getPreferredModelId } from '../shared/utils/model-state.js';
+import { filterEnabledModels, getPreferredModelId } from '../shared/utils/model-state.js';
 import { getChatIdFromPath, injectTempChat, resolveActiveChatId, shouldStartRealtime } from './app-route-utils.js';
 
 export const INITIAL_CHAT_LIMIT = 30;
@@ -24,13 +24,30 @@ export const INITIAL_CHAT_LIMIT = 30;
 const FALLBACK_PERMISSIONS = {
   admin: [
     'chat.read', 'chat.write', 'chat.delete', 'chat.share',
+    'user.settings.profile.write', 'user.settings.preferences.write',
+    'user.settings.connections.write', 'user.settings.integrations.write',
+    'user.settings.tool-servers.write',
+    'admin.settings.read', 'admin.settings.write',
+    'admin.settings.general.write', 'admin.settings.connections.write',
+    'admin.settings.integrations.write', 'admin.settings.policies.write',
+    'admin.settings.models.write',
+    'connection.use', 'connection.manage', 'connection.admin',
     'model.use', 'model.admin',
     'file.upload', 'file.delete', 'admin.user.read', 'admin.user.write',
     'admin.audit.read', 'admin.rbac.admin',
+    'tool-server.use', 'tool-server.manage', 'tool-server.admin',
+    'integration.use', 'integration.manage', 'integration.admin',
   ],
   member: [
     'chat.read', 'chat.write',
-    'model.use', 'file.upload',
+    'user.settings.profile.write', 'user.settings.preferences.write',
+    'user.settings.connections.write', 'user.settings.integrations.write',
+    'user.settings.tool-servers.write',
+    'connection.use', 'connection.manage',
+    'model.use', 'model.manage',
+    'tool-server.use', 'tool-server.manage',
+    'integration.use', 'integration.manage',
+    'file.upload',
   ],
 };
 
@@ -91,7 +108,7 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
   const requestPromise = fetchModels({ cache: 'no-store', cacheBust })
     .then((data) => {
       if (requestGeneration !== modelsCacheGeneration) return data;
-      const models = Array.isArray(data?.models) ? data.models : [];
+      const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
       const nextActiveModelId = getPreferredModelId(models, [
         state.activeModelId,
         state.defaultModelId,
@@ -106,12 +123,13 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
       if (allowCache) {
         const cached = readModelsCache();
         if (cached?.models?.length) {
-          const nextActiveModelId = getPreferredModelId(cached.models, [
+          const models = filterEnabledModels(cached.models);
+          const nextActiveModelId = getPreferredModelId(models, [
             state.activeModelId,
             state.defaultModelId,
             state.globalDefaultModelId,
           ]);
-          setState({ models: cached.models, modelsLoading: false, activeModelId: nextActiveModelId });
+          setState({ models, modelsLoading: false, activeModelId: nextActiveModelId });
           return cached;
         }
       }
@@ -269,6 +287,11 @@ export async function ensureSession({ preferRefresh = false } = {}) {
   }
   const meData = await meRes.json();
   const user = meData.user || {};
+
+  setState({
+    permissions: Array.isArray(meData.permissions) ? meData.permissions : [],
+    userRoles: Array.isArray(meData.roles) ? meData.roles : [],
+  });
 
   ensureShortcuts();
   bindModelsInvalidationListener();

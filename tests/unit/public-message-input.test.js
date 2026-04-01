@@ -88,10 +88,21 @@ describe('message input', () => {
         {
           id: 'server-1',
           name: 'Weather',
+          source: 'user',
           enabled: true,
           tools: [
             { name: 'weather_lookup', title: 'Weather Lookup', description: 'Lookup weather', enabled: true },
             { name: 'news_lookup', title: 'News Lookup', description: 'Lookup news', enabled: true },
+          ],
+        },
+        {
+          id: 'server-2',
+          name: 'Search',
+          source: 'config',
+          access_label: 'Shared',
+          enabled: true,
+          tools: [
+            { name: 'search_lookup', title: 'Search Lookup', description: 'Lookup search', enabled: true },
           ],
         },
       ],
@@ -104,6 +115,8 @@ describe('message input', () => {
 
     expect(container.querySelector('#tools-menu')?.classList.contains('hidden')).toBe(false);
     expect(container.textContent).toContain('Weather');
+    expect(container.textContent).toContain('Personal');
+    expect(container.textContent).toContain('Shared');
     expect(container.querySelector('#tools-menu-all-on')).not.toBeNull();
     expect(container.querySelector('#tools-menu-all-off')).not.toBeNull();
     expect(container.querySelector('#tools-menu-all-on')?.classList.contains('hidden')).toBe(true);
@@ -123,16 +136,55 @@ describe('message input', () => {
     expect(container.textContent).toContain('Weather Lookup');
 
     container.querySelector('[data-tool-toggle][data-tool-name="weather_lookup"]').click();
-    expect(store.state.newChatToolSelection).toEqual(['mcp__server-1__news_lookup']);
+    expect(store.state.newChatToolSelection).toEqual([
+      'mcp__server-1__news_lookup',
+      'mcp__server-2__search_lookup',
+    ]);
 
     container.querySelector('[data-tool-server-toggle][data-tool-server-id="server-1"]').click();
-    expect(store.state.newChatToolSelection).toEqual([]);
+    expect(store.state.newChatToolSelection).toEqual(['mcp__server-2__search_lookup']);
 
     container.querySelector('[data-tool-server-toggle][data-tool-server-id="server-1"]').click();
     expect(store.state.newChatToolSelection).toBeNull();
 
     expect(container.querySelector('[data-tool-toggle][data-tool-name="weather_lookup"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-tool-toggle][data-tool-name="search_lookup"]')?.getAttribute('aria-pressed')).toBe('true');
 
+    view.destroy();
+  });
+
+  it('hides personal-only overrides for shared tools in the tools menu', async () => {
+    const { store, renderMessageInput } = await loadModules();
+    const container = document.getElementById('root');
+
+    store.setState({
+      activeChatId: null,
+      models: [{ id: 'm1', name: 'GPT Mini' }],
+      activeModelId: 'm1',
+      toolServersLoaded: true,
+      toolServers: [
+        {
+          id: 'server-1',
+          name: 'Search',
+          source: 'config',
+          access_label: 'Shared',
+          enabled: true,
+          tools: [
+            { name: 'search_lookup', title: 'Search Lookup', description: 'Lookup search', enabled: true, visible_for_user: true },
+            { name: 'private_lookup', title: 'Private Lookup', description: 'Hidden search', enabled: true, visible_for_user: false },
+          ],
+        },
+      ],
+      toolSelectionsByChat: {},
+      newChatToolSelection: null,
+    });
+
+    const view = renderMessageInput(container, vi.fn());
+    container.querySelector('#open-tools-btn').click();
+
+    expect(container.textContent).toContain('Shared');
+    expect(container.textContent).toContain('Search Lookup');
+    expect(container.textContent).not.toContain('Private Lookup');
     view.destroy();
   });
 

@@ -10,13 +10,13 @@ describe('settings nav pane', () => {
         {
           title: 'Profile',
           items: [
-            { href: '/account/profile/overview', key: 'overview', label: 'Overview' },
+            { href: '/account/settings/overview', key: 'overview', label: 'Overview' },
           ],
         },
         {
           title: 'Settings',
           items: [
-            { href: '/account/profile/general', key: 'general', label: 'General' },
+            { href: '/account/settings/general', key: 'general', label: 'General' },
           ],
         },
       ],

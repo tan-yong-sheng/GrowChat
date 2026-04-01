@@ -13,7 +13,9 @@ import { normalizeAttachmentCaps, normalizeModelId } from '../admin/tool-servers
 import { buildModelAclIndex, buildModelAclRuleSaveStatements, evaluateModelAclAccess, loadModelAclRules, normalizeModelAclRule, saveModelAclRulesForModel } from '../utils/model-acl.js';
 import { dedupeConnectionConfigs, discoverConnectionModels, extractConnectionModelId, getAllOpenAIConnectionConfigs, normalizeConnectionManualModels } from '../llm/connections.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../llm/model-state.js';
-import { buildProviderId, formatModelId, normalizeProviderFamily } from '../llm/provider-registry.js';
+import { buildProviderId, formatModelId, normalizeConnectionModelId, normalizeProviderFamily } from '../llm/provider-registry.js';
+import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
+import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 
 const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
 const DEFAULT_ATTACHMENT_CAPS = { text: true };
@@ -150,6 +152,13 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
   for (const conn of uniqueConnections) {
     try {
       const providerId = buildProviderId(conn);
+      const manualModels = normalizeConnectionManualModels(conn.manualModels);
+      const manualModelIds = new Set(
+        manualModels
+          .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
+          .filter(Boolean)
+      );
+      const selectionMode = normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all';
       const discovery = await discoverConnectionModels(conn);
       if (!discovery.items.length) {
         const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
@@ -158,7 +167,7 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
       }
 
       for (const item of discovery.items) {
-        const rawId = extractConnectionModelId(item);
+        const rawId = normalizeConnectionModelId(providerId, extractConnectionModelId(item));
         if (!rawId) continue;
         if (allowSet && !allowSet.has(rawId)) continue;
         const fullId = formatModelId(providerId, rawId);
@@ -176,6 +185,9 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
           connection_source: conn.source || null,
           free: false,
           description: `Model discovered from ${discovery.url || conn.baseUrl}`,
+          enabled: selectionMode === 'none'
+            ? false
+            : (selectionMode === 'some' ? manualModelIds.has(rawId) : true),
         });
       }
     } catch (err) {
@@ -186,6 +198,13 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
   if (allowSet && uniqueConnections.length > 0) {
     for (const conn of uniqueConnections) {
       const providerId = buildProviderId(conn);
+      const manualModels = normalizeConnectionManualModels(conn.manualModels);
+      const manualModelIds = new Set(
+        manualModels
+          .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
+          .filter(Boolean)
+      );
+      const selectionMode = normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all';
       for (const rawId of allowSet) {
         const fullId = formatModelId(providerId, rawId);
         if (discoveredIds.has(fullId)) continue;
@@ -202,6 +221,9 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
           connection_source: conn.source || null,
           free: false,
           description: 'Configured via OPENAI_MODELS',
+          enabled: selectionMode === 'none'
+            ? false
+            : (selectionMode === 'some' ? manualModelIds.has(rawId) : true),
         });
       }
     }
@@ -210,13 +232,20 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
   for (const conn of uniqueConnections) {
     const providerId = buildProviderId(conn);
     const manualModels = normalizeConnectionManualModels(conn.manualModels);
+      const manualModelIds = new Set(
+        manualModels
+          .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
+          .filter(Boolean)
+      );
+      const selectionMode = normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all';
     for (const manual of manualModels) {
-      const fullId = formatModelId(providerId, manual.modelId);
+      const normalizedManualId = normalizeConnectionModelId(providerId, manual.modelId);
+      const fullId = formatModelId(providerId, normalizedManualId);
       if (discoveredIds.has(fullId)) continue;
       discoveredIds.add(fullId);
       discovered.push({
         id: fullId,
-        name: manual.name || manual.modelId,
+        name: manual.name || normalizedManualId,
         provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
         provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
         provider_family: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
@@ -227,7 +256,10 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         free: false,
         description: 'Manually added to this connection',
         manual: true,
-        manual_model_id: manual.modelId,
+        manual_model_id: normalizedManualId,
+        enabled: selectionMode === 'none'
+          ? false
+          : (selectionMode === 'some' ? manualModelIds.has(normalizedManualId) : true),
       });
     }
   }
@@ -275,7 +307,31 @@ function toPublicModel(model) {
     created_at: model.created_at,
     manual: Boolean(model.manual),
     manual_model_id: model.manual_model_id || null,
+    enabled: model.enabled !== false,
   };
+}
+
+export function applyUserModelVisibilityOverrides(models = [], hiddenModelIds = new Set()) {
+  const normalizedModels = Array.isArray(models) ? models : [];
+  const activeModelIds = new Set(
+    normalizedModels
+      .filter((model) => model?.enabled !== false)
+      .map((model) => String(model?.id || '').trim())
+      .filter(Boolean)
+  );
+
+  return normalizedModels.map((model) => {
+    const id = String(model?.id || '').trim();
+    const hiddenForUser = hiddenModelIds instanceof Set
+      && hiddenModelIds.has(id)
+      && !activeModelIds.has(id);
+    return {
+      ...model,
+      visible_for_user: !hiddenForUser,
+      hidden_for_user: hiddenForUser,
+      enabled: model?.enabled !== false && !hiddenForUser,
+    };
+  });
 }
 
 function isOpenAIProvider(model) {
@@ -399,6 +455,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const offset = parseInt(url.searchParams.get('offset') || '0', 10);
       const rawQuery = url.searchParams.get('q') || '';
       const query = String(rawQuery).trim().toLowerCase();
+      const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
 
       let customModels = [];
       let baseModels = [];
@@ -451,9 +508,11 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       }
       if (db) {
         const disabledSet = await getDisabledModelSet(db);
-        if (disabledSet.size > 0) {
+        if (!includeDisabled && disabledSet.size > 0) {
           publicModels = publicModels.filter((model) => !disabledSet.has(model.id));
         }
+        const userOverrides = user?.sub ? await loadUserResourceOverrides(db, user.sub) : null;
+        const hiddenModelIds = new Set(userOverrides?.models?.hidden_ids || []);
         const userGroupRows = user?.sub
           ? await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub])
           : [];
@@ -475,6 +534,11 @@ export async function modelsRouter(req, env, _ctx, user, path) {
               allowed: access.allowed,
             };
           })
+          .map((model) => ({
+            ...model,
+            enabled: model.enabled !== false,
+          }));
+        publicModels = applyUserModelVisibilityOverrides(publicModels, hiddenModelIds)
           .filter((model) => model.allowed === true)
           .map(({ allowed, ...model }) => model);
       }
@@ -816,7 +880,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const accessMap = await getModelAccessMap(db);
       const adminModels = allModels.map((model) => {
         const publicModel = toPublicModel(model);
-        const enabled = accessMap.has(model.id) ? accessMap.get(model.id) : true;
+        const enabled = (publicModel.enabled !== false) && (accessMap.has(model.id) ? accessMap.get(model.id) : true);
         return { ...publicModel, enabled };
       });
       const providerStats = buildProviderStats(adminModels);
@@ -947,6 +1011,18 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       }
     } catch (err) {
       return error(req, err?.message || 'Invalid model access data', 400);
+    }
+
+    // Model ACL writes are intentionally split from general model writes so the
+    // stronger `admin.rbac.admin` boundary stays obvious in the mutation path.
+    if (sanitizedAccessUpdates.length > 0) {
+      const aclDecision = await authorize(env, user, {
+        action: 'admin.rbac.admin',
+        resource: 'model',
+      });
+      if (!aclDecision.allow) {
+        return error(req, aclDecision.reason || 'Forbidden', 403);
+      }
     }
 
     if (!sanitizedUpdates.length && !sanitizedAttachmentUpdates.length && !sanitizedAccessUpdates.length) {

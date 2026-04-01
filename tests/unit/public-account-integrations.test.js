@@ -65,7 +65,21 @@ function makeIntegrationServer(overrides = {}) {
   };
 }
 
-function makeAccountState(servers = [makeIntegrationServer()]) {
+function makeAccountState(servers = [makeIntegrationServer()], sharedServers = []) {
+  const capabilities = {
+    permissions: [
+      'chat.read',
+      'user.settings.profile.write',
+      'user.settings.preferences.write',
+      'user.settings.connections.write',
+      'user.settings.integrations.write',
+      'user.settings.tool-servers.write',
+    ],
+    canManageConnections: true,
+    canManageToolServers: true,
+    canManageModels: true,
+    canManageAcls: false,
+  };
   return {
     user: {
       id: 'u1',
@@ -75,8 +89,9 @@ function makeAccountState(servers = [makeIntegrationServer()]) {
       avatar_emoji: 'S',
       status: 'online',
     },
-    permissions: ['chat.read'],
+    permissions: capabilities.permissions,
     roles: [{ role_name: 'member' }],
+    capabilities,
     app_config: { default_model_id: 'gpt-5-mini' },
     settings: {
       general: {
@@ -90,8 +105,8 @@ function makeAccountState(servers = [makeIntegrationServer()]) {
       },
       preferences: { theme: 'system' },
       connections: { my_connections: [], connections: [] },
-      integrations: { servers },
-      tool_servers: { servers },
+      integrations: { servers, accessible_servers: sharedServers },
+      tool_servers: { servers, accessible_servers: sharedServers },
       models: { default_model_id: 'gpt-5-mini' },
     },
   };
@@ -113,14 +128,53 @@ describe('account integrations section', () => {
 
   it('opens the add integration modal with the shared admin-style shell', async () => {
     mocks.apiFetch
-      .mockResolvedValueOnce(jsonResponse(makeAccountState()))
-      .mockResolvedValueOnce(jsonResponse({ servers: [makeIntegrationServer()] }));
+      .mockResolvedValueOnce(jsonResponse(makeAccountState([
+        makeIntegrationServer(),
+      ], [
+        makeIntegrationServer({
+          id: 'shared-1',
+          name: 'Shared MCP',
+          url: 'https://shared.example.com',
+          access_label: 'Shared',
+          visible_for_user: true,
+          hidden_for_user: false,
+          tools: [
+            { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true },
+          ],
+        }),
+      ])))
+      .mockResolvedValueOnce(jsonResponse({
+        servers: [makeIntegrationServer()],
+        accessible_servers: [
+          makeIntegrationServer({
+            id: 'shared-1',
+            name: 'Shared MCP',
+            url: 'https://shared.example.com',
+            access_label: 'Shared',
+            visible_for_user: true,
+            hidden_for_user: false,
+            tools: [
+              { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true },
+            ],
+          }),
+        ],
+      }));
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
     await flush(4);
 
+    expect(document.body.textContent).toContain('Personal');
+    expect(document.body.textContent).toContain('Shared');
+    expect(document.body.textContent).not.toContain('Shared servers');
+    expect(document.body.textContent).not.toContain('Visible for you');
+    expect(document.querySelector('#tool-servers-list')?.className).toContain('overflow-y-auto');
+    expect(document.querySelector('#tool-servers-list')?.getAttribute('style')).toContain('max-height: calc(100dvh - 20rem)');
+    document.querySelector('[data-tool-server-row="shared-1"] .tools-toggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.body.textContent).toContain('Shared Search');
+    expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]')).not.toBeNull();
     expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
+    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(true);
     const addBtn = document.querySelector('[data-account-integration-add]');
     expect(addBtn).not.toBeNull();
     addBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -139,6 +193,7 @@ describe('account integrations section', () => {
     mocks.apiFetch
       .mockResolvedValueOnce(jsonResponse(makeAccountState([])))
       .mockResolvedValueOnce(jsonResponse({ servers: [] }))
+      .mockResolvedValueOnce(jsonResponse({ tools: [{ name: 'exa_search', title: 'Exa Search', description: 'Search the web', parameters: { type: 'object' }, enabled: true }] }))
       .mockResolvedValueOnce(jsonResponse({ server: { id: 'mcp-new' } }, 201))
       .mockResolvedValueOnce(jsonResponse(makeAccountState([
         makeIntegrationServer({
@@ -147,6 +202,7 @@ describe('account integrations section', () => {
           url: 'https://tools.example.com',
           auth_type: 'basic',
           auth_basic_username: 'sam',
+          tools: [{ name: 'exa_search', title: 'Exa Search', description: 'Search the web', parameters: { type: 'object' }, enabled: true }],
         }),
       ])))
       .mockResolvedValueOnce(jsonResponse({
@@ -157,6 +213,7 @@ describe('account integrations section', () => {
             url: 'https://tools.example.com',
             auth_type: 'basic',
             auth_basic_username: 'sam',
+            tools: [{ name: 'exa_search', title: 'Exa Search', description: 'Search the web', parameters: { type: 'object' }, enabled: true }],
           }),
         ],
       }));
@@ -165,7 +222,10 @@ describe('account integrations section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush(4);
 
+    expect(document.body.textContent).toContain('Personal');
+    expect(document.body.textContent).not.toContain('Visible for you');
     expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
+    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(true);
     const addBtn = document.querySelector('[data-account-integration-add]');
     expect(addBtn).not.toBeNull();
     addBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -181,18 +241,244 @@ describe('account integrations section', () => {
     modal.querySelector('#save-modal')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(6);
 
+    expect(mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/users/me/resources/mcp-servers/test' && String(options?.method || '').toUpperCase() === 'POST')).toBe(true);
     expect(mocks.apiFetch).toHaveBeenCalledWith('/api/users/me/resources/mcp-servers', expect.objectContaining({
       method: 'POST',
     }));
-    expect(JSON.parse(mocks.apiFetch.mock.calls[2][1].body)).toEqual(expect.objectContaining({
+    const createCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me/resources/mcp-servers' && String(options?.method || '').toUpperCase() === 'POST');
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(createCall[1].body)).toEqual(expect.objectContaining({
       name: 'Updated MCP',
       url: 'https://tools.example.com',
       auth_type: 'basic',
       auth_basic_username: 'sam',
       auth_basic_password: 'secret',
       enabled: true,
-    }));
+        tools: [
+          expect.objectContaining({
+            name: 'exa_search',
+            title: 'Exa Search',
+            description: 'Search the web',
+            parameters: { type: 'object' },
+            enabled: true,
+          }),
+        ],
+      }));
     expect(document.body.textContent).toContain('Updated MCP');
+    expect(document.body.textContent).toContain('Tools: 1 / 1 enabled');
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(1);
+  });
+
+  it('persists shared tool visibility overrides for shared integrations', async () => {
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse(makeAccountState([
+        makeIntegrationServer(),
+      ], [
+        makeIntegrationServer({
+          id: 'shared-1',
+          name: 'Shared MCP',
+          url: 'https://shared.example.com',
+          access_label: 'Shared',
+          visible_for_user: true,
+          hidden_for_user: false,
+          tools: [
+            { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true, visible_for_user: true },
+          ],
+        }),
+      ])))
+      .mockResolvedValueOnce(jsonResponse({
+        servers: [makeIntegrationServer()],
+        accessible_servers: [
+          makeIntegrationServer({
+            id: 'shared-1',
+            name: 'Shared MCP',
+            url: 'https://shared.example.com',
+            access_label: 'Shared',
+            visible_for_user: true,
+            hidden_for_user: false,
+            tools: [
+              { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true, visible_for_user: true },
+            ],
+          }),
+        ],
+      }))
+      .mockResolvedValueOnce(jsonResponse(makeAccountState([
+        makeIntegrationServer(),
+      ], [
+        makeIntegrationServer({
+          id: 'shared-1',
+          name: 'Shared MCP',
+          url: 'https://shared.example.com',
+          access_label: 'Shared',
+          visible_for_user: true,
+          hidden_for_user: false,
+          tools: [
+            { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true, visible_for_user: false, hidden_for_user: true },
+          ],
+        }),
+      ])))
+      .mockResolvedValueOnce(jsonResponse({
+        servers: [makeIntegrationServer()],
+        accessible_servers: [
+          makeIntegrationServer({
+            id: 'shared-1',
+            name: 'Shared MCP',
+            url: 'https://shared.example.com',
+            access_label: 'Shared',
+            visible_for_user: true,
+            hidden_for_user: false,
+            tools: [
+              { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true, visible_for_user: false, hidden_for_user: true },
+            ],
+          }),
+        ],
+      }));
+    mocks.apiFetch.mockImplementation(async (url, options) => {
+      if (String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT') {
+        return jsonResponse({ user: { preferences: JSON.parse(options.body).preferences } });
+      }
+      return jsonResponse({});
+    });
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush(4);
+    document.querySelector('[data-tool-server-row="shared-1"] .tools-toggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush();
+    const sharedToolButton = document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]');
+    expect(sharedToolButton).not.toBeNull();
+    expect(sharedToolButton?.getAttribute('aria-label')).toBe('Hide for me');
+    sharedToolButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(2);
+    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(false);
+    document.querySelector('#account-main-footer #save-integrations')?.click();
+    await flush(6);
+
+    const updateCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT');
+    expect(updateCall).toBeDefined();
+    expect(JSON.parse(updateCall[1].body)).toEqual(expect.objectContaining({
+      preferences: expect.objectContaining({
+        resource_overrides: expect.objectContaining({
+          tool_servers: expect.objectContaining({
+            tools: expect.objectContaining({
+              'shared-1': expect.objectContaining({
+                hidden_ids: ['shared_search'],
+              }),
+            }),
+          }),
+        }),
+      }),
+    }));
+    expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]')?.getAttribute('aria-label')).toBe('Show for me');
+  });
+
+  it('serializes rapid shared visibility toggles through the staged preferences save queue', async () => {
+    let resolveFirstSave;
+    const firstSave = new Promise((resolve) => {
+      resolveFirstSave = resolve;
+    });
+    const saveCalls = [];
+
+    mocks.apiFetch.mockImplementation(async (url, options = {}) => {
+      const method = String(options.method || 'GET').toUpperCase();
+      if (String(url) === '/api/users/me' && method === 'PUT') {
+        saveCalls.push(JSON.parse(options.body));
+        if (saveCalls.length === 1) {
+          return firstSave;
+        }
+        return jsonResponse({ user: { preferences: JSON.parse(options.body).preferences } });
+      }
+      return jsonResponse({});
+    });
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse(makeAccountState([makeIntegrationServer()], [
+        makeIntegrationServer({
+          id: 'shared-1',
+          name: 'Shared MCP',
+          url: 'https://shared.example.com',
+          access_label: 'Shared',
+          visible_for_user: true,
+          hidden_for_user: false,
+          tools: [
+            { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true, visible_for_user: true },
+            { name: 'shared_fetch', title: 'Shared Fetch', description: 'Shared tool', enabled: true, visible_for_user: true },
+          ],
+        }),
+      ])))
+      .mockResolvedValueOnce(jsonResponse({
+        servers: [makeIntegrationServer()],
+        accessible_servers: [
+          makeIntegrationServer({
+            id: 'shared-1',
+            name: 'Shared MCP',
+            url: 'https://shared.example.com',
+            access_label: 'Shared',
+            visible_for_user: true,
+            hidden_for_user: false,
+            tools: [
+              { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true, visible_for_user: true },
+              { name: 'shared_fetch', title: 'Shared Fetch', description: 'Shared tool', enabled: true, visible_for_user: true },
+            ],
+          }),
+        ],
+      }));
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush(4);
+
+    document.querySelector('[data-tool-server-row="shared-1"] .tools-toggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(1);
+    const firstToolButton = document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]');
+    const secondToolButton = document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_fetch"]');
+    expect(firstToolButton).not.toBeNull();
+    expect(secondToolButton).not.toBeNull();
+
+    firstToolButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(2);
+    const refreshedSecondToolButton = document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_fetch"]');
+    expect(refreshedSecondToolButton).not.toBeNull();
+    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(false);
+    document.querySelector('#account-main-footer #save-integrations')?.click();
+    await flush(2);
+
+    expect(saveCalls).toHaveLength(1);
+    expect(saveCalls[0]).toMatchObject({
+      preferences: {
+        resource_overrides: {
+          tool_servers: {
+            tools: {
+              'shared-1': {
+                hidden_ids: ['shared_search'],
+              },
+            },
+          },
+        },
+      },
+    });
+
+    refreshedSecondToolButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(2);
+
+    resolveFirstSave(jsonResponse({ user: { preferences: saveCalls[0].preferences } }));
+    await flush(8);
+
+    expect(saveCalls).toHaveLength(2);
+    expect(saveCalls[1]).toMatchObject({
+      preferences: {
+        resource_overrides: {
+          tool_servers: {
+            tools: {
+              'shared-1': {
+                hidden_ids: ['shared_search', 'shared_fetch'],
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]')?.getAttribute('aria-label')).toBe('Show for me');
+    expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_fetch"]')?.getAttribute('aria-label')).toBe('Show for me');
   });
 
   it('deletes a personal integration after confirmation and refreshes the list', async () => {
@@ -210,6 +496,7 @@ describe('account integrations section', () => {
     await flush(4);
 
     expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
+    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(true);
     const editBtn = document.querySelector('[data-account-integration-edit="mcp-1"]');
     expect(editBtn).not.toBeNull();
     editBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -220,5 +507,7 @@ describe('account integrations section', () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/users/me/resources/mcp-servers/mcp-1' && String(options?.method || '').toUpperCase() === 'DELETE')).toBe(true);
     expect(document.body.textContent).toContain('No tool servers configured');
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(1);
   });
 });
+

@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   isAccessTokenUsable: vi.fn(),
   initShortcuts: vi.fn(),
   renderAccountPage: vi.fn(),
+  openAccountSettingsDrawer: vi.fn(),
+  resolveAccountSectionFromPath: vi.fn(() => 'overview'),
   readChatsCache: vi.fn(),
   readModelsCache: vi.fn(),
   renderAdminPage: vi.fn(),
@@ -62,6 +64,8 @@ vi.mock('../../public/js/features/admin/admin.js', () => ({
 
 vi.mock('../../public/js/features/account/account.js', () => ({
   renderAccountPage: (...args) => mocks.renderAccountPage(...args),
+  openAccountSettingsDrawer: (...args) => mocks.openAccountSettingsDrawer(...args),
+  resolveAccountSectionFromPath: (...args) => mocks.resolveAccountSectionFromPath(...args),
 }));
 
 vi.mock('../../public/js/features/chat/chat.js', () => ({
@@ -105,6 +109,9 @@ describe('public app bootstrap', () => {
     mocks.isAccessTokenUsable.mockReset();
     mocks.initShortcuts.mockReset();
     mocks.renderAccountPage.mockReset();
+    mocks.openAccountSettingsDrawer.mockReset();
+    mocks.resolveAccountSectionFromPath.mockReset();
+    mocks.resolveAccountSectionFromPath.mockReturnValue('overview');
     mocks.readChatsCache.mockReset();
     mocks.readModelsCache.mockReset();
     mocks.renderAdminPage.mockReset();
@@ -240,10 +247,11 @@ describe('public app bootstrap', () => {
     expect(mocks.initShortcuts).toHaveBeenCalledTimes(1);
   });
 
-  it('renders account routes through the account shell', async () => {
-    window.history.pushState({}, '', '/account/profile/overview');
+  it('opens account routes through the account drawer', async () => {
+    window.history.pushState({}, '', '/account/settings/connections');
     mocks.getAuthState.mockReturnValue({ access_token: 'token' });
     mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.resolveAccountSectionFromPath.mockReturnValue('connections');
     mocks.apiFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -268,11 +276,11 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mocks.renderAccountPage).toHaveBeenCalledTimes(1);
-    expect(document.getElementById('app').dataset.view).toBe('account');
+    expect(window.location.pathname).toBe('/');
+    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledWith({ section: 'connections' });
   });
 
-  it('redirects old account settings general routes to the profile overview', async () => {
+  it('opens old account settings routes through the account drawer', async () => {
     window.history.pushState({}, '', '/account/settings/general');
     mocks.getAuthState.mockReturnValue({ access_token: 'token' });
     mocks.isAccessTokenUsable.mockReturnValue(true);
@@ -300,12 +308,11 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(window.location.pathname).toBe('/account/profile/overview');
-    expect(mocks.renderAccountPage).toHaveBeenCalledTimes(1);
-    expect(document.getElementById('app').dataset.view).toBe('account');
+    expect(window.location.pathname).toBe('/');
+    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledWith({ section: 'overview' });
   });
 
-  it('redirects old account settings preferences routes to the profile overview', async () => {
+  it('opens old account preferences routes through the account drawer', async () => {
     window.history.pushState({}, '', '/account/settings/preferences');
     mocks.getAuthState.mockReturnValue({ access_token: 'token' });
     mocks.isAccessTokenUsable.mockReturnValue(true);
@@ -333,9 +340,8 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(window.location.pathname).toBe('/account/profile/overview');
-    expect(mocks.renderAccountPage).toHaveBeenCalledTimes(1);
-    expect(document.getElementById('app').dataset.view).toBe('account');
+    expect(window.location.pathname).toBe('/');
+    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledWith({ section: 'overview' });
   });
 
   it('chooses the first alphabetical fetched model when no default is configured', async () => {

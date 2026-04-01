@@ -3,20 +3,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
+  clearModelsCache: vi.fn(),
   ensureMarkedReady: vi.fn(),
   createUserConnection: vi.fn(),
   updateUserConnection: vi.fn(),
   deleteUserConnection: vi.fn(),
+  testUserConnection: vi.fn(),
 }));
 
 vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
+  clearModelsCache: (...args) => mocks.clearModelsCache(...args),
 }));
 
 vi.mock('../../public/js/shared/api/resources.js', () => ({
   createUserConnection: (...args) => mocks.createUserConnection(...args),
   updateUserConnection: (...args) => mocks.updateUserConnection(...args),
   deleteUserConnection: (...args) => mocks.deleteUserConnection(...args),
+  testUserConnection: (...args) => mocks.testUserConnection(...args),
 }));
 
 vi.mock('../../public/js/shared/utils.js', () => ({
@@ -35,7 +39,21 @@ async function flush(count = 2) {
   }
 }
 
-function makeAccountState(connectionName = 'Personal Conn') {
+function makeAccountState(connectionName = 'Personal Conn', capabilities = {}) {
+  const baseCapabilities = {
+    permissions: [
+      'chat.read',
+      'user.settings.profile.write',
+      'user.settings.preferences.write',
+      'user.settings.connections.write',
+      'user.settings.integrations.write',
+      'user.settings.tool-servers.write',
+    ],
+    canManageConnections: true,
+    canManageToolServers: true,
+    canManageModels: true,
+    canManageAcls: false,
+  };
   return {
     user: {
       id: 'u1',
@@ -45,8 +63,12 @@ function makeAccountState(connectionName = 'Personal Conn') {
       avatar_emoji: 'S',
       status: 'online',
     },
-    permissions: ['chat.read'],
+    permissions: baseCapabilities.permissions,
     roles: [{ role_name: 'member' }],
+    capabilities: {
+      ...baseCapabilities,
+      ...capabilities,
+    },
     app_config: { default_model_id: 'gpt-5-mini' },
     settings: {
       general: {
@@ -101,19 +123,48 @@ describe('account connections section', () => {
     mocks.createUserConnection.mockReset();
     mocks.updateUserConnection.mockReset();
     mocks.deleteUserConnection.mockReset();
+    mocks.testUserConnection.mockReset();
+    mocks.testUserConnection.mockResolvedValue({ message: 'Connection successful', models: [] });
   });
 
+  it('disables connection actions when capability denies management', async () => {
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => makeAccountState('Personal Conn', {
+        canManageConnections: false,
+      }),
+    });
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush();
+
+    expect(document.body.textContent).toContain('Personal');
+    expect(document.body.textContent).toContain('Shared');
+    expect(document.body.textContent).not.toContain('Admin');
+    expect(document.body.textContent).not.toContain('Shared providers');
+    expect(document.body.textContent).not.toContain('Visible for you');
+    expect(document.querySelector('#manage-connections-section')?.className).not.toContain('overflow-y-auto');
+    expect(document.querySelector('#manage-connections-section')?.className).not.toContain('max-h-[calc(100dvh-18rem)]');
+    const addButton = document.querySelector('[data-account-connection-add]');
+    expect(addButton).not.toBeNull();
+    expect(addButton?.disabled).toBe(true);
+    addButton?.click();
+    expect(document.getElementById('account-connection-modal')).toBeNull();
+  }, 10000);
+
   it('opens the add connection modal with the shared admin-style shell', async () => {
-    mocks.apiFetch.mockResolvedValueOnce({
+    mocks.apiFetch.mockResolvedValue({
       ok: true,
       json: async () => makeAccountState(),
     });
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
-    await Promise.resolve();
+    await flush();
 
     expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
+    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(true);
     document.querySelector('[data-account-connection-add]')?.click();
 
     const modalRoot = document.getElementById('account-connection-modal');
@@ -125,6 +176,54 @@ describe('account connections section', () => {
     expect(modalRoot?.querySelector('[class*="rounded-3xl"]')).not.toBeNull();
     expect(modalRoot?.querySelector('#toggle-key-visibility')).not.toBeNull();
     expect(modalRoot?.textContent).toContain('Add Connection');
+  });
+
+  it('stages shared connection visibility and saves it from the footer', async () => {
+    mocks.apiFetch.mockImplementation(async (url, options = {}) => {
+      const method = String(options.method || 'GET').toUpperCase();
+      if (String(url) === '/api/users/me/settings?include=permissions,roles' && method === 'GET') {
+        return {
+          ok: true,
+          json: async () => makeAccountState('Personal Conn'),
+        };
+      }
+      if (String(url) === '/api/users/me' && method === 'PUT') {
+        return {
+          ok: true,
+          json: async () => ({ user: { preferences: JSON.parse(options.body).preferences } }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush(4);
+
+    expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
+    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(true);
+
+    const sharedToggle = document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]');
+    expect(sharedToggle).not.toBeNull();
+    sharedToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(2);
+
+    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(false);
+    document.querySelector('#account-main-footer #save-connections')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(8);
+
+    const updateCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT');
+    expect(updateCall).toBeDefined();
+    expect(JSON.parse(updateCall[1].body)).toEqual(expect.objectContaining({
+      preferences: expect.objectContaining({
+        resource_overrides: expect.objectContaining({
+          connections: expect.objectContaining({
+            hidden_ids: ['shared-1'],
+          }),
+        }),
+      }),
+    }));
+    expect(document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]')?.getAttribute('aria-label')).toBe('Show for me');
   });
 
   it('saves an edited connection and refreshes the list', async () => {
@@ -143,18 +242,28 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await Promise.resolve();
 
+    expect(document.body.textContent).toContain('Personal');
+    expect(document.body.textContent).toContain('Shared');
+    expect(document.body.textContent).not.toContain('Admin');
+    expect(document.body.textContent).not.toContain('Shared providers');
+    expect(document.body.textContent).not.toContain('Visible for you');
     expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
+    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(true);
     document.querySelector('[data-account-connection-edit="conn-1"]')?.click();
     expect(document.getElementById('account-connection-modal')?.textContent).toContain('Edit Connection');
 
     const modal = document.getElementById('account-connection-modal');
     const nameInput = modal?.querySelector('#modal-conn-name');
     expect(nameInput).not.toBeNull();
+    expect(modal?.querySelector('#modal-conn-key')?.getAttribute('placeholder')).toBe('Leave blank to keep current key');
+    expect(modal?.textContent).toContain('A key is already saved. Leave this blank to keep it.');
+    expect(modal?.querySelector('#modal-models-status')?.textContent).toContain('Models enabled in this connection: 1 of 1');
+    expect(modal?.querySelector('#modal-models-list')?.textContent).toContain('GPT-4o');
     nameInput.value = 'Updated Conn';
 
     modal?.querySelector('[data-account-connection-save]')?.click();
     await Promise.resolve();
-    await flush();
+    await flush(12);
 
     expect(mocks.updateUserConnection).toHaveBeenCalledTimes(1);
     expect(mocks.updateUserConnection).toHaveBeenCalledWith('conn-1', expect.objectContaining({
@@ -165,7 +274,8 @@ describe('account connections section', () => {
       auth_type: 'bearer',
       headers: expect.stringContaining('"X-Test": "1"'),
     }));
-    expect(document.body.textContent).toContain('Updated Conn');
+    expect(document.getElementById('account-connection-modal')).toBeNull();
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(1);
   });
 
   it('deletes a connection after confirmation and refreshes the list', async () => {
@@ -195,7 +305,13 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await Promise.resolve();
 
+    expect(document.body.textContent).toContain('Personal');
+    expect(document.body.textContent).toContain('Shared');
+    expect(document.body.textContent).not.toContain('Admin');
+    expect(document.body.textContent).not.toContain('Shared providers');
+    expect(document.body.textContent).not.toContain('Visible for you');
     expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
+    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(true);
     document.querySelector('[data-account-connection-edit="conn-1"]')?.click();
     await flush(2);
     document.querySelector('[data-account-connection-delete-modal]')?.click();
@@ -203,6 +319,8 @@ describe('account connections section', () => {
 
     expect(confirmSpy).toHaveBeenCalled();
     expect(mocks.deleteUserConnection).toHaveBeenCalledWith('conn-1');
-    expect(document.body.textContent).toContain('No connections configured');
+    expect(document.querySelector('[data-connection-row="conn-1"]')).toBeNull();
+    expect(document.querySelector('[data-connection-row="shared-1"]')).not.toBeNull();
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(1);
   });
 });

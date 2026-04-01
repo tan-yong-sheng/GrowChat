@@ -5,6 +5,22 @@ export function getModelDisplayLabel(model) {
   return String(model?.name || model?.id || '').trim();
 }
 
+export function getModelScopeLabel(model) {
+  const accessVariant = String(model?.access_variant || '').trim().toLowerCase();
+  const accessLabel = String(model?.access_label || '').trim().toLowerCase();
+  const source = String(model?.source || '').trim().toLowerCase();
+  if (source === 'user' || accessVariant === 'personal' || accessLabel === 'personal') {
+    return 'Personal';
+  }
+  return 'Shared';
+}
+
+export function getModelScopeBadgeClass(model) {
+  return getModelScopeLabel(model) === 'Personal'
+    ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+    : 'border-gray-200 bg-gray-50 text-gray-500';
+}
+
 export function getPreferredModelId(models = [], preferredIds = []) {
   const sortedModels = sortModelsByActiveThenName(models);
   if (!sortedModels.length) return null;
@@ -47,13 +63,16 @@ export function getModelSelectorDerivedState({
 
 export function renderModelSelectorOption(model, currentState) {
   const isSelected = currentState.activeModelId === model.id;
+  const scopeLabel = getModelScopeLabel(model);
+  const scopeBadgeClass = getModelScopeBadgeClass(model);
   return `
     <button class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${isSelected ? 'bg-gray-50 text-gray-900 font-bold' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${model.id}" role="option" aria-selected="${isSelected}">
       <div class="flex items-center gap-2">
         <div class="w-6 h-6 rounded-lg bg-white border border-gray-100 flex items-center justify-center overflow-hidden shadow-sm">
           <img src="/logo.png" alt="" class="w-4 h-4 object-contain opacity-70" />
         </div>
-        <span>${getModelDisplayLabel(model)}</span>
+        <span class="truncate">${getModelDisplayLabel(model)}</span>
+        <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scopeBadgeClass}">${scopeLabel}</span>
       </div>
       ${isSelected ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
     </button>

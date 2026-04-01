@@ -40,6 +40,138 @@ function buildButtonAttrs(attrs = []) {
   return attrs.filter(Boolean).map((attr) => ` ${attr}`).join('');
 }
 
+export function buildConnectionModalBodyMarkup({
+  providerType = 'openai',
+  name = '',
+  url = '',
+  keyValue = '',
+  hasKey = false,
+  headers = '',
+  apiType = null,
+  canManage = true,
+  showTestButton = true,
+  testHiddenClass = '',
+  manualModelsHiddenClass = '',
+  disabledAttr = '',
+  disabledControlClass = '',
+  testButtonAttrs = '',
+  testMessageAttrs = '',
+  models = [],
+  query = '',
+  selection = new Set(),
+  loadingModels = false,
+  modelsError = '',
+  showKeyHint = true,
+  keyHintText = '',
+  keyPlaceholder = null,
+  urlPlaceholder = null,
+  namePlaceholder = null,
+  providerHint = null,
+  urlHint = null,
+  modelSectionTitle = 'Models',
+  showManualModelAdd = true,
+} = {}) {
+  const resolvedProviderType = normalizeProviderType(providerType);
+  const resolvedApiType = apiType || connectionApiTypeDetails(resolvedProviderType);
+  const resolvedModels = Array.isArray(models) ? models : [];
+  const resolvedSelection = selection instanceof Set ? selection : new Set();
+  const resolvedModelMarkup = buildConnectionModalModelsMarkup(
+    resolvedModels,
+    query,
+    resolvedSelection,
+    loadingModels,
+    modelsError,
+  );
+  const resolvedNamePlaceholder = namePlaceholder || `e.g. ${adminProviderDisplayLabel(resolvedProviderType)}`;
+  const resolvedUrlPlaceholder = urlPlaceholder || adminProviderUrlPlaceholder(resolvedProviderType);
+  const resolvedUrlHint = urlHint || (isCompatibleProviderType(resolvedProviderType)
+    ? 'Required for compatible providers.'
+    : 'Uses the built-in default if left blank.');
+  const resolvedProviderHint = providerHint || adminProviderDisplayLabel(resolvedProviderType);
+  const resolvedKeyPlaceholder = keyPlaceholder || (hasKey ? 'Leave blank to keep current key' : 'Enter API key');
+
+  return `
+    <div class="space-y-1">
+      <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Name</label>
+      <input id="modal-conn-name" type="text" value="${escapeHtml(name)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedNamePlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+    </div>
+
+    <div class="space-y-1">
+      <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(resolvedProviderType))}</label>
+      <div class="flex items-center gap-2">
+        <input id="modal-conn-url" type="text" value="${escapeHtml(url)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedUrlPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+        ${showTestButton ? `<button type="button" id="test-connection" class="p-1 text-gray-400 hover:text-gray-600${testHiddenClass}${disabledControlClass}" title="Test connection"${disabledAttr}>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path>
+          </svg>
+        </button>` : ''}
+      </div>
+      <div id="connection-test-message" class="text-[11px] text-gray-400${testHiddenClass}"${testMessageAttrs}></div>
+      <div id="modal-conn-url-hint" class="text-[11px] text-gray-400">${escapeHtml(resolvedUrlHint)}</div>
+    </div>
+
+    <div class="space-y-1">
+      <label id="modal-conn-key-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(resolveKeyLabel())}</label>
+      <div class="flex items-center gap-3">
+        <div class="flex-1 relative">
+          <input id="modal-conn-key" type="password" value="${escapeHtml(keyValue)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="${escapeHtml(resolvedKeyPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+          <button type="button" id="toggle-key-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 hover:text-gray-600${disabledControlClass}" aria-label="Show key"${disabledAttr}>
+            <span data-password-toggle-label>Show</span>
+          </button>
+        </div>
+      </div>
+      ${showKeyHint ? `<div id="modal-conn-key-hint" class="mt-1 text-[11px] text-gray-400">${escapeHtml(keyHintText || (hasKey ? 'A key is already saved. Leave this blank to keep it.' : 'Optional for providers that do not require a key.'))}</div>` : ''}
+    </div>
+
+    <div class="space-y-1">
+      <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Headers</label>
+      <textarea id="modal-conn-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none${disabledControlClass}" placeholder="Enter additional headers in JSON format" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>${escapeHtml(headers)}</textarea>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Provider Type</label>
+        <select id="modal-conn-provider" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900${disabledControlClass}"${disabledAttr}>
+          <option value="openai"${resolvedProviderType === 'openai' ? ' selected' : ''}>OpenAI</option>
+          <option value="openai-compatible"${resolvedProviderType === 'openai-compatible' ? ' selected' : ''}>OpenAI Compatible</option>
+          <option value="google"${resolvedProviderType === 'google' ? ' selected' : ''}>Gemini</option>
+          <option value="gemini-compatible"${resolvedProviderType === 'gemini-compatible' ? ' selected' : ''}>Gemini Compatible</option>
+          <option value="anthropic"${resolvedProviderType === 'anthropic' ? ' selected' : ''}>Claude</option>
+          <option value="claude-compatible"${resolvedProviderType === 'claude-compatible' ? ' selected' : ''}>Claude Compatible</option>
+        </select>
+        <div id="modal-conn-provider-hint" class="text-[11px] text-gray-400">${escapeHtml(resolvedProviderHint)}</div>
+      </div>
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">API Type</label>
+        <div id="modal-conn-api-type-label" class="text-sm text-gray-900">${escapeHtml(resolvedApiType.label)}</div>
+        <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-400">${escapeHtml(resolvedApiType.endpoint)}</div>
+      </div>
+    </div>
+
+    <div class="space-y-2" id="modal-models-section">
+      <div class="flex items-center justify-between">
+        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(modelSectionTitle)}</label>
+        <div class="flex items-center gap-2 text-[11px] text-gray-400">
+          <button type="button" id="modal-models-select-all" class="px-2 py-1 rounded-md hover:bg-gray-50">All</button>
+          <button type="button" id="modal-models-select-none" class="px-2 py-1 rounded-md hover:bg-gray-50">None</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-400">
+          <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"></path>
+        </svg>
+        <input id="modal-models-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none${disabledControlClass}" placeholder="Search models" value="${escapeHtml(query)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+      </div>
+      <div class="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2${manualModelsHiddenClass}${showManualModelAdd ? '' : ' hidden'}">
+        <input id="modal-manual-model-id" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none${disabledControlClass}" placeholder="Add model manually" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+        <button type="button" id="modal-manual-model-add" class="shrink-0 rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white hover:bg-gray-900 transition${disabledControlClass}"${disabledAttr}>Add</button>
+      </div>
+      <div id="modal-models-list" class="rounded-2xl border border-gray-100 bg-white max-h-48 overflow-y-auto scrollbar-hidden text-sm">${resolvedModelMarkup}</div>
+      <div id="modal-models-status" class="text-[11px] text-gray-400"></div>
+    </div>
+  `;
+}
+
 export function buildConnectionModalModelsMarkup(models = [], query = '', selection = new Set(), loading = false, error = '') {
   if (loading) {
     return '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
@@ -92,11 +224,12 @@ export function buildConnectionModalMarkup({
   showAccountHooks = false,
   isEnvConnection = false,
   modalState = {},
+  canManage = true,
 } = {}) {
   const providerType = normalizeProviderType(connection?.providerType || connection?.provider_type || 'openai');
   const resolvedName = String(connection?.name || '').trim();
   const resolvedUrl = String(connection?.url || connection?.base_url || connection?.baseUrl || '').trim();
-  const resolvedKey = '';
+  const hasKey = Boolean(connection?.has_key || String(connection?.key || connection?.keyMasked || '').trim());
   const resolvedHeaders = formatHeadersValue(connection?.headers);
   const apiType = connectionApiTypeDetails(providerType);
   const modelListMarkup = '';
@@ -116,6 +249,8 @@ export function buildConnectionModalMarkup({
   const deleteHiddenClass = connection?.id && !isEnvConnection ? '' : ' hidden';
   const testHiddenClass = isEnvConnection ? ' hidden' : '';
   const manualModelsHiddenClass = isEnvConnection ? ' hidden' : '';
+  const disabledAttr = canManage ? '' : ' disabled aria-disabled="true"';
+  const disabledControlClass = canManage ? '' : ' opacity-50 cursor-not-allowed';
 
   return `
     <div id="${escapeHtml(rootId)}" class="${STANDARD_MODAL_PRESET.outerClass}${hiddenClass}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};">
@@ -133,14 +268,14 @@ export function buildConnectionModalMarkup({
         <div class="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hidden">
           <div class="space-y-1">
             <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Name</label>
-            <input id="modal-conn-name" type="text" value="${escapeHtml(resolvedName)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="e.g. ${escapeHtml(adminProviderDisplayLabel(providerType))}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+            <input id="modal-conn-name" type="text" value="${escapeHtml(resolvedName)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="e.g. ${escapeHtml(adminProviderDisplayLabel(providerType))}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
           </div>
 
           <div class="space-y-1">
             <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(providerType))}</label>
             <div class="flex items-center gap-2">
-              <input id="modal-conn-url" type="text" value="${escapeHtml(resolvedUrl)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="${escapeHtml(adminProviderUrlPlaceholder(providerType))}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-              <button id="test-connection" class="p-1 text-gray-400 hover:text-gray-600${testHiddenClass}" title="Test connection">
+              <input id="modal-conn-url" type="text" value="${escapeHtml(resolvedUrl)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(adminProviderUrlPlaceholder(providerType))}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+              <button id="test-connection" class="p-1 text-gray-400 hover:text-gray-600${testHiddenClass}${disabledControlClass}" title="Test connection"${disabledAttr}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path>
                 </svg>
@@ -154,26 +289,24 @@ export function buildConnectionModalMarkup({
             <label id="modal-conn-key-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(resolveKeyLabel())}</label>
             <div class="flex items-center gap-3">
               <div class="flex-1 relative">
-                <input id="modal-conn-key" type="password" value="${escapeHtml(resolvedKey)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="API Key" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-                <button id="toggle-key-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c3.41 0 6.446 1.315 8.613 3.447 1.12 1.101 2.04 2.484 2.747 4.033a1.015 1.012 0 0 1 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12.013a3 3 0 1 1-6 0 3 0 0 1 6 0Z"></path>
-                  </svg>
+                <input id="modal-conn-key" type="password" value="" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="${hasKey ? 'Leave blank to keep current key' : 'Enter API key'}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+                <button id="toggle-key-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 hover:text-gray-600${disabledControlClass}" aria-label="Show key"${disabledAttr}>
+                  <span data-password-toggle-label>Show</span>
                 </button>
               </div>
             </div>
+            <div class="mt-1 text-[11px] text-gray-400">${hasKey ? 'A key is already saved. Leave this blank to keep it.' : 'Optional for providers that do not require a key.'}</div>
           </div>
 
           <div class="space-y-1">
             <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Headers</label>
-            <textarea id="modal-conn-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none" placeholder="Enter additional headers in JSON format" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">${escapeHtml(resolvedHeaders)}</textarea>
+            <textarea id="modal-conn-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none${disabledControlClass}" placeholder="Enter additional headers in JSON format" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>${escapeHtml(resolvedHeaders)}</textarea>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1">
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Provider Type</label>
-              <select id="modal-conn-provider" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900">
+              <select id="modal-conn-provider" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900${disabledControlClass}"${disabledAttr}>
                 <option value="openai"${providerType === 'openai' ? ' selected' : ''}>OpenAI</option>
                 <option value="openai-compatible"${providerType === 'openai-compatible' ? ' selected' : ''}>OpenAI Compatible</option>
                 <option value="google"${providerType === 'google' ? ' selected' : ''}>Gemini</option>
@@ -202,11 +335,11 @@ export function buildConnectionModalMarkup({
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-400">
                 <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"></path>
               </svg>
-              <input id="modal-models-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Search models" value="" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+              <input id="modal-models-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none${disabledControlClass}" placeholder="Search models" value="" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
             </div>
             <div class="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2${manualModelsHiddenClass}">
-              <input id="modal-manual-model-id" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Add model manually" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-              <button id="modal-manual-model-add" class="shrink-0 rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white hover:bg-gray-900 transition">Add</button>
+              <input id="modal-manual-model-id" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none${disabledControlClass}" placeholder="Add model manually" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+              <button id="modal-manual-model-add" class="shrink-0 rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white hover:bg-gray-900 transition${disabledControlClass}"${disabledAttr}>Add</button>
             </div>
             <div id="modal-models-list" class="rounded-2xl border border-gray-100 bg-white max-h-48 overflow-y-auto scrollbar-hidden text-sm">${modelListMarkup}</div>
             <div id="modal-models-status" class="text-[11px] text-gray-400"></div>
@@ -214,8 +347,8 @@ export function buildConnectionModalMarkup({
         </div>
 
         <div class="px-6 py-6 flex justify-end gap-3 border-t border-gray-50">
-          <button id="delete-connection"${deleteButtonAttrs} class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full${deleteHiddenClass}">Delete</button>
-          <button id="save-modal"${saveButtonAttrs} class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full">Save</button>
+          <button type="button" id="delete-connection"${deleteButtonAttrs} class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full${deleteHiddenClass}${disabledControlClass}"${canManage ? '' : ' disabled'}>Delete</button>
+          <button type="button" id="save-modal"${saveButtonAttrs} class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full${disabledControlClass}"${canManage ? '' : ' disabled'}>Save</button>
         </div>
       </div>
     </div>

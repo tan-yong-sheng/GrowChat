@@ -156,6 +156,8 @@ describe('chatRouter', () => {
             title: 'Weather Lookup',
             description: 'Lookup weather',
             enabled: true,
+            visible_for_user: true,
+            hidden_for_user: false,
           },
         ],
       }),

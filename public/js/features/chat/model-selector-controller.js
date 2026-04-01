@@ -1,6 +1,6 @@
 import { state, setState, subscribe } from '../../shared/store.js';
 import { showToast, showToastProgress } from '../../shared/utils.js';
-import { getPreferredModelId, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
+import { filterEnabledModels, getPreferredModelId, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import {
   getModelDisplayLabel,
   getModelSelectorDerivedState,
@@ -43,7 +43,7 @@ export function createModelSelectorController(container) {
       try {
         const { fetchModels } = await import('../../shared/api.js');
         const data = await fetchModels();
-        const models = data.models || [];
+        const models = filterEnabledModels((data.models || []).filter((model) => model?.hidden_for_user !== true));
         const nextActiveModelId = getPreferredModelId(models, [
           state.activeModelId,
           state.defaultModelId,
@@ -284,7 +284,7 @@ export function createModelSelectorController(container) {
   });
 
   unsubscribe = subscribe((currentState) => {
-    const models = Array.isArray(currentState.models) ? currentState.models : [];
+    const models = filterEnabledModels(Array.isArray(currentState.models) ? currentState.models : []);
     const hasModels = models.length > 0;
     const preferredModelId = hasModels ? getPreferredModelId(models, [
       currentState.activeModelId,
@@ -311,7 +311,7 @@ export function createModelSelectorController(container) {
 
     const modelsChanged = currentState.models !== lastModelsRef || currentState.modelsLoading !== lastModelsLoading;
     if (modelsChanged) {
-      sortedModels = sortModelsByActiveThenName(currentState.models || []);
+      sortedModels = sortModelsByActiveThenName(models);
       lastModelsRef = currentState.models;
       lastModelsLoading = currentState.modelsLoading;
       const derived = getModelSelectorDerivedState({

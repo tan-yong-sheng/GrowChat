@@ -68,7 +68,7 @@ function makeReq(path, method) {
 
 describe('adminRouter openai connections', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mocks.createDB.mockReturnValue({});
     mocks.authorize.mockResolvedValue({ allow: true });
     mocks.logAuditEvent.mockResolvedValue(undefined);
@@ -143,6 +143,11 @@ describe('adminRouter openai connections', () => {
     expect(res.status).toBe(200);
     expect(payload.connections.some((conn) => conn.id === 'env-openai-0' && conn.readOnly)).toBe(true);
     expect(payload.connections.some((conn) => conn.id === 'config-gemini' && conn.source === 'config')).toBe(true);
+    expect(payload.connections.find((conn) => conn.id === 'config-gemini')).toMatchObject({
+      hasKey: true,
+      keyMasked: '••••cret',
+    });
+    expect(payload.connections.find((conn) => conn.id === 'config-gemini')?.key).toBeUndefined();
     expect(mocks.getConfigValue).toHaveBeenCalledWith(expect.anything(), 'openai_connections', '[]');
     expect(mocks.getConfigValue).toHaveBeenCalledWith(expect.anything(), 'openai_enabled', 'true');
   });
@@ -280,6 +285,54 @@ describe('adminRouter openai connections', () => {
     expect(prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM connection_acl_rules'), expect.arrayContaining(['conn-1']));
   });
 
+  it('rejects connection ACL updates when the branch-level admin ACL check fails', async () => {
+    mocks.authorize
+      .mockResolvedValueOnce({ allow: true })
+      .mockResolvedValueOnce({ allow: false, reason: 'missing_permission', code: 'forbidden' });
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-1',
+        name: 'Connection One',
+        enabled: true,
+        source: 'config',
+      },
+    ]);
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
+    mocks.createDB.mockReturnValue({
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM groups')) {
+          return [
+            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          ];
+        }
+        return [];
+      }),
+      batch,
+      prepare,
+      run: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/openai/connections/conn-1/access', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/openai/connections/conn-1/access'
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain('missing_permission');
+    expect(batch).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(2);
+  });
+
   it('updates connection access groups in bulk for policies saves', async () => {
     mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
       {
@@ -362,19 +415,19 @@ describe('adminRouter openai connections', () => {
       new Request('https://example.com/api/admin/openai/connections', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enabled: true,
-          connections: [
-            {
-              id: 'conn-1',
-              name: 'Connection One',
-              url: 'https://example.com/v1',
-              key: 'secret',
-              headers: '',
-              providerType: 'openai',
-              source: 'config',
-              enabled: true,
-            },
+      body: JSON.stringify({
+        enabled: true,
+        connections: [
+          {
+            id: 'conn-1',
+            name: 'Connection One',
+            url: 'https://example.com/v1',
+            key: '',
+            headers: '',
+            providerType: 'openai',
+            source: 'config',
+            enabled: true,
+          },
           ],
           env_overrides: { 'env-openai-0': false },
           model_updates: [{ id: 'gpt-5-mini', enabled: false }],
@@ -605,6 +658,50 @@ describe('adminRouter openai connections', () => {
     ]);
     expect(batch).toHaveBeenCalledTimes(1);
     expect(prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM tool_server_acl_rules'), expect.arrayContaining(['mcp-1']));
+  });
+
+  it('rejects MCP server ACL updates when the branch-level admin ACL check fails', async () => {
+    mocks.authorize
+      .mockResolvedValueOnce({ allow: true })
+      .mockResolvedValueOnce({ allow: false, reason: 'missing_permission', code: 'forbidden' });
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
+    const all = vi.fn(async (sql) => {
+      if (String(sql).includes('FROM groups')) {
+        return [
+          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+        ];
+      }
+      return [];
+    });
+    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'tool_servers') {
+        return JSON.stringify([
+          { id: 'mcp-1', name: 'Server One', url: 'https://example.com', enabled: true },
+        ]);
+      }
+      return fallback;
+    });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/tool-servers/mcp-1/access', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/tool-servers/mcp-1/access'
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain('missing_permission');
+    expect(batch).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(2);
   });
 
   it('updates MCP server access groups in bulk for policies saves', async () => {

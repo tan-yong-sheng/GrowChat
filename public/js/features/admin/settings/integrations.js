@@ -35,6 +35,7 @@ const escapeSelector = (value) => {
 
 export function renderIntegrationsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'integrations';
+  const canManageAcls = data.capabilities?.canManageAcls !== false;
   const integrationsState = data.integrationsSettings || (data.integrationsSettings = {
     loading: false,
     error: null,
@@ -152,6 +153,19 @@ export function renderIntegrationsSettings(container, data) {
       setTimeout(() => feedback.classList.add('hidden'), 3000);
     }
     updateButtons();
+  };
+
+  const commitOpenServerModalDraft = async () => {
+    const modalRoot = container.querySelector('#edit-connection-modal');
+    if (!modalRoot || modalRoot.classList.contains('hidden')) return true;
+    const saveModalBtn = modalRoot.querySelector('#save-modal');
+    if (!saveModalBtn || saveModalBtn.disabled) return true;
+
+    saveModalBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    return modalRoot.classList.contains('hidden');
   };
 
   const runVerify = async ({ serverId, url, authType, bearerToken, basicUser, basicPass, headers }) => {
@@ -415,9 +429,10 @@ export function renderIntegrationsSettings(container, data) {
           <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
             <button
               data-id="${server.id}"
-              class="tool-access-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${serverEnabled ? '' : 'hidden'}"
+              class="tool-access-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${serverEnabled && canManageAcls ? '' : 'hidden'}"
               title="Edit access rules"
               aria-label="Edit access rules"
+              ${canManageAcls ? '' : 'disabled aria-disabled="true"'}
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
@@ -496,7 +511,7 @@ export function renderIntegrationsSettings(container, data) {
     const badge = row.querySelector('[data-server-disabled-badge]');
     if (badge) badge.classList.toggle('hidden', serverEnabled);
     const accessBtn = row.querySelector('.tool-access-btn');
-    if (accessBtn) accessBtn.classList.toggle('hidden', !serverEnabled);
+    if (accessBtn) accessBtn.classList.toggle('hidden', !serverEnabled || !canManageAcls);
     const serverToggle = row.querySelector('.server-toggle');
     if (serverToggle) updateServerToggle(serverToggle, serverEnabled);
     row.querySelectorAll('.tool-toggle').forEach((toggle) => {
@@ -652,16 +667,20 @@ export function renderIntegrationsSettings(container, data) {
     integrationsState.saving = true;
     updateButtons();
     try {
+      const committed = await commitOpenServerModalDraft();
+      if (!committed) {
+        throw new Error('Finish editing the open MCP server modal before saving integrations');
+      }
       await persistServers({ showFeedback: false });
-        const aclUpdates = Array.from(aclDraftRegistry.entries())
-          .map(([serverId, rules]) => ({
-            serverId,
-            rules: cloneAclRules(rules),
-          }))
-        .filter((entry) => entry.serverId && entry.rules.length > 0);
+      const aclUpdates = Array.from(aclDraftRegistry.entries())
+        .map(([serverId, rules]) => ({
+          serverId,
+          rules: cloneAclRules(rules),
+        }))
+        .filter((entry) => entry.serverId);
       for (const entry of aclUpdates) {
         await updateAdminToolServerAccess(entry.serverId, entry.rules);
-          aclDraftRegistry.clear(entry.serverId);
+        aclDraftRegistry.clear(entry.serverId);
       }
       broadcastToolServersInvalidation();
       if (feedback) {
@@ -759,6 +778,7 @@ export function renderIntegrationsSettings(container, data) {
       }
       const accessBtn = e.target.closest('.tool-access-btn');
       if (accessBtn) {
+        if (!canManageAcls) return;
         const id = accessBtn.dataset.id;
         const server = integrationsState.toolServers.find((entry) => entry.id === id);
         if (server) {
@@ -961,12 +981,22 @@ export function renderIntegrationsSettings(container, data) {
 
     container.querySelector('#toggle-bearer-visibility')?.addEventListener('click', () => {
       const input = container.querySelector('#server-auth-bearer');
-      if (input) input.type = input.type === 'password' ? 'text' : 'password';
+      const button = container.querySelector('#toggle-bearer-visibility');
+      if (!input || !button) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+      button.setAttribute('aria-label', input.type === 'password' ? 'Show password' : 'Hide password');
+      const label = button.querySelector('[data-password-toggle-label]');
+      if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
     });
 
     container.querySelector('#toggle-basic-visibility')?.addEventListener('click', () => {
       const input = container.querySelector('#server-auth-basic-password');
-      if (input) input.type = input.type === 'password' ? 'text' : 'password';
+      const button = container.querySelector('#toggle-basic-visibility');
+      if (!input || !button) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+      button.setAttribute('aria-label', input.type === 'password' ? 'Show password' : 'Hide password');
+      const label = button.querySelector('[data-password-toggle-label]');
+      if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
     });
 
     container.querySelector('#connect-oauth')?.addEventListener('click', async () => {

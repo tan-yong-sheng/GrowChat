@@ -13,11 +13,6 @@ async function renderAdminRoute() {
   return renderAdminPage(document.getElementById('app'));
 }
 
-async function renderAccountRoute() {
-  const { renderAccountPage } = await import('../../features/account/account.js');
-  return renderAccountPage(document.getElementById('app'));
-}
-
 function getStoredAuthUser() {
   try {
     const raw = localStorage.getItem('growchat_auth');
@@ -218,15 +213,17 @@ export async function createUserProfileFooter({
         const allowed = await guardNavigation();
         if (!allowed) return;
       }
-      window.history.pushState({}, '', '/account/profile/overview');
-      renderAccountRoute();
+      window.dispatchEvent(new CustomEvent('growchat:open-account-settings', {
+        detail: { section: 'connections' },
+      }));
     } else if (action === 'preferences') {
       if (typeof guardNavigation === 'function') {
         const allowed = await guardNavigation();
         if (!allowed) return;
       }
-      window.history.pushState({}, '', '/account/profile/overview');
-      renderAccountRoute();
+      window.dispatchEvent(new CustomEvent('growchat:open-account-settings', {
+        detail: { section: 'connections' },
+      }));
     } else if (action === 'archived') {
       window.dispatchEvent(new CustomEvent('growchat:open-archived'));
     } else if (action === 'logout') {

@@ -32,6 +32,23 @@ export function formatModelId(providerId, modelId) {
   return `${safeProvider}${MODEL_ID_SEPARATOR}${safeModel}`;
 }
 
+export function normalizeConnectionModelId(providerId, modelId) {
+  const safeProvider = String(providerId || '').trim();
+  let raw = String(modelId || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('models/')) {
+    raw = raw.slice('models/'.length);
+  }
+  if (!safeProvider) {
+    return raw;
+  }
+  let next = raw;
+  while (next.startsWith(`${safeProvider}${MODEL_ID_SEPARATOR}`)) {
+    next = next.slice(safeProvider.length + 1);
+  }
+  return next;
+}
+
 export function parseModelId(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;

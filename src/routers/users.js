@@ -9,6 +9,7 @@ import {
   discoverConnectionModels,
   getAllOpenAIConnectionConfigs,
   buildConnectionHeaders,
+  getUserOpenAIConnectionConfig,
   loadUserOpenAIConnectionConfigs,
   getConnectionDefaultBaseUrl,
   isConnectionUrlRequired,
@@ -37,6 +38,12 @@ import { isValidEmail } from '../utils/rbac.js';
 import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 import { ValidationError } from '../errors/http-errors.js';
 import { buildSelfProfileUpdate, buildUserProfileResponse } from './user-profile.js';
+import {
+  loadWorkspaceConnectionsPayload,
+  loadWorkspaceToolServersPayload,
+  toPersonalConnectionSummary,
+  toPersonalToolServerSummary,
+} from '../services/workspace-settings.js';
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback).trim().toLowerCase();
@@ -109,56 +116,6 @@ async function loadModelEnabledMap(db) {
   }
 }
 
-function toPersonalConnectionSummary(connection) {
-  return {
-    id: connection.id,
-    name: connection.name || connection.id,
-    typeLabel: 'Connection',
-    access_label: 'Personal',
-    access_variant: 'personal',
-    note: connection.baseUrl || connection.url || connection.providerFamily || connection.providerType || '',
-    provider_type: connection.providerType || connection.provider_type || '',
-    provider_family: connection.providerFamily || connection.provider_family || '',
-    base_url: connection.baseUrl || connection.url || '',
-    enabled: connection.enabled !== false,
-  };
-}
-
-function toAccessibleConnectionSummary(connection, accessVariant = 'admin') {
-  return {
-    id: connection.id,
-    name: connection.name || connection.id,
-    typeLabel: 'Connection',
-    access_label: accessVariant === 'shared' ? 'Shared' : 'Admin',
-    access_variant: accessVariant,
-    note: connection.baseUrl || connection.url || connection.providerFamily || connection.providerType || '',
-  };
-}
-
-function toPersonalToolServerSummary(server) {
-  return {
-    id: server.id,
-    name: server.name || server.id,
-    typeLabel: 'MCP',
-    access_label: 'Personal',
-    access_variant: 'personal',
-    note: server.url || '',
-    url: server.url || '',
-    enabled: server.enabled !== false,
-  };
-}
-
-function toAccessibleToolServerSummary(server) {
-  return {
-    id: server.id,
-    name: server.name || server.id,
-    typeLabel: 'MCP',
-    access_label: server.access_label || (server.source === 'user' ? 'Personal' : 'Admin'),
-    access_variant: server.access_variant || (server.source === 'user' ? 'personal' : 'admin'),
-    note: server.tools?.length ? `${server.tools.length} tools available` : (server.url || ''),
-  };
-}
-
 function parseJsonObject(raw) {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
   try {
@@ -201,6 +158,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     path === '/api/users/me/permissions' ||
     path === '/api/users/me/roles' ||
     path === '/api/users/me/resources/connections' ||
+    /^\/api\/users\/me\/resources\/connections\/[^/]+$/.test(path) ||
     path === '/api/users/me/resources/mcp-servers' ||
     path === '/api/users/me/resources/mcp-servers/test' ||
     path === '/api/users/me/resources/mcp-servers/oauth/start' ||
@@ -303,22 +261,16 @@ export async function usersRouter(req, env, _ctx, user, path) {
   if (req.method === 'GET' && path === '/api/users/me/resources/connections') {
     const db = createDB(env.DB);
     try {
-      const ownConnections = await loadUserOpenAIConnectionConfigs(db, user.sub, { includeDisabled: true });
-      const connections = await getAllOpenAIConnectionConfigs(env, {
+      const payload = await loadWorkspaceConnectionsPayload({
+        db,
+        env,
         userId: user.sub,
-        userRole: normalizeRole(user.primary_role),
+        primaryRole: normalizeRole(user.primary_role),
         includeDisabled: true,
       });
-      const accessible = connections
-        .filter((connection) => connection.source !== 'user')
-        .map((connection) => {
-          const accessVariant = connection.access_variant || 'admin';
-          return toAccessibleConnectionSummary(connection, accessVariant);
-        });
-
       return json(req, {
-        connections: accessible,
-        my_connections: ownConnections.map(toPersonalConnectionSummary),
+        connections: payload.connections,
+        my_connections: payload.my_connections,
       });
     } catch (err) {
       console.error('Load user connections failed:', err);
@@ -326,7 +278,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
   }
 
-  const personalConnectionMatch = path.match(/^\/api\/users\/me\/resources\/connections\/([^/]+)$/);
+  const personalConnectionMatch = path.match(/^\/api\/users\/me\/resources\/connections\/(?!test$)([^/]+)$/);
   if (personalConnectionMatch) {
     const connectionId = personalConnectionMatch[1];
 
@@ -414,8 +366,15 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const providerType = String(body.provider_type || body.providerType || 'openai-compatible').trim().toLowerCase() || 'openai-compatible';
-    const baseUrlRaw = String(body.base_url || body.baseUrl || '').trim();
+    const connectionId = String(body.id || body.connection_id || '').trim();
+    const db = createDB(env.DB);
+    let existingConnection = null;
+    if (connectionId) {
+      existingConnection = await getUserOpenAIConnectionConfig(db, user.sub, connectionId);
+    }
+
+    const providerType = String(body.provider_type || body.providerType || existingConnection?.providerType || 'openai-compatible').trim().toLowerCase() || 'openai-compatible';
+    const baseUrlRaw = String(body.base_url || body.baseUrl || existingConnection?.baseUrl || '').trim();
     const baseUrl = baseUrlRaw || getConnectionDefaultBaseUrl(providerType);
     if (isConnectionUrlRequired(providerType) && !baseUrlRaw) {
       return error(req, 'Connection URL is required for compatible providers', 400);
@@ -443,9 +402,9 @@ export async function usersRouter(req, env, _ctx, user, path) {
       providerType,
       providerFamily: providerType,
       baseUrl,
-      key: String(body.key || '').trim(),
-      headers,
-      authType: String(body.auth_type || body.authType || '').trim().toLowerCase(),
+      key: String(body.key || existingConnection?.key || '').trim(),
+      headers: Object.keys(headers).length ? headers : (existingConnection?.headers || {}),
+      authType: String(body.auth_type || body.authType || existingConnection?.authType || '').trim().toLowerCase(),
     };
 
     try {
@@ -476,10 +435,11 @@ export async function usersRouter(req, env, _ctx, user, path) {
   if (req.method === 'GET' && path === '/api/users/me/resources/mcp-servers') {
     const db = createDB(env.DB);
     try {
-      const servers = await loadUserToolServers(db, user.sub);
-      return json(req, {
-        servers: servers.map(toPersonalToolServerSummary),
+      const payload = await loadWorkspaceToolServersPayload({
+        db,
+        userId: user.sub,
       });
+      return json(req, payload);
     } catch (err) {
       console.error('Load user MCP servers failed:', err);
       return error(req, 'Failed to load MCP servers', 500);
@@ -945,11 +905,11 @@ export async function usersRouter(req, env, _ctx, user, path) {
       const userPermissions = await resolvePermissions(env, { sub: userId, role: primaryRole });
       const modelEnabledMap = await loadModelEnabledMap(db);
       const connectionEnabledMap = new Map(
-        (await getAllOpenAIConnectionConfigs(env, { includeDisabled: true }))
+        (await getAllOpenAIConnectionConfigs(env, { includeDisabled: true, includeHiddenForUser: true }))
           .map((connection) => [String(connection.id || ''), connection.enabled !== false])
       );
       const toolServerEnabledMap = new Map(
-        (await loadToolServers(db))
+        (await loadToolServers(db, { includeHiddenForUser: true }))
           .map((server) => [String(server.id || ''), server.enabled !== false])
       );
 

@@ -144,6 +144,29 @@ export function createAdminShellController({
     return true;
   };
 
+  const flushOpenModalDraft = async () => {
+    const modalSelectors = [
+      '#edit-connection-modal:not(.hidden) #save-modal',
+      '#connection-acl-modal:not(.hidden) #connection-acl-save-btn',
+      '#model-acl-modal:not(.hidden) #model-acl-save-btn',
+      '#tool-server-acl-modal:not(.hidden) #tool-server-acl-save-btn',
+    ];
+    const modalSaveBtn = document.querySelector(modalSelectors.join(', '));
+    if (!modalSaveBtn || modalSaveBtn.disabled) return true;
+
+    modalSaveBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const stillOpenModal = document.querySelector([
+      '#edit-connection-modal:not(.hidden)',
+      '#connection-acl-modal:not(.hidden)',
+      '#model-acl-modal:not(.hidden)',
+      '#tool-server-acl-modal:not(.hidden)',
+    ].join(', '));
+    return !stillOpenModal;
+  };
+
   const handleBeforeUnload = (event) => {
     if (!hasUnsavedChanges()) return;
     event.preventDefault();
@@ -243,6 +266,8 @@ export function createAdminShellController({
       ? data.settingsSaveHandlers?.[subTab]
       : data.usersSaveHandlers?.[subTab];
     if (typeof saveFn !== 'function') return false;
+    const modalCommitted = await flushOpenModalDraft();
+    if (!modalCommitted) return false;
     await saveDraft(data, mainTab, subTab);
     updateSharedActionFooter();
     return true;

@@ -10,8 +10,12 @@ export function countEnabledModels(models = []) {
   return (Array.isArray(models) ? models : []).reduce((count, model) => count + (isModelEnabled(model) ? 1 : 0), 0);
 }
 
+export function filterEnabledModels(models = []) {
+  return (Array.isArray(models) ? models : []).filter((model) => isModelEnabled(model));
+}
+
 export function getPreferredModelId(models = [], preferredIds = []) {
-  const sortedModels = sortModelsByActiveThenName(models);
+  const sortedModels = sortModelsByActiveThenName(filterEnabledModels(models));
   if (!sortedModels.length) return null;
 
   const modelIdSet = new Set(sortedModels.map((model) => String(model?.id || '').trim()).filter(Boolean));

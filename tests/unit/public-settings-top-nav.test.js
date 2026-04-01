@@ -31,14 +31,12 @@ describe('settings top nav', () => {
   it('renders the same wrapper without the sidebar toggle when disabled', () => {
     const html = renderWorkspaceTopNav({
       tabs: [
-        { href: '/account/profile/overview', key: 'profile', label: 'Profile' },
         { href: '/account/settings/connections', key: 'settings', label: 'Settings' },
       ],
-      activeKey: 'profile',
+      activeKey: 'settings',
       dataAttrName: 'data-account-area-tab',
     });
 
-    expect(html).toContain('data-account-area-tab="profile"');
     expect(html).toContain('data-account-area-tab="settings"');
     expect(html).not.toContain('toggle-sidebar-mobile');
     expect(html).toContain('text-gray-900 underline underline-offset-[10px] decoration-2');

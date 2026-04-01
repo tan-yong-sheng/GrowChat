@@ -34,6 +34,7 @@ import {
   selectTokenAuthMethod,
   sha256Base64Url,
 } from '../admin/tool-servers.js';
+import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 import {
   buildToolServerAclRuleSaveStatements,
   loadToolServerAclRules,
@@ -48,6 +49,22 @@ function isValidModelAccessId(value) {
   if (id.length > 200) return false;
   if (/\s/.test(id)) return false;
   return true;
+}
+
+// Keep ACL and mutation permissions explicit at the branch level so the route
+// policy is visible where the write happens, not only at the top-level router.
+async function ensureAdminAclAccess(env, user, resource = 'admin') {
+  return authorize(env, user, {
+    action: 'admin.rbac.admin',
+    resource,
+  });
+}
+
+async function ensureAdminMutationAccess(env, user, permission, resource = 'admin') {
+  return authorize(env, user, {
+    action: permission,
+    resource,
+  });
 }
 
 /**
@@ -126,6 +143,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       body = await req.json();
     } catch {
       return error(req, 'Invalid JSON body', 400);
+    }
+
+    const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
+    if (!aclDecision.allow) {
+      return error(req, aclDecision.reason || 'Forbidden', 403);
     }
 
     const updates = Array.isArray(body.updates) ? body.updates : [];
@@ -240,6 +262,12 @@ export async function adminRouter(req, env, ctx, user, path) {
         return error(req, 'Invalid JSON body', 400);
       }
 
+      // Connection access writes are ACL-sensitive and must stay explicit here.
+      const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
+      if (!aclDecision.allow) {
+        return error(req, aclDecision.reason || 'Forbidden', 403);
+      }
+
       try {
         const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
         const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find((conn) => String(conn.id || '') === String(connectionId));
@@ -332,6 +360,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       body = await req.json();
     } catch {
       return error(req, 'Invalid JSON body', 400);
+    }
+
+    const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
+    if (!aclDecision.allow) {
+      return error(req, aclDecision.reason || 'Forbidden', 403);
     }
 
     const updates = Array.isArray(body.updates) ? body.updates : [];
@@ -446,6 +479,11 @@ export async function adminRouter(req, env, ctx, user, path) {
         return error(req, 'Invalid JSON body', 400);
       }
 
+      const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
+      if (!aclDecision.allow) {
+        return error(req, aclDecision.reason || 'Forbidden', 403);
+      }
+
       try {
         const servers = await loadToolServers(db);
         const currentServer = (Array.isArray(servers) ? servers : []).find((server) => String(server.id || '') === String(toolServerId));
@@ -536,6 +574,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       body = await req.json();
     } catch {
       return error(req, 'Invalid JSON body', 400);
+    }
+
+    const writeDecision = await ensureAdminMutationAccess(env, user, 'admin.user.write', 'admin');
+    if (!writeDecision.allow) {
+      return error(req, writeDecision.reason || 'Forbidden', 403);
     }
 
     const hasPublicRegistration = body.public_registration !== undefined;
@@ -633,6 +676,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       body = await req.json();
     } catch {
       return error(req, 'Invalid JSON body', 400);
+    }
+
+    const aclDecision = await ensureAdminAclAccess(env, user, 'model');
+    if (!aclDecision.allow) {
+      return error(req, aclDecision.reason || 'Forbidden', 403);
     }
 
     const replaceCaps = body.caps && typeof body.caps === 'object' && !Array.isArray(body.caps);
@@ -741,6 +789,9 @@ export async function adminRouter(req, env, ctx, user, path) {
             id: ensureConnectionId(conn, index),
             providerType: String(conn?.providerType || 'openai-compatible').toLowerCase(),
             providerFamily: normalizeProviderFamily(conn?.providerType || conn?.providerFamily) || 'openai',
+            hasKey: Boolean(conn?.key || conn?.keyMasked || conn?.hasKey || conn?.has_key),
+            keyMasked: conn?.keyMasked || (conn?.key ? `••••${String(conn.key).slice(-4)}` : ''),
+            key: undefined,
             readOnly: false,
             source: 'config',
             enabled: conn?.enabled !== false,
@@ -773,9 +824,15 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
+    const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
+    if (!aclDecision.allow) {
+      return error(req, aclDecision.reason || 'Forbidden', 403);
+    }
+
     const providerType = String(body.providerType || 'openai').toLowerCase();
     const providerFamily = normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
     const url = String(body.url || '').trim();
+    const connectionId = String(body.id || body.connectionId || '').trim();
     const requiresUrl = isConnectionUrlRequired(providerType);
     const baseUrl = url || getConnectionDefaultBaseUrl(providerType || providerFamily);
     if (requiresUrl && !url) {
@@ -794,10 +851,16 @@ export async function adminRouter(req, env, ctx, user, path) {
     }
 
     try {
+      let existingConnection = null;
+      if (!key && connectionId) {
+        const existingConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+        existingConnection = (Array.isArray(existingConnections) ? existingConnections : [])
+          .find((connection) => String(connection.id || '') === connectionId) || null;
+      }
       const testConnection = {
         providerType,
         providerFamily,
-        key,
+        key: key || String(existingConnection?.key || '').trim(),
         headers,
         baseUrl: normalizeBaseUrl(baseUrl),
       };
@@ -868,6 +931,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       body = await req.json();
     } catch {
       return error(req, 'Invalid JSON body', 400);
+    }
+
+    const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
+    if (!aclDecision.allow) {
+      return error(req, aclDecision.reason || 'Forbidden', 403);
     }
 
     const url = String(body.url || '').trim();
@@ -1010,6 +1078,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       body = await req.json();
     } catch {
       return error(req, 'Invalid JSON body', 400);
+    }
+
+    const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
+    if (!aclDecision.allow) {
+      return error(req, aclDecision.reason || 'Forbidden', 403);
     }
 
     const serverId = String(body.id || '').trim();
@@ -1232,6 +1305,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
+    const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
+    if (!aclDecision.allow) {
+      return error(req, aclDecision.reason || 'Forbidden', 403);
+    }
+
     const servers = Array.isArray(body.servers) ? body.servers : [];
     const existing = await loadToolServers(db);
     const existingById = new Map(existing.map((entry) => [String(entry.id), entry]));
@@ -1266,6 +1344,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
+    const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
+    if (!aclDecision.allow) {
+      return error(req, aclDecision.reason || 'Forbidden', 403);
+    }
+
     const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
     const connections = Array.isArray(body.connections) ? body.connections : [];
     const envOverridesInput = body.env_overrides && typeof body.env_overrides === 'object'
@@ -1281,11 +1364,18 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Too many model updates (max 500)', 400);
     }
 
+    let currentConnectionMap = new Map();
     let sanitized;
     try {
+      const currentConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+      currentConnectionMap = new Map(
+        (Array.isArray(currentConnections) ? currentConnections : []).map((connection) => [String(connection.id || ''), connection])
+      );
+
       sanitized = connections
         .filter((conn) => !conn?.readOnly && conn?.source !== 'env')
         .map((conn) => {
+          const existingConnection = currentConnectionMap.get(String(conn.id || ''));
           const providerType = String(conn.providerType || 'openai').toLowerCase();
           if (!['openai', 'openai-compatible', 'google', 'gemini-compatible', 'anthropic', 'claude-compatible'].includes(providerType)) {
             throw new Error('Provider type must be one of: openai, openai-compatible, google, gemini-compatible, anthropic, claude-compatible');
@@ -1300,7 +1390,8 @@ export async function adminRouter(req, env, ctx, user, path) {
           if (!isValidHttpUrl(url)) {
             throw new Error('Connection URL must start with http:// or https://');
           }
-          const key = String(conn.key || '').trim();
+          const keyRaw = conn.key !== undefined ? String(conn.key || '').trim() : '';
+          const key = keyRaw || (existingConnection?.key && String(existingConnection.key).trim() ? String(existingConnection.key).trim() : '');
           if (key.length > 4096) {
             throw new Error('API key is too long');
           }
@@ -1324,6 +1415,7 @@ export async function adminRouter(req, env, ctx, user, path) {
             apiType: getConnectionApiType(providerType),
             enabled: conn.enabled !== false,
             manualModels: normalizeConnectionManualModels(conn.manualModels),
+            manualModelsMode: normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all',
           };
         })
         .filter(Boolean);
@@ -1344,10 +1436,6 @@ export async function adminRouter(req, env, ctx, user, path) {
     try {
       const groups = await db.all('SELECT id FROM groups');
       const validGroupIds = new Set(groups.map((group) => group.id));
-      const currentConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
-      const currentConnectionMap = new Map(
-        (Array.isArray(currentConnections) ? currentConnections : []).map((connection) => [String(connection.id || ''), connection])
-      );
 
       const normalizedEnvOverrides = {};
       for (const [key, value] of Object.entries(envOverridesInput)) {
@@ -1389,6 +1477,13 @@ export async function adminRouter(req, env, ctx, user, path) {
           connection_id: connectionId,
           rules: filteredRules,
         });
+      }
+
+      if (normalizedAccessUpdates.length > 0) {
+        const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
+        if (!aclDecision.allow) {
+          return error(req, aclDecision.reason || 'Forbidden', 403);
+        }
       }
 
       const statements = [

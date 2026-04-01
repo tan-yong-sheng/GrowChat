@@ -15,8 +15,10 @@ const mocks = vi.hoisted(() => ({
   getConfigValue: vi.fn(),
   hashPassword: vi.fn(),
   isLastOwnerOfRole: vi.fn(),
+  discoverConnectionModels: vi.fn(),
   getAllOpenAIConnectionConfigs: vi.fn(),
   loadUserOpenAIConnectionConfigs: vi.fn(),
+  getUserOpenAIConnectionConfig: vi.fn(),
   createUserOpenAIConnection: vi.fn(),
   updateUserOpenAIConnection: vi.fn(),
   deleteUserOpenAIConnection: vi.fn(),
@@ -49,6 +51,22 @@ vi.mock('../shared/auth.js', () => ({
 }));
 
 vi.mock('../llm/connections.js', () => ({
+  buildConnectionHeaders: (connection) => connection.headers || {},
+  discoverConnectionModels: (...args) => mocks.discoverConnectionModels(...args),
+  getUserOpenAIConnectionConfig: (...args) => mocks.getUserOpenAIConnectionConfig(...args),
+  getConnectionDefaultBaseUrl: (providerType) => {
+    switch (String(providerType || '').trim().toLowerCase()) {
+      case 'google':
+      case 'gemini-compatible':
+        return 'https://generativelanguage.googleapis.com/v1beta';
+      case 'anthropic':
+      case 'claude-compatible':
+        return 'https://api.anthropic.com/v1';
+      default:
+        return 'https://api.openai.com/v1';
+    }
+  },
+  isConnectionUrlRequired: (providerType) => ['openai-compatible', 'gemini-compatible', 'claude-compatible'].includes(String(providerType || '').trim().toLowerCase()),
   getAllOpenAIConnectionConfigs: (...args) => mocks.getAllOpenAIConnectionConfigs(...args),
   loadUserOpenAIConnectionConfigs: (...args) => mocks.loadUserOpenAIConnectionConfigs(...args),
   createUserOpenAIConnection: (...args) => mocks.createUserOpenAIConnection(...args),
@@ -101,12 +119,13 @@ describe('usersRouter', () => {
     mocks.getConfigValue.mockResolvedValue('gpt-5-mini');
     mocks.hashPassword.mockResolvedValue('hashed');
     mocks.isLastOwnerOfRole.mockResolvedValue(false);
+    mocks.discoverConnectionModels.mockResolvedValue({ items: [] });
     mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([]);
     mocks.loadUserOpenAIConnectionConfigs.mockResolvedValue([]);
+    mocks.getUserOpenAIConnectionConfig.mockResolvedValue(null);
     mocks.createUserOpenAIConnection.mockResolvedValue(null);
     mocks.updateUserOpenAIConnection.mockResolvedValue(null);
     mocks.deleteUserOpenAIConnection.mockResolvedValue(false);
-    mocks.loadUserToolServers.mockResolvedValue([]);
     mocks.loadToolServers.mockResolvedValue([]);
     mocks.createUserToolServer.mockResolvedValue(null);
     mocks.updateUserToolServer.mockResolvedValue(null);
@@ -408,13 +427,107 @@ describe('usersRouter', () => {
     );
   });
 
+  it('deletes a personal connection for the current user', async () => {
+    mocks.deleteUserOpenAIConnection.mockResolvedValueOnce(true);
+
+    const res = await usersRouter(
+      makeReq('/api/users/me/resources/connections/conn-personal', 'DELETE'),
+      env,
+      {},
+      user,
+      '/api/users/me/resources/connections/conn-personal'
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ success: true });
+    expect(mocks.deleteUserOpenAIConnection).toHaveBeenCalledWith(expect.anything(), 'u1', 'conn-personal');
+  });
+
+  it('tests a personal connection endpoint', async () => {
+    mocks.discoverConnectionModels.mockResolvedValueOnce({
+      items: [{ id: 'tool-a', name: 'tool-a' }],
+    });
+
+    const res = await usersRouter(
+      makeReq('/api/users/me/resources/connections/test', 'POST', {
+        name: 'My Connection',
+        base_url: 'https://personal.example.com/v1',
+        provider_type: 'openai-compatible',
+        key: 'secret',
+      }),
+      env,
+      {},
+      user,
+      '/api/users/me/resources/connections/test'
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      message: 'Connection successful',
+      models: [{ id: 'tool-a', name: 'tool-a' }],
+    });
+    expect(mocks.discoverConnectionModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerType: 'openai-compatible',
+        baseUrl: 'https://personal.example.com/v1',
+        key: 'secret',
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it('reuses the stored key when testing an existing personal connection', async () => {
+    mocks.getUserOpenAIConnectionConfig.mockResolvedValueOnce({
+      id: 'conn-personal',
+      userId: 'u1',
+      name: 'Saved Connection',
+      providerType: 'openai-compatible',
+      providerFamily: 'openai',
+      baseUrl: 'https://personal.example.com/v1',
+      key: 'saved-secret',
+      headers: { 'X-Test': '1' },
+      authType: 'bearer',
+      enabled: true,
+      manualModels: [],
+    });
+    mocks.discoverConnectionModels.mockResolvedValueOnce({
+      items: [{ id: 'tool-a', name: 'tool-a' }],
+    });
+
+    const res = await usersRouter(
+      makeReq('/api/users/me/resources/connections/test', 'POST', {
+        id: 'conn-personal',
+        name: 'Saved Connection',
+        base_url: '',
+        provider_type: 'openai-compatible',
+        key: '',
+      }),
+      env,
+      {},
+      user,
+      '/api/users/me/resources/connections/test'
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(expect.anything(), 'u1', 'conn-personal');
+    expect(mocks.discoverConnectionModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerType: 'openai-compatible',
+        baseUrl: 'https://personal.example.com/v1',
+        key: 'saved-secret',
+      }),
+      expect.any(Object)
+    );
+  });
+
   it('returns personal MCP servers for the current user', async () => {
-    mocks.loadUserToolServers.mockResolvedValueOnce([
+    mocks.loadToolServers.mockResolvedValueOnce([
       {
         id: 'mcp-personal',
         name: 'My MCP',
         url: 'https://mcp.example.com',
         enabled: true,
+        source: 'user',
       },
     ]);
 
@@ -433,6 +546,48 @@ describe('usersRouter', () => {
         id: 'mcp-personal',
         access_label: 'Personal',
         access_variant: 'personal',
+      }),
+    ]);
+  });
+
+  it('returns personal MCP servers with discovered tools', async () => {
+    mocks.loadToolServers.mockResolvedValueOnce([
+      {
+        id: 'mcp-personal',
+        name: 'Personal MCP',
+        url: 'https://mcp.example.com',
+        enabled: true,
+        source: 'user',
+        tools: [
+          { name: 'exa_search', title: 'Exa Search', description: 'Search the web', parameters: { type: 'object' }, enabled: true },
+        ],
+      },
+    ]);
+
+    const res = await usersRouter(
+      makeReq('/api/users/me/resources/mcp-servers', 'GET'),
+      env,
+      {},
+      user,
+      '/api/users/me/resources/mcp-servers'
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.servers).toEqual([
+      expect.objectContaining({
+        id: 'mcp-personal',
+        access_label: 'Personal',
+        access_variant: 'personal',
+        tools: [
+          expect.objectContaining({
+            name: 'exa_search',
+            title: 'Exa Search',
+            description: 'Search the web',
+            parameters: { type: 'object' },
+            enabled: true,
+          }),
+        ],
       }),
     ]);
   });

@@ -6,6 +6,14 @@ import { normalizeModelSearchQuery } from '../../../shared/utils/model-search.js
 import { buildProviderOptions, filterModelsBySearchAndProvider } from '../../../shared/utils/model-filters.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
+import {
+  renderModelsHeaderHtml,
+  renderModelsPaginationHtml,
+  renderModelsTableShellHtml,
+  syncModelsHeaderState,
+  syncModelsPaginationState,
+  syncModelsTableState,
+} from '../../../shared/components/models-section.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
   ATTACHMENT_CAP_TYPES,
@@ -25,6 +33,7 @@ const escapeHtml = (value) => String(value || '')
 
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';
+  const canManageAcls = data.capabilities?.canManageAcls !== false;
   const modelsState = data.modelsSettings || (data.modelsSettings = {
     loading: false,
     error: null,
@@ -47,6 +56,7 @@ export function renderModelsSettings(container, data) {
     needsReload: false,
   });
   const aclDraftRegistry = createAclDraftRegistry(modelsState);
+  const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsSaveHandlers = data.settingsSaveHandlers || {};
   data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
@@ -141,6 +151,289 @@ export function renderModelsSettings(container, data) {
     btn.classList.toggle('bg-gray-50', !enabled);
     btn.classList.toggle('text-gray-500', !enabled);
     btn.classList.toggle('border-gray-200', !enabled);
+  };
+
+  const syncUi = () => {
+    const query = normalizeModelSearchQuery(modelsState.query);
+    const usingFilter = Boolean(query);
+    const providerOptions = modelsState.providerOptions.length
+      ? modelsState.providerOptions
+      : buildProviderOptions(modelsState.models, { includeAll: false });
+    const enabledProviders = providerOptions.filter((option) => Number(option.active || 0) > 0);
+    const allOption = {
+      value: 'all',
+      label: 'All Providers',
+      active: modelsState.activeTotal ?? countEnabledModels(modelsState.models),
+      total: modelsState.total ?? modelsState.models.length,
+    };
+    const mergedProviders = [
+      allOption,
+      ...enabledProviders.filter((option) => option.value !== 'all'),
+    ];
+    const filteredModels = filterModelsBySearchAndProvider(modelsState.models, {
+      query,
+      provider: modelsState.provider,
+    });
+    const displayTotal = modelsState.activeTotal || countEnabledModels(modelsState.models);
+    const pageTotal = modelsState.total;
+    const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
+    const currentPage = Math.floor(modelsState.offset / modelsState.limit) + 1;
+    const pageStart = pageTotal === 0 ? 0 : modelsState.offset + 1;
+    const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
+
+    syncModelsHeaderState(container, {
+      countTitle: 'Active models',
+      countValue: displayTotal,
+      searchId: 'model-search-input',
+      searchValue: modelsState.query,
+      clearId: 'model-clear-search-container',
+      clearButtonId: 'model-clear-search-btn',
+      clearHidden: !modelsState.query,
+      providerId: 'model-provider-select',
+      providerValue: modelsState.provider,
+      providerOptionsMarkup: mergedProviders.map((option) => `
+        <option value="${option.value}" ${option.value === modelsState.provider ? 'selected' : ''}>
+          ${option.label}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
+        </option>
+      `).join(''),
+    });
+
+    syncModelsTableState(container, {
+      loading: modelsState.loading,
+      rowsHtml: modelsState.loading ? `
+                    ${Array.from({ length: 5 }).map(() => `
+                      <tr class="bg-white text-xs animate-pulse">
+                        <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
+                        <td class="px-4 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
+                        <td class="px-4 py-4 text-right"><div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div></td>
+                      </tr>
+                    `).join('')}
+                  ` : filteredModels.length === 0 ? '' : filteredModels.map(model => {
+        const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
+          const value = getAttachmentCapValue(modelsState.attachmentCaps, model.id, key);
+          const state = value ? 'allowed' : 'unset';
+          const className = value
+            ? 'bg-emerald-500 text-white border-emerald-500'
+            : 'bg-gray-50 text-gray-500 border-gray-200';
+          const tooltip = getCapTooltip(label, key, state);
+          return `
+                        <button
+                          type="button"
+                          data-cap-model="${model.id}"
+                          data-cap-kind="${key}"
+                          data-cap-label="${label}"
+                          data-cap-state="${state}"
+                          title="${tooltip}"
+                          class="inline-flex items-center justify-center h-6 min-w-[36px] px-2 rounded-full text-[10px] font-semibold border transition hover:shadow-sm ${className}"
+                        >
+                          ${short}
+                        </button>
+                      `;
+        }).join('');
+        const isDisabled = modelsState.disabledModels.has(model.id);
+        return `
+                    <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
+                      <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
+                      <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
+                      <td class="px-4 py-4">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                          ${capButtons}
+                        </div>
+                      </td>
+                      <td class="px-4 py-4 text-right">
+                        <div class="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${isDisabled || !canManageAcls ? 'hidden' : ''}"
+                            data-model-acl="${model.id}"
+                            title="Edit access rules"
+                            aria-label="Edit access rules"
+                            ${isDisabled || !canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
+                            </svg>
+                          </button>
+                          <button data-model-id="${model.id}" class="model-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!modelsState.disabledModels.has(model.id) ? 'bg-black' : 'bg-gray-200'}">
+                            <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${!modelsState.disabledModels.has(model.id) ? 'translate-x-4' : 'translate-x-0'}"></span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+      }).join(''),
+      emptyMessage: `No models found${usingFilter ? ` matching "${modelsState.query}"` : ''}.`,
+      tbodyId: 'models-table-body',
+      emptyColSpan: 4,
+    });
+
+    syncModelsPaginationState(container, {
+      pageSizeId: 'page-size-select',
+      limit: modelsState.limit,
+      pageStart,
+      pageEnd,
+      pageTotal,
+      currentPage,
+      totalPages,
+      loading: modelsState.loading,
+      usingFilter,
+    });
+
+    const errorSlot = container.querySelector('#models-error-container');
+    if (errorSlot) {
+      errorSlot.innerHTML = modelsState.error ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>` : '';
+    }
+
+    const saveBtn = container.querySelector('#save-models-top');
+    if (saveBtn) {
+      const dirty = hasChanges();
+      const disabled = !dirty || modelsState.saving;
+      saveBtn.disabled = disabled;
+      saveBtn.classList.toggle('bg-gray-200', disabled);
+      saveBtn.classList.toggle('text-gray-400', disabled);
+      saveBtn.classList.toggle('cursor-not-allowed', disabled);
+      saveBtn.classList.toggle('bg-black', !disabled);
+      saveBtn.classList.toggle('text-white', !disabled);
+      saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
+      saveBtn.textContent = modelsState.saving ? 'Saving...' : 'Save';
+    }
+    const dirtyBadge = container.querySelector('#models-dirty');
+    if (dirtyBadge) {
+      dirtyBadge.classList.toggle('invisible', !hasChanges());
+    }
+    data.requestSettingsFooterSync?.();
+  };
+
+  const bindDelegatedEvents = () => {
+    if (container.dataset.modelsEventsBound === '1') return;
+    container.dataset.modelsEventsBound = '1';
+
+    let searchDebounce = null;
+    container.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.id !== 'model-search-input') return;
+      const nextValue = target.value;
+      const clearSearchContainer = container.querySelector('#model-clear-search-container');
+      clearSearchContainer?.classList.toggle('hidden', !nextValue);
+      if (searchDebounce) clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        modelsState.query = nextValue;
+        modelsState.offset = 0;
+        loadModels(true);
+      }, 120);
+    });
+
+    container.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLSelectElement)) return;
+      if (target.id === 'model-provider-select') {
+        modelsState.provider = target.value || 'all';
+        modelsState.offset = 0;
+        loadModels(true);
+        return;
+      }
+      if (target.id === 'page-size-select') {
+        modelsState.limit = parseInt(target.value, 10);
+        modelsState.offset = 0;
+        loadModels(true);
+      }
+    });
+
+    container.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+
+      if (target.closest('#model-clear-search-btn')) {
+        const searchInput = container.querySelector('#model-search-input');
+        if (searchDebounce) clearTimeout(searchDebounce);
+        modelsState.query = '';
+        modelsState.offset = 0;
+        if (searchInput) searchInput.value = '';
+        container.querySelector('#model-clear-search-container')?.classList.add('hidden');
+        loadModels(true);
+        searchInput?.focus();
+        return;
+      }
+
+      if (target.closest('#prev-page')) {
+        modelsState.offset = Math.max(0, modelsState.offset - modelsState.limit);
+        loadModels(true);
+        return;
+      }
+
+      if (target.closest('#next-page')) {
+        modelsState.offset = modelsState.offset + modelsState.limit;
+        loadModels(true);
+        return;
+      }
+
+      const toggleBtn = target.closest('.model-toggle');
+      if (toggleBtn) {
+        const modelId = toggleBtn.dataset.modelId;
+        const row = toggleBtn.closest('[data-model-row]');
+        if (modelsState.disabledModels.has(modelId)) {
+          modelsState.disabledModels.delete(modelId);
+        } else {
+          modelsState.disabledModels.add(modelId);
+        }
+        const enabled = !modelsState.disabledModels.has(modelId);
+        updateModelToggle(toggleBtn, enabled);
+        if (row) {
+          row.classList.toggle('bg-gray-50/80', !enabled);
+          row.classList.toggle('opacity-70', !enabled);
+          const aclBtn = row.querySelector('[data-model-acl]');
+          if (aclBtn) {
+            aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
+            if (enabled) {
+              aclBtn.removeAttribute('tabindex');
+              aclBtn.removeAttribute('aria-hidden');
+            } else {
+              aclBtn.setAttribute('tabindex', '-1');
+              aclBtn.setAttribute('aria-hidden', 'true');
+            }
+            if (!canManageAcls) {
+              aclBtn.setAttribute('disabled', 'true');
+              aclBtn.setAttribute('aria-disabled', 'true');
+            }
+          }
+        }
+        updateButtons();
+        return;
+      }
+
+      const capBtn = target.closest('[data-cap-model]');
+      if (capBtn) {
+        const modelId = capBtn.getAttribute('data-cap-model');
+        const kind = capBtn.getAttribute('data-cap-kind');
+        if (!modelId || !kind) return;
+        const currentValue = getAttachmentCapValue(modelsState.attachmentCaps, modelId, kind);
+        const nextValue = !currentValue;
+        setCapValue(modelId, kind, nextValue);
+        updateCapButton(capBtn, nextValue);
+        updateButtons();
+        return;
+      }
+
+      const aclBtn = target.closest('[data-model-acl]');
+      if (aclBtn) {
+        if (!canManageAcls) return;
+        const modelId = aclBtn.getAttribute('data-model-acl');
+        if (!modelId) return;
+        const model = (modelsState.models || []).find((item) => item.id === modelId);
+        openModelAccessModal({ id: modelId, name: model?.name || modelId }, {
+          onApply: async (rules) => {
+            aclDraftRegistry.stage(modelId, rules);
+            updateButtons();
+          },
+        });
+      }
+
+      const saveBtn = target.closest('#save-models-top');
+      if (saveBtn) {
+        void saveModels();
+      }
+    });
   };
 
   const openModelAccessModal = async (model, { onApply } = {}) => {
@@ -337,15 +630,6 @@ export function renderModelsSettings(container, data) {
 
   const render = () => {
     if (!isActiveTab()) return;
-    const activeElement = document.activeElement;
-    const wasSearchFocused = activeElement && activeElement.id === 'model-search-input';
-    const selectionStart = wasSearchFocused && typeof activeElement.selectionStart === 'number'
-      ? activeElement.selectionStart
-      : null;
-    const selectionEnd = wasSearchFocused && typeof activeElement.selectionEnd === 'number'
-      ? activeElement.selectionEnd
-      : null;
-    const previousScrollTop = container.querySelector('[data-models-scroll]')?.scrollTop ?? 0;
     const dirty = hasChanges();
     const query = normalizeModelSearchQuery(modelsState.query);
     const usingFilter = Boolean(query);
@@ -375,54 +659,7 @@ export function renderModelsSettings(container, data) {
     const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
 
     const useSharedActionFooter = Boolean(data.sharedActionFooter);
-
-    container.innerHTML = `
-      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
-        <div class="pt-0.5 pb-2.5 flex justify-between items-center sticky top-0 z-10 bg-white">
-          <div class="flex items-center text-xl font-medium px-0.5 gap-2">
-            <div class="flex-shrink-0 text-gray-900">Models</div>
-            <div class="text-gray-500 font-normal ml-0.5" title="Active models">${displayTotal}</div>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30 w-64">
-              <div class="flex-shrink-0 text-gray-400">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-                  <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
-                </svg>
-              </div>
-              <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search models" id="model-search-input" value="${modelsState.query}">
-              <div id="model-clear-search-container" class="${modelsState.query ? '' : 'hidden'} ml-1.5">
-                <button type="button" id="model-clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-3">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <select id="model-provider-select" class="rounded-xl border border-gray-100/30 bg-gray-50/50 px-3 py-1.5 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
-              ${mergedProviders.map((option) => `
-                <option value="${option.value}" ${option.value === modelsState.provider ? 'selected' : ''}>
-                  ${option.label}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
-                </option>
-              `).join('')}
-            </select>
-          </div>
-        </div>
-
-        <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden pb-6">
-          <div class="relative flex-1 min-h-0 overflow-hidden w-full rounded-3xl border border-gray-100 bg-white">
-            <div class="h-full overflow-auto" data-models-scroll="1">
-              <table class="w-full text-sm text-left text-gray-500 table-fixed">
-                <thead class="text-[11px] text-gray-900 font-bold uppercase bg-gray-50/50 sticky top-0 z-10">
-                  <tr class="border-b border-gray-100">
-                    <th scope="col" class="px-4 py-3 w-1/4">Name</th>
-                    <th scope="col" class="px-4 py-3 w-1/3">Model ID</th>
-                    <th scope="col" class="px-4 py-3 w-1/3">Input</th>
-                    <th scope="col" class="px-4 py-3 w-1/6 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody id="models-table-body" class="divide-y divide-gray-50/50">
-                  ${modelsState.loading ? `
+    const rowsHtml = modelsState.loading ? `
                     ${Array.from({ length: 5 }).map(() => `
                       <tr class="bg-white text-xs animate-pulse">
                         <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
@@ -430,11 +667,7 @@ export function renderModelsSettings(container, data) {
                         <td class="px-4 py-4 text-right"><div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div></td>
                       </tr>
                     `).join('')}
-                  ` : filteredModels.length === 0 ? `
-                    <tr>
-                      <td colspan="3" class="py-10 text-center text-sm text-gray-400">No models found${usingFilter ? ' matching "' + modelsState.query + '"' : ''}.</td>
-                    </tr>
-                  ` : filteredModels.map(model => {
+                  ` : filteredModels.length === 0 ? '' : filteredModels.map(model => {
       const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
         const value = getAttachmentCapValue(modelsState.attachmentCaps, model.id, key);
         const state = value ? 'allowed' : 'unset';
@@ -470,11 +703,11 @@ export function renderModelsSettings(container, data) {
                         <div class="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${isDisabled ? 'hidden' : ''}"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${isDisabled || !canManageAcls ? 'hidden' : ''}"
                             data-model-acl="${model.id}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
-                            ${isDisabled ? 'tabindex="-1" aria-hidden="true"' : ''}
+                            ${isDisabled || !canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
@@ -487,35 +720,45 @@ export function renderModelsSettings(container, data) {
                       </td>
                     </tr>
                   `;
-    }).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+    }).join('');
 
-        <div class="shrink-0 border-t border-gray-100 bg-white">
-          <div class="flex items-center justify-between gap-4 py-4 px-0.5 text-sm text-gray-500">
-            <div class="flex items-center gap-3">
-              <span>Show</span>
-              <select id="page-size-select" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
-                <option value="20" ${modelsState.limit === 20 ? 'selected' : ''}>20</option>
-                <option value="50" ${modelsState.limit === 50 ? 'selected' : ''}>50</option>
-                <option value="100" ${modelsState.limit === 100 ? 'selected' : ''}>100</option>
-              </select>
-              <span>per page</span>
-            </div>
-            <div class="flex items-center gap-4">
-              <div class="text-xs text-gray-400">${pageStart}-${pageEnd} of ${pageTotal}</div>
-              <div class="flex items-center gap-2">
-                <button id="prev-page" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" ${usingFilter || modelsState.offset === 0 ? 'disabled' : ''}>Prev</button>
-                <div class="text-sm text-gray-600">Page ${currentPage} / ${totalPages}</div>
-                <button id="next-page" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" ${usingFilter || modelsState.offset + modelsState.limit >= modelsState.total ? 'disabled' : ''}>Next</button>
-              </div>
-            </div>
-          </div>
-          <div id="models-feedback" class="hidden mt-2 rounded-xl border px-4 py-3 text-sm"></div>
-        </div>
+    if (!ensureMounted()) {
+      container.innerHTML = `
+      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
+        <div id="models-error-container">${modelsState.error ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>` : ''}</div>
+        ${renderModelsHeaderHtml({
+          countTitle: 'Active models',
+          countValue: displayTotal,
+          searchId: 'model-search-input',
+          searchValue: modelsState.query,
+          clearId: 'model-clear-search-container',
+          clearButtonId: 'model-clear-search-btn',
+          clearHidden: !modelsState.query,
+          providerId: 'model-provider-select',
+          providerOptionsMarkup: mergedProviders.map((option) => `
+            <option value="${option.value}" ${option.value === modelsState.provider ? 'selected' : ''}>
+              ${option.label}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
+            </option>
+          `).join(''),
+        })}
+        ${renderModelsTableShellHtml({
+          loading: modelsState.loading,
+          rowsHtml,
+          emptyMessage: `No models found${usingFilter ? ` matching "${modelsState.query}"` : ''}.`,
+          tbodyId: 'models-table-body',
+          emptyColSpan: 4,
+        })}
+        ${renderModelsPaginationHtml({
+          pageSizeId: 'page-size-select',
+          limit: modelsState.limit,
+          pageStart,
+          pageEnd,
+          pageTotal,
+          currentPage,
+          totalPages,
+          loading: modelsState.loading,
+          usingFilter,
+        })}
 
         ${useSharedActionFooter ? '' : `
         <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
@@ -526,25 +769,10 @@ export function renderModelsSettings(container, data) {
         </div>`}
       </div>
     `;
-
-    const nextScrollContainer = container.querySelector('[data-models-scroll]');
-    if (nextScrollContainer) {
-      nextScrollContainer.scrollTop = previousScrollTop;
-    }
-    bindEvents();
-    if (wasSearchFocused) {
-      const searchInput = container.querySelector('#model-search-input');
-      if (searchInput) {
-        const len = searchInput.value.length;
-        const start = selectionStart === null ? len : Math.min(selectionStart, len);
-        const end = selectionEnd === null ? len : Math.min(selectionEnd, len);
-        searchInput.focus();
-        try {
-          searchInput.setSelectionRange(start, end);
-        } catch {
-          // Ignore selection restore errors (e.g. unsupported input types)
-        }
-      }
+      container.dataset.modelsMounted = '1';
+      bindDelegatedEvents();
+    } else {
+      syncUi();
     }
   };
 
@@ -650,9 +878,6 @@ export function renderModelsSettings(container, data) {
           modelsState.query = nextValue;
           modelsState.offset = 0;
           loadModels(true);
-          const input = container.querySelector('#model-search-input');
-          input.focus();
-          input.setSelectionRange(input.value.length, input.value.length);
         }, 120);
       };
     }
@@ -694,13 +919,17 @@ export function renderModelsSettings(container, data) {
           row.classList.toggle('opacity-70', !enabled);
           const aclBtn = row.querySelector('[data-model-acl]');
           if (aclBtn) {
-            aclBtn.classList.toggle('hidden', !enabled);
+            aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
             if (enabled) {
               aclBtn.removeAttribute('tabindex');
               aclBtn.removeAttribute('aria-hidden');
             } else {
               aclBtn.setAttribute('tabindex', '-1');
               aclBtn.setAttribute('aria-hidden', 'true');
+            }
+            if (!canManageAcls) {
+              aclBtn.setAttribute('disabled', 'true');
+              aclBtn.setAttribute('aria-disabled', 'true');
             }
           }
         }
@@ -723,6 +952,7 @@ export function renderModelsSettings(container, data) {
 
     container.querySelectorAll('[data-model-acl]').forEach((btn) => {
       btn.onclick = () => {
+        if (!canManageAcls) return;
         const modelId = btn.getAttribute('data-model-acl');
         if (!modelId) return;
         const model = (modelsState.models || []).find((item) => item.id === modelId);
@@ -760,8 +990,11 @@ export function renderModelsSettings(container, data) {
   const loadModels = async (force = false) => {
     if (!isActiveTab()) return;
     if (modelsState.models.length > 0 && !force) return;
-    modelsState.loading = true;
-    render();
+    const shouldShowLoading = modelsState.models.length === 0;
+    modelsState.loading = shouldShowLoading;
+    if (shouldShowLoading) {
+      render();
+    }
     try {
       const params = new URLSearchParams();
       params.set('limit', String(modelsState.limit));

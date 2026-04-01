@@ -6,6 +6,7 @@ import {
 } from '../utils/tool-server-acl.js';
 import { loadPrimaryRole } from '../utils/user-role.js';
 import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../mcp/client.js';
+import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 
 const ATTACHMENT_CAP_TYPES = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
 
@@ -122,6 +123,23 @@ function normalizeTool(tool = {}) {
   };
 }
 
+function applyToolVisibility(server, hiddenTools = new Set()) {
+  const hiddenToolIds = new Set(Array.isArray(hiddenTools) ? hiddenTools : hiddenTools instanceof Set ? hiddenTools : []);
+  const tools = Array.isArray(server?.tools) ? server.tools : [];
+  return {
+    ...server,
+    tools: tools.map((tool) => {
+      const name = String(tool?.name || '').trim();
+      const hiddenForUser = hiddenToolIds.has(name);
+      return {
+        ...tool,
+        visible_for_user: !hiddenForUser,
+        hidden_for_user: hiddenForUser,
+      };
+    }),
+  };
+}
+
 export function mergeToolSpecs(existingTools, incomingTools) {
   const previous = new Map(
     (Array.isArray(existingTools) ? existingTools : [])
@@ -145,6 +163,7 @@ export function mergeToolSpecs(existingTools, incomingTools) {
 }
 
 export async function loadToolServers(db, options = {}) {
+  const includeHiddenForUser = options.includeHiddenForUser === true;
   const raw = await getConfigValue(db, 'tool_servers', '[]');
   try {
     const parsed = JSON.parse(raw);
@@ -159,6 +178,9 @@ export async function loadToolServers(db, options = {}) {
     }
 
     const userRole = (await loadPrimaryRole(db, userId)) || 'member';
+    const userOverrides = await loadUserResourceOverrides(db, userId);
+    const hiddenServerIds = new Set(userOverrides.tool_servers.hidden_ids || []);
+    const hiddenToolIdsByServer = userOverrides.tool_servers.tools || {};
 
     let userGroupIds = new Set();
     try {
@@ -184,14 +206,19 @@ export async function loadToolServers(db, options = {}) {
           userGroupIds,
           rules: aclIndex.get(server.id) || [],
         });
-        return {
+        const hiddenForUser = hiddenServerIds.has(String(server.id || '').trim());
+        const hiddenTools = new Set(hiddenToolIdsByServer?.[String(server.id || '').trim()]?.hidden_ids || []);
+        return applyToolVisibility({
           ...server,
           access_label: access.access_label,
           access_variant: access.access_variant,
           allowed: access.allowed,
-        };
+          visible_for_user: !hiddenForUser,
+          hidden_for_user: hiddenForUser,
+        }, hiddenTools);
       })
       .filter((server) => server.allowed)
+      .filter((server) => includeHiddenForUser || server.visible_for_user)
       .map(({ allowed, ...server }) => server);
 
     return [...adminServers, ...userServers];

@@ -62,8 +62,8 @@ export async function renderAdminRoute(page: Page, pathname: string) {
   await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
 
   await page.evaluate(async (nextPath) => {
-    const { renderCurrentRoute } = await import('/js/bootstrap/app.js');
     window.history.pushState({}, '', nextPath);
+    const { renderCurrentRoute } = await import('/js/bootstrap/app.js');
     await renderCurrentRoute();
   }, pathname);
 }

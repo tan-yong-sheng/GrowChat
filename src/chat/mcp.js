@@ -42,7 +42,7 @@ export function buildMcpTools(servers = [], { selectedToolNames = null } = {}) {
     serversById.set(String(server.id), server);
     const toolSpecs = Array.isArray(server.tools) ? server.tools : [];
     toolSpecs.forEach((tool) => {
-      if (tool?.enabled === false) return;
+      if (tool?.enabled === false || tool?.visible_for_user === false) return;
       const toolName = String(tool?.name || '').trim();
       if (!toolName) return;
       const modelToolName = buildMcpToolName(server.id, toolName);

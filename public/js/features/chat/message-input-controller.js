@@ -92,13 +92,30 @@ export function createMessageInputController({
     return `mcp__${serverId}__${safeName}`;
   }
 
+  function getToolServerScopeLabel(server) {
+    const source = String(server?.source || '').trim().toLowerCase();
+    const accessVariant = String(server?.access_variant || '').trim().toLowerCase();
+    const accessLabel = String(server?.access_label || '').trim().toLowerCase();
+    if (source === 'user' || accessVariant === 'personal' || accessLabel === 'personal') {
+      return 'Personal';
+    }
+    return 'Shared';
+  }
+
+  function getToolServerScopeBadgeClass(server) {
+    const label = getToolServerScopeLabel(server);
+    return label === 'Personal'
+      ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+      : 'border-gray-200 bg-gray-50 text-gray-500';
+  }
+
   function getAllowedToolServers(currentState = state) {
     return (Array.isArray(currentState.toolServers) ? currentState.toolServers : [])
       .filter((server) => server?.enabled !== false && String(server?.id || '').trim() && String(server?.name || '').trim())
       .map((server) => ({
         ...server,
         tools: (Array.isArray(server.tools) ? server.tools : [])
-          .filter((tool) => tool?.enabled !== false && String(tool?.name || '').trim())
+          .filter((tool) => tool?.enabled !== false && tool?.visible_for_user !== false && String(tool?.name || '').trim())
           .map((tool) => ({
             ...tool,
             name: String(tool.name || '').trim(),
@@ -507,6 +524,8 @@ export function createMessageInputController({
       const anyEnabled = selectionState.enabled || selectionState.partial;
       const selectedSet = selection === null ? new Set(allowedKeys) : new Set(Array.isArray(selection) ? selection : []);
       const enabledToolCount = server.tools.length;
+      const scopeLabel = getToolServerScopeLabel(server);
+      const scopeBadgeClass = getToolServerScopeBadgeClass(server);
       const toolRows = server.tools.map((tool) => {
         const key = buildToolKey(server.id, tool.name);
         const enabled = selectedSet.has(key);
@@ -527,7 +546,10 @@ export function createMessageInputController({
             </button>
             <button type="button" data-tool-server-expand data-tool-server-id="${escapeHtml(server.id)}" class="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl px-2 py-2 text-left hover:bg-gray-50 transition">
               <div class="min-w-0">
-                <div class="text-sm font-medium text-gray-900 truncate">${escapeHtml(server.name)}</div>
+                <div class="flex items-center gap-2">
+                  <div class="min-w-0 text-sm font-medium text-gray-900 truncate">${escapeHtml(server.name)}</div>
+                  <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scopeBadgeClass}">${escapeHtml(scopeLabel)}</span>
+                </div>
                 <div class="text-xs text-gray-400">${enabledToolCount} tool${enabledToolCount === 1 ? '' : 's'}</div>
               </div>
               <i class="bi ${serverExpanded ? 'bi-chevron-down' : 'bi-chevron-right'} text-gray-400 text-sm leading-none flex-shrink-0" aria-hidden="true"></i>

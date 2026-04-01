@@ -33,6 +33,16 @@ async function ensureRenderChat() {
   return renderChatFn;
 }
 
+let accountSettingsDrawerListenerInstalled = false;
+function installAccountSettingsDrawerListener() {
+  if (accountSettingsDrawerListenerInstalled) return;
+  accountSettingsDrawerListenerInstalled = true;
+  window.addEventListener('growchat:open-account-settings', async (event) => {
+    const { openAccountSettingsDrawer } = await import('../features/account/account.js');
+    await openAccountSettingsDrawer({ section: event?.detail?.section || 'connections' });
+  });
+}
+
 export async function renderCurrentRoute() {
   ensureMarkedReady();
   const path = window.location.pathname;
@@ -73,36 +83,6 @@ export async function renderCurrentRoute() {
     return renderCurrentRoute();
   }
 
-  if (path === '/account/settings' || path === '/account/settings/') {
-    window.history.replaceState({}, '', '/account/settings/connections');
-    return renderCurrentRoute();
-  }
-
-  if (path === '/account/settings/general' || path.startsWith('/account/settings/general/')) {
-    window.history.replaceState({}, '', '/account/profile/overview');
-    return renderCurrentRoute();
-  }
-
-  if (path === '/account/settings/preferences' || path.startsWith('/account/settings/preferences/')) {
-    window.history.replaceState({}, '', '/account/profile/overview');
-    return renderCurrentRoute();
-  }
-
-  if (path === '/account/profile/general' || path.startsWith('/account/profile/general/')) {
-    window.history.replaceState({}, '', '/account/profile/overview');
-    return renderCurrentRoute();
-  }
-
-  if (path === '/account/profile/preferences' || path.startsWith('/account/profile/preferences/')) {
-    window.history.replaceState({}, '', '/account/profile/overview');
-    return renderCurrentRoute();
-  }
-
-  if (path === '/account/profile' || path === '/account/profile/') {
-    window.history.replaceState({}, '', '/account/profile/overview');
-    return renderCurrentRoute();
-  }
-
   if (sharedMatch) {
     try {
       const data = await fetchPublicSharedChat(sharedMatch[1]);
@@ -130,7 +110,12 @@ export async function renderCurrentRoute() {
   }
 
   if (path.startsWith('/account')) {
-    await renderAccountRoute(app);
+    const { openAccountSettingsDrawer, resolveAccountSectionFromPath } = await import('../features/account/account.js');
+    const section = resolveAccountSectionFromPath(path);
+    if (window.location.pathname !== '/') {
+      window.history.replaceState({}, '', '/');
+    }
+    await openAccountSettingsDrawer({ section });
     return;
   }
 
@@ -162,6 +147,7 @@ export async function renderCurrentRoute() {
 async function bootstrap() {
   installKnownErrorSuppressors();
   ensureMarkedReady();
+  installAccountSettingsDrawerListener();
   await renderCurrentRoute();
 }
 

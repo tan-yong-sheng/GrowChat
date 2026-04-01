@@ -7,6 +7,7 @@ import {
   renderWorkspaceTopNav,
   renderWorkspaceTopNavSidebarToggle,
 } from '../../shared/components/settings-top-nav.js';
+import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { renderUserOverview } from './users/overview.js';
 import { preloadGroupsData, renderGroupsOverview } from './users/groups.js';
 import { shouldLoadGroups } from './users/groups-helpers.js';
@@ -18,6 +19,7 @@ import { renderIntegrationsSettings } from './settings/integrations.js';
 import { renderPoliciesSettings } from './settings/policies.js';
 import { renderRolesPage } from './users/roles.js';
 import { createAdminShellController } from './admin-shell-controller.js';
+import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import {
   getAdminSubnavPath,
   getAdminTopNavPath,
@@ -36,10 +38,15 @@ import {
 import { renderCurrentRoute } from '../../bootstrap/app.js';
 
 export async function renderAdminPage(container) {
+  const capabilities = normalizeWorkspaceCapabilities({
+    permissions: state.permissions,
+    primaryRole: state.userRoles?.[0]?.role_name || 'admin',
+  }, { route: 'admin' });
   let mainTab = 'users';
   let subTab = 'overview';
   let shellMounted = false;
   let data = {
+    capabilities,
     users: [],
     total: 0,
     groups: [],
@@ -73,6 +80,9 @@ export async function renderAdminPage(container) {
   const renderMainActionFooter = shellController.renderSharedActionFooter;
   const updateMainActionFooter = shellController.updateSharedActionFooter;
   const handleMainSave = shellController.handleSharedActionSave;
+  const settingsRouteCache = createSettingsRouteCache();
+  let removeInvalidationListeners = null;
+  data.settingsRouteCache = settingsRouteCache;
 
   const updateRouteInfo = () => {
     const routeState = resolveAdminRouteState(window.location.pathname);
@@ -512,15 +522,44 @@ export async function renderAdminPage(container) {
     const priorCleanup = previousCleanup;
     container.__cleanup = () => {
       priorCleanup?.();
+      removeInvalidationListeners?.();
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }
+
+  const unregisterConnections = settingsRouteCache.registerConnectionsRefresh(() => {
+    if (mainTab !== 'settings' && mainTab !== 'system') return;
+    if (data.connectionsSettings) data.connectionsSettings.loaded = false;
+    if (data.generalSettings) data.generalSettings.models = [];
+    renderSubContent();
+  });
+  const unregisterToolServers = settingsRouteCache.registerToolServersRefresh(() => {
+    if (mainTab !== 'settings' && mainTab !== 'system') return;
+    if (data.integrationsSettings) data.integrationsSettings.loaded = false;
+    renderSubContent();
+  });
+  const unregisterModels = settingsRouteCache.registerModelsRefresh(() => {
+    if (mainTab !== 'settings' && mainTab !== 'system') return;
+    data.modelsSettingsInvalidate = Date.now();
+    if (data.generalSettings) {
+      data.generalSettings.modelsInvalidateToken = data.modelsSettingsInvalidate;
+      data.generalSettings.models = [];
+    }
+    renderSubContent();
+  });
 
   updateRouteInfo();
   if (!shellMounted) {
     mountShell();
   }
   renderSubContent();
+  const routeCacheCleanup = settingsRouteCache.bind();
+  removeInvalidationListeners = () => {
+    unregisterConnections?.();
+    unregisterToolServers?.();
+    unregisterModels?.();
+    routeCacheCleanup?.();
+  };
   if (mainTab === 'users' && data.users.length === 0) {
     await loadUsers({ preserveContent: false });
   }

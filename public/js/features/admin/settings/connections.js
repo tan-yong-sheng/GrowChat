@@ -1,6 +1,6 @@
 import { apiFetch } from '../../../shared/api.js';
 import { fetchAdminConnectionAccess } from '../../../shared/admin-access.js';
-import { buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
+import { buildConnectionModalBodyMarkup, buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
 import { cloneAclRules, createAclDraftRegistry, getAclRulesSignature } from '../acl-draft.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
@@ -10,8 +10,11 @@ import { createAdminAclModalShell } from '../acl-modal.js';
 import { getAdminModalPreset } from '../modal-shell.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
+  normalizeConnectionModelSelectionMode,
+  resolveConnectionModelSelectionMode,
+} from '../../../shared/utils/connection-model-selection.js';
+import {
   applyModalDraft,
-  applyModalModelPreview,
   cloneModelSelection,
   buildModalConnectionDraft,
   connectionApiTypeDetails,
@@ -30,6 +33,8 @@ import {
   resolveModalUrl,
   resolveUrlLabel,
   persistModalDraft,
+  previewConnectionModalModels,
+  buildSelectedConnectionModels,
   updateApiTypeDisplay,
 } from './connections-helpers.js';
 
@@ -44,6 +49,7 @@ const STANDARD_MODAL_PRESET = getAdminModalPreset('standard');
 
 export function renderConnectionsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'connections';
+  const canManageAcls = data.capabilities?.canManageAcls !== false;
   const connectionsState = data.connectionsSettings || (data.connectionsSettings = {
     loading: false,
     error: null,
@@ -105,6 +111,7 @@ export function renderConnectionsSettings(container, data) {
         apiType: connectionApiTypeDetails(conn.providerType || conn.providerFamily || 'openai').value,
         enabled: conn.enabled !== false,
         manualModels: normalizeConnectionManualModels(conn.manualModels),
+        manualModelsMode: normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all',
       }))
       .sort((a, b) => String(a.id).localeCompare(String(b.id)));
     const envOverrides = {};
@@ -176,9 +183,10 @@ export function renderConnectionsSettings(container, data) {
         <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
           <button
             data-id="${conn.id}"
-            class="connection-acl-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${conn.enabled === false ? 'hidden' : ''}"
+            class="connection-acl-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${conn.enabled === false || !canManageAcls ? 'hidden' : ''}"
             title="Edit access rules"
             aria-label="Edit access rules"
+            ${canManageAcls ? '' : 'disabled aria-disabled="true"'}
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
@@ -420,7 +428,7 @@ export function renderConnectionsSettings(container, data) {
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
-          <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
+          <div class="max-w-2xl mx-auto w-full flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">
               <div class="flex-shrink-0 text-gray-900">Connections</div>
             </div>
@@ -439,9 +447,9 @@ export function renderConnectionsSettings(container, data) {
             </section>
 
             <section id="manage-connections-section" class="space-y-1 mt-4">
-              <div class="flex items-center justify-between px-0.5">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-0.5">
                 <div class="text-base font-medium text-gray-900">Manage LLM Chat Providers</div>
-                <button id="add-connection" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                <button id="add-connection" class="shrink-0 p-1 text-gray-400 hover:text-gray-600 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
@@ -473,7 +481,7 @@ export function renderConnectionsSettings(container, data) {
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-gray-50">
             <h3 id="modal-title" class="text-lg font-medium text-gray-900">${connectionsState.selectedConnection ? 'Edit Connection' : 'Add Connection'}</h3>
-            <button id="close-modal" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+            <button type="button" id="close-modal" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -481,91 +489,34 @@ export function renderConnectionsSettings(container, data) {
           </div>
           
           <div class="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hidden">
-            <div class="space-y-1">
-              <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Name</label>
-              <input id="modal-conn-name" type="text" value="${connectionsState.selectedConnection?.name || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="e.g. OpenAI" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-            </div>
-
-            <div class="space-y-1">
-              <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${resolveUrlLabel(connectionsState.selectedConnection?.providerType || 'openai')}</label>
-              <div class="flex items-center gap-2">
-                <input id="modal-conn-url" type="text" value="${connectionsState.selectedConnection?.url || ''}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400" placeholder="https://api.openai.com/v1" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-                <button id="test-connection" class="p-1 text-gray-400 hover:text-gray-600 ${isEnvConnection ? 'hidden' : ''}" title="Test connection">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                  </svg>
-                </button>
-              </div>
-              <div id="connection-test-message" class="text-[11px] text-gray-400 ${isEnvConnection ? 'hidden' : ''}"></div>
-              <div id="modal-conn-url-hint" class="text-[11px] text-gray-400">${isCompatibleProviderType(connectionsState.selectedConnection?.providerType || 'openai') ? 'Required for compatible providers.' : 'Uses the built-in default if left blank.'}</div>
-            </div>
-
-            <div class="space-y-1">
-              <label id="modal-conn-key-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${resolveKeyLabel()}</label>
-              <div class="flex items-center gap-3">
-                <div class="flex-1 relative">
-                  <input id="modal-conn-key" type="password" value="${connectionsState.selectedConnection?.key || ''}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8" placeholder="API Key" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-                  <button id="toggle-key-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c3.41 0 6.446 1.315 8.613 3.447 1.12 1.101 2.04 2.484 2.747 4.033a1.015 1.012 0 0 1 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12.013a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="space-y-1">
-              <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Headers</label>
-              <textarea id="modal-conn-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none" placeholder="Enter additional headers in JSON format" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">${connectionsState.selectedConnection?.headers || ''}</textarea>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1">
-                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Provider Type</label>
-                <select id="modal-conn-provider" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900">
-                  <option value="openai">OpenAI</option>
-                  <option value="openai-compatible">OpenAI Compatible</option>
-                  <option value="google">Gemini</option>
-                  <option value="gemini-compatible">Gemini Compatible</option>
-                  <option value="anthropic">Claude</option>
-                  <option value="claude-compatible">Claude Compatible</option>
-                </select>
-                <div id="modal-conn-provider-hint" class="text-[11px] text-gray-400">OpenAI</div>
-              </div>
-              <div class="space-y-1">
-                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">API Type</label>
-                <div id="modal-conn-api-type-label" class="text-sm text-gray-900">${connectionApiTypeDetails(connectionsState.selectedConnection?.providerType || 'openai').label}</div>
-                <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-400">${connectionApiTypeDetails(connectionsState.selectedConnection?.providerType || 'openai').endpoint}</div>
-              </div>
-            </div>
-
-            <div class="space-y-2" id="modal-models-section">
-              <div class="flex items-center justify-between">
-                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Models</label>
-                <div class="flex items-center gap-2 text-[11px] text-gray-400">
-                  <button type="button" id="modal-models-select-all" class="px-2 py-1 rounded-md hover:bg-gray-50">All</button>
-                  <button type="button" id="modal-models-select-none" class="px-2 py-1 rounded-md hover:bg-gray-50">None</button>
-                </div>
-              </div>
-              <div class="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-400">
-                  <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
-                </svg>
-                <input id="modal-models-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Search models" value="${connectionsState.modalModelsQuery || ''}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-              </div>
-              <div class="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2 ${isEnvConnection ? 'hidden' : ''}">
-                <input id="modal-manual-model-id" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Add model manually" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-                <button id="modal-manual-model-add" class="shrink-0 rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white hover:bg-gray-900 transition">Add</button>
-              </div>
-              <div id="modal-models-list" class="rounded-2xl border border-gray-100 bg-white max-h-48 overflow-y-auto scrollbar-hidden text-sm"></div>
-              <div id="modal-models-status" class="text-[11px] text-gray-400"></div>
-            </div>
+            ${buildConnectionModalBodyMarkup({
+              providerType: connectionsState.selectedConnection?.providerType || 'openai',
+              name: connectionsState.selectedConnection?.name || '',
+              url: connectionsState.selectedConnection?.url || '',
+              keyValue: '',
+              hasKey: Boolean(connectionsState.selectedConnection?.key || connectionsState.selectedConnection?.keyMasked),
+              headers: connectionsState.selectedConnection?.headers || '',
+              apiType: connectionApiTypeDetails(connectionsState.selectedConnection?.providerType || 'openai'),
+              canManage: true,
+              showTestButton: !isEnvConnection,
+              testHiddenClass: isEnvConnection ? ' hidden' : '',
+              manualModelsHiddenClass: isEnvConnection ? ' hidden' : '',
+              disabledAttr: '',
+              disabledControlClass: '',
+              testButtonAttrs: '',
+              testMessageAttrs: '',
+              models: connectionsState.modalModels || [],
+              query: connectionsState.modalModelsQuery || '',
+              selection: connectionsState.modalModelsSelection || new Set(),
+              loadingModels: Boolean(connectionsState.modalModelsLoading),
+              modelsError: connectionsState.modalModelsError || '',
+              showKeyHint: true,
+            })}
           </div>
 
           <div class="px-6 py-6 flex justify-end gap-3 border-t border-gray-50">
-            <button id="delete-connection" class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full ${connectionsState.selectedConnection ? '' : 'hidden'}">Delete</button>
-            <button id="save-modal" class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full">Save</button>
+            <button type="button" id="delete-connection" class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full ${connectionsState.selectedConnection ? '' : 'hidden'}">Delete</button>
+            <button type="button" id="save-modal" class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full">Save</button>
           </div>
         </div>
       </div>
@@ -629,7 +580,7 @@ export function renderConnectionsSettings(container, data) {
     const isEnv = connection?.source === 'env';
     if (nameInput) nameInput.value = connection?.name || '';
     if (urlInput) urlInput.value = connection?.url || '';
-    if (keyInput) keyInput.value = connection?.key || connection?.keyMasked || '';
+    if (keyInput) keyInput.value = '';
     if (headersInput) headersInput.value = connection?.headers || '';
     if (providerSelect) providerSelect.value = connection?.providerType || 'openai';
     if (urlInput) {
@@ -665,6 +616,12 @@ export function renderConnectionsSettings(container, data) {
     }
     const keyLabel = scope.querySelector('#modal-conn-key-label');
     if (keyLabel) keyLabel.textContent = resolveKeyLabel();
+    const keyHint = scope.querySelector('#modal-conn-key-hint');
+    if (keyHint) {
+      keyHint.textContent = (connection?.hasKey || connection?.keyMasked)
+        ? 'A key is already saved. Leave this blank to keep it.'
+        : 'Optional for providers that do not require a key.';
+    }
     updateApiTypeDisplay(scope, providerSelect?.value || connection?.providerType || 'openai');
     const deleteBtn = scope.querySelector('#delete-connection');
     if (deleteBtn) deleteBtn.classList.toggle('hidden', connectionsState.modalMode !== 'update' || isEnv);
@@ -708,7 +665,7 @@ export function renderConnectionsSettings(container, data) {
       connectionsState.modalModelsError || '',
     );
     status.classList.remove('text-red-500');
-    status.textContent = models.length ? `${selected.size} of ${models.length} enabled` : '';
+    status.textContent = models.length ? `Models enabled in this connection: ${selected.size} of ${models.length}` : '';
   };
 
   const addManualModalModel = (scope = container) => {
@@ -883,7 +840,16 @@ export function renderConnectionsSettings(container, data) {
         throw new Error(payload.details?.message || payload.message || payload.error || 'Connection failed');
       }
       if (Array.isArray(payload.models)) {
-        applyModalModelPreview(connectionsState, payload.models, modalRoot, renderModalModels);
+        const preview = previewConnectionModalModels(
+          connectionsState.modalModels,
+          connectionsState.modalModelsSelection,
+          payload.models,
+          connectionsState.selectedConnection,
+        );
+        connectionsState.modalModels = preview.models;
+        connectionsState.modalModelsSelection = preview.selection;
+        connectionsState.modalModelsOriginal = preview.original;
+        renderModalModels(modalRoot);
         const existingManualModels = connectionsState.selectedConnection
           ? inflateManualConnectionModels(connectionsState.selectedConnection)
           : [];
@@ -1007,7 +973,7 @@ export function renderConnectionsSettings(container, data) {
             const badge = row.querySelector('[data-connection-disabled-badge]');
             if (badge) badge.classList.toggle('hidden', enabled);
             const aclBtn = row.querySelector('.connection-acl-btn');
-            if (aclBtn) aclBtn.classList.toggle('hidden', !enabled);
+            if (aclBtn) aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
           }
           updateButtons();
         }
@@ -1015,6 +981,7 @@ export function renderConnectionsSettings(container, data) {
       }
       const aclBtn = e.target.closest('.connection-acl-btn');
       if (aclBtn) {
+        if (!canManageAcls) return;
         const id = aclBtn.dataset.id;
         const connection = connectionsState.openai.connections.find(c => c.id === id);
         if (connection) {
@@ -1053,12 +1020,14 @@ export function renderConnectionsSettings(container, data) {
       }
     });
 
-    container.querySelector('#save-modal')?.addEventListener('click', async () => {
+    container.querySelector('#save-modal')?.addEventListener('click', async (event) => {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
       if (connectionsState.modalSaving) return;
       const modalRoot = container.querySelector('#edit-connection-modal') || container;
       const name = modalRoot.querySelector('#modal-conn-name').value;
       const url = modalRoot.querySelector('#modal-conn-url').value;
-      const key = modalRoot.querySelector('#modal-conn-key').value;
+      const keyValue = modalRoot.querySelector('#modal-conn-key').value;
       const headers = modalRoot.querySelector('#modal-conn-headers').value;
       const providerType = modalRoot.querySelector('#modal-conn-provider')?.value || 'openai';
       const providerFamily = normalizeProviderFamily(providerType);
@@ -1072,16 +1041,17 @@ export function renderConnectionsSettings(container, data) {
       }
       const enabled = connectionsState.selectedConnection?.enabled !== false;
       const connection = connectionsState.selectedConnection;
+      const key = String(keyValue || '').trim();
       const models = connectionsState.modalModels || [];
       const selected = connectionsState.modalModelsSelection || new Set();
-      const manualModels = normalizeConnectionManualModels(
-        models
-          .filter((model) => model?.manual)
-          .map((model) => ({
-            modelId: model.manualModelId || model.id.split(':').slice(1).join(':') || model.id,
-            name: model.name || model.manualModelId || model.id,
-          }))
-      );
+      const manualModels = buildSelectedConnectionModels(models, selected, connectionsState.selectedConnection);
+      const existingManualModelsMode = normalizeConnectionModelSelectionMode(
+        connectionsState.selectedConnection?.manualModelsMode
+        || connectionsState.selectedConnection?.manual_models_mode
+      ) || 'all';
+      const manualModelsMode = Array.isArray(models) && models.length > 0
+        ? resolveConnectionModelSelectionMode(models, selected)
+        : existingManualModelsMode;
 
       models.forEach((model) => {
         const currentEnabled = selected.has(model.id);
@@ -1104,10 +1074,20 @@ export function renderConnectionsSettings(container, data) {
           } else {
             if (connectionsState.selectedConnection) {
               connectionsState.selectedConnection.manualModels = manualModels;
+              connectionsState.selectedConnection.manualModelsMode = manualModelsMode;
             }
             connectionsState.openai.connections[index] = {
               ...connectionsState.openai.connections[index],
-              name, url: resolvedUrl, key, headers, providerType, providerFamily, apiType, enabled, manualModels
+              name,
+              url: resolvedUrl,
+              key,
+              headers,
+              providerType,
+              providerFamily,
+              apiType,
+              enabled,
+              manualModels,
+              manualModelsMode,
             };
           }
         } else {
@@ -1122,10 +1102,12 @@ export function renderConnectionsSettings(container, data) {
             providerFamily,
             apiType,
             enabled,
-            manualModels
+            manualModels,
+            manualModelsMode,
           });
           if (connectionsState.selectedConnection) {
             connectionsState.selectedConnection.manualModels = manualModels;
+            connectionsState.selectedConnection.manualModelsMode = manualModelsMode;
           }
         }
         connectionsState.modalDrafts?.delete(getModalDraftKey(connection));
@@ -1144,7 +1126,8 @@ export function renderConnectionsSettings(container, data) {
           providerFamily,
           apiType,
           enabled,
-          manualModels
+          manualModels,
+          manualModelsMode,
         });
         connectionsState.modalDrafts?.delete(getModalDraftKey(connectionsState.selectedConnection));
         connectionsState.newConnectionDraftId = null;
@@ -1343,7 +1326,12 @@ export function renderConnectionsSettings(container, data) {
 
     container.querySelector('#toggle-key-visibility')?.addEventListener('click', () => {
       const input = container.querySelector('#modal-conn-key');
+      const button = container.querySelector('#toggle-key-visibility');
+      if (!input || !button) return;
       input.type = input.type === 'password' ? 'text' : 'password';
+      button.setAttribute('aria-label', input.type === 'password' ? 'Show key' : 'Hide key');
+      const label = button.querySelector('[data-password-toggle-label]');
+      if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
     });
   };
 

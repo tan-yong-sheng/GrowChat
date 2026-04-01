@@ -63,17 +63,18 @@ describe('user profile footer', () => {
     footer.__cleanup?.();
   });
 
-  it('navigates settings to the account settings shell', async () => {
+  it('opens account settings without pushing a route', async () => {
     localStorage.setItem('growchat_auth', JSON.stringify({
       user: { name: 'Sam', avatar_emoji: 'S', status: 'away' },
     }));
 
-    const pushStateSpy = vi.spyOn(window.history, 'pushState');
     const guardNavigation = vi.fn(async () => true);
 
     const { createUserProfileFooter } = await loadModules();
     const { state: currentState } = await import('../../public/js/shared/store.js');
     currentState.permissions = [];
+    const openSettings = vi.fn();
+    window.addEventListener('growchat:open-account-settings', openSettings);
 
     const footer = await createUserProfileFooter({ guardNavigation });
     document.body.appendChild(footer);
@@ -82,10 +83,11 @@ describe('user profile footer', () => {
     await Promise.resolve();
 
     expect(guardNavigation).toHaveBeenCalledTimes(1);
-    expect(pushStateSpy).toHaveBeenCalledWith({}, '', '/account/profile/overview');
-    expect(window.location.pathname).toBe('/account/profile/overview');
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    expect(window.location.pathname).toBe('/');
 
     footer.__cleanup?.();
+    window.removeEventListener('growchat:open-account-settings', openSettings);
   });
 });
 

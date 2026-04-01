@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getConfigValue: vi.fn(),
   getAllOpenAIConnectionConfigs: vi.fn(),
   discoverConnectionModels: vi.fn(),
+  loadUserResourceOverrides: vi.fn(),
 }));
 
 vi.mock('../db.js', () => ({
@@ -42,7 +43,11 @@ vi.mock('../llm/connections.js', () => ({
   },
 }));
 
-import { modelsRouter } from './models.js';
+vi.mock('../../public/js/shared/utils/user-resource-overrides.js', () => ({
+  loadUserResourceOverrides: (...args) => mocks.loadUserResourceOverrides(...args),
+}));
+
+import { applyUserModelVisibilityOverrides, modelsRouter } from './models.js';
 
 function makeReq(path, method, bodyOrHeaders, headers = {}) {
   const hasExplicitHeaders = arguments.length >= 4;
@@ -71,6 +76,11 @@ describe('modelsRouter', () => {
     mocks.getConfigValue.mockResolvedValue('{}');
     mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([]);
     mocks.discoverConnectionModels.mockResolvedValue({ items: [], url: 'https://example.com/models' });
+    mocks.loadUserResourceOverrides.mockResolvedValue({
+      models: { hidden_ids: [] },
+      connections: { hidden_ids: [] },
+      tool_servers: { hidden_ids: [], tools: {} },
+    });
   });
 
   it('returns 304 when If-None-Match matches for /api/models', async () => {
@@ -131,6 +141,53 @@ describe('modelsRouter', () => {
     expect(payload.models.some((model) => model.manual === true)).toBe(true);
   });
 
+  it('respects a connection manual selection subset when listing admin models', async () => {
+    const env = { DB: {} };
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-1',
+        name: 'Gateway',
+        source: 'user',
+        providerType: 'google',
+        providerFamily: 'google',
+        providerId: 'google/conn-1',
+        baseUrl: 'https://example.com/v1beta',
+        manualModelsMode: 'some',
+        manualModels: [
+          { modelId: 'alpha', name: 'Alpha' },
+          { modelId: 'gamma', name: 'Gamma' },
+        ],
+      },
+    ]);
+    mocks.discoverConnectionModels.mockResolvedValue({
+      items: [
+        { id: 'alpha' },
+        { id: 'beta' },
+        { id: 'gamma' },
+      ],
+      url: 'https://example.com/models',
+    });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models?include_disabled=1', 'GET'),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/admin/models'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.active_total).toBe(2);
+    expect(payload.models).toHaveLength(3);
+    expect(payload.models.map((model) => model.id)).toEqual([
+      'google/conn-1:alpha',
+      'google/conn-1:gamma',
+      'google/conn-1:beta',
+    ]);
+    expect(payload.models.find((model) => model.id === 'google/conn-1:beta')?.enabled).toBe(false);
+  });
+
   it('returns active_total and orders active models before disabled ones', async () => {
     const env = { DB: {} };
     mocks.createDB.mockReturnValue({
@@ -177,6 +234,28 @@ describe('modelsRouter', () => {
     expect(payload.active_total).toBe(1);
     expect(payload.models[0].id).toBe('google/conn-1:beta');
     expect(payload.models[1].id).toBe('google/conn-1:alpha');
+  });
+
+  it('keeps a connection-selected model active even if it was previously hidden by user settings', async () => {
+    const models = applyUserModelVisibilityOverrides([
+      { id: 'google/conn-1:alpha', enabled: false },
+      { id: 'google/conn-1:beta', enabled: true },
+    ], new Set(['google/conn-1:beta']));
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'google/conn-1:alpha',
+        enabled: false,
+        hidden_for_user: false,
+        visible_for_user: true,
+      }),
+      expect.objectContaining({
+        id: 'google/conn-1:beta',
+        enabled: true,
+        hidden_for_user: false,
+        visible_for_user: true,
+      }),
+    ]);
   });
 
   it('filters admin models by provider and returns provider stats', async () => {
@@ -618,6 +697,65 @@ describe('modelsRouter', () => {
     expect(prepare).toHaveBeenCalledWith(
       expect.stringContaining('DELETE FROM model_acl_rules'),
       expect.arrayContaining(['openai/env-openai-0:gemini-2.5-flash'])
+    );
+  });
+
+  it('rejects model ACL updates unless the user has admin.rbac.admin', async () => {
+    const env = { DB: {} };
+    mocks.authorize.mockClear();
+    const batch = vi.fn().mockResolvedValue(undefined);
+    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
+    mocks.createDB.mockReturnValue({
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('SELECT model_id, is_enabled FROM model_access')) {
+          return [{ model_id: 'openai/env-openai-0:gemini-2.5-flash', is_enabled: 1 }];
+        }
+        if (String(sql).includes('FROM groups')) {
+          return [
+            { id: 'g1', name: 'Team Alpha', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          ];
+        }
+        return [];
+      }),
+      batch,
+      prepare,
+      run: vi.fn().mockResolvedValue(undefined),
+      first: vi.fn().mockResolvedValue({ value: '{}' }),
+    });
+    mocks.authorize
+      .mockResolvedValueOnce({ allow: true })
+      .mockResolvedValueOnce({ allow: false, reason: 'missing_permission', code: 'forbidden' });
+
+    const res = await modelsRouter(
+      makeReq('/api/admin/models', 'PUT', {
+        access_updates: [
+          {
+            modelId: 'openai/env-openai-0:gemini-2.5-flash',
+            rules: [],
+          },
+        ],
+      }),
+      env,
+      {},
+      { sub: 'user-1', primary_role: 'member' },
+      '/api/admin/models'
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain('missing_permission');
+    expect(batch).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(2);
+    expect(mocks.authorize).toHaveBeenNthCalledWith(
+      1,
+      env,
+      { sub: 'user-1', primary_role: 'member' },
+      { action: 'model.admin', resource: 'model' }
+    );
+    expect(mocks.authorize).toHaveBeenNthCalledWith(
+      2,
+      env,
+      { sub: 'user-1', primary_role: 'member' },
+      { action: 'admin.rbac.admin', resource: 'model' }
     );
   });
 });
