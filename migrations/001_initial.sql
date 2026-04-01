@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS user_connections (
   auth_type TEXT NOT NULL DEFAULT '',
   enabled INTEGER NOT NULL DEFAULT 1,
   manual_models TEXT NOT NULL DEFAULT '[]',
+  manual_models_mode TEXT NOT NULL DEFAULT 'all',
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
   UNIQUE(user_id, id)
