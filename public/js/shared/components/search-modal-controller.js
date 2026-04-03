@@ -45,7 +45,9 @@ export function createSearchModalController(container, createChatFn, loadMessage
     modalRoot.querySelectorAll('.search-item').forEach((el) => {
       const idx = parseInt(el.getAttribute('data-index'));
       const isSelected = selectedIndex === idx;
-      el.classList.toggle('bg-gray-50', isSelected);
+      el.classList.toggle('bg-blue-50', isSelected);
+      el.classList.toggle('border-l-2', isSelected);
+      el.classList.toggle('border-l-blue-500', isSelected);
       el.setAttribute('aria-selected', isSelected.toString());
     });
 
