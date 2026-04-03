@@ -62,11 +62,12 @@ export class SseLineParser {
 export function formatDate(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const diff = now - date;
-  
+
   const day = 24 * 60 * 60 * 1000;
-  
+
   if (diff < day && now.getDate() === date.getDate()) {
     return 'Today';
   } else if (diff < 2 * day) {
