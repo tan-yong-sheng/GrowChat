@@ -55,7 +55,7 @@ export function renderSearchResultsMarkup(results = [], query = '') {
   return Object.entries(groups).map(([label, groupChats]) => `
     <div class="mt-4 first:mt-0">
       <div class="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">${label}</div>
-      <div class="space-y-0.5">
+      <div class="space-y-1.5">
         ${groupChats.map((c) => {
           const idx = results.findIndex((rc) => rc.id === c.id);
           const dateLabel = getSearchChatDateLabel(c.updated_at || c.created_at);
