@@ -105,7 +105,7 @@ export function createModelSelectorController(container) {
 
   const renderList = (currentState, { reset = false, rebuild = false } = {}) => {
     if (currentState.modelsLoading) {
-      listContainer.innerHTML = '<div class="px-3 py-6 text-center text-sm text-gray-400 italic">Loading models...</div>';
+      listContainer.innerHTML = '<div class="px-3 py-6 text-center text-sm text-gray-600 italic">Loading models...</div>';
       renderedCount = 0;
       return;
     }
@@ -127,8 +127,8 @@ export function createModelSelectorController(container) {
       visibleModels = [];
       renderedCount = 0;
       listContainer.innerHTML = searchQuery
-        ? `<div class="px-3 py-8 text-center text-sm text-gray-400 italic">No models found for "${searchQuery}"</div>`
-        : '<div class="px-3 py-6 text-center text-sm text-gray-400 italic">No models available</div>';
+        ? `<div class="px-3 py-8 text-center text-sm text-gray-600 italic">No models found for "${searchQuery}"</div>`
+        : '<div class="px-3 py-6 text-center text-sm text-gray-600 italic">No models available</div>';
       return;
     }
 
