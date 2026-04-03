@@ -15,7 +15,7 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
         <div class="flex-shrink-0 text-gray-500">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
-        <input type="text" id="modal-search-input" placeholder="Search chats..." class="flex-grow border-none placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white text-lg py-1 text-gray-800 bg-transparent" aria-label="Search chats" autocomplete="off" />
+        <input type="text" id="modal-search-input" placeholder="Search chats..." class="flex-grow border-none placeholder:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white text-lg py-1 text-gray-800 bg-transparent" aria-label="Search chats" autocomplete="off" />
         <div class="flex items-center gap-2">
           <div class="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-200 text-[10px] text-gray-400 font-medium">
             <span>ESC</span>
