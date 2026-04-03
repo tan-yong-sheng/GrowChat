@@ -97,7 +97,7 @@ function normalizeSavedConnectionModelId(providerId, modelId) {
 }
 
 export function resolveKeyLabel() {
-  return 'API Key *';
+  return 'API Key';
 }
 
 export function connectionApiTypeDetails(providerType) {
