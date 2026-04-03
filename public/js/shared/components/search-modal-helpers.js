@@ -60,7 +60,7 @@ export function renderSearchResultsMarkup(results = [], query = '') {
           const idx = results.findIndex((rc) => rc.id === c.id);
           const dateLabel = getSearchChatDateLabel(c.updated_at || c.created_at);
           return `
-            <button data-search-chat="${c.id}" data-index="${idx}" class="search-item w-full text-left px-3 py-3 rounded-2xl transition flex items-center gap-3 text-sm group outline-none focus:bg-gray-100" role="option">
+            <button data-search-chat="${c.id}" data-index="${idx}" class="search-item w-full text-left px-3 py-3 rounded-2xl transition flex items-center gap-3 text-sm group outline-none focus:bg-gray-100 hover:bg-gray-50" role="option">
               <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-white transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
