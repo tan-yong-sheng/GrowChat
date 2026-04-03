@@ -126,7 +126,7 @@ function renderModelRow(model, canManageModels = true) {
   return `
     <tr data-model-row="${escapeHtml(model.id)}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${enabled ? '' : 'bg-gray-50/80 opacity-70'}">
       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${escapeHtml(model.name || model.id)}">${escapeHtml(model.name || model.id)}</td>
-      <td class="px-4 py-4 text-gray-400 font-mono truncate ${enabled ? '' : 'text-gray-300'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
+      <td class="px-4 py-4 text-gray-500 font-mono truncate ${enabled ? '' : 'text-gray-400'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
       <td class="px-4 py-4">
         <div class="flex flex-wrap items-center gap-1.5">
           ${renderAttachmentCaps(model, canManageModels)}

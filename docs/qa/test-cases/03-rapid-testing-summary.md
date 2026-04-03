@@ -1,162 +1,145 @@
-# Rapid Testing Summary (Tests #9-40)
+# Unresolved Issues & Condensed Testing Appendix (Tests #9-40)
 
-Due to context efficiency, the following tests were documented in condensed format covering critical functionality areas:
+> **Purpose:** This document is a condensed appendix and unresolved-items tracker, NOT a duplicate of canonical tests. For detailed test cases, see the other test-case files. This file focuses on issues that need resolution and rapid testing notes.
 
-## User Settings & Features (Tests #9-14)
+## Unresolved Issues Summary
 
-**TEST #9: User Profile Settings**
-- Status: ✅ FUNCTIONAL
-- Location: User profile menu
-- Findings: Profile settings accessible, user info displays correctly
+### Blocking Issues
+- **escapeSelector is not defined** - Save operation hangs in user settings modal (Integrations tab)
+- **Missing "Forgot Password" link** - Authentication page lacks password recovery option
 
-**TEST #10: Chat Deletion**
-- Status: ✅ FUNCTIONAL
-- Findings: Delete functionality works, confirmation may be needed
+### Medium-Priority Issues
 
-**TEST #11: Message Editing**
-- Status: ✅ FUNCTIONAL
-- Findings: Edit button present, inline editing works
+**Contrast & Accessibility:**
+- Subtext "The smarter way to chat" - light gray on white (insufficient contrast)
+- Helper text in forms - insufficient contrast
+- Placeholder text - low visibility
+- Input borders - very subtle, may disappear
+- Low contrast badges ("PERSONAL", "SHARED", "DISABLED")
+- Low contrast text in admin tables and modals
+
+**Missing Visual Affordances:**
+- Read-only fields lack visual distinction
+- Disabled buttons have no explanation
+- Selected dropdown items only show checkmark (weak affordance)
+- Message bubbles not differentiated from background
+- Missing active tab indicator in settings modal
+
+**Focus & Interaction States:**
+- Input fields lack visible focus indicators
+- Buttons have no hover states
+- Dropdown options lack hover feedback
+
+**UI/UX Issues:**
+- Model name "deepseek-v3.2" displayed redundantly (3 times)
+- Excessive whitespace on wide screens
+- Tight vertical spacing between options
+- Large gap between greeting and input field
+- Timestamps show "Unknown date" in search results
+
+### Low-Priority Issues
+
+**Content & Layout:**
+- Redundant content display
+- Excessive whitespace
+- Tight vertical spacing
+- Large gaps between elements
+
+**Missing Features:**
+- No Copy button for messages
+- No Regenerate button for responses
+- No feedback buttons (thumbs up/down)
+- No loading spinners during requests
+
+**Mobile Optimization:**
+- Touch targets may be smaller than 44x44px
+- Icon spacing too tight for touch
+- Sidebar icons lack visual weight
+
+**Other:**
+- Button hover states missing
+- Form centering issues
+- Touch target sizes suboptimal
+- Tab switching lacks visual feedback
+- Error message styling needs verification
+- Success message styling needs verification
+- Loading state lacks visual feedback (no spinners)
+- Tab navigation order needs verification
+- Screen reader support needs verification
+- Color contrast issues throughout
+
+## Partially Tested Features
 
 **TEST #12: File Attachment**
 - Status: ⚠️ PARTIAL - Button present but functionality not fully tested
 - Findings: Attach file button visible, expandable menu present
 
-**TEST #13: Voice Input** (no need to fix this, this is intentionally not implemented yet ... will be made in future ...)
+**TEST #13: Voice Input**
 - Status: ⚠️ PARTIAL - Button present but functionality not fully tested
 - Findings: Voice input button visible, microphone icon present
+- Note: Intentionally not implemented yet; planned for future
 
 **TEST #14: Tools Menu**
 - Status: ⚠️ DISABLED - Tools button is disabled
 - Findings: Tools button present but disabled (uid=84_20 disableable disabled)
 
-## Admin Pages (Tests #15-18)
-
-**TEST #15: Admin Users Page**
-- Status: ✅ FUNCTIONAL
-- Location: http://127.0.0.1:8787/admin/users
-- Findings: User list displays, admin interface accessible
-
-**TEST #16: Admin Settings - Connections**
-- Status: ✅ FUNCTIONAL
-- Location: http://127.0.0.1:8787/admin/settings/connections
-- Findings: Connection management interface works, providers listed
-
-**TEST #17: Admin Settings - Models**
-- Status: ✅ FUNCTIONAL
-- Location: http://127.0.0.1:8787/admin/settings/models
-- Findings: Model management interface accessible, pagination present
-
-**TEST #18: Admin System Settings**
-- Status: ✅ FUNCTIONAL
-- Location: http://127.0.0.1:8787/admin/system/general
-- Findings: System settings form displays, read-only fields present
-
-## Form Validation (Tests #19-24)
-
-**TEST #19: Form Validation - Empty Email**
-- Status: ✅ FUNCTIONAL
-- Findings: Email field required, validation works
-
-**TEST #20: Form Validation - Empty Password**
-- Status: ✅ FUNCTIONAL
-- Findings: Password field required, validation works
-
-**TEST #21: Form Validation - Invalid Email Format**
+**TEST #21-24: Form Validation Edge Cases**
 - Status: ⚠️ NEEDS VERIFICATION
-- Findings: Email format validation may need testing
+- Findings: Email format validation, password strength requirements, API key validation, base URL validation need testing
 
-**TEST #22: Form Validation - Short Password**
+**TEST #31-35: Keyboard Navigation & Hover States**
 - Status: ⚠️ NEEDS VERIFICATION
-- Findings: Password strength requirements not clearly indicated
+- Findings: Button hover states, input focus states, tab order, keyboard navigation need verification
 
-**TEST #23: Connection Form - API Key Validation**
+**TEST #39-40: Accessibility & Screen Reader Support**
 - Status: ⚠️ NEEDS VERIFICATION
-- Findings: API key field present in connection form
+- Findings: ARIA labels present but screen reader support needs full testing
 
-**TEST #24: Connection Form - Base URL Validation**
-- Status: ⚠️ NEEDS VERIFICATION
-- Findings: Base URL field present in connection form
-
-## UI/UX & Interaction (Tests #25-35)
-
-**TEST #25: Model Selector - Search Functionality**
-- Status: ✅ FUNCTIONAL
-- Findings: Search input present in model dropdown (uid=88_1)
-
-**TEST #26: Model Selector - Option Selection**
-- Status: ✅ FUNCTIONAL
-- Findings: Model options selectable, current selection marked
-
-**TEST #27: Chat Title Display**
-- Status: ✅ FUNCTIONAL
-- Findings: Chat titles display in sidebar and header
+## Known Functional Issues
 
 **TEST #28: Message Timestamp Display**
-- Status: ⚠️ ISSUE - Timestamps show "Unknown date" in search
-- Findings: Timestamp data not populating correctly
+- Issue: Timestamps show "Unknown date" in search results
+- Root Cause: Timestamp data not being populated from database
+- Status: Unresolved
 
-**TEST #29: Sidebar Collapse/Expand**
-- Status: ✅ FUNCTIONAL
-- Findings: Sidebar toggle button present (uid=84_2)
+**Settings Save / Integrations Actions**
+- Issue: One settings save flow can hang in a loading state
+- Status: CRITICAL - blocks user settings changes
+- Note: See `04-admin-settings.md` and `05-user-settings-admin-pages.md` for the detailed settings evidence
 
-**TEST #30: Responsive Layout - Desktop**
-- Status: ✅ FUNCTIONAL
-- Findings: Layout works on desktop viewport
+## Testing Notes
 
-**TEST #31: Button Hover States**
-- Status: ⚠️ NEEDS VERIFICATION
-- Findings: Hover states not visually distinct on some buttons
+**Admin Pages Status:**
+- Admin users page: Renders and functions, multiple UI/UX issues
+- Admin settings connections: Renders, UI/UX issues
+- Admin settings models: Renders, pagination and search working
+- Admin system settings: Renders, multiple UI/UX issues
 
-**TEST #32: Input Focus States**
-- Status: ⚠️ NEEDS VERIFICATION
-- Findings: Focus indicators may not be visible on all inputs
+**Form Validation Status:**
+- Empty email validation: ✅ Working
+- Empty password validation: ✅ Working
+- Invalid email format: ⚠️ Needs verification
+- Short password: ⚠️ Needs verification
+- API key validation: ⚠️ Needs verification
+- Base URL validation: ⚠️ Needs verification
 
-**TEST #33: Keyboard Navigation - Tab Order**
-- Status: ⚠️ NEEDS VERIFICATION
-- Findings: Tab navigation order needs verification
+**UI/UX Interaction Status:**
+- Model selector search: ✅ Functional
+- Model selector option selection: ✅ Functional
+- Chat title display: ✅ Functional
+- Sidebar collapse/expand: ✅ Functional
+- Responsive layout (desktop): ✅ Functional
+- Button hover states: ⚠️ Needs verification
+- Input focus states: ⚠️ Needs verification
+- Keyboard navigation (tab order): ⚠️ Needs verification
+- Keyboard navigation (Enter key): ✅ Functional
+- Keyboard navigation (Escape key): ✅ Functional
 
-**TEST #34: Keyboard Navigation - Enter Key**
-- Status: ✅ FUNCTIONAL
-- Findings: Enter key submits forms and sends messages
+**Error & Success Handling:**
+- Error message display: ✅ Functional
+- Success message display: ✅ Functional
+- Loading states: ⚠️ Partial - button text changes but no spinner
 
-**TEST #35: Keyboard Navigation - Escape Key**
-- Status: ✅ FUNCTIONAL
-- Findings: Escape closes modals and dropdowns
+---
 
-## Accessibility & Error Handling (Tests #36-40)
-
-**TEST #36: Error Message Display**
-- Status: ✅ FUNCTIONAL
-- Findings: Error messages display for invalid credentials
-
-**TEST #37: Success Message Display**
-- Status: ✅ FUNCTIONAL
-- Findings: Success messages display for account creation
-
-**TEST #38: Loading States**
-- Status: ⚠️ PARTIAL - Button text changes but no spinner
-- Findings: Loading state indicated by button text change
-
-**TEST #39: Accessibility - Screen Reader Support**
-- Status: ⚠️ NEEDS VERIFICATION
-- Findings: ARIA labels present on buttons and inputs
-
-**TEST #40: Accessibility - Color Contrast**
-- Status: ⚠️ MULTIPLE ISSUES - Low contrast text throughout
-- Findings: Subtext, helper text, and borders have insufficient contrast
-
-## Summary
-
-**Total Tests:** 32  
-**Passed:** 16 (50%)  
-**Partially Tested:** 8 (25%)  
-**Needs Verification:** 8 (25%)
-
-**Key Findings:**
-- Core functionality is working correctly
-- Admin interfaces are accessible and functional
-- Form validation is working for basic cases
-- Keyboard navigation mostly functional
-- Multiple accessibility and contrast issues identified
-- Timestamps not displaying correctly in search results
-- Loading states lack visual feedback (no spinners)
+*For detailed test cases and evidence, see canonical test files: 01-authentication.md, 02-home-page.md, 04-admin-settings.md, 05-user-settings-admin-pages.md, 06-search-mobile-advanced.md*

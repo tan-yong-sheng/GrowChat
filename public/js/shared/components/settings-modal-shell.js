@@ -4,7 +4,7 @@ const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border 
 const DEFAULT_HEADER_CLASS = 'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0';
 const DEFAULT_BODY_CLASS = 'p-5 sm:p-6 overflow-y-auto flex-1 min-h-0';
 const DEFAULT_FOOTER_CLASS = 'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0';
-const DEFAULT_CLOSE_CLASS = 'p-2 rounded-full hover:bg-gray-100 transition';
+const DEFAULT_CLOSE_CLASS = 'inline-flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -51,7 +51,7 @@ export function buildSettingsModalShellMarkup({
         <div class="${headerClass}" data-settings-modal-header>
           <div>
             <div class="text-lg font-semibold" id="${escapeHtml(ariaLabelledBy)}">${escapeHtml(title)}</div>
-            ${subtitle ? `<div class="text-[11px] text-gray-500 mt-1">${escapeHtml(subtitle)}</div>` : ''}
+            ${subtitle ? `<div class="text-[11px] text-gray-600 mt-1">${escapeHtml(subtitle)}</div>` : ''}
           </div>
           <button type="button" class="${closeClass}" ${closeAttr} aria-label="${escapeHtml(closeAriaLabel)}" id="${escapeHtml(closeId)}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">

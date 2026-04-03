@@ -235,8 +235,8 @@ function buildFormBodyMarkup(connection = null, modalState = {}) {
               </svg>
             </button>
           </div>
-          <div data-account-connection-test-message class="mt-1 text-[11px] text-gray-400"></div>
-          <div id="modal-conn-url-hint" class="mt-1 text-[11px] text-gray-400">${isCompatibleProviderType(providerType) ? 'Required for compatible providers.' : 'Uses the built-in default if left blank.'}</div>
+          <div data-account-connection-test-message class="mt-1 text-[11px] text-gray-500"></div>
+          <div id="modal-conn-url-hint" class="mt-1 text-[11px] text-gray-500">${isCompatibleProviderType(providerType) ? 'Required for compatible providers.' : 'Uses the built-in default if left blank.'}</div>
         </label>
         <label class="block">
           <div id="modal-conn-key-label" class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">API Key *</div>
@@ -248,7 +248,7 @@ function buildFormBodyMarkup(connection = null, modalState = {}) {
             placeholder="${hasKey ? 'Leave blank to keep current key' : 'Enter API key'}"
             autocomplete="new-password"
           />
-          <div class="mt-1 text-[11px] text-gray-400">${hasKey ? 'A key is already saved. Leave this blank to keep it.' : 'Optional for providers that do not require a key.'}</div>
+          <div class="mt-1 text-[11px] text-gray-500">${hasKey ? 'A key is already saved. Leave this blank to keep it.' : 'Optional for providers that do not require a key.'}</div>
         </label>
       </div>
 
@@ -260,14 +260,14 @@ function buildFormBodyMarkup(connection = null, modalState = {}) {
           class="w-full rounded-xl border border-gray-200 px-4 py-2.5 font-mono text-xs outline-none focus:ring-1 focus:ring-gray-300"
           placeholder='{"X-Custom-Header":"value"}'
         >${escapeHtml(headersValue)}</textarea>
-        <div class="mt-1 text-[11px] text-gray-400">Leave blank to keep existing headers. Use valid JSON when editing them.</div>
+        <div class="mt-1 text-[11px] text-gray-500">Leave blank to keep existing headers. Use valid JSON when editing them.</div>
       </label>
 
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1">
           <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">API Type</label>
           <div id="modal-conn-api-type-label" class="text-sm text-gray-900">${apiType.label}</div>
-          <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-400">${apiType.endpoint}</div>
+          <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-500">${apiType.endpoint}</div>
         </div>
         <div class="space-y-1">
           <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Provider</label>
@@ -278,7 +278,7 @@ function buildFormBodyMarkup(connection = null, modalState = {}) {
       <div class="space-y-2" id="modal-models-section">
         <div class="flex items-center justify-between">
           <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Models</label>
-          <div class="flex items-center gap-2 text-[11px] text-gray-400">
+          <div class="flex items-center gap-2 text-[11px] text-gray-500">
             <button type="button" id="modal-models-select-all" class="px-2 py-1 rounded-md hover:bg-gray-50">All</button>
             <button type="button" id="modal-models-select-none" class="px-2 py-1 rounded-md hover:bg-gray-50">None</button>
           </div>
@@ -296,7 +296,7 @@ function buildFormBodyMarkup(connection = null, modalState = {}) {
         <div id="modal-models-list" class="rounded-2xl border border-gray-100 bg-white max-h-48 overflow-y-auto scrollbar-hidden text-sm">
           ${buildModalModelsListMarkup(models, query, selection, Boolean(modalState.loadingModels), modalState.modelsError || '')}
         </div>
-        <div id="modal-models-status" class="text-[11px] text-gray-400"></div>
+        <div id="modal-models-status" class="text-[11px] text-gray-500"></div>
       </div>
 
       <div data-account-connection-form-error class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
@@ -323,10 +323,10 @@ function buildListCard(connection, canManageConnections = true) {
           <div class="text-xs font-medium text-gray-900">${escapeHtml(connection.name || providerLabel)}</div>
           ${renderSummaryPill('Personal', 'green')}
         </div>
-        <div class="text-[10px] text-gray-400 font-mono">${escapeHtml(baseUrl)}</div>
-        <div class="text-[10px] text-gray-400 mt-0.5">${escapeHtml(providerLabel)}</div>
+        <div class="text-[10px] text-gray-500 font-mono">${escapeHtml(baseUrl)}</div>
+        <div class="text-[10px] text-gray-500 mt-0.5">${escapeHtml(providerLabel)}</div>
         <div class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${connection.enabled === false ? '' : 'hidden'}">Disabled</div>
-        ${readOnlyText ? `<div class="text-[10px] text-gray-400 mt-0.5">${escapeHtml(readOnlyText)}</div>` : ''}
+        ${readOnlyText ? `<div class="text-[10px] text-gray-500 mt-0.5">${escapeHtml(readOnlyText)}</div>` : ''}
       </div>
       <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
         <button

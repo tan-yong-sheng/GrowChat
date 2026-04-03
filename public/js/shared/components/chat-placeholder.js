@@ -61,10 +61,10 @@ export function renderPlaceholder(container, options = {}) {
 
              <div class="mb-10">
                <h1 class="text-4xl font-semibold mb-3 text-gray-900 tracking-tight font-primary max-w-[600px]">How can I help you today?</h1>
-               <div class="flex items-center justify-center gap-2 text-gray-500 text-sm font-medium">
+               <div class="flex items-center justify-center gap-2 text-gray-600 text-sm font-medium">
                   <span id="welcome-model-name" class="px-2 py-0.5 rounded-lg bg-gray-100 text-gray-700">${modelName}</span>
                   <span>&middot;</span>
-                  <span id="welcome-model-desc">${modelDesc}</span>
+                  <span id="welcome-model-desc" class="text-gray-700">${modelDesc}</span>
                </div>
              </div>
 
@@ -84,7 +84,7 @@ export function renderPlaceholder(container, options = {}) {
     const grid = container.querySelector('#welcome-suggestions-grid');
     if (grid) {
       grid.innerHTML = displayed.length > 0 ? displayed.map((s) => `
-        <button class="suggestion-btn group p-5 border border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 rounded-2xl text-left transition-all duration-200 active:scale-[0.98] shadow-sm hover:shadow-md bg-white">
+        <button class="suggestion-btn group p-5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-2xl text-left transition-all duration-200 active:scale-[0.98] shadow-md hover:shadow-lg bg-white">
            <div class="font-semibold text-[15px] text-gray-800 group-hover:text-black transition-colors mb-1">${s.title}</div>
            <div class="text-gray-500 text-sm transition-colors group-hover:text-gray-600 line-clamp-2">${s.subtitle}</div>
         </button>

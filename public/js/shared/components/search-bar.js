@@ -14,24 +14,25 @@ export function renderSearchBarHtml({
   clearId,
   clearButtonId,
   clearHidden = true,
-  wrapperClass = 'flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30 w-full sm:w-80 lg:w-64 min-w-0',
-  inputClass = 'w-full min-w-0 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400',
+  wrapperClass = 'flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30 w-full sm:w-80 lg:w-64 min-w-0 focus-within:ring-1 focus-within:ring-gray-200',
+  inputClass = 'w-full min-w-0 text-sm outline-none bg-transparent text-gray-700 placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
 } = {}) {
   return `
     <div class="${wrapperClass}">
-      <div class="flex-shrink-0 text-gray-400">
+      <div class="flex-shrink-0 text-gray-500">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
           <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
         </svg>
       </div>
       <input
+        type="text"
         class="${inputClass}"
         placeholder="${escapeHtml(placeholder)}"
         id="${escapeHtml(inputId)}"
         value="${escapeHtml(value)}"
       >
       <div id="${escapeHtml(clearId)}" class="${clearHidden ? 'hidden' : ''} ml-1.5">
-        <button type="button" id="${escapeHtml(clearButtonId || `${clearId}-btn`)}" class="p-0.5 rounded-full hover:bg-gray-200 transition" aria-label="Clear search">
+        <button type="button" id="${escapeHtml(clearButtonId || `${clearId}-btn`)}" class="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-gray-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white" aria-label="Clear search">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-3">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>

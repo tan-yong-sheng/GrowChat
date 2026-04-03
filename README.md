@@ -103,7 +103,7 @@ Open `http://localhost:8787` in your browser.
 
 ## Architecture
 
-See [AGENTS.md](./AGENTS.md) for detailed architecture documentation.
+See [AGENTS.md](./AGENTS.md) for detailed architecture documentation and [ADR 003](./docs/adr/003-workspace-settings-boundaries.md) for the shared workspace settings boundary split.
 
 ### Core Components
 

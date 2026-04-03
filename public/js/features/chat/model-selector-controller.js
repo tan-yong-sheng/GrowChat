@@ -68,14 +68,14 @@ export function createModelSelectorController(container) {
     const buttons = listContainer.querySelectorAll('button[data-model-id]');
     if (!buttons.length) return;
     buttons.forEach((el) => {
-      el.classList.remove('ring-2', 'ring-black/40', 'bg-gray-100', 'text-gray-900');
+      el.classList.remove('ring-2', 'ring-black/40', 'bg-gray-100', 'text-gray-900', 'font-semibold', 'shadow-sm');
       el.removeAttribute('data-active');
     });
     const activeModel = visibleModels[activeIndex];
     if (!activeModel) return;
     const activeEl = listContainer.querySelector(`button[data-model-id="${activeModel.id}"]`);
     if (!activeEl) return;
-    activeEl.classList.add('ring-2', 'ring-black/40', 'bg-gray-100', 'text-gray-900');
+    activeEl.classList.add('ring-2', 'ring-black/40', 'bg-gray-100', 'text-gray-900', 'font-semibold', 'shadow-sm');
     activeEl.setAttribute('data-active', 'true');
     if (scroll) activeEl.scrollIntoView({ block: 'nearest' });
   };
@@ -85,9 +85,8 @@ export function createModelSelectorController(container) {
     if (previousId) {
       const oldEl = listContainer.querySelector(`button[data-model-id="${previousId}"]`);
       if (oldEl) {
-        oldEl.classList.remove('bg-gray-50', 'text-gray-900', 'font-bold');
+        oldEl.classList.remove('bg-gray-100', 'text-gray-900', 'font-bold', 'font-semibold', 'ring-1', 'ring-gray-200', 'shadow-sm');
         oldEl.classList.add('hover:bg-gray-50', 'text-gray-700');
-        oldEl.setAttribute('aria-selected', 'false');
         const icon = oldEl.querySelector('svg');
         if (icon) icon.remove();
       }
@@ -96,9 +95,8 @@ export function createModelSelectorController(container) {
     if (!nextId) return;
     const newEl = listContainer.querySelector(`button[data-model-id="${nextId}"]`);
     if (newEl) {
-      newEl.classList.add('bg-gray-50', 'text-gray-900', 'font-bold');
+      newEl.classList.add('bg-gray-100', 'text-gray-900', 'font-semibold', 'ring-1', 'ring-gray-200', 'shadow-sm');
       newEl.classList.remove('hover:bg-gray-50', 'text-gray-700');
-      newEl.setAttribute('aria-selected', 'true');
       if (!newEl.querySelector('svg')) {
         newEl.insertAdjacentHTML('beforeend', '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>');
       }

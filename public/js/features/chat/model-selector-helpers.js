@@ -66,7 +66,7 @@ export function renderModelSelectorOption(model, currentState) {
   const scopeLabel = getModelScopeLabel(model);
   const scopeBadgeClass = getModelScopeBadgeClass(model);
   return `
-    <button class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${isSelected ? 'bg-gray-50 text-gray-900 font-bold' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${model.id}" role="option" aria-selected="${isSelected}">
+    <button class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${isSelected ? 'bg-gray-100 text-gray-900 font-semibold ring-1 ring-gray-200 shadow-sm' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${model.id}" role="option" aria-selected="${isSelected}">
       <div class="flex items-center gap-2">
         <div class="w-6 h-6 rounded-lg bg-white border border-gray-100 flex items-center justify-center overflow-hidden shadow-sm">
           <img src="/logo.png" alt="" class="w-4 h-4 object-contain opacity-70" />

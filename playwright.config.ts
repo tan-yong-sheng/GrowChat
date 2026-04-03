@@ -25,7 +25,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: 'tests/e2e/fixtures/auth-state.json',
       },
-      testMatch: [/chat\.spec\.ts/, /realtime\.spec\.ts/, /ui-logic\.spec\.ts/, /visual\.spec\.ts/, /models-settings\.spec\.ts/, /admin-settings\.spec\.ts/, /admin-users\.spec\.ts/, /admin-policies\.spec\.ts/],
+      testMatch: [/chat\.spec\.ts/, /realtime\.spec\.ts/, /ui-logic\.spec\.ts/, /visual\.spec\.ts/, /models-settings\.spec\.ts/, /admin-settings\.spec\.ts/, /admin-users\.spec\.ts/, /admin-policies\.spec\.ts/, /qa-settings-crud\.spec\.ts/, /qa-validation\.spec\.ts/, /validate-settings\.spec\.ts/],
     },
     {
       name: 'mobile-auth',
@@ -33,7 +33,7 @@ export default defineConfig({
         ...devices['Pixel 5'],
         storageState: 'tests/e2e/fixtures/auth-state.json',
       },
-      testMatch: [/ui-logic\.spec\.ts/, /visual\.spec\.ts/],
+      testMatch: [/ui-logic\.spec\.ts/, /visual\.spec\.ts/, /mobile-responsiveness\.spec\.ts/, /mobile-fixes\.spec\.ts/],
     },
     {
       name: 'debug',

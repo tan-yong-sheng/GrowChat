@@ -42,7 +42,9 @@ describe('chat message list html builder', () => {
           done: true,
         },
       ],
-      roundsByMessageId: new Map(),
+      roundsByMessageId: new Map([
+        ['a-1', { total: 2, index: 1, prevId: 'a-0', nextId: null }],
+      ]),
       state: {
         activeChatId: 'chat-1',
         models: [{ id: 'gpt-5', name: 'GPT-5' }],
@@ -68,6 +70,10 @@ describe('chat message list html builder', () => {
       expect(html).toContain('assistant body');
       expect(html).toContain('hello &lt;world&gt;');
       expect(html).toContain('Source: cite-123');
+      expect(html).toContain('aria-label="Edit message"');
+      expect(html).toContain('aria-label="Copy message"');
+      expect(html).toContain('aria-label="Regenerate response"');
+      expect(html).toContain('aria-label="Delete message"');
     } finally {
       globalThis.document = originalDocument;
     }

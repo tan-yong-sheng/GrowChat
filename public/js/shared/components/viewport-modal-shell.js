@@ -4,7 +4,7 @@ const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border 
 const DEFAULT_HEADER_CLASS = 'shrink-0';
 const DEFAULT_BODY_CLASS = 'overflow-y-auto flex-1 min-h-0';
 const DEFAULT_FOOTER_CLASS = 'shrink-0';
-const DEFAULT_CLOSE_CLASS = 'p-2 rounded-full hover:bg-gray-100 transition';
+const DEFAULT_CLOSE_CLASS = 'inline-flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -48,7 +48,7 @@ export function buildViewportModalShellMarkup({
     <div class="flex items-start justify-between gap-4 p-4 sm:p-5 border-b border-gray-100">
       <div class="flex flex-col min-w-0">
         ${title ? `<h2 class="text-xl font-bold text-gray-800 truncate" id="${escapeHtml(ariaLabelledBy)}">${escapeHtml(title)}</h2>` : ''}
-        ${subtitle ? `<p class="text-xs text-gray-400">${escapeHtml(subtitle)}</p>` : ''}
+        ${subtitle ? `<p class="text-xs text-gray-600">${escapeHtml(subtitle)}</p>` : ''}
       </div>
       <button id="${escapeHtml(closeId)}" class="${closeClass}" aria-label="${escapeHtml(closeAriaLabel)}">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -63,7 +63,7 @@ export function buildViewportModalShellMarkup({
       <div class="${overlayClass}" id="${escapeHtml(overlayId)}" aria-hidden="true"></div>
       <div class="${shellClass}">
         <div class="${headerClass}">${headerMarkup}</div>
-        <div class="${bodyClass}">${body}</div>
+        <div class="${bodyClass}" data-viewport-modal-body>${body}</div>
         ${footer ? `<div class="${footerClass}">${footer}</div>` : ''}
       </div>
     </div>
@@ -79,6 +79,6 @@ export function createViewportModalShell(options = {}) {
     modal: rendered,
     overlay: rendered.querySelector(`#${escapeSelector(options.overlayId || 'modal-overlay')}`),
     closeBtn: rendered.querySelector(`#${escapeSelector(options.closeId || 'close-modal')}`),
-    bodyEl: rendered.querySelector('.overflow-y-auto.flex-1,.overflow-y-auto'),
+    bodyEl: rendered.querySelector('[data-viewport-modal-body]'),
   };
 }

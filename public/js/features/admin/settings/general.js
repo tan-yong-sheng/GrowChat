@@ -51,7 +51,7 @@ export function renderGeneralSettings(container, data) {
       <select id="${id}" aria-label="${ariaLabel || id}" class="w-full appearance-none bg-transparent pr-8 text-sm text-gray-900 outline-none">
         ${optionsHtml}
       </select>
-      <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400">
+      <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-500">
         <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.942l3.71-3.71a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08Z" clip-rule="evenodd" />
       </svg>
     </div>
@@ -80,14 +80,14 @@ export function renderGeneralSettings(container, data) {
               
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">App Title</div>
-                <input id="app-title" type="text" value="${settingsState.currentValues.title}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-400 placeholder-gray-400 cursor-not-allowed" placeholder="Set via deployment config" disabled>
+                <input id="app-title" type="text" value="${settingsState.currentValues.title}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-500 placeholder-gray-500 cursor-not-allowed" placeholder="Set via deployment config" disabled>
                 <div class="text-[10px] text-gray-400 mt-1">Managed in server configuration.</div>
               </div>
 
               <div class="py-2.5 flex items-center justify-between pr-2">
                 <div class="flex flex-col">
                   <div class="text-xs font-medium">Public Registration</div>
-                  <div id="public-reg-status" class="text-[10px] text-gray-400">${toggleState.statusText}</div>
+                  <div id="public-reg-status" class="text-[10px] text-gray-500">${toggleState.statusText}</div>
                 </div>
                 <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toggleState.toggleClass}">
                   <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${toggleState.knobTransform};"></span>
@@ -100,7 +100,7 @@ export function renderGeneralSettings(container, data) {
                   <option value="active" ${settingsState.currentValues.registrationStatus === 'active' ? 'selected' : ''}>Active</option>
                   <option value="pending" ${settingsState.currentValues.registrationStatus !== 'active' ? 'selected' : ''}>Pending</option>
                 `, { ariaLabel: 'Registration Status' })}
-                <div id="registration-status-hint" class="text-[10px] text-gray-400 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
+                <div id="registration-status-hint" class="text-[10px] text-gray-500 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
               </div>
             </section>
 

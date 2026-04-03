@@ -30,6 +30,14 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function escapeSelector(value) {
+  const raw = String(value ?? '');
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(raw);
+  }
+  return raw.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
+
 function normalizeTool(tool = {}) {
   const name = String(tool.name || tool.id || tool.title || '').trim();
   if (!name) return null;

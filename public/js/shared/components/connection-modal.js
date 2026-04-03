@@ -92,12 +92,12 @@ export function buildConnectionModalBodyMarkup({
 
   return `
     <div class="space-y-1">
-      <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Name</label>
+      <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Name</label>
       <input id="modal-conn-name" type="text" value="${escapeHtml(name)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedNamePlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
     </div>
 
     <div class="space-y-1">
-      <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(resolvedProviderType))}</label>
+      <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(resolvedProviderType))}</label>
       <div class="flex items-center gap-2">
         <input id="modal-conn-url" type="text" value="${escapeHtml(url)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedUrlPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
         ${showTestButton ? `<button type="button" id="test-connection" class="p-1 text-gray-400 hover:text-gray-600${testHiddenClass}${disabledControlClass}" title="Test connection"${disabledAttr}>
@@ -111,7 +111,7 @@ export function buildConnectionModalBodyMarkup({
     </div>
 
     <div class="space-y-1">
-      <label id="modal-conn-key-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(resolveKeyLabel())}</label>
+      <label id="modal-conn-key-label" class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">${escapeHtml(resolveKeyLabel())}</label>
       <div class="flex items-center gap-3">
         <div class="flex-1 relative">
           <input id="modal-conn-key" type="password" value="${escapeHtml(keyValue)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="${escapeHtml(resolvedKeyPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
@@ -124,13 +124,13 @@ export function buildConnectionModalBodyMarkup({
     </div>
 
     <div class="space-y-1">
-      <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Headers</label>
+      <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Headers</label>
       <textarea id="modal-conn-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none${disabledControlClass}" placeholder="Enter additional headers in JSON format" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>${escapeHtml(headers)}</textarea>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
       <div class="space-y-1">
-        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Provider Type</label>
+        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Provider Type</label>
         <select id="modal-conn-provider" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900${disabledControlClass}"${disabledAttr}>
           <option value="openai"${resolvedProviderType === 'openai' ? ' selected' : ''}>OpenAI</option>
           <option value="openai-compatible"${resolvedProviderType === 'openai-compatible' ? ' selected' : ''}>OpenAI Compatible</option>
@@ -142,7 +142,7 @@ export function buildConnectionModalBodyMarkup({
         <div id="modal-conn-provider-hint" class="text-[11px] text-gray-400">${escapeHtml(resolvedProviderHint)}</div>
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">API Type</label>
+        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">API Type</label>
         <div id="modal-conn-api-type-label" class="text-sm text-gray-900">${escapeHtml(resolvedApiType.label)}</div>
         <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-400">${escapeHtml(resolvedApiType.endpoint)}</div>
       </div>
@@ -150,7 +150,7 @@ export function buildConnectionModalBodyMarkup({
 
     <div class="space-y-2" id="modal-models-section">
       <div class="flex items-center justify-between">
-        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(modelSectionTitle)}</label>
+        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">${escapeHtml(modelSectionTitle)}</label>
         <div class="flex items-center gap-2 text-[11px] text-gray-400">
           <button type="button" id="modal-models-select-all" class="px-2 py-1 rounded-md hover:bg-gray-50">All</button>
           <button type="button" id="modal-models-select-none" class="px-2 py-1 rounded-md hover:bg-gray-50">None</button>
@@ -267,12 +267,12 @@ export function buildConnectionModalMarkup({
 
         <div class="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hidden">
           <div class="space-y-1">
-            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Name</label>
+            <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Name</label>
             <input id="modal-conn-name" type="text" value="${escapeHtml(resolvedName)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="e.g. ${escapeHtml(adminProviderDisplayLabel(providerType))}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
           </div>
 
           <div class="space-y-1">
-            <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(providerType))}</label>
+            <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(providerType))}</label>
             <div class="flex items-center gap-2">
               <input id="modal-conn-url" type="text" value="${escapeHtml(resolvedUrl)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(adminProviderUrlPlaceholder(providerType))}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
               <button id="test-connection" class="p-1 text-gray-400 hover:text-gray-600${testHiddenClass}${disabledControlClass}" title="Test connection"${disabledAttr}>
@@ -286,7 +286,7 @@ export function buildConnectionModalMarkup({
           </div>
 
           <div class="space-y-1">
-            <label id="modal-conn-key-label" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${escapeHtml(resolveKeyLabel())}</label>
+            <label id="modal-conn-key-label" class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">${escapeHtml(resolveKeyLabel())}</label>
             <div class="flex items-center gap-3">
               <div class="flex-1 relative">
                 <input id="modal-conn-key" type="password" value="" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="${hasKey ? 'Leave blank to keep current key' : 'Enter API key'}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
@@ -299,13 +299,13 @@ export function buildConnectionModalMarkup({
           </div>
 
           <div class="space-y-1">
-            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Headers</label>
+            <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Headers</label>
             <textarea id="modal-conn-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none${disabledControlClass}" placeholder="Enter additional headers in JSON format" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>${escapeHtml(resolvedHeaders)}</textarea>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1">
-              <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Provider Type</label>
+              <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Provider Type</label>
               <select id="modal-conn-provider" class="w-full bg-transparent border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-900${disabledControlClass}"${disabledAttr}>
                 <option value="openai"${providerType === 'openai' ? ' selected' : ''}>OpenAI</option>
                 <option value="openai-compatible"${providerType === 'openai-compatible' ? ' selected' : ''}>OpenAI Compatible</option>
@@ -317,7 +317,7 @@ export function buildConnectionModalMarkup({
               <div id="modal-conn-provider-hint" class="text-[11px] text-gray-400">${escapeHtml(adminProviderDisplayLabel(providerType))}</div>
             </div>
             <div class="space-y-1">
-              <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">API Type</label>
+              <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">API Type</label>
               <div id="modal-conn-api-type-label" class="text-sm text-gray-900">${escapeHtml(apiType.label)}</div>
               <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-400">${escapeHtml(apiType.endpoint)}</div>
             </div>
@@ -325,7 +325,7 @@ export function buildConnectionModalMarkup({
 
           <div class="space-y-2" id="modal-models-section">
             <div class="flex items-center justify-between">
-              <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Models</label>
+              <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Models</label>
               <div class="flex items-center gap-2 text-[11px] text-gray-400">
                 <button type="button" id="modal-models-select-all" class="px-2 py-1 rounded-md hover:bg-gray-50">All</button>
                 <button type="button" id="modal-models-select-none" class="px-2 py-1 rounded-md hover:bg-gray-50">None</button>

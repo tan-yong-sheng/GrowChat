@@ -39,6 +39,7 @@ describe('model selector', () => {
     const destroy = renderModelSelector(container);
 
     expect(container.textContent).toContain('GPT Mini');
+    expect(container.querySelector('#model-selector-btn').getAttribute('aria-label')).toBe('Select model');
 
     destroy();
   });

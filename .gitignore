@@ -14,11 +14,16 @@ opencode/
 generative-ui-demo/
 ClawRouter/
 
+artifacts/
 .dev-server.log
+tmp-dev.err.log
+tmp-dev.out.log
 .ona/
 .playwright/
 .playwright-cli/
 .playwright-artifacts/
+playwright-report-debug/
+tests/e2e/artifacts/
 # Ignore all .claude/ contents by default
 
 auth.json
@@ -46,6 +51,7 @@ policies.yml
 !.claude/rules/
 !.claude/memory/
 !.claude/plans/
+!.claude/plugins/
 
 !.codex/agents/
 !.codex/skills/
