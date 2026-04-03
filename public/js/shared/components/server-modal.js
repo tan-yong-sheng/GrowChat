@@ -52,7 +52,7 @@ export function buildMcpServerModalMarkup({
       <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
         <div class="px-6 pt-6 pb-4 flex justify-between items-center">
           <h3 id="server-modal-title" class="text-lg font-medium text-gray-900">${modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server'}</h3>
-          <button id="close-modal" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+          <button id="close-modal" class="p-1 text-gray-600 hover:text-gray-700 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -61,7 +61,7 @@ export function buildMcpServerModalMarkup({
 
         <div class="px-6 py-4 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hidden">
           <div class="space-y-1">
-            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Server Name</label>
+            <label class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Server Name</label>
             <input id="server-name" type="text" value="${escapeHtml(server?.name || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="e.g. Default Tool Server" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
           </div>
 
@@ -75,7 +75,7 @@ export function buildMcpServerModalMarkup({
                 </svg>
               </button>
             </div>
-            <div id="server-test-message" class="text-[11px] text-gray-400 hidden"></div>
+            <div id="server-test-message" class="text-[11px] text-gray-600 hidden"></div>
           </div>
 
           <div class="space-y-1">
@@ -90,7 +90,7 @@ export function buildMcpServerModalMarkup({
             <div class="flex items-center gap-3">
               <div class="flex-1 relative">
                 <input id="server-auth-bearer" type="password" value="${escapeHtml(server?.auth_bearer_token || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="Bearer token" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
-                <button id="toggle-bearer-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 hover:text-gray-600${disabledControlClass}" aria-label="Show bearer token"${disabledAttr}>
+                <button id="toggle-bearer-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-600 hover:text-gray-700${disabledControlClass}" aria-label="Show bearer token"${disabledAttr}>
                   <span data-password-toggle-label>Show</span>
                 </button>
               </div>
@@ -107,7 +107,7 @@ export function buildMcpServerModalMarkup({
               <div class="flex items-center gap-3">
                 <div class="flex-1 relative">
                   <input id="server-auth-basic-password" type="password" value="${escapeHtml(server?.auth_basic_password || '')}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="Password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
-                  <button id="toggle-basic-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 hover:text-gray-600${disabledControlClass}" aria-label="Show password"${disabledAttr}>
+                  <button id="toggle-basic-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-600 hover:text-gray-700${disabledControlClass}" aria-label="Show password"${disabledAttr}>
                     <span data-password-toggle-label>Show</span>
                   </button>
                 </div>
@@ -143,9 +143,9 @@ export function buildMcpServerModalMarkup({
             </div>
             <div class="flex items-center gap-3">
               <button id="connect-oauth" class="px-4 py-1.5 text-xs font-medium text-white bg-black hover:bg-gray-900 transition rounded-full${disabledControlClass}"${disabledAttr}>Connect OAuth</button>
-              <div id="oauth-status" class="text-[11px] text-gray-500">${server?.oauth_connected ? 'Connected' : 'Not connected'}</div>
+              <div id="oauth-status" class="text-[11px] text-gray-600">${server?.oauth_connected ? 'Connected' : 'Not connected'}</div>
             </div>
-            <div class="text-[11px] text-gray-400">OAuth requires saving the server first.</div>
+            <div class="text-[11px] text-gray-600">OAuth requires saving the server first.</div>
           </div>
 
           <div class="space-y-1">
