@@ -93,13 +93,13 @@ export function buildConnectionModalBodyMarkup({
   return `
     <div class="space-y-1">
       <label class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Name</label>
-      <input id="modal-conn-name" type="text" value="${escapeHtml(name)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedNamePlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+      <input id="modal-conn-name" type="text" value="${escapeHtml(name)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedNamePlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Name"${disabledAttr}>
     </div>
 
     <div class="space-y-1">
       <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(resolvedProviderType))}</label>
       <div class="flex items-center gap-2">
-        <input id="modal-conn-url" type="text" value="${escapeHtml(url)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedUrlPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+        <input id="modal-conn-url" type="text" value="${escapeHtml(url)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(resolvedUrlPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="URL"${disabledAttr}>
         ${showTestButton ? `<button type="button" id="test-connection" class="p-1 text-gray-600 hover:text-gray-700${testHiddenClass}${disabledControlClass}" title="Test connection"${disabledAttr}>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path>
@@ -114,7 +114,7 @@ export function buildConnectionModalBodyMarkup({
       <label id="modal-conn-key-label" class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">${escapeHtml(resolveKeyLabel())}</label>
       <div class="flex items-center gap-3">
         <div class="flex-1 relative">
-          <input id="modal-conn-key" type="password" value="${escapeHtml(keyValue)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="${escapeHtml(resolvedKeyPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
+          <input id="modal-conn-key" type="password" value="${escapeHtml(keyValue)}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="${escapeHtml(resolvedKeyPlaceholder)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="API Key"${disabledAttr}>
           <button type="button" id="toggle-key-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-600 hover:text-gray-700${disabledControlClass}" aria-label="Show key"${disabledAttr}>
             <span data-password-toggle-label>Show</span>
           </button>
@@ -125,7 +125,7 @@ export function buildConnectionModalBodyMarkup({
 
     <div class="space-y-1">
       <label class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Headers</label>
-      <textarea id="modal-conn-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none${disabledControlClass}" placeholder="Enter additional headers in JSON format" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>${escapeHtml(headers)}</textarea>
+      <textarea id="modal-conn-headers" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 min-h-[60px] resize-none${disabledControlClass}" placeholder="Enter additional headers in JSON format" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" aria-label="Headers"${disabledAttr}>${escapeHtml(headers)}</textarea>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
