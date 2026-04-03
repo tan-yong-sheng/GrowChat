@@ -198,7 +198,7 @@ export function buildConnectionModalModelsMarkup(models = [], query = '', select
       ? '<span class="ml-2 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">Manual</span>'
       : '';
     const description = model.description
-      ? `<div class="text-[10px] text-gray-400 mt-0.5">${escapeHtml(model.description)}</div>`
+      ? `<div class="text-[10px] text-gray-700 mt-0.5">${escapeHtml(model.description)}</div>`
       : '';
     return `
       <label class="flex items-center gap-3 px-4 py-2 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50">
@@ -208,7 +208,7 @@ export function buildConnectionModalModelsMarkup(models = [], query = '', select
             ${escapeHtml(model.name || model.id)}
             ${manualBadge}
           </div>
-          <div class="truncate text-[10px] text-gray-400 font-mono">${escapeHtml(model.id)}</div>
+          <div class="truncate text-[10px] text-gray-700 font-mono">${escapeHtml(model.id)}</div>
           ${description}
         </div>
       </label>
@@ -258,7 +258,7 @@ export function buildConnectionModalMarkup({
       <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
         <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-gray-50">
           <h3 id="modal-title" class="text-lg font-medium text-gray-900">${escapeHtml(title)}</h3>
-          <button id="close-modal" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+          <button id="close-modal" class="p-1 text-gray-600 hover:text-gray-700 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -272,17 +272,17 @@ export function buildConnectionModalMarkup({
           </div>
 
           <div class="space-y-1">
-            <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(providerType))}</label>
+            <label id="modal-conn-url-label" class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">${escapeHtml(resolveUrlLabel(providerType))}</label>
             <div class="flex items-center gap-2">
               <input id="modal-conn-url" type="text" value="${escapeHtml(resolvedUrl)}" class="flex-1 bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400${disabledControlClass}" placeholder="${escapeHtml(adminProviderUrlPlaceholder(providerType))}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
-              <button id="test-connection" class="p-1 text-gray-400 hover:text-gray-600${testHiddenClass}${disabledControlClass}" title="Test connection"${disabledAttr}>
+              <button id="test-connection" class="p-1 text-gray-600 hover:text-gray-700${testHiddenClass}${disabledControlClass}" title="Test connection"${disabledAttr}>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path>
                 </svg>
               </button>
             </div>
-            <div id="connection-test-message" class="text-[11px] text-gray-400${testHiddenClass}"${testMessageAttrs}></div>
-            <div id="modal-conn-url-hint" class="text-[11px] text-gray-400">${isCompatibleProviderType(providerType) ? 'Required for compatible providers.' : 'Uses the built-in default if left blank.'}</div>
+            <div id="connection-test-message" class="text-[11px] text-gray-700${testHiddenClass}"${testMessageAttrs}></div>
+            <div id="modal-conn-url-hint" class="text-[11px] text-gray-700">${isCompatibleProviderType(providerType) ? 'Required for compatible providers.' : 'Uses the built-in default if left blank.'}</div>
           </div>
 
           <div class="space-y-1">
@@ -290,12 +290,12 @@ export function buildConnectionModalMarkup({
             <div class="flex items-center gap-3">
               <div class="flex-1 relative">
                 <input id="modal-conn-key" type="password" value="" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-900 placeholder-gray-400 pr-8${disabledControlClass}" placeholder="${hasKey ? 'Leave blank to keep current key' : 'Enter API key'}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
-                <button id="toggle-key-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400 hover:text-gray-600${disabledControlClass}" aria-label="Show key"${disabledAttr}>
+                <button id="toggle-key-visibility" class="absolute right-0 top-1/2 -translate-y-1/2 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-600 hover:text-gray-700${disabledControlClass}" aria-label="Show key"${disabledAttr}>
                   <span data-password-toggle-label>Show</span>
                 </button>
               </div>
             </div>
-            <div class="mt-1 text-[11px] text-gray-400">${hasKey ? 'A key is already saved. Leave this blank to keep it.' : 'Optional for providers that do not require a key.'}</div>
+            <div class="mt-1 text-[11px] text-gray-700">${hasKey ? 'A key is already saved. Leave this blank to keep it.' : 'Optional for providers that do not require a key.'}</div>
           </div>
 
           <div class="space-y-1">
@@ -314,18 +314,18 @@ export function buildConnectionModalMarkup({
                 <option value="anthropic"${providerType === 'anthropic' ? ' selected' : ''}>Claude</option>
                 <option value="claude-compatible"${providerType === 'claude-compatible' ? ' selected' : ''}>Claude Compatible</option>
               </select>
-              <div id="modal-conn-provider-hint" class="text-[11px] text-gray-400">${escapeHtml(adminProviderDisplayLabel(providerType))}</div>
+              <div id="modal-conn-provider-hint" class="text-[11px] text-gray-700">${escapeHtml(adminProviderDisplayLabel(providerType))}</div>
             </div>
             <div class="space-y-1">
               <label class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">API Type</label>
               <div id="modal-conn-api-type-label" class="text-sm text-gray-900">${escapeHtml(apiType.label)}</div>
-              <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-400">${escapeHtml(apiType.endpoint)}</div>
+              <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-700">${escapeHtml(apiType.endpoint)}</div>
             </div>
           </div>
 
           <div class="space-y-2" id="modal-models-section">
             <div class="flex items-center justify-between">
-              <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Models</label>
+              <label class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Models</label>
               <div class="flex items-center gap-2 text-[11px] text-gray-600">
                 <button type="button" id="modal-models-select-all" class="px-2 py-1 rounded-md hover:bg-gray-50">All</button>
                 <button type="button" id="modal-models-select-none" class="px-2 py-1 rounded-md hover:bg-gray-50">None</button>
