@@ -179,10 +179,10 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
     ? 'p-1 text-gray-600 hover:text-gray-700 transition-colors'
     : 'p-1 text-gray-300 opacity-50 cursor-not-allowed';
   const isShared = scope === 'shared';
-  const sharedToggleClass = 'relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none';
+  const sharedToggleClass = 'relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none';
   const toggleClass = canManageToolServers || isShared
-    ? `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-black' : 'bg-gray-200'}`
-    : 'relative inline-flex h-5 w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
+    ? `relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-black' : 'bg-gray-200'}`
+    : 'relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
   const toggleOn = isShared ? !hiddenForUser : serverEnabled;
   const toggleLabel = isShared ? (hiddenForUser ? 'Show for me' : 'Hide for me') : (serverEnabled ? 'Disable server' : 'Enable server');
   const toolRows = tools.map((tool) => {
@@ -212,7 +212,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
               aria-pressed="${toolVisible ? 'true' : 'false'}"
               aria-label="${escapeHtml(toolVisible ? 'Hide for me' : 'Show for me')}"
               title="${escapeHtml(toolVisible ? 'Hide for me' : 'Show for me')}"
-              class="relative inline-flex h-5 w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolVisible ? 'bg-black' : 'bg-gray-200'} ${canToggleVisibility ? '' : 'opacity-40 cursor-not-allowed'}"
+              class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolVisible ? 'bg-black' : 'bg-gray-200'} ${canToggleVisibility ? '' : 'opacity-40 cursor-not-allowed'}"
               ${canToggleVisibility ? '' : 'disabled aria-disabled="true"'}
             >
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toolVisible ? 'translate-x-4' : 'translate-x-0'}"></span>
@@ -232,7 +232,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
           <button
             data-server-id="${escapeHtml(server.id)}"
             data-tool-name="${escapeHtml(tool.name || '')}"
-            class="tool-toggle relative inline-flex h-5 w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolEnabled ? 'bg-black' : 'bg-gray-200'} ${serverEnabled && canManageToolServers ? '' : 'opacity-40 cursor-not-allowed'}"
+            class="tool-toggle relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolEnabled ? 'bg-black' : 'bg-gray-200'} ${serverEnabled && canManageToolServers ? '' : 'opacity-40 cursor-not-allowed'}"
             ${serverEnabled && canManageToolServers ? '' : 'disabled aria-disabled="true"'}
             aria-pressed="${toolEnabled ? 'true' : 'false'}"
             aria-disabled="${serverEnabled && canManageToolServers ? 'false' : 'true'}"
