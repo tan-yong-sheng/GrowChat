@@ -176,7 +176,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
   const totalCount = tools.filter((tool) => tool.enabled !== false).length;
   const enabledCount = visibleTools.length;
   const actionButtonClass = canManageToolServers
-    ? 'p-1 text-gray-400 hover:text-gray-600 transition-colors'
+    ? 'p-1 text-gray-600 hover:text-gray-700 transition-colors'
     : 'p-1 text-gray-300 opacity-50 cursor-not-allowed';
   const isShared = scope === 'shared';
   const sharedToggleClass = 'relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none';
@@ -202,7 +202,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <div class="text-xs font-medium text-gray-900">${escapeHtml(tool.title || tool.name || 'Tool')}</div>
-              <div class="text-[10px] text-gray-400 font-mono">${escapeHtml(tool.name || '')}</div>
+              <div class="text-[10px] text-gray-600 font-mono">${escapeHtml(tool.name || '')}</div>
             </div>
             <button
               type="button"
@@ -218,7 +218,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toolVisible ? 'translate-x-4' : 'translate-x-0'}"></span>
             </button>
           </div>
-          ${description ? `<div class="text-[11px] text-gray-500 mt-1">${escapeHtml(preview)}</div>` : ''}
+          ${description ? `<div class="text-[11px] text-gray-600 mt-1">${escapeHtml(preview)}</div>` : ''}
         </div>
       `;
     }
@@ -227,7 +227,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <div class="text-xs font-medium text-gray-900">${escapeHtml(tool.title || tool.name || 'Tool')}</div>
-            <div class="text-[10px] text-gray-400 font-mono">${escapeHtml(tool.name || '')}</div>
+            <div class="text-[10px] text-gray-600 font-mono">${escapeHtml(tool.name || '')}</div>
           </div>
           <button
             data-server-id="${escapeHtml(server.id)}"
@@ -243,7 +243,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
         </div>
         ${description ? `
           <div class="text-[11px] text-gray-500 mt-1">${escapeHtml(preview)}</div>
-          ${hasMore ? `<button data-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name || '')}" class="tool-desc-toggle text-[10px] text-gray-400 hover:text-gray-600 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
+          ${hasMore ? `<button data-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name || '')}" class="tool-desc-toggle text-[10px] text-gray-600 hover:text-gray-700 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
         ` : ''}
       </div>
     `;
@@ -257,9 +257,9 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
             <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${isShared ? 'border-gray-200 bg-gray-50 text-gray-500' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}">${isShared ? 'Shared' : 'Personal'}</span>
             <span data-server-disabled-badge class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${serverEnabled ? 'hidden' : ''} border-gray-200 bg-gray-100 text-gray-500">Disabled</span>
           </div>
-          <div class="text-[10px] text-gray-400 font-mono">${escapeHtml(server.url || '')}</div>
-          <div class="text-[10px] text-gray-400 mt-1">
-            Tools: <span class="text-gray-900">${enabledCount}</span> / <span class="text-gray-900">${totalCount}</span> enabled
+          <div class="text-[10px] text-gray-600 font-mono">${escapeHtml(server.url || '')}</div>
+          <div class="text-[10px] text-gray-600 mt-1">
+            Tools: <span class="text-gray-900">${serverEnabled ? enabledCount : 0}</span> / <span class="text-gray-900">${totalCount}</span> ${serverEnabled ? 'enabled' : 'available'}
             ${server.toolsError ? '<span class="text-red-500 ml-2">Last verify failed</span>' : ''}
           </div>
         </div>
@@ -282,7 +282,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
             <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toggleOn ? 'translate-x-4' : 'translate-x-0'}"></span>
           </button>
           ${tools.length ? `
-            <button data-id="${escapeHtml(server.id)}" class="tools-toggle p-1 text-gray-400 hover:text-gray-600 transition-colors ml-1" title="Toggle tools">
+            <button data-id="${escapeHtml(server.id)}" class="tools-toggle p-1 text-gray-600 hover:text-gray-700 transition-colors ml-1" title="Toggle tools">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 ${server.toolsExpanded ? 'rotate-180' : ''}">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>

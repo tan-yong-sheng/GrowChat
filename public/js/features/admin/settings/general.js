@@ -81,7 +81,7 @@ export function renderGeneralSettings(container, data) {
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">App Title</div>
                 <input id="app-title" type="text" value="${settingsState.currentValues.title}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-500 placeholder-gray-500 cursor-not-allowed" placeholder="Set via deployment config" disabled>
-                <div class="text-[10px] text-gray-400 mt-1">Managed in server configuration.</div>
+                <div class="text-[10px] text-gray-600 mt-1">Managed in server configuration.</div>
               </div>
 
               <div class="py-2.5 flex items-center justify-between pr-2">
@@ -100,7 +100,7 @@ export function renderGeneralSettings(container, data) {
                   <option value="active" ${settingsState.currentValues.registrationStatus === 'active' ? 'selected' : ''}>Active</option>
                   <option value="pending" ${settingsState.currentValues.registrationStatus !== 'active' ? 'selected' : ''}>Pending</option>
                 `, { ariaLabel: 'Registration Status' })}
-                <div id="registration-status-hint" class="text-[10px] text-gray-500 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
+                <div id="registration-status-hint" class="text-[10px] text-gray-600 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
               </div>
             </section>
 
