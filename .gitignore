@@ -24,7 +24,11 @@ tmp-dev.out.log
 .playwright-artifacts/
 playwright-report-debug/
 tests/e2e/artifacts/
-# Ignore all .claude/ contents by default
+# Ignore all local AI tool directories
+.agents/*
+.claude/*
+.codex/*
+.gemini/*
 
 auth.json
 dev-local.err.log
@@ -33,59 +37,6 @@ dev-local.out.log
 .tmpdb/
 test-results/
 policies.yml
-
-.agents/*
-.claude/*
-.codex/*
-.gemini/*
-
-# But track these specific directories - negate dirs FIRST, then contents
-!.agents/agents/
-!.agents/skills/
-!.agents/rules/
-!.agents/memory/
-!.agents/plans/
-
-!.claude/agents/
-!.claude/skills/
-!.claude/rules/
-!.claude/memory/
-!.claude/plans/
-!.claude/plugins/
-
-!.codex/agents/
-!.codex/skills/
-!.codex/rules/
-!.codex/memory/
-!.codex/plans/
-
-!.gemini/agents/
-!.gemini/skills/
-!.gemini/rules/
-!.gemini/memory/
-!.gemini/plans/
-
-
-# Now allow all files within those directories
-!.agents/skills/**
-!.agents/rules/**
-!.agents/memory/**
-!.agents/plans/**
-
-!.claude/skills/**
-!.claude/rules/**
-!.claude/memory/**
-!.claude/plans/**
-
-!.codex/skills/**
-!.codex/rules/**
-!.codex/memory/**
-!.codex/plans/**
-
-!.gemini/skills/**
-!.gemini/rules/**
-!.gemini/memory/**
-!.gemini/plans/**
 
 # Logs
 
