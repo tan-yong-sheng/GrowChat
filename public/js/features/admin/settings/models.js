@@ -54,7 +54,14 @@ export function renderModelsSettings(container, data) {
   });
   const aclDraftRegistry = createAclDraftRegistry(modelsState);
   const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};  if (data.modelsSettingsInvalidate && modelsState.invalidateToken !== data.modelsSettingsInvalidate) {
+
+  // Set up handlers for admin shell controller (no-op for immediate-save pattern)
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+  data.settingsDirtyCheckers.models = () => false;
+  data.settingsSaveHandlers.models = async () => false;
+
+  if (data.modelsSettingsInvalidate && modelsState.invalidateToken !== data.modelsSettingsInvalidate) {
     modelsState.invalidateToken = data.modelsSettingsInvalidate;
     modelsState.models = [];
     modelsState.total = 0;
