@@ -1,27 +1,39 @@
 import { apiFetch } from '../../../shared/api.js';
 import { setState } from '../../../shared/store.js';
+import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import {
   createGeneralSettingsState,
   getGeneralSettingsToggleState,
-  isGeneralSettingsDirty,
 } from './general-helpers.js';
 
 export function renderGeneralSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'general';
   const settingsState = data.generalSettings || (data.generalSettings = createGeneralSettingsState());
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
   if (data.modelsSettingsInvalidate && settingsState.modelsInvalidateToken !== data.modelsSettingsInvalidate) {
     settingsState.modelsInvalidateToken = data.modelsSettingsInvalidate;
     settingsState.models = [];
   }
 
-  const isDirty = () => isGeneralSettingsDirty(settingsState);
-  data.settingsDirtyCheckers.general = isDirty;
+  // Set up handlers for admin shell controller (no-op for immediate-save pattern)
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+  data.settingsDirtyCheckers.general = () => false;
+  data.settingsSaveHandlers.general = async () => false;
+
   let registrationStatusBox = null;
   let modelBox = null;
+
+  const showFeedback = (message, isError = false) => {
+    const feedback = container.querySelector('#settings-feedback');
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.className = isError
+      ? 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
+      : 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+    feedback.classList.remove('hidden');
+    setTimeout(() => feedback.classList.add('hidden'), 3000);
+  };
 
   const updatePublicRegToggle = () => {
     const regToggle = container.querySelector('#public-reg-toggle');
@@ -37,7 +49,6 @@ export function renderGeneralSettings(container, data) {
     const status = container.querySelector('#public-reg-status');
     if (status) status.textContent = toggleState.statusText;
     updateRegistrationStatusVisibility();
-    updateButtons();
   };
 
   const updateRegistrationStatusVisibility = () => {
@@ -59,9 +70,7 @@ export function renderGeneralSettings(container, data) {
 
   const render = () => {
     if (!isActiveTab()) return;
-    const dirty = isDirty();
     const toggleState = getGeneralSettingsToggleState(settingsState.currentValues.publicRegistration);
-    const useSharedActionFooter = Boolean(data.sharedActionFooter);
 
     container.innerHTML = `
         <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
@@ -77,7 +86,7 @@ export function renderGeneralSettings(container, data) {
           <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
             <section class="space-y-1">
               <hr class="border-gray-100/30 my-2" />
-              
+
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">App Title</div>
                 <input id="app-title" type="text" value="${settingsState.currentValues.title}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-500 placeholder-gray-500 cursor-not-allowed" placeholder="Set via deployment config" disabled>
@@ -107,176 +116,108 @@ export function renderGeneralSettings(container, data) {
             <section class="space-y-1 mt-6">
               <div class="text-base font-medium text-gray-900 px-0.5">Models</div>
               <hr class="border-gray-100/30 my-2" />
-              
+
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">Global Default Model</div>
                 ${renderSelectBox('default-model', `
                   <option value="">Select a model</option>
                   ${settingsState.models.map((m) => `<option value="${m.id}" ${settingsState.currentValues.defaultModelId === m.id ? 'selected' : ''}>${m.name || m.id}</option>`).join('')}
                 `, { ariaLabel: 'Global Default Model' })}
-                <div id="default-model-hint" class="text-[10px] text-amber-600 mt-1 hidden">Unsaved change</div>
               </div>
             </section>
 
             <div id="settings-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>
           </div>
         </div>
-
-        ${useSharedActionFooter ? '' : `
-        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
-          <div id="settings-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
-          <button id="save-settings" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${!dirty || settingsState.loading ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${!dirty || settingsState.loading ? 'disabled' : ''}>
-            ${settingsState.loading ? 'Saving...' : 'Save'}
-          </button>
-        </div>`}
       </div>
     `;
 
     bindEvents();
   };
 
-  const saveSettings = async () => {
-    if (settingsState.loading) return;
-    settingsState.loading = true;
-    updateButtons();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-
-    const feedback = container.querySelector('#settings-feedback');
-    const nextDefault = settingsState.currentValues.defaultModelId || '';
-    const prevDefault = settingsState.initialValues.defaultModelId || '';
-    const shouldUpdateDefault = nextDefault !== prevDefault;
-
-    const nextRegistrationStatus = settingsState.currentValues.registrationStatus || 'pending';
-    const prevRegistrationStatus = settingsState.initialValues.registrationStatus || 'pending';
-    const shouldUpdateRegistrationStatus = nextRegistrationStatus !== prevRegistrationStatus;
-
-    const nextPublicReg = Boolean(settingsState.currentValues.publicRegistration);
-    const prevPublicReg = Boolean(settingsState.initialValues.publicRegistration);
-    const shouldUpdatePublicReg = nextPublicReg !== prevPublicReg;
+  const updatePublicRegistration = async (newValue) => {
+    const prevValue = settingsState.currentValues.publicRegistration;
+    settingsState.currentValues.publicRegistration = newValue;
+    updatePublicRegToggle();
 
     try {
-      if (shouldUpdatePublicReg || shouldUpdateDefault || shouldUpdateRegistrationStatus) {
-        const adminUpdates = {};
-        if (shouldUpdatePublicReg) adminUpdates.public_registration = nextPublicReg;
-        if (shouldUpdateRegistrationStatus) adminUpdates.public_registration_status = nextRegistrationStatus;
-        if (shouldUpdateDefault) adminUpdates.default_model_id = nextDefault || null;
+      const res = await apiFetch('/api/admin/config', {
+        method: 'PUT',
+        body: JSON.stringify({ public_registration: newValue })
+      });
 
-        const res = await apiFetch('/api/admin/config', {
-          method: 'PUT',
-          body: JSON.stringify(adminUpdates)
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err?.error || err?.message || 'Failed to update settings');
-        }
-
-        if (shouldUpdatePublicReg) {
-          settingsState.initialValues.publicRegistration = nextPublicReg;
-          settingsState.dirtyFields.publicRegistration = false;
-        }
-
-        if (shouldUpdateRegistrationStatus) {
-          settingsState.initialValues.registrationStatus = nextRegistrationStatus;
-          settingsState.dirtyFields.registrationStatus = false;
-        }
-
-        if (shouldUpdateDefault) {
-          settingsState.initialValues.defaultModelId = nextDefault;
-          settingsState.dirtyFields.defaultModelId = false;
-          setState({ globalDefaultModelId: nextDefault || null });
-        }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || err?.message || 'Failed to update public registration');
       }
 
-      settingsState.loading = false;
-      if (feedback) {
-        if ((shouldUpdateDefault && shouldUpdatePublicReg) || shouldUpdateRegistrationStatus && (shouldUpdateDefault || shouldUpdatePublicReg)) {
-          feedback.textContent = 'Settings saved successfully.';
-        } else if (shouldUpdateRegistrationStatus) {
-          feedback.textContent = 'Registration status saved.';
-        } else if (shouldUpdateDefault) {
-          feedback.textContent = 'Default model saved.';
-        } else if (shouldUpdatePublicReg) {
-          feedback.textContent = 'Public registration updated.';
-        } else {
-          feedback.textContent = 'No changes to save.';
-        }
-        feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-        feedback.classList.remove('hidden');
-        setTimeout(() => feedback.classList.add('hidden'), 3000);
-      }
-      updateButtons();
+      settingsState.initialValues.publicRegistration = newValue;
+      showFeedback('Public registration updated.');
     } catch (err) {
-      settingsState.loading = false;
-      if (feedback) {
-        feedback.textContent = err?.message || 'Failed to save settings.';
-        feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
-        feedback.classList.remove('hidden');
-        setTimeout(() => feedback.classList.add('hidden'), 3000);
-      }
-      updateButtons();
-      throw err;
+      settingsState.currentValues.publicRegistration = prevValue;
+      updatePublicRegToggle();
+      showFeedback(err?.message || 'Failed to update public registration.', true);
     }
   };
 
-  data.settingsSaveHandlers.general = saveSettings;
-  data.settingsDiscardHandlers.general = () => {
-    settingsState.currentValues = { ...settingsState.initialValues };
-    settingsState.dirtyFields = {
-      title: false,
-      publicRegistration: false,
-      registrationStatus: false,
-      defaultModelId: false,
-    };
-    if (isActiveTab()) render();
+  const updateRegistrationStatus = async (newValue) => {
+    const prevValue = settingsState.currentValues.registrationStatus;
+    settingsState.currentValues.registrationStatus = newValue;
+    updateModelAndRegistrationHighlight();
+
+    try {
+      const res = await apiFetch('/api/admin/config', {
+        method: 'PUT',
+        body: JSON.stringify({ public_registration_status: newValue })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || err?.message || 'Failed to update registration status');
+      }
+
+      settingsState.initialValues.registrationStatus = newValue;
+      showFeedback('Registration status saved.');
+    } catch (err) {
+      settingsState.currentValues.registrationStatus = prevValue;
+      updateModelAndRegistrationHighlight();
+      showFeedback(err?.message || 'Failed to update registration status.', true);
+    }
   };
 
-  const bindEvents = () => {
-    const regToggle = container.querySelector('#public-reg-toggle');
-    const registrationStatusSelect = container.querySelector('#registration-status');
-    const modelSelect = container.querySelector('#default-model');
-    const saveBtn = container.querySelector('#save-settings');
-    const feedback = container.querySelector('#settings-feedback');
-    registrationStatusBox = container.querySelector('#registration-status')?.parentElement;
-    modelBox = container.querySelector('#default-model')?.parentElement;
+  const updateDefaultModel = async (newValue) => {
+    const prevValue = settingsState.currentValues.defaultModelId;
+    settingsState.currentValues.defaultModelId = newValue;
+    updateModelAndRegistrationHighlight();
 
-    regToggle?.addEventListener('click', () => {
-      settingsState.currentValues.publicRegistration = !settingsState.currentValues.publicRegistration;
-      settingsState.dirtyFields.publicRegistration = true;
-      updatePublicRegToggle();
-      updateButtons();
-    });
+    try {
+      const res = await apiFetch('/api/admin/config', {
+        method: 'PUT',
+        body: JSON.stringify({ default_model_id: newValue || null })
+      });
 
-    modelSelect?.addEventListener('change', (e) => {
-      settingsState.currentValues.defaultModelId = e.target.value;
-      settingsState.dirtyFields.defaultModelId = true;
-      updateButtons();
-    });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || err?.message || 'Failed to update default model');
+      }
 
-    registrationStatusSelect?.addEventListener('change', (e) => {
-      settingsState.currentValues.registrationStatus = e.target.value;
-      settingsState.dirtyFields.registrationStatus = true;
-      updateButtons();
-    });
-
-    saveBtn?.addEventListener('click', async () => {
-      await saveSettings();
-    });
+      settingsState.initialValues.defaultModelId = newValue;
+      setState({ globalDefaultModelId: newValue || null });
+      broadcastModelsInvalidation();
+      showFeedback('Default model saved.');
+    } catch (err) {
+      settingsState.currentValues.defaultModelId = prevValue;
+      updateModelAndRegistrationHighlight();
+      showFeedback(err?.message || 'Failed to update default model.', true);
+    }
   };
 
-  const updateButtons = () => {
-    const dirty = isDirty();
-    const dirtyBadge = container.querySelector('#settings-dirty');
-    const saveBtn = container.querySelector('#save-settings');
+  const updateModelAndRegistrationHighlight = () => {
     const registrationStatusSelect = container.querySelector('#registration-status');
-    const registrationStatusHint = container.querySelector('#registration-status-hint');
     const modelSelect = container.querySelector('#default-model');
-    const modelHint = container.querySelector('#default-model-hint');
     const modelDirty = settingsState.currentValues.defaultModelId !== settingsState.initialValues.defaultModelId;
     const registrationStatusDirty = settingsState.currentValues.registrationStatus !== settingsState.initialValues.registrationStatus;
-    if (dirtyBadge) {
-      dirtyBadge.classList.toggle('invisible', !dirty);
-    }
+
     if (registrationStatusSelect) {
       registrationStatusSelect.classList.toggle('bg-amber-50', registrationStatusDirty);
       registrationStatusSelect.classList.toggle('text-amber-700', registrationStatusDirty);
@@ -284,9 +225,6 @@ export function renderGeneralSettings(container, data) {
     if (registrationStatusBox) {
       registrationStatusBox.classList.toggle('border-amber-200', registrationStatusDirty);
       registrationStatusBox.classList.toggle('bg-amber-50/60', registrationStatusDirty);
-    }
-    if (registrationStatusHint) {
-      registrationStatusHint.classList.toggle('text-amber-600', registrationStatusDirty);
     }
     if (modelSelect) {
       modelSelect.classList.toggle('bg-amber-50', modelDirty);
@@ -296,20 +234,26 @@ export function renderGeneralSettings(container, data) {
       modelBox.classList.toggle('border-amber-200', modelDirty);
       modelBox.classList.toggle('bg-amber-50/60', modelDirty);
     }
-    if (modelHint) {
-      modelHint.classList.toggle('hidden', !modelDirty);
-    }
-    if (saveBtn) {
-      saveBtn.disabled = !dirty || settingsState.loading;
-      saveBtn.classList.toggle('bg-gray-200', !dirty || settingsState.loading);
-      saveBtn.classList.toggle('text-gray-400', !dirty || settingsState.loading);
-      saveBtn.classList.toggle('cursor-not-allowed', !dirty || settingsState.loading);
-      saveBtn.classList.toggle('bg-black', dirty && !settingsState.loading);
-      saveBtn.classList.toggle('text-white', dirty && !settingsState.loading);
-      saveBtn.classList.toggle('hover:bg-gray-900', dirty && !settingsState.loading);
-      saveBtn.textContent = settingsState.loading ? 'Saving...' : 'Save';
-    }
-    data.requestSettingsFooterSync?.();
+  };
+
+  const bindEvents = () => {
+    const regToggle = container.querySelector('#public-reg-toggle');
+    const registrationStatusSelect = container.querySelector('#registration-status');
+    const modelSelect = container.querySelector('#default-model');
+    registrationStatusBox = container.querySelector('#registration-status')?.parentElement;
+    modelBox = container.querySelector('#default-model')?.parentElement;
+
+    regToggle?.addEventListener('click', () => {
+      updatePublicRegistration(!settingsState.currentValues.publicRegistration);
+    });
+
+    modelSelect?.addEventListener('change', (e) => {
+      updateDefaultModel(e.target.value);
+    });
+
+    registrationStatusSelect?.addEventListener('change', (e) => {
+      updateRegistrationStatus(e.target.value);
+    });
   };
 
   const loadModels = async () => {
@@ -338,21 +282,18 @@ export function renderGeneralSettings(container, data) {
       if (res.ok) {
         const payload = await res.json();
         const next = Boolean(payload?.public_registration);
-        if (!settingsState.dirtyFields.publicRegistration) {
-          settingsState.currentValues.publicRegistration = next;
-          settingsState.initialValues.publicRegistration = next;
-        }
+        settingsState.currentValues.publicRegistration = next;
+        settingsState.initialValues.publicRegistration = next;
+
         const registrationStatusRaw = String(payload?.public_registration_status || 'pending').trim().toLowerCase();
         const registrationStatus = registrationStatusRaw === 'active' ? 'active' : 'pending';
-        if (!settingsState.dirtyFields.registrationStatus) {
-          settingsState.currentValues.registrationStatus = registrationStatus;
-          settingsState.initialValues.registrationStatus = registrationStatus;
-        }
+        settingsState.currentValues.registrationStatus = registrationStatus;
+        settingsState.initialValues.registrationStatus = registrationStatus;
+
         const defaultId = payload?.default_model_id || '';
-        if (!settingsState.dirtyFields.defaultModelId) {
-          settingsState.currentValues.defaultModelId = defaultId;
-          settingsState.initialValues.defaultModelId = defaultId;
-        }
+        settingsState.currentValues.defaultModelId = defaultId;
+        settingsState.initialValues.defaultModelId = defaultId;
+
         if (isActiveTab()) render();
       }
     } catch (err) {

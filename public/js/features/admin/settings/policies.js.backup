@@ -197,7 +197,11 @@ function sortResourcesByVisibility(resources = [], groupId = '') {
 }
 
 function getResourceAccessState(resource, groupId = '') {
-  const rules = Array.isArray(resource?.rules) ? resource.rules : [];
+  const rules = Array.isArray(resource?.draftRules)
+    ? resource.draftRules
+    : Array.isArray(resource?.rules)
+      ? resource.rules
+      : [];
   const normalizedGroup = String(groupId || '').trim();
   const deny = normalizedGroup
     ? rules.some((rule) => String(rule.effect || '').toLowerCase() === 'deny' && String(rule.principal_type || '').toLowerCase() === 'group' && String(rule.principal_id || '') === normalizedGroup)
@@ -851,8 +855,9 @@ export function renderPoliciesSettings(container, data = {}) {
       groups: state.groups,
       selectedGroupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
       onSaved: async (nextRules, targetResources) => {
-        await applyResourceRulesImmediate(familyKey, targetResources.map((item) => item.id), nextRules);
+        applyResourceRules(familyKey, targetResources.map((item) => item.id), nextRules);
         setSelectedSet(familyKey, []);
+        render();
       },
     });
   };
@@ -873,7 +878,8 @@ export function renderPoliciesSettings(container, data = {}) {
       selectedGroupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
       resourceWarning,
       onSaved: async (nextRules, targetResources) => {
-        await applyResourceRulesImmediate(familyKey, targetResources.map((item) => item.id), nextRules);
+        applyResourceRules(familyKey, targetResources.map((item) => item.id), nextRules);
+        render();
       },
     });
   };
@@ -1041,6 +1047,7 @@ export function renderPoliciesSettings(container, data = {}) {
     const activeVisibleIds = activePaged.items.map((resource) => resource.id);
     const activeVisibleSelectedCount = activeVisibleIds.filter((id) => activeSelectedIds.has(id)).length;
     const activeAllVisibleSelected = activeVisibleIds.length > 0 && activeVisibleSelectedCount === activeVisibleIds.length;
+    const dirty = hasChanges();
     const activeVisibilityCount = Object.entries(state.visibilityFilters)
       .filter(([key, value]) => DEFAULT_VISIBILITY_FILTERS[key] !== value)
       .length;
@@ -1198,6 +1205,12 @@ export function renderPoliciesSettings(container, data = {}) {
             ${activeFamilyFooter}
           </div>
         </div>
+        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
+          <div id="policy-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
+          <button id="policy-page-save" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || state.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || state.saving) ? 'disabled' : ''}>
+            ${state.saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       </div>
     `;
 
@@ -1278,7 +1291,8 @@ export function renderPoliciesSettings(container, data = {}) {
               ? buildModelAccessModalWarning([resource], state.selectedGroupId === 'all' ? '' : state.selectedGroupId, connectionRulesById)
               : null,
             onSaved: async (nextRules, targetResources) => {
-              await applyResourceRulesImmediate(familyKey, targetResources.map((item) => item.id), nextRules);
+              applyResourceRules(familyKey, targetResources.map((item) => item.id), nextRules);
+              render();
             },
           });
         } catch (err) {
@@ -1336,8 +1350,9 @@ export function renderPoliciesSettings(container, data = {}) {
               ? buildModelAccessModalWarning(resources, state.selectedGroupId === 'all' ? '' : state.selectedGroupId, connectionRulesById)
               : null,
             onSaved: async (nextRules, targetResources) => {
-              await applyResourceRulesImmediate(familyKey, targetResources.map((item) => item.id), nextRules);
+              applyResourceRules(familyKey, targetResources.map((item) => item.id), nextRules);
               setSelectedSet(familyKey, []);
+              render();
             },
           });
         } catch (err) {
@@ -1346,6 +1361,13 @@ export function renderPoliciesSettings(container, data = {}) {
       });
     });
 
+    container.querySelector('#policy-page-save')?.addEventListener('click', async () => {
+      try {
+        await savePolicies();
+      } catch (err) {
+        console.warn('Failed to save policies:', err);
+      }
+    });
 
     container.querySelectorAll('[data-page-size-family]').forEach((select) => {
       select.addEventListener('change', () => {
