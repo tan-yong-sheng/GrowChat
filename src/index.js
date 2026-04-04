@@ -68,9 +68,9 @@ export default {
       }
 
       if (response.status === 404 && !path.startsWith('/api/')) {
-        if (path === '/auth' || path === '/auth.html') {
+        if (path === '/auth' || path === '/auth.html' || path.startsWith('/auth/')) {
           try {
-            const authReq = new Request(new URL('/auth.html', req.url));
+            const authReq = new Request(new URL('/auth.html' + req.url.substring(req.url.indexOf('?')), req.url));
             const authRes = await env.ASSETS.fetch(authReq);
             if (authRes.status !== 404) return authRes;
           } catch (err) {

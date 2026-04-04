@@ -389,8 +389,9 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     try {
       const emailService = createEmailService(env);
-      const resetLink = `${req.url.origin}/auth/reset-password?token=${resetTokenHex}`;
       const userNameEscaped = escapeHtml(user.name);
+      const origin = new URL(req.url).origin;
+      const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
 
       const emailHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -464,7 +465,10 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 </body>
 </html>`;
 
+      const fromEmail = env.EMAIL_FROM || 'noreply@resend.dev';
+
       await emailService.send({
+        from: fromEmail,
         to: user.email,
         subject: 'Reset Your Password',
         html: emailHtml,

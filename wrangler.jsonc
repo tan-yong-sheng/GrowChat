@@ -68,7 +68,8 @@
 	],
 	"vars": {
 		"APP_NAME": "GrowChat",
-		"ENVIRONMENT": "dev"
+		"ENVIRONMENT": "dev",
+		"EMAIL_PROVIDER": "resend"
 	},
 	"env": {
 		"production": {
