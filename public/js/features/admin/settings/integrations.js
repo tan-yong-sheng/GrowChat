@@ -637,6 +637,12 @@ export function renderIntegrationsSettings(container, data) {
   };
 
   const bindEvents = () => {
+    container.querySelector('#add-tool-server')?.addEventListener('click', () => {
+      openModal(null);
+    });
+
+    const list = container.querySelector('#tool-servers-list');
+    list?.addEventListener('click', (e) => {
       const toolToggle = e.target.closest('.tool-toggle');
       if (toolToggle) {
         const id = toolToggle.dataset.serverId;
@@ -966,22 +972,6 @@ export function renderIntegrationsSettings(container, data) {
         setTestStatus('error', err.message || 'OAuth start failed');
       }
     });
-  };
-
-  const loadIntegrations = async () => {
-    if (integrationsState.loaded) return;
-    integrationsState.loaded = true;
-    try {
-      const res = await apiFetch('/api/admin/tool-servers?include_disabled=1');
-      if (!res.ok) throw new Error('Failed to load tool servers');
-      const payload = await res.json();
-      integrationsState.toolServers = sortResourcesByEnabledThenLabel(mapSavedToolServers(payload?.servers, []));
-      if (isActiveTab()) render();
-    } catch (err) {
-      console.warn('Failed to load tool servers', err);
-    } finally {
-      if (isActiveTab()) render();
-    }
   };
 
   render();
