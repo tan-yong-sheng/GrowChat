@@ -45,8 +45,6 @@ describe('admin connections modal', () => {
 
     renderConnectionsSettings(container, data);
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections?include_disabled=1'));
-    await vi.waitFor(() => expect(data.connectionsSettings.originalSnapshot).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#save-connections')?.disabled).toBe(true));
 
     container.querySelector('#add-connection')?.click();
     expect(container.querySelector('#modal-title')?.textContent).toBe('Add Connection');
@@ -60,7 +58,6 @@ describe('admin connections modal', () => {
 
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
     expect(data.connectionsSettings.openai.connections).toHaveLength(1);
-    expect(container.querySelector('#save-connections')?.disabled).toBe(false);
     expect(data.connectionsSettings.openai.connections[0]).toMatchObject({
       name: 'OpenAI',
       url: 'https://api.openai.com/v1',
@@ -69,7 +66,8 @@ describe('admin connections modal', () => {
       providerType: 'openai',
       enabled: true,
     });
-    expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/openai/connections' && init?.method === 'PUT')).toBe(false);
+    // Immediate-save: API call should be made when modal is saved
+    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/openai/connections' && init?.method === 'PUT')).toBe(true));
   });
 
   it('labels the modal as edit when opening an existing connection', async () => {
@@ -120,8 +118,6 @@ describe('admin connections modal', () => {
 
     renderConnectionsSettings(container, data);
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections?include_disabled=1'));
-    await vi.waitFor(() => expect(data.connectionsSettings.originalSnapshot).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#save-connections')?.disabled).toBe(true));
 
     expect(container.querySelector('#openai-toggle')).toBeNull();
     expect(container.querySelector('#manage-connections-section')).not.toBeNull();
@@ -202,8 +198,9 @@ describe('admin connections modal', () => {
     await vi.waitFor(() => expect(container.querySelector('.connection-toggle')).not.toBeNull());
     expect(container.querySelector('.connection-acl-btn')).not.toBeNull();
 
+    // Immediate-save: toggle should trigger API call immediately
     container.querySelector('.connection-toggle')?.click();
-    expect(container.querySelector('#save-connections')?.disabled).toBe(false);
+    await vi.waitFor(() => expect(lastPutBody).not.toBeNull());
     await vi.waitFor(() => expect(container.querySelector('.connection-acl-btn')?.classList.contains('hidden')).toBe(true));
 
     container.querySelector('.connection-toggle')?.click();
@@ -212,7 +209,6 @@ describe('admin connections modal', () => {
     container.querySelector('.connection-toggle')?.click();
     await vi.waitFor(() => expect(container.querySelector('.connection-acl-btn')?.classList.contains('hidden')).toBe(true));
 
-    container.querySelector('#save-connections')?.click();
     await vi.waitFor(() => expect(lastPutBody).not.toBeNull());
     expect(lastPutBody.env_overrides).toEqual({ 'env-openai-0': false });
     await vi.waitFor(() => expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled());

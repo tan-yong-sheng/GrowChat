@@ -181,7 +181,6 @@ export function renderConnectionsSettings(container, data) {
     const reasonEl = modal.querySelector('#connection-acl-reason');
     const saveBtn = modal.querySelector('#connection-acl-save-btn');
     let baseRules = [];
-    const stagedRules = aclDraftRegistry.get(connection.id);
 
     const state = {
       loading: true,
@@ -302,10 +301,9 @@ export function renderConnectionsSettings(container, data) {
       try {
         const payload = await fetchAdminConnectionAccess(connection.id);
         state.groups = Array.isArray(payload.groups) ? payload.groups : [];
-        const sourceRules = stagedRules.length > 0 ? stagedRules : payload.rules;
         baseRules = cloneAclRules(payload.rules || []);
         state.rulesByGroup = new Map(
-          (Array.isArray(sourceRules) ? sourceRules : [])
+          (Array.isArray(baseRules) ? baseRules : [])
             .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
             .map((rule) => [String(rule.principal_id || '').trim(), String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow'])
             .filter(([groupId]) => Boolean(groupId))
@@ -332,9 +330,37 @@ export function renderConnectionsSettings(container, data) {
           action: 'use',
         }));
         const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
-        if (typeof onApply === 'function') {
-          await onApply(sameAsBase ? null : cloneAclRules(rules), connection);
+
+        // Make immediate API call
+        const res = await apiFetch('/api/admin/openai/connections', {
+          method: 'PUT',
+          body: JSON.stringify({
+            enabled: connectionsState.openai.enabled,
+            connections: connectionsState.openai.connections
+              .filter(c => !c.readOnly && c.source !== 'env')
+              .map((conn) => ({
+                ...conn,
+                manualModels: normalizeConnectionManualModels(conn.manualModels),
+              })),
+            env_overrides: Object.fromEntries(
+              connectionsState.openai.connections
+                .filter((conn) => conn?.source === 'env' && conn?.enabled === false)
+                .map((conn) => [conn.id, false])
+            ),
+            model_updates: [],
+            access_updates: sameAsBase ? [] : [{
+              connection_id: connection.id,
+              rules: cloneAclRules(rules),
+            }],
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || err.message || 'Failed to save connection access');
         }
+
+        broadcastConnectionsInvalidation();
         close();
       } catch (err) {
         if (saveErrorEl) saveErrorEl.textContent = err.message || 'Failed to save connection access';
@@ -951,6 +977,11 @@ export function renderConnectionsSettings(container, data) {
               broadcastModelsInvalidation();
               broadcastConnectionsInvalidation();
               showFeedback('Connection updated', 'success');
+              data.modelsSettingsInvalidate = Date.now();
+              if (data.generalSettings) {
+                data.generalSettings.models = [];
+                data.generalSettings.modelsInvalidateToken = data.modelsSettingsInvalidate;
+              }
             } catch (err) {
               // Rollback on error
               connection.enabled = previousEnabled;
@@ -975,12 +1006,7 @@ export function renderConnectionsSettings(container, data) {
         const id = aclBtn.dataset.id;
         const connection = connectionsState.openai.connections.find(c => c.id === id);
         if (connection) {
-          openConnectionAccessModal(connection, {
-            onApply: async (rules) => {
-              aclDraftRegistry.stage(connection.id, rules);
-              updateButtons();
-            },
-          });
+          openConnectionAccessModal(connection);
         }
         return;
       }
