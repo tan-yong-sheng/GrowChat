@@ -30,6 +30,14 @@ tests/e2e/artifacts/
 .codex/*
 .gemini/*
 
+# Allow specific .claude subdirectories
+!.claude/agents/
+!.claude/agents/**
+!.claude/rules/
+!.claude/rules/**
+!.claude/skills/
+!.claude/skills/**
+
 auth.json
 dev-local.err.log
 dev-local.out.log
