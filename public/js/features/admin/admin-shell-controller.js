@@ -23,31 +23,11 @@ export function getAdminSharedActionFooterConfig(mainTab, subTab) {
       };
     }
 
-    if (subTab === 'connections') {
-      return {
-        footerId: 'connections-action-footer',
-        dirtyId: 'connections-dirty',
-        saveId: 'save-connections',
-        buttonLabel: 'Save',
-        dirtyLabel: 'Unsaved changes',
-      };
-    }
-
     if (subTab === 'models') {
       return {
         footerId: 'models-action-footer',
         dirtyId: 'models-dirty',
         saveId: 'save-models-top',
-        buttonLabel: 'Save',
-        dirtyLabel: 'Unsaved changes',
-      };
-    }
-
-    if (subTab === 'integrations') {
-      return {
-        footerId: 'integrations-action-footer',
-        dirtyId: 'integrations-dirty',
-        saveId: 'save-integrations',
         buttonLabel: 'Save',
         dirtyLabel: 'Unsaved changes',
       };
@@ -196,9 +176,7 @@ export function createAdminShellController({
     const saving = mainTab === 'settings' || mainTab === 'system'
       ? Boolean(
         (subTab === 'general' && data.generalSettings?.loading)
-        || (subTab === 'connections' && data.connectionsSettings?.saving)
         || (subTab === 'models' && data.modelsSettings?.saving)
-        || (subTab === 'integrations' && data.integrationsSettings?.saving)
       )
       : false;
     const canSave = dirty && typeof saveFn === 'function' && !saving;
@@ -242,9 +220,7 @@ export function createAdminShellController({
     const saving = mainTab === 'settings' || mainTab === 'system'
       ? Boolean(
         (subTab === 'general' && data.generalSettings?.loading)
-        || (subTab === 'connections' && data.connectionsSettings?.saving)
         || (subTab === 'models' && data.modelsSettings?.saving)
-        || (subTab === 'integrations' && data.integrationsSettings?.saving)
       )
       : false;
     const canSave = dirty && typeof saveFn === 'function' && !saving;

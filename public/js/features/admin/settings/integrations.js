@@ -976,5 +976,11 @@ export function renderIntegrationsSettings(container, data) {
 
   render();
   loadIntegrations();
+
+  // Register no-op handlers for immediate-save pattern
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+  data.settingsDirtyCheckers.integrations = () => false;
+  data.settingsSaveHandlers.integrations = async () => false;
 }
 

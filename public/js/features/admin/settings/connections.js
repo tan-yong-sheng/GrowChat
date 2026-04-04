@@ -1349,4 +1349,10 @@ export function renderConnectionsSettings(container, data) {
 
   render();
   loadConnections();
+
+  // Register no-op handlers for immediate-save pattern
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
+  data.settingsDirtyCheckers.connections = () => false;
+  data.settingsSaveHandlers.connections = async () => false;
 }
