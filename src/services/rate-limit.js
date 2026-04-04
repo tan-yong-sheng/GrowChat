@@ -84,6 +84,14 @@ export const RATE_LIMITS = {
     limit: APP_LIMITS.maxLoginPerTenMinutes,
     windowSeconds: 600,
   },
+  authForgotPassword: {
+    limit: 5,
+    windowSeconds: 3600,
+  },
+  authResetPassword: {
+    limit: 5,
+    windowSeconds: 3600,
+  },
   fileUpload: {
     limit: APP_LIMITS.maxFileUploadPerHour,
     windowSeconds: 3600,

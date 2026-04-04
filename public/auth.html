@@ -35,10 +35,12 @@
         </div>
 
         <button id="auth-submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] mt-4 transition shadow-sm">Sign in</button>
+
+        <button id="forgot-password" type="button" class="block w-full text-left text-sm text-gray-700 hover:text-gray-900 underline underline-offset-4 decoration-1 mt-2">Forgot password?</button>
       </form>
 
       <div class="mt-6 text-sm text-gray-600 flex items-center gap-1.5">
-        <span id="toggle-text">Don't have an account?</span>
+        <span id="toggle-text">Don’t have an account?</span>
         <button id="toggle-mode" type="button" class="text-gray-900 font-semibold underline underline-offset-4 decoration-1">Sign up</button>
       </div>
 
@@ -46,6 +48,54 @@
     </div>
   </div>
 
+  <!-- Forgot Password Modal -->
+  <div id="forgot-password-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-[20px] p-8 w-full max-w-[440px] mx-6">
+      <h2 id="modal-title" class="text-[24px] font-semibold mb-2 text-gray-900">Reset your password</h2>
+      <p id="modal-subtitle" class="text-sm text-gray-600 mb-6">Enter your email to receive a password reset link</p>
+
+      <form id="forgot-password-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-900 mb-1.5" for="forgot-email">Email</label>
+          <input id="forgot-email" type="email" placeholder="Enter your email" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" required />
+        </div>
+
+        <button id="forgot-submit" type="submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] transition shadow-sm">Send reset link</button>
+      </form>
+
+      <button id="modal-close" type="button" class="w-full text-center text-sm text-gray-600 hover:text-gray-900 mt-4">Cancel</button>
+
+      <p id="modal-error" class="text-sm text-red-600 mt-4 hidden text-center"></p>
+      <p id="modal-success" class="text-sm text-green-600 mt-4 hidden text-center"></p>
+    </div>
+  </div>
+
+  <!-- Reset Password Modal -->
+  <div id="reset-password-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-[20px] p-8 w-full max-w-[440px] mx-6">
+      <h2 class="text-[24px] font-semibold mb-2 text-gray-900">Create new password</h2>
+      <p class="text-sm text-gray-600 mb-6">Enter your new password below</p>
+
+      <form id="reset-password-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-900 mb-1.5" for="new-password">New Password</label>
+          <input id="new-password" type="password" placeholder="Enter new password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-900 mb-1.5" for="confirm-password">Confirm Password</label>
+          <input id="confirm-password" type="password" placeholder="Confirm password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" required />
+        </div>
+
+        <button id="reset-submit" type="submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] transition shadow-sm">Reset password</button>
+      </form>
+
+      <p id="reset-error" class="text-sm text-red-600 mt-4 hidden text-center"></p>
+      <p id="reset-success" class="text-sm text-green-600 mt-4 hidden text-center"></p>
+    </div>
+  </div>
+
   <script type="module" src="/js/bootstrap/auth.js"></script>
 </body>
 </html>
+

@@ -326,5 +326,121 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     return json(req, { ok: true });
   }
 
+  if (req.method === 'POST' && path === '/api/auth/forgot-password') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    let email;
+    try {
+      email = validateEmail(requireString(body.email, 'email is required').toLowerCase());
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return error(req, err.message, 400);
+      }
+      throw err;
+    }
+
+    const forgotLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-forgot-password',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authForgotPassword,
+    });
+    if (!forgotLimit.allowed) {
+      return error(req, 'Too many password reset requests', 429, {
+        retry_after: Math.ceil((forgotLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
+    const user = await users.findByEmail(email);
+    if (!user) {
+      return json(req, { message: 'If an account exists with this email, a reset link has been sent.' });
+    }
+
+    const resetToken = crypto.getRandomValues(new Uint8Array(32));
+    const resetTokenHex = [...resetToken].map(x => x.toString(16).padStart(2, '0')).join('');
+    const tokenHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(resetTokenHex));
+    const tokenHashHex = [...new Uint8Array(tokenHash)].map(x => x.toString(16).padStart(2, '0')).join('');
+
+    const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+    await db.run(
+      `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
+       VALUES (?, ?, ?, ?, unixepoch())`,
+      [crypto.randomUUID(), user.id, tokenHashHex, expiresAt]
+    );
+
+    return json(req, { message: 'If an account exists with this email, a reset link has been sent.' });
+  }
+
+  if (req.method === 'POST' && path === '/api/auth/reset-password') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    let token;
+    let password;
+    try {
+      token = requireString(body.token, 'token and password are required', { trim: false });
+      password = requireString(body.password, 'token and password are required', { trim: false });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return error(req, err.message, 400);
+      }
+      throw err;
+    }
+
+    if (password.length < 8) {
+      return error(req, 'Password must be at least 8 characters', 400);
+    }
+
+    const resetLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-reset-password',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authResetPassword,
+    });
+    if (!resetLimit.allowed) {
+      return error(req, 'Too many password reset attempts', 429, {
+        retry_after: Math.ceil((resetLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
+    const tokenHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+    const tokenHashHex = [...new Uint8Array(tokenHash)].map(x => x.toString(16).padStart(2, '0')).join('');
+
+    const resetRecord = await db.first(
+      `SELECT user_id FROM password_reset_tokens
+       WHERE token_hash = ? AND expires_at > unixepoch()`,
+      [tokenHashHex]
+    );
+
+    if (!resetRecord) {
+      return error(req, 'Invalid or expired reset token', 400);
+    }
+
+    const passwordHash = await hashPassword(password);
+    await db.run(
+      `UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ?`,
+      [passwordHash, resetRecord.user_id]
+    );
+
+    await db.run(
+      `DELETE FROM password_reset_tokens WHERE token_hash = ?`,
+      [tokenHashHex]
+    );
+
+    await db.run(
+      `DELETE FROM refresh_tokens WHERE user_id = ?`,
+      [resetRecord.user_id]
+    );
+
+    return json(req, { message: 'Password reset successful. Please log in with your new password.' });
+  }
+
   return null;
 }
