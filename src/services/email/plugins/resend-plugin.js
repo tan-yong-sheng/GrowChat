@@ -22,20 +22,34 @@ export class ResendPlugin extends BaseEmailPlugin {
       ...(options.replyTo && { reply_to: options.replyTo }),
     };
 
-    const response = await fetch(this.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Resend API error: ${error.message || response.statusText}`);
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let errorMessage = response.statusText;
+        try {
+          const error = await response.json();
+          errorMessage = error.message || response.statusText;
+        } catch {
+          errorMessage = await response.text() || response.statusText;
+        }
+        throw new Error(`Resend API error: ${errorMessage}`);
+      }
+
+      return await response.json();
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return await response.json();
   }
 }
