@@ -40,6 +40,7 @@ export function resolveAdminRouteState(pathname) {
     if (pathname.includes('/connections')) subTab = 'connections';
     else if (pathname.includes('/integrations')) subTab = 'integrations';
     else if (pathname.includes('/models')) subTab = 'models';
+    else if (pathname.includes('/email')) subTab = 'email';
     return { mainTab: 'settings', subTab, canonicalPath: pathname };
   }
 
