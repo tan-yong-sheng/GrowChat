@@ -10,6 +10,8 @@ import { createUserRepository } from '../repositories/user-repository.js';
 import { APP_TTLS } from '../config/app.js';
 import { ValidationError } from '../errors/http-errors.js';
 import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
+import { createEmailService } from '../services/email.js';
+import { getPasswordResetEmailTemplate } from '../services/email-templates.js';
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback).trim().toLowerCase();
@@ -371,6 +373,29 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
        VALUES (?, ?, ?, ?, unixepoch())`,
       [crypto.randomUUID(), user.id, tokenHashHex, expiresAt]
     );
+
+    // Send password reset email (fire-and-forget)
+    (async () => {
+      try {
+        const emailService = createEmailService(env);
+        const baseUrl = new URL(req.url).origin;
+        const resetLink = `${baseUrl}/auth/reset-password?token=${resetTokenHex}`;
+        const { html, text } = getPasswordResetEmailTemplate({
+          resetLink,
+          userName: user.name || user.email,
+          expiresIn: '1 hour',
+        });
+
+        await emailService.send({
+          to: user.email,
+          subject: 'Reset your GrowChat password',
+          html,
+          text,
+        });
+      } catch (err) {
+        console.error('Failed to send password reset email:', err);
+      }
+    })();
 
     return json(req, { message: 'If an account exists with this email, a reset link has been sent.' });
   }
