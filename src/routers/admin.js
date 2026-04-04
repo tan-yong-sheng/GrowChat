@@ -103,6 +103,9 @@ export async function adminRouter(req, env, ctx, user, path) {
   ) {
     requiredPermission = 'admin.rbac.admin';
   }
+  if (path === '/api/admin/email-config' || path === '/api/admin/email-config/test') {
+    requiredPermission = 'admin.rbac.admin';
+  }
   const skipAuth = path === '/api/admin/tool-servers/oauth/callback';
   if (!skipAuth) {
     const authDecision = await authorize(env, user, { action: requiredPermission });
@@ -1576,6 +1579,122 @@ export async function adminRouter(req, env, ctx, user, path) {
     } catch (err) {
       console.error('OpenAI connections update failed:', err);
       return error(req, 'Failed to update connections', 500);
+    }
+  }
+
+  // GET /api/admin/email-config - Fetch email configuration
+  if (req.method === 'GET' && path === '/api/admin/email-config') {
+    try {
+      const resendApiKeyConfigured = await getConfigValue(db, 'resend_api_key', null);
+      return json(req, {
+        email_provider: 'resend',
+        resend_api_key_configured: !!resendApiKeyConfigured,
+      });
+    } catch (err) {
+      console.error('Email config fetch failed:', err);
+      return error(req, 'Failed to fetch email config', 500);
+    }
+  }
+
+  // PUT /api/admin/email-config - Update email configuration
+  if (req.method === 'PUT' && path === '/api/admin/email-config') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    const writeDecision = await ensureAdminMutationAccess(env, user, 'admin.rbac.admin', 'email-config');
+    if (!writeDecision.allow) {
+      return error(req, writeDecision.reason || 'Forbidden', 403);
+    }
+
+    if (!body.resend_api_key) {
+      return error(req, 'resend_api_key is required', 400);
+    }
+
+    const apiKey = String(body.resend_api_key).trim();
+    if (!apiKey) {
+      return error(req, 'resend_api_key cannot be empty', 400);
+    }
+
+    try {
+      await setConfigValue(db, 'resend_api_key', apiKey);
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'email_config_updated',
+        resource_type: 'admin',
+        resource_id: 'email-config',
+      });
+      return json(req, {
+        message: 'Email configuration updated',
+      });
+    } catch (err) {
+      console.error('Email config update failed:', err);
+      return error(req, 'Failed to update email config', 500);
+    }
+  }
+
+  // POST /api/admin/email-config/test - Send test email
+  if (req.method === 'POST' && path === '/api/admin/email-config/test') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+
+    if (!body.email) {
+      return error(req, 'email is required', 400);
+    }
+
+    const testEmail = String(body.email).trim().toLowerCase();
+    if (!testEmail.includes('@') || !testEmail.includes('.')) {
+      return error(req, 'Invalid email address', 400);
+    }
+
+    try {
+      const resendApiKey = await getConfigValue(db, 'resend_api_key', null);
+      if (!resendApiKey) {
+        return error(req, 'Resend API key not configured', 400);
+      }
+
+      // Send test email via Resend API
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'noreply@growchat.app',
+          to: testEmail,
+          subject: 'GrowChat Email Configuration Test',
+          html: '<p>This is a test email from GrowChat. Your email configuration is working correctly.</p>',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Resend API error:', errorData);
+        return error(req, 'Failed to send test email', 400);
+      }
+
+      await logAuditEvent(env, {
+        actor_id: user.sub,
+        action: 'email_config_test_sent',
+        resource_type: 'admin',
+        resource_id: 'email-config',
+        metadata: { test_email: testEmail },
+      });
+
+      return json(req, {
+        message: 'Test email sent',
+      });
+    } catch (err) {
+      console.error('Email test failed:', err);
+      return error(req, 'Failed to send test email', 500);
     }
   }
 
