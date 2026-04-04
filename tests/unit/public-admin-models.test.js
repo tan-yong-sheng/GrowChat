@@ -48,13 +48,13 @@ describe('admin models settings', () => {
     renderModelsSettings(container, data);
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/models?limit=20&offset=0'));
     await vi.waitFor(() => expect(data.modelsSettings.loading).toBe(false));
-    await vi.waitFor(() => expect(container.querySelector('#save-models-top')).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#save-models-top')?.disabled).toBe(true));
+    await vi.waitFor(() => expect(container.querySelector('.model-toggle')).not.toBeNull());
 
-    expect(container.querySelector('#save-models-top').disabled).toBe(true);
+    const beforeCalls = mocks.apiFetch.mock.calls.length;
     container.querySelector('.model-toggle')?.click();
 
-    expect(container.querySelector('#save-models-top')?.disabled).toBe(false);
+    // Immediate-save pattern: API call should be made immediately
+    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(beforeCalls));
   });
 
   it('filters provider options to active entries and uses provider name in requests', async () => {
@@ -254,20 +254,8 @@ describe('admin models settings', () => {
     select.value = 'none';
     select.dispatchEvent(new Event('change', { bubbles: true }));
 
-    await vi.waitFor(() => expect(container.querySelector('#save-models-top')).not.toBeNull());
-    expect(container.querySelector('#save-models-top').disabled).toBe(false);
-
+    // Immediate-save pattern: ACL changes are saved immediately when the modal is closed
     document.querySelector('#model-acl-save-btn').click();
-    await vi.waitFor(() => expect(container.querySelector('#save-models-top').disabled).toBe(false));
-
-    expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/model-attachment-caps' && String(options?.method || 'GET').toUpperCase() === 'PUT')
-    ).toBe(false);
-    expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' && String(options?.method || 'GET').toUpperCase() === 'PUT')
-    ).toBe(false);
-
-    container.querySelector('#save-models-top').click();
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
       '/api/admin/models',
       expect.objectContaining({
@@ -276,26 +264,36 @@ describe('admin models settings', () => {
       })
     ));
 
-    const combinedWriteCall = mocks.apiFetch.mock.calls.find(([url, options]) => {
-      return String(url) === '/api/admin/models' && String(options?.method || 'GET').toUpperCase() === 'PUT';
+    // With immediate-save, attachment and ACL changes are saved in separate calls
+    // Check for attachment update call
+    const attachmentCall = mocks.apiFetch.mock.calls.find(([url, options]) => {
+      if (String(url) !== '/api/admin/models' || String(options?.method || 'GET').toUpperCase() !== 'PUT') return false;
+      const body = JSON.parse(options.body);
+      return body.attachment_updates && body.attachment_updates.length > 0;
     });
-    expect(combinedWriteCall).toBeTruthy();
-    const [, combinedOptions] = combinedWriteCall;
-    expect(JSON.parse(combinedOptions.body)).toEqual({
-      updates: [],
-      attachment_updates: [
-        {
-          model_id: 'openai/env-openai-0:gemini-2.5-flash',
-          attachments: { image: true },
-        },
-      ],
-      access_updates: [
-        {
-          modelId: 'openai/env-openai-0:gemini-2.5-flash',
-          rules: [],
-        },
-      ],
+    expect(attachmentCall).toBeTruthy();
+    const attachmentPayload = JSON.parse(attachmentCall[1].body);
+    expect(attachmentPayload.attachment_updates).toEqual([
+      {
+        model_id: 'openai/env-openai-0:gemini-2.5-flash',
+        attachments: { image: true },
+      },
+    ]);
+
+    // Check for ACL update call
+    const aclCall = mocks.apiFetch.mock.calls.find(([url, options]) => {
+      if (String(url) !== '/api/admin/models' || String(options?.method || 'GET').toUpperCase() !== 'PUT') return false;
+      const body = JSON.parse(options.body);
+      return body.access_updates && body.access_updates.length > 0;
     });
+    expect(aclCall).toBeTruthy();
+    const aclPayload = JSON.parse(aclCall[1].body);
+    expect(aclPayload.access_updates).toEqual([
+      {
+        modelId: 'openai/env-openai-0:gemini-2.5-flash',
+        rules: [],
+      },
+    ]);
   });
 });
 
