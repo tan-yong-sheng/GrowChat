@@ -362,7 +362,6 @@ describe('admin policies settings', () => {
 
     await vi.waitFor(() => expect(container.textContent).toContain('Models'));
     await vi.waitFor(() => expect(container.querySelector('[data-select-visible-family="models"]')).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#policy-page-save')).not.toBeNull());
     await vi.waitFor(() => expect(container.querySelector('[data-page-size-family="models"]')).not.toBeNull());
 
     container.querySelector('[data-select-visible-family="models"]').click();
@@ -545,10 +544,7 @@ describe('admin policies settings', () => {
     select.dispatchEvent(new Event('change', { bubbles: true }));
     document.querySelector('#policy-acl-save')?.click();
 
-    await vi.waitFor(() => expect(container.querySelector('#policy-page-save')).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#policy-page-save').disabled).toBe(false));
-    container.querySelector('#policy-page-save')?.click();
-
+    // With immediate-save, the API call happens immediately after modal save
     await vi.waitFor(() => expect(
       mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/models/access' && String(options?.method || '').toUpperCase() === 'PUT')
     ).toBe(true));
