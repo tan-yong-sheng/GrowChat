@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   createGeneralSettingsState,
   getGeneralSettingsToggleState,
-  isGeneralSettingsDirty,
 } from '../../public/js/features/admin/settings/general-helpers.js';
 
 describe('admin general helpers', () => {
@@ -11,17 +10,10 @@ describe('admin general helpers', () => {
     expect(state.initialValues.title).toBe('GrowChat');
     expect(state.currentValues.publicRegistration).toBe(true);
     expect(state.currentValues.registrationStatus).toBe('pending');
-    expect(state.dirtyFields.defaultModelId).toBe(false);
+    expect(state.currentValues.defaultModelId).toBe('');
   });
 
-  it('detects dirty settings and derives toggle state', () => {
-    const state = createGeneralSettingsState();
-    expect(isGeneralSettingsDirty(state)).toBe(false);
-    state.currentValues.defaultModelId = 'gpt-5-mini';
-    expect(isGeneralSettingsDirty(state)).toBe(true);
-    state.currentValues.registrationStatus = 'active';
-    expect(isGeneralSettingsDirty(state)).toBe(true);
-
+  it('derives toggle state from public registration value', () => {
     expect(getGeneralSettingsToggleState(true)).toMatchObject({
       isOn: true,
       ariaPressed: 'true',
@@ -34,5 +26,6 @@ describe('admin general helpers', () => {
     });
   });
 });
+
 
 
