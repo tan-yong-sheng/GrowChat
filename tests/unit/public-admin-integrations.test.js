@@ -150,7 +150,7 @@ describe('admin integrations settings', () => {
     window.removeEventListener('growchat:tool-servers-invalidated', listener);
   });
 
-  it('persists a staged tool server draft when the page footer save is used', async () => {
+  it('saves a new server immediately without needing footer save', async () => {
     const { renderIntegrationsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -162,19 +162,16 @@ describe('admin integrations settings', () => {
     container.querySelector('[data-account-integration-add], #add-tool-server')?.click();
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')).not.toBeNull());
 
-    container.querySelector('#server-name').value = 'Footer Saved MCP';
-    container.querySelector('#server-url').value = 'https://footer-saved.example.com';
+    container.querySelector('#server-name').value = 'Immediate Save MCP';
+    container.querySelector('#server-url').value = 'https://immediate-save.example.com';
     container.querySelector('#save-modal')?.click();
 
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
-    await vi.waitFor(() => expect(container.querySelector('#save-integrations')?.disabled).toBe(false));
-
-    container.querySelector('#save-integrations')?.click();
 
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers', expect.objectContaining({
       method: 'PUT',
     })));
-    expect(document.body.textContent).toContain('Footer Saved MCP');
+    expect(document.body.textContent).toContain('Immediate Save MCP');
   });
 
   it('clears the dirty state when tool-server ACLs are saved back to no access', async () => {
