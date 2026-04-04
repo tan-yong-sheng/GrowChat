@@ -74,7 +74,9 @@
 		"production": {
 			"vars": {
 				"APP_NAME": "GrowChat",
-				"ENVIRONMENT": "production"
+				"ENVIRONMENT": "production",
+				"EMAIL_PROVIDER": "resend",
+				"RESEND_API_KEY": "re_xxxxx"
 			},
 			"d1_databases": [
 				{

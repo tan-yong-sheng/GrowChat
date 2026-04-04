@@ -1,7 +1,5 @@
 export function createGeneralSettingsState() {
   return {
-    loading: false,
-    error: null,
     initialValues: {
       title: 'GrowChat',
       publicRegistration: true,
@@ -17,17 +15,7 @@ export function createGeneralSettingsState() {
     models: [],
     adminConfigLoaded: false,
     modelsInvalidateToken: null,
-    dirtyFields: {
-      title: false,
-      publicRegistration: false,
-      registrationStatus: false,
-      defaultModelId: false,
-    },
   };
-}
-
-export function isGeneralSettingsDirty(state = {}) {
-  return JSON.stringify(state.initialValues || {}) !== JSON.stringify(state.currentValues || {});
 }
 
 export function getGeneralSettingsToggleState(publicRegistration) {

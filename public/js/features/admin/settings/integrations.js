@@ -6,17 +6,15 @@ import {
   fetchAdminToolServerAccess,
   updateAdminToolServerAccess,
 } from '../../../shared/admin-access.js';
-import { cloneAclRules, createAclDraftRegistry, getAclRulesSignature } from '../acl-draft.js';
+import { cloneAclRules, createAclDraftRegistry } from '../acl-draft.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import {
-  buildIntegrationsSnapshot,
   mapSavedToolServers,
   sanitizeIntegrationsServers,
   shouldShowAuthField,
 } from './integrations-helpers.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
-import { setModalSaveButtonState } from '../modal-save-helpers.js';
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -41,45 +39,11 @@ export function renderIntegrationsSettings(container, data) {
     error: null,
     toolServers: [],
     loaded: false,
-    saving: false,
     showModal: false,
     selectedServer: null,
-    originalSnapshot: null,
     modalMode: 'create',
   });
   const aclDraftRegistry = createAclDraftRegistry(integrationsState);
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
-
-  const buildSnapshot = () => buildIntegrationsSnapshot(integrationsState.toolServers);
-
-  const hasChanges = () => {
-    if (!integrationsState.originalSnapshot) return false;
-    return buildSnapshot() !== integrationsState.originalSnapshot || aclDraftRegistry.isDirty();
-  };
-  data.settingsDirtyCheckers.integrations = hasChanges;
-
-  const updateButtons = () => {
-    const dirty = hasChanges();
-    const dirtyBadge = container.querySelector('#integrations-dirty');
-    const saveBtn = container.querySelector('#save-integrations');
-    if (dirtyBadge) {
-      dirtyBadge.classList.toggle('invisible', !dirty);
-    }
-    if (saveBtn) {
-      const disabled = !dirty || integrationsState.saving;
-      saveBtn.disabled = disabled;
-      saveBtn.classList.toggle('bg-gray-200', disabled);
-      saveBtn.classList.toggle('text-gray-400', disabled);
-      saveBtn.classList.toggle('cursor-not-allowed', disabled);
-      saveBtn.classList.toggle('bg-black', !disabled);
-      saveBtn.classList.toggle('text-white', !disabled);
-      saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
-      saveBtn.textContent = integrationsState.saving ? 'Saving...' : 'Save';
-    }
-    data.requestSettingsFooterSync?.();
-  };
 
   const updateServerToggle = (btn, enabled) => {
     if (!btn) return;
@@ -132,8 +96,19 @@ export function renderIntegrationsSettings(container, data) {
     </div>
   `;
 
-  const persistServers = async ({ showFeedback }) => {
+  const showFeedback = (message, type = 'success') => {
     const feedback = container.querySelector('#integrations-feedback');
+    if (!feedback) return;
+    feedback.textContent = message;
+    const isError = type === 'error';
+    feedback.className = isError
+      ? 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
+      : 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+    feedback.classList.remove('hidden');
+    setTimeout(() => feedback.classList.add('hidden'), 3000);
+  };
+
+  const persistServersImmediate = async () => {
     const sanitized = sanitizeServers();
     const res = await apiFetch('/api/admin/tool-servers', {
       method: 'PUT',
@@ -145,14 +120,7 @@ export function renderIntegrationsSettings(container, data) {
     }
     const payload = await res.json().catch(() => ({}));
     integrationsState.toolServers = mapSavedToolServers(payload?.servers, sanitized);
-    integrationsState.originalSnapshot = buildSnapshot();
-    if (showFeedback && feedback) {
-      feedback.textContent = 'Integrations saved successfully';
-      feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-      feedback.classList.remove('hidden');
-      setTimeout(() => feedback.classList.add('hidden'), 3000);
-    }
-    updateButtons();
+    broadcastToolServersInvalidation();
   };
 
   const commitOpenServerModalDraft = async () => {
@@ -541,7 +509,6 @@ export function renderIntegrationsSettings(container, data) {
 
   const render = () => {
     if (!isActiveTab()) return;
-    const dirty = hasChanges();
     const useSharedActionFooter = Boolean(data.sharedActionFooter);
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
@@ -565,7 +532,7 @@ export function renderIntegrationsSettings(container, data) {
                 </button>
               </div>
               <hr class="border-gray-100/30 my-2" />
-              
+
               <div id="tool-servers-list" class="space-y-2">
                 ${getToolServersMarkup()}
               </div>
@@ -574,14 +541,6 @@ export function renderIntegrationsSettings(container, data) {
             <div id="integrations-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>
           </div>
         </div>
-
-        ${useSharedActionFooter ? '' : `
-        <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
-          <div id="integrations-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
-          <button id="save-integrations" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || integrationsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || integrationsState.saving) ? 'disabled' : ''}>
-            ${integrationsState.saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>`}
       </div>
 
       ${buildMcpServerModalMarkup({
@@ -661,64 +620,23 @@ export function renderIntegrationsSettings(container, data) {
     }
   };
 
-  const saveIntegrations = async () => {
-    if (integrationsState.saving) return;
-    const feedback = container.querySelector('#integrations-feedback');
-    integrationsState.saving = true;
-    updateButtons();
+  const loadIntegrations = async () => {
+    if (integrationsState.loaded) return;
+    integrationsState.loaded = true;
     try {
-      const committed = await commitOpenServerModalDraft();
-      if (!committed) {
-        throw new Error('Finish editing the open MCP server modal before saving integrations');
-      }
-      await persistServers({ showFeedback: false });
-      const aclUpdates = Array.from(aclDraftRegistry.entries())
-        .map(([serverId, rules]) => ({
-          serverId,
-          rules: cloneAclRules(rules),
-        }))
-        .filter((entry) => entry.serverId);
-      for (const entry of aclUpdates) {
-        await updateAdminToolServerAccess(entry.serverId, entry.rules);
-        aclDraftRegistry.clear(entry.serverId);
-      }
-      broadcastToolServersInvalidation();
-      if (feedback) {
-        feedback.textContent = 'Integrations saved successfully';
-        feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-        feedback.classList.remove('hidden');
-        setTimeout(() => feedback.classList.add('hidden'), 3000);
-      }
+      const res = await apiFetch('/api/admin/tool-servers?include_disabled=1');
+      if (!res.ok) throw new Error('Failed to load tool servers');
+      const payload = await res.json();
+      integrationsState.toolServers = sortResourcesByEnabledThenLabel(mapSavedToolServers(payload?.servers, []));
+      if (isActiveTab()) render();
     } catch (err) {
-      if (feedback) {
-        feedback.textContent = err.message || 'Failed to save integrations';
-        feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
-        feedback.classList.remove('hidden');
-        setTimeout(() => feedback.classList.add('hidden'), 3000);
-      }
-      throw err;
+      console.warn('Failed to load tool servers', err);
     } finally {
-      integrationsState.saving = false;
-      updateButtons();
+      if (isActiveTab()) render();
     }
   };
 
-  data.settingsSaveHandlers.integrations = saveIntegrations;
-  data.settingsDiscardHandlers.integrations = () => {
-    integrationsState.loaded = false;
-    integrationsState.originalSnapshot = null;
-    integrationsState.toolServers = [];
-    aclDraftRegistry.clear();
-    loadIntegrations();
-  };
-
   const bindEvents = () => {
-    container.querySelector('#add-tool-server')?.addEventListener('click', () => {
-      openModal(null);
-    });
-
-    const list = container.querySelector('#tool-servers-list');
-    list?.addEventListener('click', (e) => {
       const toolToggle = e.target.closest('.tool-toggle');
       if (toolToggle) {
         const id = toolToggle.dataset.serverId;
@@ -727,9 +645,14 @@ export function renderIntegrationsSettings(container, data) {
         if (server && server.enabled !== false && Array.isArray(server.tools)) {
           const tool = server.tools.find((entry) => entry.name === toolName);
           if (tool) {
-            tool.enabled = tool.enabled === false;
+            const previousState = tool.enabled;
+            tool.enabled = !tool.enabled;
             updateToolRowState(id, toolName);
-            updateButtons();
+            persistServersImmediate().catch((err) => {
+              tool.enabled = previousState;
+              updateToolRowState(id, toolName);
+              showFeedback(err.message || 'Failed to update tool', 'error');
+            });
           }
         }
         return;
@@ -739,9 +662,14 @@ export function renderIntegrationsSettings(container, data) {
         const id = toggle.dataset.id;
         const server = integrationsState.toolServers.find(s => s.id === id);
         if (server) {
+          const previousState = server.enabled;
           server.enabled = !server.enabled;
           updateServerRowState(id);
-          updateButtons();
+          persistServersImmediate().catch((err) => {
+            server.enabled = previousState;
+            updateServerRowState(id);
+            showFeedback(err.message || 'Failed to update server', 'error');
+          });
         }
         return;
       }
@@ -784,8 +712,14 @@ export function renderIntegrationsSettings(container, data) {
         if (server) {
           void openToolServerAccessModal(server, {
             onApply: async (rules) => {
-              aclDraftRegistry.stage(server.id, rules);
-              updateButtons();
+              try {
+                await updateAdminToolServerAccess(id, rules);
+                aclDraftRegistry.clear(id);
+                broadcastToolServersInvalidation();
+                showFeedback('Access rules saved successfully');
+              } catch (err) {
+                showFeedback(err.message || 'Failed to save access rules', 'error');
+              }
             },
           });
         }
@@ -922,9 +856,16 @@ export function renderIntegrationsSettings(container, data) {
         });
       }
 
+      try {
+        await persistServersImmediate();
+        showFeedback('Server saved successfully');
+      } catch (err) {
+        showFeedback(err.message || 'Failed to save server', 'error');
+        return;
+      }
+
       closeModal();
       renderToolServersList();
-      updateButtons();
 
       if (!url.trim()) return;
 
@@ -955,27 +896,21 @@ export function renderIntegrationsSettings(container, data) {
       }
     });
 
-    container.querySelector('#save-integrations')?.addEventListener('click', async () => {
-      try {
-        await saveIntegrations();
-      } catch (err) {
-        const feedback = container.querySelector('#integrations-feedback');
-        if (feedback) {
-          feedback.textContent = err.message || 'Failed to save integrations';
-          feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
-          feedback.classList.remove('hidden');
-          setTimeout(() => feedback.classList.add('hidden'), 3000);
-        }
-      }
-    });
-
-    container.querySelector('#delete-server')?.addEventListener('click', () => {
+    container.querySelector('#delete-server')?.addEventListener('click', async () => {
       if (integrationsState.selectedServer) {
-        integrationsState.toolServers = integrationsState.toolServers.filter(s => s.id !== integrationsState.selectedServer.id);
+        const serverId = integrationsState.selectedServer.id;
+        integrationsState.toolServers = integrationsState.toolServers.filter(s => s.id !== serverId);
         integrationsState.selectedServer = null;
         closeModal();
         renderToolServersList();
-        updateButtons();
+        try {
+          await persistServersImmediate();
+          showFeedback('Server deleted successfully');
+        } catch (err) {
+          showFeedback(err.message || 'Failed to delete server', 'error');
+          integrationsState.loaded = false;
+          loadIntegrations();
+        }
       }
     });
 
@@ -1041,14 +976,10 @@ export function renderIntegrationsSettings(container, data) {
       if (!res.ok) throw new Error('Failed to load tool servers');
       const payload = await res.json();
       integrationsState.toolServers = sortResourcesByEnabledThenLabel(mapSavedToolServers(payload?.servers, []));
-      integrationsState.originalSnapshot = buildSnapshot();
       if (isActiveTab()) render();
     } catch (err) {
       console.warn('Failed to load tool servers', err);
     } finally {
-      if (!integrationsState.originalSnapshot) {
-        integrationsState.originalSnapshot = buildSnapshot();
-      }
       if (isActiveTab()) render();
     }
   };
