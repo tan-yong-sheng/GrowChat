@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Search Placeholder Text Contrast Verification', () => {
   test('verify search modal renders with placeholder:text-gray-600 class', async ({ page }) => {
     // Navigate to the app
-    await page.goto('http://127.0.0.1:8787');
+    await page.goto('/');
 
     // Wait for the page to load
     await page.waitForLoadState('networkidle');
@@ -65,7 +65,7 @@ test.describe('Search Placeholder Text Contrast Verification', () => {
     });
 
     // Take a screenshot to visually verify contrast
-    await page.screenshot({ path: '/c/Users/tys/Documents/Coding/GrowChat/search-placeholder-contrast.png' });
+    await page.screenshot({ path: test.info().outputPath('search-placeholder-contrast.png') });
     console.log('✓ Screenshot saved: search-placeholder-contrast.png');
 
     // Verify the placeholder is readable
@@ -78,7 +78,7 @@ test.describe('Search Placeholder Text Contrast Verification', () => {
 
   test('verify search-modal.js source contains correct placeholder class', async ({ page }) => {
     // Fetch the search-modal.js file
-    const response = await page.goto('http://127.0.0.1:8787/js/shared/components/search-modal.js');
+    const response = await page.goto('/js/shared/components/search-modal.js');
     const content = await response?.text();
 
     // Verify the placeholder:text-gray-600 class is present in source

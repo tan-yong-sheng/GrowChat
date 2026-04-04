@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { goToApp } from './test-helpers';
 
 test.describe('Validate Settings UI - Fixed Auth', () => {
   test('Settings page loads with correct auth origin', async ({ page }) => {
-    // Use the correct base URL from playwright config (127.0.0.1:3007)
-    await page.goto('http://127.0.0.1:3007/#/admin/settings/connections', { waitUntil: 'networkidle' });
+    await goToApp(page, '/#/admin/settings/connections');
     await page.waitForTimeout(2000);
 
     // Check auth state

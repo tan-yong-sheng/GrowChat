@@ -37,7 +37,7 @@ export default defineConfig({
     },
     {
       name: 'debug',
-      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:8787' },
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:3007' },
       testMatch: [/debug.*\.spec\.ts/],
     },
   ],

@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { renderAdminRoute, setupAdminPage } from './admin-test-helpers';
 
 /**
  * QA Testing Suite for GrowChat Settings Module
@@ -17,21 +18,8 @@ test.describe('Settings Module - CRUD Operations', () => {
 
   test.beforeEach(async ({ browser }) => {
     page = await browser.newPage();
-    // Load with auth state
-    await page.context().addCookies([
-      {
-        name: 'auth_token',
-        value: 'test-token',
-        url: 'http://127.0.0.1:3007',
-      }
-    ]);
-    await page.goto('http://127.0.0.1:3007');
-
-    // Wait for app to load
-    await page.waitForSelector('#app', { timeout: 5000 }).catch(() => {});
-
-    // Navigate to admin settings
-    await page.goto('http://127.0.0.1:3007/#/admin/settings/connections', { waitUntil: 'networkidle' }).catch(() => {});
+    await setupAdminPage(page);
+    await renderAdminRoute(page, '/admin/settings/connections');
   });
 
   test.afterEach(async () => {
@@ -193,7 +181,7 @@ test.describe('Settings Module - CRUD Operations', () => {
 
     test.beforeEach(async () => {
       // Navigate to models settings
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' }).catch(() => {});
+      await renderAdminRoute(page, '/admin/settings/models');
     });
 
     test('should load models settings page', async () => {
@@ -304,7 +292,7 @@ test.describe('Settings Module - CRUD Operations', () => {
 
     test.beforeEach(async () => {
       // Navigate to integrations settings
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/integrations', { waitUntil: 'networkidle' }).catch(() => {});
+      await renderAdminRoute(page, '/admin/settings/integrations');
     });
 
     test('should load integrations settings page', async () => {
@@ -385,8 +373,7 @@ test.describe('Settings Module - CRUD Operations', () => {
   test.describe('Form Validation & Error Handling', () => {
 
     test('should show validation error for empty required fields', async () => {
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/connections', { waitUntil: 'networkidle' }).catch(() => {});
-
+      await renderAdminRoute(page, '/admin/settings/connections');
       const createBtn = page.locator('button:has-text("Add Connection"), button:has-text("New Connection")');
       if (await createBtn.count() > 0) {
         await createBtn.first().click();
@@ -449,8 +436,7 @@ test.describe('Settings Module - CRUD Operations', () => {
   test.describe('State Management & Data Persistence', () => {
 
     test('should persist changes after save', async () => {
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' }).catch(() => {});
-
+      await renderAdminRoute(page, '/admin/settings/models');
       // Toggle a model
       const toggles = page.locator('button[role="switch"]');
       if (await toggles.count() > 0) {
@@ -476,8 +462,7 @@ test.describe('Settings Module - CRUD Operations', () => {
     });
 
     test('should discard changes when discard is clicked', async () => {
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' }).catch(() => {});
-
+      await renderAdminRoute(page, '/admin/settings/models');
       // Toggle a model
       const toggles = page.locator('button[role="switch"]');
       if (await toggles.count() > 0) {
@@ -502,8 +487,7 @@ test.describe('Settings Module - CRUD Operations', () => {
     });
 
     test('should warn before closing with unsaved changes', async () => {
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' }).catch(() => {});
-
+      await renderAdminRoute(page, '/admin/settings/models');
       // Make a change
       const toggles = page.locator('button[role="switch"]');
       if (await toggles.count() > 0) {
@@ -515,7 +499,7 @@ test.describe('Settings Module - CRUD Operations', () => {
           dialog.dismiss();
         });
 
-        await page.goto('http://127.0.0.1:3007/#/admin/settings/connections').catch(() => {});
+        await renderAdminRoute(page, '/admin/settings/connections');
       }
     });
   });
@@ -528,8 +512,7 @@ test.describe('Settings Module - CRUD Operations', () => {
 
     test('should display settings modal on mobile (320px)', async () => {
       await page.setViewportSize({ width: 320, height: 568 });
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/connections', { waitUntil: 'networkidle' }).catch(() => {});
-
+      await renderAdminRoute(page, '/admin/settings/connections');
       // Check if content is visible
       const appContainer = page.locator('#app');
       await expect(appContainer).toBeVisible({ timeout: 5000 }).catch(() => {
@@ -537,25 +520,23 @@ test.describe('Settings Module - CRUD Operations', () => {
       });
 
       // Take screenshot
-      await page.screenshot({ path: 'tests/e2e/artifacts/qa/mobile-settings-320.png' }).catch(() => {});
+      await page.screenshot({ path: 'tests/e2e/artifacts/qa/mobile-settings-320.png' });
     });
 
     test('should display settings modal on tablet (768px)', async () => {
       await page.setViewportSize({ width: 768, height: 1024 });
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/connections', { waitUntil: 'networkidle' }).catch(() => {});
-
+      await renderAdminRoute(page, '/admin/settings/connections');
       const appContainer = page.locator('#app');
       await expect(appContainer).toBeVisible({ timeout: 5000 }).catch(() => {
         console.log('App not visible on tablet');
       });
 
-      await page.screenshot({ path: 'tests/e2e/artifacts/qa/tablet-settings-768.png' }).catch(() => {});
+      await page.screenshot({ path: 'tests/e2e/artifacts/qa/tablet-settings-768.png' });
     });
 
     test('should have adequate touch targets on mobile', async () => {
       await page.setViewportSize({ width: 375, height: 667 });
-      await page.goto('http://127.0.0.1:3007/#/admin/settings/connections', { waitUntil: 'networkidle' }).catch(() => {});
-
+      await renderAdminRoute(page, '/admin/settings/connections');
       // Check button sizes
       const buttons = page.locator('button');
       const buttonCount = await buttons.count();

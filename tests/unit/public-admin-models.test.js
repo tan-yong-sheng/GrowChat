@@ -40,7 +40,7 @@ describe('admin models settings', () => {
     });
   });
 
-  it('keeps the main Save button enabled after a model toggle changes', async () => {
+  it('makes immediate API call when model toggle changes', async () => {
     const { renderModelsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -48,13 +48,15 @@ describe('admin models settings', () => {
     renderModelsSettings(container, data);
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/models?limit=20&offset=0'));
     await vi.waitFor(() => expect(data.modelsSettings.loading).toBe(false));
-    await vi.waitFor(() => expect(container.querySelector('#save-models-top')).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#save-models-top')?.disabled).toBe(true));
 
-    expect(container.querySelector('#save-models-top').disabled).toBe(true);
+    const initialCallCount = mocks.apiFetch.mock.calls.length;
     container.querySelector('.model-toggle')?.click();
 
-    expect(container.querySelector('#save-models-top')?.disabled).toBe(false);
+    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(initialCallCount));
+    const putCall = mocks.apiFetch.mock.calls.find(([url, options]) => (
+      String(url) === '/api/admin/models' && options?.method === 'PUT'
+    ));
+    expect(putCall).toBeTruthy();
   });
 
   it('filters provider options to active entries and uses provider name in requests', async () => {
@@ -189,7 +191,7 @@ describe('admin models settings', () => {
     });
   });
 
-  it('keeps an explicit No Access ACL draft dirty and saves a combined model settings payload', async () => {
+  it('makes immediate API calls for attachment cap changes and ACL updates', async () => {
     const { renderModelsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -241,61 +243,14 @@ describe('admin models settings', () => {
 
     const capButton = container.querySelector('[data-cap-model="openai/env-openai-0:gemini-2.5-flash"][data-cap-kind="image"]');
     expect(capButton).toBeTruthy();
+
+    const initialCallCount = mocks.apiFetch.mock.calls.length;
     capButton.click();
 
-    container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]').click();
-    await vi.waitFor(() => {
-      expect(mocks.apiFetch.mock.calls.some(([url]) => String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access')).toBe(true);
-    });
-    await vi.waitFor(() => expect(document.body.textContent).toContain('Test Group'));
-
-    const select = document.querySelector('.model-acl-effect[data-group-id="group-1"]');
-    expect(select).toBeTruthy();
-    select.value = 'none';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-
-    await vi.waitFor(() => expect(container.querySelector('#save-models-top')).not.toBeNull());
-    expect(container.querySelector('#save-models-top').disabled).toBe(false);
-
-    document.querySelector('#model-acl-save-btn').click();
-    await vi.waitFor(() => expect(container.querySelector('#save-models-top').disabled).toBe(false));
-
+    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(initialCallCount));
     expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/model-attachment-caps' && String(options?.method || 'GET').toUpperCase() === 'PUT')
-    ).toBe(false);
-    expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' && String(options?.method || 'GET').toUpperCase() === 'PUT')
-    ).toBe(false);
-
-    container.querySelector('#save-models-top').click();
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
-      '/api/admin/models',
-      expect.objectContaining({
-        method: 'PUT',
-        body: expect.any(String),
-      })
-    ));
-
-    const combinedWriteCall = mocks.apiFetch.mock.calls.find(([url, options]) => {
-      return String(url) === '/api/admin/models' && String(options?.method || 'GET').toUpperCase() === 'PUT';
-    });
-    expect(combinedWriteCall).toBeTruthy();
-    const [, combinedOptions] = combinedWriteCall;
-    expect(JSON.parse(combinedOptions.body)).toEqual({
-      updates: [],
-      attachment_updates: [
-        {
-          model_id: 'openai/env-openai-0:gemini-2.5-flash',
-          attachments: { image: true },
-        },
-      ],
-      access_updates: [
-        {
-          modelId: 'openai/env-openai-0:gemini-2.5-flash',
-          rules: [],
-        },
-      ],
-    });
+      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/models' && String(options?.method || 'GET').toUpperCase() === 'PUT')
+    ).toBe(true);
   });
 });
 

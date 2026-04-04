@@ -61,7 +61,6 @@ export function renderConnectionsSettings(container, data) {
     saving: false,
     showModal: false,
     selectedConnection: null,
-    originalSnapshot: null,
     modalModels: [],
     modalModelsLoading: false,
     modalModelsError: null,
@@ -75,9 +74,6 @@ export function renderConnectionsSettings(container, data) {
     newConnectionDraftId: null,
     modalMode: 'create',
   });
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
   // Migration for old state format
   if (connectionsState.openai && !connectionsState.openai.connections) {
@@ -135,11 +131,7 @@ export function renderConnectionsSettings(container, data) {
 
   const aclDraftRegistry = createAclDraftRegistry(connectionsState);
 
-  const hasChanges = () => {
-    if (!connectionsState.originalSnapshot) return false;
-    return buildSnapshot() !== connectionsState.originalSnapshot || aclDraftRegistry.isDirty();
-  };
-  data.settingsDirtyCheckers.connections = hasChanges;
+  const hasChanges = () => false;
 
   const renderLoadingSkeleton = () => `
     <div class="space-y-2">
@@ -540,7 +532,6 @@ export function renderConnectionsSettings(container, data) {
           ? payload.connections.map((conn) => normalizeConnectionRecord(conn))
           : [],
       );
-      connectionsState.originalSnapshot = buildSnapshot();
       if (isActiveTab()) render();
     } catch (err) {
       console.warn('Failed to load connections', err);
@@ -964,18 +955,66 @@ export function renderConnectionsSettings(container, data) {
         const id = toggle.dataset.id;
         const connection = connectionsState.openai.connections.find(c => c.id === id);
         if (connection) {
-          connection.enabled = connection.enabled === false;
-          const enabled = connection.enabled !== false;
+          const wasEnabled = connection.enabled !== false;
+          const nextEnabled = !wasEnabled;
+          connection.enabled = nextEnabled;
           const row = toggle.closest('[data-connection-row]');
-          updateConnectionToggle(toggle, enabled);
+          updateConnectionToggle(toggle, nextEnabled);
           if (row) {
-            row.classList.toggle('opacity-70', !enabled);
+            row.classList.toggle('opacity-70', !nextEnabled);
             const badge = row.querySelector('[data-connection-disabled-badge]');
-            if (badge) badge.classList.toggle('hidden', enabled);
+            if (badge) badge.classList.toggle('hidden', nextEnabled);
             const aclBtn = row.querySelector('.connection-acl-btn');
-            if (aclBtn) aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
+            if (aclBtn) aclBtn.classList.toggle('hidden', !nextEnabled || !canManageAcls);
           }
-          updateButtons();
+
+          // Make immediate API call
+          (async () => {
+            try {
+              const envOverrides = {};
+              connectionsState.openai.connections
+                .filter((conn) => conn?.source === 'env')
+                .forEach((conn) => {
+                  if (conn?.enabled === false) {
+                    envOverrides[conn.id] = false;
+                  }
+                });
+              const res = await apiFetch('/api/admin/openai/connections', {
+                method: 'PUT',
+                body: JSON.stringify({
+                  enabled: connectionsState.openai.enabled !== false,
+                  connections: connectionsState.openai.connections
+                    .filter((conn) => !conn?.readOnly && conn?.source !== 'env')
+                    .map((conn) => ({
+                      id: conn.id,
+                      name: conn.name,
+                      url: conn.url,
+                      key: '',
+                      headers: conn.headers,
+                      providerType: conn.providerType,
+                      enabled: conn.enabled !== false,
+                    })),
+                  env_overrides: envOverrides,
+                }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || err.message || 'Failed to update connection');
+              }
+              broadcastModelsInvalidation();
+              broadcastConnectionsInvalidation();
+              data.modelsSettingsInvalidate = Date.now();
+            } catch (err) {
+              connection.enabled = wasEnabled;
+              updateConnectionToggle(toggle, wasEnabled);
+              if (row) {
+                row.classList.toggle('opacity-70', !wasEnabled);
+                const badge = row.querySelector('[data-connection-disabled-badge]');
+                if (badge) badge.classList.toggle('hidden', wasEnabled);
+              }
+              console.error('Failed to update connection:', err);
+            }
+          })();
         }
         return;
       }
@@ -1271,7 +1310,6 @@ export function renderConnectionsSettings(container, data) {
         }
         connectionsState.modelOverrides.clear();
         Array.from(aclDraftRegistry.entries()).forEach(([connectionId]) => aclDraftRegistry.clear(connectionId));
-        connectionsState.originalSnapshot = buildSnapshot();
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
         if (feedback) {
@@ -1298,31 +1336,6 @@ export function renderConnectionsSettings(container, data) {
         updateButtons();
       }
     };
-
-    data.settingsSaveHandlers.connections = saveConnections;
-    data.settingsDiscardHandlers.connections = () => {
-      connectionsState.modelOverrides.clear();
-      connectionsState.modalDrafts?.clear();
-      aclDraftRegistry.clear();
-      connectionsState.newConnectionDraftId = null;
-      connectionsState.modalModelsSelection = new Set();
-      connectionsState.modalModelsOriginal = new Set();
-      connectionsState.modalModels = [];
-      connectionsState.modalModelsQuery = '';
-      connectionsState.selectedConnection = null;
-      connectionsState.showModal = false;
-      const modal = container.querySelector('#edit-connection-modal');
-      if (modal) {
-        modal.classList.add('hidden');
-      }
-      connectionsState.loaded = false;
-      connectionsState.originalSnapshot = null;
-      loadConnections();
-    };
-
-    container.querySelector('#save-connections')?.addEventListener('click', async () => {
-      await saveConnections();
-    });
 
     container.querySelector('#toggle-key-visibility')?.addEventListener('click', () => {
       const input = container.querySelector('#modal-conn-key');

@@ -170,7 +170,7 @@ describe('account models section', () => {
     expect(disabledRow.textContent).toContain('Model One');
   }, 10000);
 
-  it('saves personal model preferences through the shared account profile endpoint', async () => {
+  it('saves personal model preferences immediately on toggle', async () => {
     mocks.apiFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -218,8 +218,6 @@ describe('account models section', () => {
     await flush(6);
     document.querySelector('[data-cap-model="m1"][data-cap-kind="image"]')?.click();
     await flush(10);
-    document.querySelector('#account-main-footer #save-models')?.click();
-    await flush(6);
 
     expect(mocks.apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({
       method: 'PUT',
@@ -235,18 +233,27 @@ describe('account models section', () => {
     expect(document.querySelector('#account-main-footer #save-models')?.disabled).toBe(true);
   }, 10000);
 
-  it('keeps rapid toggle changes in the latest staged save snapshot', async () => {
-    let resolveFirstSave;
-    const firstSave = new Promise((resolve) => {
-      resolveFirstSave = resolve;
-    });
-
+  it('saves rapid model toggle changes immediately', async () => {
     mocks.apiFetch
       .mockResolvedValueOnce({
         ok: true,
         json: async () => makeAccountState('m2'),
       })
-      .mockImplementationOnce(() => firstSave)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          user: {
+            ...makeAccountState('m2').user,
+            preferences: {
+              theme: 'system',
+              model_settings: {
+                disabled_model_ids: ['m1'],
+                attachment_caps: {},
+              },
+            },
+          },
+        }),
+      })
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -284,35 +291,15 @@ describe('account models section', () => {
     await flush();
 
     document.querySelector('[data-model-id="m1"]')?.click();
-    await flush(2);
-    document.querySelector('#account-main-footer #save-models')?.click();
-    await flush(2);
+    await flush(6);
+
     document.querySelector('[data-model-id="m3"]')?.click();
-    await flush(2);
-
-    resolveFirstSave({
-      ok: true,
-      json: async () => ({
-        user: {
-          ...makeAccountState('m2').user,
-          preferences: {
-            theme: 'system',
-            model_settings: {
-              disabled_model_ids: ['m1'],
-              attachment_caps: {},
-            },
-          },
-        },
-      }),
-    });
-
-    await flush(8);
+    await flush(6);
 
     const putCalls = mocks.apiFetch.mock.calls.filter(([url, options]) => String(url) === '/api/users/me' && options?.method === 'PUT');
     expect(putCalls).toHaveLength(2);
-    const finalSaveBody = JSON.parse(putCalls[1][1].body);
-    expect(finalSaveBody.preferences.model_settings.disabled_model_ids).toEqual([]);
-    expect(document.querySelector('[title="Active models"]')?.textContent).toBe('3');
+    expect(JSON.parse(putCalls[0][1].body).preferences.model_settings.disabled_model_ids).toEqual(['m3']);
+    expect(JSON.parse(putCalls[1][1].body).preferences.model_settings.disabled_model_ids).toEqual([]);
   }, 10000);
 
   it('paginates the model list like admin settings', async () => {

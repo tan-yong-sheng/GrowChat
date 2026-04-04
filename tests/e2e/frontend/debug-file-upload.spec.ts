@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { TEST_EMAIL, TEST_PASSWORD } from './test-helpers';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -8,7 +9,7 @@ test.describe('File Upload Debug on Local Dev', () => {
     // Step 1: Navigate to auth page first
     console.log('🔵 Step 1: Navigating to auth page...');
     await page.goto('/auth.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 10000 });
 
     // Get the base URL from the page's origin
     const baseUrl = new URL(page.url()).origin;
@@ -19,8 +20,12 @@ test.describe('File Upload Debug on Local Dev', () => {
     const passwordInput = page.locator('input[type="password"]').first();
     const loginButton = page.locator('button').filter({ hasText: /login|sign in/i }).first();
 
-    await emailInput.fill('tys203831@gmail.com');
-    await passwordInput.fill('&Test1234');
+    if (!TEST_EMAIL || !TEST_PASSWORD) {
+      throw new Error('TEST_USER_EMAIL and TEST_USER_PASSWORD must be set');
+    }
+
+    await emailInput.fill(TEST_EMAIL);
+    await passwordInput.fill(TEST_PASSWORD);
 
     // Listen for network activity
     let authResponseData = null;

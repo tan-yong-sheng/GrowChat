@@ -11,7 +11,6 @@ import { renderErrorBanner } from '../../shared/components/section-header.js';
 import { renderSettingsActionFooter } from '../../shared/components/settings-action-footer.js';
 import { broadcastConnectionsInvalidation } from '../../shared/utils/connection-sync.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
-import { createStagedSaveQueue } from '../../shared/utils/staged-save.js';
 import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
 import {
   normalizeConnectionModelSelectionMode,
@@ -118,22 +117,6 @@ function normalizePersonalConnection(connection = {}) {
       : [],
     note: connection.note || connection.base_url || connection.baseUrl || '',
   };
-}
-
-function clonePreferences(value = {}) {
-  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  if (typeof structuredClone === 'function') {
-    try {
-      return structuredClone(source);
-    } catch {
-      return { ...source };
-    }
-  }
-  try {
-    return JSON.parse(JSON.stringify(source));
-  } catch {
-    return { ...source };
-  }
 }
 
 function formatHeadersValue(headers) {
@@ -490,37 +473,6 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     viewState.error = '';
   };
 
-  const stagedPreferencesSave = createStagedSaveQueue({
-    getSnapshot: () => clonePreferences(state.settings?.preferences || {}),
-    saveSnapshot: async (preferences) => {
-      const res = await apiFetch('/api/users/me', {
-        method: 'PUT',
-        body: JSON.stringify({ preferences }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to save preferences');
-      }
-      return res.json().catch(() => ({}));
-    },
-    onCommit: (snapshot, _version, payload = {}) => {
-      state.settings = {
-        ...(state.settings || {}),
-        preferences: payload?.user?.preferences || snapshot,
-      };
-      viewState.error = '';
-      broadcastConnectionsInvalidation();
-      broadcastModelsInvalidation();
-      render();
-      syncFooter();
-    },
-    onError: (err) => {
-      viewState.error = err?.message || 'Failed to save preferences';
-      render();
-      syncFooter();
-    },
-  });
-
   const syncFooter = () => {
     if (!footerHost) return;
     footerHost.innerHTML = renderSettingsActionFooter({
@@ -529,17 +481,9 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       saveId: 'save-connections',
       dirtyLabel: 'Unsaved changes',
       buttonLabel: 'Save',
-      dirty: stagedPreferencesSave.pending,
-      saving: stagedPreferencesSave.saving,
-      canSave: canManageConnections && stagedPreferencesSave.pending,
-    });
-    footerHost.querySelector('#save-connections')?.addEventListener('click', async () => {
-      if (!canManageConnections || stagedPreferencesSave.saving || !stagedPreferencesSave.pending) return;
-      try {
-        await stagedPreferencesSave.flush();
-      } catch {
-        // Errors are surfaced by the queue callbacks.
-      }
+      dirty: false,
+      saving: false,
+      canSave: false,
     });
   };
 
@@ -1040,14 +984,29 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
           if (!connection) return;
           const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'connections', id);
           const nextPreferences = setResourceVisibility(state.settings?.preferences || {}, 'connections', id, currentHidden);
-          state.settings = {
-            ...(state.settings || {}),
-            preferences: nextPreferences,
-          };
-          viewState.error = '';
-          stagedPreferencesSave.stage();
-          render();
-          syncFooter();
+          void (async () => {
+            try {
+              const res = await apiFetch('/api/users/me', {
+                method: 'PUT',
+                body: JSON.stringify({ preferences: nextPreferences }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || err.message || 'Failed to update connection visibility');
+              }
+              state.settings = {
+                ...(state.settings || {}),
+                preferences: nextPreferences,
+              };
+              viewState.error = '';
+              broadcastConnectionsInvalidation();
+              broadcastModelsInvalidation();
+              render();
+            } catch (err) {
+              viewState.error = err?.message || 'Failed to update connection visibility';
+              render();
+            }
+          })();
           return;
         }
         const connection = viewState.personal.find((item) => item.id === id);

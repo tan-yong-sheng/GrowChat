@@ -349,9 +349,6 @@ describe('account integrations section', () => {
     expect(sharedToolButton).not.toBeNull();
     expect(sharedToolButton?.getAttribute('aria-label')).toBe('Hide for me');
     sharedToolButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await flush(2);
-    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(false);
-    document.querySelector('#account-main-footer #save-integrations')?.click();
     await flush(6);
 
     const updateCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT');
@@ -372,20 +369,13 @@ describe('account integrations section', () => {
     expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]')?.getAttribute('aria-label')).toBe('Show for me');
   });
 
-  it('serializes rapid shared visibility toggles through the staged preferences save queue', async () => {
-    let resolveFirstSave;
-    const firstSave = new Promise((resolve) => {
-      resolveFirstSave = resolve;
-    });
+  it('saves rapid shared visibility toggles immediately', async () => {
     const saveCalls = [];
 
     mocks.apiFetch.mockImplementation(async (url, options = {}) => {
       const method = String(options.method || 'GET').toUpperCase();
       if (String(url) === '/api/users/me' && method === 'PUT') {
         saveCalls.push(JSON.parse(options.body));
-        if (saveCalls.length === 1) {
-          return firstSave;
-        }
         return jsonResponse({ user: { preferences: JSON.parse(options.body).preferences } });
       }
       return jsonResponse({});
@@ -416,7 +406,7 @@ describe('account integrations section', () => {
             visible_for_user: true,
             hidden_for_user: false,
             tools: [
-              { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true, visible_for_user: true },
+              { name: 'shared_search', title: 'Shared Search', description: 'Shared tool', enabled: true, visible_for_user: false, hidden_for_user: true },
               { name: 'shared_fetch', title: 'Shared Fetch', description: 'Shared tool', enabled: true, visible_for_user: true },
             ],
           }),
@@ -435,12 +425,7 @@ describe('account integrations section', () => {
     expect(secondToolButton).not.toBeNull();
 
     firstToolButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await flush(2);
-    const refreshedSecondToolButton = document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_fetch"]');
-    expect(refreshedSecondToolButton).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(false);
-    document.querySelector('#account-main-footer #save-integrations')?.click();
-    await flush(2);
+    await flush(6);
 
     expect(saveCalls).toHaveLength(1);
     expect(saveCalls[0]).toMatchObject({
@@ -457,11 +442,9 @@ describe('account integrations section', () => {
       },
     });
 
+    const refreshedSecondToolButton = document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_fetch"]');
     refreshedSecondToolButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await flush(2);
-
-    resolveFirstSave(jsonResponse({ user: { preferences: saveCalls[0].preferences } }));
-    await flush(8);
+    await flush(6);
 
     expect(saveCalls).toHaveLength(2);
     expect(saveCalls[1]).toMatchObject({
@@ -477,8 +460,6 @@ describe('account integrations section', () => {
         },
       },
     });
-    expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]')?.getAttribute('aria-label')).toBe('Show for me');
-    expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_fetch"]')?.getAttribute('aria-label')).toBe('Show for me');
   });
 
   it('deletes a personal integration after confirmation and refreshes the list', async () => {

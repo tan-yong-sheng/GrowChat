@@ -178,7 +178,7 @@ describe('account connections section', () => {
     expect(modalRoot?.textContent).toContain('Add Connection');
   });
 
-  it('stages shared connection visibility and saves it from the footer', async () => {
+  it('saves shared connection visibility immediately on toggle', async () => {
     mocks.apiFetch.mockImplementation(async (url, options = {}) => {
       const method = String(options.method || 'GET').toUpperCase();
       if (String(url) === '/api/users/me/settings?include=permissions,roles' && method === 'GET') {
@@ -206,10 +206,6 @@ describe('account connections section', () => {
     const sharedToggle = document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]');
     expect(sharedToggle).not.toBeNull();
     sharedToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await flush(2);
-
-    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(false);
-    document.querySelector('#account-main-footer #save-connections')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(8);
 
     const updateCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT');

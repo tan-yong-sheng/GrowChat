@@ -20,7 +20,7 @@
 		"test:e2e:update-snapshots": "playwright test --update-snapshots"
 	},
 	"devDependencies": {
-		"@playwright/test": "^1.58.2",
+		"@playwright/test": "^1.59.1",
 		"@types/node": "^25.3.5",
 		"@vitest/coverage-v8": "^4.0.18",
 		"autoprefixer": "^10.4.23",
@@ -33,6 +33,8 @@
 	},
 	"dependencies": {
 		"@codesandbox/sdk": "^2.4.2",
-		"@tencent-ai/codebuddy-code": "^2.66.2"
+		"@tencent-ai/codebuddy-code": "^2.66.2",
+		"ai-vision-mcp": "^0.0.7-dev.1",
+		"playwright": "^1.59.1"
 	}
 }

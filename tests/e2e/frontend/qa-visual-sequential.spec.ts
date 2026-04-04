@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { goToApp } from './test-helpers';
 
 /**
  * Sequential Visual QA Testing for GrowChat Settings
@@ -13,8 +14,8 @@ test.describe('Settings Module - Sequential Visual QA', () => {
 
   test.beforeEach(async ({ browser }) => {
     page = await browser.newPage();
-    await page.goto('http://127.0.0.1:3007', { waitUntil: 'networkidle' });
-    await page.waitForSelector('#app', { timeout: 5000 }).catch(() => {});
+    await goToApp(page);
+    await page.waitForSelector('#app', { timeout: 5000 });
   });
 
   test.afterEach(async () => {
@@ -26,7 +27,7 @@ test.describe('Settings Module - Sequential Visual QA', () => {
 
     // Step 1: Navigate to connections
     console.log('Step 1: Navigating to connections settings...');
-    await page.goto('http://127.0.0.1:3007/#/admin/settings/connections', { waitUntil: 'networkidle' });
+    await goToApp(page, '/#/admin/settings/connections');
     await page.waitForTimeout(1000);
 
     let screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/01-connections-page-load.png', fullPage: true });
@@ -84,7 +85,7 @@ test.describe('Settings Module - Sequential Visual QA', () => {
 
     // Step 1: Navigate to models
     console.log('Step 1: Navigating to models settings...');
-    await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' });
+    await goToApp(page, '/#/admin/settings/models');
     await page.waitForTimeout(1000);
 
     let screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/05-models-page-load.png', fullPage: true });
@@ -143,7 +144,7 @@ test.describe('Settings Module - Sequential Visual QA', () => {
 
     // Step 1: Navigate to integrations
     console.log('Step 1: Navigating to integrations settings...');
-    await page.goto('http://127.0.0.1:3007/#/admin/settings/integrations', { waitUntil: 'networkidle' });
+    await goToApp(page, '/#/admin/settings/integrations');
     await page.waitForTimeout(1000);
 
     let screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/10-integrations-page-load.png', fullPage: true });
@@ -175,7 +176,7 @@ test.describe('Settings Module - Sequential Visual QA', () => {
 
     for (let i = 0; i < Math.min(5, buttonCount); i++) {
       const text = await buttons.nth(i).textContent();
-      if (text && text.toLowerCase().includes('add') || text.toLowerCase().includes('new')) {
+      if (text && (text.toLowerCase().includes('add') || text.toLowerCase().includes('new'))) {
         console.log(`  Found button: "${text}"`);
       }
     }
@@ -201,7 +202,7 @@ test.describe('Settings Module - Sequential Visual QA', () => {
     await page.setViewportSize({ width: 375, height: 667 });
 
     console.log('Step 2: Navigating to connections on mobile...');
-    await page.goto('http://127.0.0.1:3007/#/admin/settings/connections', { waitUntil: 'networkidle' });
+    await goToApp(page, '/#/admin/settings/connections');
     await page.waitForTimeout(1000);
 
     let screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/15-mobile-connections-375.png', fullPage: true });
@@ -212,7 +213,7 @@ test.describe('Settings Module - Sequential Visual QA', () => {
     await page.setViewportSize({ width: 320, height: 568 });
 
     console.log('Step 4: Navigating to models on small mobile...');
-    await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' });
+    await goToApp(page, '/#/admin/settings/models');
     await page.waitForTimeout(1000);
 
     screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/16-mobile-models-320.png', fullPage: true });
@@ -223,7 +224,7 @@ test.describe('Settings Module - Sequential Visual QA', () => {
     await page.setViewportSize({ width: 768, height: 1024 });
 
     console.log('Step 6: Navigating to integrations on tablet...');
-    await page.goto('http://127.0.0.1:3007/#/admin/settings/integrations', { waitUntil: 'networkidle' });
+    await goToApp(page, '/#/admin/settings/integrations');
     await page.waitForTimeout(1000);
 
     screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/17-tablet-integrations-768.png', fullPage: true });

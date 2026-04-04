@@ -754,13 +754,9 @@ export function renderPoliciesSettings(container, data = {}) {
     };
   };
 
-  const hasChanges = () => FAMILIES.some((family) => (state.resources[family.key] || []).some((resource) => (
-    getAclRulesSignature(resource.draftRules || resource.rules || [], normalizeAclRule) !== getAclRulesSignature(resource.originalRules || [], normalizeAclRule)
-  )));
-
+  const hasChanges = () => false;
   data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
+  data.settingsDirtyCheckers.policies = hasChanges;
 
   const applyResourceRules = (familyKey, resourceIds, nextRules) => {
     const ids = new Set((Array.isArray(resourceIds) ? resourceIds : [resourceIds]).map((id) => String(id || '').trim()).filter(Boolean));
@@ -791,39 +787,10 @@ export function renderPoliciesSettings(container, data = {}) {
       resource.originalRules = cloneAclRules(nextRules, normalizeAclRule);
       delete resource.draftRules;
     }
+    broadcastModelsInvalidation();
+    broadcastConnectionsInvalidation();
+    broadcastToolServersInvalidation();
   };
-
-  const savePolicies = async () => {
-    if (state.saving || !hasChanges()) return;
-    state.saving = true;
-    render();
-    try {
-      for (const family of FAMILIES) {
-        await persistFamilyRules(family.key);
-      }
-      broadcastModelsInvalidation();
-      broadcastConnectionsInvalidation();
-      broadcastToolServersInvalidation();
-    } finally {
-      state.saving = false;
-      render();
-    }
-  };
-
-  const discardPolicies = () => {
-    for (const family of FAMILIES) {
-      state.resources[family.key] = (state.resources[family.key] || []).map((resource) => ({
-        ...resource,
-        rules: cloneAclRules(resource.originalRules || [], normalizeAclRule),
-        draftRules: undefined,
-      }));
-    }
-    render();
-  };
-
-  data.settingsDirtyCheckers.policies = hasChanges;
-  data.settingsSaveHandlers.policies = savePolicies;
-  data.settingsDiscardHandlers.policies = discardPolicies;
 
   const filterResources = (familyKey, resources = []) => {
     const query = state.query.trim().toLowerCase();
@@ -872,6 +839,9 @@ export function renderPoliciesSettings(container, data = {}) {
         applyResourceRules(familyKey, targetResources.map((item) => item.id), nextRules);
         setSelectedSet(familyKey, []);
         render();
+        void (async () => {
+          await persistFamilyRules(familyKey);
+        })();
       },
     });
   };
@@ -894,6 +864,9 @@ export function renderPoliciesSettings(container, data = {}) {
       onSaved: async (nextRules, targetResources) => {
         applyResourceRules(familyKey, targetResources.map((item) => item.id), nextRules);
         render();
+        void (async () => {
+          await persistFamilyRules(familyKey);
+        })();
       },
     });
   };
@@ -1307,6 +1280,9 @@ export function renderPoliciesSettings(container, data = {}) {
             onSaved: async (nextRules, targetResources) => {
               applyResourceRules(familyKey, targetResources.map((item) => item.id), nextRules);
               render();
+              void (async () => {
+                await persistFamilyRules(familyKey);
+              })();
             },
           });
         } catch (err) {
@@ -1367,6 +1343,9 @@ export function renderPoliciesSettings(container, data = {}) {
               applyResourceRules(familyKey, targetResources.map((item) => item.id), nextRules);
               setSelectedSet(familyKey, []);
               render();
+              void (async () => {
+                await persistFamilyRules(familyKey);
+              })();
             },
           });
         } catch (err) {

@@ -17,6 +17,7 @@ import {
 } from './integrations-helpers.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
+import { escapeSelector } from '../../../shared/utils.js';
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -24,14 +25,6 @@ const escapeHtml = (value) => String(value || '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
-
-const escapeSelector = (value) => {
-  const text = String(value || '');
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return CSS.escape(text);
-  }
-  return text.replace(/["\\]/g, '\\$&');
-};
 
 export function renderIntegrationsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'integrations';
@@ -48,35 +41,54 @@ export function renderIntegrationsSettings(container, data) {
     modalMode: 'create',
   });
   const aclDraftRegistry = createAclDraftRegistry(integrationsState);
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
-  const buildSnapshot = () => buildIntegrationsSnapshot(integrationsState.toolServers);
+  // Create a Proxy to watch for changes to aclDrafts and trigger immediate API calls
+  if (!integrationsState.aclDrafts) {
+    integrationsState.aclDrafts = new Map();
+  }
 
-  const hasChanges = () => {
-    if (!integrationsState.originalSnapshot) return false;
-    return buildSnapshot() !== integrationsState.originalSnapshot || aclDraftRegistry.isDirty();
-  };
-  data.settingsDirtyCheckers.integrations = hasChanges;
+  const originalAclDrafts = integrationsState.aclDrafts;
+  integrationsState.aclDrafts = new Proxy(originalAclDrafts, {
+    set(target, prop, value) {
+      target[prop] = value;
+      return true;
+    },
+    get(target, prop) {
+      if (prop === 'set') {
+        return function(serverId, rules) {
+          target.set(serverId, rules);
+          // Trigger immediate API call when aclDrafts is modified
+          (async () => {
+            try {
+              const res = await updateAdminToolServerAccess(serverId, rules);
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || err.message || 'Failed to save access rules');
+              }
+              broadcastToolServersInvalidation();
+            } catch (err) {
+              console.error('Failed to save tool server access:', err);
+            }
+          })();
+        };
+      }
+      return target[prop];
+    },
+  });
+
+  const hasChanges = () => false;
 
   const updateButtons = () => {
-    const dirty = hasChanges();
     const dirtyBadge = container.querySelector('#integrations-dirty');
     const saveBtn = container.querySelector('#save-integrations');
     if (dirtyBadge) {
-      dirtyBadge.classList.toggle('invisible', !dirty);
+      dirtyBadge.classList.add('invisible');
     }
     if (saveBtn) {
-      const disabled = !dirty || integrationsState.saving;
-      saveBtn.disabled = disabled;
-      saveBtn.classList.toggle('bg-gray-200', disabled);
-      saveBtn.classList.toggle('text-gray-400', disabled);
-      saveBtn.classList.toggle('cursor-not-allowed', disabled);
-      saveBtn.classList.toggle('bg-black', !disabled);
-      saveBtn.classList.toggle('text-white', !disabled);
-      saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
-      saveBtn.textContent = integrationsState.saving ? 'Saving...' : 'Save';
+      saveBtn.disabled = true;
+      saveBtn.classList.add('bg-gray-200', 'text-gray-700', 'cursor-not-allowed');
+      saveBtn.classList.remove('bg-black', 'text-white', 'hover:bg-gray-900');
+      saveBtn.textContent = 'Save';
     }
     data.requestSettingsFooterSync?.();
   };
@@ -145,7 +157,6 @@ export function renderIntegrationsSettings(container, data) {
     }
     const payload = await res.json().catch(() => ({}));
     integrationsState.toolServers = mapSavedToolServers(payload?.servers, sanitized);
-    integrationsState.originalSnapshot = buildSnapshot();
     if (showFeedback && feedback) {
       feedback.textContent = 'Integrations saved successfully';
       feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
@@ -290,7 +301,7 @@ export function renderIntegrationsSettings(container, data) {
       listEl.innerHTML = state.groups.map((group) => {
         const groupId = group.id;
         const effect = state.rulesByGroup.get(groupId) || 'none';
-        const badge = group.is_system ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">System</span>' : '';
+        const badge = group.is_system ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">System</span>' : '';
         return `
           <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 hover:border-gray-300">
             <div class="flex flex-col min-w-0">
@@ -387,7 +398,7 @@ export function renderIntegrationsSettings(container, data) {
     messageEl.classList.toggle('hidden', !message);
     messageEl.classList.toggle('text-red-500', status === 'error');
     messageEl.classList.toggle('text-gray-900', status === 'success');
-    messageEl.classList.toggle('text-gray-400', status === 'idle' || status === 'testing');
+    messageEl.classList.toggle('text-gray-700', status === 'idle' || status === 'testing');
   };
 
   const updateAuthFields = (authType) => {
@@ -404,7 +415,7 @@ export function renderIntegrationsSettings(container, data) {
       return renderLoadingSkeleton();
     }
     if (integrationsState.toolServers.length === 0) {
-      return '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
+      return '<div class="py-10 text-center text-sm text-gray-700">No tool servers configured. Click + to add one.</div>';
     }
     return integrationsState.toolServers.map(server => `
       ${(() => {
@@ -418,10 +429,10 @@ export function renderIntegrationsSettings(container, data) {
           <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-2">
               <div class="text-xs font-medium text-gray-900">${server.name}</div>
-              <span data-server-disabled-badge class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${serverEnabled ? 'hidden' : ''}">Disabled</span>
+              <span data-server-disabled-badge class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-700 ${serverEnabled ? 'hidden' : ''}">Disabled</span>
             </div>
-            <div class="text-[10px] text-gray-400 font-mono">${server.url}</div>
-            <div class="text-[10px] text-gray-400 mt-1">
+            <div class="text-[10px] text-gray-700 font-mono">${server.url}</div>
+            <div class="text-[10px] text-gray-700 mt-1">
               Tools: <span class="text-gray-900">${enabledCount}</span> / <span class="text-gray-900">${totalCount}</span> enabled
               ${server.toolsError ? '<span class="text-red-500 ml-2">Last verify failed</span>' : ''}
             </div>
@@ -438,7 +449,7 @@ export function renderIntegrationsSettings(container, data) {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
               </svg>
             </button>
-            <button data-id="${server.id}" class="edit-server-btn p-1 text-gray-400 hover:text-gray-600 transition-colors">
+            <button data-id="${server.id}" class="edit-server-btn p-1 text-gray-600 hover:text-gray-700 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -447,7 +458,7 @@ export function renderIntegrationsSettings(container, data) {
             <button data-id="${server.id}" class="server-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-black' : 'bg-gray-200'}">
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${serverEnabled ? 'translate-x-4' : 'translate-x-0'}"></span>
             </button>
-            <button data-id="${server.id}" class="tools-toggle p-1 text-gray-400 hover:text-gray-600 transition-colors ml-1" title="Toggle tools">
+            <button data-id="${server.id}" class="tools-toggle p-1 text-gray-600 hover:text-gray-700 transition-colors ml-1" title="Toggle tools">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 ${server.toolsExpanded ? 'rotate-180' : ''}">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>
@@ -472,7 +483,7 @@ export function renderIntegrationsSettings(container, data) {
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <div class="text-xs font-medium text-gray-900">${tool.title || tool.name || 'Tool'}</div>
-                      <div class="text-[10px] text-gray-400 font-mono">${tool.name || ''}</div>
+                      <div class="text-[10px] text-gray-600 font-mono">${tool.name || ''}</div>
                     </div>
                     <button
                       data-server-id="${server.id}"
@@ -488,12 +499,12 @@ export function renderIntegrationsSettings(container, data) {
                   </div>
                   ${description ? `
                     <div class="text-[11px] text-gray-500 mt-1">${preview}</div>
-                    ${hasMore ? `<button data-server-id="${server.id}" data-tool-name="${tool.name}" class="tool-desc-toggle text-[10px] text-gray-400 hover:text-gray-600 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
+                    ${hasMore ? `<button data-server-id="${server.id}" data-tool-name="${tool.name}" class="tool-desc-toggle text-[10px] text-gray-600 hover:text-gray-700 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
                   ` : ''}
                 </div>
               `;
             }).join('')
-            : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit MCP Server.</div>'}
+            : '<div class="text-xs text-gray-600">No tools loaded. Click verify in Edit MCP Server.</div>'}
           </div>
         </div>
       </div>
@@ -558,7 +569,7 @@ export function renderIntegrationsSettings(container, data) {
             <section class="space-y-1">
               <div class="flex items-center justify-between px-0.5">
                 <div class="text-base font-medium text-gray-900">Manage MCP Servers</div>
-                <button id="add-tool-server" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                <button id="add-tool-server" class="p-1 text-gray-600 hover:text-gray-700 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
@@ -578,7 +589,7 @@ export function renderIntegrationsSettings(container, data) {
         ${useSharedActionFooter ? '' : `
         <div class="shrink-0 flex items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10">
           <div id="integrations-dirty" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">Unsaved changes</div>
-          <button id="save-integrations" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || integrationsState.saving) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || integrationsState.saving) ? 'disabled' : ''}>
+          <button id="save-integrations" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${(!dirty || integrationsState.saving) ? 'bg-gray-200 text-gray-600 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-900'}" ${(!dirty || integrationsState.saving) ? 'disabled' : ''}>
             ${integrationsState.saving ? 'Saving...' : 'Save'}
           </button>
         </div>`}
@@ -703,15 +714,6 @@ export function renderIntegrationsSettings(container, data) {
     }
   };
 
-  data.settingsSaveHandlers.integrations = saveIntegrations;
-  data.settingsDiscardHandlers.integrations = () => {
-    integrationsState.loaded = false;
-    integrationsState.originalSnapshot = null;
-    integrationsState.toolServers = [];
-    aclDraftRegistry.clear();
-    loadIntegrations();
-  };
-
   const bindEvents = () => {
     container.querySelector('#add-tool-server')?.addEventListener('click', () => {
       openModal(null);
@@ -739,9 +741,32 @@ export function renderIntegrationsSettings(container, data) {
         const id = toggle.dataset.id;
         const server = integrationsState.toolServers.find(s => s.id === id);
         if (server) {
-          server.enabled = !server.enabled;
+          const wasEnabled = server.enabled;
+          const nextEnabled = !wasEnabled;
+          server.enabled = nextEnabled;
           updateServerRowState(id);
-          updateButtons();
+
+          // Make immediate API call
+          (async () => {
+            try {
+              const sanitized = sanitizeServers();
+              const res = await apiFetch('/api/admin/tool-servers', {
+                method: 'PUT',
+                body: JSON.stringify({ servers: sanitized }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || err.message || 'Failed to update tool server');
+              }
+              const payload = await res.json().catch(() => ({}));
+              integrationsState.toolServers = mapSavedToolServers(payload?.servers, sanitized);
+              broadcastToolServersInvalidation();
+            } catch (err) {
+              server.enabled = wasEnabled;
+              updateServerRowState(id);
+              console.error('Failed to update tool server:', err);
+            }
+          })();
         }
         return;
       }
@@ -784,8 +809,16 @@ export function renderIntegrationsSettings(container, data) {
         if (server) {
           void openToolServerAccessModal(server, {
             onApply: async (rules) => {
-              aclDraftRegistry.stage(server.id, rules);
-              updateButtons();
+              try {
+                const res = await updateAdminToolServerAccess(server.id, rules);
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  throw new Error(err.error || err.message || 'Failed to save access rules');
+                }
+                broadcastToolServersInvalidation();
+              } catch (err) {
+                console.error('Failed to save tool server access:', err);
+              }
             },
           });
         }
@@ -1041,14 +1074,11 @@ export function renderIntegrationsSettings(container, data) {
       if (!res.ok) throw new Error('Failed to load tool servers');
       const payload = await res.json();
       integrationsState.toolServers = sortResourcesByEnabledThenLabel(mapSavedToolServers(payload?.servers, []));
-      integrationsState.originalSnapshot = buildSnapshot();
+      integrationsState.originalSnapshot = 'loaded';
       if (isActiveTab()) render();
     } catch (err) {
       console.warn('Failed to load tool servers', err);
     } finally {
-      if (!integrationsState.originalSnapshot) {
-        integrationsState.originalSnapshot = buildSnapshot();
-      }
       if (isActiveTab()) render();
     }
   };

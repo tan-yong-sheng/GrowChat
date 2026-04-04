@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
+import { renderAdminRoute, setupAdminPage } from './admin-test-helpers';
 
 test.describe('QA Settings Validation @qa-validation', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to settings
-    await page.goto('http://localhost:8787/#/admin/settings/connections', { waitUntil: 'networkidle' });
-    await page.waitForLoadState('networkidle');
+    await setupAdminPage(page);
+    await renderAdminRoute(page, '/admin/settings/connections');
   });
 
   test('Connections settings UI renders', async ({ page }) => {
     // Check if connections tab is visible
-    const connectionsTab = page.locator('[data-tab="connections"]');
+    const connectionsTab = page.locator('[data-subnav="connections"]');
     await expect(connectionsTab).toBeVisible({ timeout: 5000 });
 
     // Check if connections list container exists
@@ -23,8 +23,8 @@ test.describe('QA Settings Validation @qa-validation', () => {
 
   test('Models settings tab renders', async ({ page }) => {
     // Click models tab
-    const modelsTab = page.locator('[data-tab="models"]');
-    await modelsTab.click().catch(() => {});
+    const modelsTab = page.locator('[data-subnav="models"]');
+    await modelsTab.click();
     await page.waitForLoadState('networkidle');
 
     // Check if models list exists
@@ -38,8 +38,8 @@ test.describe('QA Settings Validation @qa-validation', () => {
 
   test('Integrations settings tab renders', async ({ page }) => {
     // Click integrations tab
-    const integrationsTab = page.locator('[data-tab="integrations"]');
-    await integrationsTab.click().catch(() => {});
+    const integrationsTab = page.locator('[data-subnav="integrations"]');
+    await integrationsTab.click();
     await page.waitForLoadState('networkidle');
 
     // Check if integrations list exists
@@ -84,8 +84,7 @@ test.describe('QA Settings Validation @qa-validation', () => {
 
   test('Mobile responsiveness - settings on 320px viewport', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
-    await page.goto('http://localhost:8787/#/admin/settings/connections', { waitUntil: 'networkidle' });
-
+    await renderAdminRoute(page, '/admin/settings/connections');
     // Check if app is visible
     const appContainer = page.locator('#app, [data-testid="app"]');
     const isVisible = await appContainer.isVisible().catch(() => false);

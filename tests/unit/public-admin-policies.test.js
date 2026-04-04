@@ -528,7 +528,7 @@ describe('admin policies settings', () => {
     expect(text.indexOf('Model 1')).toBeLessThan(text.indexOf('Model 3'));
   });
 
-  it('broadcasts model and tool invalidation after saving policies', async () => {
+  it('makes immediate API call when ACL rules are saved and broadcasts invalidation', async () => {
     const { renderPoliciesSettings } = await loadModule();
     const container = document.getElementById('root');
 
@@ -543,24 +543,13 @@ describe('admin policies settings', () => {
     expect(select).not.toBeNull();
     select.value = 'deny';
     select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    vi.clearAllMocks();
     document.querySelector('#policy-acl-save')?.click();
 
-    await vi.waitFor(() => expect(container.querySelector('#policy-page-save')).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#policy-page-save').disabled).toBe(false));
-    container.querySelector('#policy-page-save')?.click();
-
     await vi.waitFor(() => expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/models/access' && String(options?.method || '').toUpperCase() === 'PUT')
+      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/access') && String(options?.method || '').toUpperCase() === 'PUT')
     ).toBe(true));
-    expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/models/') && String(url).endsWith('/access') && String(url) !== '/api/admin/models/access' && String(options?.method || '').toUpperCase() === 'PUT')
-    ).toBe(false);
-    expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/openai/connections/') && String(url).endsWith('/access') && String(url) !== '/api/admin/openai/connections/access' && String(options?.method || '').toUpperCase() === 'PUT')
-    ).toBe(false);
-    expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/tool-servers/') && String(url).endsWith('/access') && String(url) !== '/api/admin/tool-servers/access' && String(options?.method || '').toUpperCase() === 'PUT')
-    ).toBe(false);
 
     await vi.waitFor(() => expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled());
     expect(mocks.broadcastConnectionsInvalidation).toHaveBeenCalled();

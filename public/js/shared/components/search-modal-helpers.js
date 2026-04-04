@@ -1,5 +1,15 @@
 import { formatDate } from '../utils.js';
 
+function normalizeDateValue(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  if (/^\d+$/.test(text)) {
+    const numeric = Number(text);
+    return text.length <= 10 ? numeric * 1000 : numeric;
+  }
+  return value;
+}
+
 function escapeHtml(text) {
   return String(text ?? '')
     .replaceAll('&', '&amp;')
@@ -22,10 +32,11 @@ export function normalizeBackendQuery(query) {
 }
 
 export function getSearchChatDateLabel(dateString) {
-  if (!dateString) return 'Unknown date';
-  const date = new Date(dateString);
+  const normalizedDate = normalizeDateValue(dateString);
+  if (!normalizedDate) return 'Unknown date';
+  const date = new Date(normalizedDate);
   if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Unknown date';
-  const label = formatDate(dateString);
+  const label = formatDate(normalizedDate);
   return label || 'Unknown date';
 }
 

@@ -43,12 +43,7 @@ export function renderModelsSettings(container, data) {
     limit: 20,
     offset: 0,
     disabledModels: new Set(),
-    originalDisabledModels: new Set(),
     attachmentCaps: {},
-    originalAttachmentCaps: {},
-    capsLoading: false,
-    capsError: null,
-    saving: false,
     query: '',
     provider: 'all',
     providerOptions: [],
@@ -57,9 +52,6 @@ export function renderModelsSettings(container, data) {
   });
   const aclDraftRegistry = createAclDraftRegistry(modelsState);
   const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDiscardHandlers = data.settingsDiscardHandlers || {};
 
   if (data.modelsSettingsInvalidate && modelsState.invalidateToken !== data.modelsSettingsInvalidate) {
     modelsState.invalidateToken = data.modelsSettingsInvalidate;
@@ -95,34 +87,105 @@ export function renderModelsSettings(container, data) {
     return false;
   };
 
-  const hasChanges = () => {
-    if (modelsState.disabledModels.size !== modelsState.originalDisabledModels.size) return true;
-    for (const id of modelsState.disabledModels) {
-      if (!modelsState.originalDisabledModels.has(id)) return true;
-    }
-    if (hasCapsChanges()) return true;
-    if (aclDraftRegistry.isDirty()) return true;
-    return false;
-  };
+  const hasChanges = () => false;
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
   data.settingsDirtyCheckers.models = hasChanges;
 
+  const showFeedback = (message, isError = false) => {
+    const feedback = container.querySelector('#models-feedback');
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.className = isError
+      ? 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
+      : 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+    feedback.classList.remove('hidden');
+    setTimeout(() => feedback.classList.add('hidden'), 3000);
+  };
+
+  const toggleModelEnabled = async (modelId) => {
+    const model = modelsState.models.find(m => m.id === modelId);
+    if (!model) return;
+
+    const wasEnabled = !modelsState.disabledModels.has(modelId);
+    const nextEnabled = !wasEnabled;
+
+    modelsState.disabledModels = new Set(modelsState.disabledModels);
+    if (nextEnabled) {
+      modelsState.disabledModels.delete(modelId);
+    } else {
+      modelsState.disabledModels.add(modelId);
+    }
+
+    try {
+      const res = await apiFetch('/api/admin/models', {
+        method: 'PUT',
+        body: JSON.stringify({
+          updates: [{ id: modelId, enabled: nextEnabled }],
+          attachment_updates: [],
+          access_updates: [],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || err.message || 'Failed to update model');
+      }
+
+      broadcastModelsInvalidation();
+      showFeedback(`Model ${nextEnabled ? 'enabled' : 'disabled'}.`);
+    } catch (err) {
+      if (wasEnabled) {
+        modelsState.disabledModels.delete(modelId);
+      } else {
+        modelsState.disabledModels.add(modelId);
+      }
+      if (isActiveTab()) syncUi();
+      showFeedback(err?.message || 'Failed to update model.', true);
+    }
+  };
+
+  const updateAttachmentCap = async (modelId, kind, nextValue) => {
+    const currentValue = getAttachmentCapValue(modelsState.attachmentCaps, modelId, kind);
+    if (currentValue === nextValue) return;
+
+    const prevCaps = { ...modelsState.attachmentCaps };
+    setCapValue(modelId, kind, nextValue);
+
+    try {
+      const res = await apiFetch('/api/admin/models', {
+        method: 'PUT',
+        body: JSON.stringify({
+          updates: [],
+          attachment_updates: [{ model_id: modelId, attachments: { [kind]: nextValue } }],
+          access_updates: [],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || err.message || 'Failed to update attachment capability');
+      }
+
+      broadcastModelsInvalidation();
+      showFeedback('Attachment capability updated.');
+    } catch (err) {
+      modelsState.attachmentCaps = prevCaps;
+      if (isActiveTab()) syncUi();
+      showFeedback(err?.message || 'Failed to update attachment capability.', true);
+    }
+  };
+
   const updateButtons = () => {
-    const dirty = hasChanges();
     const dirtyBadge = container.querySelector('#models-dirty');
     const saveBtn = container.querySelector('#save-models-top');
     if (dirtyBadge) {
-      dirtyBadge.classList.toggle('invisible', !dirty);
+      dirtyBadge.classList.add('invisible');
     }
     if (saveBtn) {
-      const disabled = !dirty || modelsState.saving;
-      saveBtn.disabled = disabled;
-      saveBtn.classList.toggle('bg-gray-200', disabled);
-      saveBtn.classList.toggle('text-gray-400', disabled);
-      saveBtn.classList.toggle('cursor-not-allowed', disabled);
-      saveBtn.classList.toggle('bg-black', !disabled);
-      saveBtn.classList.toggle('text-white', !disabled);
-      saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
-      saveBtn.textContent = modelsState.saving ? 'Saving...' : 'Save';
+      saveBtn.disabled = true;
+      saveBtn.classList.add('bg-gray-200', 'text-gray-400', 'cursor-not-allowed');
+      saveBtn.classList.remove('bg-black', 'text-white', 'hover:bg-gray-900');
+      saveBtn.textContent = 'Save';
     }
     data.requestSettingsFooterSync?.();
   };
@@ -286,20 +349,14 @@ export function renderModelsSettings(container, data) {
 
     const saveBtn = container.querySelector('#save-models-top');
     if (saveBtn) {
-      const dirty = hasChanges();
-      const disabled = !dirty || modelsState.saving;
-      saveBtn.disabled = disabled;
-      saveBtn.classList.toggle('bg-gray-200', disabled);
-      saveBtn.classList.toggle('text-gray-400', disabled);
-      saveBtn.classList.toggle('cursor-not-allowed', disabled);
-      saveBtn.classList.toggle('bg-black', !disabled);
-      saveBtn.classList.toggle('text-white', !disabled);
-      saveBtn.classList.toggle('hover:bg-gray-900', !disabled);
-      saveBtn.textContent = modelsState.saving ? 'Saving...' : 'Save';
+      saveBtn.disabled = true;
+      saveBtn.classList.add('bg-gray-200', 'text-gray-400', 'cursor-not-allowed');
+      saveBtn.classList.remove('bg-black', 'text-white', 'hover:bg-gray-900');
+      saveBtn.textContent = 'Save';
     }
     const dirtyBadge = container.querySelector('#models-dirty');
     if (dirtyBadge) {
-      dirtyBadge.classList.toggle('invisible', !hasChanges());
+      dirtyBadge.classList.add('invisible');
     }
     data.requestSettingsFooterSync?.();
   };
@@ -371,34 +428,10 @@ export function renderModelsSettings(container, data) {
       const toggleBtn = target.closest('.model-toggle');
       if (toggleBtn) {
         const modelId = toggleBtn.dataset.modelId;
-        const row = toggleBtn.closest('[data-model-row]');
-        if (modelsState.disabledModels.has(modelId)) {
-          modelsState.disabledModels.delete(modelId);
-        } else {
-          modelsState.disabledModels.add(modelId);
-        }
-        const enabled = !modelsState.disabledModels.has(modelId);
-        updateModelToggle(toggleBtn, enabled);
-        if (row) {
-          row.classList.toggle('bg-gray-50/80', !enabled);
-          row.classList.toggle('opacity-70', !enabled);
-          const aclBtn = row.querySelector('[data-model-acl]');
-          if (aclBtn) {
-            aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
-            if (enabled) {
-              aclBtn.removeAttribute('tabindex');
-              aclBtn.removeAttribute('aria-hidden');
-            } else {
-              aclBtn.setAttribute('tabindex', '-1');
-              aclBtn.setAttribute('aria-hidden', 'true');
-            }
-            if (!canManageAcls) {
-              aclBtn.setAttribute('disabled', 'true');
-              aclBtn.setAttribute('aria-disabled', 'true');
-            }
-          }
-        }
-        updateButtons();
+        void (async () => {
+          await toggleModelEnabled(modelId);
+          if (isActiveTab()) syncUi();
+        })();
         return;
       }
 
@@ -409,9 +442,10 @@ export function renderModelsSettings(container, data) {
         if (!modelId || !kind) return;
         const currentValue = getAttachmentCapValue(modelsState.attachmentCaps, modelId, kind);
         const nextValue = !currentValue;
-        setCapValue(modelId, kind, nextValue);
-        updateCapButton(capBtn, nextValue);
-        updateButtons();
+        void (async () => {
+          await updateAttachmentCap(modelId, kind, nextValue);
+          if (isActiveTab()) syncUi();
+        })();
         return;
       }
 
@@ -424,14 +458,8 @@ export function renderModelsSettings(container, data) {
         openModelAccessModal({ id: modelId, name: model?.name || modelId }, {
           onApply: async (rules) => {
             aclDraftRegistry.stage(modelId, rules);
-            updateButtons();
           },
         });
-      }
-
-      const saveBtn = target.closest('#save-models-top');
-      if (saveBtn) {
-        void saveModels();
       }
     });
   };
@@ -776,217 +804,6 @@ export function renderModelsSettings(container, data) {
     }
   };
 
-  const saveModels = async () => {
-    if (modelsState.saving) return;
-    const updates = modelsState.models
-      .map((model) => {
-        const isDisabled = modelsState.disabledModels.has(model.id);
-        const wasDisabled = modelsState.originalDisabledModels.has(model.id);
-        if (isDisabled === wasDisabled) return null;
-        return { id: model.id, enabled: !isDisabled };
-      })
-      .filter(Boolean);
-
-    const attachmentUpdates = [];
-    modelsState.models.forEach((model) => {
-      const modelId = model.id;
-      const patch = {};
-      ATTACHMENT_CAP_TYPES.forEach(({ key }) => {
-        const currentValue = getAttachmentCapValue(modelsState.attachmentCaps, modelId, key);
-        const originalValue = getAttachmentCapValue(modelsState.originalAttachmentCaps, modelId, key);
-        if (currentValue !== originalValue) {
-          patch[key] = currentValue;
-        }
-      });
-      if (Object.keys(patch).length > 0) {
-        attachmentUpdates.push({ model_id: modelId, attachments: patch });
-      }
-    });
-    const aclUpdates = Array.from(aclDraftRegistry.entries())
-      .map(([modelId, rules]) => ({
-        modelId,
-        rules: cloneAclRules(rules),
-      }))
-      .filter((entry) => entry.modelId);
-
-    if (updates.length === 0 && attachmentUpdates.length === 0 && aclUpdates.length === 0) {
-      return;
-    }
-
-    modelsState.saving = true;
-    updateButtons();
-    try {
-      const res = await apiFetch('/api/admin/models', {
-        method: 'PUT',
-        body: JSON.stringify({
-          updates,
-          attachment_updates: attachmentUpdates,
-          access_updates: aclUpdates,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to save model settings');
-      }
-      modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
-      modelsState.originalAttachmentCaps = cloneAttachmentCaps(modelsState.attachmentCaps);
-      aclUpdates.forEach((entry) => {
-        aclDraftRegistry.clear(entry.modelId);
-      });
-      broadcastModelsInvalidation();
-      const feedback = container.querySelector('#models-feedback');
-      if (feedback) {
-        feedback.textContent = 'Model settings saved. Chat model list will refresh.';
-        feedback.className = 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-        feedback.classList.remove('hidden');
-        setTimeout(() => feedback.classList.add('hidden'), 3000);
-      }
-    } catch (err) {
-      const feedback = container.querySelector('#models-feedback');
-      if (feedback) {
-        feedback.textContent = err.message || 'Failed to save model settings';
-        feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
-        feedback.classList.remove('hidden');
-        setTimeout(() => feedback.classList.add('hidden'), 3000);
-      }
-      throw err;
-    } finally {
-      modelsState.saving = false;
-      updateButtons();
-    }
-  };
-
-  data.settingsSaveHandlers.models = saveModels;
-  data.settingsDiscardHandlers.models = () => {
-    modelsState.disabledModels = new Set(modelsState.originalDisabledModels);
-    modelsState.attachmentCaps = cloneAttachmentCaps(modelsState.originalAttachmentCaps);
-    aclDraftRegistry.clear();
-    if (isActiveTab()) render();
-  };
-
-  const bindEvents = () => {
-    const searchInput = container.querySelector('#model-search-input');
-    const clearSearchBtn = container.querySelector('#model-clear-search-btn');
-    const clearSearchContainer = container.querySelector('#model-clear-search-container');
-    let searchDebounce = null;
-    if (searchInput) {
-      searchInput.oninput = (e) => {
-        const nextValue = e.target.value;
-        clearSearchContainer?.classList.toggle('hidden', !nextValue);
-        if (searchDebounce) clearTimeout(searchDebounce);
-        searchDebounce = setTimeout(() => {
-          modelsState.query = nextValue;
-          modelsState.offset = 0;
-          loadModels(true);
-        }, 120);
-      };
-    }
-    clearSearchBtn?.addEventListener('click', () => {
-      if (searchDebounce) clearTimeout(searchDebounce);
-      modelsState.query = '';
-      modelsState.offset = 0;
-      if (searchInput) {
-        searchInput.value = '';
-      }
-      if (clearSearchContainer) {
-        clearSearchContainer.classList.add('hidden');
-      }
-      loadModels(true);
-      searchInput?.focus();
-    });
-    const providerSelect = container.querySelector('#model-provider-select');
-    if (providerSelect) {
-      providerSelect.onchange = (e) => {
-        modelsState.provider = e.target.value || 'all';
-        modelsState.offset = 0;
-        loadModels(true);
-      };
-    }
-
-    container.querySelectorAll('.model-toggle').forEach(btn => {
-      btn.onclick = () => {
-        const modelId = btn.dataset.modelId;
-        const row = btn.closest('[data-model-row]');
-        if (modelsState.disabledModels.has(modelId)) {
-          modelsState.disabledModels.delete(modelId);
-        } else {
-          modelsState.disabledModels.add(modelId);
-        }
-        const enabled = !modelsState.disabledModels.has(modelId);
-        updateModelToggle(btn, enabled);
-        if (row) {
-          row.classList.toggle('bg-gray-50/80', !enabled);
-          row.classList.toggle('opacity-70', !enabled);
-          const aclBtn = row.querySelector('[data-model-acl]');
-          if (aclBtn) {
-            aclBtn.classList.toggle('hidden', !enabled || !canManageAcls);
-            if (enabled) {
-              aclBtn.removeAttribute('tabindex');
-              aclBtn.removeAttribute('aria-hidden');
-            } else {
-              aclBtn.setAttribute('tabindex', '-1');
-              aclBtn.setAttribute('aria-hidden', 'true');
-            }
-            if (!canManageAcls) {
-              aclBtn.setAttribute('disabled', 'true');
-              aclBtn.setAttribute('aria-disabled', 'true');
-            }
-          }
-        }
-        updateButtons();
-      };
-    });
-
-    container.querySelectorAll('[data-cap-model]').forEach((btn) => {
-      btn.onclick = () => {
-        const modelId = btn.getAttribute('data-cap-model');
-        const kind = btn.getAttribute('data-cap-kind');
-        if (!modelId || !kind) return;
-        const currentValue = getAttachmentCapValue(modelsState.attachmentCaps, modelId, kind);
-        const nextValue = !currentValue;
-        setCapValue(modelId, kind, nextValue);
-        updateCapButton(btn, nextValue);
-        updateButtons();
-      };
-    });
-
-    container.querySelectorAll('[data-model-acl]').forEach((btn) => {
-      btn.onclick = () => {
-        if (!canManageAcls) return;
-        const modelId = btn.getAttribute('data-model-acl');
-        if (!modelId) return;
-        const model = (modelsState.models || []).find((item) => item.id === modelId);
-        openModelAccessModal({ id: modelId, name: model?.name || modelId }, {
-          onApply: async (rules) => {
-            aclDraftRegistry.stage(modelId, rules);
-            updateButtons();
-          },
-        });
-      };
-    });
-
-    container.querySelector('#page-size-select')?.addEventListener('change', (e) => {
-      modelsState.limit = parseInt(e.target.value, 10);
-      modelsState.offset = 0;
-      loadModels(true);
-    });
-
-    container.querySelector('#prev-page')?.addEventListener('click', () => {
-      modelsState.offset = Math.max(0, modelsState.offset - modelsState.limit);
-      loadModels(true);
-    });
-
-    container.querySelector('#next-page')?.addEventListener('click', () => {
-      modelsState.offset = modelsState.offset + modelsState.limit;
-      loadModels(true);
-    });
-
-    const saveBtn = container.querySelector('#save-models-top');
-    saveBtn?.addEventListener('click', async () => {
-      await saveModels();
-    });
-  };
-
   const loadModels = async (force = false) => {
     if (!isActiveTab()) return;
     if (modelsState.models.length > 0 && !force) return;
@@ -1018,10 +835,8 @@ export function renderModelsSettings(container, data) {
         modelsState.disabledModels = new Set(
           modelsState.models.filter((model) => model.enabled === false).map((model) => model.id)
         );
-        modelsState.originalDisabledModels = new Set(modelsState.disabledModels);
         const capsFromModels = extractAttachmentCapsFromModels(modelsState.models);
         modelsState.attachmentCaps = capsFromModels;
-        modelsState.originalAttachmentCaps = cloneAttachmentCaps(capsFromModels);
       }
     } catch (err) {
       console.warn('Failed to load models for settings', err);

@@ -18,9 +18,9 @@ test.describe('Search Placeholder Text Contrast Verification', () => {
     );
   });
 
-  test('verify search placeholder text has improved contrast (gray-600)', async ({ page }) => {
+  test('verify search placeholder text has improved contrast (gray-600)', async ({ page }, testInfo) => {
     // Navigate to the app
-    await page.goto('http://127.0.0.1:8787');
+    await page.goto('/');
 
     // Wait for the page to load
     await page.waitForLoadState('networkidle');
@@ -50,7 +50,7 @@ test.describe('Search Placeholder Text Contrast Verification', () => {
     expect(classList).toContain('placeholder:text-gray-600');
 
     // Take a screenshot to visually verify contrast
-    await page.screenshot({ path: '/c/Users/tys/Documents/Coding/GrowChat/search-placeholder-contrast.png' });
+    await page.screenshot({ path: testInfo.outputPath('search-placeholder-contrast.png') });
 
     // Verify the placeholder is readable by checking it's not too light
     // Gray-600 should be darker than gray-500
@@ -61,7 +61,7 @@ test.describe('Search Placeholder Text Contrast Verification', () => {
   });
 
   test('verify search modal opens and placeholder is visible', async ({ page }) => {
-    await page.goto('http://127.0.0.1:8787');
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1000);
 
@@ -77,7 +77,7 @@ test.describe('Search Placeholder Text Contrast Verification', () => {
     expect(boundingBox).not.toBeNull();
 
     // Take a close-up screenshot of the search input
-    await searchInput.screenshot({ path: '/c/Users/tys/Documents/Coding/GrowChat/search-input-closeup.png' });
+    await searchInput.screenshot({ path: testInfo.outputPath('search-input-closeup.png') });
 
     console.log('✓ Search modal placeholder is visible and readable');
   });

@@ -10,7 +10,6 @@ import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.
 import { renderErrorBanner } from '../../shared/components/section-header.js';
 import { renderSettingsActionFooter } from '../../shared/components/settings-action-footer.js';
 import { broadcastToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
-import { createStagedSaveQueue } from '../../shared/utils/staged-save.js';
 import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
 import {
   isResourceHidden,
@@ -20,6 +19,7 @@ import {
   setToolVisibility,
 } from '../../shared/utils/user-resource-overrides.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
+import { escapeSelector } from '../../shared/utils.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -28,14 +28,6 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
-}
-
-function escapeSelector(value) {
-  const raw = String(value ?? '');
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return CSS.escape(raw);
-  }
-  return raw.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
 }
 
 function normalizeTool(tool = {}) {
@@ -62,22 +54,6 @@ function normalizeToolList(tools = []) {
   return (Array.isArray(tools) ? tools : [])
     .map(normalizeTool)
     .filter(Boolean);
-}
-
-function clonePreferences(value = {}) {
-  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  if (typeof structuredClone === 'function') {
-    try {
-      return structuredClone(source);
-    } catch {
-      return { ...source };
-    }
-  }
-  try {
-    return JSON.parse(JSON.stringify(source));
-  } catch {
-    return { ...source };
-  }
 }
 
 function normalizeServer(server = {}) {
@@ -242,7 +218,7 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
           </button>
         </div>
         ${description ? `
-          <div class="text-[11px] text-gray-700 mt-1">${escapeHtml(preview)}</div>
+          <div class="text-[11px] text-gray-500 mt-1">${escapeHtml(preview)}</div>
           ${hasMore ? `<button data-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name || '')}" class="tool-desc-toggle text-[10px] text-gray-600 hover:text-gray-700 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
         ` : ''}
       </div>
@@ -316,40 +292,10 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
       ? state.settings.integrations.accessible_servers.map(normalizeServer).filter(Boolean)
       : [],
   };
-  const stagedPreferencesSave = createStagedSaveQueue({
-    getSnapshot: () => clonePreferences(state.settings?.preferences || {}),
-    saveSnapshot: async (preferences) => {
-      const res = await apiFetch('/api/users/me', {
-        method: 'PUT',
-        body: JSON.stringify({ preferences }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to update shared integration visibility');
-      }
-      return res.json().catch(() => ({}));
-    },
-    onCommit: (snapshot, _version, payload = {}) => {
-      state.settings = {
-        ...(state.settings || {}),
-        preferences: payload?.user?.preferences || snapshot,
-      };
-      sectionState.error = '';
-      broadcastToolServersInvalidation();
-      syncListShell();
-      syncFeedback();
-      syncActionFooter();
-    },
-    onError: (error) => {
-      sectionState.error = error?.message || 'Failed to update shared integration visibility';
-      syncFeedback();
-      syncActionFooter();
-    },
-  });
 
   let activeModal = null;
   const ensureMounted = () => container.dataset.integrationsMounted === '1' && Boolean(container.querySelector('#tool-servers-list'));
-  const hasChanges = () => stagedPreferencesSave.pending;
+  const hasChanges = () => false;
 
   const syncFeedback = () => {
     const feedback = container.querySelector('#integrations-feedback');
@@ -449,17 +395,9 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
       saveId: 'save-integrations',
       dirtyLabel: 'Unsaved changes',
       buttonLabel: 'Save',
-      dirty: hasChanges(),
-      saving: stagedPreferencesSave.saving,
-      canSave: canManageToolServers && hasChanges(),
-    });
-    footerHost.querySelector('#save-integrations')?.addEventListener('click', async () => {
-      if (!canManageToolServers || stagedPreferencesSave.saving || !hasChanges()) return;
-      try {
-        await stagedPreferencesSave.flush();
-      } catch {
-        // Errors are surfaced by the queue callbacks.
-      }
+      dirty: false,
+      saving: false,
+      canSave: false,
     });
   };
 
@@ -481,15 +419,29 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
           const currentHidden = isToolHidden(state.settings?.preferences || {}, id, toolName);
           const nextVisible = currentHidden;
           const nextPreferences = setToolVisibility(state.settings?.preferences || {}, id, toolName, nextVisible);
-          state.settings = {
-            ...(state.settings || {}),
-            preferences: nextPreferences,
-          };
-          sectionState.error = '';
-          syncListShell();
-          syncActionFooter();
-          stagedPreferencesSave.stage();
-          syncActionFooter();
+          void (async () => {
+            try {
+              const res = await apiFetch('/api/users/me', {
+                method: 'PUT',
+                body: JSON.stringify({ preferences: nextPreferences }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || err.message || 'Failed to update tool visibility');
+              }
+              state.settings = {
+                ...(state.settings || {}),
+                preferences: nextPreferences,
+              };
+              sectionState.error = '';
+              broadcastToolServersInvalidation();
+              syncListShell();
+              syncFeedback();
+            } catch (err) {
+              sectionState.error = err?.message || 'Failed to update tool visibility';
+              syncFeedback();
+            }
+          })();
           return;
         }
         const server = sectionState.servers.find((entry) => entry.id === id);
@@ -512,15 +464,29 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
           const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'tool_servers', id);
           const nextVisible = currentHidden;
           const nextPreferences = setResourceVisibility(state.settings?.preferences || {}, 'tool_servers', id, nextVisible);
-          state.settings = {
-            ...(state.settings || {}),
-            preferences: nextPreferences,
-          };
-          sectionState.error = '';
-          syncListShell();
-          syncActionFooter();
-          stagedPreferencesSave.stage();
-          syncActionFooter();
+          void (async () => {
+            try {
+              const res = await apiFetch('/api/users/me', {
+                method: 'PUT',
+                body: JSON.stringify({ preferences: nextPreferences }),
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || err.message || 'Failed to update server visibility');
+              }
+              state.settings = {
+                ...(state.settings || {}),
+                preferences: nextPreferences,
+              };
+              sectionState.error = '';
+              broadcastToolServersInvalidation();
+              syncListShell();
+              syncFeedback();
+            } catch (err) {
+              sectionState.error = err?.message || 'Failed to update server visibility';
+              syncFeedback();
+            }
+          })();
           return;
         }
         if (!canManageToolServers) return;

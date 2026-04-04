@@ -9,6 +9,14 @@ export function escapeHtml(str) {
   return div.innerHTML;
 }
 
+export function escapeSelector(value) {
+  const text = String(value || '');
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(text);
+  }
+  return text.replace(/["\\]/g, '\\$&');
+}
+
 export function renderMessageContent(content, options = {}) {
   if (!content) return '<span class="inline-block w-2 h-4 bg-gray-400 animate-pulse rounded-sm"></span>';
   return renderMarkdownContent(content, options);
@@ -61,14 +69,17 @@ export class SseLineParser {
 
 export function formatDate(dateString) {
   if (!dateString) return '';
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return '';
+  const normalized = String(dateString).trim();
+  const input = /^\d+$/.test(normalized)
+    ? new Date(normalized.length <= 10 ? Number(normalized) * 1000 : Number(normalized))
+    : new Date(normalized);
+  if (Number.isNaN(input.getTime())) return '';
   const now = new Date();
-  const diff = now - date;
+  const diff = now - input;
 
   const day = 24 * 60 * 60 * 1000;
 
-  if (diff < day && now.getDate() === date.getDate()) {
+  if (diff < day && now.getDate() === input.getDate()) {
     return 'Today';
   } else if (diff < 2 * day) {
     return 'Yesterday';
@@ -77,7 +88,7 @@ export function formatDate(dateString) {
   } else if (diff < 30 * day) {
     return 'Previous 30 days';
   } else {
-    return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    return input.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   }
 }
 

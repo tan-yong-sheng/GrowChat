@@ -4,7 +4,6 @@ import { normalizeModelSearchQuery } from '../../shared/utils/model-search.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
-import { createStagedSaveQueue } from '../../shared/utils/staged-save.js';
 import { renderSettingsActionFooter } from '../../shared/components/settings-action-footer.js';
 import {
   renderModelsHeaderHtml,
@@ -174,67 +173,6 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
     invalidateToken: null,
     needsReload: false,
   };
-  const stagedSave = createStagedSaveQueue({
-    getSnapshot: () => ({
-      disabledModelIds: Array.from(sectionState.disabledModelIds),
-      attachmentCaps: cloneAttachmentCaps(sectionState.attachmentCaps),
-    }),
-    saveSnapshot: async (snapshot) => {
-      const nextSettings = {
-        ...(state.settings?.preferences || {}),
-        model_settings: {
-          disabled_model_ids: Array.from(snapshot.disabledModelIds || []),
-          attachment_caps: cloneAttachmentCaps(snapshot.attachmentCaps || {}),
-        },
-        resource_overrides: {
-          ...((state.settings?.preferences || {}).resource_overrides || {}),
-          models: {
-            hidden_ids: Array.from(snapshot.disabledModelIds || []),
-          },
-        },
-      };
-      const res = await apiFetch('/api/users/me', {
-        method: 'PUT',
-        body: JSON.stringify({
-          preferences: nextSettings,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to save model settings');
-      }
-      return res.json().catch(() => ({}));
-    },
-    onCommit: (snapshot, _version, payload = {}) => {
-      sectionState.error = '';
-      const savedModelSettings = normalizePersonalModelSettings({
-        disabled_model_ids: Array.from(snapshot.disabledModelIds || []),
-        attachment_caps: cloneAttachmentCaps(snapshot.attachmentCaps || {}),
-      });
-      state.settings = {
-        ...(state.settings || {}),
-        preferences: {
-          ...(payload?.user?.preferences || state.settings?.preferences || {}),
-          model_settings: {
-            disabled_model_ids: Array.from(savedModelSettings.disabled_model_ids),
-            attachment_caps: cloneAttachmentCaps(savedModelSettings.attachment_caps),
-          },
-        },
-      };
-      sectionState.disabledModelIds = new Set(savedModelSettings.disabled_model_ids);
-      sectionState.originalDisabledModelIds = new Set(savedModelSettings.disabled_model_ids);
-      sectionState.attachmentCaps = cloneAttachmentCaps(savedModelSettings.attachment_caps);
-      sectionState.originalAttachmentCaps = cloneAttachmentCaps(savedModelSettings.attachment_caps);
-      broadcastModelsInvalidation();
-      updateButtons();
-      render();
-    },
-    onError: (error) => {
-      sectionState.error = error?.message || 'Failed to save model settings';
-      updateButtons();
-      render();
-    },
-  });
 
   const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
 
@@ -342,6 +280,7 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
         const model = sectionState.models.find((item) => item.id === modelId);
         if (!model) return;
         const nextEnabled = model.enabled === false;
+        const previousEnabled = model.enabled;
         model.enabled = nextEnabled;
         if (nextEnabled) {
           sectionState.disabledModelIds.delete(modelId);
@@ -354,8 +293,45 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
         );
         syncUi();
         sectionState.error = '';
-        stagedSave.stage();
-        syncFooter();
+        void (async () => {
+          try {
+            const nextPreferences = {
+              ...(state.settings?.preferences || {}),
+              model_settings: {
+                disabled_model_ids: Array.from(sectionState.disabledModelIds),
+                attachment_caps: sectionState.attachmentCaps,
+              },
+            };
+            const res = await apiFetch('/api/users/me', {
+              method: 'PUT',
+              body: JSON.stringify({ preferences: nextPreferences }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || err.message || 'Failed to update model settings');
+            }
+            state.settings = {
+              ...(state.settings || {}),
+              preferences: nextPreferences,
+            };
+            broadcastModelsInvalidation();
+          } catch (err) {
+            model.enabled = previousEnabled;
+            if (previousEnabled) {
+              sectionState.disabledModelIds.add(modelId);
+            } else {
+              sectionState.disabledModelIds.delete(modelId);
+            }
+            sectionState.activeTotal = Math.max(
+              0,
+              (Number.isFinite(sectionState.activeTotal) ? sectionState.activeTotal : countEnabledModels(sectionState.models)) + (previousEnabled ? 1 : -1),
+            );
+            sectionState.error = err?.message || 'Failed to update model settings';
+          } finally {
+            syncUi();
+            updateButtons();
+          }
+        })();
         return;
       }
 
@@ -367,11 +343,40 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
         if (!modelId || !kind) return;
         const currentValue = getAttachmentCapValue(sectionState.attachmentCaps, modelId, kind);
         const nextValue = !currentValue;
+        const previousCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
         setAttachmentCapValue(modelId, kind, nextValue);
         syncUi();
         sectionState.error = '';
-        stagedSave.stage();
-        syncFooter();
+        void (async () => {
+          try {
+            const nextPreferences = {
+              ...(state.settings?.preferences || {}),
+              model_settings: {
+                disabled_model_ids: Array.from(sectionState.disabledModelIds),
+                attachment_caps: sectionState.attachmentCaps,
+              },
+            };
+            const res = await apiFetch('/api/users/me', {
+              method: 'PUT',
+              body: JSON.stringify({ preferences: nextPreferences }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || err.message || 'Failed to update attachment caps');
+            }
+            state.settings = {
+              ...(state.settings || {}),
+              preferences: nextPreferences,
+            };
+            broadcastModelsInvalidation();
+          } catch (err) {
+            sectionState.attachmentCaps = previousCaps;
+            sectionState.error = err?.message || 'Failed to update attachment caps';
+          } finally {
+            syncUi();
+            updateButtons();
+          }
+        })();
       }
     });
 
@@ -445,17 +450,9 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
       saveId: 'save-models',
       dirtyLabel: 'Unsaved changes',
       buttonLabel: 'Save',
-      dirty: hasChanges(),
-      saving: stagedSave.saving,
-      canSave: canManageModels && hasChanges(),
-    });
-    footerHost.querySelector('#save-models')?.addEventListener('click', async () => {
-      if (!canManageModels || stagedSave.saving || !hasChanges()) return;
-      try {
-        await stagedSave.flush();
-      } catch {
-        // Errors are surfaced by the queue callbacks.
-      }
+      dirty: false,
+      saving: false,
+      canSave: false,
     });
   };
 

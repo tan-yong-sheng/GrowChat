@@ -36,7 +36,7 @@ describe('admin general settings', () => {
     });
   });
 
-  it('keeps the main Save button enabled after a general setting changes', async () => {
+  it('makes immediate API call when public registration toggle changes', async () => {
     const { renderGeneralSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -44,16 +44,19 @@ describe('admin general settings', () => {
     renderGeneralSettings(container, data);
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/models'));
     await vi.waitFor(() => expect(data.generalSettings.models.length).toBe(1));
-    await vi.waitFor(() => expect(container.querySelector('#save-settings')).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#save-settings')?.disabled).toBe(true));
 
-    expect(container.querySelector('#save-settings').disabled).toBe(true);
+    const initialCallCount = mocks.apiFetch.mock.calls.length;
     container.querySelector('#public-reg-toggle')?.click();
 
-    expect(container.querySelector('#save-settings')?.disabled).toBe(false);
+    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(initialCallCount));
+    const putCall = mocks.apiFetch.mock.calls.find(([url, options]) => (
+      String(url) === '/api/admin/config' && options?.method === 'PUT'
+    ));
+    expect(putCall).toBeTruthy();
+    expect(putCall[1].body).toContain('public_registration');
   });
 
-  it('saves registration status changes to the admin config API', async () => {
+  it('saves registration status changes to the admin config API immediately', async () => {
     const { renderGeneralSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -62,14 +65,12 @@ describe('admin general settings', () => {
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/models'));
     await vi.waitFor(() => expect(container.querySelector('#registration-status')).not.toBeNull());
 
+    const initialCallCount = mocks.apiFetch.mock.calls.length;
     const registrationStatus = container.querySelector('#registration-status');
     registrationStatus.value = 'active';
     registrationStatus.dispatchEvent(new Event('change', { bubbles: true }));
 
-    expect(container.querySelector('#save-settings')?.disabled).toBe(false);
-
-    await data.settingsSaveHandlers.general();
-
+    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(initialCallCount));
     const putCall = mocks.apiFetch.mock.calls.find(([url, options]) => (
       String(url) === '/api/admin/config' && options?.method === 'PUT'
     ));
