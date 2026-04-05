@@ -15,21 +15,7 @@ import {
   shouldShowAuthField,
 } from './integrations-helpers.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
-
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
-
-const escapeSelector = (value) => {
-  const text = String(value || '');
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return CSS.escape(text);
-  }
-  return text.replace(/["\\]/g, '\\$&');
-};
+import { escapeHtml, escapeSelector } from '../../../shared/utils/dom-escape.js';
 
 export function renderIntegrationsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'integrations';
