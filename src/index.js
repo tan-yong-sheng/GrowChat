@@ -8,7 +8,46 @@ import {
   validateRouteBindings,
 } from './bootstrap/worker-context.js';
 import { error, preflight } from './utils/response.js';
+import { getSriHashes, injectSriHashes } from './utils/sri-hashes.js';
 import { MessageQueueDO } from './durable/message-queue.js';
+
+function cloneCachedHtmlResponse(cached) {
+  return new Response(cached.body, {
+    status: cached.status,
+    headers: new Headers(cached.headers),
+  });
+}
+
+async function injectSriIntoHtmlResponse(response, env) {
+  if (!response?.ok) return response;
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/html')) return response;
+
+  try {
+    const html = await response.text();
+    const hashes = await getSriHashes(env);
+    const headers = new Headers(response.headers);
+    headers.delete('content-length');
+    headers.delete('etag');
+
+    return new Response(injectSriHashes(html, hashes), {
+      status: response.status,
+      headers,
+    });
+  } catch (err) {
+    console.error('SRI injection error:', err?.message || err);
+    return response;
+  }
+}
+
+async function fetchHtmlAsset(env, req, pathname) {
+  const url = new URL(req.url);
+  url.pathname = pathname;
+  url.search = '';
+  const response = await env.ASSETS.fetch(new Request(url.toString(), req));
+  return injectSriIntoHtmlResponse(response, env);
+}
 
 export default {
   async fetch(req, env, ctx) {
@@ -26,12 +65,10 @@ export default {
         const bindingError = validateRouteBindings(req, env, path);
         if (bindingError) return bindingError;
 
-        // Public routes don't require authentication, but can still accept it for scoped data.
         let user = null;
         const isPublic = isPublicRoute(req, path);
         if (!isPublic || req.headers.get('Authorization')) {
           user = await resolveAuthUser(req, env);
-          // Enforce account deactivation server-side, even if caller still has a valid JWT.
           if (user?.sub) {
             const primaryRole = await loadPrimaryRole(env, user.sub);
             const accountStatus = await loadUserAccountStatus(env, user.sub);
@@ -58,7 +95,6 @@ export default {
         });
       }
 
-      // Fetch assets - note: in remote dev mode, assets may be slow
       let response;
       try {
         response = await env.ASSETS.fetch(req);
@@ -67,20 +103,21 @@ export default {
         return new Response('Asset fetch failed', { status: 503, headers: { 'Content-Type': 'text/plain' } });
       }
 
+      response = await injectSriIntoHtmlResponse(response, env);
+
       if (response.status === 404 && !path.startsWith('/api/')) {
+        // Preserve auth landing behavior for SPA routes.
         if (path === '/auth' || path === '/auth.html' || path.startsWith('/auth/')) {
           try {
-            const authReq = new Request(new URL('/auth.html' + req.url.substring(req.url.indexOf('?')), req.url));
-            const authRes = await env.ASSETS.fetch(authReq);
-            if (authRes.status !== 404) return authRes;
+            const authResponse = await fetchHtmlAsset(env, req, '/auth.html');
+            if (authResponse.status !== 404) return authResponse;
           } catch (err) {
             console.error('Auth asset fetch failed:', String(err?.message || err));
           }
         }
 
         try {
-          const indexReq = new Request(new URL('/index.html', req.url));
-          return await env.ASSETS.fetch(indexReq);
+          return await fetchHtmlAsset(env, req, '/index.html');
         } catch (err) {
           console.error('Index asset fetch failed:', String(err?.message || err));
           return new Response('Asset fetch failed', { status: 503, headers: { 'Content-Type': 'text/plain' } });
@@ -100,7 +137,6 @@ export default {
       });
     }
   },
-
 };
 
 export { MessageQueueDO };
