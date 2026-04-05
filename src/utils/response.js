@@ -111,9 +111,10 @@ function sanitizeErrorMessage(message, status) {
   // For client errors (4xx), expose the message but strip stack traces
   if (typeof message === 'string') {
     // Remove stack traces (lines starting with "at " or containing file paths)
+    // Catches all source file extensions: .js, .ts, .mjs, .cjs, .jsx, .tsx, .map files
     return message
       .split('\n')
-      .filter(line => !line.trim().startsWith('at ') && !line.includes('.js:'))
+      .filter(line => !line.trim().startsWith('at ') && !/\.(js|ts|mjs|cjs|jsx|tsx|map):\d+/.test(line))
       .join('\n')
       .trim();
   }
