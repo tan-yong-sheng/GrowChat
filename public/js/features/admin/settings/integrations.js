@@ -371,13 +371,13 @@ export function renderIntegrationsSettings(container, data) {
         <div class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2">
           <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-2">
-              <div class="text-xs font-medium text-gray-900">${server.name}</div>
+              <div class="text-xs font-medium text-gray-900">${escapeHtml(server.name)}</div>
               <span data-server-disabled-badge class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${serverEnabled ? 'hidden' : ''}">Disabled</span>
             </div>
-            <div class="text-[10px] text-gray-400 font-mono">${server.url}</div>
+            <div class="text-[10px] text-gray-400 font-mono">${escapeHtml(server.url)}</div>
             <div class="text-[10px] text-gray-400 mt-1">
               Tools: <span class="text-gray-900">${enabledCount}</span> / <span class="text-gray-900">${totalCount}</span> enabled
-              ${server.toolsError ? '<span class="text-red-500 ml-2">Last verify failed</span>' : ''}
+              ${server.toolsError ? `<span class="text-red-500 ml-2">${escapeHtml(server.toolsError)}</span>` : ''}
             </div>
           </div>
           <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
@@ -425,8 +425,8 @@ export function renderIntegrationsSettings(container, data) {
                 <div class="rounded-xl border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
-                      <div class="text-xs font-medium text-gray-900">${tool.title || tool.name || 'Tool'}</div>
-                      <div class="text-[10px] text-gray-400 font-mono">${tool.name || ''}</div>
+                      <div class="text-xs font-medium text-gray-900">${escapeHtml(tool.title || tool.name || 'Tool')}</div>
+                      <div class="text-[10px] text-gray-400 font-mono">${escapeHtml(tool.name || '')}</div>
                     </div>
                     <button
                       data-server-id="${server.id}"
@@ -441,7 +441,7 @@ export function renderIntegrationsSettings(container, data) {
                     </button>
                   </div>
                   ${description ? `
-                    <div class="text-[11px] text-gray-500 mt-1">${preview}</div>
+                    <div class="text-[11px] text-gray-500 mt-1">${escapeHtml(preview)}</div>
                     ${hasMore ? `<button data-server-id="${server.id}" data-tool-name="${tool.name}" class="tool-desc-toggle text-[10px] text-gray-400 hover:text-gray-600 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
                   ` : ''}
                 </div>

@@ -11,13 +11,6 @@ import { error, preflight } from './utils/response.js';
 import { getSriHashes, injectSriHashes } from './utils/sri-hashes.js';
 import { MessageQueueDO } from './durable/message-queue.js';
 
-function cloneCachedHtmlResponse(cached) {
-  return new Response(cached.body, {
-    status: cached.status,
-    headers: new Headers(cached.headers),
-  });
-}
-
 async function injectSriIntoHtmlResponse(response, env) {
   if (!response?.ok) return response;
 
@@ -26,6 +19,8 @@ async function injectSriIntoHtmlResponse(response, env) {
 
   try {
     const html = await response.text();
+    if (!html.includes('data-sri-key')) return response;
+
     const hashes = await getSriHashes(env);
     const headers = new Headers(response.headers);
     headers.delete('content-length');
@@ -44,7 +39,6 @@ async function injectSriIntoHtmlResponse(response, env) {
 async function fetchHtmlAsset(env, req, pathname) {
   const url = new URL(req.url);
   url.pathname = pathname;
-  url.search = '';
   const response = await env.ASSETS.fetch(new Request(url.toString(), req));
   return injectSriIntoHtmlResponse(response, env);
 }

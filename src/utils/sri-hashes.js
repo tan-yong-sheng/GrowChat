@@ -19,6 +19,7 @@ const SRI_RESOURCES = {
 const sriCache = new Map();
 const SRI_CACHE_KEY = 'sri-hashes:v2';
 const SRI_CACHE_TTL_SECONDS = 86400;
+const SRI_FETCH_TIMEOUT_MS = 5000;
 const SRI_INJECT_PATTERNS = new Map([
   ['bootstrap-icons', /data-sri-key="bootstrap-icons"/g],
   ['katex-css', /data-sri-key="katex-css"/g],
@@ -38,11 +39,20 @@ async function computeSriHash(buffer) {
 }
 
 async function fetchSriHash(url) {
-  const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SRI_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${url}: ${response.status}`);
+    }
+    return computeSriHash(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return computeSriHash(await response.arrayBuffer());
 }
 
 async function readPersistedSriHashes(env) {
