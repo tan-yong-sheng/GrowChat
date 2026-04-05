@@ -6,13 +6,16 @@ const SRI_RESOURCES = {
     url: 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css',
   },
   'marked': {
-    url: 'https://cdn.jsdelivr.net/npm/marked/marked.min.js',
+    url: 'https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js',
+  },
+  'katex-js': {
+    url: 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js',
   },
   'mermaid': {
-    url: 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js',
+    url: 'https://cdn.jsdelivr.net/npm/mermaid@11.0.2/dist/mermaid.min.js',
   },
   'graphviz': {
-    url: 'https://unpkg.com/@hpcc-js/wasm/dist/graphviz.umd.js',
+    url: 'https://unpkg.com/@hpcc-js/wasm@1.12.8/dist/graphviz.umd.js',
   },
 };
 
@@ -24,6 +27,7 @@ const SRI_INJECT_PATTERNS = new Map([
   ['bootstrap-icons', /data-sri-key="bootstrap-icons"/g],
   ['katex-css', /data-sri-key="katex-css"/g],
   ['marked', /data-sri-key="marked"/g],
+  ['katex-js', /data-sri-key="katex-js"/g],
   ['mermaid', /data-sri-key="mermaid"/g],
   ['graphviz', /data-sri-key="graphviz"/g],
 ]);
