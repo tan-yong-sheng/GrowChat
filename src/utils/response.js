@@ -99,12 +99,35 @@ export function jsonCached(req, data, options = {}) {
   return new Response(JSON.stringify(data), { status, headers: responseHeaders });
 }
 
+function sanitizeErrorMessage(message, status) {
+  // For 5xx errors, never expose internal details to clients
+  if (status >= 500) {
+    // Log the actual error server-side (would be captured by worker logs)
+    console.error('Internal error:', message);
+    return 'An error occurred. Please try again later.';
+  }
+
+  // For client errors (4xx), expose the message but strip stack traces
+  if (typeof message === 'string') {
+    // Remove stack traces (lines starting with "at " or containing file paths)
+    return message
+      .split('\n')
+      .filter(line => !line.trim().startsWith('at ') && !line.includes('.js:'))
+      .join('\n')
+      .trim();
+  }
+
+  return String(message);
+}
+
 export function error(req, message, status = 500, details = undefined) {
   if (isHttpError(message)) {
     const payload = toHttpErrorPayload(message);
     return json(req, payload.body, payload.status);
   }
-  return json(req, { error: message, ...(details ? { details } : {}) }, status);
+
+  const sanitized = sanitizeErrorMessage(message, status);
+  return json(req, { error: sanitized, ...(details ? { details } : {}) }, status);
 }
 
 export function preflight(req) {

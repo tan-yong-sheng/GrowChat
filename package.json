@@ -33,6 +33,7 @@
 	},
 	"dependencies": {
 		"@tencent-ai/codebuddy-code": "^2.66.2",
-		"dompurify": "^3.3.3"
+		"dompurify": "^3.3.3",
+		"zod": "^4.3.6"
 	}
 }
