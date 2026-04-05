@@ -1,3 +1,5 @@
+import DOMPurify from 'dompurify';
+
 const MARKDOWN_CACHE_LIMIT = 200;
 const markdownCache = new Map();
 let markedReadyPromise = null;
@@ -747,11 +749,39 @@ function fallbackMarkdown(content) {
   return parts.join('');
 }
 
+/**
+ * Sanitize HTML using DOMPurify
+ * Allows markdown-safe tags while preventing XSS attacks
+ */
+function sanitizeHtml(html) {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      'b', 'i', 'em', 'strong', 'a', 'code', 'pre', 'p', 'br',
+      'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'blockquote', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+      'img', 'div', 'span', 'section', 'article',
+      // Special blocks for markdown rendering
+      'input', // for task checkboxes
+      // Mermaid diagram support
+      'svg', 'g', 'text', 'path', 'rect', 'circle', 'line', 'polyline', 'polygon',
+    ],
+    ALLOWED_ATTR: [
+      'href', 'target', 'rel', 'title', 'alt', 'src', 'width', 'height',
+      'class', 'id', 'data-*', 'disabled', 'checked', 'type',
+      // SVG attributes
+      'viewBox', 'xmlns', 'fill', 'stroke', 'stroke-width', 'd', 'x', 'y', 'cx', 'cy', 'r', 'x1', 'y1', 'x2', 'y2',
+    ],
+    KEEP_CONTENT: true,
+  });
+}
+
 function renderWithMarked(marked, content, options = {}) {
   if (!marked || typeof marked.lexer !== 'function') return fallbackMarkdown(content);
   try {
     const tokens = marked.lexer(content);
-    return renderMarkdownTokens(tokens, options);
+    const html = renderMarkdownTokens(tokens, options);
+    // FIX: Sanitize rendered HTML to prevent XSS attacks
+    return sanitizeHtml(html);
   } catch {
     return fallbackMarkdown(content);
   }
