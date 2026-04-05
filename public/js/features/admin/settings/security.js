@@ -41,9 +41,6 @@ export function renderSecuritySettings(container, data) {
       const feedbackContainer = container.querySelector('.space-y-3');
       if (feedbackContainer) {
         feedbackContainer.appendChild(feedback);
-      } else {
-        console.warn('Feedback container (.space-y-3) not found, appending to container');
-        container.appendChild(feedback);
       }
     }
     feedback.textContent = message;
@@ -134,13 +131,18 @@ export function renderSecuritySettings(container, data) {
   };
 
   const updateResendApiKey = async (newValue) => {
+    // Validate: reject input containing asterisks (which indicate user didn't actually enter a new key)
+    if (newValue.includes('*')) {
+      showFeedback('Invalid API key format.', true);
+      render();
+      return;
+    }
+
     // Prevent race conditions
     if (savingApiKey) return;
     savingApiKey = true;
 
-    const prevValue = settingsState.currentValues.resendApiKey;
-    settingsState.currentValues.resendApiKey = newValue;
-
+    const prevConfigured = settingsState.resendApiKeyConfigured;
     const apiKeyInput = container.querySelector('#resend-api-key');
 
     try {
@@ -158,15 +160,22 @@ export function renderSecuritySettings(container, data) {
         throw new Error(err?.error || err?.message || 'Failed to update Resend API key');
       }
 
-      settingsState.initialValues.resendApiKey = newValue;
+      // Never store the actual key, only mark it as configured
+      settingsState.currentValues.resendApiKey = '';
+      settingsState.initialValues.resendApiKey = '';
+      settingsState.resendApiKeyConfigured = true;
+
       showFeedback('Resend API key saved.');
       render();
     } catch (err) {
-      settingsState.currentValues.resendApiKey = prevValue;
+      settingsState.resendApiKeyConfigured = prevConfigured;
       showFeedback(err?.message || 'Failed to update Resend API key.', true);
       render();
     } finally {
       savingApiKey = false;
+      if (apiKeyInput) {
+        apiKeyInput.disabled = false;
+      }
     }
   };
 
@@ -223,10 +232,18 @@ export function renderSecuritySettings(container, data) {
     const testEmailInput = container.querySelector('#test-email');
     const sendTestBtn = container.querySelector('#send-test-email');
 
+    apiKeyInput?.addEventListener('focus', (e) => {
+      // Clear the masked placeholder when focusing to allow entry
+      e.target.value = '';
+    });
+
     apiKeyInput?.addEventListener('blur', (e) => {
       const newValue = e.target.value.trim();
-      if (newValue && newValue !== maskApiKey(settingsState.currentValues.resendApiKey)) {
+      if (newValue && !newValue.includes('*')) {
         updateResendApiKey(newValue);
+      } else if (!newValue) {
+        // If input is cleared, re-render to show masked placeholder if configured
+        render();
       }
     });
 
@@ -250,9 +267,11 @@ export function renderSecuritySettings(container, data) {
       const res = await apiFetch('/api/admin/email-config');
       if (res.ok) {
         const payload = await res.json();
-        const apiKey = payload?.resend_api_key || '';
-        settingsState.currentValues.resendApiKey = apiKey;
-        settingsState.initialValues.resendApiKey = apiKey;
+        // Read the boolean flag indicating if an API key is configured
+        settingsState.resendApiKeyConfigured = payload?.resend_api_key_configured || false;
+        // Never store the actual API key
+        settingsState.currentValues.resendApiKey = '';
+        settingsState.initialValues.resendApiKey = '';
 
         if (isActiveTab()) render();
       }
