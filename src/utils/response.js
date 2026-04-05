@@ -83,7 +83,7 @@ export function jsonCached(req, data, options = {}) {
   const responseHeaders = {
     'Content-Type': 'application/json',
     ...origin,
-    ...securityHeaders(req),
+    ...securityHeaders(),
     ...headers,
   };
   if (cacheControl) responseHeaders['Cache-Control'] = cacheControl;
@@ -138,7 +138,7 @@ export function preflight(req) {
     headers: {
       ...originHeaders(req),
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-session-id',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-CSRF-Token, x-client-session-id',
       'Access-Control-Max-Age': '86400',
       ...securityHeaders(),
     },
