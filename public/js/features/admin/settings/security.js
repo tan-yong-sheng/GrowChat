@@ -1,5 +1,15 @@
 import { apiFetch } from '../../../shared/api.js';
 
+const escapeHtml = (text) => {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+  };
+  return text.replace(/[&<>"]/g, (char) => map[char]);
+};
+
 export function renderSecuritySettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'security';
   const settingsState = data.securitySettings || (data.securitySettings = {
@@ -9,6 +19,7 @@ export function renderSecuritySettings(container, data) {
     initialValues: {
       resendApiKey: '',
     },
+    resendApiKeyConfigured: false,
     adminConfigLoaded: false,
   });
 
@@ -49,8 +60,19 @@ export function renderSecuritySettings(container, data) {
     return key.substring(0, 4) + '*'.repeat(key.length - 8) + key.substring(key.length - 4);
   };
 
+  const getHintText = () => {
+    if (settingsState.resendApiKeyConfigured) {
+      return 'An API key is configured. Enter a new key to replace it.';
+    }
+    return 'No API key configured. Enter your Resend API key.';
+  };
+
   const render = () => {
     if (!isActiveTab()) return;
+
+    const maskedValue = settingsState.resendApiKeyConfigured ? '••••••••' : '';
+    const escapedMaskedValue = escapeHtml(maskedValue);
+    const hintText = escapeHtml(getHintText());
 
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
@@ -73,12 +95,12 @@ export function renderSecuritySettings(container, data) {
                   <input
                     id="resend-api-key"
                     type="password"
-                    value="${maskApiKey(settingsState.currentValues.resendApiKey)}"
+                    value="${escapedMaskedValue}"
                     placeholder="Enter your Resend API key"
                     class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder-gray-500"
                   />
                 </div>
-                <div class="text-[10px] text-gray-600 mt-1">Your API key is masked for security. Enter a new key to update.</div>
+                <div class="text-[10px] text-gray-600 mt-1">${hintText}</div>
               </div>
 
               <div class="py-2.5">
