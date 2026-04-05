@@ -261,9 +261,10 @@ export function renderSecuritySettings(container, data) {
       const res = await apiFetch('/api/admin/email-config');
       if (res.ok) {
         const payload = await res.json();
-        const apiKey = payload?.resend_api_key || '';
-        settingsState.currentValues.resendApiKey = apiKey;
-        settingsState.initialValues.resendApiKey = apiKey;
+        // Check if API key is configured, but never store the actual key in state
+        if (payload?.resend_api_key) {
+          settingsState.resendApiKeyConfigured = true;
+        }
 
         if (isActiveTab()) render();
       }
