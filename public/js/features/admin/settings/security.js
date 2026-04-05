@@ -6,8 +6,9 @@ const escapeHtml = (text) => {
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
+    "'": '&#39;',
   };
-  return text.replace(/[&<>"]/g, (char) => map[char]);
+  return text.replace(/[&<>"']/g, (char) => map[char]);
 };
 
 export function renderSecuritySettings(container, data) {
