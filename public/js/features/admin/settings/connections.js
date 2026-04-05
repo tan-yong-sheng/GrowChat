@@ -1076,6 +1076,9 @@ export function renderConnectionsSettings(container, data) {
       // Store previous state for rollback
       const previousConnections = connectionsState.openai.connections.slice();
       const previousSelectedConnection = connection ? { ...connection } : null;
+      const previousDraftKey = connection ? getModalDraftKey(connection) : null;
+      const previousDraft = previousDraftKey ? connectionsState.modalDrafts?.get(previousDraftKey) : null;
+      const previousNewConnectionDraftId = connectionsState.newConnectionDraftId;
 
       // Build the connection object to save
       let connectionToSave;
@@ -1146,10 +1149,6 @@ export function renderConnectionsSettings(container, data) {
         } else {
           connectionsState.openai.connections.push(connectionToSave);
         }
-        connectionsState.modalDrafts?.delete(getModalDraftKey(connection));
-        if (connection?.source === 'draft') {
-          connectionsState.newConnectionDraftId = null;
-        }
 
         const manualConnectionsToSave = connectionsState.openai.connections
           .filter(c => !c.readOnly && c.source !== 'env')
@@ -1182,6 +1181,14 @@ export function renderConnectionsSettings(container, data) {
           throw new Error(err.error || err.message || 'Failed to save connection');
         }
 
+        // Clear draft state only after API succeeds
+        if (previousDraftKey) {
+          connectionsState.modalDrafts?.delete(previousDraftKey);
+        }
+        if (connection?.source === 'draft') {
+          connectionsState.newConnectionDraftId = null;
+        }
+
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
         showFeedback('Connection saved', 'success');
@@ -1198,6 +1205,11 @@ export function renderConnectionsSettings(container, data) {
         if (previousSelectedConnection && connectionsState.selectedConnection) {
           Object.assign(connectionsState.selectedConnection, previousSelectedConnection);
         }
+        // Restore draft state
+        if (previousDraft && previousDraftKey) {
+          connectionsState.modalDrafts?.set(previousDraftKey, previousDraft);
+        }
+        connectionsState.newConnectionDraftId = previousNewConnectionDraftId;
         renderConnectionsList();
         showFeedback(err.message || 'Failed to save connection', 'error');
       } finally {

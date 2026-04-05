@@ -56,6 +56,8 @@ describe('admin connections modal', () => {
     container.querySelector('#modal-conn-headers').value = '{"x-test":"1"}';
     container.querySelector('#save-modal')?.click();
 
+    // Immediate-save: API call should be made when modal is saved
+    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/openai/connections' && init?.method === 'PUT')).toBe(true));
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
     expect(data.connectionsSettings.openai.connections).toHaveLength(1);
     expect(data.connectionsSettings.openai.connections[0]).toMatchObject({
@@ -66,8 +68,6 @@ describe('admin connections modal', () => {
       providerType: 'openai',
       enabled: true,
     });
-    // Immediate-save: API call should be made when modal is saved
-    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/openai/connections' && init?.method === 'PUT')).toBe(true));
   });
 
   it('labels the modal as edit when opening an existing connection', async () => {

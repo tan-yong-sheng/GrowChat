@@ -1,0 +1,6 @@
+Contact: security@growchat.dev
+Expires: 2027-04-05T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://growchat.dev/.well-known/security.txt
+Policy: https://growchat.dev/security-policy
+Acknowledgments: https://growchat.dev/security-acknowledgments

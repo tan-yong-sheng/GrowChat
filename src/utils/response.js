@@ -10,6 +10,18 @@ function originHeaders(req) {
   };
 }
 
+function securityHeaders() {
+  return {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=()',
+    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'",
+  };
+}
+
 function mergeVary(existing, next) {
   const parts = new Set();
   const add = (value) => {
@@ -52,6 +64,7 @@ export function json(req, data, status = 200, headers = {}) {
     headers: {
       'Content-Type': 'application/json',
       ...originHeaders(req),
+      ...securityHeaders(),
       ...headers,
     },
   });
@@ -70,6 +83,7 @@ export function jsonCached(req, data, options = {}) {
   const responseHeaders = {
     'Content-Type': 'application/json',
     ...origin,
+    ...securityHeaders(),
     ...headers,
   };
   if (cacheControl) responseHeaders['Cache-Control'] = cacheControl;
@@ -86,12 +100,36 @@ export function jsonCached(req, data, options = {}) {
   return new Response(JSON.stringify(data), { status, headers: responseHeaders });
 }
 
+function sanitizeErrorMessage(message, status) {
+  // For 5xx errors, never expose internal details to clients
+  if (status >= 500) {
+    // Log the actual error server-side (would be captured by worker logs)
+    console.error('Internal error:', message);
+    return 'An error occurred. Please try again later.';
+  }
+
+  // For client errors (4xx), expose the message but strip stack traces
+  if (typeof message === 'string') {
+    // Remove stack traces (lines starting with "at " or containing file paths)
+    // Catches all source file extensions: .js, .ts, .mjs, .cjs, .jsx, .tsx, .map files
+    return message
+      .split('\n')
+      .filter(line => !line.trim().startsWith('at ') && !/\.(js|ts|mjs|cjs|jsx|tsx|map):\d+/.test(line))
+      .join('\n')
+      .trim();
+  }
+
+  return String(message);
+}
+
 export function error(req, message, status = 500, details = undefined) {
   if (isHttpError(message)) {
     const payload = toHttpErrorPayload(message);
     return json(req, payload.body, payload.status);
   }
-  return json(req, { error: message, ...(details ? { details } : {}) }, status);
+
+  const sanitized = sanitizeErrorMessage(message, status);
+  return json(req, { error: sanitized, ...(details ? { details } : {}) }, status);
 }
 
 export function preflight(req) {
@@ -100,8 +138,9 @@ export function preflight(req) {
     headers: {
       ...originHeaders(req),
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-session-id',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-CSRF-Token, x-client-session-id',
       'Access-Control-Max-Age': '86400',
+      ...securityHeaders(),
     },
   });
 }
