@@ -46,7 +46,7 @@ describe('CSRF Protection Service', () => {
       const token = 'test-token';
       const sessionId = 'test-session-123';
 
-      mockKV.get.mockResolvedValue(JSON.stringify({ sessionId, createdAt: Date.now() }));
+      mockKV.get.mockResolvedValue({ sessionId, createdAt: Date.now() });
 
       const isValid = await validateCsrfToken(env, token, sessionId);
 
@@ -71,7 +71,7 @@ describe('CSRF Protection Service', () => {
     });
 
     it('returns false if session ID does not match', async () => {
-      mockKV.get.mockResolvedValue(JSON.stringify({ sessionId: 'other-session' }));
+      mockKV.get.mockResolvedValue({ sessionId: 'other-session' });
 
       const isValid = await validateCsrfToken(env, 'token', 'my-session');
 
@@ -109,7 +109,7 @@ describe('CSRF Protection Service', () => {
     });
 
     it('validates token for POST requests', async () => {
-      mockKV.get.mockResolvedValue(JSON.stringify({ sessionId: 'session-123' }));
+      mockKV.get.mockResolvedValue({ sessionId: 'session-123' });
 
       const req = new Request('http://localhost/api/data', {
         method: 'POST',
