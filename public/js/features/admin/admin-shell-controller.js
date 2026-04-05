@@ -57,6 +57,27 @@ export function getAdminSharedActionFooterConfig(mainTab, subTab) {
   return null;
 }
 
+function determineSaveState(data, mainTab, subTab) {
+  const dirtyFn = mainTab === 'settings' || mainTab === 'system'
+    ? data.settingsDirtyCheckers?.[subTab]
+    : data.usersDirtyCheckers?.[subTab];
+  const saveFn = mainTab === 'settings' || mainTab === 'system'
+    ? data.settingsSaveHandlers?.[subTab]
+    : data.usersSaveHandlers?.[subTab];
+  const dirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
+  const saving = mainTab === 'settings' || mainTab === 'system'
+    ? Boolean(
+      (subTab === 'general' && data.generalSettings?.loading)
+      || (subTab === 'connections' && data.connectionsSettings?.saving)
+      || (subTab === 'models' && data.modelsSettings?.saving)
+      || (subTab === 'integrations' && data.integrationsSettings?.saving)
+    )
+    : false;
+  const canSave = dirty && typeof saveFn === 'function' && !saving;
+
+  return { dirty, saving, canSave, saveFn };
+}
+
 function createUnsavedChangesPrompt() {
   return () => new Promise((resolve) => {
     const existing = document.querySelector('#admin-unsaved-modal');
@@ -186,22 +207,7 @@ export function createAdminShellController({
     const config = getFooterConfig(mainTab, subTab);
     if (!config) return;
 
-    const dirtyFn = mainTab === 'settings' || mainTab === 'system'
-      ? data.settingsDirtyCheckers?.[subTab]
-      : data.usersDirtyCheckers?.[subTab];
-    const saveFn = mainTab === 'settings' || mainTab === 'system'
-      ? data.settingsSaveHandlers?.[subTab]
-      : data.usersSaveHandlers?.[subTab];
-    const dirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
-    const saving = mainTab === 'settings' || mainTab === 'system'
-      ? Boolean(
-        (subTab === 'general' && data.generalSettings?.loading)
-        || (subTab === 'connections' && data.connectionsSettings?.saving)
-        || (subTab === 'models' && data.modelsSettings?.saving)
-        || (subTab === 'integrations' && data.integrationsSettings?.saving)
-      )
-      : false;
-    const canSave = dirty && typeof saveFn === 'function' && !saving;
+    const { dirty, saving, canSave } = determineSaveState(data, mainTab, subTab);
 
     const footer = document.createElement('div');
     footer.dataset.adminMainActionFooter = config.footerId;
@@ -232,22 +238,7 @@ export function createAdminShellController({
       return;
     }
 
-    const dirtyFn = mainTab === 'settings' || mainTab === 'system'
-      ? data.settingsDirtyCheckers?.[subTab]
-      : data.usersDirtyCheckers?.[subTab];
-    const saveFn = mainTab === 'settings' || mainTab === 'system'
-      ? data.settingsSaveHandlers?.[subTab]
-      : data.usersSaveHandlers?.[subTab];
-    const dirty = typeof dirtyFn === 'function' ? dirtyFn() : false;
-    const saving = mainTab === 'settings' || mainTab === 'system'
-      ? Boolean(
-        (subTab === 'general' && data.generalSettings?.loading)
-        || (subTab === 'connections' && data.connectionsSettings?.saving)
-        || (subTab === 'models' && data.modelsSettings?.saving)
-        || (subTab === 'integrations' && data.integrationsSettings?.saving)
-      )
-      : false;
-    const canSave = dirty && typeof saveFn === 'function' && !saving;
+    const { dirty, saving, canSave } = determineSaveState(data, mainTab, subTab);
 
     footer.id = config.footerId;
     footer.dataset.adminMainActionFooter = config.footerId;
