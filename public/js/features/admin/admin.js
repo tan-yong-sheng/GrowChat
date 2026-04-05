@@ -190,9 +190,7 @@ export async function renderAdminPage(container) {
             <span>General</span>
           </a>
           <a href="/admin/system/security" data-subnav="security" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'security' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
-              <path fill-rule="evenodd" d="M8 1c3.5 0 6 2.5 6 5.5V13a.75.75 0 0 1-1.5 0V6.5C12.5 4.5 10.5 3 8 3c-2.5 0-4.5 1.5-4.5 3.5V13a.75.75 0 0 1-1.5 0V6.5C2 3.5 4.5 1 8 1Zm0 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" clip-rule="evenodd" />
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path d="M8 1a.75.75 0 0 1 .75.75v1.258a5.25 5.25 0 1 1-1.5 0V1.75A.75.75 0 0 1 8 1ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Z"/></svg>
             <span>Security</span>
           </a>
         `;
