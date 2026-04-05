@@ -974,6 +974,9 @@ export function renderIntegrationsSettings(container, data) {
     });
   };
 
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsDirtyCheckers.integrations = () => false;
+
   render();
   loadIntegrations();
 }

@@ -27,6 +27,10 @@ export function resolveAdminRouteState(pathname) {
     return { mainTab: 'users', subTab: 'policies', canonicalPath: '/admin/users/policies' };
   }
 
+  if (pathname === '/admin/settings/email' || pathname.startsWith('/admin/settings/email/')) {
+    return { mainTab: 'system', subTab: 'security', canonicalPath: '/admin/system/security' };
+  }
+
   if (pathname === '/admin/settings/general' || pathname.startsWith('/admin/settings/general/')) {
     return { mainTab: 'system', subTab: 'general', canonicalPath: '/admin/system/general' };
   }
@@ -40,11 +44,14 @@ export function resolveAdminRouteState(pathname) {
     if (pathname.includes('/connections')) subTab = 'connections';
     else if (pathname.includes('/integrations')) subTab = 'integrations';
     else if (pathname.includes('/models')) subTab = 'models';
+    else if (pathname.includes('/email')) subTab = 'email';
     return { mainTab: 'settings', subTab, canonicalPath: pathname };
   }
 
   if (pathname.startsWith('/admin/system')) {
-    return { mainTab: 'system', subTab: 'general', canonicalPath: '/admin/system/general' };
+    let subTab = 'general';
+    if (pathname.includes('/security')) subTab = 'security';
+    return { mainTab: 'system', subTab, canonicalPath: `/admin/system/${subTab}` };
   }
 
   let subTab = 'overview';

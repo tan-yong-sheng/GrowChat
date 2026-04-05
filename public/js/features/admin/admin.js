@@ -17,6 +17,7 @@ import { renderConnectionsSettings } from './settings/connections.js';
 import { renderModelsSettings } from './settings/models.js';
 import { renderIntegrationsSettings } from './settings/integrations.js';
 import { renderPoliciesSettings } from './settings/policies.js';
+import { renderEmailSettings } from './settings/email.js';
 import { renderRolesPage } from './users/roles.js';
 import { createAdminShellController } from './admin-shell-controller.js';
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
@@ -231,6 +232,8 @@ export async function renderAdminPage(container) {
         renderModelsSettings(subContentEl, data);
       } else if (subTab === 'integrations') {
         renderIntegrationsSettings(subContentEl, data);
+      } else if (subTab === 'email') {
+        renderEmailSettings(subContentEl, data);
       } else {
         subContentEl.innerHTML = `
           <div class="flex flex-col items-center justify-center h-full text-center p-10">

@@ -1051,8 +1051,6 @@ export function renderConnectionsSettings(container, data) {
       const resolvedUrl = resolveModalUrl(providerType, url);
       if (!resolvedUrl) {
         setTestStatus('error', 'URL is required for compatible providers', modalRoot);
-        connectionsState.modalSaving = false;
-        updateModalSaveButton(modalRoot);
         return;
       }
       const enabled = connectionsState.selectedConnection?.enabled !== false;
@@ -1071,22 +1069,21 @@ export function renderConnectionsSettings(container, data) {
 
       // Store previous state for rollback
       const previousConnections = connectionsState.openai.connections.slice();
+      const previousSelectedConnection = connection ? { ...connection } : null;
 
-      // Optimistic UI update
+      // Build the connection object to save
+      let connectionToSave;
+      let index = -1;
       if (connection?.id) {
-        const index = connectionsState.openai.connections.findIndex(c => c.id === connection.id);
+        index = connectionsState.openai.connections.findIndex(c => c.id === connection.id);
         if (index !== -1) {
           if (connection.source === 'env') {
-            connectionsState.openai.connections[index] = {
+            connectionToSave = {
               ...connectionsState.openai.connections[index],
               enabled
             };
           } else {
-            if (connectionsState.selectedConnection) {
-              connectionsState.selectedConnection.manualModels = manualModels;
-              connectionsState.selectedConnection.manualModelsMode = manualModelsMode;
-            }
-            connectionsState.openai.connections[index] = {
+            connectionToSave = {
               ...connectionsState.openai.connections[index],
               name,
               url: resolvedUrl,
@@ -1102,7 +1099,7 @@ export function renderConnectionsSettings(container, data) {
           }
         } else {
           const nextId = connection.id || connectionsState.selectedConnection?.id || Math.random().toString(36).substr(2, 9);
-          connectionsState.openai.connections.push({
+          connectionToSave = {
             id: nextId,
             name,
             url: resolvedUrl,
@@ -1114,19 +1111,11 @@ export function renderConnectionsSettings(container, data) {
             enabled,
             manualModels,
             manualModelsMode,
-          });
-          if (connectionsState.selectedConnection) {
-            connectionsState.selectedConnection.manualModels = manualModels;
-            connectionsState.selectedConnection.manualModelsMode = manualModelsMode;
-          }
-        }
-        connectionsState.modalDrafts?.delete(getModalDraftKey(connection));
-        if (connection.source === 'draft') {
-          connectionsState.newConnectionDraftId = null;
+          };
         }
       } else {
         const nextId = connectionsState.selectedConnection?.id || Math.random().toString(36).substr(2, 9);
-        connectionsState.openai.connections.push({
+        connectionToSave = {
           id: nextId,
           name,
           url: resolvedUrl,
@@ -1138,18 +1127,24 @@ export function renderConnectionsSettings(container, data) {
           enabled,
           manualModels,
           manualModelsMode,
-        });
-        connectionsState.modalDrafts?.delete(getModalDraftKey(connectionsState.selectedConnection));
-        connectionsState.newConnectionDraftId = null;
+        };
       }
-
-      closeModal();
-      renderConnectionsList();
 
       // Make immediate API call
       connectionsState.modalSaving = true;
       updateModalSaveButton(modalRoot);
       try {
+        // Update state with new connection
+        if (index !== -1) {
+          connectionsState.openai.connections[index] = connectionToSave;
+        } else {
+          connectionsState.openai.connections.push(connectionToSave);
+        }
+        connectionsState.modalDrafts?.delete(getModalDraftKey(connection));
+        if (connection?.source === 'draft') {
+          connectionsState.newConnectionDraftId = null;
+        }
+
         const manualConnectionsToSave = connectionsState.openai.connections
           .filter(c => !c.readOnly && c.source !== 'env')
           .map((conn) => ({
@@ -1189,9 +1184,14 @@ export function renderConnectionsSettings(container, data) {
           data.generalSettings.models = [];
           data.generalSettings.modelsInvalidateToken = data.modelsSettingsInvalidate;
         }
+        closeModal();
+        renderConnectionsList();
       } catch (err) {
         // Rollback on error
         connectionsState.openai.connections = previousConnections;
+        if (previousSelectedConnection && connectionsState.selectedConnection) {
+          Object.assign(connectionsState.selectedConnection, previousSelectedConnection);
+        }
         renderConnectionsList();
         showFeedback(err.message || 'Failed to save connection', 'error');
       } finally {
@@ -1346,6 +1346,10 @@ export function renderConnectionsSettings(container, data) {
       if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
     });
   };
+
+  // Set no-op dirty checker for immediate-save pattern
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsDirtyCheckers.connections = () => false;
 
   render();
   loadConnections();

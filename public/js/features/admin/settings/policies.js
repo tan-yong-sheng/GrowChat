@@ -593,6 +593,10 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
 }
 
 export function renderPoliciesSettings(container, data = {}) {
+  // Set no-op dirty checker for immediate-save pattern
+  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
+  data.settingsDirtyCheckers.policies = () => false;
+
   const initialParams = new URLSearchParams(window.location.search || '');
   const initialGroupId = String(initialParams.get('group') || 'all').trim() || 'all';
   const initialDeepLinkFamily = String(initialParams.get('family') || '').trim();
@@ -969,8 +973,6 @@ export function renderPoliciesSettings(container, data = {}) {
       state.resources[familyKey] = sortedResources.map((resource) => ({
         ...resource,
         rules: cloneAclRules(rulesByResource.get(resource.id) || [], normalizeAclRule),
-        originalRules: cloneAclRules(rulesByResource.get(resource.id) || [], normalizeAclRule),
-        draftRules: undefined,
       }));
       if (state.pendingDeepLink && state.pendingDeepLink.familyKey === familyKey) {
         void openDeepLinkedAccessModal(familyKey).catch((err) => {

@@ -88,15 +88,14 @@ describe('admin integrations settings', () => {
     expect(container.querySelector('.tool-toggle').getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('keeps the main Save button dirty after saving the modal draft', async () => {
+  it('saves a new server immediately when modal is saved', async () => {
     const { renderIntegrationsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
 
     renderIntegrationsSettings(container, data);
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
-    await vi.waitFor(() => expect(data.integrationsSettings.originalSnapshot).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('#save-integrations')?.disabled).toBe(true));
+    await vi.waitFor(() => expect(container.querySelector('[data-tool-server-row]')).not.toBeNull());
     vi.clearAllMocks();
 
     container.querySelector('#add-tool-server')?.click();
@@ -106,8 +105,7 @@ describe('admin integrations settings', () => {
 
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
 
-    expect(container.querySelector('#save-integrations')?.disabled).toBe(false);
-    expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/tool-servers' && init?.method === 'PUT')).toBe(false);
+    expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/tool-servers' && init?.method === 'PUT')).toBe(true);
   });
 
   it('labels the modal as add for a new server and edit for an existing one', async () => {
@@ -116,7 +114,8 @@ describe('admin integrations settings', () => {
     const data = {};
 
     renderIntegrationsSettings(container, data);
-    await vi.waitFor(() => expect(data.integrationsSettings.originalSnapshot).not.toBeNull());
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
+    await vi.waitFor(() => expect(container.querySelector('[data-tool-server-row]')).not.toBeNull());
 
     container.querySelector('#add-tool-server')?.click();
     expect(container.querySelector('#server-modal-title')?.textContent).toBe('Add MCP Server');
@@ -130,27 +129,27 @@ describe('admin integrations settings', () => {
     expect(container.querySelector('#server-modal-title')?.textContent).toBe('Edit MCP Server');
   });
 
-  it('broadcasts a tool-server invalidation after saving integrations', async () => {
+  it('broadcasts a tool-server invalidation after toggling server enable', async () => {
     const { renderIntegrationsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
     const listener = vi.fn();
 
     renderIntegrationsSettings(container, data);
-    await vi.waitFor(() => expect(data.integrationsSettings.originalSnapshot).not.toBeNull());
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
+    await vi.waitFor(() => expect(container.querySelector('[data-tool-server-row]')).not.toBeNull());
     window.addEventListener('growchat:tool-servers-invalidated', listener);
     vi.clearAllMocks();
 
     container.querySelector('.server-toggle')?.click();
-    await vi.waitFor(() => expect(container.querySelector('#save-integrations')?.disabled).toBe(false));
-    container.querySelector('#save-integrations')?.click();
 
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers', expect.objectContaining({ method: 'PUT' })));
     await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
     window.removeEventListener('growchat:tool-servers-invalidated', listener);
   });
 
-  it('persists a staged tool server draft when the page footer save is used', async () => {
+
+  it('dirty checker always returns false for immediate-save pattern', async () => {
     const { renderIntegrationsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -159,111 +158,7 @@ describe('admin integrations settings', () => {
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
     await vi.waitFor(() => expect(container.querySelector('[data-tool-server-row]')).not.toBeNull());
 
-    container.querySelector('[data-account-integration-add], #add-tool-server')?.click();
-    await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')).not.toBeNull());
-
-    container.querySelector('#server-name').value = 'Footer Saved MCP';
-    container.querySelector('#server-url').value = 'https://footer-saved.example.com';
-    container.querySelector('#save-modal')?.click();
-
-    await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
-    await vi.waitFor(() => expect(container.querySelector('#save-integrations')?.disabled).toBe(false));
-
-    container.querySelector('#save-integrations')?.click();
-
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers', expect.objectContaining({
-      method: 'PUT',
-    })));
-    expect(document.body.textContent).toContain('Footer Saved MCP');
-  });
-
-  it('clears the dirty state when tool-server ACLs are saved back to no access', async () => {
-    mocks.apiFetch.mockImplementation(async (url, init = {}) => {
-      const method = String(init.method || 'GET').toUpperCase();
-      const path = String(url);
-
-      if (path === '/api/admin/tool-servers?include_disabled=1' && method === 'GET') {
-        return new Response(JSON.stringify({
-          servers: [
-            {
-              id: 'server-1',
-              name: 'Tavily',
-              url: 'https://mcp.example.com',
-              enabled: true,
-              toolsExpanded: true,
-              tools: [
-                { name: 'search', title: 'Search', description: 'Search docs', enabled: true },
-              ],
-            },
-          ],
-        }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-
-      if (path === '/api/admin/tool-servers/server-1/access' && method === 'GET') {
-        return new Response(JSON.stringify({
-          tool_server_id: 'server-1',
-          groups: [
-            { id: 'g-1', name: 'Team Alpha', description: 'Primary ops team' },
-          ],
-          rules: [
-            {
-              principal_type: 'group',
-              principal_id: 'g-1',
-              effect: 'allow',
-              action: 'use',
-            },
-          ],
-        }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-
-      if (path === '/api/admin/tool-servers/server-1/access' && method === 'PUT') {
-        return new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-
-      if (path === '/api/admin/tool-servers' && method === 'PUT') {
-        const body = JSON.parse(init.body || '{}');
-        return new Response(JSON.stringify({
-          servers: body.servers || [],
-        }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    });
-
-    const { renderIntegrationsSettings } = await loadModule();
-    const container = document.getElementById('root');
-    const data = {};
-
-    renderIntegrationsSettings(container, data);
-    await vi.waitFor(() => expect(data.integrationsSettings.originalSnapshot).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('[data-tool-server-row]')).not.toBeNull());
-
-    data.integrationsSettings.aclDrafts.set('server-1', []);
-    expect(data.settingsDirtyCheckers.integrations()).toBe(true);
-
-    await data.settingsSaveHandlers.integrations();
-
-    await vi.waitFor(() => expect(container.querySelector('#save-integrations')?.disabled).toBe(true));
     expect(data.settingsDirtyCheckers.integrations()).toBe(false);
-    const accessPutCalls = mocks.apiFetch.mock.calls.filter(([url, init]) => String(url) === '/api/admin/tool-servers/server-1/access' && String(init?.method || 'GET').toUpperCase() === 'PUT');
-    expect(accessPutCalls).toHaveLength(1);
-    const body = JSON.parse(accessPutCalls[0][1].body || '{}');
-    expect(body.rules).toHaveLength(0);
   });
 
   it('keeps disabled tool servers visible on reload', async () => {
