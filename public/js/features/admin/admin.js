@@ -13,11 +13,11 @@ import { preloadGroupsData, renderGroupsOverview } from './users/groups.js';
 import { shouldLoadGroups } from './users/groups-helpers.js';
 import { removeGroupById, updateGroupMemberCount, upsertGroup } from './users/groups-list-helpers.js';
 import { renderGeneralSettings } from './settings/general.js';
+import { renderSecuritySettings } from './settings/security.js';
 import { renderConnectionsSettings } from './settings/connections.js';
 import { renderModelsSettings } from './settings/models.js';
 import { renderIntegrationsSettings } from './settings/integrations.js';
 import { renderPoliciesSettings } from './settings/policies.js';
-import { renderEmailSettings } from './settings/email.js';
 import { renderRolesPage } from './users/roles.js';
 import { createAdminShellController } from './admin-shell-controller.js';
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
@@ -189,6 +189,12 @@ export async function renderAdminPage(container) {
             </svg>
             <span>General</span>
           </a>
+          <a href="/admin/system/security" data-subnav="security" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'security' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+              <path fill-rule="evenodd" d="M8 1c3.5 0 6 2.5 6 5.5V13a.75.75 0 0 1-1.5 0V6.5C12.5 4.5 10.5 3 8 3c-2.5 0-4.5 1.5-4.5 3.5V13a.75.75 0 0 1-1.5 0V6.5C2 3.5 4.5 1 8 1Zm0 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" clip-rule="evenodd" />
+            </svg>
+            <span>Security</span>
+          </a>
         `;
       } else {
         tabsContainer.id = 'settings-tabs-container';
@@ -232,8 +238,6 @@ export async function renderAdminPage(container) {
         renderModelsSettings(subContentEl, data);
       } else if (subTab === 'integrations') {
         renderIntegrationsSettings(subContentEl, data);
-      } else if (subTab === 'email') {
-        renderEmailSettings(subContentEl, data);
       } else {
         subContentEl.innerHTML = `
           <div class="flex flex-col items-center justify-center h-full text-center p-10">
@@ -255,6 +259,8 @@ export async function renderAdminPage(container) {
     if (mainTab === 'system') {
       if (subTab === 'general') {
         renderGeneralSettings(subContentEl, data);
+      } else if (subTab === 'security') {
+        renderSecuritySettings(subContentEl, data);
       } else {
         subContentEl.innerHTML = `
           <div class="flex flex-col items-center justify-center h-full text-center p-10">
