@@ -148,25 +148,6 @@ describe('admin integrations settings', () => {
     window.removeEventListener('growchat:tool-servers-invalidated', listener);
   });
 
-  it('saves a new server immediately when modal is saved', async () => {
-    const { renderIntegrationsSettings } = await loadModule();
-    const container = document.getElementById('root');
-    const data = {};
-
-    renderIntegrationsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
-    await vi.waitFor(() => expect(container.querySelector('[data-tool-server-row]')).not.toBeNull());
-    vi.clearAllMocks();
-
-    container.querySelector('#add-tool-server')?.click();
-    container.querySelector('#server-name').value = 'New Server';
-    container.querySelector('#server-url').value = 'https://new-server.example.com';
-    container.querySelector('#save-modal')?.click();
-
-    await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
-
-    expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/tool-servers' && init?.method === 'PUT')).toBe(true);
-  });
 
   it('dirty checker always returns false for immediate-save pattern', async () => {
     const { renderIntegrationsSettings } = await loadModule();

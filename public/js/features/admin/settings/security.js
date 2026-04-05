@@ -30,6 +30,9 @@ export function renderSecuritySettings(container, data) {
       const feedbackContainer = container.querySelector('.space-y-3');
       if (feedbackContainer) {
         feedbackContainer.appendChild(feedback);
+      } else {
+        console.warn('Feedback container (.space-y-3) not found, appending to container');
+        container.appendChild(feedback);
       }
     }
     feedback.textContent = message;
@@ -142,9 +145,6 @@ export function renderSecuritySettings(container, data) {
       render();
     } finally {
       savingApiKey = false;
-      if (apiKeyInput) {
-        apiKeyInput.disabled = false;
-      }
     }
   };
 
