@@ -13,11 +13,12 @@ export function readBearer(req) {
     return auth.slice('Bearer '.length).trim();
   }
 
-  const url = new URL(req.url);
-  if (url.pathname === '/api/realtime/stream') {
-    const queryToken = url.searchParams.get('access_token');
-    if (queryToken) return queryToken.trim();
-  }
+  // FIX: Removed query parameter token support
+  // Tokens in query parameters are exposed in:
+  // - Server logs
+  // - Browser history
+  // - Referrer headers
+  // Clients must use Authorization header instead
 
   return null;
 }
