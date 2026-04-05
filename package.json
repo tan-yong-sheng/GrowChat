@@ -32,6 +32,7 @@
 		"wrangler": "^4.75.0"
 	},
 	"dependencies": {
-		"@tencent-ai/codebuddy-code": "^2.66.2"
+		"@tencent-ai/codebuddy-code": "^2.66.2",
+		"dompurify": "^3.3.3"
 	}
 }
