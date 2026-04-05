@@ -1,3 +1,5 @@
+import { escapeHtml, escapeSelector } from '../utils/dom-escape.js';
+
 const DEFAULT_OUTER_CLASS = 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
 const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-black/25 backdrop-blur-sm transition-opacity';
 const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
@@ -5,23 +7,6 @@ const DEFAULT_HEADER_CLASS = 'shrink-0';
 const DEFAULT_BODY_CLASS = 'overflow-y-auto flex-1 min-h-0';
 const DEFAULT_FOOTER_CLASS = 'shrink-0';
 const DEFAULT_CLOSE_CLASS = 'inline-flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white';
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function escapeSelector(value) {
-  const raw = String(value ?? '');
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return CSS.escape(raw);
-  }
-  return raw.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
-}
 
 export function buildViewportModalShellMarkup({
   rootId = 'modal-root',

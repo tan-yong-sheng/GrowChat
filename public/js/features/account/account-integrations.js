@@ -20,23 +20,7 @@ import {
   setToolVisibility,
 } from '../../shared/utils/user-resource-overrides.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function escapeSelector(value) {
-  const raw = String(value ?? '');
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return CSS.escape(raw);
-  }
-  return raw.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
-}
+import { escapeHtml, escapeSelector } from '../../shared/utils/dom-escape.js';
 
 function normalizeTool(tool = {}) {
   const name = String(tool.name || tool.id || tool.title || '').trim();

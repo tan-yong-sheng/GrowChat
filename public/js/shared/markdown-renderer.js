@@ -1,4 +1,4 @@
-import DOMPurify from 'dompurify';
+import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs';
 
 const MARKDOWN_CACHE_LIMIT = 200;
 const markdownCache = new Map();
