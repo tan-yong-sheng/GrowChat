@@ -83,6 +83,7 @@ export function jsonCached(req, data, options = {}) {
   const responseHeaders = {
     'Content-Type': 'application/json',
     ...origin,
+    ...securityHeaders(req),
     ...headers,
   };
   if (cacheControl) responseHeaders['Cache-Control'] = cacheControl;

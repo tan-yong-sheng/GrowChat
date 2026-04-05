@@ -1182,7 +1182,9 @@ export function renderConnectionsSettings(container, data) {
         }
 
         // Clear draft state only after API succeeds
-        connectionsState.modalDrafts?.delete(getModalDraftKey(connection));
+        if (previousDraftKey) {
+          connectionsState.modalDrafts?.delete(previousDraftKey);
+        }
         if (connection?.source === 'draft') {
           connectionsState.newConnectionDraftId = null;
         }

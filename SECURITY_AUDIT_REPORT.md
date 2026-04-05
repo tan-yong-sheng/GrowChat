@@ -504,7 +504,7 @@ No CSP header to prevent inline script execution.
 
 **Fix:**
 Add CSP header (see issue #4 above):
-```
+```http
 Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com
 ```
 
@@ -517,7 +517,7 @@ Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdel
 **Severity:** LOW  
 **Fix:**
 Create `public/.well-known/security.txt`:
-```
+```text
 Contact: security@growchat.com
 Expires: 2027-04-05T00:00:00.000Z
 Preferred-Languages: en

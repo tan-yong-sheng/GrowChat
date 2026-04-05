@@ -39,7 +39,7 @@ export async function logSecurityEvent(env, eventType, details = {}) {
   }
 
   const timestamp = new Date().toISOString();
-  const eventId = `${AUDIT_LOG_PREFIX}${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const eventId = `${AUDIT_LOG_PREFIX}${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
   const event = {
     id: eventId,
