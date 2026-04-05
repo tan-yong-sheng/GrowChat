@@ -19,19 +19,29 @@ async function injectSriIntoHtmlResponse(response, env) {
 
   try {
     const html = await response.text();
-    if (!html.includes('data-sri-key')) return response;
-
-    const hashes = await getSriHashes(env);
     const headers = new Headers(response.headers);
     headers.delete('content-length');
     headers.delete('etag');
 
-    return new Response(injectSriHashes(html, hashes), {
+    if (!html.includes('data-sri-key')) {
+      return new Response(html, { status: response.status, headers });
+    }
+
+    let injectedHtml;
+    try {
+      const hashes = await getSriHashes(env);
+      injectedHtml = injectSriHashes(html, hashes);
+    } catch (err) {
+      console.error('SRI injection error:', err?.message || err);
+      injectedHtml = html;
+    }
+
+    return new Response(injectedHtml, {
       status: response.status,
       headers,
     });
   } catch (err) {
-    console.error('SRI injection error:', err?.message || err);
+    console.error('HTML read error:', err?.message || err);
     return response;
   }
 }
