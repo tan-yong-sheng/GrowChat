@@ -13,12 +13,6 @@ const escapeHtml = (text) => {
 export function renderSecuritySettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'security';
   const settingsState = data.securitySettings || (data.securitySettings = {
-    currentValues: {
-      resendApiKey: '',
-    },
-    initialValues: {
-      resendApiKey: '',
-    },
     resendApiKeyConfigured: false,
     adminConfigLoaded: false,
   });
@@ -41,6 +35,9 @@ export function renderSecuritySettings(container, data) {
       const feedbackContainer = container.querySelector('.space-y-3');
       if (feedbackContainer) {
         feedbackContainer.appendChild(feedback);
+      } else {
+        console.warn('Feedback container (.space-y-3) not found, appending to container');
+        container.appendChild(feedback);
       }
     }
     feedback.textContent = message;
@@ -173,9 +170,6 @@ export function renderSecuritySettings(container, data) {
       render();
     } finally {
       savingApiKey = false;
-      if (apiKeyInput) {
-        apiKeyInput.disabled = false;
-      }
     }
   };
 
@@ -233,17 +227,17 @@ export function renderSecuritySettings(container, data) {
     const sendTestBtn = container.querySelector('#send-test-email');
 
     apiKeyInput?.addEventListener('focus', (e) => {
-      // Clear the masked placeholder when focusing to allow entry
-      e.target.value = '';
+      // Clear masked placeholder on focus so user can enter new key
+      if (e.target.value === '••••••••') {
+        e.target.value = '';
+      }
     });
 
     apiKeyInput?.addEventListener('blur', (e) => {
       const newValue = e.target.value.trim();
-      if (newValue && !newValue.includes('*')) {
+      // Only update if user entered a non-empty value that isn't the masked placeholder
+      if (newValue && newValue !== '••••••••') {
         updateResendApiKey(newValue);
-      } else if (!newValue) {
-        // If input is cleared, re-render to show masked placeholder if configured
-        render();
       }
     });
 
@@ -267,11 +261,9 @@ export function renderSecuritySettings(container, data) {
       const res = await apiFetch('/api/admin/email-config');
       if (res.ok) {
         const payload = await res.json();
-        // Read the boolean flag indicating if an API key is configured
-        settingsState.resendApiKeyConfigured = payload?.resend_api_key_configured || false;
-        // Never store the actual API key
-        settingsState.currentValues.resendApiKey = '';
-        settingsState.initialValues.resendApiKey = '';
+        const apiKey = payload?.resend_api_key || '';
+        settingsState.currentValues.resendApiKey = apiKey;
+        settingsState.initialValues.resendApiKey = apiKey;
 
         if (isActiveTab()) render();
       }

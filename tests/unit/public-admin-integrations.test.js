@@ -148,7 +148,6 @@ describe('admin integrations settings', () => {
     window.removeEventListener('growchat:tool-servers-invalidated', listener);
   });
 
-
   it('dirty checker always returns false for immediate-save pattern', async () => {
     const { renderIntegrationsSettings } = await loadModule();
     const container = document.getElementById('root');
