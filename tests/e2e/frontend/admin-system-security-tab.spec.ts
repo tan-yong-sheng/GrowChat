@@ -34,6 +34,9 @@ test.describe('Admin system security tab', () => {
 
     // Verify URL changed to security tab
     await expect(page).toHaveURL(/\/admin\/system\/security/);
+
+    // Verify security content is rendered (e.g., API key input)
+    await expect(page.locator('#resend-api-key')).toBeVisible({ timeout: 5000 });
   });
 
   test('navigates back to general tab when clicked', async ({ page }) => {

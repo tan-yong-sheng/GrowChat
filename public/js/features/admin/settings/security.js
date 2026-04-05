@@ -158,16 +158,14 @@ export function renderSecuritySettings(container, data) {
       }
 
       // Never store the actual key, only mark it as configured
-      settingsState.currentValues.resendApiKey = '';
-      settingsState.initialValues.resendApiKey = '';
       settingsState.resendApiKeyConfigured = true;
 
-      showFeedback('Resend API key saved.');
       render();
+      showFeedback('Resend API key saved.');
     } catch (err) {
       settingsState.resendApiKeyConfigured = prevConfigured;
-      showFeedback(err?.message || 'Failed to update Resend API key.', true);
       render();
+      showFeedback(err?.message || 'Failed to update Resend API key.', true);
     } finally {
       savingApiKey = false;
     }
@@ -262,9 +260,7 @@ export function renderSecuritySettings(container, data) {
       if (res.ok) {
         const payload = await res.json();
         // Check if API key is configured, but never store the actual key in state
-        if (payload?.resend_api_key) {
-          settingsState.resendApiKeyConfigured = true;
-        }
+        settingsState.resendApiKeyConfigured = payload?.resend_api_key_configured || false;
 
         if (isActiveTab()) render();
       }

@@ -123,18 +123,23 @@ export function renderConnectionsSettings(container, data) {
       const key = `${conn?.source || 'manual'}::${conn?.id || ''}::${conn?.url || ''}`;
       if (!deduped.has(key)) deduped.set(key, conn);
     });
-    return Array.from(deduped.values()).map(conn => `
-      <div data-connection-row="${conn.id}" class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2 border-b border-gray-50 last:border-0 ${conn.enabled === false ? 'opacity-70' : ''}">
+    return Array.from(deduped.values()).map((conn) => {
+      const safeId = escapeHtml(conn.id);
+      const safeName = escapeHtml(conn.name || providerDisplayLabel(conn.providerType));
+      const safeUrl = escapeHtml(conn.url || '');
+      const safeProvider = escapeHtml(providerDisplayLabel(conn.providerType));
+      return `
+      <div data-connection-row="${safeId}" class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2 border-b border-gray-50 last:border-0 ${conn.enabled === false ? 'opacity-70' : ''}">
         <div class="flex flex-col min-w-0">
-          <div class="text-xs font-medium text-gray-900">${conn.name || providerDisplayLabel(conn.providerType)}</div>
-          <div class="text-[10px] text-gray-400 font-mono">${conn.url}</div>
-          <div class="text-[10px] text-gray-400 mt-0.5">${providerDisplayLabel(conn.providerType)}</div>
+          <div class="text-xs font-medium text-gray-900">${safeName}</div>
+          <div class="text-[10px] text-gray-400 font-mono">${safeUrl}</div>
+          <div class="text-[10px] text-gray-400 mt-0.5">${safeProvider}</div>
           <div data-connection-disabled-badge class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${conn.enabled === false ? '' : 'hidden'}">Disabled</div>
           ${conn.readOnly ? '<div class="text-[10px] text-gray-400 mt-0.5">From env (read-only)</div>' : ''}
         </div>
         <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
           <button
-            data-id="${conn.id}"
+            data-id="${safeId}"
             class="connection-acl-btn inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${conn.enabled === false || !canManageAcls ? 'hidden' : ''}"
             title="Edit access rules"
             aria-label="Edit access rules"
@@ -144,18 +149,19 @@ export function renderConnectionsSettings(container, data) {
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
             </svg>
           </button>
-          <button data-id="${conn.id}" class="edit-connection-btn p-1 text-gray-400 hover:text-gray-600 transition-colors ${(conn.readOnly && conn.source !== 'env') ? 'hidden' : ''}">
+          <button data-id="${safeId}" class="edit-connection-btn p-1 text-gray-400 hover:text-gray-600 transition-colors ${(conn.readOnly && conn.source !== 'env') ? 'hidden' : ''}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
             </svg>
           </button>
-          <button data-id="${conn.id}" class="connection-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${conn.enabled === false ? 'bg-gray-200' : 'bg-black'}">
+          <button data-id="${safeId}" class="connection-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${conn.enabled === false ? 'bg-gray-200' : 'bg-black'}">
             <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${conn.enabled === false ? 'translate-x-0' : 'translate-x-4'}"></span>
           </button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   };
 
   const renderConnectionsList = () => {
@@ -1087,7 +1093,6 @@ export function renderConnectionsSettings(container, data) {
               ...connectionsState.openai.connections[index],
               name,
               url: resolvedUrl,
-              key,
               headers,
               providerType,
               providerFamily,
@@ -1095,6 +1100,7 @@ export function renderConnectionsSettings(container, data) {
               enabled,
               manualModels,
               manualModelsMode,
+              ...(key ? { key } : {}),
             };
           }
         } else {
