@@ -15,12 +15,19 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/"/g, '&quot;');
+}
+
+function decodeHtmlEntities(content) {
+  if (typeof document === 'undefined') return String(content ?? '');
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = String(content ?? '');
+  return textarea.value;
 }
 
 function normalizeMessageContent(content) {
-  return convertDisplayMathBlocks(String(content ?? '').replace(/\r\n?/g, '\n'));
+  const normalized = String(content ?? '').replace(/\r\n?/g, '\n');
+  return convertDisplayMathBlocks(decodeHtmlEntities(decodeHtmlEntities(normalized)));
 }
 
 function normalizeSpecialBlockScope(scope) {
@@ -378,8 +385,10 @@ function loadGraphvizRenderer() {
     || globalThis?.Graphviz
     || globalThis?.window?.graphviz
     || globalThis?.graphviz
-    || globalThis?.window?.['@hpcc-js/wasm/graphviz']
-    || globalThis?.['@hpcc-js/wasm/graphviz'];
+    || globalThis?.window?.['@hpcc-js/wasm']?.Graphviz
+    || globalThis?.['@hpcc-js/wasm']?.Graphviz
+    || globalThis?.window?.['@hpcc-js/wasm']?.graphviz
+    || globalThis?.['@hpcc-js/wasm']?.graphviz;
   const graphvizFactory = globalGraphviz?.Graphviz || globalGraphviz;
   if (graphvizFactory?.dot) {
     graphvizRendererPromise = Promise.resolve(graphvizFactory);
@@ -555,7 +564,7 @@ function renderInlineToken(token) {
   switch (type) {
     case 'escape':
     case 'text':
-      return escapeHtml(token.text ?? token.raw ?? '').replace(/\n/g, ' ');
+      return escapeHtml(decodeHtmlEntities(token.text ?? token.raw ?? '')).replace(/\n/g, ' ');
     case 'strong':
       return `<strong>${renderInlineTokens(token.tokens)}</strong>`;
     case 'em':
@@ -759,7 +768,7 @@ function sanitizeHtml(html) {
       'b', 'i', 'em', 'strong', 'a', 'code', 'pre', 'p', 'br',
       'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'blockquote', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-      'img', 'div', 'span', 'section', 'article',
+      'img', 'div', 'span', 'section', 'article', 'button',
       // Special blocks for markdown rendering
       'input', // for task checkboxes
       // Mermaid diagram support
