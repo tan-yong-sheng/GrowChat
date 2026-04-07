@@ -51,8 +51,8 @@ export function createChatRow(chat, handlers) {
       `;
 
   const htmlTemplate = `
-    <div class="chat-row relative group px-2 w-full ${isActive ? 'active' : ''}" data-chat-id="${chat.id}">
-      <div class="chat-row-content relative flex items-center justify-between rounded-xl px-3 py-2 transition-colors cursor-pointer ${isActive ? 'bg-gray-100/90 shadow-sm ring-1 ring-gray-200' : 'group-hover:bg-gray-100/80'}">
+    <div class="chat-row relative group px-2 w-full ${isActive ? 'active' : ''}" data-chat-id="${chat.id}" tabindex="0" role="listitem">
+      <div class="chat-row-content relative flex items-center justify-between rounded-xl px-3 py-2 transition-colors cursor-pointer focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none ${isActive ? 'bg-gray-100/90 shadow-sm ring-1 ring-gray-200' : 'group-hover:bg-gray-100/80'}">
         <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="sidebar-full-only flex-1 min-w-0 pr-2">
             <span class="chat-title flex items-center gap-1.5 text-sm truncate font-primary ${isActive ? 'text-gray-900 font-semibold' : 'text-gray-700'}">
@@ -75,7 +75,7 @@ export function createChatRow(chat, handlers) {
       </div>
 
       <!-- Dropdown menu (hidden by default) -->
-      <div class="chat-menu-dropdown hidden fixed mt-1 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 min-w-[140px] w-fit p-1 overflow-hidden font-primary">
+      <div class="chat-menu-dropdown hidden fixed mt-1 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 min-w-[140px] w-fit p-1 overflow-hidden font-primary" role="menu">
         ${menuItems}
       </div>
     </div>
@@ -92,6 +92,19 @@ export function createChatRow(chat, handlers) {
   // Handle row click
   content.addEventListener('click', () => {
     if (handlers.onClick) handlers.onClick(chat.id);
+  });
+
+  // Handle keyboard navigation
+  element.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (handlers.onClick) handlers.onClick(chat.id);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (!dropdown.classList.contains('hidden')) {
+        dropdown.classList.add('hidden');
+      }
+    }
   });
 
   // Toggle menu on button click
@@ -143,18 +156,51 @@ export function createChatRow(chat, handlers) {
   dropdown.addEventListener('click', async (e) => {
     const actionBtn = e.target.closest('button[data-action]');
     if (!actionBtn) return;
-    
+
     e.stopPropagation();
     const action = actionBtn.dataset.action;
-    
+
     if (action === 'share' && handlers.share) await handlers.share(chat.id);
     if (action === 'rename' && handlers.rename) await handlers.rename(chat.id);
     if (action === 'pin' && handlers.pin) await handlers.pin(chat.id);
     if (action === 'duplicate' && handlers.duplicate) await handlers.duplicate(chat.id);
     if (action === 'archive' && handlers.archive) await handlers.archive(chat.id);
     if (action === 'delete' && handlers.delete) await handlers.delete(chat.id);
-    
+
     dropdown.classList.add('hidden');
+  });
+
+  // Add keyboard navigation to menu items
+  const menuItems = dropdown.querySelectorAll('button[data-action]');
+  menuItems.forEach((item, index) => {
+    item.setAttribute('role', 'menuitem');
+    item.setAttribute('tabindex', '-1');
+
+    item.addEventListener('keydown', (e) => {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          const nextItem = menuItems[index + 1];
+          if (nextItem) nextItem.focus();
+          break;
+
+        case 'ArrowUp':
+          e.preventDefault();
+          const prevItem = menuItems[index - 1];
+          if (prevItem) prevItem.focus();
+          break;
+
+        case 'Escape':
+          e.preventDefault();
+          dropdown.classList.add('hidden');
+          break;
+
+        case 'Tab':
+          e.preventDefault();
+          dropdown.classList.add('hidden');
+          break;
+      }
+    });
   });
 
   return element;
