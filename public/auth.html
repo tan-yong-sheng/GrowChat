@@ -21,30 +21,30 @@
         <!-- Name field for registration -->
         <div id="name-wrap" class="hidden">
            <label class="block text-sm font-medium text-gray-900 mb-1.5" for="name">Name</label>
-           <input id="name" autocomplete="name" placeholder="Enter Your Name" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" />
+           <input id="name" autocomplete="name" placeholder="Enter Your Name" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-500 transition placeholder:text-gray-400" />
         </div>
 
         <div>
           <label class="block text-sm font-medium text-gray-900 mb-1.5" for="email">Email</label>
-          <input id="email" type="email" autocomplete="email" placeholder="Enter Your Email" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" required />
+          <input id="email" type="email" autocomplete="email" placeholder="Enter Your Email" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-500 transition placeholder:text-gray-400" required />
         </div>
 
         <div class="relative">
           <label class="block text-sm font-medium text-gray-900 mb-1.5" for="password">Password</label>
-          <input id="password" type="password" autocomplete="current-password" placeholder="Enter Your Password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" required />
+          <input id="password" type="password" autocomplete="current-password" placeholder="Enter Your Password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-500 transition placeholder:text-gray-400" minlength="8" required />
         </div>
 
-        <button id="auth-submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] mt-4 transition shadow-sm">Sign in</button>
+        <button id="auth-submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] mt-4 transition shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Sign in</button>
       </form>
 
       <div class="mt-6 text-sm text-gray-700 flex items-center gap-1.5 justify-center">
         <span id="toggle-text">Don’t have an account?</span>
-        <button id="toggle-mode" type="button" class="text-gray-900 font-semibold underline underline-offset-4 decoration-1 py-2 px-1 min-h-[44px] flex items-center">Sign up</button>
+        <button id="toggle-mode" type="button" class="text-gray-900 font-semibold underline underline-offset-4 decoration-1 py-2 px-1 min-h-[44px] flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Sign up</button>
       </div>
 
-      <button id="forgot-password" type="button" class="text-sm text-gray-900 hover:text-black underline underline-offset-4 decoration-1 mt-4 py-2 px-1 min-h-[44px] flex items-center">Forgot password?</button>
+      <button id="forgot-password" type="button" class="text-sm text-gray-900 hover:text-black underline underline-offset-4 decoration-1 mt-4 py-2 px-1 min-h-[44px] flex items-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Forgot password?</button>
 
-      <p id="auth-error" class="text-sm text-red-600 mt-6 hidden text-center"></p>
+      <p id="auth-error" class="text-sm text-red-600 mt-6 hidden text-center" aria-live="polite" role="alert"></p>
     </div>
   </div>
 
@@ -57,13 +57,13 @@
       <form id="forgot-password-form" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-900 mb-1.5" for="forgot-email">Email</label>
-          <input id="forgot-email" type="email" autocomplete="email" placeholder="Enter your email" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" required />
+          <input id="forgot-email" type="email" autocomplete="email" placeholder="Enter your email" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-500 transition placeholder:text-gray-400" required />
         </div>
 
-        <button id="forgot-submit" type="submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] transition shadow-sm">Send reset link</button>
+        <button id="forgot-submit" type="submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] transition shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Send reset link</button>
       </form>
 
-      <button id="modal-close" type="button" class="w-full text-center text-sm text-gray-900 hover:text-black mt-4 py-3 min-h-[44px] flex items-center justify-center">Cancel</button>
+      <button id="modal-close" type="button" class="w-full text-center text-sm text-gray-900 hover:text-black mt-4 py-3 min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Cancel</button>
 
       <p id="modal-error" class="text-sm text-red-600 mt-4 hidden text-center"></p>
       <p id="modal-success" class="text-sm text-green-600 mt-4 hidden text-center"></p>
@@ -79,15 +79,15 @@
       <form id="reset-password-form" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-900 mb-1.5" for="new-password">New Password</label>
-          <input id="new-password" type="password" autocomplete="new-password" placeholder="Enter new password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" required />
+          <input id="new-password" type="password" autocomplete="new-password" placeholder="Enter new password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-500 transition placeholder:text-gray-400" required />
         </div>
 
         <div>
           <label class="block text-sm font-medium text-gray-900 mb-1.5" for="confirm-password">Confirm Password</label>
-          <input id="confirm-password" type="password" autocomplete="new-password" placeholder="Confirm password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-300 transition placeholder:text-gray-400" required />
+          <input id="confirm-password" type="password" autocomplete="new-password" placeholder="Confirm password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-500 transition placeholder:text-gray-400" required />
         </div>
 
-        <button id="reset-submit" type="submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] transition shadow-sm">Reset password</button>
+        <button id="reset-submit" type="submit" class="w-full bg-[#171717] hover:bg-black text-white font-medium rounded-[20px] py-[14px] transition shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Reset password</button>
       </form>
 
       <p id="reset-error" class="text-sm text-red-600 mt-4 hidden text-center"></p>

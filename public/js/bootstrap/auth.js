@@ -1,4 +1,5 @@
 import { setAuthState } from '../shared/api.js';
+import { updateSubmitButtonState as updateButtonState } from '../shared/form-validation.js';
 
 const form = document.getElementById('auth-form');
 const nameWrap = document.getElementById('name-wrap');
@@ -101,9 +102,9 @@ async function submit(e) {
   } finally {
     isSubmitting = false;
     authSubmit.textContent = originalText;
-    authSubmit.disabled = false;
     authSubmit.classList.remove('opacity-60', 'cursor-not-allowed');
     toggleModeBtn.disabled = false;
+    updateButtonState(form, authSubmit, isSubmitting);
   }
 }
 
@@ -287,7 +288,13 @@ resetPasswordModal.addEventListener('click', (e) => {
   }
 });
 
+// Form validation listeners
+emailInput.addEventListener('input', () => updateButtonState(form, authSubmit, isSubmitting));
+passwordInput.addEventListener('input', () => updateButtonState(form, authSubmit, isSubmitting));
+nameInput.addEventListener('input', () => updateButtonState(form, authSubmit, isSubmitting));
+
 form.addEventListener('submit', submit);
 setMode('login');
+updateButtonState(form, authSubmit, isSubmitting);
 checkForResetToken();
 

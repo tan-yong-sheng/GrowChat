@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-04-07T15:23:36.488Z",
+  "issues": [],
+  "tests": [],
+  "pagesCrawled": [
+    {
+      "url": "/",
+      "name": "Chat Home",
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "brokenImages": 0,
+      "inaccessibleButtons": 0,
+      "inaccessibleLinks": 0
+    },
+    {
+      "url": "/admin/users/overview",
+      "name": "Admin Users",
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "brokenImages": 0,
+      "inaccessibleButtons": 0,
+      "inaccessibleLinks": 0
+    },
+    {
+      "url": "/admin/system/general",
+      "name": "Admin System",
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "brokenImages": 0,
+      "inaccessibleButtons": 0,
+      "inaccessibleLinks": 0
+    },
+    {
+      "url": "/admin/settings/connections",
+      "name": "Admin Connections",
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "brokenImages": 0,
+      "inaccessibleButtons": 0,
+      "inaccessibleLinks": 0
+    },
+    {
+      "url": "/admin/settings/models",
+      "name": "Admin Models",
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "brokenImages": 0,
+      "inaccessibleButtons": 0,
+      "inaccessibleLinks": 0
+    },
+    {
+      "url": "/admin/settings/security",
+      "name": "Admin Security",
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "brokenImages": 0,
+      "inaccessibleButtons": 0,
+      "inaccessibleLinks": 0
+    }
+  ]
+}
