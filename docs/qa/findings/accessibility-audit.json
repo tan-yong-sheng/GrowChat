@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-04-07T14:02:52.423Z",
+  "accessibility": {
+    "buttons": {
+      "total": 30,
+      "unlabeled": 0,
+      "percentage": "0.0"
+    },
+    "inputs": {
+      "total": 4,
+      "unlabeled": 2
+    },
+    "unlabeledButtons": [],
+    "findings": []
+  }
+}

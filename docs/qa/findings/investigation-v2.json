@@ -1,0 +1,12 @@
+[
+  {
+    "test": "Search Button",
+    "exists": true,
+    "inputsFound": 4,
+    "modalsFound": 1
+  },
+  {
+    "test": "Model Selector",
+    "elementFound": false
+  }
+]

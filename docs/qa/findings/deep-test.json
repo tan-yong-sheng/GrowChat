@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-04-07T14:01:14.319Z",
+  "findings": [
+    {
+      "test": "Settings Button Positioning",
+      "visible": true,
+      "inViewport": false,
+      "boundingBox": {
+        "x": -8,
+        "y": 470,
+        "width": 246,
+        "height": 36
+      },
+      "status": "FAIL - Outside viewport"
+    },
+    {
+      "test": "Sidebar Toggle Button",
+      "exists": false,
+      "status": "WARNING - No toggle found"
+    },
+    {
+      "test": "Message Send Button",
+      "visible": true,
+      "status": "PASS"
+    },
+    {
+      "test": "New Chat Button",
+      "clickable": true,
+      "status": "PASS"
+    },
+    {
+      "test": "Model Selector",
+      "visible": false,
+      "status": "WARNING"
+    }
+  ],
+  "accessibility": [
+    {
+      "test": "Button ARIA Labels",
+      "unlabeledButtons": 4,
+      "sampledButtons": 20,
+      "status": "WARNING - 4 buttons lack labels"
+    }
+  ],
+  "consoleErrors": [],
+  "summary": {
+    "totalTests": 6,
+    "passed": 2,
+    "warnings": 3,
+    "failures": 1
+  }
+}
