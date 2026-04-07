@@ -196,58 +196,11 @@ export function createAdminShellController({
   };
 
   const renderSharedActionFooter = () => {
-    const footerHostEl = container.querySelector('#admin-main-action-footer-host');
-    if (!footerHostEl) return;
-
-    const existing = footerHostEl.querySelector('[data-admin-main-action-footer]');
-    if (existing) existing.remove();
-
-    const mainTab = getMainTab();
-    const subTab = getSubTab();
-    const config = getFooterConfig(mainTab, subTab);
-    if (!config) return;
-
-    const { dirty, saving, canSave } = determineSaveState(data, mainTab, subTab);
-
-    const footer = document.createElement('div');
-    footer.dataset.adminMainActionFooter = config.footerId;
-    footer.className = 'flex w-full items-center justify-between pt-4 pb-3 px-0.5 border-t border-gray-100 bg-white sticky bottom-0 z-10';
-    footer.style.zIndex = '190';
-    footer.innerHTML = `
-      <div id="${config.dirtyId}" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">${config.dirtyLabel}</div>
-      <button id="${config.saveId}" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${canSave ? 'bg-black text-white hover:bg-gray-900' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}" ${canSave ? '' : 'disabled'}>
-        ${saving ? 'Saving...' : 'Save'}
-      </button>
-    `;
-
-    footerHostEl.appendChild(footer);
+    // Save button removed - using immediate-save pattern
   };
 
   const updateSharedActionFooter = () => {
-    const mainTab = getMainTab();
-    const subTab = getSubTab();
-    const config = getFooterConfig(mainTab, subTab);
-    const footer = container.querySelector('#admin-main-action-footer-host [data-admin-main-action-footer]');
-    if (!config) {
-      if (footer) footer.remove();
-      return;
-    }
-
-    if (!footer) {
-      renderSharedActionFooter();
-      return;
-    }
-
-    const { dirty, saving, canSave } = determineSaveState(data, mainTab, subTab);
-
-    footer.id = config.footerId;
-    footer.dataset.adminMainActionFooter = config.footerId;
-    footer.innerHTML = `
-      <div id="${config.dirtyId}" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full ${dirty ? '' : 'invisible'}">${config.dirtyLabel}</div>
-      <button id="${config.saveId}" class="ml-auto px-5 py-1.5 text-sm font-medium transition rounded-full ${canSave ? 'bg-black text-white hover:bg-gray-900' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}" ${canSave ? '' : 'disabled'}>
-        ${saving ? 'Saving...' : 'Save'}
-      </button>
-    `;
+    // Save button removed - using immediate-save pattern
   };
 
   const handleSharedActionSave = async () => {

@@ -107,6 +107,67 @@ Comprehensive QA testing of GrowChat on localhost:8787. Testing covered authenti
 
 ---
 
+### BUG #005: Rate Limiting on Login (EXPECTED BEHAVIOR)
+**Status**: Not a bug - Expected defensive behavior ✅
+**Severity**: N/A - Rate limiting is intentional
+**Description**: Rapid repeated login attempts trigger 429 (Too Many Requests) response.
+
+**Finding**: During exhaustive crawl testing, repeated login attempts within short timeframe were rate-limited by the server.
+
+**Assessment**: This is correct security behavior. Rate limiting prevents brute-force attacks. No fix needed.
+
+---
+
+### BUG #006: Search Modal Overlay Blocking Interactions (FIXED)
+**Status**: Fixed ✅
+**Severity**: HIGH - Critical UI/UX defect
+**Description**: Search modal's overlay container was intercepting pointer events even when hidden, preventing clicks on elements like "New Chat" button from registering.
+
+**Issue**:
+- Modal overlay used `fixed inset-0` positioning, covering full viewport
+- Overlay intercepted all pointer events even when modal was hidden
+- "New Chat" button click timed out after 30 seconds with error: "element is outside of the viewport"
+- Playwright logs showed: `<div id="modal-overlay" aria-hidden="true">` intercepting pointer events
+
+**Root Cause**:
+- File: `public/js/shared/components/viewport-modal-shell.js:3-4`
+- DEFAULT_OUTER_CLASS had `fixed inset-0` without `pointer-events-none`
+- DEFAULT_SHELL_CLASS didn't have `pointer-events-auto` to restore interactivity
+
+**Fix Applied**:
+- Added `pointer-events-none` to DEFAULT_OUTER_CLASS (line 3)
+- Added `pointer-events-auto` to DEFAULT_SHELL_CLASS (line 5)
+- Now clicks pass through hidden modal container to elements behind it
+- Visible shell remains fully interactive
+
+**Verification**:
+- Exhaustive crawl now completes successfully ✅
+- "New Chat" button click succeeds immediately ✅
+- Search modal still opens and functions correctly ✅
+- No timeout errors ✅
+
+**Commit**: `491a328` - fix: add pointer-events-none to modal overlay container to prevent blocking interactions
+
+---
+
+### BUG #007: Unlabeled Buttons in Main App (ACCESSIBILITY ISSUE)
+**Status**: Identified
+**Severity**: MEDIUM - Accessibility degradation
+**Description**: 6 buttons in the main app interface lack ARIA labels, making them inaccessible to screen reader users.
+
+**Finding**:
+- Accessibility audit sampled 30 buttons
+- 6 buttons had no `aria-label` attribute and no visible text
+- Likely icon-only buttons in sidebar or toolbar
+
+**Impact**: Screen reader users cannot understand button purpose
+
+**Recommendation**: Add `aria-label` attributes to all icon-only buttons with descriptive labels (e.g., "Toggle sidebar", "Open settings", "Search chats")
+
+**Next Steps**: Identify which buttons are unlabeled and add appropriate ARIA labels
+
+---
+
 ## Features Verified Working ✅
 
 ### Authentication

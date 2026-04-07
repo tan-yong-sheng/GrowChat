@@ -80,7 +80,6 @@ export async function renderAdminPage(container) {
   const handleBeforeUnload = shellController.handleBeforeUnload;
   const renderMainActionFooter = shellController.renderSharedActionFooter;
   const updateMainActionFooter = shellController.updateSharedActionFooter;
-  const handleMainSave = shellController.handleSharedActionSave;
   const settingsRouteCache = createSettingsRouteCache();
   let removeInvalidationListeners = null;
   data.settingsRouteCache = settingsRouteCache;
@@ -516,11 +515,6 @@ export async function renderAdminPage(container) {
     });
     bindTopNav();
     if (!container.__sharedFooterClickBound) {
-      container.addEventListener('click', (event) => {
-        const saveBtn = event.target.closest?.('#save-users, #save-settings, #save-system, #save-connections, #save-models-top, #save-integrations');
-        if (!saveBtn || saveBtn.disabled) return;
-        void handleMainSave();
-      });
       container.__sharedFooterClickBound = true;
     }
     window.addEventListener('beforeunload', handleBeforeUnload);
