@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'list',
   use: {
-    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://127.0.0.1:3007',
+    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://127.0.0.1:8787',
     trace: 'on-first-retry',
     screenshot: 'on',
     video: 'on-first-retry',
@@ -37,7 +37,7 @@ export default defineConfig({
     },
     {
       name: 'debug',
-      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:8787' },
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:8788' },
       testMatch: [/debug.*\.spec\.ts/],
     },
   ],

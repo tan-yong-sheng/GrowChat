@@ -1,0 +1,94 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "GrowChat GrowChat" [ref=e7] [cursor=pointer]:
+          - img "GrowChat" [ref=e9]
+          - generic [ref=e10]: GrowChat
+        - button "Close Sidebar" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+      - generic [ref=e13]:
+        - button "New Chat" [ref=e14] [cursor=pointer]:
+          - generic [ref=e15]:
+            - img [ref=e16]
+            - generic [ref=e18]: New Chat
+          - img [ref=e19]
+        - button "Search" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+          - generic [ref=e25]: Search
+    - generic [ref=e26]:
+      - button "Chats" [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: Chats
+        - img [ref=e29]
+      - list [ref=e32]:
+        - generic [ref=e159]: Today
+        - generic [ref=e160]:
+          - generic [ref=e162] [cursor=pointer]:
+            - generic [ref=e166]: hi this is test
+            - generic [ref=e167]: 3m ago
+          - generic [ref=e169] [cursor=pointer]:
+            - generic [ref=e173]: Test Chat Renamed
+            - generic [ref=e174]: 7m ago
+          - generic [ref=e176] [cursor=pointer]:
+            - generic [ref=e180]: print out a simple graphviz code
+            - generic [ref=e181]: 19h ago
+          - generic [ref=e183] [cursor=pointer]:
+            - generic [ref=e187]: print out a simple graphviz code
+            - generic [ref=e188]: 20h ago
+          - generic [ref=e190] [cursor=pointer]:
+            - generic [ref=e194]: print out a simple graphviz code
+            - generic [ref=e195]: 20h ago
+          - generic [ref=e197] [cursor=pointer]:
+            - generic [ref=e201]: hi how are you
+            - generic [ref=e202]: 20h ago
+          - generic [ref=e204] [cursor=pointer]:
+            - generic [ref=e208]: hi how are ou
+            - generic [ref=e209]: 20h ago
+    - button "T Tan Yong Sheng online" [ref=e87] [cursor=pointer]:
+      - generic [ref=e88]: T
+      - generic [ref=e89]:
+        - generic [ref=e90]: Tan Yong Sheng
+        - generic [ref=e93]: online
+  - main [ref=e95]:
+    - generic [ref=e96]:
+      - generic [ref=e100]:
+        - button "Select model" [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]: gpt-oss-120b
+          - img [ref=e103]
+        - button "Unset default" [ref=e210] [cursor=pointer]
+      - button "More" [disabled] [ref=e108]:
+        - img [ref=e109]
+    - generic [ref=e117]:
+      - img "GrowChat" [ref=e119]
+      - generic [ref=e120]:
+        - heading "How can I help you today?" [level=1] [ref=e121]
+        - generic [ref=e122]:
+          - generic [ref=e123]: gpt-oss-120b
+          - generic [ref=e124]: ·
+          - generic [ref=e125]: The smarter way to chat.
+      - generic [ref=e126]:
+        - button "Summarize an article on recent tech news" [ref=e211] [cursor=pointer]:
+          - generic [ref=e212]: Summarize an article
+          - generic [ref=e213]: on recent tech news
+        - button "Help me write a thank you email" [ref=e214] [cursor=pointer]:
+          - generic [ref=e215]: Help me write
+          - generic [ref=e216]: a thank you email
+        - button "Suggest a recipe with chicken and rice" [ref=e217] [cursor=pointer]:
+          - generic [ref=e218]: Suggest a recipe
+          - generic [ref=e219]: with chicken and rice
+        - button "Debug Python code with a syntax error" [ref=e220] [cursor=pointer]:
+          - generic [ref=e221]: Debug Python code
+          - generic [ref=e222]: with a syntax error
+    - generic [ref=e140]:
+      - generic [ref=e141]:
+        - generic [ref=e142]:
+          - button "Attach file" [ref=e143] [cursor=pointer]:
+            - img [ref=e144]
+          - button "Tools" [disabled] [ref=e146]:
+            - img [ref=e147]
+          - text:   
+        - textbox "Message text" [ref=e152]:
+          - /placeholder: Message gpt-oss-120b
+        - button "Voice input" [ref=e154] [cursor=pointer]:
+          - img [ref=e155]
+      - generic [ref=e158]: gpt-oss-120b can make mistakes. Check important info.

@@ -2,7 +2,7 @@ export async function parseApiError(res, fallbackMessage) {
   let message = fallbackMessage;
   try {
     const payload = await res.json();
-    message = payload?.error || payload?.message || message;
+    message = payload?.details?.message || payload?.message || payload?.error || message;
   } catch {
     // Ignore parse failures and fall back to the provided message.
   }

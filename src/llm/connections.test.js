@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createProviderTestEnv } from '../../tests/unit/provider-test-env.js';
 import {
   buildEnvOpenAIConnections,
   discoverConnectionModels,
@@ -92,14 +93,7 @@ describe('openai connection helpers', () => {
   });
 
   it('returns the correct api type in env connection snapshots', () => {
-    const connections = buildEnvOpenAIConnections({
-      OPENAI_BASE_URL: 'https://api.openai.com/v1',
-      OPENAI_API_KEY: 'oa-key',
-      GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
-      GEMINI_API_KEY: 'gemini-key',
-      ANTHROPIC_BASE_URL: 'https://api.anthropic.com/v1',
-      ANTHROPIC_API_KEY: 'anthropic-key',
-    });
+    const connections = buildEnvOpenAIConnections(createProviderTestEnv());
 
     expect(connections.find((conn) => conn.providerFamily === 'openai')?.apiType).toBe('chat-completions');
     expect(connections.find((conn) => conn.providerFamily === 'google')?.apiType).toBe('stream-generate-content');

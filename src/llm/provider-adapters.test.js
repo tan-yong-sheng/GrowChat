@@ -162,4 +162,18 @@ describe('llm-provider-adapters', () => {
     ]);
     expect(result.payload.tool_choice).toEqual({ type: 'any' });
   });
+
+  it('normalizes Anthropic proxy base URLs without /v1', () => {
+    const result = buildProviderRequest({
+      providerFamily: 'anthropic',
+      baseUrl: 'https://proxy.tanyongsheng.site',
+      modelId: 'deepseek-v3.2',
+      messages: [{ role: 'user', content: 'Hello' }],
+      options: {},
+      stream: true,
+      normalizeToolParameters,
+    });
+
+    expect(result.url).toBe('https://proxy.tanyongsheng.site/v1/messages');
+  });
 });

@@ -15,7 +15,7 @@ const SRI_RESOURCES = {
     url: 'https://cdn.jsdelivr.net/npm/mermaid@11.0.2/dist/mermaid.min.js',
   },
   'graphviz': {
-    url: 'https://unpkg.com/@hpcc-js/wasm@1.12.8/dist/graphviz.umd.js',
+    url: 'https://cdn.jsdelivr.net/npm/@hpcc-js/wasm@1.12.8/dist/index.js',
   },
 };
 

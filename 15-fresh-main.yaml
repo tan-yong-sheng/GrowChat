@@ -1,0 +1,91 @@
+- generic [ref=e24]:
+  - complementary [ref=e25]:
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - button "GrowChat GrowChat" [ref=e28] [cursor=pointer]:
+          - img "GrowChat" [ref=e30]
+          - generic [ref=e31]: GrowChat
+        - button "Close Sidebar" [ref=e32] [cursor=pointer]:
+          - img [ref=e33]
+      - generic [ref=e34]:
+        - button "New Chat" [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]:
+            - img [ref=e37]
+            - generic [ref=e39]: New Chat
+          - img [ref=e40]
+        - button "Search" [ref=e42] [cursor=pointer]:
+          - img [ref=e43]
+          - generic [ref=e46]: Search
+    - generic [ref=e47]:
+      - button "Chats" [ref=e48] [cursor=pointer]:
+        - generic [ref=e49]: Chats
+        - img [ref=e50]
+      - list [ref=e53]:
+        - generic [ref=e54]: Today
+        - generic [ref=e55]:
+          - generic [ref=e57] [cursor=pointer]:
+            - generic [ref=e61]: Test Chat Renamed
+            - generic [ref=e62]: 0m ago
+          - generic [ref=e64] [cursor=pointer]:
+            - generic [ref=e68]: print out a simple graphviz code
+            - generic [ref=e69]: 19h ago
+          - generic [ref=e71] [cursor=pointer]:
+            - generic [ref=e75]: print out a simple graphviz code
+            - generic [ref=e76]: 20h ago
+          - generic [ref=e78] [cursor=pointer]:
+            - generic [ref=e82]: print out a simple graphviz code
+            - generic [ref=e83]: 20h ago
+          - generic [ref=e85] [cursor=pointer]:
+            - generic [ref=e89]: hi how are you
+            - generic [ref=e90]: 20h ago
+          - generic [ref=e92] [cursor=pointer]:
+            - generic [ref=e96]: hi how are ou
+            - generic [ref=e97]: 20h ago
+    - button "T Tan Yong Sheng online" [ref=e101] [cursor=pointer]:
+      - generic [ref=e102]: T
+      - generic [ref=e103]:
+        - generic [ref=e104]: Tan Yong Sheng
+        - generic [ref=e107]: online
+  - main [ref=e109]:
+    - generic [ref=e110]:
+      - generic [ref=e114]:
+        - button "Select model" [ref=e115] [cursor=pointer]:
+          - generic [ref=e116]: deepseek-v3.2
+          - img [ref=e117]
+        - button "Unset default" [ref=e120] [cursor=pointer]
+      - button "More" [disabled] [ref=e123]:
+        - img [ref=e124]
+    - generic [ref=e132]:
+      - img "GrowChat" [ref=e134]
+      - generic [ref=e135]:
+        - heading "How can I help you today?" [level=1] [ref=e136]
+        - generic [ref=e137]:
+          - generic [ref=e138]: deepseek-v3.2
+          - generic [ref=e139]: ·
+          - generic [ref=e140]: The smarter way to chat.
+      - generic [ref=e141]:
+        - button "Summarize an article on recent tech news" [ref=e142] [cursor=pointer]:
+          - generic [ref=e143]: Summarize an article
+          - generic [ref=e144]: on recent tech news
+        - button "Help me write a thank you email" [ref=e145] [cursor=pointer]:
+          - generic [ref=e146]: Help me write
+          - generic [ref=e147]: a thank you email
+        - button "Suggest a recipe with chicken and rice" [ref=e148] [cursor=pointer]:
+          - generic [ref=e149]: Suggest a recipe
+          - generic [ref=e150]: with chicken and rice
+        - button "Debug Python code with a syntax error" [ref=e151] [cursor=pointer]:
+          - generic [ref=e152]: Debug Python code
+          - generic [ref=e153]: with a syntax error
+    - generic [ref=e155]:
+      - generic [ref=e156]:
+        - generic [ref=e157]:
+          - button "Attach file" [ref=e158] [cursor=pointer]:
+            - img [ref=e159]
+          - button "Tools" [disabled] [ref=e161]:
+            - img [ref=e162]
+          - text:   
+        - textbox "Message text" [ref=e167]:
+          - /placeholder: Message deepseek-v3.2
+        - button "Voice input" [ref=e169] [cursor=pointer]:
+          - img [ref=e170]
+      - generic [ref=e173]: deepseek-v3.2 can make mistakes. Check important info.

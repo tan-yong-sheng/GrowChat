@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code when working with the GrowChat repository.
 
+Website on localhost:8787:
+- User email: tys203831@gmail.com
+- Password: &Test1234
+
+Available skills & agents: superpowers agent, playwright cli, ai-vision cli, design-eval agent 
+
 ## Project Overview
 
 **GrowChat** is a multi-user Cloudflare Workers chat application with support for multiple LLM providers (Workers AI and OpenAI-compatible APIs).

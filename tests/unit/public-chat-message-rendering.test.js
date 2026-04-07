@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs', () => ({
+  default: {
+    sanitize: (html) => html,
+  },
+}));
 import {
   renderAssistantContent,
   renderAssistantMessageBody,
@@ -7,6 +13,7 @@ import {
   renderThinkingBlock,
   renderToolCallItem,
 } from '../../public/js/features/chat/chat-message-rendering.js';
+import { enhanceMarkdownSpecialBlocks } from '../../public/js/shared/markdown-renderer.js';
 
 describe('chat message rendering helpers', () => {
   it('renders assistant content and attachment pills', () => {
@@ -17,6 +24,30 @@ describe('chat message rendering helpers', () => {
     ]);
     expect(html).toContain('data-attachment-image="img1"');
     expect(html).toContain('&lt;doc&gt;.pdf');
+  });
+
+  it('keeps graphviz preview and code buttons after sanitization', () => {
+    const originalMarked = globalThis.window.marked;
+    globalThis.window.marked = {
+      lexer: vi.fn(() => [{
+        type: 'code',
+        lang: 'dot',
+        text: 'digraph G { A -> B; }',
+        raw: '```dot\ndigraph G { A -> B; }\n```',
+      }]),
+      setOptions: vi.fn(),
+    };
+
+    const html = renderAssistantContent('```dot\ndigraph G { A -> B; }\n```');
+
+    globalThis.window.marked = originalMarked;
+
+    document.body.innerHTML = `<div>${html}</div>`;
+    const tabs = document.querySelector('[aria-label="Graphviz view mode"]');
+
+    expect(tabs?.querySelector('button[data-markdown-special-mode-btn="preview"]')).toBeTruthy();
+    expect(tabs?.querySelector('button[data-markdown-special-mode-btn="code"]')).toBeTruthy();
+    expect(tabs?.querySelectorAll('button')).toHaveLength(2);
   });
 
   it('renders thinking and tool call blocks', () => {
@@ -37,6 +68,14 @@ describe('chat message rendering helpers', () => {
     const toolCallsByMessageId = new Map([
       ['m1', [{ id: 'tool-1', name: 'Search', status: 'running', input: '{}', output: '' }]],
     ]);
+    const originalMarked = globalThis.window.marked;
+    globalThis.window.marked = {
+      lexer: vi.fn(() => [{
+        type: 'paragraph',
+        tokens: [{ type: 'text', text: 'Hello' }],
+      }]),
+      setOptions: vi.fn(),
+    };
     const html = renderAssistantMessageBody({
       messageId: 'm1',
       content: 'Hello',
@@ -52,6 +91,7 @@ describe('chat message rendering helpers', () => {
         errorExpandedByMessageId: new Map(),
       },
     });
+    globalThis.window.marked = originalMarked;
 
     expect(html).toContain('Hello');
     expect(html).toContain('Thought for 2 seconds');

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createProviderTestEnv } from '../../tests/unit/provider-test-env.js';
 
 const mocks = vi.hoisted(() => ({
   db: {
@@ -469,8 +470,12 @@ describe('chatRouter', () => {
           }),
         }),
       },
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_API_KEY: 'test-key-12345',
+      ...createProviderTestEnv({
+        GEMINI_BASE_URL: '',
+        GEMINI_API_KEY: '',
+        ANTHROPIC_BASE_URL: '',
+        ANTHROPIC_API_KEY: '',
+      }),
     };
 
     const res = await chatRouter(

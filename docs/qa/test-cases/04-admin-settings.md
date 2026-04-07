@@ -227,12 +227,47 @@ The save operation appears to be failing silently due to JavaScript errors. The 
 - Issues: Excessive whitespace, low contrast text, ambiguous icons, unclear chevron purpose, visual hierarchy issues
 - Severity: MEDIUM
 
+## TEST #55: User Settings - Connections Tab - Test Connection Error Messaging
+
+**Date/Time:** 2026-04-06 19:36  
+**Page:** http://localhost:8787/  
+**Test Type:** Functional - Error Messaging / API Feedback  
+**Status:** ❌ FAILED - Connection test shows opaque internal error reference
+
+### Steps
+1. Opened user settings modal via profile menu
+2. Opened Add Connection dialog
+3. Filled connection form with:
+   - Name: `Test QA Connection`
+   - URL: `https://api.example.com/v1`
+   - API Key: `test-key`
+4. Clicked `Test connection`
+
+### Expected Result
+- Button should report the backend failure reason clearly
+- The modal should show a human-readable message for the failed discovery request
+- No opaque internal reference should be surfaced to the user
+
+### Actual Result
+- Console reported `401 Unauthorized` followed by `502 Bad Gateway` for `/api/users/me/resources/connections/test`
+- The modal showed `internal error; reference = m92lfjtvgd862b49eo5d0f9q`
+- The failure detail was not presented as a user-friendly message
+
+### Evidence
+- Browser snapshot: `.playwright-cli/page-2026-04-06T19-36-11-975Z.yml`
+- Console log: `.playwright-cli/console-2026-04-06T19-34-38-884Z.log`
+
+### Severity
+**MEDIUM** - The test flow fails gracefully at the transport layer, but the UI hides the actionable backend error and leaves users with an opaque internal reference.
+
+---
+
 ## Summary
 
-**Total Tests:** 14  
-**Passed:** 5 (36%)  
-**Partially Tested:** 8 (57%)  
-**Failed:** 1 (7%)
+**Total Tests:** 15  
+**Passed:** 5 (33%)  
+**Partially Tested:** 8 (53%)  
+**Failed:** 2 (13%)
 
 **Critical Issues:** 1
 - Save operation stuck in loading state (escapeSelector error)
@@ -243,3 +278,4 @@ The save operation appears to be failing silently due to JavaScript errors. The 
 - Multiple accessibility and contrast violations throughout
 - Form field labeling inconsistencies
 - Pagination and search functionality working correctly
+- Connection test errors need clearer user-facing messaging

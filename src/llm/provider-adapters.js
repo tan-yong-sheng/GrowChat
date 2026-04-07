@@ -605,8 +605,11 @@ export function buildProviderRequest({
   }
 
   if (family === 'anthropic') {
+    const anthropicBaseUrl = normalizedBaseUrl.endsWith('/v1')
+      ? normalizedBaseUrl
+      : `${normalizedBaseUrl}/v1`;
     return {
-      url: `${normalizedBaseUrl}/messages`,
+      url: `${anthropicBaseUrl}/messages`,
       payload: {
         ...buildAnthropicPayload(messages, {
           ...options,

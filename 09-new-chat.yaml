@@ -1,0 +1,113 @@
+- generic [ref=e24]:
+  - complementary [ref=e25]:
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - button "GrowChat GrowChat" [ref=e28] [cursor=pointer]:
+          - img "GrowChat" [ref=e30]
+          - generic [ref=e31]: GrowChat
+        - button "Close Sidebar" [ref=e32] [cursor=pointer]:
+          - img [ref=e33]
+      - generic [ref=e34]:
+        - button "New Chat" [active] [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]:
+            - img [ref=e37]
+            - generic [ref=e39]: New Chat
+          - img [ref=e40]
+        - button "Search" [ref=e42] [cursor=pointer]:
+          - img [ref=e43]
+          - generic [ref=e46]: Search
+    - generic [ref=e47]:
+      - button "Chats" [ref=e48] [cursor=pointer]:
+        - generic [ref=e49]: Chats
+        - img [ref=e50]
+      - list [ref=e53]:
+        - generic [ref=e447]: Today
+        - generic [ref=e448]:
+          - generic [ref=e450] [cursor=pointer]:
+            - generic [ref=e454]: New Chat
+            - generic [ref=e455]: 0m ago
+          - generic [ref=e457] [cursor=pointer]:
+            - generic [ref=e461]: print out a simple graphviz code
+            - generic [ref=e462]: 19h ago
+          - generic [ref=e464] [cursor=pointer]:
+            - generic [ref=e468]: print out a simple graphviz code
+            - generic [ref=e469]: 20h ago
+          - generic [ref=e471] [cursor=pointer]:
+            - generic [ref=e475]: print out a simple graphviz code
+            - generic [ref=e476]: 20h ago
+          - generic [ref=e478] [cursor=pointer]:
+            - generic [ref=e482]: hi how are you
+            - generic [ref=e483]: 20h ago
+          - generic [ref=e485] [cursor=pointer]:
+            - generic [ref=e489]: hi how are ou
+            - generic [ref=e490]: 20h ago
+        - generic [ref=e491]: Yesterday
+        - generic [ref=e492]:
+          - generic [ref=e494] [cursor=pointer]:
+            - generic [ref=e498]: Hello, can you reply with one short sentence?
+            - generic [ref=e499]: 22h ago
+          - generic [ref=e501] [cursor=pointer]:
+            - generic [ref=e505]: hi how are you
+            - generic [ref=e506]: 22h ago
+          - generic [ref=e508] [cursor=pointer]:
+            - generic [ref=e512]: hi how are you
+            - generic [ref=e513]: 22h ago
+          - generic [ref=e515] [cursor=pointer]:
+            - generic [ref=e519]: hi how are you
+            - generic [ref=e520]: Yesterday
+        - generic [ref=e521]: Last 7 Days
+        - generic [ref=e522]:
+          - generic [ref=e524] [cursor=pointer]:
+            - generic [ref=e528]: hi how are you
+            - generic [ref=e529]: Yesterday
+          - generic [ref=e531] [cursor=pointer]:
+            - generic [ref=e535]: hi how are you
+            - generic [ref=e536]: Yesterday
+    - button "T Tan Yong Sheng online" [ref=e140] [cursor=pointer]:
+      - generic [ref=e141]: T
+      - generic [ref=e142]:
+        - generic [ref=e143]: Tan Yong Sheng
+        - generic [ref=e146]: online
+  - main [ref=e148]:
+    - generic [ref=e149]:
+      - generic [ref=e153]:
+        - button "Select model" [ref=e154] [cursor=pointer]:
+          - generic [ref=e155]: deepseek-v3.2
+          - img [ref=e156]
+        - button "Unset default" [ref=e159] [cursor=pointer]
+      - button "More" [disabled] [ref=e162]:
+        - img [ref=e163]
+    - generic [ref=e538]:
+      - img "GrowChat" [ref=e540]
+      - generic [ref=e541]:
+        - heading "How can I help you today?" [level=1] [ref=e542]
+        - generic [ref=e543]:
+          - generic [ref=e544]: deepseek-v3.2
+          - generic [ref=e545]: ·
+          - generic [ref=e546]: The smarter way to chat.
+      - generic [ref=e547]:
+        - button "Summarize an article on recent tech news" [ref=e548] [cursor=pointer]:
+          - generic [ref=e549]: Summarize an article
+          - generic [ref=e550]: on recent tech news
+        - button "Help me write a thank you email" [ref=e551] [cursor=pointer]:
+          - generic [ref=e552]: Help me write
+          - generic [ref=e553]: a thank you email
+        - button "Suggest a recipe with chicken and rice" [ref=e554] [cursor=pointer]:
+          - generic [ref=e555]: Suggest a recipe
+          - generic [ref=e556]: with chicken and rice
+        - button "Debug Python code with a syntax error" [ref=e557] [cursor=pointer]:
+          - generic [ref=e558]: Debug Python code
+          - generic [ref=e559]: with a syntax error
+    - generic [ref=e194]:
+      - generic [ref=e195]:
+        - generic [ref=e196]:
+          - button "Attach file" [ref=e197] [cursor=pointer]:
+            - img [ref=e198]
+          - button "Tools" [disabled] [ref=e200]:
+            - img [ref=e201]
+          - text:   
+        - textbox "Message text" [ref=e206]:
+          - /placeholder: Message deepseek-v3.2
+        - button "Voice input" [ref=e208] [cursor=pointer]:
+          - img [ref=e209]
+      - generic [ref=e212]: deepseek-v3.2 can make mistakes. Check important info.

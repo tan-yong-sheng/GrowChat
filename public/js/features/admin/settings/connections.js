@@ -70,6 +70,7 @@ export function renderConnectionsSettings(container, data) {
     modalSaving: false,
     modalModelsQuery: '',
     modalDrafts: new Map(),
+    modelOverrides: new Map(),
     newConnectionDraftId: null,
     modalMode: 'create',
   });

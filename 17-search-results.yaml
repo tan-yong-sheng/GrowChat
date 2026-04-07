@@ -1,0 +1,134 @@
+- generic [ref=e2]:
+  - generic [ref=e24]:
+    - complementary [ref=e25]:
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - button "GrowChat GrowChat" [ref=e28] [cursor=pointer]:
+            - img "GrowChat" [ref=e30]
+            - generic [ref=e31]: GrowChat
+          - button "Close Sidebar" [ref=e32] [cursor=pointer]:
+            - img [ref=e33]
+        - generic [ref=e34]:
+          - button "New Chat" [ref=e35] [cursor=pointer]:
+            - generic [ref=e36]:
+              - img [ref=e37]
+              - generic [ref=e39]: New Chat
+            - img [ref=e40]
+          - button "Search" [ref=e42] [cursor=pointer]:
+            - img [ref=e43]
+            - generic [ref=e46]: Search
+      - generic [ref=e47]:
+        - button "Chats" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: Chats
+          - img [ref=e50]
+        - list [ref=e53]:
+          - generic [ref=e293]: Today
+          - generic [ref=e294]:
+            - generic [ref=e296] [cursor=pointer]:
+              - generic [ref=e300]: Test Chat Renamed
+              - generic [ref=e301]: 1m ago
+            - generic [ref=e303] [cursor=pointer]:
+              - generic [ref=e307]: print out a simple graphviz code
+              - generic [ref=e308]: 19h ago
+            - generic [ref=e310] [cursor=pointer]:
+              - generic [ref=e314]: print out a simple graphviz code
+              - generic [ref=e315]: 20h ago
+            - generic [ref=e317] [cursor=pointer]:
+              - generic [ref=e321]: print out a simple graphviz code
+              - generic [ref=e322]: 20h ago
+            - generic [ref=e324] [cursor=pointer]:
+              - generic [ref=e328]: hi how are you
+              - generic [ref=e329]: 20h ago
+            - generic [ref=e331] [cursor=pointer]:
+              - generic [ref=e335]: hi how are ou
+              - generic [ref=e336]: 20h ago
+      - button "T Tan Yong Sheng online" [ref=e101] [cursor=pointer]:
+        - generic [ref=e102]: T
+        - generic [ref=e103]:
+          - generic [ref=e104]: Tan Yong Sheng
+          - generic [ref=e107]: online
+    - main [ref=e109]:
+      - generic [ref=e110]:
+        - generic [ref=e114]:
+          - button "Select model" [ref=e115] [cursor=pointer]:
+            - generic [ref=e116]: deepseek-v3.2
+            - img [ref=e117]
+          - button "Unset default" [ref=e120] [cursor=pointer]
+        - button "More" [disabled] [ref=e123]:
+          - img [ref=e124]
+      - generic [ref=e132]:
+        - img "GrowChat" [ref=e134]
+        - generic [ref=e135]:
+          - heading "How can I help you today?" [level=1] [ref=e136]
+          - generic [ref=e137]:
+            - generic [ref=e138]: deepseek-v3.2
+            - generic [ref=e139]: ·
+            - generic [ref=e140]: The smarter way to chat.
+        - generic [ref=e141]:
+          - button "Summarize an article on recent tech news" [ref=e142] [cursor=pointer]:
+            - generic [ref=e143]: Summarize an article
+            - generic [ref=e144]: on recent tech news
+          - button "Help me write a thank you email" [ref=e145] [cursor=pointer]:
+            - generic [ref=e146]: Help me write
+            - generic [ref=e147]: a thank you email
+          - button "Suggest a recipe with chicken and rice" [ref=e148] [cursor=pointer]:
+            - generic [ref=e149]: Suggest a recipe
+            - generic [ref=e150]: with chicken and rice
+          - button "Debug Python code with a syntax error" [ref=e151] [cursor=pointer]:
+            - generic [ref=e152]: Debug Python code
+            - generic [ref=e153]: with a syntax error
+      - generic [ref=e155]:
+        - generic [ref=e156]:
+          - generic [ref=e157]:
+            - button "Attach file" [ref=e158] [cursor=pointer]:
+              - img [ref=e159]
+            - button "Tools" [disabled] [ref=e161]:
+              - img [ref=e162]
+            - text:   
+          - textbox "Message text" [ref=e167]:
+            - /placeholder: Message deepseek-v3.2
+          - button "Voice input" [ref=e169] [cursor=pointer]:
+            - img [ref=e170]
+        - generic [ref=e173]: deepseek-v3.2 can make mistakes. Check important info.
+  - dialog "Actions" [ref=e218]:
+    - generic [ref=e220]:
+      - generic [ref=e222]:
+        - img [ref=e224]
+        - textbox "Search chats" [active] [ref=e227]:
+          - /placeholder: Search chats...
+          - text: graphviz
+        - generic [ref=e228]:
+          - generic [ref=e230]: ESC
+          - button "Close search" [ref=e231] [cursor=pointer]:
+            - img [ref=e232]
+      - generic [ref=e235]:
+        - generic [ref=e236]:
+          - generic [ref=e237]: Actions
+          - button "New Chat Start a fresh conversation" [ref=e238] [cursor=pointer]:
+            - img [ref=e240]
+            - generic [ref=e242]:
+              - generic [ref=e243]: New Chat
+              - generic [ref=e244]: Start a fresh conversation
+          - listbox [ref=e245]:
+            - generic [ref=e337]:
+              - generic [ref=e338]: Unknown date
+              - generic [ref=e339]:
+                - option "print out a simple graphviz code" [ref=e340] [cursor=pointer]:
+                  - img [ref=e342]
+                  - generic [ref=e345]: print out a simple graphviz code
+                - option "print out a simple graphviz code" [ref=e346] [cursor=pointer]:
+                  - img [ref=e348]
+                  - generic [ref=e351]: print out a simple graphviz code
+                - option "print out a simple graphviz code" [ref=e352] [cursor=pointer]:
+                  - img [ref=e354]
+                  - generic [ref=e357]: print out a simple graphviz code
+                - option "hi how are you" [ref=e358] [cursor=pointer]:
+                  - img [ref=e360]
+                  - generic [ref=e363]: hi how are you
+                - option "hi how are ou" [ref=e364] [cursor=pointer]:
+                  - img [ref=e366]
+                  - generic [ref=e369]: hi how are ou
+        - generic [ref=e286]:
+          - img [ref=e288]
+          - heading "Preview Chat" [level=3] [ref=e291]
+          - paragraph [ref=e292]: Select a result from the list to see the conversation history.

@@ -1,4 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs', () => ({
+  default: {
+    sanitize: (html) => html,
+  },
+}));
 import {
   convertDisplayMathBlocks,
   isFullLatexDocument,

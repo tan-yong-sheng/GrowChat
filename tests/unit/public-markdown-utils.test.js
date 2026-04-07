@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs', () => ({
+  default: {
+    sanitize: (html) => html,
+  },
+}));
+
 import { ensureMarkedReady, renderMessageContent } from '../../public/js/shared/utils.js';
+import { renderMarkdownContent } from '../../public/js/shared/markdown-renderer.js';
 import { enhanceMarkdownSpecialBlocks } from '../../public/js/shared/markdown-renderer.js';
 
 function textToken(text) {
@@ -110,6 +118,69 @@ Next`);
     expect(html).toContain('<pre><code>');
     expect(html).toContain('console.log(1)');
     expect(html).toContain('<p>Next</p>');
+  });
+
+  it('decodes HTML entities before rendering assistant text', () => {
+    const lexer = vi.fn((content) => [{
+      type: 'paragraph',
+      tokens: [{ type: 'text', text: content }],
+    }]);
+    const setOptions = vi.fn();
+    globalThis.window.marked = { lexer, setOptions };
+
+    const html = renderMessageContent('Hi! I&#39;m doing great, thank you for asking!');
+
+    expect(lexer).toHaveBeenCalledWith("Hi! I'm doing great, thank you for asking!");
+    expect(html).toContain("I'm doing great");
+    expect(html).not.toContain('I&amp;#39;m');
+  });
+
+  it('decodes double-escaped apostrophes before markdown rendering', () => {
+    globalThis.window.marked = {
+      lexer: vi.fn((content) => [{
+        type: 'paragraph',
+        tokens: [{ type: 'text', text: content }],
+      }]),
+      setOptions: vi.fn(),
+    };
+
+    const html = renderMessageContent('Hi! I&amp;#39;m doing great, thank you for asking!');
+
+    expect(html).toContain("I'm doing great");
+    expect(html).not.toContain('I&amp;#39;m');
+    expect(html).not.toContain('I&#39;m');
+  });
+
+  it('decodes entity-encoded marked token text before escaping', () => {
+    globalThis.window.marked = {
+      lexer: vi.fn(() => [{
+        type: 'paragraph',
+        tokens: [{ type: 'text', text: 'I&#39;m' }],
+      }]),
+      setOptions: vi.fn(),
+    };
+
+    const html = renderMessageContent('ignored source text');
+
+    expect(html).toContain("I'm");
+    expect(html).not.toContain('I&amp;#39;m');
+    expect(html).not.toContain('I&#39;m');
+  });
+
+  it('keeps graphviz preview and code buttons after sanitization', () => {
+    const lexer = vi.fn(() => [{
+      type: 'code',
+      lang: 'dot',
+      text: 'digraph G { A -> B; }',
+      raw: '```dot\ndigraph G { A -> B; }\n```',
+    }]);
+    globalThis.window.marked = { lexer, setOptions: vi.fn() };
+
+    const html = renderMessageContent('```dot\ndigraph G { A -> B; }\n```');
+
+    expect(html).toContain('data-markdown-special-mode-btn="preview"');
+    expect(html).toContain('data-markdown-special-mode-btn="code"');
+    expect(html).toContain('<button type="button"');
   });
 
   it('ensureMarkedReady resolves true when marked is present', async () => {
@@ -259,6 +330,29 @@ Next`);
       load: vi.fn(async () => ({
         dot: vi.fn(async (source) => `<svg data-graphviz="1"><text>${source}</text></svg>`),
       })),
+    };
+
+    const html = renderMessageContent('```dot\ndigraph G { A -> B; }\n``` gamma');
+    document.body.innerHTML = `<div>${html}</div>`;
+    await enhanceMarkdownSpecialBlocks(document.body);
+
+    const block = document.querySelector('[data-markdown-special-kind="graphviz"]');
+    expect(block.querySelector('svg')).toBeTruthy();
+    expect(block.querySelector('svg text')?.textContent).toContain('A -> B');
+    expect(block.querySelector('[data-markdown-special-error]')).toBeNull();
+  });
+
+  it('renders Graphviz preview from the hpcc-js-wasm namespace', async () => {
+    globalThis.window.marked = {
+      lexer: vi.fn(() => [
+        { type: 'code', lang: 'dot', text: 'digraph G { A -> B; }', raw: '```dot\ndigraph G { A -> B; }\n```' },
+      ]),
+      setOptions: vi.fn(),
+    };
+    globalThis.window['@hpcc-js/wasm'] = {
+      graphviz: {
+        dot: vi.fn(async (source) => `<svg data-graphviz="2"><text>${source}</text></svg>`),
+      },
     };
 
     const html = renderMessageContent('```dot\ndigraph G { A -> B; }\n``` gamma');

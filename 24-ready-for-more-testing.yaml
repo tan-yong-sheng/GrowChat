@@ -1,0 +1,99 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "GrowChat GrowChat" [ref=e7] [cursor=pointer]:
+          - img "GrowChat" [ref=e9]
+          - generic [ref=e10]: GrowChat
+        - button "Close Sidebar" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+      - generic [ref=e13]:
+        - button "New Chat" [ref=e14] [cursor=pointer]:
+          - generic [ref=e15]:
+            - img [ref=e16]
+            - generic [ref=e18]: New Chat
+          - img [ref=e19]
+        - button "Search" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+          - generic [ref=e25]: Search
+    - generic [ref=e26]:
+      - button "Chats" [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: Chats
+        - img [ref=e29]
+      - list [ref=e32]:
+        - generic [ref=e400]: Today
+        - generic [ref=e401]:
+          - generic [ref=e403] [cursor=pointer]:
+            - generic [ref=e407]: hi this is test
+            - generic [ref=e408]: 5m ago
+          - generic [ref=e410] [cursor=pointer]:
+            - generic [ref=e414]: Test Chat Renamed
+            - generic [ref=e415]: 9m ago
+          - generic [ref=e417] [cursor=pointer]:
+            - generic [ref=e421]: print out a simple graphviz code
+            - generic [ref=e422]: 19h ago
+          - generic [ref=e424] [cursor=pointer]:
+            - generic [ref=e428]: print out a simple graphviz code
+            - generic [ref=e429]: 20h ago
+          - generic [ref=e431] [cursor=pointer]:
+            - generic [ref=e435]: print out a simple graphviz code
+            - generic [ref=e436]: 20h ago
+          - generic [ref=e438] [cursor=pointer]:
+            - generic [ref=e442]: hi how are you
+            - generic [ref=e443]: 20h ago
+          - generic [ref=e445] [cursor=pointer]:
+            - generic [ref=e449]: hi how are ou
+            - generic [ref=e450]: 20h ago
+    - button "T Tan Yong Sheng online" [ref=e87] [cursor=pointer]:
+      - generic [ref=e88]: T
+      - generic [ref=e89]:
+        - generic [ref=e90]: Tan Yong Sheng
+        - generic [ref=e93]: online
+  - main [ref=e95]:
+    - generic [ref=e96]:
+      - generic [ref=e100]:
+        - button "Select model" [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]: gpt-oss-120b
+          - img [ref=e103]
+        - button "Unset default" [ref=e210] [cursor=pointer]
+      - button "More" [ref=e108] [cursor=pointer]:
+        - img [ref=e109]
+    - generic [ref=e277]:
+      - generic [ref=e452]:
+        - generic [ref=e453]: hi this is test - edited
+        - generic [ref=e454]:
+          - generic [ref=e455]:
+            - button "‹" [ref=e456] [cursor=pointer]
+            - generic [ref=e457]: 3 / 3
+            - button "›"
+          - button "Edit message" [ref=e458] [cursor=pointer]:
+            - img [ref=e459]
+          - button "Copy message" [ref=e462] [cursor=pointer]:
+            - img [ref=e463]
+          - button "Delete" [active] [ref=e466] [cursor=pointer]:
+            - img [ref=e467]
+      - generic [ref=e470]:
+        - img "gpt-oss-120b" [ref=e472]
+        - generic [ref=e473]:
+          - generic [ref=e474]: gpt-oss-120b
+          - paragraph [ref=e476]: Hello! I see your test message went through. How can I help you today?
+          - generic [ref=e478]:
+            - button "Edit message" [ref=e479] [cursor=pointer]:
+              - img [ref=e480]
+            - button "Copy message" [ref=e483] [cursor=pointer]:
+              - img [ref=e484]
+            - button "Regenerate response" [ref=e487] [cursor=pointer]:
+              - img [ref=e488]
+    - generic [ref=e140]:
+      - generic [ref=e141]:
+        - generic [ref=e142]:
+          - button "Attach file" [ref=e143] [cursor=pointer]:
+            - img [ref=e144]
+          - button "Tools" [disabled] [ref=e146]:
+            - img [ref=e147]
+          - text:   
+        - textbox "Message text" [ref=e152]:
+          - /placeholder: Message gpt-oss-120b
+        - button "Voice input" [ref=e154] [cursor=pointer]:
+          - img [ref=e155]
+      - generic [ref=e158]: gpt-oss-120b can make mistakes. Check important info.

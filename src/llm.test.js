@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createProviderTestEnv } from '../tests/unit/provider-test-env.js';
 import { streamLLM, SseLineParser, parseSseChunk } from './llm.js';
 
 describe('llm.js - LLM Streaming', () => {
@@ -6,8 +7,12 @@ describe('llm.js - LLM Streaming', () => {
 
   beforeEach(() => {
     mockEnv = {
-      OPENAI_BASE_URL: 'https://api.example.com/v1',
-      OPENAI_API_KEY: 'test-key-12345',
+      ...createProviderTestEnv({
+        GEMINI_BASE_URL: '',
+        GEMINI_API_KEY: '',
+        ANTHROPIC_BASE_URL: '',
+        ANTHROPIC_API_KEY: '',
+      }),
     };
   });
 
@@ -60,8 +65,12 @@ describe('llm.js - LLM Streaming', () => {
 
       const messages = [{ role: 'user', content: 'Test Gemini' }];
       const env = {
-        GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
-        GEMINI_API_KEY: 'gemini-key',
+        ...createProviderTestEnv({
+          OPENAI_BASE_URL: '',
+          OPENAI_API_KEY: '',
+          ANTHROPIC_BASE_URL: '',
+          ANTHROPIC_API_KEY: '',
+        })
       };
 
       const result = await streamLLM(env, 'gemini-2.5-pro', messages);
@@ -89,8 +98,12 @@ describe('llm.js - LLM Streaming', () => {
 
       const messages = [{ role: 'user', content: 'Test Gemini' }];
       const env = {
-        GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
-        GEMINI_API_KEY: 'gemini-key',
+        ...createProviderTestEnv({
+          OPENAI_BASE_URL: '',
+          OPENAI_API_KEY: '',
+          ANTHROPIC_BASE_URL: '',
+          ANTHROPIC_API_KEY: '',
+        })
       };
       const tools = [
         {
@@ -163,8 +176,12 @@ describe('llm.js - LLM Streaming', () => {
         },
       ];
       const env = {
-        GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
-        GEMINI_API_KEY: 'gemini-key',
+        ...createProviderTestEnv({
+          OPENAI_BASE_URL: '',
+          OPENAI_API_KEY: '',
+          ANTHROPIC_BASE_URL: '',
+          ANTHROPIC_API_KEY: '',
+        })
       };
 
       await streamLLM(env, 'gemini-2.5-pro', messages);
@@ -262,6 +279,10 @@ describe('llm.js - LLM Streaming', () => {
       global.fetch = vi.fn();
       mockEnv.OPENAI_API_KEY = '';
       mockEnv.OPENAI_BASE_URL = '';
+      mockEnv.GEMINI_BASE_URL = '';
+      mockEnv.GEMINI_API_KEY = '';
+      mockEnv.ANTHROPIC_BASE_URL = '';
+      mockEnv.ANTHROPIC_API_KEY = '';
 
       await expect(streamLLM(mockEnv, 'gpt-4', [])).rejects.toThrow('No provider connection configured');
     });
