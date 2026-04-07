@@ -67,7 +67,7 @@ export function createChatRow(chat, handlers) {
       </div>
 
       <div class="absolute right-3 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-gradient-to-l from-gray-100/80 from-80% to-transparent pl-4 sidebar-full-only">
-        <button class="chat-menu-btn p-1 hover:bg-white rounded transition text-gray-500" title="More options">
+        <button class="chat-menu-btn p-1 hover:bg-white rounded transition text-gray-500" title="More options" aria-label="Chat options menu">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
             <path d="M2 8a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0ZM6.5 8a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0ZM12.5 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" />
           </svg>

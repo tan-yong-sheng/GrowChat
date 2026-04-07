@@ -23,7 +23,7 @@ export function renderWorkspaceSidebar({
             </div>
             <span class="font-bold text-lg text-gray-800 font-primary">${homeLabel}</span>
           </a>
-          <button id="toggle-sidebar-desktop" class="sidebar-full-only md:block p-1 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors ml-auto" title="Close Sidebar">
+          <button id="toggle-sidebar-desktop" class="sidebar-full-only md:block p-1 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors ml-auto" title="Close Sidebar" aria-label="Toggle sidebar">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
         </div>

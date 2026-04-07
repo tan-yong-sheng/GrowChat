@@ -150,21 +150,34 @@ Comprehensive QA testing of GrowChat on localhost:8787. Testing covered authenti
 
 ---
 
-### BUG #007: Unlabeled Buttons in Main App (ACCESSIBILITY ISSUE)
-**Status**: Identified
+### BUG #007: Unlabeled Buttons in Main App (FIXED)
+**Status**: Fixed ✅
 **Severity**: MEDIUM - Accessibility degradation
-**Description**: 6 buttons in the main app interface lack ARIA labels, making them inaccessible to screen reader users.
+**Description**: Buttons in the main app interface lacked ARIA labels, making them inaccessible to screen reader users.
 
-**Finding**:
-- Accessibility audit sampled 30 buttons
-- 6 buttons had no `aria-label` attribute and no visible text
-- Likely icon-only buttons in sidebar or toolbar
+**Issue**:
+- Sidebar toggle button (workspace-sidebar.js:26) had no aria-label
+- Chat menu buttons (chat-row.js:70) had no aria-label
+- These icon-only buttons were not accessible to screen reader users
 
-**Impact**: Screen reader users cannot understand button purpose
+**Root Cause**:
+- File: `public/js/shared/components/workspace-sidebar.js:26`
+  - Button with class "sidebar-full-only md:block p-1 text-gray-500" lacked aria-label
+  - Had title="Close Sidebar" but no aria-label for screen readers
 
-**Recommendation**: Add `aria-label` attributes to all icon-only buttons with descriptive labels (e.g., "Toggle sidebar", "Open settings", "Search chats")
+- File: `public/js/shared/components/chat-row.js:70`
+  - Button with class "chat-menu-btn p-1 hover:bg-white rounded transition text-gray-500" lacked aria-label
+  - Had title="More options" but no aria-label for screen readers
 
-**Next Steps**: Identify which buttons are unlabeled and add appropriate ARIA labels
+**Fix Applied**:
+- Added `aria-label="Toggle sidebar"` to sidebar toggle button (workspace-sidebar.js:26)
+- Added `aria-label="Chat options menu"` to chat menu buttons (chat-row.js:70)
+- Now fully accessible to screen reader users while maintaining visual feedback via title attributes
+
+**Verification**:
+- Sidebar toggle button now has aria-label ✅
+- Chat menu buttons now have aria-label ✅
+- Accessibility audit confirms all buttons in rendered DOM have proper labels ✅
 
 ---
 
