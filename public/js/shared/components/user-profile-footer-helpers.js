@@ -46,7 +46,7 @@ export function buildFooterMarkup(user, hasAdminPerm) {
         </div>
       </button>
 
-      <div class="user-menu-dropdown hidden absolute bottom-full right-0 w-64 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden p-1">
+      <div class="user-menu-dropdown hidden absolute bottom-full left-0 w-64 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden p-1">
         <div class="flex gap-3 w-full p-2.5 items-center border-b border-gray-50">
           <div class="user-avatar flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 text-gray-700 font-semibold text-sm flex-shrink-0 shadow-sm">
             ${avatar}

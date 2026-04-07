@@ -298,3 +298,56 @@ When optimizing frontend lag in GrowChat, prefer fixing render and request patte
 8. **Server-side pruning**: Limit initial `/api/chats` payload (default 30) and return `has_more`; load more only on scroll or user request.
 9. **Asset discipline**: Keep third-party scripts `defer`/`async` and load markdown/rendering libraries only when the first assistant message is rendered.
 10. **Shared chat route**: Resolve shared chat metadata without pulling the full chat list; avoid bootstrapping the whole app if landing directly on `/s/:id`.
+
+## QA Testing Workflow
+
+### Skills & Tools
+- **playwright-cli** — E2E test generation and execution via Playwright
+- **ai-vision** — Visual regression detection, screenshot analysis, component detection
+- **e2e-testing** — Test framework setup and best practices reference
+- **tdd-workflow** — Test-driven development methodology (RED → GREEN → IMPROVE)
+- **verification-loop** — Test result validation and iteration before shipping
+
+### Subagents
+| Agent | Purpose |
+|-------|---------|
+| **everything-claude-code:e2e-runner** | Runs E2E tests, manages test journeys, quarantines flaky tests, uploads artifacts (screenshots, videos, traces) |
+| **design-eval:accessibility-tester** | WCAG 2.1/3.0 compliance verification, assistive tech assessment |
+| **design-eval:visual-consistency-tester** | Design token compliance, visual regression detection |
+| **superpowers:systematic-debugging** | Debug test failures, root cause analysis, race conditions |
+| **superpowers:test-driven-development** | Write tests first (RED) → implement (GREEN) → refactor (IMPROVE) |
+
+### Step-by-Step QA Workflow
+
+1. **Identify Critical User Flows** — Auth (login/register), chat creation, message send, LLM streaming
+2. **Write Tests First** (TDD) — Use **tdd-workflow** skill to scaffold unit + integration + E2E tests before implementation
+3. **Generate E2E Tests** — Invoke **playwright-cli** to auto-generate Playwright tests for critical flows
+4. **Run E2E Tests** — Dispatch **e2e-runner** subagent to execute tests in headless browser, capture screenshots/videos/traces
+5. **Visual Regression Detection** — Use **ai-vision** to compare before/after screenshots, detect layout/styling inconsistencies
+6. **Accessibility Audit** — Run **design-eval:accessibility-tester** for WCAG compliance, keyboard navigation, screen reader support
+7. **Visual Consistency Check** — Run **design-eval:visual-consistency-tester** to validate design tokens, spacing, typography consistency
+8. **Debug Test Failures** — Use **systematic-debugging** skill to diagnose flaky tests, timeouts, race conditions, environment issues
+9. **Quarantine Flaky Tests** — E2E runner automatically isolates unreliable tests for investigation
+10. **Coverage Validation** — Target 80%+ coverage across unit, integration, and E2E tests
+11. **Final Verification** — Use **verification-loop** skill before merging to ensure all tests pass and no regressions
+
+### When to Use Each Tool
+
+| Tool | Use Case |
+|------|----------|
+| **e2e-runner** | Critical user flows (auth, chat ops, payments), prod-like environment testing |
+| **ai-vision** | Before/after styling changes, responsive design breakpoints, visual consistency |
+| **playwright-cli** | Recording new test scenarios, debugging failed test steps, generating fixtures |
+| **design-eval** | Pre-release accessibility audits, design system compliance, brand consistency |
+| **systematic-debugging** | Intermittent failures, timing issues, environment-specific bugs |
+
+### Testing Checklist Before Commit
+
+- [ ] All unit tests pass (80%+ coverage)
+- [ ] All E2E tests pass (critical flows covered)
+- [ ] No visual regressions detected (ai-vision comparison)
+- [ ] WCAG compliance verified (accessibility-tester)
+- [ ] Design tokens consistent (visual-consistency-tester)
+- [ ] Flaky tests quarantined and debugged
+- [ ] Screenshots/videos/traces uploaded as artifacts
+- [ ] Test suite runs under 5 minutes
