@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-04-07T15:10:32.207Z",
+  "issues": [
+    {
+      "severity": "MEDIUM",
+      "type": "Missing main landmark",
+      "page": "/",
+      "details": "Page should have a <main> element for semantic structure"
+    },
+    {
+      "severity": "LOW",
+      "type": "Missing skip link",
+      "page": "/",
+      "details": "Page should have a skip-to-content link for keyboard users"
+    }
+  ]
+}

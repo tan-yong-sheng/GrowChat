@@ -1,7 +1,17 @@
 # GrowChat UI Bug Findings
 
 ## Summary
-Comprehensive QA testing of GrowChat on localhost:8787. Testing covered authentication, chat navigation, message operations, UI interactions, and accessibility. Multiple bugs and issues identified and fixed.
+Comprehensive QA testing of GrowChat on localhost:8787. Testing covered authentication, chat navigation, message operations, UI interactions, and accessibility. Multiple bugs identified and fixed.
+
+### Status Report (2026-04-07)
+- ✅ BUG #001: Fixed - Missing autocomplete attributes added to auth forms
+- ✅ BUG #003: Fixed - User profile menu positioning corrected (fixed → absolute)
+- ✅ BUG #004: Fixed - Settings button now visible (positioning corrected)
+- ✅ BUG #006: Fixed - Modal overlay pointer events corrected (blocking interactions resolved)
+- ✅ BUG #007: Fixed - ARIA labels added to sidebar toggle and chat menu buttons
+- ✅ BUG #008: Fixed - Main landmark added to all primary content areas
+- ✅ BUG #009: Fixed - Skip-to-content link added for keyboard accessibility
+- 📋 BUG #002: Identified - Password forms should have optional hidden username field (LOW priority, accessibility best practice)
 
 ## Bugs Found
 
@@ -181,7 +191,60 @@ Comprehensive QA testing of GrowChat on localhost:8787. Testing covered authenti
 
 ---
 
-## Features Verified Working ✅
+---
+
+### BUG #008: Missing Main Landmark (FIXED)
+**Status**: Fixed ✅
+**Severity**: MEDIUM - Semantic HTML/Accessibility
+**Description**: Main page and admin pages lacked `<main>` elements for semantic structure.
+
+**Issue**:
+- Chat page and admin pages should have `<main>` elements to define primary content areas
+- Helps screen reader users navigate page structure
+- Improves semantic HTML compliance
+
+**Root Cause**:
+- File: `public/js/features/chat/chat.js:112` - Used `<div>` instead of `<main>`
+- File: `public/js/shared/components/workspace-shell.js:9` - Used `<div>` instead of `<main>`
+
+**Fix Applied**:
+- Changed `<div class="flex-grow flex flex-col relative min-w-0 bg-white h-full">` to `<main id="main" class="flex-grow flex flex-col relative min-w-0 bg-white h-full">` in chat.js
+- Changed `<div class="flex-1 flex flex-col min-w-0">` to `<main id="main" class="flex-1 flex flex-col min-w-0">` in workspace-shell.js
+- Added `id="main"` to both elements to support skip-to-content links
+
+**Verification**:
+- Main landmark now present on chat page ✅
+- Main landmark now present on admin pages ✅
+- Skip link can now target the main content area ✅
+
+---
+
+### BUG #009: Missing Skip Link (FIXED)
+**Status**: Fixed ✅
+**Severity**: LOW - Accessibility best practice
+**Description**: Page lacked a skip-to-content link for keyboard users.
+
+**Issue**:
+- Keyboard users must tab through navigation to reach main content
+- Skip link allows direct jump to main content area
+- Common accessibility best practice for WCAG compliance
+
+**Root Cause**:
+- File: `public/index.html:30` - No skip link in HTML body
+
+**Fix Applied**:
+- Added skip link: `<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-blue-600 focus:text-white focus:p-2 focus:rounded">Skip to content</a>`
+- Link is hidden by default (sr-only class)
+- Becomes visible on focus for keyboard navigation
+- Links to `#main` element added in BUG #008
+
+**Verification**:
+- Skip link present in rendered DOM ✅
+- Skip link text: "Skip to content" ✅
+- Link targets main element ✅
+- Hidden by default, visible on focus ✅
+
+---
 
 ### Authentication
 - [x] Login functionality - Works correctly

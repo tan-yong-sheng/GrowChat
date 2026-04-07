@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-04-07T15:12:14.454Z",
+  "tests": [
+    {
+      "name": "Link validation",
+      "passed": true,
+      "details": "0 links checked"
+    },
+    {
+      "name": "Image availability",
+      "passed": true,
+      "details": "1 images, 0 missing"
+    },
+    {
+      "name": "Console warnings",
+      "passed": true,
+      "details": "No warnings"
+    },
+    {
+      "name": "Heap memory usage",
+      "passed": true,
+      "details": "0.4% of limit"
+    },
+    {
+      "name": "Unhandled rejections",
+      "passed": true,
+      "details": "None"
+    },
+    {
+      "name": "Network performance",
+      "passed": true,
+      "details": "All requests < 5s"
+    },
+    {
+      "name": "CSS rendering",
+      "passed": true,
+      "details": "No issues"
+    }
+  ],
+  "issues": []
+}

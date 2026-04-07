@@ -109,7 +109,7 @@ export function renderChat(container) {
         <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));"></div>
       </aside>
 
-      <main class="flex-grow flex flex-col relative min-w-0 bg-white h-full">
+      <main id="main" class="flex-grow flex flex-col relative min-w-0 bg-white h-full">
         <header class="h-[58px] flex items-center px-4 justify-between sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-100">
            <div class="flex items-center">
              <button id="toggle-sidebar-mobile" class="p-2 mr-2 hover:bg-gray-100 rounded-lg transition text-gray-500 md:hidden" title="Open Sidebar">
