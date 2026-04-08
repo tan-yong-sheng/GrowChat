@@ -470,8 +470,8 @@ export function renderConnectionsSettings(container, data) {
           </div>
 
           <div class="px-6 py-6 flex justify-end gap-3 border-t border-gray-50">
-            <button type="button" id="delete-connection" class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full ${connectionsState.selectedConnection ? '' : 'hidden'}">Delete</button>
-            <button type="button" id="save-modal" class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full">Save</button>
+            <button type="button" id="delete-connection" class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 active:scale-95 ${connectionsState.selectedConnection ? '' : 'hidden'}">Delete</button>
+            <button type="button" id="save-modal" class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:scale-95">Save</button>
           </div>
         </div>
       </div>
