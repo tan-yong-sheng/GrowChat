@@ -1,0 +1,129 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e229]:
+    - complementary [ref=e230]:
+      - generic [ref=e231]:
+        - generic [ref=e232]:
+          - link "GrowChat GrowChat" [ref=e233] [cursor=pointer]:
+            - /url: /
+            - img "GrowChat" [ref=e235]
+            - generic [ref=e236]: GrowChat
+          - button "Toggle sidebar" [ref=e237] [cursor=pointer]:
+            - img [ref=e238]
+        - generic [ref=e239]:
+          - button "New Chat" [ref=e240] [cursor=pointer]:
+            - generic [ref=e241]:
+              - img [ref=e242]
+              - generic [ref=e244]: New Chat
+            - img [ref=e245]
+          - button "Search" [ref=e247] [cursor=pointer]:
+            - img [ref=e248]
+            - generic [ref=e251]: Search
+      - button "T Tan Yong Sheng online" [ref=e256] [cursor=pointer]:
+        - generic [ref=e257]: T
+        - generic [ref=e258]:
+          - generic [ref=e259]: Tan Yong Sheng
+          - generic [ref=e262]: online
+    - main [ref=e264]:
+      - navigation [ref=e265]:
+        - generic [ref=e268]:
+          - link "Users" [ref=e269] [cursor=pointer]:
+            - /url: /admin/users
+          - link "Settings" [ref=e270] [cursor=pointer]:
+            - /url: /admin/settings/connections
+          - link "System" [ref=e271] [cursor=pointer]:
+            - /url: /admin/system/general
+      - generic [ref=e273]:
+        - generic [ref=e274]:
+          - link "Overview" [ref=e275] [cursor=pointer]:
+            - /url: /admin/users/overview
+            - img [ref=e276]
+            - generic [ref=e278]: Overview
+          - link "Roles" [ref=e279] [cursor=pointer]:
+            - /url: /admin/users/roles
+            - img [ref=e280]
+            - generic [ref=e282]: Roles
+          - link "Groups" [ref=e283] [cursor=pointer]:
+            - /url: /admin/users/groups
+            - img [ref=e284]
+            - generic [ref=e286]: Groups
+          - link "Policies" [ref=e287] [cursor=pointer]:
+            - /url: /admin/users/policies
+            - img [ref=e288]
+            - generic [ref=e291]: Policies
+        - generic [ref=e295]:
+          - generic [ref=e296]:
+            - generic [ref=e297]:
+              - generic [ref=e298]: Users
+              - generic [ref=e299]: "2"
+            - generic [ref=e300]:
+              - generic [ref=e301]:
+                - img [ref=e303]
+                - textbox "Search users" [ref=e305]
+              - button "Add User" [ref=e306] [cursor=pointer]:
+                - img [ref=e307]
+          - table [ref=e311]:
+            - rowgroup [ref=e312]:
+              - row "Role Name Status Email Last Active Created At" [ref=e313]:
+                - columnheader "Role" [ref=e314]
+                - columnheader "Name" [ref=e315]
+                - columnheader "Status" [ref=e316]
+                - columnheader "Email" [ref=e317]
+                - columnheader "Last Active" [ref=e318]
+                - columnheader "Created At" [ref=e319]
+                - columnheader [ref=e320]
+            - rowgroup [ref=e321]:
+              - row "Admin TY Tan Yong Sheng active tys203831@gmail.com 1 seconds ago 4/5/2026" [ref=e322]:
+                - cell "Admin" [ref=e323]:
+                  - button "Admin" [ref=e324] [cursor=pointer]
+                - cell "TY Tan Yong Sheng" [ref=e325]:
+                  - generic [ref=e326]:
+                    - generic [ref=e327]: TY
+                    - generic [ref=e328]: Tan Yong Sheng
+                - cell "active" [ref=e329]
+                - cell "tys203831@gmail.com" [ref=e330]
+                - cell "1 seconds ago" [ref=e331]
+                - cell "4/5/2026" [ref=e332]
+                - cell [ref=e333]:
+                  - generic [ref=e334]:
+                    - button "Inspect ACL" [ref=e335] [cursor=pointer]:
+                      - img [ref=e336]
+                    - button "Edit User" [ref=e338] [cursor=pointer]:
+                      - img [ref=e339]
+              - row "Member TU Test User active test@example.com 1 day ago 4/7/2026" [ref=e342]:
+                - cell "Member" [ref=e343]:
+                  - button "Member" [ref=e344] [cursor=pointer]
+                - cell "TU Test User" [ref=e345]:
+                  - generic [ref=e346]:
+                    - generic [ref=e347]: TU
+                    - generic [ref=e348]: Test User
+                - cell "active" [ref=e349]
+                - cell "test@example.com" [ref=e350]
+                - cell "1 day ago" [ref=e351]
+                - cell "4/7/2026" [ref=e352]
+                - cell [ref=e353]:
+                  - generic [ref=e354]:
+                    - button "Inspect ACL" [ref=e355] [cursor=pointer]:
+                      - img [ref=e356]
+                    - button "Edit User" [ref=e358] [cursor=pointer]:
+                      - img [ref=e359]
+                    - button "Delete record" [ref=e362] [cursor=pointer]:
+                      - img [ref=e363]
+          - generic [ref=e365]:
+            - generic [ref=e366]:
+              - generic [ref=e367]: Show
+              - combobox [ref=e368]:
+                - option "20" [selected]
+                - option "50"
+                - option "100"
+              - generic [ref=e369]: per page
+            - generic [ref=e370]:
+              - generic [ref=e371]: 1-2 of 2
+              - generic [ref=e372]:
+                - button "Prev" [disabled]
+                - generic [ref=e373]: Page 1 / 1
+                - button "Next" [disabled]
+          - generic [ref=e374]:
+            - generic [ref=e375]: ⓘ
+            - generic [ref=e376]: Admins are listed first, then all users are sorted alphabetically.

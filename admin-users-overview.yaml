@@ -1,0 +1,139 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e25]:
+    - complementary [ref=e26]:
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - button "GrowChat GrowChat" [ref=e29] [cursor=pointer]:
+            - img "GrowChat" [ref=e31]
+            - generic [ref=e32]: GrowChat
+          - button "Close Sidebar" [ref=e33] [cursor=pointer]:
+            - img [ref=e34]
+        - generic [ref=e35]:
+          - button "New Chat" [ref=e36] [cursor=pointer]:
+            - generic [ref=e37]:
+              - img [ref=e38]
+              - generic [ref=e40]: New Chat
+            - img [ref=e41]
+          - button "Search" [ref=e43] [cursor=pointer]:
+            - img [ref=e44]
+            - generic [ref=e47]: Search
+      - generic [ref=e48]:
+        - button "Chats" [ref=e49] [cursor=pointer]:
+          - generic [ref=e50]: Chats
+          - img [ref=e51]
+        - list [ref=e54]:
+          - generic [ref=e55]: Today
+          - generic [ref=e56]:
+            - listitem [ref=e57]:
+              - generic [ref=e58] [cursor=pointer]:
+                - generic [ref=e62]: Testing 🎉 emoji and ñ unicode
+                - generic [ref=e63]: 2h ago
+            - listitem [ref=e64]:
+              - generic [ref=e65] [cursor=pointer]:
+                - generic [ref=e69]: Iteration 12 QA test - Ctrl+Enter send
+                - generic [ref=e70]: 13h ago
+            - listitem [ref=e71]:
+              - generic [ref=e72] [cursor=pointer]:
+                - generic [ref=e76]: Testing Ctrl+Enter send
+                - generic [ref=e77]: 13h ago
+            - listitem [ref=e78]:
+              - generic [ref=e79] [cursor=pointer]:
+                - generic [ref=e83]: Testing message sending in Iteration 9
+                - generic [ref=e84]: 13h ago
+            - listitem [ref=e85]:
+              - generic [ref=e86] [cursor=pointer]:
+                - generic [ref=e90]: Testing send button visibility
+                - generic [ref=e91]: 14h ago
+            - listitem [ref=e92]:
+              - generic [ref=e93] [cursor=pointer]:
+                - generic [ref=e97]: "Summarize an articleQA Test: Testing message input functiona"
+                - generic [ref=e98]: 15h ago
+            - listitem [ref=e99]:
+              - generic [ref=e100] [cursor=pointer]:
+                - generic [ref=e104]: Hello, this is a QA test message
+                - generic [ref=e105]: 15h ago
+            - listitem [ref=e106]:
+              - generic [ref=e107] [cursor=pointer]:
+                - generic [ref=e111]: Hello, this is a test message
+                - generic [ref=e112]: 16h ago
+            - listitem [ref=e113]:
+              - generic [ref=e114] [cursor=pointer]:
+                - generic [ref=e118]: Test Chat Renamed
+                - generic [ref=e119]: 16h ago
+          - generic [ref=e120]: Yesterday
+          - generic [ref=e121]:
+            - listitem [ref=e122]:
+              - generic [ref=e123] [cursor=pointer]:
+                - generic [ref=e127]: hi this is test
+                - generic [ref=e128]: 19h ago
+            - listitem [ref=e129]:
+              - generic [ref=e130] [cursor=pointer]:
+                - generic [ref=e134]: print out a simple graphviz code
+                - generic [ref=e135]: Yesterday
+            - listitem [ref=e136]:
+              - generic [ref=e137] [cursor=pointer]:
+                - generic [ref=e141]: print out a simple graphviz code
+                - generic [ref=e142]: Yesterday
+            - listitem [ref=e143]:
+              - generic [ref=e144] [cursor=pointer]:
+                - generic [ref=e148]: print out a simple graphviz code
+                - generic [ref=e149]: Yesterday
+            - listitem [ref=e150]:
+              - generic [ref=e151] [cursor=pointer]:
+                - generic [ref=e155]: hi how are you
+                - generic [ref=e156]: Yesterday
+            - listitem [ref=e157]:
+              - generic [ref=e158] [cursor=pointer]:
+                - generic [ref=e162]: hi how are ou
+                - generic [ref=e163]: Yesterday
+      - button "T Tan Yong Sheng online" [ref=e167] [cursor=pointer]:
+        - generic [ref=e168]: T
+        - generic [ref=e169]:
+          - generic [ref=e170]: Tan Yong Sheng
+          - generic [ref=e173]: online
+    - main [ref=e175]:
+      - generic [ref=e176]:
+        - generic [ref=e180]:
+          - button "Select model" [ref=e181] [cursor=pointer]:
+            - generic [ref=e182]: gpt-oss-120b
+            - img [ref=e183]
+          - button "Unset default" [ref=e186] [cursor=pointer]
+        - generic [ref=e188]:
+          - button "More" [disabled]:
+            - img
+      - generic [ref=e193]:
+        - img "GrowChat" [ref=e195]
+        - generic [ref=e196]:
+          - heading "How can I help you today?" [level=1] [ref=e197]
+          - generic [ref=e198]:
+            - generic [ref=e199]: gpt-oss-120b
+            - generic [ref=e200]: ·
+            - generic [ref=e201]: The smarter way to chat.
+        - generic [ref=e202]:
+          - button "Summarize an article on recent tech news" [ref=e203] [cursor=pointer]:
+            - generic [ref=e204]: Summarize an article
+            - generic [ref=e205]: on recent tech news
+          - button "Help me write a thank you email" [ref=e206] [cursor=pointer]:
+            - generic [ref=e207]: Help me write
+            - generic [ref=e208]: a thank you email
+          - button "Suggest a recipe with chicken and rice" [ref=e209] [cursor=pointer]:
+            - generic [ref=e210]: Suggest a recipe
+            - generic [ref=e211]: with chicken and rice
+          - button "Debug Python code with a syntax error" [ref=e212] [cursor=pointer]:
+            - generic [ref=e213]: Debug Python code
+            - generic [ref=e214]: with a syntax error
+      - generic [ref=e216]:
+        - generic [ref=e217]:
+          - generic [ref=e218]:
+            - button "Attach file" [ref=e219] [cursor=pointer]:
+              - img [ref=e220]
+            - button "Tools" [disabled]:
+              - img
+            - text:   
+          - textbox "Message text. Press Ctrl+Enter or Cmd+Enter to send, or Shift+Enter for new line" [ref=e222]:
+            - /placeholder: Message gpt-oss-120b
+          - button "Voice input" [ref=e224] [cursor=pointer]:
+            - img [ref=e225]
+        - generic [ref=e228]: gpt-oss-120b can make mistakes. Check important info.

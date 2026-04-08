@@ -1,0 +1,99 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e1254]:
+    - complementary [ref=e1255]:
+      - generic [ref=e1256]:
+        - generic [ref=e1257]:
+          - link "GrowChat GrowChat" [ref=e1258] [cursor=pointer]:
+            - /url: /
+            - img "GrowChat" [ref=e1260]
+            - generic [ref=e1261]: GrowChat
+          - button "Toggle sidebar" [ref=e1262] [cursor=pointer]:
+            - img [ref=e1263]
+        - generic [ref=e1264]:
+          - button "New Chat" [ref=e1265] [cursor=pointer]:
+            - generic [ref=e1266]:
+              - img [ref=e1267]
+              - generic [ref=e1269]: New Chat
+            - img [ref=e1270]
+          - button "Search" [ref=e1272] [cursor=pointer]:
+            - img [ref=e1273]
+            - generic [ref=e1276]: Search
+      - button "T Tan Yong Sheng online" [ref=e1281] [cursor=pointer]:
+        - generic [ref=e1282]: T
+        - generic [ref=e1283]:
+          - generic [ref=e1284]: Tan Yong Sheng
+          - generic [ref=e1287]: online
+    - main [ref=e1289]:
+      - navigation [ref=e1290]:
+        - generic [ref=e1293]:
+          - link "Users" [ref=e1294] [cursor=pointer]:
+            - /url: /admin/users
+          - link "Settings" [ref=e1295] [cursor=pointer]:
+            - /url: /admin/settings/connections
+          - link "System" [ref=e1296] [cursor=pointer]:
+            - /url: /admin/system/general
+      - generic [ref=e1300]:
+        - generic [ref=e1301]:
+          - link "General" [ref=e1343] [cursor=pointer]:
+            - /url: /admin/system/general
+            - img [ref=e1344]
+            - generic [ref=e1346]: General
+          - link "Security" [ref=e1347] [cursor=pointer]:
+            - /url: /admin/system/security
+            - img [ref=e1348]
+            - generic [ref=e1350]: Security
+        - generic [ref=e1353]:
+          - generic [ref=e1357]: Email
+          - generic [ref=e1360]:
+            - separator [ref=e1361]
+            - generic [ref=e1362]:
+              - generic [ref=e1363]: Resend API Key
+              - textbox "Enter your Resend API key" [ref=e1365]
+              - generic [ref=e1366]: No API key configured. Enter your Resend API key.
+            - generic [ref=e1367]:
+              - generic [ref=e1368]: Send Test Email
+              - generic [ref=e1369]:
+                - textbox "test@example.com" [ref=e1371]
+                - button "Send Test" [ref=e1372] [cursor=pointer]
+  - dialog "My Settings" [ref=e1432]:
+    - generic [ref=e1435]:
+      - generic [ref=e1437]:
+        - generic [ref=e1438]:
+          - generic [ref=e1439]:
+            - generic [ref=e1440]: Personal
+            - heading "My Settings" [level=2] [ref=e1441]
+          - paragraph [ref=e1442]: Personal account preferences and tools.
+        - button "Close settings" [ref=e1443] [cursor=pointer]:
+          - img [ref=e1444]
+      - generic [ref=e1448]:
+        - generic [ref=e1449]:
+          - link "Connections" [ref=e1450] [cursor=pointer]:
+            - /url: "#connections"
+            - generic [ref=e1451]: Connections
+          - link "Models" [ref=e1452] [cursor=pointer]:
+            - /url: "#models"
+            - generic [ref=e1453]: Models
+          - link "Integrations" [ref=e1454] [cursor=pointer]:
+            - /url: "#integrations"
+            - generic [ref=e1455]: Integrations
+        - generic [ref=e1460]:
+          - generic [ref=e1464]: Connections
+          - generic [ref=e1466]:
+            - generic [ref=e1469]:
+              - generic [ref=e1470]: LLM Providers
+              - generic [ref=e1471]: Manage each provider directly below.
+            - generic [ref=e1472]:
+              - generic [ref=e1473]:
+                - generic [ref=e1474]: Manage LLM Chat Providers
+                - button "Add Connection" [ref=e1475] [cursor=pointer]:
+                  - img [ref=e1476]
+              - separator [ref=e1478]
+              - generic [ref=e1480]: No personal connections configured
+              - generic [ref=e1482]:
+                - generic [ref=e1483]:
+                  - generic [ref=e1484]: Claude (proxy.tanyongsheng.site)
+                  - generic [ref=e1485]: Shared
+                - generic [ref=e1486]: https://proxy.tanyongsheng.site
+                - button "Hide for me" [pressed] [ref=e1488] [cursor=pointer]

@@ -1,0 +1,74 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - generic [ref=e812]:
+    - complementary [ref=e813]:
+      - generic [ref=e814]:
+        - generic [ref=e815]:
+          - link "GrowChat GrowChat" [ref=e816] [cursor=pointer]:
+            - /url: /
+            - img "GrowChat" [ref=e818]
+            - generic [ref=e819]: GrowChat
+          - button "Toggle sidebar" [ref=e820] [cursor=pointer]:
+            - img [ref=e821]
+        - generic [ref=e822]:
+          - button "New Chat" [ref=e823] [cursor=pointer]:
+            - generic [ref=e824]:
+              - img [ref=e825]
+              - generic [ref=e827]: New Chat
+            - img [ref=e828]
+          - button "Search" [ref=e830] [cursor=pointer]:
+            - img [ref=e831]
+            - generic [ref=e834]: Search
+      - button "T Tan Yong Sheng online" [ref=e839] [cursor=pointer]:
+        - generic [ref=e840]: T
+        - generic [ref=e841]:
+          - generic [ref=e842]: Tan Yong Sheng
+          - generic [ref=e845]: online
+    - main [ref=e847]:
+      - navigation [ref=e848]:
+        - generic [ref=e851]:
+          - link "Users" [ref=e852] [cursor=pointer]:
+            - /url: /admin/users
+          - link "Settings" [ref=e853] [cursor=pointer]:
+            - /url: /admin/settings/connections
+          - link "System" [ref=e854] [cursor=pointer]:
+            - /url: /admin/system/general
+      - generic [ref=e858]:
+        - generic [ref=e859]:
+          - link "Connections" [ref=e860] [cursor=pointer]:
+            - /url: /admin/settings/connections
+            - img [ref=e861]
+            - generic [ref=e863]: Connections
+          - link "Models" [ref=e864] [cursor=pointer]:
+            - /url: /admin/settings/models
+            - img [ref=e865]
+            - generic [ref=e868]: Models
+          - link "Integrations" [ref=e869] [cursor=pointer]:
+            - /url: /admin/settings/integrations
+            - img [ref=e870]
+            - generic [ref=e873]: Integrations
+        - generic [ref=e877]:
+          - generic [ref=e881]: Connections
+          - generic [ref=e883]:
+            - generic [ref=e886]:
+              - generic [ref=e887]: LLM Providers
+              - generic [ref=e888]: Manage each provider directly below.
+            - generic [ref=e889]:
+              - generic [ref=e890]:
+                - generic [ref=e891]: Manage LLM Chat Providers
+                - button [ref=e892] [cursor=pointer]:
+                  - img [ref=e893]
+              - separator [ref=e895]
+              - generic [ref=e897]:
+                - generic [ref=e898]:
+                  - generic [ref=e899]: Claude (proxy.tanyongsheng.site)
+                  - generic [ref=e900]: https://proxy.tanyongsheng.site
+                  - generic [ref=e901]: Claude
+                  - generic [ref=e902]: From env (read-only)
+                - generic [ref=e903]:
+                  - button "Edit access rules" [ref=e904] [cursor=pointer]:
+                    - img [ref=e905]
+                  - button [ref=e907] [cursor=pointer]:
+                    - img [ref=e908]
+                  - button [ref=e911] [cursor=pointer]

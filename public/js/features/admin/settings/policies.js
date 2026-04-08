@@ -363,7 +363,7 @@ function renderResourceList({
                     title="${escapeHtml(dependencyWarning.title)}"
                     aria-label="${escapeHtml(dependencyWarning.linkLabel || dependencyWarning.title)}"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-8.5 15A1.5 1.5 0 0 0 3.08 21h17.84a1.5 1.5 0 0 0 1.29-2.14l-8.5-15a1.5 1.5 0 0 0-2.58 0Z" />
                     </svg>
                     <span>Blocked</span>
@@ -379,7 +379,7 @@ function renderResourceList({
                   title="${editDisabled ? 'Disabled resources cannot be edited' : 'Edit access rules'}"
                   aria-label="Edit access rules"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-3.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
                   </svg>
                 </button>
@@ -464,7 +464,7 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
         ${resourceWarning ? `
           <div class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] text-amber-800">
             <div class="flex items-start gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mt-0.5 size-4 shrink-0 text-amber-500">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mt-0.5 size-5 shrink-0 text-amber-500">
                 <path fill-rule="evenodd" d="M8.485 2.495c.673-1.164 2.357-1.164 3.03 0l6.518 11.27c.673 1.164-.17 2.62-1.515 2.62H3.482c-1.345 0-2.188-1.456-1.515-2.62l6.518-11.27Zm1.515 3.505a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75Zm0 8.25a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
               </svg>
               <div class="min-w-0">
@@ -476,7 +476,7 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
                     class="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
                   >
                     ${escapeHtml(resourceWarning.linkLabel || 'Open ACL')}
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
                       <path fill-rule="evenodd" d="M5 10a.75.75 0 0 1 .75-.75h6.69L10.22 7.03a.75.75 0 1 1 1.06-1.06l3.72 3.72a.75.75 0 0 1 0 1.06l-3.72 3.72a.75.75 0 1 1-1.06-1.06l2.22-2.22H5.75A.75.75 0 0 1 5 10Z" clip-rule="evenodd" />
                     </svg>
                   </a>
@@ -1134,7 +1134,7 @@ export function renderPoliciesSettings(container, data = {}) {
               <button type="button" id="policy-visibility-toggle" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 outline-none focus:border-gray-400 hover:bg-gray-50" aria-label="Visibility" title="Visibility">
                 <span class="flex items-center gap-1">
                   ${activeVisibilityCount ? '<span class="rounded-full bg-gray-900 px-1.5 py-0.5 text-[10px] text-white">' + String(activeVisibilityCount) + '</span>' : ''}
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4 text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5 text-gray-400">
                     <path fill-rule="evenodd" d="M3.5 5.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0 1.5H4.25a.75.75 0 0 1-.75-.75Zm0 4.75a.75.75 0 0 1 .75-.75h8a.75.75 0 0 1 0 1.5h-8a.75.75 0 0 1-.75-.75Zm0 4.75a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
                   </svg>
                 </span>
