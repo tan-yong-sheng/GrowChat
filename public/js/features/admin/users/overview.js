@@ -3,6 +3,7 @@ import { fetchAdminUserAccess } from '../../../shared/admin-access.js';
 import { bindAdminDraftHandlers, clearAdminDraft, getAdminDraft, setAdminDraft } from '../modal-draft.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { buildAdminModalShellMarkup, createAdminModalShell } from '../modal-shell.js';
+import { displayFieldErrors, clearFormErrors } from '../../../shared/form-validation.js';
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -841,6 +842,7 @@ export function renderUserOverview(container, data, actions) {
           };
 
           const saveEdit = async () => {
+            displayFieldErrors(form);
             if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
             const fd = new FormData(form);
             const payload = {
@@ -856,6 +858,7 @@ export function renderUserOverview(container, data, actions) {
               userId: user.id,
               payload,
             });
+            clearFormErrors(form);
             updateView();
             data.requestUsersFooterSync?.();
             close();
