@@ -632,7 +632,7 @@ export function renderConnectionsSettings(container, data) {
       connectionsState.modalModelsError || '',
     );
     status.classList.remove('text-red-500');
-    status.textContent = models.length ? `Models enabled in this connection: ${selected.size} of ${models.length}` : '';
+    status.textContent = models.length ? `Models available globally: ${selected.size} of ${models.length}` : '';
   };
 
   const addManualModalModel = (scope = container) => {
@@ -743,7 +743,8 @@ export function renderConnectionsSettings(container, data) {
       }
       const payload = await res.json();
       const allModels = Array.isArray(payload?.models) ? payload.models : [];
-      const filtered = allModels.filter((model) => String(model?.connection_id || '') === connectionId);
+      // Show ALL models, not just connection-specific ones, to reflect global model state
+      const filtered = allModels;
       const draft = hasDraft ? connectionsState.modalDrafts.get(draftKey) : null;
       const draftModelIds = draft
         ? new Set((Array.isArray(draft.models) ? draft.models : []).map((model) => String(model?.id || '').trim()).filter(Boolean))
