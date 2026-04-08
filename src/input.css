@@ -2,7 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --color-error: #dc2626;
+    --color-success: #16a34a;
+    --color-warning: #ea580c;
+    --color-info: #0284c7;
+  }
+}
+
 @layer components {
+  /* Semantic status colors */
+  .text-status-error {
+    @apply text-red-600;
+  }
+
+  .text-status-success {
+    @apply text-green-600;
+  }
+
+  .text-status-warning {
+    @apply text-orange-600;
+  }
+
+  .text-status-info {
+    @apply text-blue-600;
+  }
+
+  /* Button disabled state */
+  .btn-disabled,
+  button:disabled {
+    @apply opacity-50 cursor-not-allowed pointer-events-none;
+  }
+
+  /* Form input disabled state */
+  .input-disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    @apply bg-gray-100 text-gray-400 cursor-not-allowed;
+  }
+
+  /* Form validation states */
+  .form-error {
+    @apply rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600;
+  }
+
+  .form-success {
+    @apply rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-600;
+  }
+
+  .form-warning {
+    @apply rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-600;
+  }
+
+  .form-info {
+    @apply rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-600;
+  }
+
   .chat-message-content {
     overflow-wrap: anywhere;
   }
