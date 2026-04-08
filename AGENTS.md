@@ -301,12 +301,31 @@ When optimizing frontend lag in GrowChat, prefer fixing render and request patte
 
 ## QA Testing Workflow
 
+The folder to store qa artifacts: `.playwright-cli` and `docs/qa/` 
+
 ### Skills & Tools
 - **playwright-cli** — E2E test generation and execution via Playwright
 - **ai-vision** — Visual regression detection, screenshot analysis, component detection
 - **e2e-testing** — Test framework setup and best practices reference
 - **tdd-workflow** — Test-driven development methodology (RED → GREEN → IMPROVE)
 - **verification-loop** — Test result validation and iteration before shipping
+
+### Learning & Evolution Skills
+| Skill | Purpose | Usage |
+|-------|---------|-------|
+| **everything-claude-code:evolve** | Analyze instincts and cluster related patterns into commands/skills/agents | `/evolve` (preview) or `/evolve --execute` (create structures) |
+| **everything-claude-code:learn** | Analyze codebase patterns and document learnings in homunculus | `/learn --mode init` (setup) or `/learn --mode update --scope public/js` (targeted learning) |
+| **everything-claude-code:learn-eval** | Evaluate quality of learned patterns and instincts | `/learn-eval --check` (validate patterns) or `/learn-eval --improve` (refine) |
+| **autoresearch:learn** | Autonomous research and learning from codebase structure | `/autoresearch:learn --depth deep --scope docs/qa` (analyze QA docs) |
+| **continuous-learning-v2** | Continuous learning system that evolves through iterations | Enable auto-learning on code changes for ongoing pattern discovery |
+
+**When to use learning skills in QA workflow:**
+- After discovering a bug pattern, use `/evolve` to create a reusable skill/command for that test scenario
+- Use `/learn --mode update` to analyze discovered QA patterns and auto-document best practices
+- Use `/learn-eval` to validate that learned QA patterns are effective and well-formed
+- Use `/autoresearch:learn` to research testing best practices across the codebase
+- Enable `continuous-learning-v2` to automatically learn from QA test results and improve future iterations
+- **Every 10 turns**: Run `/evolve --preview` and `/autoresearch:learn --depth deep --scope docs/qa` to summarize experience, cluster discovered bug patterns into reusable test strategies, and document learnings for improving future QA iterations
 
 ### Subagents
 | Agent | Purpose |

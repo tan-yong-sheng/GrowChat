@@ -706,10 +706,21 @@ export function createMessageInputController({
   });
 
   input.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    const isEnter = e.key === 'Enter';
+    const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+
+    // Ctrl+Enter or Cmd+Enter: always submit
+    if (isEnter && isCtrlOrCmd) {
       e.preventDefault();
       if (input.value.trim()) composer.dispatchEvent(new Event('submit'));
     }
+    // Enter without modifiers (not Shift): submit on single line
+    else if (isEnter && !isShift && !isCtrlOrCmd) {
+      e.preventDefault();
+      if (input.value.trim()) composer.dispatchEvent(new Event('submit'));
+    }
+    // Shift+Enter: allow multi-line without submitting
   });
 
   composer.addEventListener('submit', (e) => {

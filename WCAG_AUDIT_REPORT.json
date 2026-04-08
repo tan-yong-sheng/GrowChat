@@ -1,0 +1,167 @@
+{
+  "timestamp": "2026-04-08T07:03:15.852Z",
+  "baseUrl": "http://localhost:8787",
+  "pagesAudited": [
+    {
+      "page": "Users Overview",
+      "path": "/admin/users/overview",
+      "checks": {
+        "ariaLabels": 0,
+        "keyboardNavigation": 0,
+        "colorContrast": 44,
+        "screenReaderText": 0,
+        "formValidation": 0,
+        "buttonStates": 0,
+        "toggleAccessibility": 0
+      }
+    },
+    {
+      "page": "Settings - Models",
+      "path": "/admin/settings/models",
+      "checks": {
+        "ariaLabels": 0,
+        "keyboardNavigation": 0,
+        "colorContrast": 44,
+        "screenReaderText": 0,
+        "formValidation": 0,
+        "buttonStates": 0,
+        "toggleAccessibility": 0
+      }
+    },
+    {
+      "page": "System - General",
+      "path": "/admin/system/general",
+      "checks": {
+        "ariaLabels": 0,
+        "keyboardNavigation": 0,
+        "colorContrast": 44,
+        "screenReaderText": 0,
+        "formValidation": 0,
+        "buttonStates": 0,
+        "toggleAccessibility": 0
+      }
+    }
+  ],
+  "totalIssues": 3,
+  "issuesByPriority": {
+    "critical": 0,
+    "high": 3,
+    "medium": 0
+  },
+  "detailedIssues": [
+    {
+      "page": "Users Overview",
+      "check": "Color Contrast",
+      "priority": "HIGH",
+      "count": 44,
+      "details": [
+        {
+          "type": "Low contrast",
+          "contrast": "1.17",
+          "text": "Skip to content",
+          "role": "A"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "1.17",
+          "text": "\n              \n                \n              \n  ",
+          "role": "BUTTON"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "1.43",
+          "text": "GrowChat",
+          "role": "SPAN"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "2.04",
+          "text": "\n               \n                 \n               ",
+          "role": "BUTTON"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "2.04",
+          "text": "New Chat",
+          "role": "SPAN"
+        }
+      ]
+    },
+    {
+      "page": "Settings - Models",
+      "check": "Color Contrast",
+      "priority": "HIGH",
+      "count": 44,
+      "details": [
+        {
+          "type": "Low contrast",
+          "contrast": "1.17",
+          "text": "Skip to content",
+          "role": "A"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "1.17",
+          "text": "\n              \n                \n              \n  ",
+          "role": "BUTTON"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "1.43",
+          "text": "GrowChat",
+          "role": "SPAN"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "2.04",
+          "text": "\n               \n                 \n               ",
+          "role": "BUTTON"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "2.04",
+          "text": "New Chat",
+          "role": "SPAN"
+        }
+      ]
+    },
+    {
+      "page": "System - General",
+      "check": "Color Contrast",
+      "priority": "HIGH",
+      "count": 44,
+      "details": [
+        {
+          "type": "Low contrast",
+          "contrast": "1.17",
+          "text": "Skip to content",
+          "role": "A"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "1.17",
+          "text": "\n              \n                \n              \n  ",
+          "role": "BUTTON"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "1.43",
+          "text": "GrowChat",
+          "role": "SPAN"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "2.04",
+          "text": "\n               \n                 \n               ",
+          "role": "BUTTON"
+        },
+        {
+          "type": "Low contrast",
+          "contrast": "2.04",
+          "text": "New Chat",
+          "role": "SPAN"
+        }
+      ]
+    }
+  ]
+}

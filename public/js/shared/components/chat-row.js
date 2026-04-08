@@ -171,8 +171,8 @@ export function createChatRow(chat, handlers) {
   });
 
   // Add keyboard navigation to menu items
-  const menuItems = dropdown.querySelectorAll('button[data-action]');
-  menuItems.forEach((item, index) => {
+  const menuItemElements = dropdown.querySelectorAll('button[data-action]');
+  menuItemElements.forEach((item, index) => {
     item.setAttribute('role', 'menuitem');
     item.setAttribute('tabindex', '-1');
 
@@ -180,13 +180,13 @@ export function createChatRow(chat, handlers) {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          const nextItem = menuItems[index + 1];
+          const nextItem = menuItemElements[index + 1];
           if (nextItem) nextItem.focus();
           break;
 
         case 'ArrowUp':
           e.preventDefault();
-          const prevItem = menuItems[index - 1];
+          const prevItem = menuItemElements[index - 1];
           if (prevItem) prevItem.focus();
           break;
 

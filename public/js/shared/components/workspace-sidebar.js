@@ -21,9 +21,9 @@ export function renderWorkspaceSidebar({
             <div class="w-7 h-7 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
               <img src="/logo.png" alt="GrowChat" class="w-5 h-5 object-contain" />
             </div>
-            <span class="font-bold text-lg text-gray-800 font-primary">${homeLabel}</span>
+            <span class="font-bold text-lg text-gray-900 font-primary">${homeLabel}</span>
           </a>
-          <button id="toggle-sidebar-desktop" class="sidebar-full-only md:block p-1 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors ml-auto" title="Close Sidebar" aria-label="Toggle sidebar">
+          <button id="toggle-sidebar-desktop" class="sidebar-full-only md:block p-1 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors ml-auto" title="Close Sidebar" aria-label="Toggle sidebar">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
         </div>
