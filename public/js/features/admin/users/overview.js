@@ -345,10 +345,10 @@ function renderAddUserModal(draft = null, roles = []) {
     footer: `
       <div class="text-sm text-red-600"></div>
       <div class="flex items-center justify-end gap-2">
-        <button type="button" data-close-add-user class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+        <button type="button" data-close-add-user class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:scale-95 transition">
           Cancel
         </button>
-        <button type="button" id="add-user-save-btn" class="px-4 py-2 rounded-xl text-sm font-semibold transition">
+        <button type="button" id="add-user-save-btn" class="px-4 py-2 rounded-xl text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:scale-95">
           Save
         </button>
       </div>
@@ -397,10 +397,10 @@ function renderEditUserModal(user, draft = null, roles = []) {
     footer: `
       <div class="text-sm text-red-600"></div>
       <div class="flex items-center justify-end gap-2">
-        <button type="button" data-close-edit-user class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+        <button type="button" data-close-edit-user class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:scale-95 transition">
           Cancel
         </button>
-        <button type="button" id="edit-user-save-btn" class="px-4 py-2 rounded-xl text-sm font-semibold transition">
+        <button type="button" id="edit-user-save-btn" class="px-4 py-2 rounded-xl text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:scale-95">
           Save
         </button>
       </div>
