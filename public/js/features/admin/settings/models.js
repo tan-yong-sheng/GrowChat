@@ -221,10 +221,20 @@ export function renderModelsSettings(container, data) {
       ? modelsState.providerOptions
       : buildProviderOptions(modelsState.models, { includeAll: false });
     const enabledProviders = providerOptions.filter((option) => Number(option.active || 0) > 0);
+
+    // Calculate active total considering local disabledModels overrides
+    const calculateEnabledCount = (models) => {
+      return models.reduce((count, model) => {
+        const isDisabled = modelsState.disabledModels.has(model.id);
+        const isEnabled = !isDisabled && model.enabled !== false;
+        return count + (isEnabled ? 1 : 0);
+      }, 0);
+    };
+
     const allOption = {
       value: 'all',
       label: 'All Providers',
-      active: modelsState.activeTotal ?? countEnabledModels(modelsState.models),
+      active: modelsState.activeTotal ?? calculateEnabledCount(modelsState.models),
       total: modelsState.total ?? modelsState.models.length,
     };
     const mergedProviders = [
@@ -235,7 +245,7 @@ export function renderModelsSettings(container, data) {
       query,
       provider: modelsState.provider,
     });
-    const displayTotal = modelsState.activeTotal || countEnabledModels(modelsState.models);
+    const displayTotal = modelsState.activeTotal || calculateEnabledCount(modelsState.models);
     const pageTotal = modelsState.total;
     const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
     const currentPage = Math.floor(modelsState.offset / modelsState.limit) + 1;
