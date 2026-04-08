@@ -38,9 +38,9 @@ export function createAdminAclModalShell({
       <div class="space-y-4">
         <div class="flex items-center justify-between">
           <div class="text-sm font-semibold text-gray-900" id="${ids.summaryId}"></div>
-          <div class="text-xs text-gray-400" id="${ids.countId}"></div>
+          <div class="text-xs text-gray-700" id="${ids.countId}"></div>
         </div>
-        <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-600" id="${ids.reasonId}"></div>
+        <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs text-gray-700" id="${ids.reasonId}"></div>
         <div id="${ids.errorId}" class="text-sm text-red-600 hidden"></div>
         <div id="${ids.listId}" class="space-y-2"></div>
       </div>
@@ -48,7 +48,7 @@ export function createAdminAclModalShell({
     footer: `
       <div class="text-sm text-red-600" id="${ids.saveErrorId}"></div>
       <div class="flex items-center gap-2">
-        <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700" ${closeAttr} id="${ids.cancelButtonId}">${closeLabel}</button>
+        <button type="button" class="px-4 py-2 text-sm text-gray-700 hover:text-gray-900" ${closeAttr} id="${ids.cancelButtonId}">${closeLabel}</button>
         <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800" id="${ids.saveButtonId}">${saveLabel}</button>
       </div>
     `,

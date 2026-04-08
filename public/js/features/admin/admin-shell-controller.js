@@ -96,8 +96,8 @@ function createUnsavedChangesPrompt() {
       subtitle: 'You have unsaved changes. Save them before leaving this page?',
       body: '<div class="h-1"></div>',
       footer: `
-        <button id="unsaved-cancel" class="px-4 py-2 rounded-full text-sm text-gray-500 hover:bg-gray-50">Cancel</button>
-        <button id="unsaved-discard" class="px-4 py-2 rounded-full text-sm text-gray-600 hover:bg-gray-100">Discard</button>
+        <button id="unsaved-cancel" class="px-4 py-2 rounded-full text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+        <button id="unsaved-discard" class="px-4 py-2 rounded-full text-sm text-gray-700 hover:bg-gray-100">Discard</button>
         <button id="unsaved-save" class="px-4 py-2 rounded-full text-sm text-white bg-black hover:bg-gray-900">Save</button>
       `,
       closeClass: 'hidden',

@@ -33,11 +33,11 @@
             - listitem [ref=e64]:
               - generic [ref=e65] [cursor=pointer]:
                 - generic [ref=e69]: Iteration 12 QA test - Ctrl+Enter send
-                - generic [ref=e70]: 15h ago
+                - generic [ref=e70]: 14h ago
             - listitem [ref=e71]:
               - generic [ref=e72] [cursor=pointer]:
                 - generic [ref=e76]: Testing Ctrl+Enter send
-                - generic [ref=e77]: 15h ago
+                - generic [ref=e77]: 14h ago
             - listitem [ref=e78]:
               - generic [ref=e79] [cursor=pointer]:
                 - generic [ref=e83]: Testing message sending in Iteration 9
@@ -53,7 +53,7 @@
             - listitem [ref=e99]:
               - generic [ref=e100] [cursor=pointer]:
                 - generic [ref=e104]: Hello, this is a QA test message
-                - generic [ref=e105]: 17h ago
+                - generic [ref=e105]: 16h ago
             - listitem [ref=e106]:
               - generic [ref=e107] [cursor=pointer]:
                 - generic [ref=e111]: Hello, this is a test message

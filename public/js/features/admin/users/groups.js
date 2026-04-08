@@ -27,7 +27,7 @@ export function getGroupModalTheme() {
     container: 'bg-white text-gray-900 border border-gray-200 shadow-2xl',
     sidebar: 'border-r border-gray-200 bg-white',
     sidebarActive: 'bg-gray-100 text-gray-900',
-    sidebarInactive: 'text-gray-500 hover:text-gray-800',
+    sidebarInactive: 'text-gray-700 hover:text-gray-900',
     panelLabel: 'text-gray-600',
     panelText: 'text-gray-900',
     input: 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-gray-400',
@@ -78,11 +78,11 @@ function renderGroupModal({
         <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 md:p-6">
           <div data-panel="general" class="space-y-5">
             <div class="space-y-2">
-              <label class="text-xs uppercase tracking-wider text-gray-600 font-semibold">Name</label>
+              <label class="text-xs uppercase tracking-wider text-gray-700 font-semibold">Name</label>
               <input id="group-name-input" class="w-full ${theme.input} rounded-2xl px-4 py-3 text-sm outline-none" placeholder="Group Name" value="${escapeHtml(draft?.name || group?.name || '')}">
             </div>
             <div class="space-y-2">
-              <label class="text-xs uppercase tracking-wider text-gray-600 font-semibold">Description</label>
+              <label class="text-xs uppercase tracking-wider text-gray-700 font-semibold">Description</label>
               <textarea id="group-description-input" rows="3" class="w-full ${theme.input} rounded-2xl px-4 py-3 text-sm outline-none resize-none" placeholder="Group Description">${escapeHtml(draft?.description || group?.description || '')}</textarea>
             </div>
           </div>
@@ -90,17 +90,17 @@ function renderGroupModal({
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-sm font-semibold text-gray-900">Members</div>
-                <div class="text-[11px] text-gray-500" id="members-count"></div>
+                <div class="text-[11px] text-gray-700" id="members-count"></div>
               </div>
-              <div class="text-[11px] text-gray-400">${usersTotal ? `Showing ${Math.min(allUsers.length, usersTotal)} of ${usersTotal}` : ''}</div>
+              <div class="text-[11px] text-gray-700">${usersTotal ? `Showing ${Math.min(allUsers.length, usersTotal)} of ${usersTotal}` : ''}</div>
             </div>
             <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30">
-              <div class="flex-shrink-0 text-gray-400">
+              <div class="flex-shrink-0 text-gray-700">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
                   <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
                 </svg>
               </div>
-              <input id="group-member-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Search users">
+              <input id="group-member-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-700 outline-none" placeholder="Search users">
               <div id="group-member-clear-container" class="hidden ml-1.5">
                 <button type="button" id="group-member-clear-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
@@ -160,7 +160,7 @@ function renderGroupModal({
       tabButtons.forEach((other) => {
         other.classList.toggle('bg-gray-100', other === btn);
         other.classList.toggle('text-gray-900', other === btn);
-        other.classList.toggle('text-gray-500', other !== btn);
+        other.classList.toggle('text-gray-700', other !== btn);
       });
     });
   });
@@ -193,7 +193,7 @@ function renderGroupModal({
     const filtered = filterUsers(allUsers, memberState.query);
     if (!filtered.length) {
       membersListEl.innerHTML = `
-        <div class="text-sm text-gray-500 py-6 text-center">No users found.</div>
+        <div class="text-sm text-gray-700 py-6 text-center">No users found.</div>
       `;
     } else {
       membersListEl.innerHTML = filtered.map((user) => {
@@ -209,7 +209,7 @@ function renderGroupModal({
               <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">${escapeHtml(initials)}</div>
               <div class="flex flex-col">
                 <div class="text-sm font-medium text-gray-900">${escapeHtml(user.name || 'Unknown')}</div>
-                <div class="text-[11px] text-gray-500">${escapeHtml(user.email || '')}</div>
+                <div class="text-[11px] text-gray-700">${escapeHtml(user.email || '')}</div>
               </div>
             </div>
             <button type="button" class="member-toggle text-[11px] font-semibold px-3 py-1 rounded-full border transition ${buttonClass}" data-user-id="${escapeHtml(user.id)}">
@@ -406,7 +406,7 @@ function renderEmptyState() {
           </svg>
         </div>
         <div class="text-lg font-bold text-gray-900 mb-1.5">No groups found</div>
-        <div class="text-gray-500 text-xs leading-relaxed">Use groups to organize your users and manage members.</div>
+        <div class="text-gray-700 text-xs leading-relaxed">Use groups to organize your users and manage members.</div>
       </div>
     </div>
   `;
@@ -535,7 +535,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
         <div class="flex items-center justify-between gap-2">
           <div class="flex items-center md:self-center text-xl font-medium px-0.5 gap-2 shrink-0">
             <div class="text-gray-900">Groups</div>
-            <div class="text-lg font-medium text-gray-500">${groups.length}</div>
+            <div class="text-lg font-medium text-gray-700">${groups.length}</div>
           </div>
           <div class="flex items-center justify-end gap-1.5 shrink-0">
             <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-group-btn">
@@ -549,7 +549,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
       <div class="flex-1 min-h-0 py-2.5 bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden flex flex-col">
         <div class="flex flex-col sm:flex-row sm:items-center w-full gap-2 py-1 px-4 mb-1">
           <div class="flex flex-1 items-center bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30">
-            <div class="text-gray-400 mr-2.5">
+            <div class="text-gray-700 mr-2.5">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="size-5">
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="m21 21-4.3-4.3"></path>
@@ -567,7 +567,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
         </div>
 
         ${isLoading ? `
-          <div class="p-10 text-center text-sm text-gray-500">Loading groups...</div>
+          <div class="p-10 text-center text-sm text-gray-700">Loading groups...</div>
         ` : error ? `
           <div class="p-10 text-center text-sm text-red-500">${error}</div>
         ` : groups.length ? `
@@ -577,7 +577,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
                 const isPendingDelete = stagedGroupId === group.id;
                 const rowClasses = `flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl transition-all border border-transparent hover:border-gray-100/50 ${isPendingDelete ? 'opacity-60 bg-amber-50/40 cursor-default' : 'hover:bg-gray-50/80 group cursor-pointer'}`;
                 const deleteButton = group.is_system ? '' : `
-                    <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all btn-delete-group" data-group-id="${group.id}" data-group-name="${escapeHtml(group.name)}" aria-label="Delete group" ${isPendingDelete ? 'disabled' : ''}>
+                    <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-700 hover:text-red-500 transition-all btn-delete-group" data-group-id="${group.id}" data-group-name="${escapeHtml(group.name)}" aria-label="Delete group" ${isPendingDelete ? 'disabled' : ''}>
                       <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" class="size-5">
                         <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
                       </svg>
@@ -586,7 +586,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
                 return `
                 <div class="${rowClasses}" data-group-row="${group.id}">
                   <div class="flex items-center gap-3.5">
-                    <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                    <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-700">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                       </svg>
@@ -596,14 +596,14 @@ export function renderGroupsOverview(container, data, actions = {}) {
                         <div class="font-semibold text-gray-900 text-sm truncate">${group.name}</div>
                         ${isPendingDelete ? '<span class="rounded-full border border-rose-200 bg-rose-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-rose-700 whitespace-nowrap">Pending delete</span>' : ''}
                       </div>
-                      <div class="text-[11px] text-gray-500 font-medium">${group.member_count || 0} members</div>
+                      <div class="text-[11px] text-gray-700 font-medium">${group.member_count || 0} members</div>
                     </div>
                   </div>
                   <div class="flex items-center justify-end gap-1.5 self-end sm:self-auto">
                     <a href="/admin/users/policies?group=${encodeURIComponent(group.id)}" class="px-2.5 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 transition-all hover:bg-gray-50 btn-manage-group-policies" ${isPendingDelete ? 'aria-disabled="true" tabindex="-1"' : ''}>
                       Manage Policies
                     </a>
-                    <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-group" data-group-id="${group.id}" aria-label="Edit group" ${isPendingDelete ? 'disabled' : ''}>
+                    <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-700 transition-all btn-edit-group" data-group-id="${group.id}" aria-label="Edit group" ${isPendingDelete ? 'disabled' : ''}>
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
                       </svg>

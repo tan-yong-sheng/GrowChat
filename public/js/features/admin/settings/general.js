@@ -89,14 +89,14 @@ export function renderGeneralSettings(container, data) {
 
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">App Title</div>
-                <input id="app-title" type="text" value="${settingsState.currentValues.title}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-500 placeholder-gray-500 cursor-not-allowed" placeholder="Set via deployment config" disabled>
-                <div class="text-[10px] text-gray-600 mt-1">Managed in server configuration.</div>
+                <input id="app-title" type="text" value="${settingsState.currentValues.title}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-700 placeholder-gray-700 cursor-not-allowed" placeholder="Set via deployment config" disabled>
+                <div class="text-[10px] text-gray-700 mt-1">Managed in server configuration.</div>
               </div>
 
               <div class="py-2.5 flex items-center justify-between pr-2">
                 <div class="flex flex-col">
                   <div class="text-xs font-medium">Public Registration</div>
-                  <div id="public-reg-status" class="text-[10px] text-gray-500">${toggleState.statusText}</div>
+                  <div id="public-reg-status" class="text-[10px] text-gray-700">${toggleState.statusText}</div>
                 </div>
                 <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toggleState.toggleClass}">
                   <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${toggleState.knobTransform};"></span>
@@ -109,7 +109,7 @@ export function renderGeneralSettings(container, data) {
                   <option value="active" ${settingsState.currentValues.registrationStatus === 'active' ? 'selected' : ''}>Active</option>
                   <option value="pending" ${settingsState.currentValues.registrationStatus !== 'active' ? 'selected' : ''}>Pending</option>
                 `, { ariaLabel: 'Registration Status' })}
-                <div id="registration-status-hint" class="text-[10px] text-gray-600 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
+                <div id="registration-status-hint" class="text-[10px] text-gray-700 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
               </div>
             </section>
 

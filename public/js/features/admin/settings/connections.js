@@ -117,7 +117,7 @@ export function renderConnectionsSettings(container, data) {
       return renderLoadingSkeleton();
     }
     if (connectionsState.openai.connections.length === 0) {
-      return '<div class="py-10 text-center text-sm text-gray-400">No connections configured</div>';
+      return '<div class="py-10 text-center text-sm text-gray-700">No connections configured</div>';
     }
     const deduped = new Map();
     connectionsState.openai.connections.forEach((conn) => {
@@ -133,10 +133,10 @@ export function renderConnectionsSettings(container, data) {
       <div data-connection-row="${safeId}" class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2 border-b border-gray-50 last:border-0 ${conn.enabled === false ? 'opacity-70' : ''}">
         <div class="flex flex-col min-w-0">
           <div class="text-xs font-medium text-gray-900">${safeName}</div>
-          <div class="text-[10px] text-gray-400 font-mono">${safeUrl}</div>
-          <div class="text-[10px] text-gray-400 mt-0.5">${safeProvider}</div>
-          <div data-connection-disabled-badge class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${conn.enabled === false ? '' : 'hidden'}">Disabled</div>
-          ${conn.readOnly ? '<div class="text-[10px] text-gray-400 mt-0.5">From env (read-only)</div>' : ''}
+          <div class="text-[10px] text-gray-700 font-mono">${safeUrl}</div>
+          <div class="text-[10px] text-gray-700 mt-0.5">${safeProvider}</div>
+          <div data-connection-disabled-badge class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-700 ${conn.enabled === false ? '' : 'hidden'}">Disabled</div>
+          ${conn.readOnly ? '<div class="text-[10px] text-gray-700 mt-0.5">From env (read-only)</div>' : ''}
         </div>
         <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
           <button

@@ -217,7 +217,7 @@ export function buildAdminModalShellMarkup({
         <div class="${config.headerClass}" data-admin-modal-header>
           <div>
             <div class="text-lg font-semibold">${escapeHtml(config.title)}</div>
-            ${config.subtitle ? `<div class="text-[11px] text-gray-500 mt-1">${escapeHtml(config.subtitle)}</div>` : ''}
+            ${config.subtitle ? `<div class="text-[11px] text-gray-700 mt-1">${escapeHtml(config.subtitle)}</div>` : ''}
           </div>
           <button type="button" class="${config.closeClass}" ${config.closeAttr} aria-label="${escapeHtml(config.closeAriaLabel)}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">

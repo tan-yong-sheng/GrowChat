@@ -214,7 +214,7 @@ function formatRoleSummary(role) {
 
 function renderLoadingState() {
   return `
-    <div class="flex min-h-[320px] items-center justify-center rounded-[2rem] border border-gray-100 bg-white text-sm text-gray-500">
+    <div class="flex min-h-[320px] items-center justify-center rounded-[2rem] border border-gray-100 bg-white text-sm text-gray-700">
       Loading roles...
     </div>
   `;
@@ -275,7 +275,7 @@ function createModalShell({ title, subtitle, showDelete = false } = {}) {
     subtitle,
     body: '<div data-modal-body></div>',
     footer: `
-      <div class="text-[9px] text-gray-500 leading-tight" data-modal-note></div>
+      <div class="text-[9px] text-gray-700 leading-tight" data-modal-note></div>
       <div class="flex items-center gap-1.5">
         ${showDelete ? '<button type="button" class="rounded-full border border-red-200 bg-white px-2 py-0.75 text-[9px] font-semibold text-red-600 hover:bg-red-50" data-role-modal-delete>Delete</button>' : ''}
         <button type="button" class="rounded-full border border-gray-200 px-2 py-0.75 text-[9px] font-semibold text-gray-700 hover:bg-gray-50" data-modal-discard>
