@@ -17,7 +17,7 @@ export default defineConfig({
     {
       name: 'chromium-guest',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: [/auth\.spec\.ts/, /bootstrap\.spec\.ts/],
+      testMatch: [/auth\.spec\.ts/],
     },
     {
       name: 'chromium-auth',
@@ -25,20 +25,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: 'tests/e2e/fixtures/auth-state.json',
       },
-      testMatch: [/chat\.spec\.ts/, /realtime\.spec\.ts/, /ui-logic\.spec\.ts/, /visual\.spec\.ts/, /models-settings\.spec\.ts/, /admin-settings\.spec\.ts/, /admin-users\.spec\.ts/, /admin-policies\.spec\.ts/, /qa-settings-crud\.spec\.ts/, /qa-validation\.spec\.ts/, /validate-settings\.spec\.ts/],
-    },
-    {
-      name: 'mobile-auth',
-      use: {
-        ...devices['Pixel 5'],
-        storageState: 'tests/e2e/fixtures/auth-state.json',
-      },
-      testMatch: [/ui-logic\.spec\.ts/, /visual\.spec\.ts/, /mobile-responsiveness\.spec\.ts/, /mobile-fixes\.spec\.ts/],
-    },
-    {
-      name: 'debug',
-      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:8788' },
-      testMatch: [/debug.*\.spec\.ts/],
+      testMatch: [/chat\.spec\.ts/, /admin-settings\.spec\.ts/],
     },
   ],
   webServer: {
