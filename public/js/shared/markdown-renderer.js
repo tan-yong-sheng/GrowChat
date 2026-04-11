@@ -6,6 +6,11 @@ let markedReadyPromise = null;
 let markdownEnhancementPending = false;
 let graphvizRendererPromise = null;
 let mermaidInitialized = false;
+let katexRuntimePromise = null;
+let mermaidRuntimePromise = null;
+let graphvizRuntimePromise = null;
+const externalScriptPromises = new Map();
+const externalStylesheetPromises = new Map();
 let specialBlockScopeKey = '';
 let specialBlockMode = 'preview';
 
@@ -379,9 +384,106 @@ function bindSpecialBlockActions(block) {
   }
 }
 
-function loadGraphvizRenderer() {
-  if (graphvizRendererPromise) return graphvizRendererPromise;
-  const globalGraphviz = globalThis?.window?.Graphviz
+function loadExternalScript(src) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return Promise.resolve(false);
+  }
+
+  const absoluteSrc = new URL(src, window.location.href).href;
+  if (externalScriptPromises.has(absoluteSrc)) {
+    return externalScriptPromises.get(absoluteSrc);
+  }
+
+  const existingScript = Array.from(document.querySelectorAll('script[src]')).find((script) => script.src === absoluteSrc);
+  const script = existingScript || document.createElement('script');
+
+  if (!existingScript) {
+    script.src = absoluteSrc;
+    script.async = true;
+    script.defer = true;
+    script.dataset.growchatRuntime = '1';
+  }
+
+  const promise = new Promise((resolve, reject) => {
+    if (script.dataset.growchatLoaded === '1') {
+      resolve(true);
+      return;
+    }
+
+    const onLoad = () => {
+      script.dataset.growchatLoaded = '1';
+      resolve(true);
+    };
+
+    const onError = () => {
+      externalScriptPromises.delete(absoluteSrc);
+      reject(new Error(`Failed to load runtime: ${absoluteSrc}`));
+    };
+
+    script.addEventListener('load', onLoad, { once: true });
+    script.addEventListener('error', onError, { once: true });
+  });
+
+  externalScriptPromises.set(absoluteSrc, promise);
+
+  if (!existingScript) {
+    document.head.appendChild(script);
+  }
+
+  return promise;
+}
+
+function loadExternalStylesheet(href) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return Promise.resolve(false);
+  }
+
+  const absoluteHref = new URL(href, window.location.href).href;
+  if (externalStylesheetPromises.has(absoluteHref)) {
+    return externalStylesheetPromises.get(absoluteHref);
+  }
+
+  const existingLink = Array.from(document.querySelectorAll('link[rel="stylesheet"][href]')).find((link) => link.href === absoluteHref);
+  const link = existingLink || document.createElement('link');
+
+  if (!existingLink) {
+    link.rel = 'stylesheet';
+    link.href = absoluteHref;
+    link.dataset.growchatRuntime = '1';
+  }
+
+  const promise = new Promise((resolve, reject) => {
+    if (link.dataset.growchatLoaded === '1' || link.sheet) {
+      link.dataset.growchatLoaded = '1';
+      resolve(true);
+      return;
+    }
+
+    const onLoad = () => {
+      link.dataset.growchatLoaded = '1';
+      resolve(true);
+    };
+
+    const onError = () => {
+      externalStylesheetPromises.delete(absoluteHref);
+      reject(new Error(`Failed to load stylesheet: ${absoluteHref}`));
+    };
+
+    link.addEventListener('load', onLoad, { once: true });
+    link.addEventListener('error', onError, { once: true });
+  });
+
+  externalStylesheetPromises.set(absoluteHref, promise);
+
+  if (!existingLink) {
+    document.head.appendChild(link);
+  }
+
+  return promise;
+}
+
+function getGlobalGraphviz() {
+  return globalThis?.window?.Graphviz
     || globalThis?.Graphviz
     || globalThis?.window?.graphviz
     || globalThis?.graphviz
@@ -389,21 +491,96 @@ function loadGraphvizRenderer() {
     || globalThis?.['@hpcc-js/wasm']?.Graphviz
     || globalThis?.window?.['@hpcc-js/wasm']?.graphviz
     || globalThis?.['@hpcc-js/wasm']?.graphviz;
-  const graphvizFactory = globalGraphviz?.Graphviz || globalGraphviz;
-  if (graphvizFactory?.dot) {
-    graphvizRendererPromise = Promise.resolve(graphvizFactory);
-    return graphvizRendererPromise;
-  }
-  if (graphvizFactory?.load) {
-    graphvizRendererPromise = graphvizFactory.load()
-      .then((renderer) => renderer || graphvizFactory)
+}
+
+async function ensureKatexRuntime() {
+  const existing = globalThis?.window?.katex || globalThis?.katex;
+  if (existing && typeof existing.renderToString === 'function') return true;
+
+  if (!katexRuntimePromise) {
+    katexRuntimePromise = Promise.all([
+      loadExternalStylesheet('https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css'),
+      loadExternalScript('https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js'),
+    ])
+      .then(() => {
+        const katex = globalThis?.window?.katex || globalThis?.katex;
+        if (!katex || typeof katex.renderToString !== 'function') {
+          throw new Error('KaTeX unavailable');
+        }
+        return true;
+      })
       .catch((err) => {
-        graphvizRendererPromise = null;
+        katexRuntimePromise = null;
         throw err;
       });
-    return graphvizRendererPromise;
   }
-  return Promise.reject(new Error('Graphviz renderer unavailable'));
+
+  return katexRuntimePromise;
+}
+
+async function ensureMermaidRuntime() {
+  const existing = globalThis?.window?.mermaid || globalThis?.mermaid;
+  if (existing && (typeof existing.run === 'function' || typeof existing.render === 'function')) return true;
+
+  if (!mermaidRuntimePromise) {
+    mermaidRuntimePromise = loadExternalScript('https://cdn.jsdelivr.net/npm/mermaid@11.0.2/dist/mermaid.min.js')
+      .then(() => {
+        const mermaid = globalThis?.window?.mermaid || globalThis?.mermaid;
+        if (!mermaid || (typeof mermaid.run !== 'function' && typeof mermaid.render !== 'function')) {
+          throw new Error('Mermaid unavailable');
+        }
+        return true;
+      })
+      .catch((err) => {
+        mermaidRuntimePromise = null;
+        throw err;
+      });
+  }
+
+  return mermaidRuntimePromise;
+}
+
+async function ensureGraphvizRuntime() {
+  if (getGlobalGraphviz()) return true;
+
+  if (!graphvizRuntimePromise) {
+    graphvizRuntimePromise = loadExternalScript('https://cdn.jsdelivr.net/npm/@hpcc-js/wasm@1.12.8/dist/index.js')
+      .then(() => {
+        if (!getGlobalGraphviz()) {
+          throw new Error('Graphviz renderer unavailable');
+        }
+        return true;
+      })
+      .catch((err) => {
+        graphvizRuntimePromise = null;
+        throw err;
+      });
+  }
+
+  return graphvizRuntimePromise;
+}
+
+function loadGraphvizRenderer() {
+  if (graphvizRendererPromise) return graphvizRendererPromise;
+
+  graphvizRendererPromise = (async () => {
+    await ensureGraphvizRuntime();
+    const globalGraphviz = getGlobalGraphviz();
+    const graphvizFactory = globalGraphviz?.Graphviz || globalGraphviz;
+    if (graphvizFactory?.dot) {
+      return graphvizFactory;
+    }
+    if (graphvizFactory?.load) {
+      const renderer = await graphvizFactory.load();
+      return renderer || graphvizFactory;
+    }
+    throw new Error('Graphviz renderer unavailable');
+  })().catch((err) => {
+    graphvizRendererPromise = null;
+    throw err;
+  });
+
+  return graphvizRendererPromise;
 }
 
 async function renderSpecialPreview(kind, source, previewEl, block) {
@@ -417,6 +594,7 @@ async function renderSpecialPreview(kind, source, previewEl, block) {
 
   try {
     if (kind === 'katex') {
+      await ensureKatexRuntime();
       const katex = globalThis?.window?.katex || globalThis?.katex;
       if (!katex || typeof katex.renderToString !== 'function') throw new Error('KaTeX unavailable');
       previewEl.innerHTML = katex.renderToString(text, {
@@ -429,6 +607,7 @@ async function renderSpecialPreview(kind, source, previewEl, block) {
     }
 
     if (kind === 'mermaid') {
+      await ensureMermaidRuntime();
       const mermaid = globalThis?.window?.mermaid || globalThis?.mermaid;
       if (!mermaid || (typeof mermaid.run !== 'function' && typeof mermaid.render !== 'function')) throw new Error('Mermaid unavailable');
       if (!mermaidInitialized && typeof mermaid.initialize === 'function') {
