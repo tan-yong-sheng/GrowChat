@@ -545,6 +545,42 @@ This section is the source of truth for how each page talks to the backend. The 
 - The inner left sidebar for users versus settings/system should share the same horizontal anchor, spacing, and top alignment unless a route intentionally deviates and documents why.
 - If a route intentionally uses a different inner-sidebar position, the difference should be deliberate, visible in the plan, and covered by a route-specific layout note.
 
+### Route Startup Performance Review (2026-04-11)
+
+Method:
+- Measured route startup with playwright-cli (`goto` + resource timing + console capture) and cross-checked server TTFB with `curl`.
+- Focused routes: `/`, `/admin/users/overview`, `/admin/settings/connections`, `/admin/system/general`, `/account/settings/connections`.
+
+General findings:
+- Startup module fan-out is high across app shells (about 39-40 startup resource requests, with about 32 script-module requests on each tested route).
+- Home route startup currently performs `/api/users/me` + `/api/chats` immediately.
+- Admin settings/system cold loads still trigger `/api/auth/refresh` and `/api/chats`, even though the visible surface is settings-focused.
+- Account settings startup triggers additional settings/model fetches (`/api/models`, `/api/users/me/settings`) during initial paint.
+- Console captured intermittent settings warning from `renderGeneralSettings` model loading (`Failed to fetch`), which can create perceived startup instability.
+
+Per-route optimization policy:
+- `/`
+  - Keep first paint chat-focused, but defer non-critical modules (markdown/render extras, optional tool integrations) until first use.
+  - Keep auth bootstrap minimal and avoid secondary non-essential fetches on first frame.
+- `/admin/users/*`
+  - Treat as admin-workspace shell, but avoid chat-list hydration (`/api/chats`) on first paint unless chat UI is visible.
+- `/admin/settings/*`
+  - Keep settings-first bootstrap: avoid eager chat data fetches and avoid refresh-token exchange unless token is near expiry or a 401 occurs.
+  - Lazy-load tab-specific data; only fetch connection/model/integration payloads for active tab.
+- `/admin/system/*`
+  - Same as settings-first bootstrap; avoid global eager fetches.
+  - Ensure model-dependent calls in general/security panels fail soft with cached fallback and non-blocking UI.
+- `/account/settings/*`
+  - Defer `/api/models` and `/api/users/me/settings` until the relevant settings tab mounts.
+  - Preserve route-local cache so tab switches reuse already loaded payloads.
+
+Cross-route implementation guardrails:
+- Prefer one bootstrap API contract (`/api/users/me?include=permissions,roles`) and pass data directly to RBAC init.
+- Make bootstrap route-aware before issuing chat list/messages requests.
+- Convert high-fan-out startup module graph into route bundles (or staged dynamic imports) so each route loads only required modules.
+- Keep realtime connection deferred until after first paint and disable it on routes that do not need live chat updates.
+- Track route startup budgets (request count, DCL, first meaningful paint proxy) and regressions per route family.
+
 ### Control-Level Dependency Graph
 
 This is the deeper rule set that connects one UI control to the exact payload shape and every dependent surface that must rehydrate.
