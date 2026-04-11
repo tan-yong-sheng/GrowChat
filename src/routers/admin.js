@@ -10,7 +10,7 @@ import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../chat/attachments.js';
-import { buildConnectionHeaders, buildEnvOpenAIConnections, discoverConnectionModels, ensureConnectionId, extractConnectionModelId, getAllOpenAIConnectionConfigs, getConnectionApiType, getConnectionDefaultBaseUrl, getEnvOpenAIOverrides, isConnectionUrlRequired, normalizeConnectionManualModels } from '../llm/connections.js';
+import { buildConnectionHeaders, discoverConnectionModels, ensureConnectionId, extractConnectionModelId, getAllOpenAIConnectionConfigs, getConnectionApiType, getConnectionDefaultBaseUrl, isConnectionUrlRequired, normalizeConnectionManualModels } from '../llm/connections.js';
 import { buildConnectionAclRuleSaveStatements, loadConnectionAclRules, normalizeConnectionAclRule, saveConnectionAclRulesForConnection } from '../utils/connection-acl.js';
 import { normalizeProviderFamily } from '../llm/provider-registry.js';
 import { MCP_PROTOCOL_VERSION } from '../mcp/client.js';
@@ -80,7 +80,7 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (path === '/api/admin/model-attachment-caps') {
     requiredPermission = 'admin.rbac.admin';
   }
-  if (path === '/api/admin/openai/connections' || path === '/api/admin/openai/connections/test' || path === '/api/admin/openai/env') {
+  if (path === '/api/admin/openai/connections' || path === '/api/admin/openai/connections/test') {
     requiredPermission = 'admin.rbac.admin';
   }
   if (path.startsWith('/api/admin/openai/connections/') && path.endsWith('/access')) {
@@ -776,12 +776,6 @@ export async function adminRouter(req, env, ctx, user, path) {
     try {
       const url = new URL(req.url);
       const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
-      const envConnections = buildEnvOpenAIConnections(env);
-      const envOverrides = await getEnvOpenAIOverrides(env);
-      envConnections.forEach((conn) => {
-        const override = envOverrides.get(conn.id);
-        if (override === false) conn.enabled = false;
-      });
       let manualConnections = [];
       const raw = await getConfigValue(db, 'openai_connections', '[]');
       try {
@@ -809,8 +803,8 @@ export async function adminRouter(req, env, ctx, user, path) {
       return json(req, {
         enabled,
         connections: includeDisabled
-          ? [...envConnections, ...manualConnections]
-          : [...envConnections, ...manualConnections].filter((connection) => connection.enabled !== false)
+          ? manualConnections
+          : manualConnections.filter((connection) => connection.enabled !== false)
       });
     } catch (err) {
       console.error('OpenAI connections fetch failed:', err);
@@ -896,21 +890,6 @@ export async function adminRouter(req, env, ctx, user, path) {
     } catch (err) {
       return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
     }
-  }
-
-  // GET /api/admin/openai/env - Inspect OpenAI env configuration (admin only)
-  if (req.method === 'GET' && path === '/api/admin/openai/env') {
-    const baseUrl = env.OPENAI_BASE_URL || '';
-    const baseUrls = env.OPENAI_API_BASE_URLS || '';
-    const hasKey = Boolean(env.OPENAI_API_KEY);
-    const hasKeys = Boolean(env.OPENAI_API_KEYS);
-
-    return json(req, {
-      openai_base_url: baseUrl || null,
-      openai_api_base_urls: baseUrls || null,
-      openai_api_key_present: hasKey,
-      openai_api_keys_present: hasKeys,
-    });
   }
 
   // GET /api/admin/tool-servers - List tool servers
@@ -1101,26 +1080,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Server URL must start with http:// or https://', 400);
     }
 
-    const draftServer = {
-      id: serverId,
-      name: String(body.name || 'Tool Server').trim() || 'Tool Server',
-      url: serverUrl,
-      headers: String(body.headers || '').trim(),
-      enabled: body.enabled !== false,
-      auth_type: 'oauth',
-      auth_bearer_token: String(body.auth_bearer_token || '').trim(),
-      auth_basic_username: String(body.auth_basic_username || '').trim(),
-      auth_basic_password: String(body.auth_basic_password || '').trim(),
-      oauth_client_name: String(body.oauth_client_name || '').trim(),
-      oauth_scope: String(body.oauth_scope || '').trim(),
-      oauth_client_id: String(body.oauth_client_id || '').trim(),
-      oauth_client_secret: String(body.oauth_client_secret || '').trim(),
-      oauth_token_auth_method: normalizeTokenAuthMethod(body.oauth_token_auth_method) || '',
-      oauth_authorization_server: String(body.oauth_authorization_server || '').trim(),
-      oauth_token_endpoint: String(body.oauth_token_endpoint || '').trim(),
-      oauth_registration_endpoint: String(body.oauth_registration_endpoint || '').trim(),
-    };
-    const server = existingServer || draftServer;
+    if (!existingServer) {
+      return error(req, 'Server must be saved before OAuth connect', 400);
+    }
+
+    const server = existingServer;
     const oauthClientName = String(body.oauth_client_name || server.oauth_client_name || 'GrowChat MCP Client').trim();
     const oauthScope = String(body.oauth_scope || server.oauth_scope || '').trim();
     const authServerUrl = String(body.oauth_authorization_server || server.oauth_authorization_server || serverUrl).trim();
@@ -1204,15 +1168,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       oauth_code_verifier: codeVerifier,
     };
 
-    if (serverIndex === -1) {
-      servers.push({
-        ...mergeToolServer(null, persistedServer),
-        oauth_state: state,
-        oauth_code_verifier: codeVerifier,
-      });
-    } else {
-      servers[serverIndex] = persistedServer;
-    }
+    servers[serverIndex] = persistedServer;
 
     await saveToolServers(db, servers);
 
@@ -1354,9 +1310,6 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
     const connections = Array.isArray(body.connections) ? body.connections : [];
-    const envOverridesInput = body.env_overrides && typeof body.env_overrides === 'object'
-      ? body.env_overrides
-      : {};
     const modelUpdatesInput = Array.isArray(body.model_updates) ? body.model_updates : [];
     const accessUpdatesInput = Array.isArray(body.access_updates) ? body.access_updates : [];
 
@@ -1376,7 +1329,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       );
 
       sanitized = connections
-        .filter((conn) => !conn?.readOnly && conn?.source !== 'env')
+        .filter((conn) => !conn?.readOnly)
         .map((conn) => {
           const existingConnection = currentConnectionMap.get(String(conn.id || ''));
           const providerType = String(conn.providerType || 'openai').toLowerCase();
@@ -1439,15 +1392,6 @@ export async function adminRouter(req, env, ctx, user, path) {
     try {
       const groups = await db.all('SELECT id FROM groups');
       const validGroupIds = new Set(groups.map((group) => group.id));
-
-      const normalizedEnvOverrides = {};
-      for (const [key, value] of Object.entries(envOverridesInput)) {
-        if (!/^env-[a-z0-9-]+$/i.test(String(key))) continue;
-        if (value === false) {
-          normalizedEnvOverrides[String(key)] = false;
-        }
-      }
-
       const normalizedAccessUpdates = [];
       for (const entry of accessUpdatesInput) {
         const connectionId = String(entry?.connection_id || entry?.connectionId || '').trim();
@@ -1515,7 +1459,6 @@ export async function adminRouter(req, env, ctx, user, path) {
         db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)'),
         db.prepare('INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()', ['openai_connections', JSON.stringify(sanitized)]),
         db.prepare('INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()', ['openai_enabled', enabled ? 'true' : 'false']),
-        db.prepare('INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()', ['openai_env_overrides', JSON.stringify(normalizedEnvOverrides)]),
       ];
 
       for (const update of modelUpdates) {

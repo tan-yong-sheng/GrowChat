@@ -3,13 +3,12 @@ import { renderAdminRoute, setupAdminPage } from './admin-test-helpers';
 
 test.describe.configure({ mode: 'serial' });
 
-test.describe('Admin settings staged save flow', () => {
+test.describe('Admin settings immediate save flow', () => {
   test.beforeEach(async ({ page }) => {
     await setupAdminPage(page);
   });
 
-  test('stages integrations modal changes until the shared Save button commits them', async ({ page }) => {
-    let verifyCalls = 0;
+  test('saves integrations modal changes immediately without a footer', async ({ page }) => {
     let saveCalls = 0;
     const savedBodies = [];
 
@@ -19,20 +18,17 @@ test.describe('Admin settings staged save flow', () => {
       body: JSON.stringify({ servers: [] }),
     }));
 
-    await page.route('**/api/admin/tool-servers/test', (route) => {
-      verifyCalls += 1;
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          message: 'Connection successful',
-          tools_verified_at: new Date().toISOString(),
-          tools: [
-            { name: 'search', title: 'Search', description: 'Search documents', enabled: true },
-          ],
-        }),
-      });
-    });
+    await page.route('**/api/admin/tool-servers/test', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        message: 'Connection successful',
+        tools_verified_at: new Date().toISOString(),
+        tools: [
+          { name: 'search', title: 'Search', description: 'Search documents', enabled: true },
+        ],
+      }),
+    }));
 
     await page.route('**/api/admin/tool-servers', async (route) => {
       if (route.request().method() !== 'PUT') {
@@ -44,33 +40,22 @@ test.describe('Admin settings staged save flow', () => {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          servers: body.servers || [],
-        }),
+        body: JSON.stringify({ servers: body.servers || [] }),
       });
     });
 
     await renderAdminRoute(page, '/admin/settings/integrations');
 
+    await expect(page.locator('#save-integrations')).toHaveCount(0);
     await expect(page.locator('#add-tool-server')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('#save-integrations')).toBeDisabled();
 
     await page.locator('#add-tool-server').click();
     await expect(page.locator('#edit-connection-modal')).toBeVisible();
-
     await page.locator('#server-name').fill('Tavily');
     await page.locator('#server-url').fill('https://mcp.example.com');
     await page.locator('#save-modal').click();
 
-    await expect(page.locator('#edit-connection-modal')).toHaveClass(/hidden/);
-    await expect(page.locator('#save-integrations')).toBeEnabled();
-    expect(verifyCalls).toBe(1);
-    expect(saveCalls).toBe(0);
-
-    await page.locator('#save-integrations').click();
-
     await expect.poll(() => saveCalls).toBe(1);
-    await expect(page.locator('#save-integrations')).toBeDisabled();
     expect(savedBodies).toHaveLength(1);
     expect(Array.isArray(savedBodies[0].servers)).toBe(true);
     expect(savedBodies[0].servers).toHaveLength(1);
@@ -78,7 +63,7 @@ test.describe('Admin settings staged save flow', () => {
     expect(savedBodies[0].servers[0].url).toBe('https://mcp.example.com');
   });
 
-  test('stages connection ACL changes until the shared Save button commits them', async ({ page }) => {
+  test('saves connection ACL changes immediately without a footer', async ({ page }) => {
     let accessPutCalls = 0;
     let saveCalls = 0;
     const savedBodies = [];
@@ -147,24 +132,16 @@ test.describe('Admin settings staged save flow', () => {
 
     await renderAdminRoute(page, '/admin/settings/connections');
 
+    await expect(page.locator('#save-connections')).toHaveCount(0);
     await expect(page.locator('.connection-acl-btn[data-id="conn-1"]')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('#save-connections')).toBeDisabled();
 
     await page.locator('.connection-acl-btn[data-id="conn-1"]').click();
     await expect(page.locator('#connection-acl-list')).toBeVisible();
-
     await page.locator('#connection-acl-list .connection-acl-effect[data-group-id="g-1"]').selectOption('allow');
     await page.locator('#connection-acl-save-btn').click();
 
-    await expect(page.locator('#connection-acl-list')).toHaveCount(0);
-    await expect(page.locator('#save-connections')).toBeEnabled();
-    expect(accessPutCalls).toBe(0);
-    expect(saveCalls).toBe(0);
-
-    await page.locator('#save-connections').click();
-
     await expect.poll(() => saveCalls).toBe(1);
-    await expect(page.locator('#save-connections')).toBeDisabled();
+    expect(accessPutCalls).toBe(0);
     expect(savedBodies).toHaveLength(1);
     expect(savedBodies[0].access_updates).toHaveLength(1);
     expect(savedBodies[0].access_updates[0].connection_id).toBe('conn-1');
@@ -177,9 +154,8 @@ test.describe('Admin settings staged save flow', () => {
     });
   });
 
-  test('stages model toggles until the shared Save button commits them', async ({ page }) => {
+  test('shows selected models without a footer toggle', async ({ page }) => {
     let saveCalls = 0;
-    const savedBodies = [];
 
     await page.route('**/api/admin/models?**', async (route) => {
       if (route.request().method() !== 'GET') {
@@ -214,101 +190,100 @@ test.describe('Admin settings staged save flow', () => {
       });
     });
 
-    await page.route('**/api/admin/models', async (route) => {
-      if (route.request().method() !== 'PUT') {
-        return route.continue();
-      }
-      saveCalls += 1;
-      const body = JSON.parse(route.request().postData() || '{}');
-      savedBodies.push(body);
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          models: body.updates?.length
-            ? [
-                { id: 'gpt-4', name: 'GPT-4', provider: 'openai', enabled: true },
-                { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'openai', enabled: true },
-              ]
-            : [],
-        }),
-      });
-    });
-
     await renderAdminRoute(page, '/admin/settings/models');
 
-    await expect(page.locator('#save-models-top')).toBeDisabled({ timeout: 15000 });
-    await expect(page.locator('[data-model-row="gpt-5-mini"]')).toBeVisible();
+    await expect(page.locator('#save-models-top')).toHaveCount(0);
+    await expect(page.locator('[data-model-row="gpt-4"]')).toBeVisible();
+    await expect(page.locator('[data-model-row="gpt-5-mini"]')).toHaveCount(0);
+    await expect(page.locator('.model-toggle')).toHaveCount(0);
+    await expect(page.getByText('Selected models')).toBeVisible();
+    await expect(page.locator('[title="Selected models"]')).toHaveText('1');
+    await expect.poll(() => saveCalls).toBe(0);
+  });
 
-    await page.locator('[data-model-row="gpt-5-mini"] .model-toggle').click();
+  test('saves general settings immediately without an unsaved prompt', async ({ page }) => {
+    let configCalls = 0;
 
-    await expect(page.locator('#save-models-top')).toBeEnabled();
-    expect(saveCalls).toBe(0);
+    await page.route('**/api/admin/config', async (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            public_registration: true,
+            public_registration_status: 'pending',
+            default_model_id: 'gpt-4',
+          }),
+        });
+      }
 
-    await page.locator('#save-models-top').click();
+      if (route.request().method() === 'PUT') {
+        configCalls += 1;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            public_registration: true,
+            public_registration_status: 'active',
+            default_model_id: 'gpt-4',
+          }),
+        });
+      }
 
-    await expect.poll(() => saveCalls).toBe(1);
-    await expect(page.locator('#save-models-top')).toBeDisabled();
-    expect(savedBodies).toHaveLength(1);
-    expect(savedBodies[0].updates).toHaveLength(1);
-    expect(savedBodies[0].updates[0]).toMatchObject({
-      id: 'gpt-5-mini',
-      enabled: true,
+      return route.continue();
     });
-  });
-
-  test('shows the unsaved changes modal when leaving dirty general settings', async ({ page }) => {
-    await page.route('**/api/admin/config', (route) => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        public_registration: true,
-        public_registration_status: 'pending',
-        default_model_id: 'gpt-4',
-      }),
-    }));
 
     await renderAdminRoute(page, '/admin/settings/general');
 
+    await expect(page.locator('#save-settings')).toHaveCount(0);
     await expect(page.locator('#registration-status')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('#save-settings')).toBeDisabled();
 
     await page.locator('#registration-status').selectOption('active');
-    await expect(page.locator('#save-settings')).toBeEnabled();
+    await expect.poll(() => configCalls).toBe(1);
 
-    await page.locator('a[data-subnav="connections"]').click();
-    await expect(page.locator('#admin-unsaved-modal')).toBeVisible();
-    await page.locator('#unsaved-discard').click();
-
-    await expect(page.locator('#admin-unsaved-modal')).toBeHidden();
+    await page.goto('/admin/settings/connections');
     await expect(page).toHaveURL(/\/admin\/settings\/connections$/);
-    await expect(page.locator('#save-connections')).toBeVisible();
   });
 
-  test('blocks navigation with a native beforeunload prompt when the page is dirty', async ({ page }) => {
-    await page.route('**/api/admin/config', (route) => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        public_registration: true,
-        public_registration_status: 'pending',
-        default_model_id: 'gpt-4',
-      }),
-    }));
+  test('does not block beforeunload after immediate save', async ({ page }) => {
+    await page.route('**/api/admin/config', async (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            public_registration: true,
+            public_registration_status: 'pending',
+            default_model_id: 'gpt-4',
+          }),
+        });
+      }
+
+      if (route.request().method() === 'PUT') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            public_registration: true,
+            public_registration_status: 'active',
+            default_model_id: 'gpt-4',
+          }),
+        });
+      }
+
+      return route.continue();
+    });
 
     await renderAdminRoute(page, '/admin/settings/general');
 
     await expect(page.locator('#registration-status')).toBeVisible({ timeout: 15000 });
     await page.locator('#registration-status').selectOption('active');
-    await expect(page.locator('#save-settings')).toBeEnabled();
 
-    const dialogPromise = page.waitForEvent('dialog');
-    const gotoPromise = page.goto('/');
-    const dialog = await dialogPromise;
+    const blocked = await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      return !window.dispatchEvent(event) && event.defaultPrevented;
+    });
 
-    expect(dialog.type()).toBe('beforeunload');
-    await dialog.accept();
-    await gotoPromise;
-    await expect(page).toHaveURL(/\/$/);
+    expect(blocked).toBe(false);
   });
 });

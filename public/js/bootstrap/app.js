@@ -1,6 +1,7 @@
 import { fetchPublicSharedChat } from '../shared/api.js';
 import { ensureMarkedReady } from '../shared/utils.js';
 import { state, setState } from '../shared/store.js';
+import { setSidebarRouteScope } from '../shared/utils/sidebar-visibility.js';
 import { getChatIdFromPath } from './app-route-utils.js';
 import {
   checkModelsInvalidation,
@@ -10,13 +11,18 @@ import {
 } from './session-bootstrap.js';
 import {
   renderChatSkeleton,
+  renderAdminSkeleton,
   renderSharedChatPage,
 } from './app-shells.js';
 
 async function renderAdminRoute(container) {
-  const { renderAdminPage } = await import('../features/admin/admin.js');
-  container.dataset.view = 'admin';
-  return renderAdminPage(container);
+  try {
+    const { renderAdminPage } = await import('../features/admin/admin.js');
+    container.dataset.view = 'admin';
+    return renderAdminPage(container);
+  } catch (err) {
+    throw err;
+  }
 }
 
 async function renderAccountRoute(container) {
@@ -43,38 +49,69 @@ function installAccountSettingsDrawerListener() {
   });
 }
 
+let routeChangeListenerInstalled = false;
+function installRouteChangeListener() {
+  if (routeChangeListenerInstalled) return;
+  routeChangeListenerInstalled = true;
+  window.addEventListener('popstate', () => {
+    void renderCurrentRoute();
+  });
+}
+
+function cleanupRouteArtifacts() {
+  const knownModalIds = [
+    'account-connection-modal',
+    'account-integration-modal',
+    'add-connection-modal',
+    'edit-connection-modal',
+    'connection-acl-modal',
+    'model-acl-modal',
+    'tool-server-acl-modal',
+    'policy-acl-modal',
+  ];
+
+  for (const id of knownModalIds) {
+    document.getElementById(id)?.remove();
+  }
+
+  document.querySelector('[data-account-settings-drawer-mount="1"]')?.remove();
+}
+
 export async function renderCurrentRoute() {
   ensureMarkedReady();
+  cleanupRouteArtifacts();
   const path = window.location.pathname;
   const app = document.getElementById('app');
   const sharedMatch = path.match(/^\/s\/([^/]+)$/);
   const routeChatId = getChatIdFromPath(path);
 
   if (path === '/admin/settings/roles' || path.startsWith('/admin/settings/roles/')) {
-    const url = new URL(window.location.href);
-    url.pathname = '/admin/users/roles';
-    window.history.replaceState({}, '', url);
+    window.history.replaceState({}, '', '/admin/users/roles');
     return renderCurrentRoute();
   }
 
   if (path === '/admin/settings/policies' || path.startsWith('/admin/settings/policies/')) {
-    const url = new URL(window.location.href);
-    url.pathname = '/admin/users/policies';
-    window.history.replaceState({}, '', url);
+    window.history.replaceState({}, '', '/admin/users/policies');
     return renderCurrentRoute();
   }
 
   if (path === '/admin/settings/general' || path.startsWith('/admin/settings/general/')) {
-    const url = new URL(window.location.href);
-    url.pathname = '/admin/system/general';
-    window.history.replaceState({}, '', url);
+    window.history.replaceState({}, '', '/admin/system/general');
+    return renderCurrentRoute();
+  }
+
+  if (path === '/admin' || path === '/admin/') {
+    window.history.replaceState({}, '', '/admin/users/overview');
     return renderCurrentRoute();
   }
 
   if (path === '/admin/settings' || path === '/admin/settings/') {
-    const url = new URL(window.location.href);
-    url.pathname = '/admin/settings/connections';
-    window.history.replaceState({}, '', url);
+    window.history.replaceState({}, '', '/admin/settings/connections');
+    return renderCurrentRoute();
+  }
+
+  if (path === '/account' || path === '/account/' || path === '/account/profile' || path.startsWith('/account/profile/')) {
+    window.history.replaceState({}, '', '/account/settings/connections');
     return renderCurrentRoute();
   }
 
@@ -97,6 +134,10 @@ export async function renderCurrentRoute() {
     renderChatSkeleton(app);
   }
 
+  if (path.startsWith('/admin')) {
+    renderAdminSkeleton(app);
+  }
+
   const ok = await ensureSession({ preferRefresh: path.startsWith('/admin') });
   if (!ok) return;
 
@@ -105,6 +146,10 @@ export async function renderCurrentRoute() {
   }
 
   if (path.startsWith('/admin')) {
+    const adminScope = path.startsWith('/admin/settings') || path.startsWith('/admin/system')
+      ? 'admin-settings'
+      : 'admin';
+    setSidebarRouteScope(adminScope);
     await renderAdminRoute(app);
     return;
   }
@@ -112,12 +157,12 @@ export async function renderCurrentRoute() {
   if (path.startsWith('/account')) {
     const { openAccountSettingsDrawer, resolveAccountSectionFromPath } = await import('../features/account/account.js');
     const section = resolveAccountSectionFromPath(path);
-    if (window.location.pathname !== '/') {
-      window.history.replaceState({}, '', '/');
-    }
+    setSidebarRouteScope('account');
     await openAccountSettingsDrawer({ section });
     return;
   }
+
+  setSidebarRouteScope('chat');
 
   const invalidateModels = checkModelsInvalidation();
   if (invalidateModels) {
@@ -148,6 +193,8 @@ async function bootstrap() {
   installKnownErrorSuppressors();
   ensureMarkedReady();
   installAccountSettingsDrawerListener();
+  installRouteChangeListener();
+  window.renderCurrentRoute = renderCurrentRoute;
   await renderCurrentRoute();
 }
 

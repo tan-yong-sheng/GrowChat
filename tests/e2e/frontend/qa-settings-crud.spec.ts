@@ -169,19 +169,17 @@ test.describe('Settings Module - CRUD Operations', () => {
       }
     });
 
-    test('should show dirty indicator badge', async () => {
-      const dirtyBadge = page.locator('[data-testid="connections-dirty"], #connections-dirty');
-      const isBadgeVisible = await dirtyBadge.isVisible().catch(() => false);
-      console.log(`Dirty badge visible: ${isBadgeVisible}`);
+    test('should expose connection modal save controls', async () => {
+      const saveBtn = page.locator('button:has-text("Save"), button:has-text("Create")');
+      console.log(`Save control found: ${await saveBtn.count() > 0}`);
     });
 
-    test('should handle save and discard flows', async () => {
-      // Look for save/discard buttons
-      const saveBtn = page.locator('button:has-text("Save")');
-      const discardBtn = page.locator('button:has-text("Discard"), button:has-text("Cancel")');
+    test('should handle connection modal save flow', async () => {
+      const saveBtn = page.locator('button:has-text("Save"), button:has-text("Create")');
+      const cancelBtn = page.locator('button:has-text("Cancel"), button:has-text("Close")');
 
       console.log(`Save button found: ${await saveBtn.count() > 0}`);
-      console.log(`Discard button found: ${await discardBtn.count() > 0}`);
+      console.log(`Cancel button found: ${await cancelBtn.count() > 0}`);
     });
   });
 
@@ -229,21 +227,12 @@ test.describe('Settings Module - CRUD Operations', () => {
       }
     });
 
-    test('should show dirty state when model is toggled', async () => {
+    test('should apply model toggle using current save behavior', async () => {
       const toggles = page.locator('button[role="switch"]');
       if (await toggles.count() > 0) {
-        // Click a toggle
         await toggles.first().click();
-
-        // Check for dirty indicator
-        const dirtyBadge = page.locator('[data-testid="models-dirty"], #models-dirty');
-        const isDirty = await dirtyBadge.isVisible().catch(() => false);
-        console.log(`Dirty badge visible after toggle: ${isDirty}`);
-
-        // Check if save button is enabled
         const saveBtn = page.locator('#save-models-top, button:has-text("Save")');
-        const isEnabled = await saveBtn.first().isEnabled().catch(() => false);
-        console.log(`Save button enabled after toggle: ${isEnabled}`);
+        console.log(`Optional save button found: ${await saveBtn.count() > 0}`);
       }
     });
 
@@ -448,75 +437,41 @@ test.describe('Settings Module - CRUD Operations', () => {
 
   test.describe('State Management & Data Persistence', () => {
 
-    test('should persist changes after save', async () => {
+    test('should persist changes after model toggle', async () => {
       await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' }).catch(() => {});
 
-      // Toggle a model
       const toggles = page.locator('button[role="switch"]');
       if (await toggles.count() > 0) {
         const initialState = await toggles.first().getAttribute('aria-pressed');
         await toggles.first().click();
+        await page.waitForTimeout(1000);
+        await page.reload();
 
-        // Save
-        const saveBtn = page.locator('button:has-text("Save")');
-        if (await saveBtn.count() > 0) {
-          await saveBtn.first().click();
-
-          // Wait for save to complete
-          await page.waitForTimeout(1000);
-
-          // Reload page
-          await page.reload();
-
-          // Check if state persisted
-          const newState = await toggles.first().getAttribute('aria-pressed');
+        const refreshedToggles = page.locator('button[role="switch"]');
+        if (await refreshedToggles.count() > 0) {
+          const newState = await refreshedToggles.first().getAttribute('aria-pressed');
           console.log(`State persisted: ${initialState !== newState}`);
         }
       }
     });
 
-    test('should discard changes when discard is clicked', async () => {
+    test('should not rely on secondary rollback controls for model toggles', async () => {
       await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' }).catch(() => {});
 
-      // Toggle a model
-      const toggles = page.locator('button[role="switch"]');
-      if (await toggles.count() > 0) {
-        const initialState = await toggles.first().getAttribute('aria-pressed');
-        await toggles.first().click();
-
-        // Check dirty state
-        const dirtyBadge = page.locator('[data-testid="models-dirty"]');
-        const isDirty = await dirtyBadge.isVisible().catch(() => false);
-        console.log(`Dirty state before discard: ${isDirty}`);
-
-        // Click discard
-        const discardBtn = page.locator('button:has-text("Discard")');
-        if (await discardBtn.count() > 0) {
-          await discardBtn.first().click();
-
-          // Check if state reverted
-          const revertedState = await toggles.first().getAttribute('aria-pressed');
-          console.log(`State reverted: ${initialState === revertedState}`);
-        }
-      }
+      const rollbackBtn = page.locator('button:has-text("Cancel"), button:has-text("Close")');
+      console.log(`Secondary rollback control found: ${await rollbackBtn.count() > 0}`);
     });
 
-    test('should warn before closing with unsaved changes', async () => {
+    test('should allow navigation away after model toggle', async () => {
       await page.goto('http://127.0.0.1:3007/#/admin/settings/models', { waitUntil: 'networkidle' }).catch(() => {});
 
-      // Make a change
       const toggles = page.locator('button[role="switch"]');
       if (await toggles.count() > 0) {
         await toggles.first().click();
-
-        // Try to navigate away
-        page.on('dialog', dialog => {
-          console.log(`Dialog shown: ${dialog.message()}`);
-          dialog.dismiss();
-        });
-
-        await page.goto('http://127.0.0.1:3007/#/admin/settings/connections').catch(() => {});
       }
+
+      await page.goto('http://127.0.0.1:3007/#/admin/settings/connections').catch(() => {});
+      console.log('Navigation after toggle completed');
     });
   });
 

@@ -4,10 +4,16 @@ import { consumeConnectionsInvalidation } from '../../../shared/utils/connection
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import { broadcastToolServersInvalidation, consumeToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
-import { cloneAclRules } from '../acl-draft.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
 import { captureRenderState, restoreRenderState } from '../../../shared/components/search-bar.js';
+
+function cloneAclRules(rules = [], normalizer = (rule) => rule) {
+  if (!Array.isArray(rules)) return [];
+  return rules
+    .map((rule) => normalizer({ ...rule }))
+    .filter((rule) => rule !== null && rule !== undefined);
+}
 
 const FAMILIES = [
   { key: 'connections', label: 'Connections' },
@@ -60,6 +66,7 @@ function createModal({ preset = 'aclEditor', title, subtitle, body, footer }) {
     preset,
     title,
     subtitle,
+    modalHash: 'policy-acl-modal',
     body,
     footer,
     closeAttr: 'data-close-modal',
@@ -231,7 +238,7 @@ function getVisibilityFilterBadge(label, enabled) {
 }
 
 function buildPoliciesDeepLink({ groupId = 'all', familyKey = '', resourceId = '', open = 'access' } = {}) {
-  const url = new URL('/admin/settings/policies', window.location.origin);
+  const url = new URL('/admin/users/policies', window.location.origin);
   url.searchParams.set('group', String(groupId || 'all').trim() || 'all');
   if (familyKey) url.searchParams.set('family', String(familyKey).trim());
   if (resourceId) url.searchParams.set('resource', String(resourceId).trim());
@@ -513,8 +520,8 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
     subtitle: 'Central ACL editor',
     body,
     footer: `
-      <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700" data-close-modal>Cancel</button>
-      <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800" id="policy-acl-save">Save</button>
+      <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition" data-close-modal>Cancel</button>
+      <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" id="policy-acl-save">Save</button>
     `,
   });
 
@@ -523,7 +530,7 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
   const saveBtn = modal.modal.querySelector('#policy-acl-save');
 
   let rules = [];
-  const initialRules = cloneAclRules(targetResources[0]?.draftRules || targetResources[0]?.rules || [], normalizeAclRule);
+  const initialRules = cloneAclRules(targetResources[0]?.rules || [], normalizeAclRule);
   rules = cloneAclRules(initialRules, normalizeAclRule);
 
   const rulesByGroup = new Map();
@@ -593,10 +600,6 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
 }
 
 export function renderPoliciesSettings(container, data = {}) {
-  // Set no-op dirty checker for immediate-save pattern
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsDirtyCheckers.policies = () => false;
-
   const initialParams = new URLSearchParams(window.location.search || '');
   const initialGroupId = String(initialParams.get('group') || 'all').trim() || 'all';
   const initialDeepLinkFamily = String(initialParams.get('family') || '').trim();
@@ -720,11 +723,9 @@ export function renderPoliciesSettings(container, data = {}) {
       for (const resource of currentConnections) {
         const connectionId = String(resource?.id || '').trim();
         if (!connectionId) continue;
-        const rules = Array.isArray(resource?.draftRules)
-          ? resource.draftRules
-          : Array.isArray(resource?.rules)
-            ? resource.rules
-            : [];
+        const rules = Array.isArray(resource?.rules)
+          ? resource.rules
+          : [];
         map.set(connectionId, cloneAclRules(rules, normalizeAclRule));
       }
       return map;
@@ -1052,9 +1053,9 @@ export function renderPoliciesSettings(container, data = {}) {
       <div class="flex items-center justify-between gap-3 rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
         <div class="flex items-center gap-2 min-w-0 flex-wrap">
           <span class="text-xs text-gray-500 truncate">${escapeHtml(activeSelectionCount ? `${activeSelectionCount} selected` : 'No selection')}</span>
-          ${activeAllVisibleSelected ? '' : `<button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50" data-select-visible-family="${activeFamily.key}">Select visible</button>`}
-          ${activeSelectionCount ? `<button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50" data-clear-selection-family="${activeFamily.key}">Clear</button>` : ''}
-          <button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed" data-bulk-edit-family="${activeFamily.key}" ${activeSelectionCount ? '' : 'disabled'}>Bulk ACL</button>
+          ${activeAllVisibleSelected ? '' : `<button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" data-select-visible-family="${activeFamily.key}">Select visible</button>`}
+          ${activeSelectionCount ? `<button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" data-clear-selection-family="${activeFamily.key}">Clear</button>` : ''}
+          <button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed" data-bulk-edit-family="${activeFamily.key}" ${activeSelectionCount ? '' : 'disabled'}>Bulk ACL</button>
         </div>
         <div class="text-xs text-gray-400">${activeVisibleIds.length ? `${activeVisibleSelectedCount}/${activeVisibleIds.length} visible selected` : 'No visible rows'}</div>
       </div>
@@ -1072,9 +1073,9 @@ export function renderPoliciesSettings(container, data = {}) {
           <div class="flex items-center gap-4">
             <div class="text-xs text-gray-400">${activePaged.total ? `${activePaged.start + 1}-${activePaged.end} of ${activePaged.total}` : '0 of 0'}</div>
             <div class="flex items-center gap-2">
-              <button type="button" data-prev-page-family="${activeFamily.key}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" ${activePaged.page <= 1 ? 'disabled' : ''}>Prev</button>
+              <button type="button" data-prev-page-family="${activeFamily.key}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50" ${activePaged.page <= 1 ? 'disabled' : ''}>Prev</button>
               <div class="text-sm text-gray-600">Page ${activePaged.page} / ${activePaged.totalPages}</div>
-              <button type="button" data-next-page-family="${activeFamily.key}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50" ${activePaged.page >= activePaged.totalPages ? 'disabled' : ''}>Next</button>
+              <button type="button" data-next-page-family="${activeFamily.key}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50" ${activePaged.page >= activePaged.totalPages ? 'disabled' : ''}>Next</button>
             </div>
           </div>
         </div>

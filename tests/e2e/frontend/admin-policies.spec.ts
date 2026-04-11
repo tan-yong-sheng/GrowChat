@@ -3,12 +3,12 @@ import { renderAdminRoute, setupAdminPage } from './admin-test-helpers';
 
 test.describe.configure({ mode: 'serial' });
 
-test.describe('Admin policies staged save flow', () => {
+test.describe('Admin policies immediate ACL flow', () => {
   test.beforeEach(async ({ page }) => {
     await setupAdminPage(page);
   });
 
-  test('stages model ACL edits until the page Save commits them', async ({ page }) => {
+  test('applies model ACL edits through the modal save action', async ({ page }) => {
     let saveCalls = 0;
     const savedBodies = [];
 

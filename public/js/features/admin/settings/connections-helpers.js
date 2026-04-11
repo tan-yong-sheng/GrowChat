@@ -173,38 +173,6 @@ export function cloneModelSelection(value = []) {
   return new Set(Array.from(value || []));
 }
 
-export function getModalDraftKey(connection = null) {
-  return String(connection?.id || '').trim() || '__new__';
-}
-
-export function persistModalDraft(connectionsState, connection = null) {
-  const resolvedConnection = connection || connectionsState.selectedConnection;
-  const key = getModalDraftKey(resolvedConnection);
-  if (!key) return;
-  const drafts = connectionsState.modalDrafts || (connectionsState.modalDrafts = new Map());
-  drafts.set(key, {
-    models: Array.isArray(connectionsState.modalModels)
-      ? connectionsState.modalModels.map((model) => normalizeModalModelRecord(model, resolvedConnection)).filter(Boolean)
-      : [],
-    selection: cloneModalModelSelection(connectionsState.modalModelsSelection, resolvedConnection),
-    original: cloneModalModelSelection(connectionsState.modalModelsOriginal, resolvedConnection),
-    query: String(connectionsState.modalModelsQuery || ''),
-  });
-}
-
-export function applyModalDraft(connectionsState, connection = null) {
-  const key = getModalDraftKey(connection);
-  const draft = connectionsState.modalDrafts?.get(key);
-  if (!draft) return false;
-  connectionsState.modalModels = Array.isArray(draft.models)
-    ? draft.models.map((model) => normalizeModalModelRecord(model, connection)).filter(Boolean)
-    : [];
-  connectionsState.modalModelsSelection = cloneModalModelSelection(draft.selection, connection);
-  connectionsState.modalModelsOriginal = cloneModalModelSelection(draft.original, connection);
-  connectionsState.modalModelsQuery = String(draft.query || '');
-  return true;
-}
-
 export function getConnectionProviderId(connection = {}) {
   const providerId = String(connection?.providerId || '').trim();
   if (providerId) return providerId;
@@ -342,19 +310,6 @@ export function buildSelectedConnectionModels(models = [], selection = new Set()
   });
 
   return normalizeConnectionManualModels(next);
-}
-
-export function buildModalConnectionDraft(scope = null, selectedConnection = null) {
-  const root = scope || document;
-  return {
-    id: selectedConnection?.id || '',
-    name: root.querySelector('#modal-conn-name')?.value || '',
-    url: root.querySelector('#modal-conn-url')?.value || '',
-    key: root.querySelector('#modal-conn-key')?.value || '',
-    headers: root.querySelector('#modal-conn-headers')?.value || '',
-    providerType: root.querySelector('#modal-conn-provider')?.value || 'openai',
-    providerFamily: root.querySelector('#modal-conn-provider')?.value || 'openai',
-  };
 }
 
 export function applyModalModelPreview(connectionsState, models, scope = null, renderModels = null) {

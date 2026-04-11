@@ -313,18 +313,11 @@ function toPublicModel(model) {
 
 export function applyUserModelVisibilityOverrides(models = [], hiddenModelIds = new Set()) {
   const normalizedModels = Array.isArray(models) ? models : [];
-  const activeModelIds = new Set(
-    normalizedModels
-      .filter((model) => model?.enabled !== false)
-      .map((model) => String(model?.id || '').trim())
-      .filter(Boolean)
-  );
 
   return normalizedModels.map((model) => {
     const id = String(model?.id || '').trim();
     const hiddenForUser = hiddenModelIds instanceof Set
-      && hiddenModelIds.has(id)
-      && !activeModelIds.has(id);
+      && hiddenModelIds.has(id);
     return {
       ...model,
       visible_for_user: !hiddenForUser,
@@ -332,6 +325,27 @@ export function applyUserModelVisibilityOverrides(models = [], hiddenModelIds = 
       enabled: model?.enabled !== false && !hiddenForUser,
     };
   });
+}
+
+function splitModelScopeByUserVisibility(models = [], hiddenModelIds = new Set()) {
+  const visibleModels = [];
+  const hiddenModels = [];
+
+  (Array.isArray(models) ? models : []).forEach((model) => {
+    const id = String(model?.id || '').trim();
+    if (!id) return;
+    const hiddenForUser = hiddenModelIds instanceof Set && hiddenModelIds.has(id);
+    const nextModel = {
+      ...model,
+      visible_for_user: !hiddenForUser,
+      hidden_for_user: hiddenForUser,
+      enabled: hiddenForUser ? false : model?.enabled !== false,
+    };
+    if (hiddenForUser) hiddenModels.push(nextModel);
+    else visibleModels.push(nextModel);
+  });
+
+  return { visibleModels, hiddenModels };
 }
 
 function isOpenAIProvider(model) {
@@ -455,6 +469,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const offset = parseInt(url.searchParams.get('offset') || '0', 10);
       const rawQuery = url.searchParams.get('q') || '';
       const query = String(rawQuery).trim().toLowerCase();
+      const scope = String(url.searchParams.get('scope') || '').trim().toLowerCase();
       const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
 
       let customModels = [];
@@ -475,9 +490,13 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       // Load base models from OpenAI-compatible env configuration.
       // If this fails, log but continue with baseModels = []
       try {
-        modelConnections = await getAllOpenAIConnectionConfigs(env, {
+        const connectionLoadOptions = {
+          includeHiddenForUser: true,
           userId: user?.sub || '',
           userRole: user?.primary_role || 'member',
+        };
+        modelConnections = await getAllOpenAIConnectionConfigs(env, {
+          ...connectionLoadOptions,
         });
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
@@ -497,6 +516,10 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         allModels = allModels.filter((model) => !isOpenAIProvider(model));
       }
       let publicModels = allModels.map(toPublicModel);
+      let visibility = {
+        disabled_model_ids: [],
+        hidden_model_ids: [],
+      };
       if (query) {
         publicModels = publicModels.filter((model) => {
           const name = String(model?.name || '').toLowerCase();
@@ -507,40 +530,87 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         });
       }
       if (db) {
+        if (scope === 'effective' && user?.sub) {
+          const accessMap = await getModelAccessMap(db);
+          const userOverrides = await loadUserResourceOverrides(db, user.sub);
+          const hiddenModelIds = new Set(userOverrides?.models?.hidden_ids || []);
+          const userGroupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub]);
+          const userGroupIds = new Set((Array.isArray(userGroupRows) ? userGroupRows : []).map((row) => row.group_id).filter(Boolean));
+          const aclRules = await loadModelAclRules(db);
+          const aclIndex = buildModelAclIndex(aclRules);
+
+          const scopedModels = publicModels
+            .map((model) => {
+              const access = evaluateModelAclAccess(model, {
+                user,
+                userGroupIds,
+                rules: aclIndex.get(model.id) || [],
+              });
+              return {
+                ...model,
+                access_label: access.access_label,
+                access_variant: access.access_variant,
+                allowed: access.allowed,
+                enabled: model.enabled !== false,
+              };
+            })
+            .filter((model) => model.allowed === true && accessMap.get(model.id) !== false);
+          const disabledModelIds = publicModels
+            .filter((model) => accessMap.get(model.id) === false || model.enabled === false)
+            .map((model) => model.id)
+            .filter(Boolean);
+          const eligibleModels = scopedModels.filter((model) => model.enabled !== false)
+            .map(({ allowed, ...model }) => model);
+          const scopedModelIds = new Set(eligibleModels.map((model) => model.id));
+          const scopedVisibility = splitModelScopeByUserVisibility(eligibleModels, hiddenModelIds);
+          const visibleModels = sortModelsByActiveThenName(scopedVisibility.visibleModels);
+          const hiddenModels = sortModelsByActiveThenName(scopedVisibility.hiddenModels);
+          const total = visibleModels.length;
+          const activeTotal = countEnabledModels(visibleModels);
+
+          let paginatedModels = visibleModels;
+          if (limit > 0) {
+            paginatedModels = visibleModels.slice(offset, offset + limit);
+          }
+          const attachmentCaps = await loadModelAttachmentCaps(db);
+          const visibleWithCaps = paginatedModels.map((model) => ({
+            ...model,
+            attachments: getModelAttachmentCapsEntry(attachmentCaps, model.id),
+          }));
+          const hiddenWithCaps = hiddenModels.map((model) => ({
+            ...model,
+            attachments: getModelAttachmentCapsEntry(attachmentCaps, model.id),
+          }));
+          const tagSource = `effective|${limit}|${offset}|${total}|${visibleWithCaps.map((model) => model.id).join('|')}`;
+          const visibilityTag = `|${Array.from(hiddenModelIds).join(',')}`;
+          const etag = createWeakEtag(`${tagSource}|${visibilityTag}`);
+
+          return jsonCached(req, {
+            models: visibleWithCaps,
+            hidden_models: hiddenWithCaps,
+            total,
+            active_total: activeTotal,
+            limit,
+            offset,
+            providers: buildProviderStats(visibleModels),
+            visibility: {
+              disabled_model_ids: disabledModelIds,
+              hidden_model_ids: Array.from(hiddenModelIds).filter((modelId) => scopedModelIds.has(modelId)),
+            },
+          }, {
+            etag,
+            cacheControl: 'private, no-store',
+          });
+        }
+
         const disabledSet = await getDisabledModelSet(db);
         if (!includeDisabled && disabledSet.size > 0) {
           publicModels = publicModels.filter((model) => !disabledSet.has(model.id));
         }
-        const userOverrides = user?.sub ? await loadUserResourceOverrides(db, user.sub) : null;
-        const hiddenModelIds = new Set(userOverrides?.models?.hidden_ids || []);
-        const userGroupRows = user?.sub
-          ? await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub])
-          : [];
-        const userGroupIds = new Set((Array.isArray(userGroupRows) ? userGroupRows : []).map((row) => row.group_id).filter(Boolean));
-        const aclRules = await loadModelAclRules(db);
-        const aclIndex = buildModelAclIndex(aclRules);
-
-        publicModels = publicModels
-          .map((model) => {
-            const access = evaluateModelAclAccess(model, {
-              user,
-              userGroupIds,
-              rules: aclIndex.get(model.id) || [],
-            });
-            return {
-              ...model,
-              access_label: access.access_label,
-              access_variant: access.access_variant,
-              allowed: access.allowed,
-            };
-          })
-          .map((model) => ({
-            ...model,
-            enabled: model.enabled !== false,
-          }));
-        publicModels = applyUserModelVisibilityOverrides(publicModels, hiddenModelIds)
-          .filter((model) => model.allowed === true)
-          .map(({ allowed, ...model }) => model);
+        visibility = {
+          disabled_model_ids: Array.from(disabledSet),
+          hidden_model_ids: [],
+        };
       }
       publicModels = sortModelsByActiveThenName(publicModels);
       const total = publicModels.length;
@@ -558,15 +628,17 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         }));
       }
 
-      const tagSource = `${limit}|${offset}|${total}|${paginatedModels.map((model) => model.id).join('|')}`;
-      const etag = createWeakEtag(tagSource);
+      const tagSource = `${scope === 'global' ? 'global' : 'public'}|${limit}|${offset}|${total}|${paginatedModels.map((model) => model.id).join('|')}`;
+      const visibilityTag = `${visibility.disabled_model_ids.join(',')}|${visibility.hidden_model_ids.join(',')}`;
+      const etag = createWeakEtag(`${tagSource}|${visibilityTag}`);
 
-      return jsonCached(req, { 
+      return jsonCached(req, {
         models: paginatedModels,
         total: total,
         active_total: activeTotal,
         limit: limit,
-        offset: offset
+        offset: offset,
+        visibility,
       }, {
         etag,
         cacheControl: 'private, no-store',
@@ -928,7 +1000,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     }
   }
 
-  // PUT /api/admin/models - Update model enabled state and staged admin model settings
+  // PUT /api/admin/models - Update model enabled state and admin model settings
   if (req.method === 'PUT' && path === '/api/admin/models') {
     const authDecision = await authorize(env, user, {
       action: 'model.admin',

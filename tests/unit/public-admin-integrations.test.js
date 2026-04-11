@@ -118,15 +118,21 @@ describe('admin integrations settings', () => {
     await vi.waitFor(() => expect(container.querySelector('[data-tool-server-row]')).not.toBeNull());
 
     container.querySelector('#add-tool-server')?.click();
+    await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')).not.toBeNull());
     expect(container.querySelector('#server-modal-title')?.textContent).toBe('Add MCP Server');
     expect(container.querySelector('#edit-connection-modal')?.className).toContain('items-start');
     expect(container.querySelector('#edit-connection-modal')?.className).toContain('overflow-y-auto');
+    expect(window.location.hash || '').toBe('#add-connection-modal');
+    expect(container.querySelector('#edit-connection-modal')?.getAttribute('data-trace-route')).toBe('/admin/settings/integrations');
+    expect(container.querySelector('#edit-connection-modal')?.getAttribute('data-trace-scope')).toBe('admin');
+    expect(container.querySelector('#edit-connection-modal')?.getAttribute('data-trace-family')).toBe('mcp-servers');
 
     container.querySelector('#close-modal')?.click();
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
 
     container.querySelector('.edit-server-btn')?.click();
-    expect(container.querySelector('#server-modal-title')?.textContent).toBe('Edit MCP Server');
+    await vi.waitFor(() => expect(container.querySelector('#server-modal-title')?.textContent).toBe('Edit MCP Server'));
+    expect(window.location.hash || '').toBe('#edit-connection-modal');
   });
 
   it('broadcasts a tool-server invalidation after toggling server enable', async () => {
@@ -148,16 +154,13 @@ describe('admin integrations settings', () => {
     window.removeEventListener('growchat:tool-servers-invalidated', listener);
   });
 
-  it('dirty checker always returns false for immediate-save pattern', async () => {
+  it('renders integrations with current save flow', async () => {
     const { renderIntegrationsSettings } = await loadModule();
     const container = document.getElementById('root');
-    const data = {};
 
-    renderIntegrationsSettings(container, data);
+    renderIntegrationsSettings(container, {});
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/tool-servers?include_disabled=1'));
     await vi.waitFor(() => expect(container.querySelector('[data-tool-server-row]')).not.toBeNull());
-
-    expect(data.settingsDirtyCheckers.integrations()).toBe(false);
   });
 
   it('keeps disabled tool servers visible on reload', async () => {

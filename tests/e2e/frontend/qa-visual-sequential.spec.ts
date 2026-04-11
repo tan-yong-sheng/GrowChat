@@ -114,17 +114,17 @@ test.describe('Settings Module - Sequential Visual QA', () => {
     screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/07-models-toggles.png', fullPage: true });
     console.log('✓ Screenshot: 07-models-toggles.png');
 
-    // Step 4: Look for dirty badge
-    console.log('\nStep 4: Looking for dirty state indicator...');
-    const dirtyBadge = page.locator('[data-testid="models-dirty"], #models-dirty, .dirty-badge');
-    const badgeVisible = await dirtyBadge.isVisible().catch(() => false);
-    console.log(`Dirty badge visible: ${badgeVisible}`);
+    // Step 4: Check for legacy staged indicators
+    console.log('\nStep 4: Checking legacy staged indicators...');
+    const legacyBadge = page.locator('[data-testid="models-dirty"], #models-dirty, .dirty-badge');
+    const legacyVisible = await legacyBadge.isVisible().catch(() => false);
+    console.log(`Legacy staged indicator visible: ${legacyVisible}`);
 
-    screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/08-models-dirty-badge.png', fullPage: true });
-    console.log('✓ Screenshot: 08-models-dirty-badge.png');
+    screenshot = await page.screenshot({ path: 'tests/e2e/artifacts/qa/08-models-state-indicator.png', fullPage: true });
+    console.log('✓ Screenshot: 08-models-state-indicator.png');
 
     // Step 5: Look for save button
-    console.log('\nStep 5: Looking for save button...');
+    console.log('\nStep 5: Looking for save action controls...');
     const saveBtn = page.locator('#save-models-top, button:has-text("Save")');
     const saveBtnVisible = await saveBtn.isVisible().catch(() => false);
     console.log(`Save button visible: ${saveBtnVisible}`);

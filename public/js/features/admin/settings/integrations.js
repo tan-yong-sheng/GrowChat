@@ -6,8 +6,8 @@ import {
   fetchAdminToolServerAccess,
   updateAdminToolServerAccess,
 } from '../../../shared/admin-access.js';
-import { cloneAclRules, createAclDraftRegistry } from '../acl-draft.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
+import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import {
   mapSavedToolServers,
@@ -16,6 +16,32 @@ import {
 } from './integrations-helpers.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
 import { escapeHtml, escapeSelector } from '../../../shared/utils/dom-escape.js';
+import { buildTraceAttrs } from '../../../shared/utils/trace-attrs.js';
+
+function cloneAclRules(rules = [], normalizer = (rule) => rule) {
+  if (!Array.isArray(rules)) return [];
+  return rules
+    .map((rule) => normalizer({ ...rule }))
+    .filter((rule) => rule !== null && rule !== undefined);
+}
+
+function getAclRulesSignature(rules = [], normalizer) {
+  return cloneAclRules(rules, normalizer)
+    .map((rule) => ({
+      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
+      principal_id: String(rule?.principal_id || '').trim(),
+      effect: String(rule?.effect || '').trim().toLowerCase(),
+      action: String(rule?.action || '').trim().toLowerCase(),
+    }))
+    .sort((a, b) => (
+      a.principal_type.localeCompare(b.principal_type)
+      || a.principal_id.localeCompare(b.principal_id)
+      || a.action.localeCompare(b.action)
+      || a.effect.localeCompare(b.effect)
+    ))
+    .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
+    .join('|');
+}
 
 export function renderIntegrationsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'integrations';
@@ -29,7 +55,6 @@ export function renderIntegrationsSettings(container, data) {
     selectedServer: null,
     modalMode: 'create',
   });
-  const aclDraftRegistry = createAclDraftRegistry(integrationsState);
 
   const updateServerToggle = (btn, enabled) => {
     if (!btn) return;
@@ -164,7 +189,6 @@ export function renderIntegrationsSettings(container, data) {
     const reasonEl = modal.querySelector('#tool-server-acl-reason');
     const saveBtn = modal.querySelector('#tool-server-acl-save-btn');
     let baseRules = [];
-    const stagedRules = aclDraftRegistry.get(server.id);
 
     const state = {
       loading: true,
@@ -285,10 +309,9 @@ export function renderIntegrationsSettings(container, data) {
       try {
         const payload = await fetchAdminToolServerAccess(server.id);
         state.groups = Array.isArray(payload.groups) ? payload.groups : [];
-        const sourceRules = stagedRules.length > 0 ? stagedRules : payload.rules;
         baseRules = cloneAclRules(payload.rules || []);
         state.rulesByGroup = new Map(
-          (Array.isArray(sourceRules) ? sourceRules : [])
+          (Array.isArray(payload.rules) ? payload.rules : [])
             .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
             .map((rule) => [String(rule.principal_id || '').trim(), String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow'])
             .filter(([groupId]) => Boolean(groupId))
@@ -392,7 +415,7 @@ export function renderIntegrationsSettings(container, data) {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
               </svg>
             </button>
-            <button data-id="${server.id}" class="edit-server-btn p-1 text-gray-400 hover:text-gray-600 transition-colors">
+            <button data-id="${server.id}" class="edit-server-btn p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors rounded">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.59c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.75 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.59c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" />
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -401,7 +424,7 @@ export function renderIntegrationsSettings(container, data) {
             <button data-id="${server.id}" class="server-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-black' : 'bg-gray-200'}">
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${serverEnabled ? 'translate-x-4' : 'translate-x-0'}"></span>
             </button>
-            <button data-id="${server.id}" class="tools-toggle p-1 text-gray-400 hover:text-gray-600 transition-colors ml-1" title="Toggle tools">
+            <button data-id="${server.id}" class="tools-toggle p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors rounded ml-1" title="Toggle tools">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 ${server.toolsExpanded ? 'rotate-180' : ''}">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>
@@ -495,9 +518,17 @@ export function renderIntegrationsSettings(container, data) {
 
   const render = () => {
     if (!isActiveTab()) return;
-    const useSharedActionFooter = Boolean(data.sharedActionFooter);
+    const traceAttrs = buildTraceAttrs({
+      route: '/admin/settings/integrations',
+      scope: 'admin',
+      family: 'mcp-servers',
+      owner: 'admin truth',
+      read: ['/api/admin/tool-servers', '/api/admin/tool-servers/access'],
+      write: ['/api/admin/tool-servers', '/api/admin/tool-servers/access'],
+      invalidation: 'tool-server views only',
+    });
     container.innerHTML = `
-      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
+      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full"${traceAttrs}>
         <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
           <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">
@@ -511,7 +542,7 @@ export function renderIntegrationsSettings(container, data) {
             <section class="space-y-1">
               <div class="flex items-center justify-between px-0.5">
                 <div class="text-base font-medium text-gray-900">Manage MCP Servers</div>
-                <button id="add-tool-server" class="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                <button id="add-tool-server" class="p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors rounded">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
@@ -593,13 +624,27 @@ export function renderIntegrationsSettings(container, data) {
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.remove('hidden');
+      modal.setAttribute('data-trace-route', '/admin/settings/integrations');
+      modal.setAttribute('data-trace-scope', 'admin');
+      modal.setAttribute('data-trace-family', 'mcp-servers');
+      modal.setAttribute('data-trace-owner', 'admin truth');
+      modal.setAttribute('data-trace-read', '/api/admin/tool-servers | /api/admin/tool-servers/access');
+      modal.setAttribute('data-trace-write', '/api/admin/tool-servers | /api/admin/tool-servers/access');
+      modal.setAttribute('data-trace-invalidation', 'tool-server views only');
+      modal.setAttribute(
+        'data-trace-action',
+        integrationsState.modalMode === 'update' ? 'edit server' : 'add server',
+      );
     }
+    setModalHash(integrationsState.modalMode === 'update' ? 'edit-connection-modal' : 'add-connection-modal');
     fillModalFields(integrationsState.selectedServer);
   };
 
   const closeModal = () => {
     integrationsState.showModal = false;
     integrationsState.modalMode = 'create';
+    clearModalHash('edit-connection-modal');
+    clearModalHash('add-connection-modal');
     const modal = container.querySelector('#edit-connection-modal');
     if (modal) {
       modal.classList.add('hidden');
@@ -706,7 +751,6 @@ export function renderIntegrationsSettings(container, data) {
             onApply: async (rules) => {
               try {
                 await updateAdminToolServerAccess(id, rules);
-                aclDraftRegistry.clear(id);
                 broadcastToolServersInvalidation();
                 showFeedback('Access rules saved successfully');
               } catch (err) {
@@ -928,7 +972,7 @@ export function renderIntegrationsSettings(container, data) {
 
     container.querySelector('#connect-oauth')?.addEventListener('click', async () => {
       const serverId = integrationsState.selectedServer?.id || '';
-      if (!serverId) {
+      if (!serverId || integrationsState.modalMode !== 'update') {
         setTestStatus('error', 'Save the server before connecting OAuth');
         return;
       }
@@ -959,9 +1003,6 @@ export function renderIntegrationsSettings(container, data) {
       }
     });
   };
-
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsDirtyCheckers.integrations = () => false;
 
   render();
   loadIntegrations();

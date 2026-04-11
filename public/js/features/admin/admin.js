@@ -19,8 +19,8 @@ import { renderModelsSettings } from './settings/models.js';
 import { renderIntegrationsSettings } from './settings/integrations.js';
 import { renderPoliciesSettings } from './settings/policies.js';
 import { renderRolesPage } from './users/roles.js';
-import { createAdminShellController } from './admin-shell-controller.js';
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
+import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
 import {
   getAdminSubnavPath,
   getAdminTopNavPath,
@@ -28,7 +28,6 @@ import {
 } from './admin-route-state.js';
 import {
   ADMIN_SHELL_BODY_PADDING_CLASS,
-  ADMIN_SHELL_FOOTER_PADDING_CLASS,
   renderErrorState,
   renderLoadingState,
   renderSettingsLayout,
@@ -39,12 +38,17 @@ import {
 import { renderCurrentRoute } from '../../bootstrap/app.js';
 
 export async function renderAdminPage(container) {
+  const initialRouteState = resolveAdminRouteState(window.location.pathname);
+  const initialSidebarScope = initialRouteState.mainTab === 'settings' || initialRouteState.mainTab === 'system'
+    ? 'admin-settings'
+    : 'admin';
+  setSidebarRouteScope(initialSidebarScope);
   const capabilities = normalizeWorkspaceCapabilities({
     permissions: state.permissions,
     primaryRole: state.userRoles?.[0]?.role_name || 'admin',
   }, { route: 'admin' });
-  let mainTab = 'users';
-  let subTab = 'overview';
+  let mainTab = initialRouteState.mainTab;
+  let subTab = initialRouteState.subTab;
   let shellMounted = false;
   let data = {
     capabilities,
@@ -62,24 +66,11 @@ export async function renderAdminPage(container) {
       page: 1,
       pageSize: 20,
     },
-    settingsDirtyCheckers: {},
-    settingsSaveHandlers: {},
-    settingsDiscardHandlers: {},
-    usersDirtyCheckers: {},
-    usersSaveHandlers: {},
-    usersDiscardHandlers: {},
   };
 
-  const shellController = createAdminShellController({
-    container,
-    data,
-    getMainTab: () => mainTab,
-    getSubTab: () => subTab,
-  });
-  const guardNavigation = shellController.guardNavigation;
-  const handleBeforeUnload = shellController.handleBeforeUnload;
-  const renderMainActionFooter = shellController.renderSharedActionFooter;
-  const updateMainActionFooter = shellController.updateSharedActionFooter;
+  const guardNavigation = async () => true;
+  const renderMainActionFooter = () => {};
+  const updateMainActionFooter = () => {};
   const settingsRouteCache = createSettingsRouteCache();
   let removeInvalidationListeners = null;
   data.settingsRouteCache = settingsRouteCache;
@@ -88,6 +79,10 @@ export async function renderAdminPage(container) {
     const routeState = resolveAdminRouteState(window.location.pathname);
     mainTab = routeState.mainTab;
     subTab = routeState.subTab;
+    const sidebarScope = routeState.mainTab === 'settings' || routeState.mainTab === 'system'
+      ? 'admin-settings'
+      : 'admin';
+    setSidebarRouteScope(sidebarScope);
     if (routeState.canonicalPath !== window.location.pathname) {
       window.history.replaceState({}, '', routeState.canonicalPath);
     }
@@ -225,7 +220,7 @@ export async function renderAdminPage(container) {
     if (!subContentEl) return;
 
     subContentEl.dataset.settingsTab = subTab;
-    data.sharedActionFooter = true;
+    data.sharedActionFooter = false;
     renderMainActionFooter();
 
     if (mainTab === 'settings') {
@@ -418,9 +413,6 @@ export async function renderAdminPage(container) {
     }
   }
 
-  data.requestUsersFooterSync = updateMainActionFooter;
-  data.requestSettingsFooterSync = updateMainActionFooter;
-  data.requestSharedActionFooterSync = updateMainActionFooter;
   data.guardNavigation = guardNavigation;
 
   function bindTopNav() {
@@ -517,14 +509,12 @@ export async function renderAdminPage(container) {
     if (!container.__sharedFooterClickBound) {
       container.__sharedFooterClickBound = true;
     }
-    window.addEventListener('beforeunload', handleBeforeUnload);
     shellMounted = true;
     renderMainActionFooter();
     const priorCleanup = previousCleanup;
     container.__cleanup = () => {
       priorCleanup?.();
       removeInvalidationListeners?.();
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }
 

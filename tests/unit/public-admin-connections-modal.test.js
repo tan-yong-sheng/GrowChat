@@ -38,7 +38,7 @@ describe('admin connections modal', () => {
     });
   });
 
-  it('creates a draft connection from the modal and saves it into state', async () => {
+  it('creates a connection from the modal and saves it into state', async () => {
     const { renderConnectionsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -50,6 +50,7 @@ describe('admin connections modal', () => {
     expect(container.querySelector('#modal-title')?.textContent).toBe('Add Connection');
     expect(container.querySelector('#edit-connection-modal')?.className).toContain('items-start');
     expect(container.querySelector('#edit-connection-modal')?.className).toContain('overflow-y-auto');
+    expect(window.location.hash).toBe('#add-connection-modal');
     container.querySelector('#modal-conn-name').value = 'OpenAI';
     container.querySelector('#modal-conn-url').value = 'https://api.openai.com/v1';
     container.querySelector('#modal-conn-key').value = 'secret';
@@ -59,6 +60,7 @@ describe('admin connections modal', () => {
     // Immediate-save: API call should be made when modal is saved
     await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/openai/connections' && init?.method === 'PUT')).toBe(true));
     await vi.waitFor(() => expect(container.querySelector('#edit-connection-modal')?.classList.contains('hidden')).toBe(true));
+    expect(window.location.hash).toBe('');
     expect(data.connectionsSettings.openai.connections).toHaveLength(1);
     expect(data.connectionsSettings.openai.connections[0]).toMatchObject({
       name: 'OpenAI',
@@ -99,6 +101,7 @@ describe('admin connections modal', () => {
 
     container.querySelector('.edit-connection-btn')?.click();
     expect(container.querySelector('#modal-title')?.textContent).toBe('Edit Connection');
+    expect(window.location.hash).toBe('#edit-connection-modal');
   });
 
   it('does not render a master provider toggle and keeps providers visible', async () => {
@@ -162,7 +165,7 @@ describe('admin connections modal', () => {
     expect(rows[1]).toContain('Zulu Connection');
   });
 
-  it('saves env overrides when toggling a provider and invalidates models', async () => {
+  it('saves a read-only provider toggle and invalidates models', async () => {
     let lastPutBody = null;
     mocks.apiFetch.mockImplementation(async (url, init) => {
       const target = String(url);
@@ -175,11 +178,10 @@ describe('admin connections modal', () => {
           enabled: true,
           connections: [
             {
-              id: 'env-openai-0',
+              id: 'readonly-openai-0',
               name: 'OpenAI (proxy)',
               url: 'https://proxy.tanyongsheng.site/v1',
               providerType: 'openai',
-              source: 'env',
               readOnly: true,
               enabled: true,
             },
@@ -210,7 +212,6 @@ describe('admin connections modal', () => {
     await vi.waitFor(() => expect(container.querySelector('.connection-acl-btn')?.classList.contains('hidden')).toBe(true));
 
     await vi.waitFor(() => expect(lastPutBody).not.toBeNull());
-    expect(lastPutBody.env_overrides).toEqual({ 'env-openai-0': false });
     await vi.waitFor(() => expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled());
     expect(data.modelsSettingsInvalidate).toBeTruthy();
     expect(lastPutBody.model_updates).toEqual([]);

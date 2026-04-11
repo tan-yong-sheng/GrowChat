@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import {
-  applyModalDraft,
   applyModalModelPreview,
-  buildModalConnectionDraft,
   connectionApiTypeDetails,
   buildSelectedConnectionModels,
   formatConnectionModelId,
@@ -16,7 +14,6 @@ import {
   previewConnectionModalModels,
   resolveModalUrl,
   resolveUrlLabel,
-  persistModalDraft,
 } from '../../public/js/features/admin/settings/connections-helpers.js';
 
 describe('admin connection helpers', () => {
@@ -54,48 +51,6 @@ describe('admin connection helpers', () => {
   it('creates stable connection model ids', () => {
     expect(getConnectionProviderId({ id: 'conn-1', providerType: 'openai-compatible' })).toBe('openai/conn-1');
     expect(formatConnectionModelId('openai/conn-1', 'gpt-4')).toBe('openai/conn-1:gpt-4');
-  });
-
-  it('persists and restores modal drafts', () => {
-    const state = {
-      modalModels: [{ id: 'a', name: 'Alpha' }],
-      modalModelsSelection: new Set(['a']),
-      modalModelsOriginal: new Set(['a']),
-      modalModelsQuery: 'alp',
-      modalDrafts: new Map(),
-      selectedConnection: { id: 'conn-1' },
-    };
-
-    persistModalDraft(state);
-    state.modalModels = [];
-    state.modalModelsSelection = new Set();
-    state.modalModelsOriginal = new Set();
-    state.modalModelsQuery = '';
-
-    expect(applyModalDraft(state, { id: 'conn-1' })).toBe(true);
-    expect(state.modalModels).toEqual([{ id: 'openai/conn-1:a', name: 'Alpha' }]);
-    expect(Array.from(state.modalModelsSelection)).toEqual(['openai/conn-1:a']);
-    expect(state.modalModelsQuery).toBe('alp');
-  });
-
-  it('builds a modal draft from DOM inputs', () => {
-    document.body.innerHTML = `
-      <input id="modal-conn-name" value="OpenAI">
-      <input id="modal-conn-url" value="https://api.openai.com/v1">
-      <input id="modal-conn-key" value="secret">
-      <textarea id="modal-conn-headers">{"x":"1"}</textarea>
-      <select id="modal-conn-provider"><option value="openai">OpenAI</option></select>
-    `;
-
-    expect(buildModalConnectionDraft(document, { id: 'conn-1' })).toEqual({
-      id: 'conn-1',
-      name: 'OpenAI',
-      url: 'https://api.openai.com/v1',
-      key: 'secret',
-      headers: '{"x":"1"}',
-      providerType: 'openai',
-      providerFamily: 'openai',
-    });
   });
 
   it('previews models without losing prior selection intent', () => {

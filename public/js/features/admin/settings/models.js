@@ -1,10 +1,9 @@
 import { apiFetch } from '../../../shared/api.js';
 import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
-import { cloneAclRules, createAclDraftRegistry, getAclRulesSignature } from '../acl-draft.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
 import { normalizeModelSearchQuery } from '../../../shared/utils/model-search.js';
 import { buildProviderOptions, filterModelsBySearchAndProvider } from '../../../shared/utils/model-filters.js';
-import { countEnabledModels, sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
+import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import {
   renderModelsHeaderHtml,
@@ -23,6 +22,31 @@ import {
   getAttachmentCapValue,
 } from './models-helpers.js';
 
+function cloneAclRules(rules = [], normalizer = (rule) => rule) {
+  if (!Array.isArray(rules)) return [];
+  return rules
+    .map((rule) => normalizer({ ...rule }))
+    .filter((rule) => rule !== null && rule !== undefined);
+}
+
+function getAclRulesSignature(rules = [], normalizer) {
+  return cloneAclRules(rules, normalizer)
+    .map((rule) => ({
+      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
+      principal_id: String(rule?.principal_id || '').trim(),
+      effect: String(rule?.effect || '').trim().toLowerCase(),
+      action: String(rule?.action || '').trim().toLowerCase(),
+    }))
+    .sort((a, b) => (
+      a.principal_type.localeCompare(b.principal_type)
+      || a.principal_id.localeCompare(b.principal_id)
+      || a.action.localeCompare(b.action)
+      || a.effect.localeCompare(b.effect)
+    ))
+    .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
+    .join('|');
+}
+
 const getCapTooltip = getAttachmentCapTooltip;
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -30,6 +54,27 @@ const escapeHtml = (value) => String(value || '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
+
+function getModelAccessPresentation(model = {}) {
+  const accessVariant = String(model?.access_variant || '').trim().toLowerCase();
+  const accessLabel = String(model?.access_label || '').trim();
+  if (accessVariant === 'shared' || accessLabel.toLowerCase() === 'shared') {
+    return {
+      label: 'Shared',
+      className: 'border-gray-200 bg-gray-50 text-gray-600',
+    };
+  }
+  if (accessVariant === 'personal' || accessLabel.toLowerCase() === 'personal') {
+    return {
+      label: 'Personal',
+      className: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    };
+  }
+  return {
+    label: accessLabel || 'Admin',
+    className: 'border-sky-100 bg-sky-50 text-sky-700',
+  };
+}
 
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';
@@ -52,14 +97,12 @@ export function renderModelsSettings(container, data) {
     invalidateToken: null,
     needsReload: false,
   });
-  const aclDraftRegistry = createAclDraftRegistry(modelsState);
   const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
-
-  // Set up handlers for admin shell controller (no-op for immediate-save pattern)
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDirtyCheckers.models = () => false;
-  data.settingsSaveHandlers.models = async () => false;
+  const getLocalModels = () => modelsState.models.map((model) => ({
+    ...model,
+    enabled: model.enabled !== false && !modelsState.disabledModels.has(model.id),
+  }));
+  const getActiveModelCount = () => (Number.isFinite(modelsState.activeTotal) ? modelsState.activeTotal : 0);
 
   if (data.modelsSettingsInvalidate && modelsState.invalidateToken !== data.modelsSettingsInvalidate) {
     modelsState.invalidateToken = data.modelsSettingsInvalidate;
@@ -105,8 +148,10 @@ export function renderModelsSettings(container, data) {
     // Optimistic update
     if (wasDisabled) {
       modelsState.disabledModels.delete(modelId);
+      modelsState.activeTotal = getActiveModelCount() + 1;
     } else {
       modelsState.disabledModels.add(modelId);
+      modelsState.activeTotal = Math.max(0, getActiveModelCount() - 1);
     }
     syncUi();
 
@@ -128,8 +173,10 @@ export function renderModelsSettings(container, data) {
       // Rollback on error
       if (wasDisabled) {
         modelsState.disabledModels.add(modelId);
+        modelsState.activeTotal = Math.max(0, getActiveModelCount() - 1);
       } else {
         modelsState.disabledModels.delete(modelId);
+        modelsState.activeTotal = getActiveModelCount() + 1;
       }
       syncUi();
       showError(err.message || 'Failed to update model');
@@ -180,7 +227,6 @@ export function renderModelsSettings(container, data) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || err.message || 'Failed to save access rules');
       }
-      aclDraftRegistry.clear(modelId);
       broadcastModelsInvalidation();
     } catch (err) {
       showError(err.message || 'Failed to save access rules');
@@ -217,25 +263,17 @@ export function renderModelsSettings(container, data) {
   const syncUi = () => {
     const query = normalizeModelSearchQuery(modelsState.query);
     const usingFilter = Boolean(query);
+    const visibleModels = getLocalModels();
     const providerOptions = modelsState.providerOptions.length
       ? modelsState.providerOptions
-      : buildProviderOptions(modelsState.models, { includeAll: false });
+      : buildProviderOptions(visibleModels, { includeAll: false });
     const enabledProviders = providerOptions.filter((option) => Number(option.active || 0) > 0);
-
-    // Calculate active total considering local disabledModels overrides
-    const calculateEnabledCount = (models) => {
-      return models.reduce((count, model) => {
-        const isDisabled = modelsState.disabledModels.has(model.id);
-        const isEnabled = !isDisabled && model.enabled !== false;
-        return count + (isEnabled ? 1 : 0);
-      }, 0);
-    };
 
     const allOption = {
       value: 'all',
       label: 'All Providers',
-      active: modelsState.activeTotal ?? calculateEnabledCount(modelsState.models),
-      total: modelsState.total ?? modelsState.models.length,
+      active: getActiveModelCount(),
+      total: modelsState.total ?? visibleModels.length,
     };
     const mergedProviders = [
       allOption,
@@ -245,7 +283,6 @@ export function renderModelsSettings(container, data) {
       query,
       provider: modelsState.provider,
     });
-    const displayTotal = modelsState.activeTotal || calculateEnabledCount(modelsState.models);
     const pageTotal = modelsState.total;
     const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
     const currentPage = Math.floor(modelsState.offset / modelsState.limit) + 1;
@@ -253,8 +290,9 @@ export function renderModelsSettings(container, data) {
     const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
 
     syncModelsHeaderState(container, {
-      countTitle: 'Active models',
-      countValue: displayTotal,
+      countTitle: 'Selected models',
+      countLabel: 'Selected models',
+      countValue: getActiveModelCount(),
       searchId: 'model-search-input',
       searchValue: modelsState.query,
       clearId: 'model-clear-search-container',
@@ -276,64 +314,49 @@ export function renderModelsSettings(container, data) {
                       <tr class="bg-white text-xs animate-pulse">
                         <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
                         <td class="px-4 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
+                        <td class="px-4 py-4"><div class="h-6 w-20 rounded-full bg-gray-100"></div></td>
                         <td class="px-4 py-4 text-right"><div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div></td>
                       </tr>
                     `).join('')}
                   ` : filteredModels.length === 0 ? '' : filteredModels.map(model => {
-        const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
-          const value = getAttachmentCapValue(modelsState.attachmentCaps, model.id, key);
-          const state = value ? 'allowed' : 'unset';
-          const className = value
-            ? 'bg-emerald-500 text-white border-emerald-500'
-            : 'bg-gray-50 text-gray-500 border-gray-200';
-          const tooltip = getCapTooltip(label, key, state);
-          return `
-                        <button
-                          type="button"
-                          data-cap-model="${model.id}"
-                          data-cap-kind="${key}"
-                          data-cap-label="${label}"
-                          data-cap-state="${state}"
-                          title="${tooltip}"
-                          class="inline-flex items-center justify-center h-6 min-w-[36px] px-2 rounded-full text-[10px] font-semibold border transition hover:shadow-sm ${className}"
-                        >
-                          ${short}
-                        </button>
-                      `;
-        }).join('');
+        const access = getModelAccessPresentation(model);
         const isDisabled = modelsState.disabledModels.has(model.id);
         return `
-                    <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
+                    <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
+                      <td class="px-4 py-4 text-gray-400 font-mono truncate" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
-                        <div class="flex flex-wrap items-center gap-1.5">
-                          ${capButtons}
+                        <div class="flex items-center gap-2">
+                          <span
+                            data-model-access="${escapeHtml(model.id)}"
+                            class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${access.className}"
+                          >
+                            ${escapeHtml(access.label)}
+                          </span>
                         </div>
                       </td>
                       <td class="px-4 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${isDisabled || !canManageAcls ? 'hidden' : ''}"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${!canManageAcls ? 'hidden' : ''}"
                             data-model-acl="${model.id}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
-                            ${isDisabled || !canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
+                            ${!canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-5">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
                             </svg>
-                          </button>
-                          <button data-model-id="${model.id}" class="model-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!modelsState.disabledModels.has(model.id) ? 'bg-black' : 'bg-gray-200'}">
-                            <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${!modelsState.disabledModels.has(model.id) ? 'translate-x-4' : 'translate-x-0'}"></span>
                           </button>
                         </div>
                       </td>
                     </tr>
                   `;
       }).join(''),
-      emptyMessage: `No models found${usingFilter ? ` matching "${modelsState.query}"` : ''}.`,
+      emptyMessage: pageTotal === 0 && !usingFilter
+        ? 'No models are selected upstream.'
+        : `No models found${usingFilter ? ` matching "${modelsState.query}"` : ''}.`,
       tbodyId: 'models-table-body',
       emptyColSpan: 4,
     });
@@ -356,7 +379,6 @@ export function renderModelsSettings(container, data) {
     }
 
     // Save button removed - using immediate-save pattern
-    data.requestSettingsFooterSync?.();
   };
 
   const bindDelegatedEvents = () => {
@@ -423,13 +445,6 @@ export function renderModelsSettings(container, data) {
         return;
       }
 
-      const toggleBtn = target.closest('.model-toggle');
-      if (toggleBtn) {
-        const modelId = toggleBtn.dataset.modelId;
-        void toggleModelEnabled(modelId);
-        return;
-      }
-
       const capBtn = target.closest('[data-cap-model]');
       if (capBtn) {
         const modelId = capBtn.getAttribute('data-cap-model');
@@ -447,7 +462,6 @@ export function renderModelsSettings(container, data) {
         const model = (modelsState.models || []).find((item) => item.id === modelId);
         openModelAccessModal({ id: modelId, name: model?.name || modelId }, {
           onApply: async (rules) => {
-            aclDraftRegistry.stage(modelId, rules);
             await saveAclChanges(modelId, rules);
           },
         });
@@ -472,7 +486,6 @@ export function renderModelsSettings(container, data) {
     const reasonEl = modal.querySelector('#model-acl-reason');
     const saveBtn = modal.querySelector('#model-acl-save-btn');
     let baseRules = [];
-    const stagedRules = aclDraftRegistry.get(model.id);
 
     const state = {
       loading: true,
@@ -598,10 +611,9 @@ export function renderModelsSettings(container, data) {
         }
         const payload = await res.json();
         state.groups = Array.isArray(payload.groups) ? payload.groups : [];
-        const sourceRules = aclDraftRegistry.has(model.id) ? stagedRules : payload.rules;
         baseRules = cloneAclRules(payload.rules || []);
         state.rulesByGroup = new Map(
-          (Array.isArray(sourceRules) ? sourceRules : [])
+          (Array.isArray(payload.rules) ? payload.rules : [])
             .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
             .map((rule) => [String(rule.principal_id || '').trim(), String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow'])
             .filter(([groupId]) => Boolean(groupId))
@@ -652,15 +664,14 @@ export function renderModelsSettings(container, data) {
     
     const query = normalizeModelSearchQuery(modelsState.query);
     const usingFilter = Boolean(query);
-    const providerOptions = modelsState.providerOptions.length
-      ? modelsState.providerOptions
-      : buildProviderOptions(modelsState.models, { includeAll: false });
+    const visibleModels = getLocalModels();
+    const providerOptions = buildProviderOptions(visibleModels, { includeAll: false });
     const enabledProviders = providerOptions.filter((option) => Number(option.active || 0) > 0);
     const allOption = {
       value: 'all',
       label: 'All Providers',
-      active: modelsState.activeTotal ?? countEnabledModels(modelsState.models),
-      total: modelsState.total ?? modelsState.models.length,
+      active: getActiveModelCount(),
+      total: modelsState.total ?? visibleModels.length,
     };
     const mergedProviders = [
       allOption,
@@ -670,59 +681,43 @@ export function renderModelsSettings(container, data) {
       query,
       provider: modelsState.provider,
     });
-    const displayTotal = modelsState.activeTotal || countEnabledModels(modelsState.models);
     const pageTotal = modelsState.total;
     const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
     const currentPage = Math.floor(modelsState.offset / modelsState.limit) + 1;
     const pageStart = pageTotal === 0 ? 0 : modelsState.offset + 1;
     const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
 
-    const useSharedActionFooter = Boolean(data.sharedActionFooter);
     const rowsHtml = modelsState.loading ? `
                     ${Array.from({ length: 5 }).map(() => `
                       <tr class="bg-white text-xs animate-pulse">
                         <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
                         <td class="px-4 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
+                        <td class="px-4 py-4"><div class="h-6 w-20 rounded-full bg-gray-100"></div></td>
                         <td class="px-4 py-4 text-right"><div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div></td>
                       </tr>
                     `).join('')}
                   ` : filteredModels.length === 0 ? '' : filteredModels.map(model => {
-      const capButtons = ATTACHMENT_CAP_TYPES.map(({ key, label, short }) => {
-        const value = getAttachmentCapValue(modelsState.attachmentCaps, model.id, key);
-        const state = value ? 'allowed' : 'unset';
-        const className = value
-          ? 'bg-emerald-500 text-white border-emerald-500'
-          : 'bg-gray-50 text-gray-500 border-gray-200';
-        const tooltip = getCapTooltip(label, key, state);
-        return `
-                        <button
-                          type="button"
-                          data-cap-model="${model.id}"
-                          data-cap-kind="${key}"
-                          data-cap-label="${label}"
-                          data-cap-state="${state}"
-                          title="${tooltip}"
-                          class="inline-flex items-center justify-center h-6 min-w-[36px] px-2 rounded-full text-[10px] font-semibold border transition hover:shadow-sm ${className}"
-                        >
-                          ${short}
-                        </button>
-                      `;
-      }).join('');
+      const access = getModelAccessPresentation(model);
       const isDisabled = modelsState.disabledModels.has(model.id);
       return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
                       <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
-                        <div class="flex flex-wrap items-center gap-1.5">
-                          ${capButtons}
+                        <div class="flex items-center gap-2">
+                          <span
+                            data-model-access="${escapeHtml(model.id)}"
+                            class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${access.className}"
+                          >
+                            ${escapeHtml(access.label)}
+                          </span>
                         </div>
                       </td>
                       <td class="px-4 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition ${isDisabled || !canManageAcls ? 'hidden' : ''}"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isDisabled || !canManageAcls ? 'hidden' : ''}"
                             data-model-acl="${model.id}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
@@ -731,9 +726,6 @@ export function renderModelsSettings(container, data) {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-5">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
                             </svg>
-                          </button>
-                          <button data-model-id="${model.id}" class="model-toggle relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!modelsState.disabledModels.has(model.id) ? 'bg-black' : 'bg-gray-200'}">
-                            <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${!modelsState.disabledModels.has(model.id) ? 'translate-x-4' : 'translate-x-0'}"></span>
                           </button>
                         </div>
                       </td>
@@ -746,8 +738,9 @@ export function renderModelsSettings(container, data) {
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div id="models-error-container">${modelsState.error ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>` : ''}</div>
         ${renderModelsHeaderHtml({
-          countTitle: 'Active models',
-          countValue: displayTotal,
+          countTitle: 'Selected models',
+          countLabel: 'Selected models',
+          countValue: getActiveModelCount(),
           searchId: 'model-search-input',
           searchValue: modelsState.query,
           clearId: 'model-clear-search-container',
@@ -796,28 +789,17 @@ export function renderModelsSettings(container, data) {
       render();
     }
     try {
-      const params = new URLSearchParams();
-      params.set('limit', String(modelsState.limit));
-      params.set('offset', String(modelsState.offset));
-      if (modelsState.provider && modelsState.provider !== 'all') {
-        params.set('provider', modelsState.provider);
-      }
-      if (modelsState.query && modelsState.query.trim()) {
-        params.set('q', modelsState.query.trim());
-      }
-
-      const res = await apiFetch(`/api/admin/models?${params.toString()}`);
+      const res = await apiFetch('/api/admin/models?limit=0&offset=0');
       if (res.ok) {
         const payload = await res.json();
-        modelsState.models = sortModelsByActiveThenName(payload.models || []);
-        modelsState.total = payload.total || 0;
-        modelsState.activeTotal = payload.active_total ?? countEnabledModels(modelsState.models);
-        modelsState.providerOptions = Array.isArray(payload.providers) && payload.providers.length > 0
-          ? payload.providers
-          : buildProviderOptions(modelsState.models, { includeAll: false });
-        modelsState.disabledModels = new Set(
-          modelsState.models.filter((model) => model.enabled === false).map((model) => model.id)
+        const selectedModels = sortModelsByActiveThenName(
+          (Array.isArray(payload.models) ? payload.models : []).filter((model) => model?.enabled !== false)
         );
+        modelsState.models = selectedModels;
+        modelsState.total = selectedModels.length;
+        modelsState.activeTotal = selectedModels.length;
+        modelsState.providerOptions = buildProviderOptions(modelsState.models, { includeAll: false });
+        modelsState.disabledModels = new Set();
         const capsFromModels = extractAttachmentCapsFromModels(modelsState.models);
         modelsState.attachmentCaps = capsFromModels;
       }

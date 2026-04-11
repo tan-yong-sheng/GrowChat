@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
   getConfigValue: vi.fn(),
   getAllOpenAIConnectionConfigs: vi.fn(),
   setConfigValue: vi.fn(),
-  buildEnvOpenAIConnections: vi.fn(),
-  getEnvOpenAIOverrides: vi.fn(),
   mcpRequest: vi.fn(),
   mcpNotify: vi.fn(),
 }));
@@ -32,7 +30,6 @@ vi.mock('../utils/app-config.js', () => ({
 
 vi.mock('../llm/connections.js', () => ({
   buildConnectionHeaders: vi.fn(),
-  buildEnvOpenAIConnections: (...args) => mocks.buildEnvOpenAIConnections(...args),
   discoverConnectionModels: vi.fn(),
   ensureConnectionId: (conn, index = 0) => conn?.id || `conn-${index}`,
   extractConnectionModelId: vi.fn(),
@@ -49,7 +46,6 @@ vi.mock('../llm/connections.js', () => ({
     if (raw === 'anthropic' || raw === 'claude-compatible') return 'https://api.anthropic.com/v1';
     return 'https://api.openai.com/v1';
   }),
-  getEnvOpenAIOverrides: (...args) => mocks.getEnvOpenAIOverrides(...args),
   isConnectionUrlRequired: vi.fn(() => false),
   normalizeConnectionManualModels: (value) => value || [],
 }));
@@ -74,40 +70,21 @@ describe('adminRouter openai connections', () => {
     mocks.logAuditEvent.mockResolvedValue(undefined);
     mocks.getConfigBool.mockResolvedValue(true);
     mocks.setConfigValue.mockResolvedValue(undefined);
-    mocks.getEnvOpenAIOverrides.mockResolvedValue(new Map());
     mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
       {
-        id: 'env-openai-0',
-        name: 'Env OpenAI',
-        url: 'https://api.openai.com/v1',
+        id: 'config-gemini',
+        name: 'Gemini Test',
+        url: 'https://example.com/v1beta',
         keyMasked: '••••1234',
         hasKey: true,
         headers: '',
-        providerType: 'openai',
-        providerFamily: 'openai',
-        providerId: 'openai/env-openai-0',
+        providerType: 'gemini-compatible',
+        providerFamily: 'google',
+        providerId: 'google/config-gemini',
         authType: 'bearer',
-        apiType: 'chat-completions',
-        readOnly: true,
-        source: 'env',
-        enabled: true,
-      },
-    ]);
-    mocks.buildEnvOpenAIConnections.mockReturnValue([
-      {
-        id: 'env-openai-0',
-        name: 'Env OpenAI',
-        url: 'https://api.openai.com/v1',
-        keyMasked: '••••1234',
-        hasKey: true,
-        headers: '',
-        providerType: 'openai',
-        providerFamily: 'openai',
-        providerId: 'openai/env-openai-0',
-        authType: 'bearer',
-        apiType: 'chat-completions',
-        readOnly: true,
-        source: 'env',
+        apiType: 'stream-generate-content',
+        readOnly: false,
+        source: 'config',
         enabled: true,
       },
     ]);
@@ -125,12 +102,11 @@ describe('adminRouter openai connections', () => {
         ]);
       }
       if (key === 'openai_enabled') return 'true';
-      if (key === 'openai_env_overrides') return '{}';
       return fallback;
     });
   });
 
-  it('returns persisted and env-backed connections', async () => {
+  it('returns persisted connections without env-backed entries', async () => {
     const res = await adminRouter(
       makeReq('/api/admin/openai/connections', 'GET'),
       { DB: {} },
@@ -141,7 +117,6 @@ describe('adminRouter openai connections', () => {
     const payload = await res.json();
 
     expect(res.status).toBe(200);
-    expect(payload.connections.some((conn) => conn.id === 'env-openai-0' && conn.readOnly)).toBe(true);
     expect(payload.connections.some((conn) => conn.id === 'config-gemini' && conn.source === 'config')).toBe(true);
     expect(payload.connections.find((conn) => conn.id === 'config-gemini')).toMatchObject({
       hasKey: true,
@@ -429,7 +404,6 @@ describe('adminRouter openai connections', () => {
             enabled: true,
           },
           ],
-          env_overrides: { 'env-openai-0': false },
           model_updates: [{ id: 'gpt-5-mini', enabled: false }],
           access_updates: [
             {
@@ -885,16 +859,15 @@ describe('adminRouter openai connections', () => {
         body: JSON.stringify({
           enabled: true,
           connections: [
-            {
-              id: 'conn-1',
-              name: 'OpenAI',
-              url: 'https://api.example.com/v1',
-              key: 'secret',
-              providerType: 'openai',
-              manualModels: [],
-            },
+          {
+            id: 'conn-1',
+            name: 'OpenAI',
+            url: 'https://api.example.com/v1',
+            key: 'secret',
+            providerType: 'openai',
+            manualModels: [],
+          },
           ],
-          env_overrides: {},
         }),
       }),
       { DB: {} },
@@ -1053,7 +1026,7 @@ describe('adminRouter tool server oauth', () => {
     vi.unstubAllGlobals();
   });
 
-  it('creates a draft server when starting oauth for a new tool server', async () => {
+  it('requires an existing server before starting oauth', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('not found', { status: 404 })));
 
     const res = await adminRouter(
@@ -1061,7 +1034,7 @@ describe('adminRouter tool server oauth', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: 'draft-server-1',
+          id: 'unsaved-server-1',
           name: 'Bindings MCP',
           url: 'https://bindings.mcp.cloudflare.com/mcp',
           auth_type: 'oauth',
@@ -1079,21 +1052,9 @@ describe('adminRouter tool server oauth', () => {
     );
     const payload = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(payload.authorization_url).toContain('client_id=client-123');
+    expect(res.status).toBe(400);
+    expect(payload.error || payload.message).toContain('Server must be saved before OAuth connect');
     const savedCall = mocks.setConfigValue.mock.calls.find(([, key]) => key === 'tool_servers');
-    expect(savedCall).toBeTruthy();
-    const savedServers = JSON.parse(savedCall[2]);
-    expect(savedServers).toHaveLength(1);
-    expect(savedServers[0]).toMatchObject({
-      id: 'draft-server-1',
-      name: 'Bindings MCP',
-      url: 'https://bindings.mcp.cloudflare.com/mcp',
-      auth_type: 'oauth',
-      oauth_client_name: 'GrowChat MCP Client',
-      oauth_client_id: 'client-123',
-    });
-    expect(savedServers[0].oauth_state).toEqual(expect.any(String));
-    expect(savedServers[0].oauth_code_verifier).toEqual(expect.any(String));
+    expect(savedCall).toBeFalsy();
   });
 });

@@ -23,41 +23,44 @@ describe('admin models settings', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="root" data-settings-tab="models"></div>';
     vi.clearAllMocks();
-    mocks.apiFetch.mockImplementation(async (url) => {
+    mocks.apiFetch.mockImplementation(async (url, options = {}) => {
       if (String(url).startsWith('/api/admin/models?')) {
         return new Response(JSON.stringify({
           models: [
-            { id: 'model-a', name: 'Model A', enabled: true, attachments: { image: false, pdf: false } },
+            { id: 'model-a', name: 'Model A', enabled: true, access_label: 'Admin', access_variant: 'admin', attachments: { image: false, pdf: false } },
+            { id: 'model-b', name: 'Model B', enabled: false, access_label: 'Shared', access_variant: 'shared', attachments: { image: false, pdf: false } },
           ],
-          total: 1,
+          total: 2,
           active_total: 1,
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
-      if (String(url) === '/api/admin/model-attachment-caps') {
+      if (String(url) === '/api/admin/models' && String(options.method || 'GET').toUpperCase() === 'PUT') {
         return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
     });
   });
 
-  it('keeps the main Save button enabled after a model toggle changes', async () => {
+  it('renders only selected models without an enable/disable toggle', async () => {
     const { renderModelsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
 
     renderModelsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/models?limit=20&offset=0'));
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/models?limit=0&offset=0'));
     await vi.waitFor(() => expect(data.modelsSettings.loading).toBe(false));
-    await vi.waitFor(() => expect(container.querySelector('.model-toggle')).not.toBeNull());
 
-    const beforeCalls = mocks.apiFetch.mock.calls.length;
-    container.querySelector('.model-toggle')?.click();
-
-    // Immediate-save pattern: API call should be made immediately
-    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(beforeCalls));
+    expect(container.querySelector('.model-toggle')).toBeNull();
+    expect(container.querySelector('[title="Selected models"]')?.textContent).toBe('1');
+    expect(container.textContent).toContain('Selected models');
+    expect(container.textContent).toContain('Model A');
+    expect(container.textContent).not.toContain('Model B');
+    expect(container.querySelector('thead')?.textContent).toContain('Access');
+    expect(container.querySelector('thead')?.textContent).not.toContain('Input');
+    expect(container.querySelector('[data-model-access="model-a"]')?.textContent).toContain('Admin');
   });
 
-  it('filters provider options to active entries and uses provider name in requests', async () => {
+  it('filters provider options from the selected set only', async () => {
     const { renderModelsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -66,14 +69,14 @@ describe('admin models settings', () => {
       if (String(url).startsWith('/api/admin/models?')) {
         return new Response(JSON.stringify({
           models: [
-            { id: 'model-a', name: 'Model A', enabled: true, attachments: { image: false, pdf: false } },
-            { id: 'model-b', name: 'Model B', enabled: false, attachments: { image: false, pdf: false } },
+            { id: 'model-a', name: 'Model A', provider_family: 'openai', provider_type: 'openai', enabled: true, attachments: { image: false, pdf: false } },
+            { id: 'model-b', name: 'Model B', provider_family: 'anthropic', provider_type: 'anthropic', enabled: false, attachments: { image: false, pdf: false } },
           ],
           total: 2,
           active_total: 1,
           providers: [
-            { value: 'openai main', label: 'OpenAI Main', active: 1, total: 2 },
-            { value: 'claude main', label: 'Claude Main', active: 0, total: 2 },
+            { value: 'openai', label: 'OpenAI', active: 1, total: 1 },
+            { value: 'claude', label: 'Claude', active: 0, total: 1 },
           ],
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
@@ -81,115 +84,28 @@ describe('admin models settings', () => {
     });
 
     renderModelsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/models?limit=20&offset=0'));
     await vi.waitFor(() => expect(container.querySelector('#model-provider-select')).not.toBeNull());
-    await vi.waitFor(() => {
-      const select = container.querySelector('#model-provider-select');
-      const text = Array.from(select.options).map((option) => option.textContent.trim()).join(' ');
-      expect(text).toContain('OpenAI Main');
-    });
+    await vi.waitFor(() => expect(container.textContent).toContain('Model A'));
 
     const providerSelect = container.querySelector('#model-provider-select');
-    const options = Array.from(providerSelect.options).map((option) => option.textContent.trim());
-    const joined = options.join(' ');
-    expect(joined).toContain('All Providers');
-    expect(joined).toContain('OpenAI Main');
-    expect(joined).not.toContain('Claude Main');
-
-    const beforeCalls = mocks.apiFetch.mock.calls.length;
-    providerSelect.value = providerSelect.options[1]?.value || 'openai main';
-    providerSelect.dispatchEvent(new Event('change', { bubbles: true }));
-
-    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(beforeCalls));
-    expect(
-      mocks.apiFetch.mock.calls.some(([url]) => /provider=openai(\+|%20)main/.test(String(url)))
-    ).toBe(true);
+    const options = Array.from(providerSelect.options).map((option) => option.textContent.trim()).join(' ');
+    expect(options).toContain('All Providers');
+    expect(options.toLowerCase()).toContain('openai');
+    expect(options.toLowerCase()).not.toContain('anthropic');
   });
 
-  it('dims disabled models and hides the ACL lock button for them', async () => {
-    const { renderModelsSettings } = await loadModule();
-    const container = document.getElementById('root');
-    const data = {};
-
-    mocks.apiFetch.mockImplementation(async (url) => {
-      if (String(url).startsWith('/api/admin/models?')) {
-        return new Response(JSON.stringify({
-          models: [
-            { id: 'model-a', name: 'Model A', enabled: true, attachments: { image: false, pdf: false } },
-            { id: 'model-b', name: 'Model B', enabled: false, attachments: { image: false, pdf: false } },
-          ],
-          total: 2,
-          active_total: 1,
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
-      }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
-    });
-
-    renderModelsSettings(container, data);
-    await vi.waitFor(() => expect(container.querySelector('#models-table-body')).not.toBeNull());
-    await vi.waitFor(() => expect(container.textContent).toContain('Model B'));
-
-    const rows = Array.from(container.querySelectorAll('#models-table-body tr'));
-    const disabledRow = rows.find((row) => row.textContent.includes('Model B'));
-    expect(disabledRow).toBeTruthy();
-    expect(disabledRow.className).toContain('opacity-70');
-    expect(disabledRow.querySelector('[data-model-acl]')).not.toBeNull();
-    expect(disabledRow.querySelector('[data-model-acl]')?.classList.contains('hidden')).toBe(true);
-    expect(disabledRow.querySelector('.model-toggle')).toBeTruthy();
-  });
-
-  it('hides and restores the model ACL lock button immediately when toggling enabled state', async () => {
+  it('keeps ACL editing available for selected models', async () => {
     const { renderModelsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
 
     renderModelsSettings(container, data);
     await vi.waitFor(() => expect(container.querySelector('[data-model-acl="model-a"]')).not.toBeNull());
-
-    container.querySelector('.model-toggle')?.click();
-    await vi.waitFor(() => expect(container.querySelector('[data-model-acl="model-a"]')?.classList.contains('hidden')).toBe(true));
-
-    container.querySelector('.model-toggle')?.click();
-    await vi.waitFor(() => expect(container.querySelector('[data-model-acl="model-a"]')?.classList.contains('hidden')).toBe(false));
+    expect(container.querySelector('[data-model-acl="model-a"]')?.classList.contains('hidden')).toBe(false);
+    expect(container.querySelector('[data-model-acl="model-b"]')).toBeNull();
   });
 
-  it('keeps model rows in place while toggling enabled state', async () => {
-    const { renderModelsSettings } = await loadModule();
-    const container = document.getElementById('root');
-    const data = {};
-
-    mocks.apiFetch.mockImplementation(async (url) => {
-      if (String(url).startsWith('/api/admin/models?')) {
-        return new Response(JSON.stringify({
-          models: [
-            { id: 'model-z', name: 'Model Z', enabled: true, attachments: { image: false, pdf: false } },
-            { id: 'model-a', name: 'Model A', enabled: false, attachments: { image: false, pdf: false } },
-          ],
-          total: 2,
-          active_total: 1,
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
-      }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
-    });
-
-    renderModelsSettings(container, data);
-    await vi.waitFor(() => expect(container.querySelectorAll('#models-table-body tr').length).toBe(2));
-
-    const initialRows = Array.from(container.querySelectorAll('#models-table-body tr')).map((row) => row.textContent.trim());
-    expect(initialRows[0]).toContain('Model Z');
-    expect(initialRows[1]).toContain('Model A');
-
-    const modelAToggle = Array.from(container.querySelectorAll('.model-toggle')).find((button) => button.dataset.modelId === 'model-a');
-    modelAToggle?.click();
-
-    await vi.waitFor(() => {
-      const rows = Array.from(container.querySelectorAll('#models-table-body tr')).map((row) => row.textContent.trim());
-      expect(rows[0]).toContain('Model Z');
-      expect(rows[1]).toContain('Model A');
-    });
-  });
-
-  it('keeps an explicit No Access ACL draft dirty and saves a combined model settings payload', async () => {
+  it('keeps explicit No Access ACL edits and saves a combined model settings payload', async () => {
     const { renderModelsSettings } = await loadModule();
     const container = document.getElementById('root');
     const data = {};
@@ -202,6 +118,7 @@ describe('admin models settings', () => {
             {
               id: 'openai/env-openai-0:gemini-2.5-flash',
               name: 'gemini-2.5-flash',
+              provider: 'openai',
               enabled: true,
               attachments: { image: false, pdf: false },
             },
@@ -239,10 +156,6 @@ describe('admin models settings', () => {
     renderModelsSettings(container, data);
     await vi.waitFor(() => expect(container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]')).not.toBeNull());
 
-    const capButton = container.querySelector('[data-cap-model="openai/env-openai-0:gemini-2.5-flash"][data-cap-kind="image"]');
-    expect(capButton).toBeTruthy();
-    capButton.click();
-
     container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]').click();
     await vi.waitFor(() => {
       expect(mocks.apiFetch.mock.calls.some(([url]) => String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access')).toBe(true);
@@ -254,7 +167,6 @@ describe('admin models settings', () => {
     select.value = 'none';
     select.dispatchEvent(new Event('change', { bubbles: true }));
 
-    // Immediate-save pattern: ACL changes are saved immediately when the modal is closed
     document.querySelector('#model-acl-save-btn').click();
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
       '/api/admin/models',
@@ -264,23 +176,6 @@ describe('admin models settings', () => {
       })
     ));
 
-    // With immediate-save, attachment and ACL changes are saved in separate calls
-    // Check for attachment update call
-    const attachmentCall = mocks.apiFetch.mock.calls.find(([url, options]) => {
-      if (String(url) !== '/api/admin/models' || String(options?.method || 'GET').toUpperCase() !== 'PUT') return false;
-      const body = JSON.parse(options.body);
-      return body.attachment_updates && body.attachment_updates.length > 0;
-    });
-    expect(attachmentCall).toBeTruthy();
-    const attachmentPayload = JSON.parse(attachmentCall[1].body);
-    expect(attachmentPayload.attachment_updates).toEqual([
-      {
-        model_id: 'openai/env-openai-0:gemini-2.5-flash',
-        attachments: { image: true },
-      },
-    ]);
-
-    // Check for ACL update call
     const aclCall = mocks.apiFetch.mock.calls.find(([url, options]) => {
       if (String(url) !== '/api/admin/models' || String(options?.method || 'GET').toUpperCase() !== 'PUT') return false;
       const body = JSON.parse(options.body);
@@ -296,5 +191,3 @@ describe('admin models settings', () => {
     ]);
   });
 });
-
-
