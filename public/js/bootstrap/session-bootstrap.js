@@ -105,7 +105,7 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
   }
 
   const requestGeneration = modelsCacheGeneration;
-  const requestPromise = fetchModels({ cache: 'no-store', cacheBust })
+  const requestPromise = fetchModels({ cache: 'no-store', cacheBust, scope: 'effective' })
     .then((data) => {
       if (requestGeneration !== modelsCacheGeneration) return data;
       const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
@@ -114,14 +114,19 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
         state.defaultModelId,
         state.globalDefaultModelId,
       ]);
-      setState({ models, modelsLoading: false, activeModelId: nextActiveModelId });
+      setState({
+        models,
+        modelCatalogMeta: data?.visibility || null,
+        modelsLoading: false,
+        activeModelId: nextActiveModelId,
+      });
       return data;
     })
     .catch((err) => {
       if (requestGeneration !== modelsCacheGeneration) return null;
       console.warn('Failed to prefetch models:', err);
       if (allowCache) {
-        const cached = readModelsCache();
+        const cached = readModelsCache('effective');
         if (cached?.models?.length) {
           const models = filterEnabledModels(cached.models);
           const nextActiveModelId = getPreferredModelId(models, [
@@ -129,7 +134,12 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
             state.defaultModelId,
             state.globalDefaultModelId,
           ]);
-          setState({ models, modelsLoading: false, activeModelId: nextActiveModelId });
+          setState({
+            models,
+            modelCatalogMeta: cached?.visibility || null,
+            modelsLoading: false,
+            activeModelId: nextActiveModelId,
+          });
           return cached;
         }
       }
@@ -151,7 +161,7 @@ export function checkModelsInvalidation() {
   if (!token) return null;
   modelsCacheGeneration += 1;
   modelsPrefetchPromise = null;
-  setState({ models: [], modelsLoading: true });
+  setState({ models: [], modelCatalogMeta: null, modelsLoading: true });
   prefetchModels({ allowCache: false, cacheBust: token, force: true });
   return token;
 }
@@ -163,7 +173,7 @@ function bindModelsInvalidationListener() {
     if (!token) return;
     modelsCacheGeneration += 1;
     modelsPrefetchPromise = null;
-    setState({ models: [], modelsLoading: true });
+    setState({ models: [], modelCatalogMeta: null, modelsLoading: true });
     prefetchModels({ allowCache: false, cacheBust: token, force: true });
   };
   window.addEventListener('storage', (event) => {
@@ -304,13 +314,15 @@ export async function ensureSession({ preferRefresh = false } = {}) {
 
   const cachedChats = readChatsCache(user.id);
   const invalidateToken = checkModelsInvalidation();
+  const isSettingsFirstRoute = path.startsWith('/admin/settings') || path.startsWith('/admin/system');
+  const shouldBootstrapChats = !isSettingsFirstRoute;
 
   const cachedDefaultModelId = localStorage.getItem('defaultModelId');
   const serverDefaultModelId = user.preferences?.defaultModelId || null;
   const globalDefaultModelId = meData?.app_config?.default_model_id || null;
   const initialModelId = getPreferredModelId([], [modelParam, serverDefaultModelId, globalDefaultModelId, cachedDefaultModelId]);
 
-  if (cachedChats?.chats?.length) {
+  if (shouldBootstrapChats && cachedChats?.chats?.length) {
     const cachedActiveChatId = resolveActiveChatId(routeChatId, cachedChats.chats, isHomeRoute);
     const nextCachedChats = injectTempChat(cachedChats.chats, routeChatId, initialModelId);
 
@@ -326,6 +338,7 @@ export async function ensureSession({ preferRefresh = false } = {}) {
       activeChatId: cachedActiveChatId,
       messagesByChat: {},
       models: [],
+      modelCatalogMeta: null,
       modelsLoading: false,
       activeModelId: initialModelId,
       defaultModelId: serverDefaultModelId || null,
@@ -333,54 +346,75 @@ export async function ensureSession({ preferRefresh = false } = {}) {
     });
   }
 
-  let chatsData = cachedChats;
-  const hasCachedChats = cachedChats?.chats?.length;
-  if (!hasCachedChats) {
-    try {
-      chatsData = await fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 });
-      writeChatsCache(user.id, chatsData);
-    } catch {
-      document.getElementById('app').innerHTML = '<div class="p-6 text-center mt-20 text-gray-500">Failed to load chats. Please refresh.</div>';
-      return false;
-    }
-  } else {
-    fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
-      .then((fresh) => {
-        writeChatsCache(user.id, fresh);
-        const nextFreshChats = injectTempChat(fresh.chats || [], routeChatId, initialModelId);
-        setState({
-          chats: nextFreshChats,
-          chatsPagination: {
-            limit: fresh.limit || INITIAL_CHAT_LIMIT,
-            offset: (fresh.offset || 0) + (fresh.chats?.length || 0),
-            hasMore: fresh.has_more === true,
-            loading: false,
-          },
-          activeChatId: resolveActiveChatId(routeChatId, fresh.chats, isHomeRoute),
+  if (shouldBootstrapChats) {
+    let chatsData = cachedChats;
+    const hasCachedChats = cachedChats?.chats?.length;
+    if (!hasCachedChats) {
+      try {
+        chatsData = await fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 });
+        writeChatsCache(user.id, chatsData);
+      } catch {
+        document.getElementById('app').innerHTML = '<div class="p-6 text-center mt-20 text-gray-500">Failed to load chats. Please refresh.</div>';
+        return false;
+      }
+    } else {
+      fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
+        .then((fresh) => {
+          writeChatsCache(user.id, fresh);
+          const nextFreshChats = injectTempChat(fresh.chats || [], routeChatId, initialModelId);
+          setState({
+            chats: nextFreshChats,
+            chatsPagination: {
+              limit: fresh.limit || INITIAL_CHAT_LIMIT,
+              offset: (fresh.offset || 0) + (fresh.chats?.length || 0),
+              hasMore: fresh.has_more === true,
+              loading: false,
+            },
+            activeChatId: resolveActiveChatId(routeChatId, fresh.chats, isHomeRoute),
+          });
+        })
+        .catch((err) => {
+          console.warn('Failed to refresh chats:', err);
         });
-      })
-      .catch((err) => {
-        console.warn('Failed to refresh chats:', err);
-      });
-  }
+    }
 
-  const nextChatsData = injectTempChat(chatsData.chats || [], routeChatId, initialModelId);
-  setState({
-    user,
-    chats: nextChatsData,
-    chatsPagination: {
-      limit: chatsData.limit || INITIAL_CHAT_LIMIT,
-      offset: (chatsData.offset || 0) + (chatsData.chats?.length || 0),
-      hasMore: chatsData.has_more === true,
-      loading: false,
-    },
-    activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
-    messagesByChat: {},
-    models: state.models || [],
-    activeModelId: initialModelId,
-    defaultModelId: serverDefaultModelId || null,
-    globalDefaultModelId: globalDefaultModelId || null,
-  });
+    const nextChatsData = injectTempChat(chatsData.chats || [], routeChatId, initialModelId);
+    setState({
+      user,
+      chats: nextChatsData,
+      chatsPagination: {
+        limit: chatsData.limit || INITIAL_CHAT_LIMIT,
+        offset: (chatsData.offset || 0) + (chatsData.chats?.length || 0),
+        hasMore: chatsData.has_more === true,
+        loading: false,
+      },
+      activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
+      messagesByChat: {},
+      models: state.models || [],
+      modelCatalogMeta: state.modelCatalogMeta || null,
+      activeModelId: initialModelId,
+      defaultModelId: serverDefaultModelId || null,
+      globalDefaultModelId: globalDefaultModelId || null,
+    });
+  } else {
+    setState({
+      user,
+      chats: [],
+      chatsPagination: {
+        limit: INITIAL_CHAT_LIMIT,
+        offset: 0,
+        hasMore: false,
+        loading: false,
+      },
+      activeChatId: null,
+      messagesByChat: {},
+      models: state.models || [],
+      modelCatalogMeta: state.modelCatalogMeta || null,
+      activeModelId: initialModelId,
+      defaultModelId: serverDefaultModelId || null,
+      globalDefaultModelId: globalDefaultModelId || null,
+    });
+  }
   if (serverDefaultModelId && serverDefaultModelId !== cachedDefaultModelId) {
     localStorage.setItem('defaultModelId', serverDefaultModelId);
   }

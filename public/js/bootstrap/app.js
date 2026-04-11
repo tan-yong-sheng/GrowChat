@@ -138,7 +138,8 @@ export async function renderCurrentRoute() {
     renderAdminSkeleton(app);
   }
 
-  const ok = await ensureSession({ preferRefresh: path.startsWith('/admin') });
+  const isAdminSettingsRoute = path.startsWith('/admin/settings') || path.startsWith('/admin/system');
+  const ok = await ensureSession({ preferRefresh: path.startsWith('/admin') && !isAdminSettingsRoute });
   if (!ok) return;
 
   if (routeChatId && state.activeChatId !== routeChatId) {
