@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Core Chat UI Logic', () => {
   // chromium-auth project provides storageState: tests/e2e/fixtures/auth-state.json
+  const CHATS_LIST_RE = /\/api\/chats(?:\?.*)?$/;
+  const CHAT_C1_RE = /\/api\/chats\/c1(?:\?.*)?$/;
+  const MODELS_RE = /\/api\/models(?:\?.*)?$/;
 
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/users/me**', (route) => route.fulfill({ status: 200, body: JSON.stringify({ user: { id: '1', name: 'Test' } }) }));
@@ -14,15 +17,15 @@ test.describe('Core Chat UI Logic', () => {
       body: JSON.stringify({ chats: [] }),
     }));
     const now = Date.now();
-    await page.route('**/api/chats/c1', (route) => route.fulfill({
+    await page.route(CHAT_C1_RE, (route) => route.fulfill({
       status: 200,
       body: JSON.stringify({ chat: { id: 'c1', title: 'Existing Chat', model: 'gpt-4', updated_at: now, created_at: now }, messages: [] }),
     }));
-    await page.route('**/api/chats*', (route) => route.fulfill({ 
+    await page.route(CHATS_LIST_RE, (route) => route.fulfill({ 
       status: 200, 
       body: JSON.stringify({ chats: [{ id: 'c1', title: 'Existing Chat', model: 'gpt-4', updated_at: now, created_at: now }] }) 
     }));
-    await page.route('**/api/models', (route) => route.fulfill({ 
+    await page.route(MODELS_RE, (route) => route.fulfill({ 
       status: 200, 
       body: JSON.stringify({ models: [{ id: 'gpt-4', name: 'GPT-4' }] }) 
     }));
@@ -35,15 +38,15 @@ test.describe('Core Chat UI Logic', () => {
 
     const newChatBtn = page.locator('#new-chat, [aria-label="New chat"], button:has-text("New chat")').first();
     
-    await page.route('**/api/chats**', async (route) => {
+    await page.route(CHATS_LIST_RE, async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 200,
           body: JSON.stringify({ id: 'c2', title: 'New Chat', model: 'gpt-4', updated_at: Date.now(), created_at: Date.now() })
         });
-      } else {
-        await route.continue();
+        return;
       }
+      await route.fallback();
     });
 
     await newChatBtn.click();
@@ -61,7 +64,7 @@ test.describe('Core Chat UI Logic', () => {
       ]
     };
 
-    await page.route('**/api/chats/c1', (route) => route.fulfill({
+    await page.route(CHAT_C1_RE, (route) => route.fulfill({
       status: 200,
       body: JSON.stringify({
         chat: { id: 'c1', title: 'Existing Chat', model: 'gpt-4', updated_at: Date.now(), created_at: Date.now() },
@@ -79,7 +82,7 @@ test.describe('Core Chat UI Logic', () => {
     await page.goto('/');
     await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
 
-    await page.route('**/api/chats/c1', (route) => route.fulfill({
+    await page.route(CHAT_C1_RE, (route) => route.fulfill({
       status: 200,
       body: JSON.stringify({
         chat: { id: 'c1', title: 'Existing Chat', model: 'gpt-4', updated_at: Date.now(), created_at: Date.now() },
@@ -131,7 +134,7 @@ test.describe('Core Chat UI Logic', () => {
     await page.goto('/');
     await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
 
-    await page.route('**/api/chats/c1', (route) => route.fulfill({
+    await page.route(CHAT_C1_RE, (route) => route.fulfill({
       status: 200,
       body: JSON.stringify({
         chat: { id: 'c1', title: 'Existing Chat', model: 'gpt-4', updated_at: Date.now(), created_at: Date.now() },
