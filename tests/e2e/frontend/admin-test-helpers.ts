@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 export const TEST_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsInN1YiI6IjEiLCJuYW1lIjoiVGVzdCJ9.signature';
 
 export async function mockAdminBootstrap(page: Page) {
-  await page.route('**/api/users/me**', (route) => route.fulfill({
+  await page.route(/\/api\/users\/me(?:[/?].*)?$/, (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
@@ -14,7 +14,7 @@ export async function mockAdminBootstrap(page: Page) {
     }),
   }));
 
-  await page.route('**/api/auth/refresh', (route) => route.fulfill({
+  await page.route(/\/api\/auth\/refresh(?:[/?].*)?$/, (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
@@ -24,13 +24,13 @@ export async function mockAdminBootstrap(page: Page) {
     }),
   }));
 
-  await page.route('**/api/chats**', (route) => route.fulfill({
+  await page.route(/\/api\/chats(?:[/?].*)?$/, (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ chats: [] }),
   }));
 
-  await page.route('**/api/models', (route) => route.fulfill({
+  await page.route(/\/api\/models(?:[/?].*)?$/, (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
@@ -60,10 +60,10 @@ export async function setupAdminPage(page: Page) {
 export async function renderAdminRoute(page: Page, pathname: string) {
   await page.goto('/');
   await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
-
-  await page.evaluate(async (nextPath) => {
-    window.history.pushState({}, '', nextPath);
-    const { renderCurrentRoute } = await import('/js/bootstrap/app.js');
-    await renderCurrentRoute();
+  await page.evaluate((targetPath) => {
+    window.history.pushState({}, '', targetPath);
+    window.dispatchEvent(new PopStateEvent('popstate'));
   }, pathname);
+  await page.waitForLoadState('networkidle');
+  await page.waitForSelector('#app', { state: 'visible', timeout: 15000 });
 }
