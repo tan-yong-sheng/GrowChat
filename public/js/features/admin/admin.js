@@ -35,7 +35,6 @@ import {
   renderSystemLayout,
   renderUsersLayout,
 } from './admin-layout.js';
-import { renderCurrentRoute } from '../../bootstrap/app.js';
 
 export async function renderAdminPage(container) {
   const initialRouteState = resolveAdminRouteState(window.location.pathname);
@@ -492,7 +491,7 @@ export async function renderAdminPage(container) {
       guardNavigation,
       navigateHome: async () => {
         window.history.pushState({}, '', '/');
-        renderCurrentRoute();
+        window.dispatchEvent(new PopStateEvent('popstate'));
       },
       searchModalContainerSelector: '#search-modal-container',
       filesModalContainerSelector: '#files-modal-container',

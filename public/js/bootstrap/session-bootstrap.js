@@ -62,6 +62,19 @@ let modelsPrefetchPromise = null;
 let modelsInvalidationListenerBound = false;
 let modelsCacheGeneration = 0;
 
+function scheduleModelsPrefetch(options = {}) {
+  const run = () => {
+    prefetchModels(options);
+  };
+
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(() => run(), { timeout: 1500 });
+    return;
+  }
+
+  setTimeout(run, 0);
+}
+
 function normalizePublicRole(role) {
   const value = String(role || '').trim().toLowerCase();
   return value === 'admin' ? 'admin' : 'member';
@@ -418,7 +431,7 @@ export async function ensureSession({ preferRefresh = false } = {}) {
   if (serverDefaultModelId && serverDefaultModelId !== cachedDefaultModelId) {
     localStorage.setItem('defaultModelId', serverDefaultModelId);
   }
-  prefetchModels({ allowCache: true, cacheBust: invalidateToken, force: true });
+  scheduleModelsPrefetch({ allowCache: true, cacheBust: invalidateToken, force: true });
 
   bootstrapped = true;
   scheduleDeferredBootstrap(user, { permissions: meData.permissions, roles: meData.roles });
