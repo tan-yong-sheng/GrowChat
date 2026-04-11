@@ -39,10 +39,6 @@ import { renderCurrentRoute } from '../../bootstrap/app.js';
 
 export async function renderAdminPage(container) {
   const initialRouteState = resolveAdminRouteState(window.location.pathname);
-  const initialSidebarScope = initialRouteState.mainTab === 'settings' || initialRouteState.mainTab === 'system'
-    ? 'admin-settings'
-    : 'admin';
-  setSidebarRouteScope(initialSidebarScope);
   const capabilities = normalizeWorkspaceCapabilities({
     permissions: state.permissions,
     primaryRole: state.userRoles?.[0]?.role_name || 'admin',
@@ -79,10 +75,7 @@ export async function renderAdminPage(container) {
     const routeState = resolveAdminRouteState(window.location.pathname);
     mainTab = routeState.mainTab;
     subTab = routeState.subTab;
-    const sidebarScope = routeState.mainTab === 'settings' || routeState.mainTab === 'system'
-      ? 'admin-settings'
-      : 'admin';
-    setSidebarRouteScope(sidebarScope);
+    setSidebarRouteScope('admin');
     if (routeState.canonicalPath !== window.location.pathname) {
       window.history.replaceState({}, '', routeState.canonicalPath);
     }

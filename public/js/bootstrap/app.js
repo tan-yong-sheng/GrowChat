@@ -146,10 +146,7 @@ export async function renderCurrentRoute() {
   }
 
   if (path.startsWith('/admin')) {
-    const adminScope = path.startsWith('/admin/settings') || path.startsWith('/admin/system')
-      ? 'admin-settings'
-      : 'admin';
-    setSidebarRouteScope(adminScope);
+    setSidebarRouteScope('admin');
     await renderAdminRoute(app);
     return;
   }
