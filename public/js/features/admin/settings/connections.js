@@ -77,6 +77,7 @@ function buildModalConnectionPayload(scope = null, selectedConnection = null) {
     headers: root.querySelector('#modal-conn-headers')?.value || '',
     providerType: root.querySelector('#modal-conn-provider')?.value || 'openai',
     providerFamily: root.querySelector('#modal-conn-provider')?.value || 'openai',
+    authType: selectedConnection?.authType || selectedConnection?.auth_type || '',
   };
 }
 
@@ -788,15 +789,15 @@ export function renderConnectionsSettings(container, data) {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      const payload = await res.json().catch(() => ({}));
+      const responsePayload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(payload.details?.message || payload.message || payload.error || 'Connection failed');
+        throw new Error(responsePayload.details?.message || responsePayload.message || responsePayload.error || 'Connection failed');
       }
-      if (Array.isArray(payload.models)) {
+      if (Array.isArray(responsePayload.models)) {
         const preview = previewConnectionModalModels(
           connectionsState.modalModels,
           connectionsState.modalModelsSelection,
-          payload.models,
+          responsePayload.models,
           connectionsState.selectedConnection,
         );
         connectionsState.modalModels = preview.models;
@@ -823,7 +824,7 @@ export function renderConnectionsSettings(container, data) {
         connectionsState.modalModelsSelection = new Set();
         connectionsState.modalModelsOriginal = new Set();
       }
-      const count = Array.isArray(payload.models) ? payload.models.length : 0;
+      const count = Array.isArray(responsePayload.models) ? responsePayload.models.length : 0;
       setTestStatus('success', count > 0 ? `Connection successful. ${count} models loaded.` : 'Connection successful.', modalRoot);
       renderModalModels(modalRoot);
     } catch (err) {
