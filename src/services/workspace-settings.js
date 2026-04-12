@@ -222,6 +222,7 @@ export async function loadWorkspaceConnectionsPayload({
   userId,
   primaryRole = 'member',
   includeDisabled = true,
+  includeHiddenForUser = false,
 } = {}) {
   if (!db || !env || !userId) {
     throw new TypeError('db, env, and userId are required');
@@ -232,11 +233,12 @@ export async function loadWorkspaceConnectionsPayload({
     userId,
     userRole: String(primaryRole || 'member').trim(),
     includeDisabled,
+    includeHiddenForUser,
   });
 
   return {
     connections: connections
-      .filter((connection) => connection.source !== 'user')
+      .filter((connection) => connection.source !== 'user' && connection.enabled !== false)
       .map((connection) => ({
         ...toAccessibleConnectionSummary(connection, connection.access_variant || 'admin'),
         visible_for_user: connection.visible_for_user !== false,
@@ -256,7 +258,7 @@ export async function loadWorkspaceToolServersPayload({
 
   const servers = await loadToolServers(db, { userId, includeHiddenForUser: true });
   const personalServers = servers.filter((server) => server.source === 'user');
-  const accessibleServers = servers.filter((server) => server.source !== 'user');
+  const accessibleServers = servers.filter((server) => server.source !== 'user' && server.enabled !== false);
   return {
     servers: personalServers.map(toPersonalToolServerSummary),
     accessible_servers: accessibleServers.map((server) => ({
@@ -303,6 +305,7 @@ export async function loadWorkspaceSettingsPayload({
     userId,
     userRole: primaryRole,
     includeDisabled: true,
+    includeHiddenForUser: true,
   });
   const allToolServers = await loadToolServers(db, { userId, includeHiddenForUser: true });
   const toolServers = allToolServers.filter((server) => server.source === 'user');
@@ -315,9 +318,11 @@ export async function loadWorkspaceSettingsPayload({
     permissions,
     roles,
     ownConnections,
-    allConnections,
+    allConnections: allConnections.filter((connection) => connection.source !== 'user' && connection.enabled !== false).concat(
+      allConnections.filter((connection) => connection.source === 'user')
+    ),
     toolServers,
-    accessibleToolServers,
+    accessibleToolServers: accessibleToolServers.filter((server) => server.enabled !== false),
     profileResponseFactory,
     route,
   });

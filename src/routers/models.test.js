@@ -236,7 +236,70 @@ describe('modelsRouter', () => {
     expect(payload.models[1].id).toBe('google/conn-1:alpha');
   });
 
-  it('keeps a connection-selected model active even if it was previously hidden by user settings', async () => {
+  it('returns an effective-scoped catalog with hidden rows separated from visible rows', async () => {
+    const env = { DB: {} };
+    mocks.createDB.mockReturnValue({
+      run: vi.fn().mockResolvedValue(undefined),
+      all: vi.fn(async (sql) => {
+        const text = String(sql);
+        if (text.includes('SELECT model_id FROM model_access WHERE is_enabled = 0')) {
+          return [{ model_id: 'google/conn-1:gamma' }];
+        }
+        if (text.includes('SELECT model_id, is_enabled FROM model_access')) {
+          return [{ model_id: 'google/conn-1:gamma', is_enabled: 0 }];
+        }
+        if (text.includes('SELECT group_id FROM group_members WHERE user_id = ?')) {
+          return [];
+        }
+        return [];
+      }),
+    });
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-1',
+        name: 'Gateway',
+        providerType: 'google',
+        providerFamily: 'google',
+        providerId: 'google/conn-1',
+        baseUrl: 'https://example.com/v1beta',
+        manualModels: [],
+      },
+    ]);
+    mocks.discoverConnectionModels.mockResolvedValue({
+      items: [
+        { id: 'alpha' },
+        { id: 'beta' },
+        { id: 'gamma' },
+      ],
+      url: 'https://example.com/models',
+    });
+    mocks.loadUserResourceOverrides.mockResolvedValue({
+      models: { hidden_ids: ['google/conn-1:beta'] },
+      connections: { hidden_ids: [] },
+      tool_servers: { hidden_ids: [], tools: {} },
+    });
+
+    const res = await modelsRouter(
+      makeReq('/api/models?scope=effective', 'GET'),
+      env,
+      {},
+      { sub: 'user-1', primary_role: 'admin' },
+      '/api/models'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.total).toBe(1);
+    expect(payload.active_total).toBe(1);
+    expect(payload.models.map((model) => model.id)).toEqual(['google/conn-1:alpha']);
+    expect(payload.hidden_models.map((model) => model.id)).toEqual(['google/conn-1:beta']);
+    expect(payload.visibility).toEqual(expect.objectContaining({
+      disabled_model_ids: ['google/conn-1:gamma'],
+      hidden_model_ids: ['google/conn-1:beta'],
+    }));
+  });
+
+  it('marks user-hidden models as unavailable even when they are otherwise enabled', async () => {
     const models = applyUserModelVisibilityOverrides([
       { id: 'google/conn-1:alpha', enabled: false },
       { id: 'google/conn-1:beta', enabled: true },
@@ -251,11 +314,57 @@ describe('modelsRouter', () => {
       }),
       expect.objectContaining({
         id: 'google/conn-1:beta',
-        enabled: true,
-        hidden_for_user: false,
-        visible_for_user: true,
+        enabled: false,
+        hidden_for_user: true,
+        visible_for_user: false,
       }),
     ]);
+  });
+
+  it('returns model visibility metadata for fallback reasoning', async () => {
+    const env = { DB: {} };
+    mocks.createDB.mockReturnValue({
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('SELECT model_id FROM model_access WHERE is_enabled = 0')) {
+          return [{ model_id: 'google/conn-1:alpha' }];
+        }
+        return [];
+      }),
+    });
+    mocks.loadUserResourceOverrides.mockResolvedValue({
+      models: { hidden_ids: ['google/conn-1:beta'] },
+      connections: { hidden_ids: [] },
+      tool_servers: { hidden_ids: [], tools: {} },
+    });
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-1',
+        name: 'Gateway',
+        providerType: 'google',
+        providerFamily: 'google',
+        providerId: 'google/conn-1',
+        baseUrl: 'https://example.com/v1beta',
+        manualModels: [
+          { modelId: 'alpha', name: 'Alpha' },
+          { modelId: 'beta', name: 'Beta' },
+        ],
+      },
+    ]);
+
+    const res = await modelsRouter(
+      makeReq('/api/models', 'GET'),
+      env,
+      {},
+      { sub: 'user-1' },
+      '/api/models'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.visibility).toEqual(expect.objectContaining({
+      disabled_model_ids: ['google/conn-1:alpha'],
+      hidden_model_ids: [],
+    }));
   });
 
   it('filters admin models by provider and returns provider stats', async () => {

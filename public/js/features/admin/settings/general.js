@@ -15,12 +15,6 @@ export function renderGeneralSettings(container, data) {
     settingsState.models = [];
   }
 
-  // Set up handlers for admin shell controller (no-op for immediate-save pattern)
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDirtyCheckers.general = () => false;
-  data.settingsSaveHandlers.general = async () => false;
-
   let registrationStatusBox = null;
   let modelBox = null;
 
@@ -98,7 +92,7 @@ export function renderGeneralSettings(container, data) {
                   <div class="text-xs font-medium">Public Registration</div>
                   <div id="public-reg-status" class="text-[10px] text-gray-700">${toggleState.statusText}</div>
                 </div>
-                <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toggleState.toggleClass}">
+                <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${toggleState.toggleClass}">
                   <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${toggleState.knobTransform};"></span>
                 </button>
               </div>
@@ -259,7 +253,7 @@ export function renderGeneralSettings(container, data) {
   const loadModels = async () => {
     if (settingsState.models.length > 0) return;
     try {
-      const res = await apiFetch('/api/models');
+      const res = await apiFetch('/api/models?scope=global');
       if (res.ok) {
         const payload = await res.json();
         settingsState.models = (payload.models || []).slice().sort((a, b) => {

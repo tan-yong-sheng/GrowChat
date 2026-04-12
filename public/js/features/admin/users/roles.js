@@ -4,7 +4,6 @@ import {
   fetchAdminRbacRoles,
   updateAdminRbacRole,
 } from '../../../shared/api.js';
-import { bindAdminDraftHandlers, clearAdminDraft, getAdminDraft, setAdminDraft } from '../modal-draft.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
 
@@ -226,7 +225,7 @@ function renderErrorState(message) {
       <div class="max-w-sm">
         <div class="text-sm font-semibold text-red-700">Unable to load roles</div>
         <div class="mt-1 text-sm text-red-600">${escapeHtml(message || 'Please try again.')}</div>
-        <button type="button" data-role-retry class="mt-3 rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">Retry</button>
+        <button type="button" data-role-retry class="mt-3 rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">Retry</button>
       </div>
     </div>
   `;
@@ -273,18 +272,19 @@ function createModalShell({ title, subtitle, showDelete = false } = {}) {
     preset: 'roleEditor',
     title,
     subtitle,
+    modalHash: 'role-modal',
     body: '<div data-modal-body></div>',
     footer: `
       <div class="text-[9px] text-gray-700 leading-tight" data-modal-note></div>
       <div class="flex items-center gap-1.5">
-        ${showDelete ? '<button type="button" class="rounded-full border border-red-200 bg-white px-2 py-0.75 text-[9px] font-semibold text-red-600 hover:bg-red-50" data-role-modal-delete>Delete</button>' : ''}
-        <button type="button" class="rounded-full border border-gray-200 px-2 py-0.75 text-[9px] font-semibold text-gray-700 hover:bg-gray-50" data-modal-discard>
+        ${showDelete ? '<button type="button" class="rounded-full border border-red-200 bg-white px-2 py-0.75 text-[9px] font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition" data-role-modal-delete>Delete</button>' : ''}
+        <button type="button" class="rounded-full border border-gray-200 px-2 py-0.75 text-[9px] font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" data-modal-discard>
           Discard
         </button>
-        <button type="button" class="rounded-full border border-gray-200 px-2 py-0.75 text-[9px] font-semibold text-gray-700 hover:bg-gray-50" data-modal-reset>
+        <button type="button" class="rounded-full border border-gray-200 px-2 py-0.75 text-[9px] font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" data-modal-reset>
           Restore defaults
         </button>
-        <button type="button" class="rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition" data-role-save>
+        <button type="button" class="rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" data-role-save>
           Save
         </button>
       </div>
@@ -338,20 +338,14 @@ function renderPermissionGroup(group, draft, modalState) {
   `;
 }
 
-function openRoleModal(container, state, data, { roleId = null, isNew = false, onDeleteRole = null } = {}) {
+function openRoleModal(container, state, data, { roleId = null, isNew = false, onSaveRole = null, onDeleteRole = null } = {}) {
   const sourceRole = roleId ? state.roles.find((role) => role.id === roleId) || null : null;
-  const stagedDraft = data.__rolesDraftRegistry?.get?.();
-  const initialDraft = stagedDraft?.isNew === isNew && (isNew || stagedDraft?.roleId === roleId)
-    ? stagedDraft
-    : null;
-  const baseRole = initialDraft?.draft
-    ? cloneRole(initialDraft.draft)
-    : isNew
-      ? createRoleDraft(
-        ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0],
-        { isNew: true, sourceRoleId: 'member', nextCustomIndex: state.nextCustomIndex },
-      )
-      : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+  const baseRole = isNew
+    ? createRoleDraft(
+      ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0],
+      { isNew: true, sourceRoleId: 'member', nextCustomIndex: state.nextCustomIndex },
+    )
+    : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
 
   const modalState = {
     query: '',
@@ -379,16 +373,11 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
   const closeBtn = modal.querySelector('[data-modal-close]');
   const saveBtn = modal.querySelector('[data-role-save]');
   const deleteBtn = modal.querySelector('[data-role-modal-delete]');
-  const draftRegistry = data.__rolesDraftRegistry;
-
   const isSystemRole = Boolean(modalState.draft.system);
   const isDirty = () => rolesSignature([modalState.draft]) !== rolesSignature([modalState.original]);
 
   const syncDirty = () => {
     modalState.dirty = isDirty();
-    if (data) {
-      data.__rolesActiveModalIsDirty = isDirty;
-    }
     setModalSaveButtonState(saveBtn, {
       enabled: modalState.dirty,
       saving: modalState.saving,
@@ -396,7 +385,6 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
       enabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
       disabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
     });
-    data?.requestUsersFooterSync?.();
   };
 
   const syncShell = () => {
@@ -512,7 +500,7 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
                     placeholder="Search permissions"
                   >
                   <div id="role-permission-clear-container" class="${modalState.query ? '' : 'hidden'} ml-1.5">
-                    <button type="button" data-role-permission-clear class="p-0.5 rounded-full hover:bg-gray-200 transition">
+                    <button type="button" data-role-permission-clear class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
@@ -561,14 +549,10 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
 
   const close = () => {
     window.removeEventListener('keydown', onKeydown);
-    if (data) {
-      data.__rolesActiveModalIsDirty = null;
-    }
     modal.remove();
     if (state.modalCleanup === close) {
       state.modalCleanup = null;
     }
-    data?.requestUsersFooterSync?.();
   };
 
   const saveRole = async () => {
@@ -580,23 +564,42 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
       return;
     }
 
-    draftRegistry?.set({
-      isNew: modalState.isNew,
-      roleId: modalState.draft.id,
-      draft: cloneRole(modalState.draft),
-      payload: {
+    try {
+      modalState.saving = true;
+      setModalSaveButtonState(saveBtn, {
+        enabled: false,
+        saving: true,
+        label: 'Save',
+        enabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
+        disabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+      });
+      const payload = {
         name: trimmedName,
         permissions: Array.from(modalState.draft.permissions || []),
-      },
-    });
-    data?.requestUsersFooterSync?.();
-    close();
+      };
+      if (typeof onSaveRole === 'function') {
+        await onSaveRole(modalState.isNew, modalState.draft.id, payload);
+      }
+      close();
+    } catch (err) {
+      modalState.error = err?.message || 'Failed to save role.';
+      noteEl.textContent = modalState.error;
+    } finally {
+      modalState.saving = false;
+      setModalSaveButtonState(saveBtn, {
+        enabled: modalState.dirty,
+        saving: false,
+        label: 'Save',
+        enabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
+        disabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+      });
+    }
   };
 
   deleteBtn?.addEventListener('click', () => {
     void (async () => {
-      const staged = await onDeleteRole?.(modalState.draft.id);
-      if (staged) close();
+      const deleted = await onDeleteRole?.(modalState.draft.id);
+      if (deleted) close();
     })();
   });
 
@@ -616,7 +619,6 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
   });
 
   discardBtn.addEventListener('click', () => {
-    draftRegistry?.clear();
     close();
   });
   closeBtn.addEventListener('click', close);
@@ -636,15 +638,11 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
   return close;
 }
 
-function renderRoleRow(role, stagedDraft = null) {
+function renderRoleRow(role) {
   const initials = String(role.name || '?').trim().charAt(0).toUpperCase() || '?';
-  const isPendingDelete = stagedDraft?.kind === 'delete' && String(stagedDraft.roleId || '').trim() === role.id;
-  const rowClasses = isPendingDelete
-    ? 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl transition-all border border-amber-200 bg-amber-50/40 opacity-60 cursor-default'
-    : 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50';
-  const openAttr = isPendingDelete ? '' : `data-role-open="${escapeHtml(role.id)}"`;
+  const rowClasses = 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50';
   const deleteButton = role.system ? '' : `
-        <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all btn-delete-role" data-role-delete="${escapeHtml(role.id)}" aria-label="Delete role" ${isPendingDelete ? 'disabled' : ''}>
+        <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all btn-delete-role" data-role-delete="${escapeHtml(role.id)}" aria-label="Delete role">
           <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" class="size-5">
             <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
           </svg>
@@ -652,7 +650,7 @@ function renderRoleRow(role, stagedDraft = null) {
       `;
   return `
     <div
-      ${openAttr}
+      data-role-open="${escapeHtml(role.id)}"
       class="${rowClasses}"
     >
       <div class="flex items-center gap-3.5 min-w-0">
@@ -662,13 +660,12 @@ function renderRoleRow(role, stagedDraft = null) {
         <div class="flex flex-col min-w-0">
           <div class="flex items-center gap-1.5 min-w-0">
             <div class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(role.name)}</div>
-            ${isPendingDelete ? '<span class="rounded-full border border-rose-200 bg-rose-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-rose-700 whitespace-nowrap">Pending delete</span>' : ''}
           </div>
           <div class="text-[11px] text-gray-500 font-medium">${escapeHtml(role.description)} · ${escapeHtml(formatRoleSummary(role))}</div>
         </div>
       </div>
       <div class="flex items-center justify-end gap-1.5 shrink-0 self-end sm:self-auto">
-        <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-role" data-role-edit="${escapeHtml(role.id)}" aria-label="Edit role" ${isPendingDelete ? 'disabled' : ''}>
+        <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-400 transition-all btn-edit-role" data-role-edit="${escapeHtml(role.id)}" aria-label="Edit role">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
             <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
           </svg>
@@ -679,7 +676,7 @@ function renderRoleRow(role, stagedDraft = null) {
   `;
 }
 
-function bindRoleRowEvents(container, openRole, stageRoleDelete) {
+function bindRoleRowEvents(container, openRole, deleteRole) {
   container.querySelectorAll('[data-role-open]').forEach((button) => {
     button.addEventListener('click', () => {
       const roleId = String(button.dataset.roleOpen || '').trim();
@@ -702,12 +699,12 @@ function bindRoleRowEvents(container, openRole, stageRoleDelete) {
       event.stopPropagation();
       const roleId = String(button.dataset.roleDelete || '').trim();
       if (!roleId) return;
-      await stageRoleDelete?.(roleId);
+      await deleteRole?.(roleId);
     });
   });
 }
 
-function renderRoleList(container, state, openRole, stageRoleDelete, stagedDraft) {
+function renderRoleList(container, state, openRole, deleteRole) {
   const list = container.querySelector('[data-role-list]');
   if (!list) return;
 
@@ -720,7 +717,7 @@ function renderRoleList(container, state, openRole, stageRoleDelete, stagedDraft
   if (sortedRoles.length) {
     list.innerHTML = `
       <div class="grid grid-cols-1 gap-1">
-        ${sortedRoles.map((role) => renderRoleRow(role, stagedDraft)).join('')}
+        ${sortedRoles.map((role) => renderRoleRow(role)).join('')}
       </div>
     `;
   } else {
@@ -729,90 +726,10 @@ function renderRoleList(container, state, openRole, stageRoleDelete, stagedDraft
     `;
   }
 
-  bindRoleRowEvents(container, openRole, stageRoleDelete);
+  bindRoleRowEvents(container, openRole, deleteRole);
 }
 
 export function renderRolesPage(container, data = {}) {
-  const draftKey = 'roles';
-  let activeModalIsDirty = null;
-  const draftRegistry = {
-    get: () => getAdminDraft(data, 'users', draftKey),
-    set: (value) => setAdminDraft(data, 'users', draftKey, value),
-    clear: () => clearAdminDraft(data, 'users', draftKey),
-  };
-
-  const commitRoleDraft = async () => {
-    const draft = draftRegistry.get();
-    if (!draft) return;
-
-    if (draft.kind === 'delete') {
-      const roleId = String(draft.roleId || '').trim();
-      if (!roleId) {
-        throw new Error('Role not found.');
-      }
-
-      await deleteAdminRbacRole(roleId);
-      state.roles = state.roles.filter((role) => role.id !== roleId);
-      if (state.focusedRoleId === roleId) {
-        state.focusedRoleId = state.roles[0]?.id || null;
-      }
-      state.nextCustomIndex = getNextCustomIndex(state.roles);
-      draftRegistry.clear();
-      renderRolesPage(container, data);
-      data.requestUsersFooterSync?.();
-      return;
-    }
-
-    const payload = draft.payload || {};
-    const trimmedName = String(payload.name || '').trim();
-    if (!trimmedName) {
-      throw new Error('Role name is required.');
-    }
-
-    const nextPayload = {
-      name: trimmedName,
-      permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
-    };
-
-    const response = draft.isNew
-      ? await createAdminRbacRole(nextPayload)
-      : await updateAdminRbacRole(draft.roleId, nextPayload);
-
-    const savedRole = normalizeLoadedRole(response.role || {
-      ...draft.draft,
-      name: trimmedName,
-    });
-
-    if (draft.isNew) {
-      state.roles = [...state.roles, savedRole];
-      state.nextCustomIndex = getNextCustomIndex(state.roles);
-    } else {
-      state.roles = state.roles.map((role) => (role.id === savedRole.id ? savedRole : role));
-    }
-    state.focusedRoleId = savedRole.id;
-    draftRegistry.clear();
-    renderRolesPage(container, data);
-    data.requestUsersFooterSync?.();
-  };
-
-  const discardRoleDraft = () => {
-    draftRegistry.clear();
-    renderRolesPage(container, data);
-    data.requestUsersFooterSync?.();
-  };
-
-  const isRolesDirty = () => Boolean(draftRegistry.get()) || Boolean(typeof data.__rolesActiveModalIsDirty === 'function' && data.__rolesActiveModalIsDirty());
-
-  data.usersDirtyCheckers = data.usersDirtyCheckers || {};
-  data.usersSaveHandlers = data.usersSaveHandlers || {};
-  data.usersDiscardHandlers = data.usersDiscardHandlers || {};
-  bindAdminDraftHandlers(data, 'users', draftKey, {
-    isDirty: isRolesDirty,
-    save: commitRoleDraft,
-    discard: discardRoleDraft,
-    requestFooterSync: data.requestUsersFooterSync,
-  });
-  data.__rolesDraftRegistry = draftRegistry;
   const state = container.__rolesState || (container.__rolesState = {
     roles: [],
     focusedRoleId: 'admin',
@@ -838,6 +755,16 @@ export function renderRolesPage(container, data = {}) {
     }
   };
 
+  const reloadRolesFromServer = async () => {
+    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
+    const roles = Array.isArray(payload?.roles) && payload.roles.length
+      ? payload.roles.map((role) => normalizeLoadedRole(role))
+      : createInitialRoles();
+    state.roles = roles;
+    state.nextCustomIndex = getNextCustomIndex(state.roles);
+    renderRolesPage(container, data);
+  };
+
   if (state.rolesLoading && !state.rolesLoaded) {
     container.innerHTML = renderLoadingState();
     return;
@@ -861,7 +788,6 @@ export function renderRolesPage(container, data = {}) {
   }
 
   const roleCount = state.roles.length;
-  const stagedDraft = draftRegistry.get();
 
   container.innerHTML = `
     <div class="flex flex-col flex-1 min-h-0 h-full animate-in fade-in duration-300">
@@ -872,7 +798,7 @@ export function renderRolesPage(container, data = {}) {
             <div class="text-lg font-medium text-gray-500">${roleCount}</div>
           </div>
           <div class="flex items-center justify-end gap-1.5 shrink-0">
-            <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-role-btn">
+            <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-role-btn">
               <span class="mr-2 text-sm">+</span>
               <span>New Role</span>
             </button>
@@ -890,7 +816,7 @@ export function renderRolesPage(container, data = {}) {
             </div>
             <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search Roles" id="roles-search" value="${escapeHtml(state.query)}">
             <div id="roles-clear-search-container" class="${state.query ? '' : 'hidden'} ml-1.5">
-              <button id="roles-clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
+              <button id="roles-clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -904,27 +830,41 @@ export function renderRolesPage(container, data = {}) {
     </div>
   `;
 
-  const stageRoleDelete = async (roleId) => {
+  const deleteRole = async (roleId) => {
     const role = state.roles.find((item) => item.id === roleId) || null;
     if (!role || role.system) return false;
     if (!window.confirm(`Delete role ${role.name}? This will permanently remove the role and its assignments.`)) return false;
-
-    draftRegistry.set({
-      kind: 'delete',
-      roleId: role.id,
-      payload: {
-        name: role.name,
-      },
-      draft: cloneRole(role),
-    });
-    data.requestUsersFooterSync?.();
-    renderRolesPage(container, data);
+    const result = await deleteAdminRbacRole(role.id);
+    if (result?.error) {
+      throw new Error(result.error);
+    }
+    await reloadRolesFromServer();
     return true;
   };
 
   const openRole = (roleId, isNew = false) => {
     closeModal();
-    state.modalCleanup = openRoleModal(container, state, data, { roleId, isNew, onDeleteRole: stageRoleDelete });
+    state.modalCleanup = openRoleModal(container, state, data, {
+      roleId,
+      isNew,
+      onSaveRole: async (creating, currentRoleId, payload) => {
+        if (creating) {
+          const result = await createAdminRbacRole(payload);
+          const role = result?.role || result;
+          if (role?.id) {
+            await reloadRolesFromServer();
+          }
+          return;
+        }
+
+        const result = await updateAdminRbacRole(currentRoleId, payload);
+        const role = result?.role || result;
+        if (role?.id) {
+          await reloadRolesFromServer();
+        }
+      },
+      onDeleteRole: deleteRole,
+    });
   };
 
   container.querySelector('#create-role-btn')?.addEventListener('click', () => {
@@ -939,7 +879,7 @@ export function renderRolesPage(container, data = {}) {
       clearSearchContainer?.classList.add('hidden');
     }
     state.query = String(event.target.value || '');
-    renderRoleList(container, state, openRole);
+    renderRoleList(container, state, openRole, deleteRole);
   });
 
   container.querySelector('#roles-clear-search-btn')?.addEventListener('click', () => {
@@ -950,8 +890,8 @@ export function renderRolesPage(container, data = {}) {
     clearSearchContainer?.classList.add('hidden');
     searchInput.focus();
     state.query = '';
-    renderRoleList(container, state, openRole);
+    renderRoleList(container, state, openRole, deleteRole);
   });
 
-  renderRoleList(container, state, openRole, stageRoleDelete, stagedDraft);
+  renderRoleList(container, state, openRole, deleteRole);
 }

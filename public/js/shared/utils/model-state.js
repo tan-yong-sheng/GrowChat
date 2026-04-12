@@ -31,10 +31,6 @@ export function getPreferredModelId(models = [], preferredIds = []) {
 
 export function sortModelsByActiveThenName(models = []) {
   return (Array.isArray(models) ? models : []).slice().sort((a, b) => {
-    const aEnabled = isModelEnabled(a);
-    const bEnabled = isModelEnabled(b);
-    if (aEnabled !== bEnabled) return aEnabled ? -1 : 1;
-
     const aLabel = normalizeModelLabel(a);
     const bLabel = normalizeModelLabel(b);
     const labelCompare = aLabel.localeCompare(bLabel);

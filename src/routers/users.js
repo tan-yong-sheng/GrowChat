@@ -44,6 +44,7 @@ import {
   toPersonalConnectionSummary,
   toPersonalToolServerSummary,
 } from '../services/workspace-settings.js';
+import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback).trim().toLowerCase();
@@ -267,6 +268,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         userId: user.sub,
         primaryRole: normalizeRole(user.primary_role),
         includeDisabled: true,
+        includeHiddenForUser: true,
       });
       return json(req, {
         connections: payload.connections,
@@ -912,32 +914,54 @@ export async function usersRouter(req, env, _ctx, user, path) {
         (await loadToolServers(db, { includeHiddenForUser: true }))
           .map((server) => [String(server.id || ''), server.enabled !== false])
       );
+      const userResourceOverrides = await loadUserResourceOverrides(db, userId);
+      const hiddenConnectionIds = new Set(userResourceOverrides?.connections?.hidden_ids || []);
+      const hiddenModelIds = new Set(userResourceOverrides?.models?.hidden_ids || []);
+      const hiddenToolServerIds = new Set(userResourceOverrides?.tool_servers?.hidden_ids || []);
 
-      const decorateRules = (rules = [], familyLabel, enabledMap = new Map()) => (Array.isArray(rules) ? rules : [])
+      const decorateRules = (rules = [], familyLabel, enabledMap = new Map(), hiddenIds = new Set()) => (Array.isArray(rules) ? rules : [])
         .filter((rule) => {
           if (rule?.principal_type === 'user') {
             return String(rule.principal_id || '') === String(userId || '');
           }
           return groupIds.has(String(rule.principal_id || ''));
         })
-        .map((rule) => ({
-          family: familyLabel,
-          resource_id: rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '',
-          resource_enabled: enabledMap.has(rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '')
-            ? enabledMap.get(rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '')
-            : true,
-          principal_type: rule.principal_type,
-          principal_id: rule.principal_id,
-          principal_label: rule.principal_type === 'group'
-            ? `Group: ${groupMap.get(rule.principal_id) || rule.principal_id}`
-            : 'Direct user',
-          effect: rule.effect,
-          action: rule.action,
-        }));
+        .map((rule) => {
+          const resourceId = rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '';
+          const resourceEnabled = enabledMap.has(resourceId)
+            ? enabledMap.get(resourceId)
+            : true;
+          const hiddenForUser = hiddenIds.has(resourceId);
+          const effect = String(rule.effect || 'allow').trim().toLowerCase();
+          const accessState = !resourceEnabled
+            ? 'disabled'
+            : hiddenForUser
+              ? 'hidden_for_user'
+              : effect === 'deny'
+                ? 'revoked'
+                : rule.principal_type === 'group'
+                  ? 'shared'
+                  : 'personal';
+          return {
+            family: familyLabel,
+            resource_id: resourceId,
+            resource_enabled: resourceEnabled,
+            visible_for_user: !hiddenForUser && resourceEnabled,
+            hidden_for_user: hiddenForUser,
+            access_state: accessState,
+            principal_type: rule.principal_type,
+            principal_id: rule.principal_id,
+            principal_label: rule.principal_type === 'group'
+              ? `Group: ${groupMap.get(rule.principal_id) || rule.principal_id}`
+              : 'Direct user',
+            effect,
+            action: rule.action,
+          };
+        });
 
-      const modelRules = decorateRules(await loadModelAclRules(db), 'model', modelEnabledMap);
-      const connectionRules = decorateRules(await loadConnectionAclRules(db), 'connection', connectionEnabledMap);
-      const toolServerRules = decorateRules(await loadToolServerAclRules(db), 'mcp_server', toolServerEnabledMap);
+      const modelRules = decorateRules(await loadModelAclRules(db), 'model', modelEnabledMap, hiddenModelIds);
+      const connectionRules = decorateRules(await loadConnectionAclRules(db), 'connection', connectionEnabledMap, hiddenConnectionIds);
+      const toolServerRules = decorateRules(await loadToolServerAclRules(db), 'mcp_server', toolServerEnabledMap, hiddenToolServerIds);
 
       return json(req, {
         user: {

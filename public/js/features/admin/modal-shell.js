@@ -1,3 +1,5 @@
+import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+
 const DEFAULT_OUTER_CLASS = 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
 const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0';
 const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
@@ -106,6 +108,24 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function normalizeModalHashSource(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^#+/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+}
+
+function resolveModalHash({ modalHash, rootAttrs, title } = {}) {
+  const explicit = normalizeModalHashSource(modalHash);
+  if (explicit) return explicit;
+  const rootIdMatch = String(rootAttrs || '').match(/\bid\s*=\s*["']([^"']+)["']/i);
+  if (rootIdMatch?.[1]) return normalizeModalHashSource(rootIdMatch[1]);
+  return normalizeModalHashSource(title);
+}
+
 export function createAdminModalShell({
   preset = 'standard',
   title = '',
@@ -125,6 +145,7 @@ export function createAdminModalShell({
   closeAriaLabel,
   closeAttr = 'data-admin-modal-close',
   rootAttrs = '',
+  modalHash = '',
 } = {}) {
   const markup = buildAdminModalShellMarkup({
     preset,
@@ -148,11 +169,15 @@ export function createAdminModalShell({
   const modal = document.createElement('div');
   modal.innerHTML = markup.trim();
   const rendered = modal.firstElementChild;
+  const resolvedModalHash = resolveModalHash({ modalHash, rootAttrs, title });
   let closed = false;
   const close = (reason = 'dismiss') => {
     if (closed) return;
     closed = true;
     rendered.remove();
+    if (resolvedModalHash) {
+      clearModalHash(resolvedModalHash);
+    }
     if (typeof onClose === 'function') {
       onClose(reason);
     }
@@ -163,6 +188,9 @@ export function createAdminModalShell({
     }
   });
   document.body.appendChild(rendered);
+  if (resolvedModalHash) {
+    setModalHash(resolvedModalHash);
+  }
   return {
     modal: rendered,
     close,

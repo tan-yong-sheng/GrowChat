@@ -6,7 +6,6 @@ import {
   fetchAdminUsers,
   updateAdminGroup,
 } from '../../../shared/api.js';
-import { bindAdminDraftHandlers, clearAdminDraft, getAdminDraft, setAdminDraft } from '../modal-draft.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
 import { buildMemberSet, clampUserLimit, filterUsers } from './groups-members-helpers.js';
@@ -67,10 +66,10 @@ function renderGroupModal({
       <div class="flex flex-1 min-h-0 flex-col md:flex-row">
         <div class="w-full md:w-32 lg:w-36 ${theme.sidebar} border-r-0 md:border-r p-3 md:p-3.5 text-sm shrink-0 border-b md:border-b-0">
           <div class="flex flex-wrap md:flex-col gap-2 md:gap-1.5">
-            <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-xl transition ${theme.sidebarActive}" data-tab="general">
+            <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${theme.sidebarActive}" data-tab="general">
               <span class="flex items-center gap-2">General</span>
             </button>
-            <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-xl transition ${theme.sidebarInactive}" data-tab="members">
+            <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${theme.sidebarInactive}" data-tab="members">
               <span class="flex items-center gap-2">Members</span>
             </button>
           </div>
@@ -102,7 +101,7 @@ function renderGroupModal({
               </div>
               <input id="group-member-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-700 outline-none" placeholder="Search users">
               <div id="group-member-clear-container" class="hidden ml-1.5">
-                <button type="button" id="group-member-clear-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
+                <button type="button" id="group-member-clear-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -118,9 +117,9 @@ function renderGroupModal({
     footer: `
       <div class="text-sm text-red-600" id="group-modal-error"></div>
       <div class="flex items-center gap-2">
-        ${isEdit ? `<button id="group-policies-btn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Manage Policies</button>` : ''}
-        ${isEdit ? '<button id="group-delete-btn" class="px-4 py-2 text-sm text-red-500 hover:text-red-600">Delete</button>' : ''}
-        <button type="button" id="group-save-btn" class="px-4 py-2 text-sm font-semibold rounded-xl transition">Save</button>
+        ${isEdit ? `<button id="group-policies-btn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition">Manage Policies</button>` : ''}
+        ${isEdit ? '<button id="group-delete-btn" class="px-4 py-2 text-sm text-red-500 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 rounded transition">Delete</button>' : ''}
+        <button type="button" id="group-save-btn" class="px-4 py-2 text-sm font-semibold rounded-xl transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Save</button>
       </div>
     `,
     closeAttr: 'data-close-group-modal',
@@ -140,11 +139,7 @@ function renderGroupModal({
   };
 
   const close = () => {
-    if (navigationState) {
-      navigationState.__groupsActiveModalIsDirty = null;
-    }
     overlay.remove();
-    navigationState?.requestUsersFooterSync?.();
   };
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay || e.target.closest('[data-close-group-modal]')) close();
@@ -174,18 +169,9 @@ function renderGroupModal({
   const descriptionInput = overlay.querySelector('#group-description-input');
   const saveBtn = overlay.querySelector('#group-save-btn');
 
-  const registerNavigationHandlers = () => {
-    if (!navigationState) return;
-    navigationState.__groupsActiveModalIsDirty = isDirty;
-  };
-
   const syncDirty = () => {
     modalState.dirty = isDirty();
-    if (navigationState) {
-      navigationState.__groupsActiveModalIsDirty = isDirty;
-    }
     setModalSaveButtonState(saveBtn, { enabled: modalState.dirty, saving: modalState.saving });
-    navigationState?.requestUsersFooterSync?.();
   };
 
   const renderMembers = () => {
@@ -212,7 +198,7 @@ function renderGroupModal({
                 <div class="text-[11px] text-gray-700">${escapeHtml(user.email || '')}</div>
               </div>
             </div>
-            <button type="button" class="member-toggle text-[11px] font-semibold px-3 py-1 rounded-full border transition ${buttonClass}" data-user-id="${escapeHtml(user.id)}">
+            <button type="button" class="member-toggle text-[11px] font-semibold px-3 py-1 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${buttonClass}" data-user-id="${escapeHtml(user.id)}">
               ${buttonLabel}
             </button>
           </div>
@@ -294,9 +280,6 @@ function renderGroupModal({
     }
   };
 
-  registerNavigationHandlers();
-  navigationState?.requestUsersFooterSync?.();
-
   overlay.querySelector('#group-delete-btn')?.addEventListener('click', async () => {
     if (!group?.id) return;
     try {
@@ -335,22 +318,28 @@ async function openCreateModal({ onRefresh, onCreate, navigationState }) {
     usersError = err.message || 'Unable to load users.';
   }
 
-  const draftRegistry = navigationState?.__groupsDraftRegistry;
-  const stagedDraft = draftRegistry?.get?.();
-  const initialDraft = stagedDraft?.mode === 'create' ? stagedDraft.payload : null;
-  const modal = renderGroupModal({
+  renderGroupModal({
     mode: 'create',
-    draft: initialDraft,
+    draft: null,
     users,
     usersTotal,
     usersError,
     navigationState,
     onSave: async (payload) => {
       if (!payload.name) throw new Error('Group name is required.');
-      draftRegistry?.set({
-        mode: 'create',
-        payload,
+      const created = await createAdminGroup({
+        name: payload.name,
+        description: payload.description,
+        member_ids: payload.member_ids || [],
       });
+      if (typeof onCreate === 'function') {
+        onCreate({
+          ...created.group,
+          member_count: created?.group?.member_count ?? (Array.isArray(payload.member_ids) ? payload.member_ids.length : 0),
+        });
+      } else {
+        await onRefresh?.();
+      }
     },
   });
 }
@@ -367,25 +356,30 @@ async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, navigatio
   } catch (err) {
     usersError = err.message || 'Unable to load users.';
   }
-  const draftRegistry = navigationState?.__groupsDraftRegistry;
-  const stagedDraft = draftRegistry?.get?.();
-  const initialDraft = stagedDraft?.mode === 'edit' && stagedDraft.groupId === groupId ? stagedDraft.payload : null;
-  const modal = renderGroupModal({
+  renderGroupModal({
     mode: 'edit',
     group: detail.group,
     members: detail.members || [],
-    draft: initialDraft,
+    draft: null,
     users,
     usersTotal,
     usersError,
     navigationState,
     onSave: async (payload) => {
       if (!payload.name) throw new Error('Group name is required.');
-      draftRegistry?.set({
-        mode: 'edit',
-        groupId,
-        payload,
+      const updated = await updateAdminGroup(groupId, {
+        name: payload.name,
+        description: payload.description,
+        member_ids: payload.member_ids || [],
       });
+      if (typeof onUpdate === 'function') {
+        onUpdate({
+          ...updated.group,
+          member_count: updated?.group?.member_count ?? (Array.isArray(payload.member_ids) ? payload.member_ids.length : 0),
+        });
+      } else {
+        await onRefresh?.();
+      }
     },
     onDelete: async (targetGroupId, closeModal) => {
       if (typeof onDelete === 'function') {
@@ -413,121 +407,22 @@ function renderEmptyState() {
 }
 
 export function renderGroupsOverview(container, data, actions = {}) {
-  const draftKey = 'groups';
-  let activeModalIsDirty = null;
-  const draftRegistry = {
-    get: () => getAdminDraft(data, 'users', draftKey),
-    set: (value) => setAdminDraft(data, 'users', draftKey, value),
-    clear: () => clearAdminDraft(data, 'users', draftKey),
-  };
-
-  const commitGroupsDraft = async () => {
-    const draft = draftRegistry.get();
-    if (!draft) return;
-
-    if (draft.mode === 'delete') {
-      const groupId = String(draft.groupId || '').trim();
-      if (!groupId) {
-        throw new Error('Group not found.');
-      }
-
-      await deleteAdminGroup(groupId);
-      draftRegistry.clear();
-      data.__groupsActiveModalIsDirty = null;
-
-      if (typeof actions.onDelete === 'function') {
-        actions.onDelete(groupId);
-      } else {
-        await actions.reload?.();
-      }
-
-      data.requestUsersFooterSync?.();
-      return;
-    }
-
-    const payload = draft.payload || {};
-    const name = String(payload.name || '').trim();
-    if (!name) {
-      throw new Error('Group name is required.');
-    }
-    const memberIds = Array.isArray(payload.member_ids) ? payload.member_ids : [];
-    if (draft.mode === 'create') {
-      const created = await createAdminGroup({
-        name,
-        description: String(payload.description || '').trim(),
-        member_ids: memberIds,
-      });
-      if (typeof actions.onCreate === 'function') {
-        actions.onCreate({
-          ...created.group,
-          member_count: created?.group?.member_count ?? (memberIds.length || 0),
-        });
-      } else {
-        await actions.reload?.();
-      }
-    } else if (draft.mode === 'edit') {
-      const updated = await updateAdminGroup(draft.groupId, {
-        name,
-        description: String(payload.description || '').trim(),
-        member_ids: memberIds,
-      });
-      if (typeof actions.onUpdate === 'function') {
-        actions.onUpdate({
-          ...updated.group,
-          member_count: updated?.group?.member_count ?? memberIds.length,
-        });
-      }
-      if (!actions.onUpdate) {
-        await actions.reload?.();
-      }
-    }
-
-    draftRegistry.clear();
-    data.__groupsActiveModalIsDirty = null;
-    data.requestUsersFooterSync?.();
-  };
-
-  const discardGroupsDraft = () => {
-    draftRegistry.clear();
-    renderGroupsOverview(container, data, actions);
-    data.requestUsersFooterSync?.();
-  };
-
-  const isGroupsDirty = () => Boolean(draftRegistry.get()) || Boolean(typeof data.__groupsActiveModalIsDirty === 'function' && data.__groupsActiveModalIsDirty());
-
-  data.usersDirtyCheckers = data.usersDirtyCheckers || {};
-  data.usersSaveHandlers = data.usersSaveHandlers || {};
-  data.usersDiscardHandlers = data.usersDiscardHandlers || {};
-  bindAdminDraftHandlers(data, 'users', draftKey, {
-    isDirty: isGroupsDirty,
-    save: commitGroupsDraft,
-    discard: discardGroupsDraft,
-    requestFooterSync: data.requestUsersFooterSync,
-  });
-  data.__groupsDraftRegistry = draftRegistry;
-  const stageGroupDelete = async (groupId, closeModal = null) => {
+  const deleteGroup = async (groupId) => {
     const group = (data.groups || []).find((item) => item.id === groupId) || null;
     if (!group || group.is_system) return false;
-    if (!window.confirm(`Delete group ${group.name}? This will permanently remove the group when you save changes.`)) return false;
-
-    draftRegistry.set({
-      mode: 'delete',
-      groupId: group.id,
-      payload: {
-        name: group.name,
-      },
-    });
-    data.requestUsersFooterSync?.();
-    renderGroupsOverview(container, data, actions);
-    closeModal?.();
+    if (!window.confirm(`Delete group ${group.name}? This will permanently remove the group.`)) return false;
+    await deleteAdminGroup(group.id);
+    if (typeof actions.onDelete === 'function') {
+      actions.onDelete(group.id);
+    } else {
+      await actions.reload?.();
+    }
     return true;
   };
   const sortKey = data.groupsSort || 'members';
   const groups = sortGroups(data.groups || [], sortKey);
   const isLoading = data.groupsLoading;
   const error = data.groupsError;
-  const stagedDraft = draftRegistry.get();
-  const stagedGroupId = stagedDraft?.mode === 'delete' ? String(stagedDraft.groupId || '') : '';
 
   container.innerHTML = `
     <div class="flex flex-col flex-1 min-h-0 h-full animate-in fade-in duration-300">
@@ -538,7 +433,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
             <div class="text-lg font-medium text-gray-700">${groups.length}</div>
           </div>
           <div class="flex items-center justify-end gap-1.5 shrink-0">
-            <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-group-btn">
+            <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-group-btn">
               <span class="mr-2 text-sm">+</span>
               <span>New Group</span>
             </button>
@@ -557,7 +452,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
             </div>
             <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search Groups" id="group-search-input">
             <div id="clear-search-container" class="hidden ml-1.5">
-              <button id="clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
+              <button id="clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -574,10 +469,9 @@ export function renderGroupsOverview(container, data, actions = {}) {
           <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-2 pr-5">
             <div class="grid grid-cols-1 gap-1">
               ${groups.map((group) => {
-                const isPendingDelete = stagedGroupId === group.id;
-                const rowClasses = `flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl transition-all border border-transparent hover:border-gray-100/50 ${isPendingDelete ? 'opacity-60 bg-amber-50/40 cursor-default' : 'hover:bg-gray-50/80 group cursor-pointer'}`;
+                const rowClasses = 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl transition-all border border-transparent hover:border-gray-100/50 hover:bg-gray-50/80 group cursor-pointer';
                 const deleteButton = group.is_system ? '' : `
-                    <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-700 hover:text-red-500 transition-all btn-delete-group" data-group-id="${group.id}" data-group-name="${escapeHtml(group.name)}" aria-label="Delete group" ${isPendingDelete ? 'disabled' : ''}>
+                    <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-700 hover:text-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-group" data-group-id="${group.id}" data-group-name="${escapeHtml(group.name)}" aria-label="Delete group">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" class="size-5">
                         <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
                       </svg>
@@ -594,16 +488,15 @@ export function renderGroupsOverview(container, data, actions = {}) {
                     <div class="flex flex-col min-w-0">
                       <div class="flex items-center gap-1.5 min-w-0">
                         <div class="font-semibold text-gray-900 text-sm truncate">${group.name}</div>
-                        ${isPendingDelete ? '<span class="rounded-full border border-rose-200 bg-rose-100 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-rose-700 whitespace-nowrap">Pending delete</span>' : ''}
                       </div>
                       <div class="text-[11px] text-gray-700 font-medium">${group.member_count || 0} members</div>
                     </div>
                   </div>
                   <div class="flex items-center justify-end gap-1.5 self-end sm:self-auto">
-                    <a href="/admin/users/policies?group=${encodeURIComponent(group.id)}" class="px-2.5 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 transition-all hover:bg-gray-50 btn-manage-group-policies" ${isPendingDelete ? 'aria-disabled="true" tabindex="-1"' : ''}>
+                    <a href="/admin/users/policies?group=${encodeURIComponent(group.id)}" class="px-2.5 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 transition-all hover:bg-gray-50 btn-manage-group-policies">
                       Manage Policies
                     </a>
-                    <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-700 transition-all btn-edit-group" data-group-id="${group.id}" aria-label="Edit group" ${isPendingDelete ? 'disabled' : ''}>
+                    <button type="button" class="p-2 hover:bg-gray-200 rounded-xl text-gray-700 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 btn-edit-group" data-group-id="${group.id}" aria-label="Edit group">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
                       </svg>
@@ -636,14 +529,14 @@ export function renderGroupsOverview(container, data, actions = {}) {
     await openEditModal(btn.dataset.groupId, {
       onRefresh: reload,
       onUpdate: actions.onUpdate,
-      onDelete: stageGroupDelete,
+      onDelete: deleteGroup,
       navigationState: data,
     });
   }));
 
   container.querySelectorAll('.btn-delete-group').forEach((btn) => btn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await stageGroupDelete(btn.dataset.groupId);
+    await deleteGroup(btn.dataset.groupId);
   }));
 
   const searchInput = container.querySelector('#group-search-input');

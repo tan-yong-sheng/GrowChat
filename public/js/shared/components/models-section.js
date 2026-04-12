@@ -9,6 +9,7 @@ const escapeHtml = (value) => String(value ?? '')
 
 export function renderModelsHeaderHtml({
   countTitle = 'Active models',
+  countLabel = '',
   countValue = '',
   searchId,
   searchValue = '',
@@ -24,7 +25,10 @@ export function renderModelsHeaderHtml({
     <div class="pt-0.5 pb-2.5 flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center sticky top-0 z-10 bg-white">
       <div class="flex items-center text-xl font-medium px-0.5 gap-2">
         <div class="flex-shrink-0 text-gray-900">Models</div>
-        <div data-models-count-value class="text-gray-500 font-normal ml-0.5" title="${escapeHtml(countTitle)}">${escapeHtml(countValue)}</div>
+        <div class="flex flex-col items-start leading-tight">
+          ${countLabel ? `<div data-models-count-label class="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">${escapeHtml(countLabel)}</div>` : ''}
+          <div data-models-count-value class="text-gray-500 font-normal${countLabel ? '' : ' ml-0.5'}" title="${escapeHtml(countTitle)}">${escapeHtml(countValue)}</div>
+        </div>
       </div>
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:flex-wrap">
         ${renderSearchBarHtml({
@@ -70,7 +74,7 @@ export function renderModelsTableShellHtml({
               <tr class="border-b border-gray-100">
                 <th scope="col" class="px-4 py-3 w-1/4">Name</th>
                 <th scope="col" class="px-4 py-3 w-1/3">Model ID</th>
-                <th scope="col" class="px-4 py-3 w-1/3">Input</th>
+                <th scope="col" class="px-4 py-3 w-1/4">Access</th>
                 <th scope="col" class="px-4 py-3 w-1/6 text-right">Status</th>
               </tr>
             </thead>
@@ -124,6 +128,7 @@ export function renderModelsPaginationHtml({
 
 export function syncModelsHeaderState(container, {
   countTitle = 'Active models',
+  countLabel = '',
   countValue = '',
   searchId,
   searchValue = '',

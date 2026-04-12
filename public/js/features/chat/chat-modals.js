@@ -1,3 +1,6 @@
+import { suspendSidebarVisibility, restoreSidebarVisibility } from '../../shared/utils/sidebar-visibility.js';
+import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+
 export function createChatModals({
   state,
   shareChat,
@@ -14,8 +17,16 @@ export function createChatModals({
   archivedModalContainer,
   citationModalContainer,
 } = {}) {
+  let shareSidebarSuspended = false;
+  let citationSidebarSuspended = false;
+  let archivedSidebarSuspended = false;
+
   function renderShareModal(shareData = null) {
     if (!shareModalContainer) return;
+    if (!shareSidebarSuspended) {
+      suspendSidebarVisibility();
+      shareSidebarSuspended = true;
+    }
 
     const hasShare = Boolean(shareData?.share_id);
     const shareUrl = hasShare ? `${window.location.origin}${shareData.share_url}` : '';
@@ -39,6 +50,11 @@ export function createChatModals({
 
     const close = () => {
       shareModalContainer.innerHTML = '';
+      if (shareSidebarSuspended) {
+        restoreSidebarVisibility();
+        shareSidebarSuspended = false;
+      }
+      clearModalHash('share-modal');
     };
 
     shareModalContainer.querySelector('#share-overlay')?.addEventListener('click', close);
@@ -67,13 +83,19 @@ export function createChatModals({
       drawChats(state.chats, state.activeChatId);
       renderShareModal(null);
     });
+
+    setModalHash('share-modal');
   }
 
   function renderCitationModal(citationId, detailText) {
     if (!citationModalContainer) return;
+    if (!citationSidebarSuspended) {
+      suspendSidebarVisibility();
+      citationSidebarSuspended = true;
+    }
 
     citationModalContainer.innerHTML = `
-      <div class="fixed inset-0 z-[130]" role="dialog" aria-modal="true">
+      <div id="citation-modal-root" class="fixed inset-0 z-[130]" role="dialog" aria-modal="true">
         <div id="citation-overlay" class="absolute inset-0 bg-black/30"></div>
         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94%] max-w-2xl h-[70vh] rounded-2xl bg-white border border-gray-200 shadow-xl flex flex-col">
           <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -90,9 +112,15 @@ export function createChatModals({
 
     const close = () => {
       citationModalContainer.innerHTML = '';
+      if (citationSidebarSuspended) {
+        restoreSidebarVisibility();
+        citationSidebarSuspended = false;
+      }
+      clearModalHash('citation-modal');
     };
     citationModalContainer.querySelector('#citation-overlay')?.addEventListener('click', close);
     citationModalContainer.querySelector('#close-citation')?.addEventListener('click', close);
+    setModalHash('citation-modal');
   }
 
   async function openCitation(citationId) {
@@ -117,9 +145,14 @@ export function createChatModals({
 
   async function openArchivedModal() {
     if (!archivedModalContainer) return;
+    if (!archivedSidebarSuspended) {
+      suspendSidebarVisibility();
+      archivedSidebarSuspended = true;
+    }
 
-    const data = await fetchArchivedChats();
-    archivedModalContainer.innerHTML = `
+    try {
+      const data = await fetchArchivedChats();
+      archivedModalContainer.innerHTML = `
       <div class="fixed inset-0 z-[125]" role="dialog" aria-modal="true">
         <div id="archived-overlay" class="absolute inset-0 bg-black/30"></div>
         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94%] max-w-xl rounded-2xl bg-white border border-gray-200 shadow-xl p-5">
@@ -141,17 +174,32 @@ export function createChatModals({
       </div>
     `;
 
-    const close = () => { archivedModalContainer.innerHTML = ''; };
-    archivedModalContainer.querySelector('#archived-overlay')?.addEventListener('click', close);
-    archivedModalContainer.querySelector('#close-archived-modal')?.addEventListener('click', close);
-    archivedModalContainer.querySelectorAll('[data-restore-chat]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-restore-chat');
-        await toggleArchiveChat?.(id);
-        await loadChats();
-        close();
+      const close = () => {
+        archivedModalContainer.innerHTML = '';
+        if (archivedSidebarSuspended) {
+          restoreSidebarVisibility();
+          archivedSidebarSuspended = false;
+        }
+        clearModalHash('archived-modal');
+      };
+      archivedModalContainer.querySelector('#archived-overlay')?.addEventListener('click', close);
+      archivedModalContainer.querySelector('#close-archived-modal')?.addEventListener('click', close);
+      archivedModalContainer.querySelectorAll('[data-restore-chat]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-restore-chat');
+          await toggleArchiveChat?.(id);
+          await loadChats();
+          close();
+        });
       });
-    });
+      setModalHash('archived-modal');
+    } catch (err) {
+      if (archivedSidebarSuspended) {
+        restoreSidebarVisibility();
+        archivedSidebarSuspended = false;
+      }
+      throw err;
+    }
   }
 
   return {

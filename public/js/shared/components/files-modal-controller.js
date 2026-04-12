@@ -1,5 +1,7 @@
 import { state, setState, subscribe } from '../store.js';
 import { fetchFiles, searchFiles, uploadFile, deleteFile } from '../api.js';
+import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
+import { suspendSidebarVisibility, restoreSidebarVisibility } from '../utils/sidebar-visibility.js';
 import {
   renderFilesEmptyStateMarkup,
   renderFilesListMarkup,
@@ -18,6 +20,7 @@ export function createFilesModalController(container) {
   const selectedCount = container.querySelector('#selected-count');
   const searchInput = container.querySelector('#files-search-input');
   let searchTimer = null;
+  let sidebarSuspended = false;
 
   const close = () => setState({ showFiles: false });
 
@@ -116,7 +119,12 @@ export function createFilesModalController(container) {
 
   unsubscribe = subscribe((currentState) => {
     if (currentState.showFiles) {
+      setModalHash('files-modal');
       if (modalRoot.classList.contains('hidden')) {
+        if (!sidebarSuspended) {
+          suspendSidebarVisibility();
+          sidebarSuspended = true;
+        }
         document.body.style.overflow = 'hidden';
         refreshFiles();
       }
@@ -124,6 +132,11 @@ export function createFilesModalController(container) {
     } else {
       if (!modalRoot.classList.contains('hidden')) {
         document.body.style.overflow = '';
+        if (sidebarSuspended) {
+          restoreSidebarVisibility();
+          sidebarSuspended = false;
+        }
+        clearModalHash('files-modal');
       }
       modalRoot.classList.add('hidden');
     }
@@ -141,7 +154,12 @@ export function createFilesModalController(container) {
   cleanup = () => {
     if (unsubscribe) unsubscribe();
     document.body.style.overflow = '';
+    if (sidebarSuspended) {
+      restoreSidebarVisibility();
+      sidebarSuspended = false;
+    }
     if (searchTimer) clearTimeout(searchTimer);
+    clearModalHash('files-modal');
   };
 
   return () => {

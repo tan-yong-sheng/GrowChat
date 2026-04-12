@@ -10,17 +10,41 @@ import {
 } from '../../shared/components/settings-top-nav.js';
 import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-vertical-tabs.js';
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
+import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { renderAccountConnectionsSection } from './account-connections.js';
 import { renderAccountIntegrationsSection } from './account-integrations.js';
 import { renderAccountModelsSection } from './account-models.js';
 
+function normalizeAccountSection(section) {
+  const value = String(section || '').trim();
+  if (value === 'connections' || value === 'models' || value === 'integrations') {
+    return value;
+  }
+  return 'connections';
+}
+
 export function resolveAccountSectionFromPath(pathname) {
-  if (pathname === '/account' || pathname === '/account/') return 'overview';
+  if (pathname === '/account' || pathname === '/account/' || pathname === '/account/profile' || pathname.startsWith('/account/profile/')) {
+    return 'connections';
+  }
   if (pathname.startsWith('/account/settings/connections')) return 'connections';
   if (pathname.startsWith('/account/settings/models')) return 'models';
   if (pathname.startsWith('/account/settings/integrations')) return 'integrations';
-  return 'overview';
+  return 'connections';
+}
+
+function getAccountSectionPath(section) {
+  switch (normalizeAccountSection(section)) {
+    case 'connections':
+      return '/account/settings/connections';
+    case 'models':
+      return '/account/settings/models';
+    case 'integrations':
+      return '/account/settings/integrations';
+    default:
+      return '/account/settings/connections';
+  }
 }
 
 function escapeHtml(value) {
@@ -78,34 +102,26 @@ function renderOverview(state) {
 }
 
 function getAccountNavItems(section) {
-  if (section === 'overview') {
-    return [{
-      href: '#overview',
-      key: 'overview',
-      label: 'Overview',
-      active: section === 'overview',
-      icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4"><path d="M8.5 4.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10.9 12.006c.11.542-.348.994-.9.994H2c-.553 0-1.01-.452-.902-.994a5.002 5.002 0 0 1 9.803 0ZM14.002 12h-1.59a2.556 2.556 0 0 0-.04-.29 6.476 6.476 0 0 0-1.167-2.603 3.002 3.002 0 0 1 3.633 1.911c.18.522-.283.982-.836.982ZM12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>',
-    }];
-  }
+  const activeSection = normalizeAccountSection(section);
 
   return [
     {
       href: '#connections',
       key: 'connections',
       label: 'Connections',
-      active: section === 'connections',
+      active: activeSection === 'connections',
     },
     {
       href: '#models',
       key: 'models',
       label: 'Models',
-      active: section === 'models',
+      active: activeSection === 'models',
     },
     {
       href: '#integrations',
       key: 'integrations',
       label: 'Integrations',
-      active: section === 'integrations',
+      active: activeSection === 'integrations',
     },
   ];
 }
@@ -185,7 +201,8 @@ async function renderAccountSection({
 
 export async function renderAccountPage(container) {
   ensureMarkedReady();
-  const section = resolveAccountSectionFromPath(window.location.pathname);
+  setSidebarRouteScope('account');
+  const section = normalizeAccountSection(resolveAccountSectionFromPath(window.location.pathname));
   container.dataset.view = 'account';
   const previousCleanup = typeof container.__cleanup === 'function' ? container.__cleanup : null;
   previousCleanup?.();
@@ -279,11 +296,7 @@ export async function renderAccountPage(container) {
   const closeBtn = container.querySelector('#account-settings-close');
   const closeOverlay = container.querySelector('#account-settings-overlay');
   const closeSettings = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-      return;
-    }
-    window.history.pushState({}, '', '/');
+    window.history.replaceState({}, '', '/');
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
@@ -296,13 +309,21 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   const existing = document.getElementById('account-settings-drawer-modal');
   existing?.remove();
 
+  const normalizedSection = normalizeAccountSection(section);
+  const targetPath = getAccountSectionPath(normalizedSection);
+  setSidebarRouteScope('account');
+  if (window.location.pathname !== targetPath) {
+    window.history.pushState({}, '', targetPath);
+  }
+
   const mount = document.createElement('div');
+  mount.dataset.accountSettingsDrawerMount = '1';
   document.body.appendChild(mount);
 
   const settingsRouteCache = createSettingsRouteCache();
   let removeSettingsRouteCache = null;
   let accountState = null;
-  let currentSection = section;
+  let currentSection = normalizeAccountSection(section);
   let drawer = null;
   let content = null;
   let footerHost = null;
@@ -316,6 +337,8 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
 
   const closeDrawer = () => {
     removeSettingsRouteCache?.();
+    window.history.replaceState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
     drawer?.remove();
     mount.remove();
   };
@@ -359,7 +382,11 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
         event.preventDefault();
         const nav = link.dataset.accountAreaTab || link.dataset.subnav;
         if (!nav) return;
-        currentSection = nav === 'overview' ? 'overview' : nav;
+        currentSection = normalizeAccountSection(nav);
+        const nextPath = getAccountSectionPath(currentSection);
+        if (window.location.pathname !== nextPath) {
+          window.history.replaceState({}, '', nextPath);
+        }
         await renderDrawer();
       });
     });

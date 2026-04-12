@@ -3,6 +3,8 @@ import { showToast, showToastProgress } from '../../shared/utils.js';
 import { filterEnabledModels, getPreferredModelId, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import {
   getModelDisplayLabel,
+  getModelAvailabilityFallbackNotice,
+  getModelSelectorAvailabilitySummary,
   getModelSelectorDerivedState,
   persistDefaultModelSelection,
   renderModelSelectorOption,
@@ -16,6 +18,8 @@ export function createModelSelectorController(container) {
   const chevron = container.querySelector('#model-selector-chevron');
   const dropdown = container.querySelector('#model-selector-dropdown');
   const nameSpan = container.querySelector('#active-model-name');
+  const summaryEl = container.querySelector('#model-selector-summary');
+  const noticeEl = container.querySelector('#model-selector-notice');
   const searchInput = container.querySelector('#model-search-input');
   const listContainer = container.querySelector('#model-list-container');
   const headerSetDefaultBtn = container.querySelector('#header-set-default-btn');
@@ -35,6 +39,65 @@ export function createModelSelectorController(container) {
   let lastActiveModelId = null;
   let renderedCount = 0;
   let searchDebounce = null;
+  let noticeClearTimer = null;
+
+  const getSelectableModelCount = (models = []) => filterEnabledModels(Array.isArray(models) ? models : [])
+    .filter((model) => model?.hidden_for_user !== true)
+    .length;
+
+  const syncScopeSummary = (currentState) => {
+    if (!summaryEl) return;
+    summaryEl.textContent = getModelSelectorAvailabilitySummary(
+      getSelectableModelCount(currentState.models),
+      { loading: currentState.modelsLoading }
+    );
+  };
+
+  const clearModelAvailabilityNotice = () => {
+    if (noticeClearTimer) {
+      clearTimeout(noticeClearTimer);
+      noticeClearTimer = null;
+    }
+  };
+
+  const setModelAvailabilityNotice = (message, key) => {
+    clearModelAvailabilityNotice();
+    setState({
+      ui: {
+        modelAvailabilityNotice: message ? {
+          key,
+          message,
+          tone: 'warning',
+        } : null,
+      },
+    });
+    if (message) {
+      noticeClearTimer = setTimeout(() => {
+        if (state.ui?.modelAvailabilityNotice?.key === key) {
+          setState({
+            ui: {
+              modelAvailabilityNotice: null,
+            },
+          });
+        }
+      }, 6000);
+    }
+  };
+
+  const syncAvailabilityNotice = (currentState) => {
+    if (!noticeEl) return;
+    const notice = currentState.ui?.modelAvailabilityNotice || null;
+    if (!notice?.message) {
+      noticeEl.classList.add('hidden');
+      noticeEl.textContent = '';
+      noticeEl.className = 'hidden mx-2 mt-1 rounded-xl border px-3 py-2 text-xs';
+      return;
+    }
+
+    noticeEl.classList.remove('hidden');
+    noticeEl.textContent = notice.message;
+    noticeEl.className = 'mx-2 mt-1 rounded-xl border px-3 py-2 text-xs border-amber-200 bg-amber-50 text-amber-800';
+  };
 
   const ensureModelsLoaded = async () => {
     if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
@@ -42,7 +105,7 @@ export function createModelSelectorController(container) {
     loadingPromise = (async () => {
       try {
         const { fetchModels } = await import('../../shared/api.js');
-        const data = await fetchModels();
+        const data = await fetchModels({ scope: 'effective' });
         const models = filterEnabledModels((data.models || []).filter((model) => model?.hidden_for_user !== true));
         const nextActiveModelId = getPreferredModelId(models, [
           state.activeModelId,
@@ -51,6 +114,7 @@ export function createModelSelectorController(container) {
         ]);
         setState({
           models,
+          modelCatalogMeta: data.visibility || null,
           activeModelId: nextActiveModelId,
           modelsLoading: false,
         });
@@ -107,6 +171,7 @@ export function createModelSelectorController(container) {
     if (currentState.modelsLoading) {
       listContainer.innerHTML = '<div class="px-3 py-6 text-center text-sm text-gray-600 italic">Loading models...</div>';
       renderedCount = 0;
+      syncScopeSummary(currentState);
       return;
     }
 
@@ -128,7 +193,8 @@ export function createModelSelectorController(container) {
       renderedCount = 0;
       listContainer.innerHTML = searchQuery
         ? `<div class="px-3 py-8 text-center text-sm text-gray-600 italic">No models found for "${searchQuery}"</div>`
-        : '<div class="px-3 py-6 text-center text-sm text-gray-600 italic">No models available</div>';
+        : '<div class="px-3 py-6 text-center text-sm text-gray-600 italic">No selectable models are currently available for this chat.</div>';
+      syncScopeSummary(currentState);
       return;
     }
 
@@ -150,6 +216,7 @@ export function createModelSelectorController(container) {
     }
 
     applyActiveHighlight(false);
+    syncScopeSummary(currentState);
   };
 
   const toggle = () => {
@@ -247,7 +314,11 @@ export function createModelSelectorController(container) {
       e.preventDefault();
       const model = visibleModels[activeIndex];
       if (!model) return;
-      setState({ activeModelId: model.id });
+      clearModelAvailabilityNotice();
+      setState({
+        activeModelId: model.id,
+        ui: { modelAvailabilityNotice: null },
+      });
       toggle();
       return;
     }
@@ -268,7 +339,11 @@ export function createModelSelectorController(container) {
     const button = e.target.closest('button[data-model-id]');
     if (!button) return;
     const newModelId = button.getAttribute('data-model-id');
-    setState({ activeModelId: newModelId });
+    clearModelAvailabilityNotice();
+    setState({
+      activeModelId: newModelId,
+      ui: { modelAvailabilityNotice: null },
+    });
     toggle();
   });
 
@@ -290,9 +365,10 @@ export function createModelSelectorController(container) {
       currentState.globalDefaultModelId,
     ]) : null;
     const preferredModel = preferredModelId ? (models.find((m) => m.id === preferredModelId) || null) : null;
+    const activeModelExists = Boolean(currentState.activeModelId && models.some((model) => model.id === currentState.activeModelId));
 
     if (!hasModels) {
-      nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'Unknown model';
+      nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'No selectable models';
     } else if (preferredModel) {
       nameSpan.textContent = getModelDisplayLabel(preferredModel) || preferredModel.id;
     } else {
@@ -328,6 +404,34 @@ export function createModelSelectorController(container) {
       }
     }
 
+    syncScopeSummary(currentState);
+    syncAvailabilityNotice(currentState);
+
+    if (hasModels && currentState.activeModelId && !activeModelExists && preferredModelId && currentState.activeModelId !== preferredModelId) {
+      const fallbackLabel = getModelDisplayLabel(preferredModel) || preferredModel?.id || 'a different model';
+      const noticeKey = `${currentState.activeModelId}:${preferredModelId}`;
+      const currentNoticeKey = currentState.ui?.modelAvailabilityNotice?.key || null;
+      if (currentNoticeKey !== noticeKey) {
+        const chatModelId = currentState.chats?.find((chat) => chat?.id === currentState.activeChatId)?.model || null;
+        const visibilityMeta = currentState.modelCatalogMeta || {};
+        const fallbackNotice = getModelAvailabilityFallbackNotice({
+          previousModelId: currentState.activeModelId,
+          fallbackModel: preferredModel,
+          currentChatModelId: chatModelId,
+          disabledModelIds: visibilityMeta.disabled_model_ids || [],
+          hiddenModelIds: visibilityMeta.hidden_model_ids || [],
+        });
+        setModelAvailabilityNotice(
+          fallbackNotice?.message || `Your current model is no longer available. Switched to ${fallbackLabel}.`,
+          noticeKey
+        );
+      }
+      if (currentState.activeModelId !== preferredModelId) {
+        setState({ activeModelId: preferredModelId });
+      }
+      return;
+    }
+
     if (hasModels && preferredModelId && currentState.activeModelId !== preferredModelId) {
       setState({ activeModelId: preferredModelId });
       return;
@@ -343,6 +447,7 @@ export function createModelSelectorController(container) {
     if (unsubscribe) unsubscribe();
     if (onDocumentClick) document.removeEventListener('click', onDocumentClick);
     if (searchDebounce) clearTimeout(searchDebounce);
+    clearModelAvailabilityNotice();
   };
 }
 

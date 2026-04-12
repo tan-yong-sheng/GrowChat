@@ -3,8 +3,9 @@ import { getJwtSecret } from './jwt-secret.js';
 
 describe('shared/jwt-secret', () => {
   it('prefers configured JWT secret', () => {
-    const secret = getJwtSecret({ JWT_SECRET: 'configured' }, new Request('https://example.com/api/auth/login'));
-    expect(secret).toBe('configured');
+    const configured = 'configured-jwt-secret-123456789012345';
+    const secret = getJwtSecret({ JWT_SECRET: configured }, new Request('https://example.com/api/auth/login'));
+    expect(secret).toBe(configured);
   });
 
   it('generates a reusable dev secret on localhost', () => {
@@ -16,8 +17,9 @@ describe('shared/jwt-secret', () => {
     expect(first).toBe(second);
   });
 
-  it('returns null outside localhost when not configured', () => {
-    const secret = getJwtSecret({}, new Request('https://example.com/api/auth/login'));
-    expect(secret).toBeNull();
+  it('throws outside localhost when not configured', () => {
+    expect(() => getJwtSecret({}, new Request('https://example.com/api/auth/login'))).toThrow(
+      'JWT_SECRET environment variable is required for non-localhost deployments. Set it in your Cloudflare Workers secrets.'
+    );
   });
 });

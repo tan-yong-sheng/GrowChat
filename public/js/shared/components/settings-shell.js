@@ -8,7 +8,7 @@ export function renderSettingsShell({
   contentHtml = '',
   bodyId = 'settings-body',
   contentId = 'settings-content',
-  footerId = 'settings-footer',
+  footerId = null,
   bodyPaddingClass = DEFAULT_SETTINGS_BODY_PADDING_CLASS,
   footerPaddingClass = DEFAULT_SETTINGS_FOOTER_PADDING_CLASS,
 } = {}) {
@@ -20,7 +20,7 @@ export function renderSettingsShell({
           <div id="${bodyId}" class="flex-1 min-h-0 flex flex-col overflow-hidden ${bodyPaddingClass}">
             ${contentHtml}
           </div>
-          <div id="${footerId}" class="shrink-0 ${footerPaddingClass}" style="transform: translateY(-24px);"></div>
+          ${footerId ? `<div id="${footerId}" class="shrink-0 ${footerPaddingClass}" style="transform: translateY(-24px);"></div>` : ''}
         </div>
       </div>
     </div>

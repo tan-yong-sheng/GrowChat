@@ -21,6 +21,60 @@ export function getModelScopeBadgeClass(model) {
     : 'border-gray-200 bg-gray-50 text-gray-500';
 }
 
+export function getModelSelectorAvailabilitySummary(count = 0, { loading = false } = {}) {
+  if (loading) {
+    return 'Loading selectable models...';
+  }
+
+  const total = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  if (total <= 0) {
+    return 'No selectable models are currently available for this chat.';
+  }
+
+  return `${total} selectable model${total === 1 ? '' : 's'}`;
+}
+
+export function getModelAvailabilityFallbackNotice({
+  previousModelId = null,
+  fallbackModel = null,
+  currentChatModelId = null,
+  disabledModelIds = [],
+  hiddenModelIds = [],
+} = {}) {
+  const previousId = String(previousModelId || '').trim();
+  if (!previousId) return null;
+
+  const fallbackLabel = getModelDisplayLabel(fallbackModel) || fallbackModel?.id || 'another model';
+  const disabledSet = new Set(Array.isArray(disabledModelIds) ? disabledModelIds.map((id) => String(id || '').trim()).filter(Boolean) : []);
+  const hiddenSet = new Set(Array.isArray(hiddenModelIds) ? hiddenModelIds.map((id) => String(id || '').trim()).filter(Boolean) : []);
+
+  if (hiddenSet.has(previousId)) {
+    return {
+      reason: 'personal_hide',
+      message: `Your previous model is hidden for you. Switched to ${fallbackLabel}.`,
+    };
+  }
+
+  if (disabledSet.has(previousId)) {
+    return {
+      reason: 'admin_disabled',
+      message: `Your previous model was disabled by an admin. Switched to ${fallbackLabel}.`,
+    };
+  }
+
+  if (String(currentChatModelId || '').trim() === previousId) {
+    return {
+      reason: 'chat_context',
+      message: `This chat no longer allows your previous model. Switched to ${fallbackLabel}.`,
+    };
+  }
+
+  return {
+    reason: 'admin_disabled',
+    message: `Your previous model is no longer available. Switched to ${fallbackLabel}.`,
+  };
+}
+
 export function getPreferredModelId(models = [], preferredIds = []) {
   const sortedModels = sortModelsByActiveThenName(models);
   if (!sortedModels.length) return null;

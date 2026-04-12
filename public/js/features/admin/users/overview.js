@@ -1,6 +1,5 @@
 import { apiFetch, fetchAdminRbacRoles } from '../../../shared/api.js';
 import { fetchAdminUserAccess } from '../../../shared/admin-access.js';
-import { bindAdminDraftHandlers, clearAdminDraft, getAdminDraft, setAdminDraft } from '../modal-draft.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { buildAdminModalShellMarkup, createAdminModalShell } from '../modal-shell.js';
 import { displayFieldErrors, clearFormErrors } from '../../../shared/form-validation.js';
@@ -99,6 +98,8 @@ function getActionError(payload, fallback) {
 function accessBadgeClass(value) {
   if (value === 'allow') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
   if (value === 'deny') return 'bg-rose-100 text-rose-700 border-rose-200';
+  if (value === 'danger') return 'bg-rose-100 text-rose-700 border-rose-200';
+  if (value === 'warning') return 'bg-amber-100 text-amber-700 border-amber-200';
   if (value === 'admin') return 'bg-blue-100 text-blue-700 border-blue-200';
   if (value === 'member') return 'bg-green-100 text-green-700 border-green-200';
   if (value === 'shared') return 'bg-amber-100 text-amber-700 border-amber-200';
@@ -108,6 +109,22 @@ function accessBadgeClass(value) {
 
 function renderChip(label, kind = 'neutral') {
   return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${accessBadgeClass(kind)}">${escapeHtml(label)}</span>`;
+}
+
+function getRuleAccessState(rule = {}) {
+  if (rule?.resource_enabled === false) {
+    return { label: 'Disabled', kind: 'danger' };
+  }
+  if (rule?.hidden_for_user) {
+    return { label: 'Hidden for user', kind: 'warning' };
+  }
+  if (String(rule?.effect || '').toLowerCase() === 'deny') {
+    return { label: 'Revoked', kind: 'danger' };
+  }
+  if (String(rule?.principal_type || '').toLowerCase() === 'group') {
+    return { label: 'Shared', kind: 'shared' };
+  }
+  return { label: 'Personal', kind: 'personal' };
 }
 
 function renderRuleList(rules = [], { showDisabled = false } = {}) {
@@ -121,16 +138,20 @@ function renderRuleList(rules = [], { showDisabled = false } = {}) {
 
   return `
     <div class="space-y-2">
-      ${visibleRules.map((rule) => `
+      ${visibleRules.map((rule) => {
+        const state = getRuleAccessState(rule);
+        return `
         <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white px-3 py-2 text-xs text-gray-700 ${rule?.resource_enabled === false ? 'opacity-60' : ''}">
+          ${renderChip(state.label, state.kind)}
           ${renderChip(rule.effect || 'allow', rule.effect)}
           ${renderChip(rule.principal_label || rule.principal_type, 'neutral')}
           <span class="font-semibold text-gray-900">${escapeHtml(rule.resource_id || 'All resources')}</span>
           <span class="text-gray-400">·</span>
           <span class="text-gray-500">${escapeHtml(rule.action || 'use')}</span>
+          ${rule?.hidden_for_user ? '<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Hidden for user</span>' : ''}
           ${rule?.resource_enabled === false ? '<span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Disabled</span>' : ''}
         </div>
-      `).join('')}
+      `;}).join('')}
     </div>
   `;
 }
@@ -162,7 +183,7 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
             <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
             ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
           </div>
-          <button type="button" data-toggle-disabled-rules class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-50 ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}">
+          <button type="button" data-toggle-disabled-rules class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}">
             ${showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`}
           </button>
         </div>
@@ -207,27 +228,22 @@ function renderAclInspectorModal(
     body,
     closeAttr: 'data-close-access-user',
     rootAttrs: 'id="user-access-modal"',
+    modalHash: 'user-access-modal',
     onClose,
   });
 }
 
-function renderUserRows(users, stagedDraft = null) {
-  const stagedUserId = String(stagedDraft?.userId || '').trim();
-  const stagedKind = String(stagedDraft?.kind || '').trim();
+function renderUserRows(users) {
   return users.map((u) => {
-    const isStaged = stagedUserId && stagedUserId === u.id;
-    const isPendingDelete = isStaged && stagedKind === 'delete';
-    const isPendingEdit = isStaged && stagedKind === 'edit';
-    const stagedPayload = isPendingEdit ? (stagedDraft?.payload || {}) : {};
-    const role = String(stagedPayload.primary_role || u.primary_role || 'member').trim();
+    const role = String(u.primary_role || 'member').trim();
     const normalizedRole = normalizeRole(role);
-    const accountStatus = String(stagedPayload.account_status || u.account_status || 'active');
-    const name = String(stagedPayload.name || u.name || '');
-    const email = String(stagedPayload.email || u.email || '');
+    const accountStatus = String(u.account_status || 'active');
+    const name = String(u.name || '');
+    const email = String(u.email || '');
     return `
-    <tr data-user-row="${u.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isStaged ? 'opacity-60 bg-amber-50/40' : ''}">
+    <tr data-user-row="${u.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
       <td class="px-3 py-4 whitespace-nowrap">
-        <button class="btn-change-role" data-user-id="${u.id}" data-user-role="${escapeHtml(role)}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-account-status="${escapeHtml(accountStatus)}" ${isStaged ? 'disabled' : ''}>
+        <button class="btn-change-role focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition" data-user-id="${u.id}" data-user-role="${escapeHtml(role)}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-account-status="${escapeHtml(accountStatus)}">
           <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${roleBadgeClass(role)} uppercase">${escapeHtml(roleDisplayName(role))}</span>
         </button>
       </td>
@@ -240,29 +256,26 @@ function renderUserRows(users, stagedDraft = null) {
         </div>
       </td>
       <td class="px-3 py-4 whitespace-nowrap">
-        ${isPendingDelete
-          ? '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 uppercase">Pending delete</span>'
-          : `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${accountStatusBadgeClass(accountStatus)} uppercase">${accountStatusDisplayName(accountStatus)}</span>`
-        }
+        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${accountStatusBadgeClass(accountStatus)} uppercase">${accountStatusDisplayName(accountStatus)}</span>
       </td>
       <td class="px-3 py-4 text-gray-500 truncate" title="${email}">${email}</td>
       <td class="px-3 py-4 text-gray-400 font-normal uppercase text-[10px] whitespace-nowrap">${u.last_active_at ? timeSince(u.last_active_at * 1000) : 'N/A'}</td>
       <td class="px-3 py-4 text-gray-400 font-normal text-[10px] whitespace-nowrap">${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : 'N/A'}</td>
       <td class="px-3 py-4 text-right whitespace-nowrap">
         <div class="flex justify-end items-center gap-1">
-          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-inspect-user-access" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-role="${escapeHtml(role)}" data-user-account-status="${escapeHtml(accountStatus)}" title="Inspect ACL" ${isStaged ? 'disabled' : ''}>
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 btn-inspect-user-access" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-role="${escapeHtml(role)}" data-user-account-status="${escapeHtml(accountStatus)}" title="Inspect ACL">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
               <path fill-rule="evenodd" d="M10 1.75a4.25 4.25 0 0 0-4.25 4.25V8H5a2 2 0 0 0-2 2v5.5A2.5 2.5 0 0 0 5.5 18h9a2.5 2.5 0 0 0 2.5-2.5V10a2 2 0 0 0-2-2h-.75V6A4.25 4.25 0 0 0 10 1.75ZM7.25 6a2.75 2.75 0 1 1 5.5 0V8h-5.5V6Z" clip-rule="evenodd" />
             </svg>
           </button>
-          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors btn-edit-user" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-role="${escapeHtml(role)}" data-user-account-status="${escapeHtml(accountStatus)}" title="Edit User" ${isStaged ? 'disabled' : ''}>
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 btn-edit-user" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-role="${escapeHtml(role)}" data-user-account-status="${escapeHtml(accountStatus)}" title="Edit User">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
               <path d="m2.695 14.763-1.262 3.154a.5.5 0 0 0 .65.65l3.154-1.262a.5.5 0 0 0 .145-.11l10.19-10.192-2.877-2.878L2.805 14.618a.5.5 0 0 0-.11.145Z" />
               <path d="M15.53 3.47a.75.75 0 0 1 1.06 0l1.44 1.44a.75.75 0 0 1 0 1.06l-1.44 1.44-2.5-2.5 1.44-1.44Z" />
             </svg>
           </button>
           ${normalizedRole === 'admin' ? '' : `
-          <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors btn-delete-user" data-user-id="${u.id}" data-user-name="${name}" title="Delete record" ${isStaged ? 'disabled' : ''}>
+          <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-user" data-user-id="${u.id}" data-user-name="${name}" title="Delete record">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
             </svg>
@@ -298,8 +311,8 @@ function renderAddUserModal(draft = null, roles = []) {
     body: `
       <div class="space-y-4">
         <div class="flex items-center gap-5 border-b border-gray-100 -mx-5 px-5 -mt-1">
-          <button type="button" data-add-user-tab="form" class="pb-3 text-base font-medium text-gray-900 border-b-2 border-gray-900">Form</button>
-          <button type="button" data-add-user-tab="csv" class="pb-3 text-base font-medium text-gray-400 border-b-2 border-transparent">CSV Import</button>
+          <button type="button" data-add-user-tab="form" class="pb-3 text-base font-medium text-gray-900 border-b-2 border-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition">Form</button>
+          <button type="button" data-add-user-tab="csv" class="pb-3 text-base font-medium text-gray-400 border-b-2 border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition">CSV Import</button>
         </div>
         <form id="add-user-form" class="space-y-3.5">
           <label class="block">
@@ -355,6 +368,7 @@ function renderAddUserModal(draft = null, roles = []) {
     `,
     closeAttr: 'data-close-add-user',
     rootAttrs: 'id="add-user-modal"',
+    modalHash: 'add-user-modal',
   });
 }
 
@@ -407,6 +421,7 @@ function renderEditUserModal(user, draft = null, roles = []) {
     `,
     closeAttr: 'data-close-edit-user',
     rootAttrs: 'id="edit-user-modal"',
+    modalHash: 'edit-user-modal',
   });
 }
 
@@ -422,108 +437,6 @@ export function renderUserOverview(container, data, actions) {
       modalEl: null,
       bodyEl: null,
     },
-  });
-  const draftKey = 'overview';
-  let activeModalIsDirty = null;
-  let activeModalKind = null;
-  let activeModalUserId = null;
-  const draftRegistry = {
-    get: () => getAdminDraft(data, 'users', draftKey),
-    set: (value) => setAdminDraft(data, 'users', draftKey, value),
-    clear: () => clearAdminDraft(data, 'users', draftKey),
-  };
-
-  const commitOverviewDraft = async () => {
-    const draft = draftRegistry.get();
-    if (!draft) return;
-
-    const payload = draft.payload || {};
-    const normalizedPayload = {
-      primary_role: String(payload.primary_role || 'member'),
-      account_status: String(payload.account_status || 'active'),
-      name: String(payload.name || '').trim(),
-      email: String(payload.email || '').trim(),
-    };
-    const password = String(payload.password || '');
-    if (password) {
-      normalizedPayload.password = password;
-    }
-
-    if (draft.kind === 'import-csv') {
-      const csv = String(payload.csv || '').trim();
-      const res = await apiFetch('/api/admin/users/import', {
-        method: 'POST',
-        body: JSON.stringify({ csv }),
-      });
-      const responsePayload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(getActionError(responsePayload, `Failed to import users (${res.status})`));
-      }
-      actions.invalidateCache?.();
-      await actions.reload?.({ preserveContent: true });
-      draftRegistry.clear();
-      data.requestUsersFooterSync?.();
-      return;
-    }
-
-    if (draft.kind === 'delete') {
-      const res = await apiFetch(`/api/admin/users/${draft.userId}`, { method: 'DELETE' });
-      const responsePayload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(getActionError(responsePayload, `Failed to delete user (${res.status})`));
-      }
-      actions.removeUser(draft.userId);
-      draftRegistry.clear();
-      data.requestUsersFooterSync?.();
-      return;
-    }
-
-    if (draft.kind === 'create') {
-      const res = await apiFetch('/api/admin/users', {
-        method: 'POST',
-        body: JSON.stringify(normalizedPayload),
-      });
-      const responsePayload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(getActionError(responsePayload, `Failed to create user (${res.status})`));
-      }
-      actions.prependUser(responsePayload.user);
-      draftRegistry.clear();
-      data.requestUsersFooterSync?.();
-      return;
-    }
-
-    if (draft.kind === 'edit') {
-      const res = await apiFetch(`/api/admin/users/${draft.userId}`, {
-        method: 'PUT',
-        body: JSON.stringify(normalizedPayload),
-      });
-      const responsePayload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(getActionError(responsePayload, `Failed to update user (${res.status})`));
-      }
-      actions.updateUser(responsePayload.user);
-      draftRegistry.clear();
-      data.requestUsersFooterSync?.();
-    }
-  };
-
-  const discardOverviewDraft = () => {
-    draftRegistry.clear();
-    updateView();
-    data.requestUsersFooterSync?.();
-  };
-
-  const isOverviewDirty = () => Boolean(draftRegistry.get()) || Boolean(typeof activeModalIsDirty === 'function' && activeModalIsDirty());
-
-  data.usersDirtyCheckers = data.usersDirtyCheckers || {};
-  data.usersSaveHandlers = data.usersSaveHandlers || {};
-  data.usersDiscardHandlers = data.usersDiscardHandlers || {};
-  bindAdminDraftHandlers(data, 'users', draftKey, {
-    isDirty: isOverviewDirty,
-    save: commitOverviewDraft,
-    discard: discardOverviewDraft,
-    requestFooterSync: data.requestUsersFooterSync,
   });
 
   container.innerHTML = `
@@ -542,14 +455,14 @@ export function renderUserOverview(container, data, actions) {
             </div>
             <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search users" id="user-search-input">
             <div id="clear-search-container" class="hidden ml-1.5">
-              <button id="clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 transition">
+              <button id="clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
           </div>
-          <button id="open-add-user-modal" class="w-10 h-10 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors flex items-center justify-center" title="Add User">
+          <button id="open-add-user-modal" class="w-10 h-10 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center" title="Add User">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
           </button>
         </div>
@@ -587,9 +500,9 @@ export function renderUserOverview(container, data, actions) {
         <div class="flex items-center gap-4">
           <div class="text-xs text-gray-400" id="users-page-range"></div>
           <div class="flex items-center gap-2">
-            <button id="users-page-prev" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50">Prev</button>
+            <button id="users-page-prev" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50">Prev</button>
             <div class="text-sm text-gray-600" id="users-page-label"></div>
-            <button id="users-page-next" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50">Next</button>
+            <button id="users-page-next" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50">Next</button>
           </div>
         </div>
       </div>
@@ -701,18 +614,24 @@ export function renderUserOverview(container, data, actions) {
         const userStatus = btn.dataset.userAccountStatus || 'active';
         const nextRole = currentRole === 'admin' ? 'member' : 'admin';
         if (!window.confirm(`Change role for ${userName} to ${nextRole.toUpperCase()}?`)) return;
-        draftRegistry.set({
-          kind: 'edit',
-          userId: btn.dataset.userId,
-          payload: {
-            primary_role: nextRole,
-            account_status: userStatus,
-            name: userName,
-            email: userEmail,
-          },
-        });
-        updateView();
-        data.requestUsersFooterSync?.();
+        try {
+          const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              primary_role: nextRole,
+              account_status: userStatus,
+              name: userName,
+              email: userEmail,
+            }),
+          });
+          const responsePayload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(getActionError(responsePayload, `Failed to update user (${res.status})`));
+          }
+          actions.updateUser(responsePayload.user);
+        } catch (err) {
+          window.alert(err?.message || 'Failed to update user.');
+        }
       });
     });
 
@@ -720,15 +639,16 @@ export function renderUserOverview(container, data, actions) {
       btn.addEventListener('click', async () => {
         const userName = btn.dataset.userName;
         if (!window.confirm(`Delete user ${userName}? This will permanently remove the account record.`)) return;
-        draftRegistry.set({
-          kind: 'delete',
-          userId: btn.dataset.userId,
-          payload: {
-            name: userName,
-          },
-        });
-        updateView();
-        data.requestUsersFooterSync?.();
+        try {
+          const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, { method: 'DELETE' });
+          const responsePayload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(getActionError(responsePayload, `Failed to delete user (${res.status})`));
+          }
+          actions.removeUser(btn.dataset.userId);
+        } catch (err) {
+          window.alert(err?.message || 'Failed to delete user.');
+        }
       });
     });
 
@@ -791,9 +711,7 @@ export function renderUserOverview(container, data, actions) {
             primary_role: String(btn.dataset.userRole || 'member').trim(),
             account_status: btn.dataset.userAccountStatus || 'active',
           };
-          const stagedDraft = draftRegistry.get();
-          const initialDraft = stagedDraft?.kind === 'edit' && stagedDraft.userId === user.id ? stagedDraft.payload : null;
-          document.body.insertAdjacentHTML('beforeend', renderEditUserModal(user, initialDraft, roles));
+          document.body.insertAdjacentHTML('beforeend', renderEditUserModal(user, null, roles));
 
           const modal = document.getElementById('edit-user-modal');
           const form = document.getElementById('edit-user-form');
@@ -805,22 +723,15 @@ export function renderUserOverview(container, data, actions) {
             email: form?.querySelector('[name="email"]'),
             password: form?.querySelector('[name="password"]'),
           };
-          const modalState = {
-            dirty: false,
-          };
           const baseValues = {
-            primary_role: normalizeRole(initialDraft?.primary_role || user.primary_role || 'member'),
-            account_status: String(initialDraft?.account_status || user.account_status || 'active'),
-            name: String(initialDraft?.name || user.name || '').trim(),
-            email: String(initialDraft?.email || user.email || '').trim(),
-            password: String(initialDraft?.password || ''),
+            primary_role: normalizeRole(user.primary_role || 'member'),
+            account_status: String(user.account_status || 'active'),
+            name: String(user.name || '').trim(),
+            email: String(user.email || '').trim(),
+            password: '',
           };
 
           const close = () => {
-            activeModalIsDirty = null;
-            activeModalKind = null;
-            activeModalUserId = null;
-            data.requestUsersFooterSync?.();
             modal?.remove();
           };
 
@@ -833,12 +744,7 @@ export function renderUserOverview(container, data, actions) {
           );
 
           const syncDirty = () => {
-            modalState.dirty = isDirty();
-            activeModalIsDirty = isDirty;
-            activeModalKind = 'edit';
-            activeModalUserId = user.id;
-            setModalSaveButtonState(saveBtn, { enabled: modalState.dirty, saving: false });
-            data.requestUsersFooterSync?.();
+            setModalSaveButtonState(saveBtn, { enabled: isDirty(), saving: false });
           };
 
           const saveEdit = async () => {
@@ -853,15 +759,21 @@ export function renderUserOverview(container, data, actions) {
             };
             const password = String(fd.get('password') || '');
             if (password) payload.password = password;
-            draftRegistry.set({
-              kind: 'edit',
-              userId: user.id,
-              payload,
-            });
             clearFormErrors(form);
-            updateView();
-            data.requestUsersFooterSync?.();
-            close();
+            try {
+              const res = await apiFetch(`/api/admin/users/${user.id}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload),
+              });
+              const responsePayload = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                throw new Error(getActionError(responsePayload, `Failed to update user (${res.status})`));
+              }
+              actions.updateUser(responsePayload.user);
+              close();
+            } catch (err) {
+              window.alert(err?.message || 'Failed to update user.');
+            }
           };
 
           modal?.addEventListener('click', (e) => {
@@ -927,7 +839,7 @@ export function renderUserOverview(container, data, actions) {
 
     tbody.innerHTML = isTableLoading
       ? renderLoadingRows(Math.min(pageSize, 10))
-      : renderUserRows(users, draftRegistry.get());
+      : renderUserRows(users);
     pageRange.textContent = `${pageStart}-${pageEnd} of ${total}`;
     pageLabel.textContent = `Page ${page} / ${totalPages}`;
     prevButton.disabled = data.loading || page <= 1;
@@ -977,19 +889,15 @@ export function renderUserOverview(container, data, actions) {
   });
 
   container.querySelector('#open-add-user-modal')?.addEventListener('click', async () => {
-    const roles = await loadAdminRoles();
-    const stagedDraft = draftRegistry.get();
-    const initialDraft = stagedDraft?.kind === 'create' || stagedDraft?.kind === 'import-csv'
-      ? stagedDraft.payload
-      : null;
-    document.body.insertAdjacentHTML('beforeend', renderAddUserModal({
-      primary_role: initialDraft?.primary_role || 'member',
-      account_status: initialDraft?.account_status || 'active',
-      name: initialDraft?.name || '',
-      email: initialDraft?.email || '',
-      password: initialDraft?.password || '',
-      csv: initialDraft?.csv || '',
-      tab: stagedDraft?.tab || (stagedDraft?.kind === 'import-csv' ? 'csv' : 'form'),
+      const roles = await loadAdminRoles();
+      document.body.insertAdjacentHTML('beforeend', renderAddUserModal({
+      primary_role: 'member',
+      account_status: 'active',
+      name: '',
+      email: '',
+      password: '',
+      csv: '',
+      tab: 'form',
     }, roles));
     const modal = document.getElementById('add-user-modal');
     const form = document.getElementById('add-user-form');
@@ -1006,16 +914,16 @@ export function renderUserOverview(container, data, actions) {
       csv: csvForm?.querySelector('[name="csv"]'),
     };
     const modalState = {
-      activeTab: stagedDraft?.tab || (stagedDraft?.kind === 'import-csv' ? 'csv' : 'form'),
+      activeTab: 'form',
       dirty: false,
     };
     const baseValues = {
-      primary_role: String(initialDraft?.primary_role || 'member'),
-      account_status: String(initialDraft?.account_status || 'active'),
-      name: String(initialDraft?.name || '').trim(),
-      email: String(initialDraft?.email || '').trim(),
-      password: String(initialDraft?.password || ''),
-      csv: String(initialDraft?.csv || '').trim(),
+      primary_role: 'member',
+      account_status: 'active',
+      name: '',
+      email: '',
+      password: '',
+      csv: '',
     };
 
     const isDirty = () => (
@@ -1029,19 +937,11 @@ export function renderUserOverview(container, data, actions) {
 
     const syncDirty = () => {
       modalState.dirty = isDirty();
-      activeModalIsDirty = isDirty;
-      activeModalKind = modalState.activeTab === 'csv' ? 'import-csv' : 'create';
-      activeModalUserId = null;
       setModalSaveButtonState(saveBtn, { enabled: modalState.dirty, saving: false });
-      data.requestUsersFooterSync?.();
     };
 
     const close = () => {
-      activeModalIsDirty = null;
-      activeModalKind = null;
-      activeModalUserId = null;
       modal?.remove();
-      data.requestUsersFooterSync?.();
     };
 
     const setTab = (tab) => {
@@ -1070,32 +970,51 @@ export function renderUserOverview(container, data, actions) {
     });
 
     const saveCurrent = () => {
-      if (modalState.activeTab === 'csv') {
-        if (typeof csvForm?.reportValidity === 'function' && !csvForm.reportValidity()) return;
-        const fd = new FormData(csvForm);
-        const csv = String(fd.get('csv') || '').trim();
-        draftRegistry.set({
-          kind: 'import-csv',
-          tab: 'csv',
-          payload: { csv },
-        });
-      } else {
-        if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
-        const fd = new FormData(form);
-        draftRegistry.set({
-          kind: 'create',
-          tab: 'form',
-          payload: {
-            primary_role: String(fd.get('primary_role') || 'member').trim(),
-            account_status: String(fd.get('account_status') || 'active'),
-            name: String(fd.get('name') || '').trim(),
-            email: String(fd.get('email') || '').trim(),
-            password: String(fd.get('password') || ''),
-          },
-        });
-      }
-      data.requestUsersFooterSync?.();
-      close();
+      void (async () => {
+        try {
+          if (modalState.activeTab === 'csv') {
+            if (typeof csvForm?.reportValidity === 'function' && !csvForm.reportValidity()) return;
+            const fd = new FormData(csvForm);
+            const csv = String(fd.get('csv') || '').trim();
+            const res = await apiFetch('/api/admin/users/import', {
+              method: 'POST',
+              body: JSON.stringify({ csv }),
+            });
+            const responsePayload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(getActionError(responsePayload, `Failed to import users (${res.status})`));
+            }
+            actions.invalidateCache?.();
+            await actions.reload?.({ preserveContent: true });
+          } else {
+            if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
+            const fd = new FormData(form);
+            const payload = {
+              primary_role: String(fd.get('primary_role') || 'member').trim(),
+              account_status: String(fd.get('account_status') || 'active'),
+              name: String(fd.get('name') || '').trim(),
+              email: String(fd.get('email') || '').trim(),
+              password: String(fd.get('password') || ''),
+            };
+            const res = await apiFetch('/api/admin/users', {
+              method: 'POST',
+              body: JSON.stringify(payload),
+            });
+            const responsePayload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(getActionError(responsePayload, `Failed to create user (${res.status})`));
+            }
+            actions.prependUser(responsePayload.user);
+          }
+          close();
+        } catch (err) {
+          const errorEl = modal?.querySelector('#add-user-error');
+          if (errorEl) {
+            errorEl.textContent = err?.message || 'Failed to save user.';
+            errorEl.classList.remove('hidden');
+          }
+        }
+      })();
     };
 
     saveBtn?.addEventListener('click', () => {

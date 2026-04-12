@@ -65,6 +65,10 @@ export function createSettingsRouteCache() {
   const models = createChannel(consumeModelsInvalidation);
   const toolServers = createChannel(consumeToolServersInvalidation);
 
+  const handleConnectionsEvent = () => connections.consume();
+  const handleModelsEvent = () => models.consume();
+  const handleToolServersEvent = () => toolServers.consume();
+
   const handleStorage = (event) => {
     const key = String(event?.key || '');
     if (!key) return;
@@ -84,11 +88,17 @@ export function createSettingsRouteCache() {
 
     if (typeof globalThis.addEventListener === 'function') {
       globalThis.addEventListener('storage', handleStorage);
+      globalThis.addEventListener('growchat:connections-invalidated', handleConnectionsEvent);
+      globalThis.addEventListener('growchat:models-invalidated', handleModelsEvent);
+      globalThis.addEventListener('growchat:tool-servers-invalidated', handleToolServersEvent);
     }
 
     return () => {
       if (typeof globalThis.removeEventListener === 'function') {
         globalThis.removeEventListener('storage', handleStorage);
+        globalThis.removeEventListener('growchat:connections-invalidated', handleConnectionsEvent);
+        globalThis.removeEventListener('growchat:models-invalidated', handleModelsEvent);
+        globalThis.removeEventListener('growchat:tool-servers-invalidated', handleToolServersEvent);
       }
     };
   };

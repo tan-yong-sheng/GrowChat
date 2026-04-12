@@ -33,6 +33,8 @@ vi.mock('../shared/session.js', () => ({
 
 import { authRouter } from './auth.js';
 
+const VALID_JWT_SECRET = '0123456789abcdef0123456789abcdef';
+
 function makeReq(path, method, body, headers = {}) {
   const init = { method, headers: { ...headers } };
   if (body !== undefined) {
@@ -85,7 +87,7 @@ describe('authRouter', () => {
   });
 
   it('registers the first user as an active admin and returns tokens', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     queryResponses.countUsers = [{ count: 0 }];
     queryResponses.appConfig = [null];
     queryResponses.existingUser = [null];
@@ -128,7 +130,7 @@ describe('authRouter', () => {
   });
 
   it('creates pending registrations when the default registration status is pending', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     queryResponses.countUsers = [{ count: 1 }, { count: 2 }];
     queryResponses.appConfig = [null];
     queryResponses.existingUser = [null];
@@ -171,7 +173,7 @@ describe('authRouter', () => {
   });
 
   it('rejects duplicate email on register', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     queryResponses.countUsers = [{ count: 1 }];
     queryResponses.appConfig = [null];
     queryResponses.existingUser = [{ id: 'exists' }];
@@ -193,7 +195,7 @@ describe('authRouter', () => {
   });
 
   it('logs in user with valid credentials', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     queryResponses.loginUser = [{
       id: 'u1',
       email: 'user@example.com',
@@ -236,7 +238,7 @@ describe('authRouter', () => {
   });
 
   it('rejects pending users from logging in', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     queryResponses.loginUser = [{
       id: 'u1',
       email: 'user@example.com',
@@ -270,7 +272,7 @@ describe('authRouter', () => {
   });
 
   it('returns generic 401 when login password is wrong', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     queryResponses.loginUser = [{
       id: 'u1',
       email: 'user@example.com',
@@ -300,7 +302,7 @@ describe('authRouter', () => {
   });
 
   it('refreshes tokens when refresh token is valid', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     mocks.consumeRefreshToken.mockResolvedValueOnce({ userId: 'u1', expiresAt: 1_700_000_000 });
     queryResponses.userById = [{
       id: 'u1',
@@ -338,7 +340,7 @@ describe('authRouter', () => {
   });
 
   it('returns 401 on invalid refresh token', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     mocks.consumeRefreshToken.mockResolvedValueOnce(null);
 
     const res = await authRouter(
@@ -354,7 +356,7 @@ describe('authRouter', () => {
   });
 
   it('returns ok on logout and revokes provided refresh token', async () => {
-    const env = { DB: {}, JWT_SECRET: 'secret' };
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
 
     const res = await authRouter(
       makeReq('/api/auth/logout', 'POST', { refresh_token: 'bye' }),
@@ -372,7 +374,7 @@ describe('authRouter', () => {
   it('fails auth endpoints when JWT_SECRET is missing', async () => {
     const env = { DB: {}, JWT_SECRET: '' };
 
-    const res = await authRouter(
+    await expect(authRouter(
       makeReq('/api/auth/login', 'POST', {
         email: 'user@example.com',
         password: 'password123',
@@ -381,9 +383,6 @@ describe('authRouter', () => {
       {},
       null,
       '/api/auth/login'
-    );
-
-    expect(res.status).toBe(500);
-    await expect(res.json()).resolves.toMatchObject({ error: 'JWT_SECRET is not configured' });
+    )).rejects.toThrow('JWT_SECRET environment variable is required for non-localhost deployments');
   });
 });

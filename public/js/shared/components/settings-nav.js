@@ -11,7 +11,7 @@ function renderNavItem(item, activeKey) {
   const active = activeKey === item.key;
   const icon = item.icon || '';
   return `
-    <a href="${escapeHtml(item.href)}" data-subnav="${escapeHtml(item.key)}" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${active ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+    <a href="${escapeHtml(item.href)}" data-subnav="${escapeHtml(item.key)}" class="flex items-center gap-2 px-3 py-2 rounded-lg transition border-b-2 ${active ? 'bg-gray-100 text-gray-900 border-gray-900' : 'text-gray-400 hover:text-gray-700 border-transparent'}">
       ${icon}
       <span class="whitespace-nowrap">${escapeHtml(item.label)}</span>
     </a>

@@ -34,6 +34,7 @@ export function createAdminAclModalShell({
     title,
     subtitle,
     closeAttr,
+    modalHash: `${idsPrefix}-modal`,
     body: `
       <div class="space-y-4">
         <div class="flex items-center justify-between">
@@ -48,8 +49,8 @@ export function createAdminAclModalShell({
     footer: `
       <div class="text-sm text-red-600" id="${ids.saveErrorId}"></div>
       <div class="flex items-center gap-2">
-        <button type="button" class="px-4 py-2 text-sm text-gray-700 hover:text-gray-900" ${closeAttr} id="${ids.cancelButtonId}">${closeLabel}</button>
-        <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800" id="${ids.saveButtonId}">${saveLabel}</button>
+        <button type="button" class="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition" ${closeAttr} id="${ids.cancelButtonId}">${closeLabel}</button>
+        <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" id="${ids.saveButtonId}">${saveLabel}</button>
       </div>
     `,
   });

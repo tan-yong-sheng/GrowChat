@@ -1,5 +1,7 @@
 import { apiFetch } from '../api.js';
 import { state, subscribe } from '../store.js';
+import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
+import { suspendSidebarVisibility, restoreSidebarVisibility } from '../utils/sidebar-visibility.js';
 import {
   buildFooterMarkup,
   computePresence,
@@ -56,6 +58,9 @@ function renderAdminSkeleton() {
 }
 
 async function showPreferencesModal(user) {
+  let sidebarSuspended = false;
+  suspendSidebarVisibility();
+  sidebarSuspended = true;
   const modal = document.createElement('div');
   modal.className = 'modal-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4';
   modal.innerHTML = `
@@ -97,6 +102,11 @@ async function showPreferencesModal(user) {
   return new Promise((resolve) => {
     const close = () => {
       modal.remove();
+      if (sidebarSuspended) {
+        restoreSidebarVisibility();
+        sidebarSuspended = false;
+      }
+      clearModalHash('preferences-modal');
       resolve();
     };
 
@@ -128,6 +138,7 @@ async function showPreferencesModal(user) {
     });
 
     document.body.appendChild(modal);
+    setModalHash('preferences-modal');
   });
 }
 

@@ -1,4 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  getAllOpenAIConnectionConfigs: vi.fn(),
+}));
+
+vi.mock('./llm/connections.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    getAllOpenAIConnectionConfigs: (...args) => mocks.getAllOpenAIConnectionConfigs(...args),
+  };
+});
+
 import { createProviderTestEnv } from '../tests/unit/provider-test-env.js';
 import { streamLLM, SseLineParser, parseSseChunk } from './llm.js';
 
@@ -14,6 +27,18 @@ describe('llm.js - LLM Streaming', () => {
         ANTHROPIC_API_KEY: '',
       }),
     };
+    mocks.getAllOpenAIConnectionConfigs.mockReset();
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-openai',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'https://api.example.com/v1',
+        key: 'test-key-12345',
+        headers: {},
+        enabled: true,
+      },
+    ]);
   });
 
   describe('streamLLM', () => {
@@ -64,16 +89,19 @@ describe('llm.js - LLM Streaming', () => {
       });
 
       const messages = [{ role: 'user', content: 'Test Gemini' }];
-      const env = {
-        ...createProviderTestEnv({
-          OPENAI_BASE_URL: '',
-          OPENAI_API_KEY: '',
-          ANTHROPIC_BASE_URL: '',
-          ANTHROPIC_API_KEY: '',
-        })
-      };
+      mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([
+        {
+          id: 'conn-google',
+          providerType: 'gemini-compatible',
+          providerFamily: 'google',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+          key: 'gemini-key',
+          headers: {},
+          enabled: true,
+        },
+      ]);
 
-      const result = await streamLLM(env, 'gemini-2.5-pro', messages);
+      const result = await streamLLM(mockEnv, 'gemini-2.5-pro', messages);
 
       expect(global.fetch).toHaveBeenCalledWith(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse',
@@ -97,14 +125,17 @@ describe('llm.js - LLM Streaming', () => {
       });
 
       const messages = [{ role: 'user', content: 'Test Gemini' }];
-      const env = {
-        ...createProviderTestEnv({
-          OPENAI_BASE_URL: '',
-          OPENAI_API_KEY: '',
-          ANTHROPIC_BASE_URL: '',
-          ANTHROPIC_API_KEY: '',
-        })
-      };
+      mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([
+        {
+          id: 'conn-google',
+          providerType: 'gemini-compatible',
+          providerFamily: 'google',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+          key: 'gemini-key',
+          headers: {},
+          enabled: true,
+        },
+      ]);
       const tools = [
         {
           type: 'function',
@@ -121,7 +152,7 @@ describe('llm.js - LLM Streaming', () => {
         },
       ];
 
-      await streamLLM(env, 'gemini-2.5-pro', messages, {
+      await streamLLM(mockEnv, 'gemini-2.5-pro', messages, {
         tools,
         toolChoice: { type: 'required' },
       });
@@ -175,16 +206,19 @@ describe('llm.js - LLM Streaming', () => {
           ],
         },
       ];
-      const env = {
-        ...createProviderTestEnv({
-          OPENAI_BASE_URL: '',
-          OPENAI_API_KEY: '',
-          ANTHROPIC_BASE_URL: '',
-          ANTHROPIC_API_KEY: '',
-        })
-      };
+      mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([
+        {
+          id: 'conn-google',
+          providerType: 'gemini-compatible',
+          providerFamily: 'google',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+          key: 'gemini-key',
+          headers: {},
+          enabled: true,
+        },
+      ]);
 
-      await streamLLM(env, 'gemini-2.5-pro', messages);
+      await streamLLM(mockEnv, 'gemini-2.5-pro', messages);
 
       const body = JSON.parse(global.fetch.mock.calls[0][1].body);
       expect(body.contents[0].parts[0]).toEqual({
@@ -205,12 +239,19 @@ describe('llm.js - LLM Streaming', () => {
       });
 
       const messages = [{ role: 'user', content: 'Test Claude' }];
-      const env = {
-        ANTHROPIC_BASE_URL: 'https://api.anthropic.com/v1',
-        ANTHROPIC_API_KEY: 'anthropic-key',
-      };
+      mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([
+        {
+          id: 'conn-anthropic',
+          providerType: 'claude-compatible',
+          providerFamily: 'anthropic',
+          baseUrl: 'https://api.anthropic.com/v1',
+          key: 'anthropic-key',
+          headers: {},
+          enabled: true,
+        },
+      ]);
 
-      const result = await streamLLM(env, 'claude-sonnet-4-5', messages);
+      const result = await streamLLM(mockEnv, 'claude-sonnet-4-5', messages);
 
       expect(global.fetch).toHaveBeenCalledWith(
         'https://api.anthropic.com/v1/messages',
@@ -235,10 +276,17 @@ describe('llm.js - LLM Streaming', () => {
       });
 
       const messages = [{ role: 'user', content: 'Test Claude' }];
-      const env = {
-        ANTHROPIC_BASE_URL: 'https://api.anthropic.com/v1',
-        ANTHROPIC_API_KEY: 'anthropic-key',
-      };
+      mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([
+        {
+          id: 'conn-anthropic',
+          providerType: 'claude-compatible',
+          providerFamily: 'anthropic',
+          baseUrl: 'https://api.anthropic.com/v1',
+          key: 'anthropic-key',
+          headers: {},
+          enabled: true,
+        },
+      ]);
       const tools = [
         {
           type: 'function',
@@ -255,7 +303,7 @@ describe('llm.js - LLM Streaming', () => {
         },
       ];
 
-      await streamLLM(env, 'claude-sonnet-4-5', messages, {
+      await streamLLM(mockEnv, 'claude-sonnet-4-5', messages, {
         tools,
         toolChoice: { type: 'required' },
       });
@@ -277,12 +325,7 @@ describe('llm.js - LLM Streaming', () => {
 
     it('should throw when no provider connection is configured', async () => {
       global.fetch = vi.fn();
-      mockEnv.OPENAI_API_KEY = '';
-      mockEnv.OPENAI_BASE_URL = '';
-      mockEnv.GEMINI_BASE_URL = '';
-      mockEnv.GEMINI_API_KEY = '';
-      mockEnv.ANTHROPIC_BASE_URL = '';
-      mockEnv.ANTHROPIC_API_KEY = '';
+      mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([]);
 
       await expect(streamLLM(mockEnv, 'gpt-4', [])).rejects.toThrow('No provider connection configured');
     });
@@ -311,7 +354,17 @@ describe('llm.js - LLM Streaming', () => {
 
     it('should normalize OPENAI_BASE_URL by removing trailing slash', async () => {
       global.fetch = vi.fn();
-      mockEnv.OPENAI_BASE_URL = 'https://api.example.com/v1/';
+      mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([
+        {
+          id: 'conn-openai',
+          providerType: 'openai-compatible',
+          providerFamily: 'openai',
+          baseUrl: 'https://api.example.com/v1/',
+          key: 'test-key-12345',
+          headers: {},
+          enabled: true,
+        },
+      ]);
       global.fetch.mockResolvedValue({
         ok: true,
         body: 'stream',
@@ -330,7 +383,7 @@ describe('llm.js - LLM Streaming', () => {
       global.fetch = vi.fn();
       global.fetch.mockRejectedValue(new Error('Network error'));
 
-      await expect(streamLLM(mockEnv, 'gpt-4', [])).rejects.toThrow();
+      await expect(streamLLM(mockEnv, 'gpt-4', [])).rejects.toThrow('Network error');
     });
 
     it('should pass messages array to LLM', async () => {
@@ -347,12 +400,8 @@ describe('llm.js - LLM Streaming', () => {
       ];
       await streamLLM(mockEnv, 'gpt-4', messages);
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          body: expect.stringContaining(JSON.stringify(messages)),
-        })
-      );
+      const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(body.messages).toEqual(messages);
     });
   });
 

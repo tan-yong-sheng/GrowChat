@@ -8,9 +8,7 @@ import {
 import { apiFetch } from '../../shared/api.js';
 import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
-import { renderSettingsActionFooter } from '../../shared/components/settings-action-footer.js';
 import { broadcastToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
-import { createStagedSaveQueue } from '../../shared/utils/staged-save.js';
 import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
 import {
   isResourceHidden,
@@ -21,6 +19,9 @@ import {
 } from '../../shared/utils/user-resource-overrides.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { escapeHtml, escapeSelector } from '../../shared/utils/dom-escape.js';
+import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
+import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+import { buildTraceAttrs } from '../../shared/utils/trace-attrs.js';
 
 function normalizeTool(tool = {}) {
   const name = String(tool.name || tool.id || tool.title || '').trim();
@@ -151,6 +152,23 @@ function buildFormMarkup(server = null, modalMode = 'create', canManage = true) 
     modalMode,
     canManage,
   });
+}
+
+function updateToolToggle(btn, enabled, serverEnabled) {
+  if (!btn) return;
+  btn.disabled = !serverEnabled;
+  btn.classList.toggle('bg-black', enabled);
+  btn.classList.toggle('bg-gray-200', !enabled);
+  btn.classList.toggle('opacity-40', !serverEnabled);
+  btn.classList.toggle('cursor-not-allowed', !serverEnabled);
+  btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+  btn.setAttribute('aria-disabled', serverEnabled ? 'false' : 'true');
+  btn.title = serverEnabled ? (enabled ? 'Disable tool' : 'Enable tool') : 'Enable the server to edit tools';
+  const knob = btn.querySelector('span');
+  if (knob) {
+    knob.classList.toggle('translate-x-4', enabled);
+    knob.classList.toggle('translate-x-0', !enabled);
+  }
 }
 
 function buildListCard(server, canManageToolServers = true, { scope = 'personal', hiddenForUser = false } = {}) {
@@ -297,12 +315,15 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
       ? state.settings.integrations.servers.map(normalizeServer).filter(Boolean)
       : [],
     sharedServers: Array.isArray(state.settings?.integrations?.accessible_servers)
-      ? state.settings.integrations.accessible_servers.map(normalizeServer).filter(Boolean)
+      ? state.settings.integrations.accessible_servers.map(normalizeServer).filter((server) => Boolean(server) && server.enabled !== false)
       : [],
   };
-  const stagedPreferencesSave = createStagedSaveQueue({
-    getSnapshot: () => clonePreferences(state.settings?.preferences || {}),
-    saveSnapshot: async (preferences) => {
+  let preferencesSaveVersion = 0;
+
+  const persistPreferences = async ({ rollback = null } = {}) => {
+    const requestVersion = ++preferencesSaveVersion;
+    const preferences = clonePreferences(state.settings?.preferences || {});
+    try {
       const res = await apiFetch('/api/users/me', {
         method: 'PUT',
         body: JSON.stringify({ preferences }),
@@ -311,29 +332,33 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || err.message || 'Failed to update shared integration visibility');
       }
-      return res.json().catch(() => ({}));
-    },
-    onCommit: (snapshot, _version, payload = {}) => {
+      const payload = await res.json().catch(() => ({}));
+      if (requestVersion !== preferencesSaveVersion) return;
       state.settings = {
         ...(state.settings || {}),
-        preferences: payload?.user?.preferences || snapshot,
+        preferences: payload?.user?.preferences || preferences,
       };
       sectionState.error = '';
       broadcastToolServersInvalidation();
       syncListShell();
       syncFeedback();
-      syncActionFooter();
-    },
-    onError: (error) => {
+    } catch (error) {
+      if (requestVersion !== preferencesSaveVersion) return;
+      if (rollback) {
+        state.settings = {
+          ...(state.settings || {}),
+          preferences: rollback.preferences || clonePreferences(state.settings?.preferences || {}),
+        };
+      }
       sectionState.error = error?.message || 'Failed to update shared integration visibility';
       syncFeedback();
-      syncActionFooter();
-    },
-  });
+      syncListShell();
+    }
+  };
 
   let activeModal = null;
+  let activeModalHash = '';
   const ensureMounted = () => container.dataset.integrationsMounted === '1' && Boolean(container.querySelector('#tool-servers-list'));
-  const hasChanges = () => stagedPreferencesSave.pending;
 
   const syncFeedback = () => {
     const feedback = container.querySelector('#integrations-feedback');
@@ -400,13 +425,15 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     const normalizedOverrides = normalizeUserResourceOverrides(state.settings?.preferences);
     const hiddenSharedIds = new Set(normalizedOverrides.tool_servers.hidden_ids || []);
     const hiddenSharedToolIdsByServer = normalizedOverrides.tool_servers.tools || {};
+    const sortedPersonalServers = sortResourcesByEnabledThenVisibilityThenLabel(sectionState.servers);
+    const sortedSharedServers = sortResourcesByEnabledThenVisibilityThenLabel(sectionState.sharedServers);
     const personalMarkup = sectionState.loading
       ? renderLoadingSkeleton()
-      : sectionState.servers.length
-        ? sectionState.servers.map((server) => buildListCard(server, canManageToolServers)).join('')
+      : sortedPersonalServers.length
+        ? sortedPersonalServers.map((server) => buildListCard(server, canManageToolServers)).join('')
         : '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
-    const sharedMarkup = sectionState.sharedServers.length
-      ? sectionState.sharedServers.map((server) => {
+    const sharedMarkup = sortedSharedServers.length
+      ? sortedSharedServers.map((server) => {
         const serverId = String(server.id || '').trim();
         const hiddenToolIds = new Set(hiddenSharedToolIdsByServer?.[serverId]?.hidden_ids || []);
         return buildListCard({
@@ -427,24 +454,7 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
   const syncActionFooter = () => {
     if (!footerHost) return;
-    footerHost.innerHTML = renderSettingsActionFooter({
-      footerId: 'integrations-footer-actions',
-      dirtyId: 'integrations-dirty',
-      saveId: 'save-integrations',
-      dirtyLabel: 'Unsaved changes',
-      buttonLabel: 'Save',
-      dirty: hasChanges(),
-      saving: stagedPreferencesSave.saving,
-      canSave: canManageToolServers && hasChanges(),
-    });
-    footerHost.querySelector('#save-integrations')?.addEventListener('click', async () => {
-      if (!canManageToolServers || stagedPreferencesSave.saving || !hasChanges()) return;
-      try {
-        await stagedPreferencesSave.flush();
-      } catch {
-        // Errors are surfaced by the queue callbacks.
-      }
-    });
+    footerHost.innerHTML = '';
   };
 
   const bindDelegatedEvents = () => {
@@ -462,6 +472,7 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
         const toolName = toolToggle.dataset.toolName;
         const scope = toolToggle.dataset.toolToggleScope || 'personal';
         if (scope === 'shared') {
+          const previousPreferences = clonePreferences(state.settings?.preferences || {});
           const currentHidden = isToolHidden(state.settings?.preferences || {}, id, toolName);
           const nextVisible = currentHidden;
           const nextPreferences = setToolVisibility(state.settings?.preferences || {}, id, toolName, nextVisible);
@@ -471,18 +482,38 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
           };
           sectionState.error = '';
           syncListShell();
-          syncActionFooter();
-          stagedPreferencesSave.stage();
-          syncActionFooter();
+          void persistPreferences({ rollback: { preferences: previousPreferences } });
           return;
         }
         const server = sectionState.servers.find((entry) => entry.id === id);
         if (server && server.enabled !== false && Array.isArray(server.tools)) {
           const tool = server.tools.find((entry) => entry.name === toolName);
           if (tool) {
-            tool.enabled = tool.enabled === false;
+            const previousEnabled = tool.enabled !== false;
+            const nextEnabled = !previousEnabled;
+            tool.enabled = nextEnabled;
             syncListState(id);
             syncActionFooter();
+            void (async () => {
+              try {
+                await updateUserMcpServer(server.id, {
+                  tools: Array.isArray(server.tools)
+                    ? server.tools.map((entry) => ({
+                      ...entry,
+                      enabled: entry.name === toolName ? nextEnabled : entry.enabled !== false,
+                    }))
+                    : [],
+                });
+                broadcastToolServersInvalidation();
+              } catch (err) {
+                tool.enabled = previousEnabled;
+                sectionState.error = err?.message || 'Failed to update integration';
+              } finally {
+                syncListState(id);
+                syncFeedback();
+                syncActionFooter();
+              }
+            })();
           }
         }
         return;
@@ -493,6 +524,7 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
         const id = toggle.dataset.id || toggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
         const scope = toggle.dataset.toggleScope || 'personal';
         if (scope === 'shared') {
+          const previousPreferences = clonePreferences(state.settings?.preferences || {});
           const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'tool_servers', id);
           const nextVisible = currentHidden;
           const nextPreferences = setResourceVisibility(state.settings?.preferences || {}, 'tool_servers', id, nextVisible);
@@ -502,9 +534,7 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
           };
           sectionState.error = '';
           syncListShell();
-          syncActionFooter();
-          stagedPreferencesSave.stage();
-          syncActionFooter();
+          void persistPreferences({ rollback: { preferences: previousPreferences } });
           return;
         }
         if (!canManageToolServers) return;
@@ -547,7 +577,8 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
       if (descToggle) {
         const serverId = descToggle.dataset.serverId || descToggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
         const toolName = descToggle.dataset.toolName;
-        const server = sectionState.servers.find((entry) => entry.id === serverId);
+        const server = sectionState.servers.find((entry) => entry.id === serverId)
+          || sectionState.sharedServers.find((entry) => entry.id === serverId);
         if (server && Array.isArray(server.tools)) {
           const tool = server.tools.find((entry) => entry.name === toolName);
           if (tool) {
@@ -595,10 +626,12 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     try {
       const payload = await fetchUserMcpServers({ cache: 'no-store' });
       sectionState.servers = Array.isArray(payload?.servers)
-        ? payload.servers.map(normalizeServer).filter(Boolean)
+        ? sortResourcesByEnabledThenVisibilityThenLabel(payload.servers.map(normalizeServer).filter(Boolean))
         : [];
       sectionState.sharedServers = Array.isArray(payload?.accessible_servers)
-        ? payload.accessible_servers.map(normalizeServer).filter(Boolean)
+        ? sortResourcesByEnabledThenVisibilityThenLabel(
+          payload.accessible_servers.map(normalizeServer).filter((server) => Boolean(server) && server.enabled !== false),
+        )
         : [];
     } catch (err) {
       sectionState.error = err?.message || 'Failed to load integrations';
@@ -610,8 +643,17 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
   const render = () => {
     if (!ensureMounted()) {
+      const traceAttrs = buildTraceAttrs({
+        route: '/account/settings/integrations',
+        scope: 'account',
+        family: 'mcp-servers',
+        owner: 'account effective truth',
+        read: ['/api/users/me/settings?include=permissions,roles', '/api/users/me/resources/mcp-servers'],
+        write: ['/api/users/me/resources/mcp-servers/:id', '/api/users/me'],
+        invalidation: 'account settings only',
+      });
       container.innerHTML = `
-      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
+      <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full"${traceAttrs}>
         ${sectionState.error ? renderErrorBanner({ message: sectionState.error }) : '<div id="integrations-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>'}
         <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
           <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
@@ -661,18 +703,24 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     try {
       const payload = await fetchUserMcpServers({ cache: 'no-store' });
       sectionState.servers = Array.isArray(payload?.servers)
-        ? payload.servers.map(normalizeServer).filter(Boolean)
+        ? sortResourcesByEnabledThenVisibilityThenLabel(payload.servers.map(normalizeServer).filter(Boolean))
         : [];
       sectionState.sharedServers = Array.isArray(payload?.accessible_servers)
-        ? payload.accessible_servers.map(normalizeServer).filter(Boolean)
+        ? sortResourcesByEnabledThenVisibilityThenLabel(
+          payload.accessible_servers.map(normalizeServer).filter((server) => Boolean(server) && server.enabled !== false),
+        )
         : [];
     } catch (err) {
       if (typeof onRefresh === 'function') {
         const nextState = await onRefresh();
         if (nextState?.settings?.integrations?.servers) {
-          sectionState.servers = nextState.settings.integrations.servers.map(normalizeServer).filter(Boolean);
+          sectionState.servers = sortResourcesByEnabledThenVisibilityThenLabel(
+            nextState.settings.integrations.servers.map(normalizeServer).filter(Boolean),
+          );
           sectionState.sharedServers = Array.isArray(nextState.settings?.integrations?.accessible_servers)
-            ? nextState.settings.integrations.accessible_servers.map(normalizeServer).filter(Boolean)
+            ? sortResourcesByEnabledThenVisibilityThenLabel(
+              nextState.settings.integrations.accessible_servers.map(normalizeServer).filter((server) => Boolean(server) && server.enabled !== false),
+            )
             : sectionState.sharedServers;
         } else {
           throw err;
@@ -737,6 +785,8 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
   const closeModal = () => {
     activeModal?.remove();
     activeModal = null;
+    clearModalHash(activeModalHash);
+    activeModalHash = '';
   };
 
   const setSaving = (saving, saveBtn, deleteBtn) => {
@@ -763,6 +813,16 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     modalWrapper.innerHTML = modalMarkup.trim();
     const modal = modalWrapper.firstElementChild;
     container.appendChild(modal);
+    activeModalHash = isEdit ? 'edit-account-integration-modal' : 'add-account-integration-modal';
+    setModalHash(activeModalHash);
+    modal.setAttribute('data-trace-route', '/account/settings/integrations');
+    modal.setAttribute('data-trace-scope', 'account');
+    modal.setAttribute('data-trace-family', 'mcp-servers');
+    modal.setAttribute('data-trace-owner', 'account effective truth');
+    modal.setAttribute('data-trace-action', isEdit ? 'edit server' : 'add server');
+    modal.setAttribute('data-trace-read', '/api/users/me/settings?include=permissions,roles | /api/users/me/resources/mcp-servers');
+    modal.setAttribute('data-trace-write', '/api/users/me/resources/mcp-servers/:id | /api/users/me');
+    modal.setAttribute('data-trace-invalidation', 'account settings only');
 
     activeModal = modal;
     const bodyEl = modal;

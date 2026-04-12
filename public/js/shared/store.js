@@ -12,6 +12,7 @@ export const state = {
   activeChatId: null,
   messagesByChat: {},
   models: [],
+  modelCatalogMeta: null,
   modelsLoading: false,
   activeModelId: null,
   defaultModelId: null,
@@ -65,6 +66,7 @@ export const state = {
     streaming: false,
     streamingChatId: null,
     loadingChatId: null,
+    modelAvailabilityNotice: null,
     editingMessages: {}, // { messageId: content }
     pendingDeleteMessageKeys: {}, // { `${chatId}:${messageId}`: true }
   }
@@ -119,6 +121,21 @@ export function subscribe(listener) {
   listeners.add(listener);
   listener(state);
   return () => listeners.delete(listener);
+}
+
+export function snapshotSidebarState() {
+  return {
+    showSidebar: state.showSidebar,
+    sidebarCollapsed: state.sidebarCollapsed,
+  };
+}
+
+export function restoreSidebarState(snapshot = null) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  setState({
+    showSidebar: snapshot.showSidebar !== undefined ? snapshot.showSidebar : state.showSidebar,
+    sidebarCollapsed: snapshot.sidebarCollapsed !== undefined ? snapshot.sidebarCollapsed : state.sidebarCollapsed,
+  });
 }
 
 function notifyListeners() {

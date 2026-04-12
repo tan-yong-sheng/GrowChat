@@ -8,10 +8,8 @@ import {
 import { apiFetch } from '../../shared/api.js';
 import { buildConnectionModalMarkup, buildConnectionModalModelsMarkup } from '../../shared/components/connection-modal.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
-import { renderSettingsActionFooter } from '../../shared/components/settings-action-footer.js';
 import { broadcastConnectionsInvalidation } from '../../shared/utils/connection-sync.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
-import { createStagedSaveQueue } from '../../shared/utils/staged-save.js';
 import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
 import {
   normalizeConnectionModelSelectionMode,
@@ -20,6 +18,8 @@ import {
 import { isResourceHidden, setResourceVisibility, normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
+import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
+import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 import {
   connectionApiTypeDetails,
   formatConnectionModelId,
@@ -350,18 +350,17 @@ function buildListCard(connection, canManageConnections = true) {
 }
 
 function buildAccessibleCard(connection, hiddenForUser = false, canManageConnections = true) {
-  const toggleClass = canManageConnections
-    ? `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${hiddenForUser ? 'bg-gray-200' : 'bg-black'}`
-    : 'relative inline-flex h-5 w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
+  const toggleClass = `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${hiddenForUser ? 'bg-gray-200' : 'bg-black'}`;
   return `
     <div data-connection-row="${escapeHtml(connection.id)}" data-id="${escapeHtml(connection.id)}" class="py-2.5 border-b border-gray-50 last:border-0 ${hiddenForUser ? 'opacity-70' : ''}">
       <div class="flex items-center gap-2">
         <div class="truncate text-sm font-semibold text-gray-900">${escapeHtml(connection.name || connection.id || 'Connection')}</div>
         ${renderSummaryPill('Shared', 'gray')}
+        ${hiddenForUser ? renderSummaryPill('Hidden for you', 'amber') : ''}
       </div>
       <div class="mt-1 truncate text-xs text-gray-500">${escapeHtml(connection.note || connection.base_url || '')}</div>
       <div class="mt-2 flex items-center justify-end">
-        <button data-id="${escapeHtml(connection.id)}" data-toggle-scope="shared" class="connection-toggle ${toggleClass}" ${canManageConnections ? '' : 'disabled aria-disabled="true"'} aria-pressed="${hiddenForUser ? 'false' : 'true'}" aria-label="${hiddenForUser ? 'Show for me' : 'Hide for me'}">
+        <button data-id="${escapeHtml(connection.id)}" data-toggle-scope="shared" class="connection-toggle ${toggleClass}" aria-pressed="${hiddenForUser ? 'false' : 'true'}" aria-label="${hiddenForUser ? 'Show for me' : 'Hide for me'}">
           <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${hiddenForUser ? 'translate-x-0' : 'translate-x-4'}"></span>
         </button>
       </div>
@@ -376,17 +375,19 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     const connections = state.settings?.connections || {};
     return {
       personal: Array.isArray(connections.my_connections)
-        ? connections.my_connections.map((connection) => normalizePersonalConnection(connection))
+        ? sortResourcesByEnabledThenVisibilityThenLabel(
+          connections.my_connections.map((connection) => normalizePersonalConnection(connection)),
+        )
         : [],
       accessible: Array.isArray(connections.connections)
-        ? connections.connections.map((connection) => ({
+        ? sortResourcesByEnabledThenVisibilityThenLabel(connections.connections.map((connection) => ({
           id: String(connection.id || '').trim(),
           name: String(connection.name || connection.id || '').trim(),
           note: String(connection.note || connection.base_url || '').trim(),
           access_label: String(connection.access_label || 'Shared').trim(),
           hidden_for_user: Boolean(connection.hidden_for_user),
           visible_for_user: connection.visible_for_user !== false,
-        }))
+        })))
         : [],
     };
   };
@@ -398,6 +399,7 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
   };
 
   let activeModal = null;
+  let activeModalHash = '';
   const showPageError = (message = '') => {
     viewState.error = String(message || '');
     render();
@@ -406,6 +408,8 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
   const closeModal = () => {
     activeModal?.remove();
     activeModal = null;
+    clearModalHash(activeModalHash);
+    activeModalHash = '';
   };
 
   const refreshConnections = async () => {
@@ -490,9 +494,12 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     viewState.error = '';
   };
 
-  const stagedPreferencesSave = createStagedSaveQueue({
-    getSnapshot: () => clonePreferences(state.settings?.preferences || {}),
-    saveSnapshot: async (preferences) => {
+  let preferencesSaveVersion = 0;
+
+  const persistPreferences = async ({ rollback = null } = {}) => {
+    const requestVersion = ++preferencesSaveVersion;
+    const preferences = clonePreferences(state.settings?.preferences || {});
+    try {
       const res = await apiFetch('/api/users/me', {
         method: 'PUT',
         body: JSON.stringify({ preferences }),
@@ -501,46 +508,32 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || err.message || 'Failed to save preferences');
       }
-      return res.json().catch(() => ({}));
-    },
-    onCommit: (snapshot, _version, payload = {}) => {
+      const payload = await res.json().catch(() => ({}));
+      if (requestVersion !== preferencesSaveVersion) return;
       state.settings = {
         ...(state.settings || {}),
-        preferences: payload?.user?.preferences || snapshot,
+        preferences: payload?.user?.preferences || preferences,
       };
       viewState.error = '';
       broadcastConnectionsInvalidation();
       broadcastModelsInvalidation();
       render();
-      syncFooter();
-    },
-    onError: (err) => {
+    } catch (err) {
+      if (requestVersion !== preferencesSaveVersion) return;
+      if (rollback) {
+        state.settings = {
+          ...(state.settings || {}),
+          preferences: rollback.preferences || clonePreferences(state.settings?.preferences || {}),
+        };
+      }
       viewState.error = err?.message || 'Failed to save preferences';
       render();
-      syncFooter();
-    },
-  });
+    }
+  };
 
   const syncFooter = () => {
     if (!footerHost) return;
-    footerHost.innerHTML = renderSettingsActionFooter({
-      footerId: 'connections-footer-actions',
-      dirtyId: 'connections-dirty',
-      saveId: 'save-connections',
-      dirtyLabel: 'Unsaved changes',
-      buttonLabel: 'Save',
-      dirty: stagedPreferencesSave.pending,
-      saving: stagedPreferencesSave.saving,
-      canSave: canManageConnections && stagedPreferencesSave.pending,
-    });
-    footerHost.querySelector('#save-connections')?.addEventListener('click', async () => {
-      if (!canManageConnections || stagedPreferencesSave.saving || !stagedPreferencesSave.pending) return;
-      try {
-        await stagedPreferencesSave.flush();
-      } catch {
-        // Errors are surfaced by the queue callbacks.
-      }
-    });
+    footerHost.innerHTML = '';
   };
 
   const openConnectionModal = (connection = null) => {
@@ -562,6 +555,7 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       query: '',
       loadingModels: false,
       modelsError: '',
+      manualModelsMode: normalizeConnectionModelSelectionMode(connection?.manual_models_mode || connection?.manualModelsMode) || (initialModels.length > 0 ? 'some' : 'all'),
     };
     const modalMarkup = buildConnectionModalMarkup({
       rootId: 'account-connection-modal',
@@ -575,17 +569,19 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
         key: String(connection.key || connection.keyMasked || '').trim(),
         has_key: Boolean(connection.has_key || String(connection.key || connection.keyMasked || '').trim()),
         enabled: connection.enabled !== false,
-        manualModelsMode: normalizeConnectionModelSelectionMode(connection.manual_models_mode || connection.manualModelsMode) || 'all',
+        manualModelsMode: modalState.manualModelsMode,
       } : null,
       isVisible: true,
       showAccountHooks: true,
-      isEnvConnection: connection?.source === 'env',
+      isEnvConnection: Boolean(connection?.readOnly),
       modalState,
     });
     const modalWrapper = document.createElement('div');
     modalWrapper.innerHTML = modalMarkup.trim();
     const modal = modalWrapper.firstElementChild;
     container.appendChild(modal);
+    activeModalHash = isEdit ? 'edit-account-connection-modal' : 'add-account-connection-modal';
+    setModalHash(activeModalHash);
 
     activeModal = modal;
     const bodyEl = modal;
@@ -709,7 +705,7 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
         '',
       );
       modelsStatus.classList.remove('text-red-500');
-      modelsStatus.textContent = models.length ? `Models enabled in this connection: ${selected.size} of ${models.length}` : '';
+      modelsStatus.textContent = models.length ? `Models selected in this connection: ${selected.size}` : '';
       if (searchInput) searchInput.value = modalState.query;
     };
 
@@ -779,7 +775,12 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
             manual: false,
           })).filter(Boolean)
           : [];
-        const preview = previewConnectionModalModels(modalState.models, modalState.selection, discovered, connection);
+        const preview = previewConnectionModalModels(
+          modalState.models,
+          modalState.selection,
+          discovered,
+          { ...connection, manualModelsMode: modalState.manualModelsMode },
+        );
         modalState.models = preview.models;
         modalState.selection = preview.selection;
         modalState.modelsError = '';
@@ -962,11 +963,13 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
 
   const render = () => {
     const hiddenConnections = new Set(normalizeUserResourceOverrides(state.settings?.preferences).connections.hidden_ids || []);
-    const personalMarkup = viewState.personal.length
-      ? viewState.personal.map((connection) => buildListCard(connection, canManageConnections)).join('')
-      : '<div class="py-8 text-center text-sm text-gray-500">No personal connections configured</div>';
-    const accessibleMarkup = viewState.accessible.length
-      ? viewState.accessible.map((connection) => buildAccessibleCard(connection, hiddenConnections.has(connection.id), canManageConnections)).join('')
+    const sortedPersonalConnections = sortResourcesByEnabledThenVisibilityThenLabel(viewState.personal);
+    const sortedAccessibleConnections = sortResourcesByEnabledThenVisibilityThenLabel(viewState.accessible);
+    const personalMarkup = sortedPersonalConnections.length
+      ? sortedPersonalConnections.map((connection) => buildListCard(connection, canManageConnections)).join('')
+      : '';
+    const accessibleMarkup = sortedAccessibleConnections.length
+      ? sortedAccessibleConnections.map((connection) => buildAccessibleCard(connection, hiddenConnections.has(connection.id), canManageConnections)).join('')
       : '';
 
     container.innerHTML = `
@@ -1032,12 +1035,12 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
 
     container.querySelectorAll('.connection-toggle').forEach((toggleBtn) => {
       toggleBtn.addEventListener('click', async () => {
-        if (!canManageConnections) return;
         const id = toggleBtn.dataset.id;
         const scope = toggleBtn.dataset.toggleScope || 'personal';
         if (scope === 'shared') {
           const connection = viewState.accessible.find((item) => item.id === id);
           if (!connection) return;
+          const previousPreferences = clonePreferences(state.settings?.preferences || {});
           const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'connections', id);
           const nextPreferences = setResourceVisibility(state.settings?.preferences || {}, 'connections', id, currentHidden);
           state.settings = {
@@ -1045,11 +1048,11 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
             preferences: nextPreferences,
           };
           viewState.error = '';
-          stagedPreferencesSave.stage();
           render();
-          syncFooter();
+          void persistPreferences({ rollback: { preferences: previousPreferences } });
           return;
         }
+        if (!canManageConnections) return;
         const connection = viewState.personal.find((item) => item.id === id);
         if (!connection) return;
         const previousEnabled = connection.enabled !== false;
@@ -1067,7 +1070,6 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
         }
       });
     });
-    syncFooter();
   };
 
   render();

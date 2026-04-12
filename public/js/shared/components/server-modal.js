@@ -39,15 +39,17 @@ export function buildMcpServerModalMarkup({
   isVisible = true,
   modalMode = 'create',
   canManage = true,
+  rootAttrs = '',
 } = {}) {
   const authType = String(server?.auth_type || 'none').toLowerCase();
   const headersValue = formatHeadersValue(server?.headers);
   const hiddenClass = isVisible ? '' : ' hidden';
   const disabledAttr = canManage ? '' : ' disabled aria-disabled="true"';
   const disabledControlClass = canManage ? '' : ' opacity-50 cursor-not-allowed';
+  const rootAttrsMarkup = rootAttrs ? ` ${rootAttrs}` : '';
 
   return `
-    <div id="${escapeHtml(rootId)}" class="${STANDARD_MODAL_PRESET.outerClass}${hiddenClass}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};">
+    <div id="${escapeHtml(rootId)}" class="${STANDARD_MODAL_PRESET.outerClass}${hiddenClass}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};"${rootAttrsMarkup}>
       <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
       <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
         <div class="px-6 pt-6 pb-4 flex justify-between items-center">

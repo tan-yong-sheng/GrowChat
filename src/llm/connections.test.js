@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createProviderTestEnv } from '../../tests/unit/provider-test-env.js';
 import {
-  buildEnvOpenAIConnections,
   discoverConnectionModels,
   dedupeConnectionConfigs,
   extractConnectionModelId,
@@ -40,7 +38,7 @@ describe('openai connection helpers', () => {
 
   it('dedupes identical endpoints for the same provider type', () => {
     const connections = dedupeConnectionConfigs([
-      { id: 'env-a', source: 'env', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
+      { id: 'legacy-a', source: 'legacy', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
       { id: 'config-a', source: 'config', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
       { id: 'gemini-a', providerType: 'google', providerFamily: 'google', baseUrl: 'https://api.example.com/v1' },
       { id: 'google-a', providerType: 'google', providerFamily: 'google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
@@ -90,14 +88,6 @@ describe('openai connection helpers', () => {
       { modelId: 'gemini-2.5-pro', name: 'Gemini Pro' },
       { modelId: 'claude-sonnet-4-5', name: 'Claude Sonnet' },
     ]);
-  });
-
-  it('returns the correct api type in env connection snapshots', () => {
-    const connections = buildEnvOpenAIConnections(createProviderTestEnv());
-
-    expect(connections.find((conn) => conn.providerFamily === 'openai')?.apiType).toBe('chat-completions');
-    expect(connections.find((conn) => conn.providerFamily === 'google')?.apiType).toBe('stream-generate-content');
-    expect(connections.find((conn) => conn.providerFamily === 'anthropic')?.apiType).toBe('messages');
   });
 
   it('builds provider-specific discovery urls', () => {

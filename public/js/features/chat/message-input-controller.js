@@ -87,6 +87,11 @@ export function createMessageInputController({
     return currentState.newChatToolSelection;
   }
 
+  function hasSelectableModels(currentState = state) {
+    if (currentState.modelsLoading) return true;
+    return Array.isArray(currentState.models) && currentState.models.length > 0;
+  }
+
   function buildToolKey(serverId, toolName) {
     const safeName = String(toolName || '').replace(/[^a-zA-Z0-9_-]/g, '_');
     return `mcp__${serverId}__${safeName}`;
@@ -397,7 +402,7 @@ export function createMessageInputController({
   const updateAttachmentControls = (currentState) => {
     if (!openFilesBtn || !attachUploadBtn || !attachCaptureBtn || !attachmentInput) return;
     const { allowedKinds, accepts } = getAttachmentAcceptTypes(currentState);
-    const hasAny = allowedKinds.length > 0;
+    const hasAny = allowedKinds.length > 0 && hasSelectableModels(currentState);
     attachmentInput.setAttribute('accept', accepts.join(','));
     if (cameraInput) cameraInput.setAttribute('accept', 'image/*');
     openFilesBtn.disabled = !hasAny;
@@ -418,7 +423,7 @@ export function createMessageInputController({
   const updateToolControls = (currentState) => {
     if (!openToolsBtn) return;
     const servers = getAllowedToolServers(currentState);
-    const hasAny = servers.length > 0;
+    const hasAny = servers.length > 0 && hasSelectableModels(currentState);
     const loading = currentState.toolServersLoading === true;
     const selection = getCurrentToolSelection(currentState);
     const allowedKeys = servers.flatMap((server) => server.tools.map((tool) => buildToolKey(server.id, tool.name)));
@@ -449,6 +454,16 @@ export function createMessageInputController({
     if (toolsMenu && !toolsMenu.classList.contains('hidden')) {
       renderToolsMenu(currentState);
     }
+  };
+
+  const updateComposerAvailability = (currentState) => {
+    const noSelectableModels = !currentState.modelsLoading && !hasSelectableModels(currentState);
+    composer?.setAttribute('aria-disabled', noSelectableModels ? 'true' : 'false');
+    input.disabled = noSelectableModels;
+    if (micBtn) micBtn.disabled = noSelectableModels;
+    if (sendBtn) sendBtn.disabled = noSelectableModels;
+    composer?.classList.toggle('opacity-70', noSelectableModels);
+    composer?.classList.toggle('pointer-events-none', noSelectableModels);
   };
 
   function renderPendingQueue() {
@@ -580,6 +595,14 @@ export function createMessageInputController({
   };
 
   function toggleSendMicBtn() {
+    if (composer?.getAttribute('aria-disabled') === 'true') {
+      micBtn.classList.add('hidden');
+      sendBtn.classList.add('hidden');
+      stopBtn.classList.add('hidden');
+      loadingSpinner.classList.add('hidden');
+      loadingSpinner.style.display = 'none';
+      return;
+    }
     const isActivelyStreaming = isStreamBlocked;
     if (isActivelyStreaming) {
       micBtn.classList.add('hidden');
@@ -840,9 +863,16 @@ export function createMessageInputController({
   const unsubscribe = subscribe((currentState) => {
     const model = currentState.models.find((m) => m.id === currentState.activeModelId);
     const modelName = model?.name || 'GrowChat';
-    input.placeholder = `Message ${modelName}`;
+    const noSelectableModels = !currentState.modelsLoading && !hasSelectableModels(currentState);
+    input.placeholder = noSelectableModels
+      ? 'No selectable models are available'
+      : `Message ${modelName}`;
     const footer = container.querySelector('.mt-2.text-xs.text-gray-400');
-    if (footer) footer.textContent = `${modelName} can make mistakes. Check important info.`;
+    if (footer) {
+      footer.textContent = noSelectableModels
+        ? 'No selectable models are available. Ask an admin to restore access or hide fewer models.'
+        : `${modelName} can make mistakes. Check important info.`;
+    }
 
     const chatChanged = currentState.activeChatId !== lastActiveChatId;
     if (chatChanged && pendingQueue.length > 0) {
@@ -867,6 +897,7 @@ export function createMessageInputController({
       if (!isStreamBlocked && pendingQueue.length > 0 && !isSubmitting) startQueuedSend();
     }
 
+    updateComposerAvailability(currentState);
     if (!isSubmitting && (chatChanged || (input !== document.activeElement && !input.value))) {
       const draft = currentState.activeChatId
         ? (currentState.drafts[currentState.activeChatId] || '')
@@ -880,6 +911,7 @@ export function createMessageInputController({
     renderAttachments(getCurrentAttachments(currentState));
     updateAttachmentControls(currentState);
     updateToolControls(currentState);
+    toggleSendMicBtn();
   });
 
   return {
@@ -896,4 +928,3 @@ export function createMessageInputController({
     },
   };
 }
-

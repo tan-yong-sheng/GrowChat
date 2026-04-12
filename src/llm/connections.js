@@ -5,14 +5,6 @@ import { buildProviderId, getConnectionProviderFamily, normalizeConnectionModelI
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 
-function splitEnvList(value) {
-  if (!value) return [];
-  return String(value)
-    .split(/[;,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function normalizeUrl(url) {
   if (!url) return '';
   return String(url).trim().replace(/\/$/, '');
@@ -96,15 +88,13 @@ export function dedupeConnectionConfigs(connections = []) {
     }
 
     const existing = deduped[existingIndex];
-    const existingIsEnv = existing?.source === 'env';
-    const incomingIsEnv = conn?.source === 'env';
     const existingIsConfig = existing?.source === 'config';
     const incomingIsConfig = conn?.source === 'config';
     const existingIsUser = existing?.source === 'user';
     const incomingIsUser = conn?.source === 'user';
     const existingPriority = existingIsUser ? 2 : (existingIsConfig ? 1 : 0);
     const incomingPriority = incomingIsUser ? 2 : (incomingIsConfig ? 1 : 0);
-    if (incomingPriority > existingPriority || (existingIsEnv && !incomingIsEnv)) {
+    if (incomingPriority > existingPriority) {
       deduped[existingIndex] = conn;
     }
   }
@@ -171,24 +161,6 @@ export function normalizeConnectionManualModels(value = []) {
     });
   }
   return deduped;
-}
-
-async function getEnvOverrideMap(env) {
-  if (!env?.DB) return new Map();
-  try {
-    const db = createDB(env.DB);
-    const raw = await getConfigValue(db, 'openai_env_overrides', '{}');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return new Map();
-    const map = new Map();
-    for (const [key, value] of Object.entries(parsed)) {
-      map.set(String(key), value !== false);
-    }
-    return map;
-  } catch (err) {
-    console.warn('Failed to load connection env overrides:', err?.message || err);
-    return new Map();
-  }
 }
 
 function getConnectionAuthHeaderName(connection) {
@@ -341,105 +313,6 @@ export async function discoverConnectionModels(connection = {}, options = {}) {
     payload: null,
     error: lastError,
   };
-}
-
-function buildEnvConnectionFromRaw({
-  id,
-  family,
-  baseUrl,
-  key,
-  authType,
-}) {
-  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
-  if (!normalizedBaseUrl) return null;
-  const providerType = family === 'openai' ? 'openai-compatible' : family;
-  return {
-    id,
-    name: `${labelFromFamily(family)} (${labelFromUrl(normalizedBaseUrl)})`,
-    baseUrl: normalizedBaseUrl,
-    key,
-    headers: {},
-    source: 'env',
-    enabled: true,
-    providerType,
-    providerFamily: family,
-    authType: authType || '',
-    apiType: getConnectionApiType(providerType),
-  };
-}
-
-function getEnvFamilyConfigs(env) {
-  return [
-    {
-      family: 'openai',
-      baseUrlsRaw: env.OPENAI_API_BASE_URLS || env.OPENAI_BASE_URL || '',
-      keysRaw: env.OPENAI_API_KEYS || env.OPENAI_API_KEY || '',
-      defaultBaseUrl: 'https://api.openai.com/v1',
-      authType: 'bearer',
-    },
-    {
-      family: 'google',
-      baseUrlsRaw: env.GEMINI_API_BASE_URLS || env.GEMINI_BASE_URL || env.GOOGLE_GENERATIVE_AI_BASE_URL || env.GOOGLE_BASE_URL || '',
-      keysRaw: env.GEMINI_API_KEYS || env.GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEYS || env.GOOGLE_GENERATIVE_AI_API_KEY || env.GOOGLE_API_KEYS || env.GOOGLE_API_KEY || '',
-      defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-      authType: 'x-goog-api-key',
-    },
-    {
-      family: 'anthropic',
-      baseUrlsRaw: env.ANTHROPIC_API_BASE_URLS || env.ANTHROPIC_BASE_URL || '',
-      keysRaw: env.ANTHROPIC_API_KEYS || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKENS || env.ANTHROPIC_AUTH_TOKEN || '',
-      defaultBaseUrl: 'https://api.anthropic.com/v1',
-      authType: 'x-api-key',
-    },
-  ];
-}
-
-export function getEnvOpenAIConnectionConfigs(env, options = {}) {
-  const includeDisabled = options.includeDisabled === true;
-  const connections = [];
-
-  for (const familyConfig of getEnvFamilyConfigs(env)) {
-    const baseUrls = splitEnvList(familyConfig.baseUrlsRaw);
-    const keys = splitEnvList(familyConfig.keysRaw);
-
-    if (baseUrls.length === 0 && keys.length === 0) {
-      continue;
-    }
-
-    const resolvedBaseUrls = baseUrls.length > 0 ? [...baseUrls] : [familyConfig.defaultBaseUrl];
-    const resolvedKeys = [...keys];
-
-    if (resolvedBaseUrls.length === 1 && resolvedKeys.length > 1) {
-      while (resolvedBaseUrls.length < resolvedKeys.length) {
-        resolvedBaseUrls.push(resolvedBaseUrls[0]);
-      }
-    }
-
-    if (resolvedKeys.length === 1 && resolvedBaseUrls.length > 1) {
-      while (resolvedKeys.length < resolvedBaseUrls.length) {
-        resolvedKeys.push(resolvedKeys[0]);
-      }
-    }
-
-    const max = Math.max(resolvedBaseUrls.length, resolvedKeys.length, 1);
-    for (let i = 0; i < max; i += 1) {
-      const baseUrl = resolvedBaseUrls[i] || resolvedBaseUrls[0] || familyConfig.defaultBaseUrl;
-      const key = resolvedKeys[i] || resolvedKeys[0] || '';
-      const connection = buildEnvConnectionFromRaw({
-        id: `env-${familyConfig.family}-${i}`,
-        family: familyConfig.family,
-        baseUrl,
-        key,
-        authType: familyConfig.authType,
-      });
-      if (connection) {
-        connections.push(connection);
-      }
-    }
-  }
-
-  if (includeDisabled) return connections;
-  return connections.filter((conn) => conn.enabled !== false);
 }
 
 export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
@@ -710,12 +583,6 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
   const includeHiddenForUser = options.includeHiddenForUser === true;
   const userId = options.userId ? String(options.userId).trim() : '';
   const userRole = String(options.userRole || 'member').trim().toLowerCase() || 'member';
-  const envConnections = getEnvOpenAIConnectionConfigs(env, { includeDisabled: true });
-  const overrides = await getEnvOverrideMap(env);
-  envConnections.forEach((conn) => {
-    const override = overrides.get(conn.id);
-    if (override === false) conn.enabled = false;
-  });
   const storedConnections = await getStoredOpenAIConnectionConfigs(env, { includeDisabled });
   let userConnections = [];
   if (userId && env?.DB) {
@@ -727,7 +594,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
       userConnections = [];
     }
   }
-  const combined = [...envConnections, ...storedConnections, ...userConnections];
+  const combined = [...storedConnections, ...userConnections];
 
   if (!env?.DB || !userId) {
     if (includeDisabled) return combined;
@@ -774,36 +641,6 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
 }
 
 export async function getPrimaryOpenAIConnection(env) {
-  const envConnections = await getAllOpenAIConnectionConfigs(env);
-  const envWithKey = envConnections.find((conn) => conn.source === 'env' && conn.key);
-  if (envWithKey) return envWithKey;
-
-  const storedConnections = await getStoredOpenAIConnectionConfigs(env);
-  const storedWithKey = storedConnections.find((conn) => conn.key);
-  if (storedWithKey) return storedWithKey;
-
-  return envConnections[0] || storedConnections[0] || null;
-}
-
-export async function getEnvOpenAIOverrides(env) {
-  return getEnvOverrideMap(env);
-}
-
-export function buildEnvOpenAIConnections(env) {
-  return getEnvOpenAIConnectionConfigs(env, { includeDisabled: true }).map((conn) => ({
-    id: conn.id,
-    name: conn.name,
-    url: conn.baseUrl,
-    keyMasked: conn.key ? `••••${String(conn.key).slice(-4)}` : '',
-    hasKey: Boolean(conn.key),
-    headers: '',
-    providerType: conn.providerType,
-    providerFamily: conn.providerFamily,
-    providerId: conn.providerId || buildProviderId(conn),
-    authType: conn.authType || '',
-    apiType: conn.apiType || getConnectionApiType(conn.providerType || conn.providerFamily),
-    readOnly: true,
-    source: 'env',
-    enabled: conn.enabled !== false,
-  }));
+  const connections = await getAllOpenAIConnectionConfigs(env);
+  return connections.find((conn) => conn.key) || connections[0] || null;
 }

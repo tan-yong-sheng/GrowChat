@@ -335,6 +335,18 @@ describe('usersRouter', () => {
         access_variant: 'shared',
       },
       {
+        id: 'conn-hidden',
+        name: 'Hidden Connection',
+        baseUrl: 'https://hidden.example.com/v1',
+        providerFamily: 'openai',
+        providerType: 'openai-compatible',
+        source: 'config',
+        access_label: 'Shared',
+        access_variant: 'shared',
+        hidden_for_user: true,
+        visible_for_user: false,
+      },
+      {
         id: 'conn-admin',
         name: 'Admin Connection',
         baseUrl: 'https://admin.example.com/v1',
@@ -343,6 +355,16 @@ describe('usersRouter', () => {
         source: 'config',
         access_label: 'Admin',
         access_variant: 'admin',
+      },
+      {
+        id: 'conn-shared-2',
+        name: 'Shared Connection 2',
+        baseUrl: 'https://shared.example.com/v1',
+        providerFamily: 'openai',
+        providerType: 'openai-compatible',
+        source: 'config',
+        access_label: 'Shared',
+        access_variant: 'shared',
       },
     ]);
     mocks.loadUserOpenAIConnectionConfigs.mockResolvedValue([
@@ -376,9 +398,21 @@ describe('usersRouter', () => {
         access_variant: 'shared',
       }),
       expect.objectContaining({
+        id: 'conn-hidden',
+        access_label: 'Shared',
+        access_variant: 'shared',
+        hidden_for_user: true,
+        visible_for_user: false,
+      }),
+      expect.objectContaining({
         id: 'conn-admin',
         access_label: 'Admin',
         access_variant: 'admin',
+      }),
+      expect.objectContaining({
+        id: 'conn-shared-2',
+        access_label: 'Shared',
+        access_variant: 'shared',
       }),
     ]);
     expect(body.my_connections).toEqual([
@@ -728,12 +762,29 @@ describe('usersRouter', () => {
   });
 
   it('returns a read-only ACL inspector payload for a user', async () => {
-    mocks.db.first.mockResolvedValueOnce({
-      id: 'u2',
-      email: 'ada@example.com',
-      name: 'Ada Lovelace',
-      role: 'admin',
-      account_status: 'active',
+    mocks.db.first.mockImplementation(async (sql) => {
+      const query = String(sql || '');
+      if (query.includes('SELECT preferences FROM users WHERE id = ?')) {
+        return {
+          preferences: JSON.stringify({
+            resource_overrides: {
+              connections: {
+                hidden_ids: ['conn-1'],
+              },
+            },
+          }),
+        };
+      }
+      if (query.includes('SELECT id, email, name, account_status FROM users WHERE id = ?')) {
+        return {
+          id: 'u2',
+          email: 'ada@example.com',
+          name: 'Ada Lovelace',
+          role: 'admin',
+          account_status: 'active',
+        };
+      }
+      return null;
     });
     mocks.db.all
       .mockResolvedValueOnce([
@@ -741,10 +792,10 @@ describe('usersRouter', () => {
       ])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
-        { id: 'r1', model_id: 'model-1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
+        { id: 'r1', model_id: 'model-1', principal_type: 'group', principal_id: 'g1', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
       ])
       .mockResolvedValueOnce([
-        { id: 'r2', connection_id: 'conn-1', principal_type: 'user', principal_id: 'u2', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
+        { id: 'r2', connection_id: 'conn-1', principal_type: 'user', principal_id: 'u2', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
       ])
       .mockResolvedValueOnce([
         { id: 'r3', tool_server_id: 'mcp-1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'manage', created_at: 1, updated_at: 1 },
@@ -773,7 +824,8 @@ describe('usersRouter', () => {
         family: 'model',
         resource_id: 'model-1',
         principal_label: 'Group: test1',
-        effect: 'allow',
+        effect: 'deny',
+        access_state: 'revoked',
       }),
     ]);
     expect(body.access.connections).toEqual([
@@ -781,7 +833,10 @@ describe('usersRouter', () => {
         family: 'connection',
         resource_id: 'conn-1',
         principal_label: 'Direct user',
-        effect: 'deny',
+        effect: 'allow',
+        hidden_for_user: true,
+        visible_for_user: false,
+        access_state: 'hidden_for_user',
       }),
     ]);
     expect(body.access.mcp_servers).toEqual([
@@ -790,6 +845,7 @@ describe('usersRouter', () => {
         resource_id: 'mcp-1',
         principal_label: 'Group: test1',
         action: 'manage',
+        access_state: 'shared',
       }),
     ]);
   });

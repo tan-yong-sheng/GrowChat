@@ -1,6 +1,8 @@
 import { state, setState, subscribe } from '../store.js';
 import { apiFetch, fetchChats } from '../api.js';
 import { renderMessageContent } from '../utils.js';
+import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
+import { suspendSidebarVisibility, restoreSidebarVisibility } from '../utils/sidebar-visibility.js';
 import { renderSearchInput } from './search-input.js';
 import {
   normalizeBackendQuery,
@@ -12,6 +14,7 @@ export function createSearchModalController(container, createChatFn, loadMessage
   let unsubscribe;
   let cleanup = null;
   let previousFocus = null;
+  let sidebarSuspended = false;
 
   const modalRoot = container.querySelector('#modal-root');
   const closeBtn = modalRoot.querySelector('#close-modal');
@@ -226,8 +229,13 @@ export function createSearchModalController(container, createChatFn, loadMessage
 
   unsubscribe = subscribe((currentState) => {
     if (currentState.showSearch) {
+      setModalHash('search-modal');
       if (modalRoot.classList.contains('hidden')) {
         previousFocus = document.activeElement;
+        if (!sidebarSuspended) {
+          suspendSidebarVisibility();
+          sidebarSuspended = true;
+        }
         document.body.style.overflow = 'hidden';
         modalRoot.classList.remove('hidden');
         setState({ search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true } });
@@ -237,7 +245,12 @@ export function createSearchModalController(container, createChatFn, loadMessage
     } else {
       if (!modalRoot.classList.contains('hidden')) {
         document.body.style.overflow = '';
+        if (sidebarSuspended) {
+          restoreSidebarVisibility();
+          sidebarSuspended = false;
+        }
         if (previousFocus) previousFocus.focus();
+        clearModalHash('search-modal');
       }
       modalRoot.classList.add('hidden');
       searchInput.value = '';
@@ -252,14 +265,17 @@ export function createSearchModalController(container, createChatFn, loadMessage
     if (unsubscribe) unsubscribe();
     destroySearchInput?.();
     document.body.style.overflow = '';
+    if (sidebarSuspended) {
+      restoreSidebarVisibility();
+      sidebarSuspended = false;
+    }
     if (searchAbortController) searchAbortController.abort();
     if (previewAbortController) previewAbortController.abort();
     if (debounceTimer) clearTimeout(debounceTimer);
+    clearModalHash('search-modal');
   };
 
   return () => {
     if (cleanup) cleanup();
   };
 }
-
-

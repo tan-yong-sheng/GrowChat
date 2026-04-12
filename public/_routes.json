@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "include": [
+    "/*"
+  ],
+  "exclude": [
+    "/favicon.png",
+    "/logo.png",
+    "/styles.css",
+    "/js/*",
+    "/.well-known/*"
+  ]
+}

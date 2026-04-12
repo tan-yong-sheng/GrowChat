@@ -48,7 +48,7 @@ async function injectSriIntoHtmlResponse(response, env) {
 
 async function fetchHtmlAsset(env, req, pathname) {
   const url = new URL(req.url);
-  url.pathname = pathname;
+  url.pathname = pathname === '/index.html' ? '/' : pathname;
   const response = await env.ASSETS.fetch(new Request(url.toString(), req));
   return injectSriIntoHtmlResponse(response, env);
 }
@@ -56,6 +56,7 @@ async function fetchHtmlAsset(env, req, pathname) {
 export default {
   async fetch(req, env, ctx) {
     const path = getPath(req);
+    console.log('[Worker] Incoming request:', path, req.method);
     const isPublicSharePath = /^\/s\/[^/]+$/.test(path);
 
     try {
@@ -99,6 +100,13 @@ export default {
         });
       }
 
+      // Check if this looks like an SPA route (not a static asset)
+      const isStaticAsset = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(path) ||
+                           path === '/' ||
+                           path === '/index.html' ||
+                           path === '/auth.html' ||
+                           path.startsWith('/auth/');
+
       let response;
       try {
         response = await env.ASSETS.fetch(req);
@@ -109,7 +117,8 @@ export default {
 
       response = await injectSriIntoHtmlResponse(response, env);
 
-      if (response.status === 404 && !path.startsWith('/api/')) {
+      // If static asset request failed with 404/307, or if it's an SPA route, serve index.html
+      if (!isStaticAsset && (response.status === 404 || response.status === 307)) {
         // Preserve auth landing behavior for SPA routes.
         if (path === '/auth' || path === '/auth.html' || path.startsWith('/auth/')) {
           try {
@@ -121,7 +130,7 @@ export default {
         }
 
         try {
-          return await fetchHtmlAsset(env, req, '/index.html');
+          return await fetchHtmlAsset(env, req, '/');
         } catch (err) {
           console.error('Index asset fetch failed:', String(err?.message || err));
           return new Response('Asset fetch failed', { status: 503, headers: { 'Content-Type': 'text/plain' } });

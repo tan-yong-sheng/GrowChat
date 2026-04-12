@@ -18,15 +18,8 @@ export function renderSecuritySettings(container, data) {
     adminConfigLoaded: false,
   });
 
-  // Flags to prevent race conditions
   let savingApiKey = false;
   let sendingTestEmail = false;
-
-  // Set up handlers for admin shell controller (no-op for immediate-save pattern)
-  data.settingsDirtyCheckers = data.settingsDirtyCheckers || {};
-  data.settingsSaveHandlers = data.settingsSaveHandlers || {};
-  data.settingsDirtyCheckers.security = () => false;
-  data.settingsSaveHandlers.security = async () => false;
 
   const showFeedback = (message, isError = false) => {
     let feedback = container.querySelector('#settings-feedback');
@@ -111,7 +104,7 @@ export function renderSecuritySettings(container, data) {
                   </div>
                   <button
                     id="send-test-email"
-                    class="px-4 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-4 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     Send Test
                   </button>

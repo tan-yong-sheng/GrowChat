@@ -91,7 +91,7 @@ describe('response.js - HTTP Response Helpers', () => {
 
       expect(response.status).toBe(500);
       const body = await response.json();
-      expect(body.error).toBe('Internal server error');
+      expect(body.error).toBe('An error occurred. Please try again later.');
     });
 
     it('should return error response with custom status', async () => {
@@ -148,7 +148,11 @@ describe('response.js - HTTP Response Helpers', () => {
         const response = error(mockRequest, testCase.msg, testCase.status);
         expect(response.status).toBe(testCase.status);
         const body = await response.json();
-        expect(body.error).toBe(testCase.msg);
+        if (testCase.status >= 500) {
+          expect(body.error).toBe('An error occurred. Please try again later.');
+        } else {
+          expect(body.error).toBe(testCase.msg);
+        }
       }
     });
   });

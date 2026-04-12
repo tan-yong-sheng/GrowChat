@@ -1,5 +1,13 @@
 export function resolveAdminRouteState(pathname) {
+  if (pathname === '/admin' || pathname === '/admin/') {
+    return { mainTab: 'users', subTab: 'overview', canonicalPath: '/admin/users/overview' };
+  }
+
   if (pathname === '/admin/users' || pathname === '/admin/users/') {
+    return { mainTab: 'users', subTab: 'overview', canonicalPath: '/admin/users/overview' };
+  }
+
+  if (pathname === '/admin/users/overview' || pathname.startsWith('/admin/users/overview/')) {
     return { mainTab: 'users', subTab: 'overview', canonicalPath: '/admin/users/overview' };
   }
 
@@ -13,6 +21,14 @@ export function resolveAdminRouteState(pathname) {
 
   if (pathname === '/admin/users/roles' || pathname.startsWith('/admin/users/roles/')) {
     return { mainTab: 'users', subTab: 'roles', canonicalPath: pathname };
+  }
+
+  if (pathname === '/admin/users/groups' || pathname.startsWith('/admin/users/groups/')) {
+    return { mainTab: 'users', subTab: 'groups', canonicalPath: '/admin/users/groups' };
+  }
+
+  if (pathname === '/admin/users/policy' || pathname.startsWith('/admin/users/policy/')) {
+    return { mainTab: 'users', subTab: 'policies', canonicalPath: '/admin/users/policies' };
   }
 
   if (pathname === '/admin/users/policies' || pathname.startsWith('/admin/users/policies/')) {

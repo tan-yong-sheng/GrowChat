@@ -4,8 +4,6 @@ import { normalizeModelSearchQuery } from '../../shared/utils/model-search.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
-import { createStagedSaveQueue } from '../../shared/utils/staged-save.js';
-import { renderSettingsActionFooter } from '../../shared/components/settings-action-footer.js';
 import {
   renderModelsHeaderHtml,
   renderModelsPaginationHtml,
@@ -16,7 +14,7 @@ import {
 } from '../../shared/components/models-section.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
-import { ATTACHMENT_CAP_TYPES, getAttachmentCapTooltip, getAttachmentCapValue } from '../admin/settings/models-helpers.js';
+import { ATTACHMENT_CAP_TYPES } from '../admin/settings/models-helpers.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -75,16 +73,58 @@ function normalizeModelRecord(model = {}) {
   };
 }
 
+function cloneModelRecord(model = {}) {
+  const next = normalizeModelRecord(model);
+  if (!next) return null;
+  return {
+    ...next,
+    attachments: cloneAttachmentCaps({ [next.id]: next.attachments })[next.id] || normalizeAttachmentCaps(next.attachments),
+  };
+}
+
+function getModelAccessPresentation(model = {}) {
+  const accessVariant = String(model?.access_variant || '').trim().toLowerCase();
+  const accessLabel = String(model?.access_label || '').trim().toLowerCase();
+
+  if (accessVariant === 'personal' || accessLabel === 'personal') {
+    return {
+      label: 'Personal',
+      className: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    };
+  }
+
+  if (
+    accessVariant === 'admin'
+    || accessLabel === 'admin'
+    || accessVariant === 'shared'
+    || accessLabel === 'shared'
+  ) {
+    return {
+      label: 'Admin',
+      className: 'border-sky-100 bg-sky-50 text-sky-700',
+    };
+  }
+
+  return {
+    label: model?.access_label || 'Admin',
+    className: 'border-sky-100 bg-sky-50 text-sky-700',
+  };
+}
+
+function isRecoverableHiddenModel(model = {}) {
+  if (model?.hidden_for_user !== true) return false;
+  const accessVariant = String(model?.access_variant || '').trim().toLowerCase();
+  const accessLabel = String(model?.access_label || '').trim().toLowerCase();
+  return accessVariant !== 'personal' && accessLabel !== 'personal';
+}
+
 function renderLoadingRows() {
   return Array.from({ length: 5 }).map(() => `
     <tr class="bg-white text-xs animate-pulse">
       <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
       <td class="px-4 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
       <td class="px-4 py-4">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <div class="h-6 w-10 rounded-full bg-gray-100"></div>
-          <div class="h-6 w-10 rounded-full bg-gray-100"></div>
-        </div>
+        <div class="h-6 w-20 rounded-full bg-gray-100"></div>
       </td>
       <td class="px-4 py-4 text-right">
         <div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div>
@@ -93,43 +133,22 @@ function renderLoadingRows() {
   `).join('');
 }
 
-function renderAttachmentCaps(model, canManageModels = true) {
-  return ATTACHMENT_CAP_TYPES.map(({ key, short, label }) => {
-    const value = getAttachmentCapValue({ [model.id]: model.attachments }, model.id, key);
-    const state = value ? 'allowed' : 'unset';
-    const className = value
-      ? 'bg-emerald-500 text-white border-emerald-500'
-      : 'bg-gray-50 text-gray-500 border-gray-200';
-    const tooltip = getAttachmentCapTooltip(label, key, state);
-    return `
-      <button
-        type="button"
-        ${canManageModels ? '' : 'disabled aria-disabled="true"'}
-        data-cap-model="${escapeHtml(model.id)}"
-        data-cap-kind="${escapeHtml(key)}"
-        data-cap-label="${escapeHtml(label)}"
-        data-cap-state="${escapeHtml(state)}"
-        title="${escapeHtml(tooltip)}"
-        class="inline-flex items-center justify-center h-6 min-w-[36px] px-2 rounded-full text-[10px] font-semibold border transition ${className} ${canManageModels ? 'hover:shadow-sm' : 'cursor-not-allowed opacity-60'}"
-      >
-        ${escapeHtml(short)}
-      </button>
-    `;
-  }).join('');
-}
-
 function renderModelRow(model, canManageModels = true) {
   const enabled = model.enabled !== false;
-  const toggleClass = canManageModels
-    ? `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enabled ? 'bg-black' : 'bg-gray-200'}`
-    : 'relative inline-flex h-5 w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
+  const access = getModelAccessPresentation(model);
+  const toggleClass = `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enabled ? 'bg-black' : 'bg-gray-200'}`;
   return `
     <tr data-model-row="${escapeHtml(model.id)}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${enabled ? '' : 'bg-gray-50/80 opacity-70'}">
       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${escapeHtml(model.name || model.id)}">${escapeHtml(model.name || model.id)}</td>
       <td class="px-4 py-4 text-gray-500 font-mono truncate ${enabled ? '' : 'text-gray-400'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
       <td class="px-4 py-4">
-        <div class="flex flex-wrap items-center gap-1.5">
-          ${renderAttachmentCaps(model, canManageModels)}
+        <div class="flex items-center gap-2">
+          <span
+            data-model-access="${escapeHtml(model.id)}"
+            class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${access.className}"
+          >
+            ${escapeHtml(access.label)}
+          </span>
         </div>
       </td>
       <td class="px-4 py-4 text-right">
@@ -140,7 +159,6 @@ function renderModelRow(model, canManageModels = true) {
             data-model-id="${escapeHtml(model.id)}"
             title="${enabled ? 'Model enabled' : 'Model disabled'}"
             aria-pressed="${enabled ? 'true' : 'false'}"
-            ${canManageModels ? '' : 'disabled aria-disabled="true"'}
           >
             <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
           </button>
@@ -174,74 +192,69 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
     invalidateToken: null,
     needsReload: false,
   };
-  const stagedSave = createStagedSaveQueue({
-    getSnapshot: () => ({
-      disabledModelIds: Array.from(sectionState.disabledModelIds),
-      attachmentCaps: cloneAttachmentCaps(sectionState.attachmentCaps),
-    }),
-    saveSnapshot: async (snapshot) => {
-      const nextSettings = {
-        ...(state.settings?.preferences || {}),
-        model_settings: {
-          disabled_model_ids: Array.from(snapshot.disabledModelIds || []),
-          attachment_caps: cloneAttachmentCaps(snapshot.attachmentCaps || {}),
+  let saveRequestVersion = 0;
+
+  const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
+
+  const persistModelSettings = async ({ rollback = null } = {}) => {
+    const requestVersion = ++saveRequestVersion;
+    const nextPreferences = {
+      ...(state.settings?.preferences || {}),
+      model_settings: {
+        disabled_model_ids: Array.from(sectionState.disabledModelIds),
+        attachment_caps: cloneAttachmentCaps(sectionState.attachmentCaps || {}),
+      },
+      resource_overrides: {
+        ...((state.settings?.preferences || {}).resource_overrides || {}),
+        models: {
+          hidden_ids: Array.from(sectionState.disabledModelIds),
         },
-        resource_overrides: {
-          ...((state.settings?.preferences || {}).resource_overrides || {}),
-          models: {
-            hidden_ids: Array.from(snapshot.disabledModelIds || []),
-          },
-        },
-      };
+      },
+    };
+
+    try {
       const res = await apiFetch('/api/users/me', {
         method: 'PUT',
-        body: JSON.stringify({
-          preferences: nextSettings,
-        }),
+        body: JSON.stringify({ preferences: nextPreferences }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || err.message || 'Failed to save model settings');
       }
-      return res.json().catch(() => ({}));
-    },
-    onCommit: (snapshot, _version, payload = {}) => {
-      sectionState.error = '';
-      const savedModelSettings = normalizePersonalModelSettings({
-        disabled_model_ids: Array.from(snapshot.disabledModelIds || []),
-        attachment_caps: cloneAttachmentCaps(snapshot.attachmentCaps || {}),
-      });
+      const payload = await res.json().catch(() => ({}));
+      if (requestVersion !== saveRequestVersion) return;
+      const committedPreferences = payload?.user?.preferences || nextPreferences;
       state.settings = {
         ...(state.settings || {}),
-        preferences: {
-          ...(payload?.user?.preferences || state.settings?.preferences || {}),
-          model_settings: {
-            disabled_model_ids: Array.from(savedModelSettings.disabled_model_ids),
-            attachment_caps: cloneAttachmentCaps(savedModelSettings.attachment_caps),
-          },
-        },
+        preferences: committedPreferences,
       };
-      sectionState.disabledModelIds = new Set(savedModelSettings.disabled_model_ids);
-      sectionState.originalDisabledModelIds = new Set(savedModelSettings.disabled_model_ids);
-      sectionState.attachmentCaps = cloneAttachmentCaps(savedModelSettings.attachment_caps);
-      sectionState.originalAttachmentCaps = cloneAttachmentCaps(savedModelSettings.attachment_caps);
+      sectionState.originalDisabledModelIds = new Set(sectionState.disabledModelIds);
+      sectionState.originalAttachmentCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
+      sectionState.error = '';
       broadcastModelsInvalidation();
-      updateButtons();
+    } catch (err) {
+      if (requestVersion !== saveRequestVersion) return;
+      if (rollback) {
+        sectionState.disabledModelIds = new Set(rollback.disabledModelIds || []);
+        sectionState.models = Array.isArray(rollback.models) ? rollback.models.map((item) => ({ ...item, attachments: cloneAttachmentCaps(item.attachments) })) : sectionState.models;
+        sectionState.attachmentCaps = cloneAttachmentCaps(rollback.attachmentCaps || {});
+        sectionState.providerOptions = Array.isArray(rollback.providerOptions)
+          ? rollback.providerOptions.map((option) => ({ ...option }))
+          : buildProviderOptions(sectionState.models, { includeAll: true });
+        sectionState.activeTotal = Number.isFinite(rollback.activeTotal) ? rollback.activeTotal : sectionState.activeTotal;
+        sectionState.total = Number.isFinite(rollback.total) ? rollback.total : sectionState.total;
+      }
+      sectionState.error = err?.message || 'Failed to save model settings';
       render();
-    },
-    onError: (error) => {
-      sectionState.error = error?.message || 'Failed to save model settings';
-      updateButtons();
-      render();
-    },
-  });
-
-  const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
+    }
+  };
 
   const syncUi = () => {
+    const visibleModels = Array.isArray(sectionState.models) ? sectionState.models : [];
     syncModelsHeaderState(container, {
-      countTitle: 'Active models',
-      countValue: sectionState.activeTotal || countEnabledModels(sectionState.models),
+      countTitle: 'Available to you',
+      countLabel: 'Available to you',
+      countValue: sectionState.activeTotal,
       searchId: 'account-model-search-input',
       searchValue: sectionState.query,
       clearId: 'model-clear-search-container',
@@ -265,10 +278,10 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
       loading: sectionState.loading,
       rowsHtml: sectionState.loading
         ? renderLoadingRows()
-        : sectionState.models.length
-          ? sectionState.models.map((model) => renderModelRow(model, canManageModels)).join('')
-          : '',
-      emptyMessage: `No models found${Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all' ? ` matching "${escapeHtml(sectionState.query)}"` : ''}.`,
+        : `${visibleModels.length ? visibleModels.map((model) => renderModelRow(model, canManageModels)).join('') : ''}`,
+      emptyMessage: sectionState.total === 0 && !Boolean(normalizeModelSearchQuery(sectionState.query)) && sectionState.provider === 'all'
+        ? 'No models are available to you.'
+        : `No models found${Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all' ? ` matching "${escapeHtml(sectionState.query)}"` : ''}.`,
       tbodyId: 'account-models-table-body',
     });
 
@@ -337,41 +350,41 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
 
       const toggleBtn = target.closest('.model-toggle');
       if (toggleBtn) {
-        if (!canManageModels) return;
         const modelId = toggleBtn.getAttribute('data-model-id');
-        const model = sectionState.models.find((item) => item.id === modelId);
-        if (!model) return;
-        const nextEnabled = model.enabled === false;
-        model.enabled = nextEnabled;
-        if (nextEnabled) {
-          sectionState.disabledModelIds.delete(modelId);
-        } else {
-          sectionState.disabledModelIds.add(modelId);
-        }
-        sectionState.activeTotal = Math.max(
-          0,
-          (Number.isFinite(sectionState.activeTotal) ? sectionState.activeTotal : countEnabledModels(sectionState.models)) + (nextEnabled ? 1 : -1),
-        );
+        const visibleIndex = sectionState.models.findIndex((item) => item.id === modelId);
+        if (visibleIndex < 0) return;
+        const model = sectionState.models[visibleIndex];
+        const previousActiveTotal = sectionState.activeTotal;
+        const previousTotal = sectionState.total;
+        const previousModels = sectionState.models.map((item) => ({ ...item, attachments: cloneAttachmentCaps(item.attachments) }));
+        const previousDisabledModelIds = Array.from(sectionState.disabledModelIds);
+        const previousAttachmentCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
+        const previousProviderOptions = Array.isArray(sectionState.providerOptions) ? sectionState.providerOptions.map((option) => ({ ...option })) : [];
+        const shouldEnable = model.enabled === false;
+        sectionState.models = sectionState.models.map((item, index) => (index === visibleIndex ? {
+          ...item,
+          enabled: shouldEnable,
+          hidden_for_user: !shouldEnable,
+          visible_for_user: shouldEnable,
+        } : item));
+        sectionState.activeTotal = Math.max(0, sectionState.activeTotal + (shouldEnable ? 1 : -1));
+        sectionState.total = Math.max(0, sectionState.total);
+        if (shouldEnable) sectionState.disabledModelIds.delete(modelId);
+        else sectionState.disabledModelIds.add(modelId);
+        sectionState.providerOptions = buildProviderOptions(sectionState.models, { includeAll: true });
+        const rollback = {
+          modelId,
+          models: previousModels,
+          disabledModelIds: previousDisabledModelIds,
+          attachmentCaps: previousAttachmentCaps,
+          providerOptions: previousProviderOptions,
+          activeTotal: previousActiveTotal,
+          total: previousTotal,
+        };
         syncUi();
         sectionState.error = '';
-        stagedSave.stage();
-        syncFooter();
+        void persistModelSettings({ rollback });
         return;
-      }
-
-      const capBtn = target.closest('[data-cap-model]');
-      if (capBtn) {
-        if (!canManageModels) return;
-        const modelId = capBtn.getAttribute('data-cap-model');
-        const kind = capBtn.getAttribute('data-cap-kind');
-        if (!modelId || !kind) return;
-        const currentValue = getAttachmentCapValue(sectionState.attachmentCaps, modelId, kind);
-        const nextValue = !currentValue;
-        setAttachmentCapValue(modelId, kind, nextValue);
-        syncUi();
-        sectionState.error = '';
-        stagedSave.stage();
-        syncFooter();
       }
     });
 
@@ -392,97 +405,34 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
     });
   };
 
-  const setAttachmentCapValue = (modelId, kind, value) => {
-    const current = sectionState.attachmentCaps?.[modelId] || {};
-    const next = { ...current };
-    next[kind] = Boolean(value);
-    sectionState.attachmentCaps = {
-      ...(sectionState.attachmentCaps || {}),
-      [modelId]: next,
-    };
-  };
-
-  const hasCapsChanges = () => {
-    const modelIds = new Set([
-      ...Object.keys(sectionState.attachmentCaps || {}),
-      ...Object.keys(sectionState.originalAttachmentCaps || {}),
-    ]);
-    for (const modelId of modelIds) {
-      for (const { key } of ATTACHMENT_CAP_TYPES) {
-        const currentValue = getAttachmentCapValue(sectionState.attachmentCaps, modelId, key);
-        const originalValue = getAttachmentCapValue(sectionState.originalAttachmentCaps, modelId, key);
-        if (currentValue !== originalValue) return true;
-      }
-    }
-    return false;
-  };
-
-  const hasChanges = () => {
-    if (sectionState.disabledModelIds.size !== sectionState.originalDisabledModelIds.size) return true;
-    for (const id of sectionState.disabledModelIds) {
-      if (!sectionState.originalDisabledModelIds.has(id)) return true;
-    }
-    if (hasCapsChanges()) return true;
-    return false;
-  };
-
-  const getDirtyBadge = () => footerHost?.querySelector('#models-dirty') || container.querySelector('#models-dirty');
-
-  const updateButtons = () => {
-    const dirty = hasChanges();
-    const dirtyBadge = getDirtyBadge();
-    if (dirtyBadge) {
-      dirtyBadge.classList.toggle('invisible', !dirty);
-    }
-    syncFooter();
-  };
-
   const syncFooter = () => {
     if (!footerHost) return;
-    footerHost.innerHTML = renderSettingsActionFooter({
-      footerId: 'models-footer-actions',
-      dirtyId: 'models-dirty',
-      saveId: 'save-models',
-      dirtyLabel: 'Unsaved changes',
-      buttonLabel: 'Save',
-      dirty: hasChanges(),
-      saving: stagedSave.saving,
-      canSave: canManageModels && hasChanges(),
-    });
-    footerHost.querySelector('#save-models')?.addEventListener('click', async () => {
-      if (!canManageModels || stagedSave.saving || !hasChanges()) return;
-      try {
-        await stagedSave.flush();
-      } catch {
-        // Errors are surfaced by the queue callbacks.
-      }
-    });
+    footerHost.innerHTML = '';
   };
 
   const render = () => {
     const providerOptions = sectionState.providerOptions.length
       ? sectionState.providerOptions
       : buildProviderOptions(sectionState.models, { includeAll: true });
-    const activeTotal = sectionState.activeTotal || countEnabledModels(sectionState.models);
+    const activeTotal = Number.isFinite(sectionState.activeTotal) ? sectionState.activeTotal : 0;
     const pageTotal = Number.isFinite(sectionState.total) ? sectionState.total : sectionState.models.length;
     const totalPages = Math.max(1, Math.ceil((pageTotal || 0) / Math.max(1, sectionState.limit)));
     const currentPage = Math.max(1, Math.floor(sectionState.offset / Math.max(1, sectionState.limit)) + 1);
     const pageStart = pageTotal === 0 ? 0 : sectionState.offset + 1;
     const pageEnd = Math.min(sectionState.offset + sectionState.limit, pageTotal);
     const usingFilter = Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all';
-
+    const visibleModels = Array.isArray(sectionState.models) ? sectionState.models : [];
     const rowsHtml = sectionState.loading
       ? renderLoadingRows()
-      : sectionState.models.length
-        ? sectionState.models.map((model) => renderModelRow(model, canManageModels)).join('')
-        : '';
+      : `${visibleModels.length ? visibleModels.map((model) => renderModelRow(model, canManageModels)).join('') : ''}`;
 
     if (!ensureMounted()) {
       container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div id="account-models-error-container">${sectionState.error ? renderErrorBanner({ message: sectionState.error }) : ''}</div>
         ${renderModelsHeaderHtml({
-          countTitle: 'Active models',
+          countTitle: 'Available to you',
+          countLabel: 'Available to you',
           countValue: activeTotal,
           searchId: 'account-model-search-input',
           searchValue: sectionState.query,
@@ -517,7 +467,6 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
     `;
       container.dataset.modelsMounted = '1';
       bindDelegatedEvents();
-      syncFooter();
     } else {
       syncUi();
     }
@@ -538,14 +487,24 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
         offset: sectionState.offset,
         provider: sectionState.provider !== 'all' ? sectionState.provider : undefined,
         q: normalizeModelSearchQuery(sectionState.query) || undefined,
-        includeDisabled: true,
+        scope: 'effective',
       });
-      const models = Array.isArray(payload?.models)
+      const responseVisibleModels = Array.isArray(payload?.models)
         ? payload.models.map(normalizeModelRecord).filter(Boolean)
         : [];
+      const responseHiddenModels = Array.isArray(payload?.hidden_models)
+        ? payload.hidden_models.map(normalizeModelRecord).filter(Boolean)
+        : [];
+      const disabledModelIds = new Set(Array.isArray(payload?.visibility?.disabled_model_ids)
+        ? payload.visibility.disabled_model_ids.map((id) => String(id || '').trim()).filter(Boolean)
+        : []);
+      const fallbackHiddenModels = responseVisibleModels.filter((model) => model.hidden_for_user === true);
+      const visibleModels = responseVisibleModels.filter((model) => model.hidden_for_user !== true && !disabledModelIds.has(model.id));
+      const hiddenModels = [...responseHiddenModels, ...fallbackHiddenModels]
+        .filter((model) => model.hidden_for_user === true && !disabledModelIds.has(model.id));
       const savedSettings = normalizePersonalModelSettings(state.settings?.preferences?.model_settings);
       const mergedCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
-      models.forEach((model) => {
+      [...visibleModels, ...hiddenModels].forEach((model) => {
         mergedCaps[model.id] = {
           ...normalizeAttachmentCaps(model.attachments),
           ...(mergedCaps[model.id] || {}),
@@ -559,15 +518,24 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
       });
       const disabledSet = new Set(sectionState.disabledModelIds);
       savedSettings.disabled_model_ids.forEach((modelId) => disabledSet.add(modelId));
-      models.forEach((model) => {
-        if (model.enabled === false) disabledSet.add(model.id);
-      });
-      sectionState.models = sortModelsByActiveThenName(models.map((model) => ({
-        ...model,
-        enabled: !disabledSet.has(model.id),
-        attachments: mergedCaps[model.id] || normalizeAttachmentCaps(model.attachments),
-      })));
-      sectionState.total = Number.isFinite(payload?.total) ? payload.total : models.length;
+      const combinedModels = [
+        ...visibleModels.map((model) => ({
+          ...model,
+          enabled: model.enabled !== false,
+          hidden_for_user: false,
+          visible_for_user: true,
+          attachments: mergedCaps[model.id] || normalizeAttachmentCaps(model.attachments),
+        })),
+        ...hiddenModels.map((model) => ({
+          ...model,
+          enabled: false,
+          hidden_for_user: true,
+          visible_for_user: false,
+          attachments: mergedCaps[model.id] || normalizeAttachmentCaps(model.attachments),
+        })),
+      ];
+      sectionState.models = sortModelsByActiveThenName(combinedModels);
+      sectionState.total = Number.isFinite(payload?.total) ? payload.total : sectionState.models.length;
       sectionState.activeTotal = Number.isFinite(payload?.active_total) ? payload.active_total : countEnabledModels(sectionState.models);
       sectionState.limit = Number.isFinite(payload?.limit) ? payload.limit : sectionState.limit;
       sectionState.offset = Number.isFinite(payload?.offset) ? payload.offset : sectionState.offset;
@@ -578,13 +546,12 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
       sectionState.originalDisabledModelIds = new Set(disabledSet);
       sectionState.attachmentCaps = cloneAttachmentCaps(mergedCaps);
       sectionState.originalAttachmentCaps = cloneAttachmentCaps(mergedCaps);
+      sectionState.needsReload = false;
     } catch (err) {
       sectionState.error = err?.message || 'Failed to load models';
     } finally {
       sectionState.loading = false;
       render();
-      updateButtons();
-      syncFooter();
     }
   };
 
