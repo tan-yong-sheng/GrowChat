@@ -11,6 +11,10 @@ import { error, preflight } from './utils/response.js';
 import { getSriHashes, injectSriHashes } from './utils/sri-hashes.js';
 import { MessageQueueDO } from './durable/message-queue.js';
 
+const QUIET_INCOMING_PATHS = new Set([
+  '/.well-known/appspecific/com.chrome.devtools.json',
+]);
+
 async function injectSriIntoHtmlResponse(response, env) {
   if (!response?.ok) return response;
 
@@ -56,7 +60,9 @@ async function fetchHtmlAsset(env, req, pathname) {
 export default {
   async fetch(req, env, ctx) {
     const path = getPath(req);
-    console.log('[Worker] Incoming request:', path, req.method);
+    if (!QUIET_INCOMING_PATHS.has(path)) {
+      console.log('[Worker] Incoming request:', path, req.method);
+    }
     const isPublicSharePath = /^\/s\/[^/]+$/.test(path);
 
     try {

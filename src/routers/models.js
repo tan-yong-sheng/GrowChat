@@ -142,6 +142,26 @@ function splitModelList(value) {
     .filter(Boolean);
 }
 
+function hasConnectionAuthCredentials(connection = {}) {
+  const key = String(connection?.key || '').trim();
+  if (key) return true;
+  const headers = connection?.headers;
+  if (!headers || typeof headers !== 'object') return false;
+  return Object.entries(headers).some(([name, value]) => {
+    const normalizedName = String(name || '').trim().toLowerCase();
+    if (!['authorization', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(normalizedName)) {
+      return false;
+    }
+    return String(value || '').trim().length > 0;
+  });
+}
+
+function shouldSuppressDiscoveryWarning(connection = {}, discovery = {}) {
+  const status = Number(discovery?.error?.status || 0);
+  if (status !== 401) return false;
+  return !hasConnectionAuthCredentials(connection);
+}
+
 async function fetchBaseModelsFromOpenAI(env, connections = []) {
   const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
   const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
@@ -162,7 +182,9 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
       const discovery = await discoverConnectionModels(conn);
       if (!discovery.items.length) {
         const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
-        console.warn(`Model discovery failed for ${conn.baseUrl}: ${errorLabel}`);
+        if (!shouldSuppressDiscoveryWarning(conn, discovery)) {
+          console.warn(`Model discovery failed for ${conn.baseUrl}: ${errorLabel}`);
+        }
         continue;
       }
 

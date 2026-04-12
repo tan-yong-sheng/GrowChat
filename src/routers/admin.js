@@ -849,14 +849,21 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     try {
       let existingConnection = null;
-      if (!key && connectionId) {
+      if (connectionId) {
         const existingConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
         existingConnection = (Array.isArray(existingConnections) ? existingConnections : [])
           .find((connection) => String(connection.id || '') === connectionId) || null;
       }
+      const rawAuthType = String(
+        body.authType || body.auth_type || existingConnection?.authType || existingConnection?.auth_type || ''
+      ).trim().toLowerCase();
+      const authType = ['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(rawAuthType)
+        ? rawAuthType
+        : '';
       const testConnection = {
         providerType,
         providerFamily,
+        authType,
         key: key || String(existingConnection?.key || '').trim(),
         headers,
         baseUrl: normalizeBaseUrl(baseUrl),

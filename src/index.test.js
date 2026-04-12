@@ -50,6 +50,24 @@ beforeEach(() => {
 });
 
 describe('worker spa routing', () => {
+  it('suppresses incoming logs for chrome devtools probe requests', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await worker.fetch(
+      new Request('https://example.com/.well-known/appspecific/com.chrome.devtools.json'),
+      { ASSETS: { fetch: assetFetch } },
+      { waitUntil: vi.fn() },
+    );
+
+    expect(logSpy).not.toHaveBeenCalledWith(
+      '[Worker] Incoming request:',
+      '/.well-known/appspecific/com.chrome.devtools.json',
+      'GET',
+    );
+
+    logSpy.mockRestore();
+  });
+
   it('serves the root html for admin routes instead of the pages redirect', async () => {
     const response = await worker.fetch(
       new Request('https://example.com/admin/users/overview'),

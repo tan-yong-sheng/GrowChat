@@ -9,6 +9,7 @@ import {
   isConnectionUrlRequired,
   normalizeConnectionManualModels,
   loadUserOpenAIConnectionConfigs,
+  buildConnectionHeaders,
 } from './connections.js';
 
 describe('openai connection helpers', () => {
@@ -90,6 +91,32 @@ describe('openai connection helpers', () => {
     ]);
   });
 
+  it('adds x-api-key fallback header for openai-family when auth type is not explicit', () => {
+    const headers = buildConnectionHeaders({
+      providerType: 'openai',
+      providerFamily: 'openai',
+      key: 'secret-key',
+      headers: {},
+      authType: '',
+    });
+
+    expect(headers.Authorization).toBe('Bearer secret-key');
+    expect(headers['x-api-key']).toBe('secret-key');
+  });
+
+  it('does not add x-api-key fallback when auth type is explicitly bearer', () => {
+    const headers = buildConnectionHeaders({
+      providerType: 'openai',
+      providerFamily: 'openai',
+      key: 'secret-key',
+      headers: {},
+      authType: 'bearer',
+    });
+
+    expect(headers.Authorization).toBe('Bearer secret-key');
+    expect(headers['x-api-key']).toBeUndefined();
+  });
+
   it('builds provider-specific discovery urls', () => {
     expect(getConnectionModelDiscoveryUrls({
       providerType: 'google',
@@ -100,6 +127,16 @@ describe('openai connection helpers', () => {
       providerType: 'anthropic',
       baseUrl: 'https://api.anthropic.com',
     })).toEqual(['https://api.anthropic.com/v1/models', 'https://api.anthropic.com/models']);
+  });
+
+  it('prefers https discovery urls when configured base url is http', () => {
+    expect(getConnectionModelDiscoveryUrls({
+      providerType: 'openai',
+      baseUrl: 'http://proxy.tanyongsheng.site/v1',
+    })).toEqual([
+      'https://proxy.tanyongsheng.site/v1/models',
+      'http://proxy.tanyongsheng.site/v1/models',
+    ]);
   });
 
   it('loads personal connection configs from D1 rows', async () => {

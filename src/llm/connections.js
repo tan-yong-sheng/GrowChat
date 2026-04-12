@@ -189,6 +189,11 @@ export function buildConnectionHeaders(connection = {}) {
     if (!headers.Authorization) {
       headers.Authorization = `Bearer ${key}`;
     }
+    const explicitAuthType = normalizeAuthType(connection?.authType);
+    const hasXApiKey = Object.keys(headers).some((name) => String(name || '').trim().toLowerCase() === 'x-api-key');
+    if (!explicitAuthType && getConnectionProviderFamily(connection) === 'openai' && !hasXApiKey) {
+      headers['x-api-key'] = key;
+    }
     return headers;
   }
 
@@ -225,40 +230,64 @@ function appendDiscoveryCandidate(urls, candidate) {
   urls.push(normalized);
 }
 
+function maybeUpgradeDiscoveryBaseUrl(url) {
+  const normalized = normalizeBaseUrl(url);
+  if (!normalized) return '';
+  try {
+    const parsed = new URL(normalized);
+    const hostname = String(parsed.hostname || '').toLowerCase();
+    const isLoopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    if (parsed.protocol === 'http:' && !isLoopback) {
+      parsed.protocol = 'https:';
+      return normalizeBaseUrl(parsed.toString());
+    }
+    return normalized;
+  } catch {
+    return normalized;
+  }
+}
+
 export function getConnectionModelDiscoveryUrls(connection = {}) {
   const baseUrl = normalizeBaseUrl(connection.baseUrl || connection.url || '');
   if (!baseUrl) return [];
 
   const family = getConnectionProviderFamily(connection);
   const urls = [];
-  const add = (path) => appendDiscoveryCandidate(urls, `${baseUrl}${path}`);
+  const upgradedBaseUrl = maybeUpgradeDiscoveryBaseUrl(baseUrl);
+  const baseCandidates = upgradedBaseUrl && upgradedBaseUrl !== baseUrl
+    ? [upgradedBaseUrl, baseUrl]
+    : [baseUrl];
 
-  switch (family) {
-    case 'google':
-      if (baseUrl.endsWith('/v1beta')) {
-        add('/models');
-      } else if (baseUrl.endsWith('/v1')) {
-        add('/models');
-      } else {
-        add('/v1beta/models');
-        add('/models');
-        add('/v1/models');
-      }
-      break;
-    case 'anthropic':
-      if (baseUrl.endsWith('/v1')) {
-        add('/models');
-      } else {
-        add('/v1/models');
-        add('/models');
-      }
-      break;
-    default:
-      add('/models');
-      if (!baseUrl.endsWith('/v1') && !baseUrl.endsWith('/v1beta')) {
-        add('/v1/models');
-      }
-      break;
+  const add = (candidateBaseUrl, path) => appendDiscoveryCandidate(urls, `${candidateBaseUrl}${path}`);
+
+  for (const candidateBaseUrl of baseCandidates) {
+    switch (family) {
+      case 'google':
+        if (candidateBaseUrl.endsWith('/v1beta')) {
+          add(candidateBaseUrl, '/models');
+        } else if (candidateBaseUrl.endsWith('/v1')) {
+          add(candidateBaseUrl, '/models');
+        } else {
+          add(candidateBaseUrl, '/v1beta/models');
+          add(candidateBaseUrl, '/models');
+          add(candidateBaseUrl, '/v1/models');
+        }
+        break;
+      case 'anthropic':
+        if (candidateBaseUrl.endsWith('/v1')) {
+          add(candidateBaseUrl, '/models');
+        } else {
+          add(candidateBaseUrl, '/v1/models');
+          add(candidateBaseUrl, '/models');
+        }
+        break;
+      default:
+        add(candidateBaseUrl, '/models');
+        if (!candidateBaseUrl.endsWith('/v1') && !candidateBaseUrl.endsWith('/v1beta')) {
+          add(candidateBaseUrl, '/v1/models');
+        }
+        break;
+    }
   }
 
   return urls;

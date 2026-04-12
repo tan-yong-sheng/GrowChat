@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   getConfigBool: vi.fn(),
   getConfigValue: vi.fn(),
   getAllOpenAIConnectionConfigs: vi.fn(),
+  buildConnectionHeaders: vi.fn(),
+  discoverConnectionModels: vi.fn(),
   setConfigValue: vi.fn(),
   mcpRequest: vi.fn(),
   mcpNotify: vi.fn(),
@@ -29,10 +31,10 @@ vi.mock('../utils/app-config.js', () => ({
 }));
 
 vi.mock('../llm/connections.js', () => ({
-  buildConnectionHeaders: vi.fn(),
-  discoverConnectionModels: vi.fn(),
+  buildConnectionHeaders: (...args) => mocks.buildConnectionHeaders(...args),
+  discoverConnectionModels: (...args) => mocks.discoverConnectionModels(...args),
   ensureConnectionId: (conn, index = 0) => conn?.id || `conn-${index}`,
-  extractConnectionModelId: vi.fn(),
+  extractConnectionModelId: vi.fn((item) => item?.id || item?.model || item?.name || ''),
   getAllOpenAIConnectionConfigs: (...args) => mocks.getAllOpenAIConnectionConfigs(...args),
   getConnectionApiType: vi.fn((providerType) => {
     const raw = String(providerType || '').toLowerCase();
@@ -70,6 +72,13 @@ describe('adminRouter openai connections', () => {
     mocks.logAuditEvent.mockResolvedValue(undefined);
     mocks.getConfigBool.mockResolvedValue(true);
     mocks.setConfigValue.mockResolvedValue(undefined);
+    mocks.buildConnectionHeaders.mockImplementation((connection = {}) => ({
+      Authorization: connection?.key ? `Bearer ${connection.key}` : '',
+    }));
+    mocks.discoverConnectionModels.mockResolvedValue({
+      items: [{ id: 'gpt-4o' }],
+      url: 'https://example.com/models',
+    });
     mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
       {
         id: 'config-gemini',
@@ -125,6 +134,97 @@ describe('adminRouter openai connections', () => {
     expect(payload.connections.find((conn) => conn.id === 'config-gemini')?.key).toBeUndefined();
     expect(mocks.getConfigValue).toHaveBeenCalledWith(expect.anything(), 'openai_connections', '[]');
     expect(mocks.getConfigValue).toHaveBeenCalledWith(expect.anything(), 'openai_enabled', 'true');
+  });
+
+  it('reuses existing auth type even when test payload includes a new key', async () => {
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        name: 'Proxy',
+        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        key: 'stored-key',
+        authType: 'x-api-key',
+        providerType: 'openai',
+        providerFamily: 'openai',
+        enabled: true,
+      },
+    ]);
+    mocks.buildConnectionHeaders.mockReturnValueOnce({ 'x-api-key': 'typed-key' });
+    mocks.discoverConnectionModels.mockResolvedValueOnce({
+      items: [{ id: 'deepseek-v3.1' }],
+      url: 'http://proxy.tanyongsheng.site/v1/models',
+    });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/openai/connections/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'conn-1',
+          providerType: 'openai',
+          url: 'http://proxy.tanyongsheng.site/v1',
+          key: 'typed-key',
+          headers: '{}',
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/openai/connections/test'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(mocks.getAllOpenAIConnectionConfigs).toHaveBeenCalledWith({ DB: {} }, { includeDisabled: true });
+    expect(mocks.buildConnectionHeaders).toHaveBeenCalledWith(expect.objectContaining({
+      key: 'typed-key',
+    }));
+  });
+
+  it('falls back to stored key and auth type when modal key is blank', async () => {
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        name: 'Proxy',
+        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        key: 'stored-key',
+        authType: 'x-api-key',
+        providerType: 'openai',
+        providerFamily: 'openai',
+        enabled: true,
+      },
+    ]);
+    mocks.buildConnectionHeaders.mockReturnValueOnce({ 'x-api-key': 'stored-key' });
+    mocks.discoverConnectionModels.mockResolvedValueOnce({
+      items: [{ id: 'deepseek-v3.1' }],
+      url: 'http://proxy.tanyongsheng.site/v1/models',
+    });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/openai/connections/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'conn-1',
+          providerType: 'openai',
+          url: 'http://proxy.tanyongsheng.site/v1',
+          key: '',
+          headers: '{}',
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/openai/connections/test'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(mocks.buildConnectionHeaders).toHaveBeenCalledWith(expect.objectContaining({
+      key: 'stored-key',
+    }));
   });
 
   it('returns connection access groups for a connection', async () => {

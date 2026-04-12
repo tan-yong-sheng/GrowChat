@@ -100,6 +100,81 @@ describe('modelsRouter', () => {
     expect(res2.status).toBe(304);
   });
 
+  it('does not warn for expected 401 discovery on unauthenticated connections', async () => {
+    const env = {};
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-public',
+        name: 'Public Proxy',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        key: '',
+        headers: {},
+        manualModels: [],
+      },
+      {
+        id: 'conn-auth',
+        name: 'Primary',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        key: 'secret',
+        headers: {},
+        manualModels: [],
+      },
+    ]);
+    mocks.discoverConnectionModels
+      .mockResolvedValueOnce({
+        items: [],
+        url: null,
+        error: { status: 401, message: 'Unauthorized' },
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: 'gpt-4o-mini' }],
+        url: 'https://api.openai.com/v1/models',
+      });
+
+    const res = await modelsRouter(makeReq('/api/models', 'GET'), env, {}, null, '/api/models');
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload.models.map((model) => model.id)).toContain('openai/conn-auth:gpt-4o-mini');
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('Model discovery failed for http://proxy.tanyongsheng.site/v1: 401'));
+
+    warnSpy.mockRestore();
+  });
+
+  it('keeps warning for 401 discovery when credentials are present', async () => {
+    const env = {};
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
+      {
+        id: 'conn-auth',
+        name: 'Primary',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        key: 'invalid-key',
+        headers: {},
+        manualModels: [],
+      },
+    ]);
+    mocks.discoverConnectionModels.mockResolvedValue({
+      items: [],
+      url: null,
+      error: { status: 401, message: 'Unauthorized' },
+    });
+
+    const res = await modelsRouter(makeReq('/api/models', 'GET'), env, {}, null, '/api/models');
+
+    expect(res.status).toBe(200);
+    expect(warnSpy).toHaveBeenCalledWith('Model discovery failed for http://proxy.tanyongsheng.site/v1: 401');
+
+    warnSpy.mockRestore();
+  });
+
   it('includes disabled connections when requested for admin models', async () => {
     const env = { DB: {} };
     await modelsRouter(

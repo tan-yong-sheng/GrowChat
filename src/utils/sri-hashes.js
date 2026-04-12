@@ -22,7 +22,7 @@ const SRI_RESOURCES = {
 const sriCache = new Map();
 const SRI_CACHE_KEY = 'sri-hashes:v2';
 const SRI_CACHE_TTL_SECONDS = 86400;
-const SRI_FETCH_TIMEOUT_MS = 5000;
+const SRI_FETCH_TIMEOUT_MS = 10000;
 const SRI_INJECT_PATTERNS = new Map([
   ['bootstrap-icons', /data-sri-key="bootstrap-icons"/g],
   ['katex-css', /data-sri-key="katex-css"/g],
@@ -32,6 +32,10 @@ const SRI_INJECT_PATTERNS = new Map([
   ['graphviz', /data-sri-key="graphviz"/g],
 ]);
 const sriHashesState = { value: null, expiresAt: 0 };
+const sriWarningState = {
+  fetchFailures: new Set(),
+  missingHashes: new Set(),
+};
 let sriHashesPromise = null;
 
 async function computeSriHash(buffer) {
@@ -94,7 +98,10 @@ async function loadSriHashes(env) {
         sriCache.set(key, { url: resource.url, hash });
         return [key, hash];
       } catch (err) {
-        console.warn(`Failed to fetch SRI hash for ${key}:`, err?.message || err);
+        if (!sriWarningState.fetchFailures.has(key)) {
+          sriWarningState.fetchFailures.add(key);
+          console.warn(`Failed to fetch SRI hash for ${key}:`, err?.message || err);
+        }
         return [key, persistedHashes?.[key] || null];
       }
     }));
@@ -128,7 +135,10 @@ function injectSriHashes(html, hashes) {
 
   for (const [key, hashValue] of Object.entries(hashes)) {
     if (!hashValue) {
-      console.warn(`SRI hash missing for ${key} — resource will load without integrity check`);
+      if (!sriWarningState.missingHashes.has(key)) {
+        sriWarningState.missingHashes.add(key);
+        console.warn(`SRI hash missing for ${key} — resource will load without integrity check`);
+      }
       continue;
     }
     const pattern = SRI_INJECT_PATTERNS.get(key);
