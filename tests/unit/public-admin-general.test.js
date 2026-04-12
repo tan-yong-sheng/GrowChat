@@ -20,7 +20,7 @@ describe('admin general settings', () => {
     localStorage.clear();
     vi.clearAllMocks();
     mocks.apiFetch.mockImplementation(async (url) => {
-      if (String(url) === '/api/models') {
+      if (String(url) === '/api/models?scope=global') {
         return new Response(JSON.stringify({
           models: [{ id: 'model-a', name: 'Model A' }],
         }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -42,7 +42,7 @@ describe('admin general settings', () => {
     const data = {};
 
     renderGeneralSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/models'));
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/models?scope=global'));
     await vi.waitFor(() => expect(data.generalSettings.models.length).toBe(1));
 
     const initialCallCount = mocks.apiFetch.mock.calls.length;
@@ -62,7 +62,7 @@ describe('admin general settings', () => {
     const data = {};
 
     renderGeneralSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/models'));
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/models?scope=global'));
     await vi.waitFor(() => expect(container.querySelector('#registration-status')).not.toBeNull());
 
     const registrationStatus = container.querySelector('#registration-status');

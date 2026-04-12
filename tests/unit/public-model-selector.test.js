@@ -39,7 +39,28 @@ describe('model selector', () => {
     const destroy = renderModelSelector(container);
 
     expect(container.textContent).toContain('GPT Mini');
+    expect(container.textContent).toContain('Selectable in chat');
     expect(container.querySelector('#model-selector-btn').getAttribute('aria-label')).toBe('Select model');
+
+    destroy();
+  });
+
+  it('shows a scope-aware empty state when no selectable models exist', async () => {
+    const { store, renderModelSelector } = await loadModules();
+    const container = document.getElementById('root');
+
+    store.setState({
+      models: [],
+      activeModelId: null,
+      defaultModelId: null,
+      globalDefaultModelId: null,
+    });
+
+    const destroy = renderModelSelector(container);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(container.textContent).toContain('Selectable in chat');
+    expect(container.textContent).toContain('No selectable models are currently available for this chat.');
 
     destroy();
   });
@@ -87,6 +108,35 @@ describe('model selector', () => {
     container.querySelector('button[data-model-id="m2"]').click();
 
     expect(store.state.activeModelId).toBe('m2');
+
+    destroy();
+  });
+
+  it('shows a fallback notice when the active model is no longer available', async () => {
+    const { store, renderModelSelector } = await loadModules();
+    const container = document.getElementById('root');
+
+    store.setState({
+      models: [
+        { id: 'm2', name: 'Claude' },
+        { id: 'm3', name: 'Gemini' },
+      ],
+      modelCatalogMeta: {
+        disabled_model_ids: ['m1'],
+        hidden_model_ids: [],
+      },
+      activeModelId: 'm1',
+      defaultModelId: null,
+      globalDefaultModelId: null,
+      ui: { modelAvailabilityNotice: null },
+    });
+
+    const destroy = renderModelSelector(container);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(store.state.activeModelId).toBe('m2');
+    expect(container.textContent).toContain('Your previous model was disabled by an admin. Switched to Claude.');
+    expect(container.querySelector('#model-selector-notice').className).not.toContain('hidden');
 
     destroy();
   });

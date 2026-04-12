@@ -161,6 +161,7 @@ describe('admin policies settings', () => {
     expect(container.querySelector('[data-edit-resource="m1"]')).not.toBeNull();
     const warningLink = container.querySelector('a[href*="family=connections"]');
     expect(warningLink).not.toBeNull();
+    expect(warningLink.getAttribute('href')).toContain('/admin/users/policies?group=g1&family=connections&resource=c1&open=access');
   });
 
   it('shows a dependency warning when a model connection has no ACL rules for the selected group', async () => {

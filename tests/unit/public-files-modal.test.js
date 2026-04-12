@@ -8,6 +8,11 @@ vi.mock('../../public/js/shared/api.js', () => ({
   deleteFile: vi.fn(async () => ({})),
 }));
 
+vi.mock('../../public/js/shared/utils.js', () => ({
+  formatBytes: (value) => `${value || 0} B`,
+  formatDate: () => 'Today',
+}));
+
 async function loadModules() {
   vi.resetModules();
   const store = await import('../../public/js/shared/store.js');
@@ -29,6 +34,7 @@ describe('files modal', () => {
     window.addEventListener('attach-files', onAttach);
 
     store.setState({
+      showSidebar: true,
       showFiles: true,
       files: {
         items: [{ id: 'f1', filename: 'Doc.pdf' }],

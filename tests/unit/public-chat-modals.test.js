@@ -4,6 +4,7 @@ import { createChatModals } from '../../public/js/features/chat/chat-modals.js';
 
 describe('chat modals helper', () => {
   it('wires share and citation modals', async () => {
+    const { state: currentState } = await import('../../public/js/shared/store.js');
     const shareModalContainer = document.createElement('div');
     const citationModalContainer = document.createElement('div');
     const archivedModalContainer = document.createElement('div');
@@ -15,6 +16,7 @@ describe('chat modals helper', () => {
     const fetchArchivedChats = vi.fn(async () => ({ chats: [] }));
     const getFileMetadata = vi.fn(async () => ({ filename: 'Doc.txt', content_type: 'text/plain' }));
     const getFileContent = vi.fn(async () => ({ content: 'Preview body' }));
+    currentState.showSidebar = true;
 
     const { renderShareModal, openCitation } = createChatModals({
       state,
@@ -35,6 +37,7 @@ describe('chat modals helper', () => {
     renderShareModal();
     shareModalContainer.querySelector('#generate-share-link')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await vi.waitFor(() => expect(shareChat).toHaveBeenCalledWith('chat-1'));
+    expect(window.location.hash).toBe('#share-modal');
     expect(sharedByChatId.get('chat-1')).toMatchObject({ share_id: 's-1' });
     expect(drawChats).toHaveBeenCalledWith(state.chats, 'chat-1');
 
@@ -45,16 +48,19 @@ describe('chat modals helper', () => {
     await openCitation('cite-1');
     expect(getFileMetadata).toHaveBeenCalledWith('cite-1');
     expect(getFileContent).toHaveBeenCalledWith('cite-1');
+    expect(window.location.hash).toBe('#citation-modal');
     expect(citationModalContainer.textContent).toContain('Doc.txt');
     expect(citationModalContainer.textContent).toContain('Preview body');
   });
 
   it('restores archived chats through the archive toggle path', async () => {
+    const { state: currentState } = await import('../../public/js/shared/store.js');
     const shareModalContainer = document.createElement('div');
     const citationModalContainer = document.createElement('div');
     const archivedModalContainer = document.createElement('div');
     const toggleArchiveChat = vi.fn(async () => ({}));
     const loadChats = vi.fn(async () => {});
+    currentState.showSidebar = true;
 
     const { openArchivedModal } = createChatModals({
       state: { activeChatId: 'chat-1', chats: [] },
@@ -75,6 +81,7 @@ describe('chat modals helper', () => {
 
     await openArchivedModal();
     expect(archivedModalContainer.textContent).toContain('Archived');
+    expect(window.location.hash).toBe('#archived-modal');
     archivedModalContainer.querySelector('[data-restore-chat]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await vi.waitFor(() => expect(toggleArchiveChat).toHaveBeenCalledWith('arch-1'));
     expect(loadChats).toHaveBeenCalled();

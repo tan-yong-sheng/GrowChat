@@ -173,8 +173,7 @@ describe('account integrations section', () => {
     document.querySelector('[data-tool-server-row="shared-1"] .tools-toggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(document.body.textContent).toContain('Shared Search');
     expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(true);
+    expect(document.querySelector('#account-main-footer #save-integrations')).toBeNull();
     const addBtn = document.querySelector('[data-account-integration-add]');
     expect(addBtn).not.toBeNull();
     addBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -187,6 +186,155 @@ describe('account integrations section', () => {
     expect(modalRoot?.querySelector('[class*="rounded-3xl"]')).not.toBeNull();
     expect(modalRoot?.querySelector('#server-modal-title')).not.toBeNull();
     expect(modalRoot?.textContent).toContain('Add MCP Server');
+    expect(modalRoot?.getAttribute('data-trace-route')).toBe('/account/settings/integrations');
+    expect(modalRoot?.getAttribute('data-trace-scope')).toBe('account');
+    expect(modalRoot?.getAttribute('data-trace-family')).toBe('mcp-servers');
+  }, 10000);
+
+  it('clears the account integration modal hash when closed', async () => {
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse(makeAccountState()))
+      .mockResolvedValueOnce(jsonResponse({ servers: [makeIntegrationServer()] }));
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush(4);
+
+    document.querySelector('[data-account-integration-add]')?.click();
+    await flush(2);
+    expect(window.location.hash).toBe('#add-account-integration-modal');
+
+    document.querySelector('#close-modal')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(2);
+
+    expect(window.location.hash).toBe('');
+    expect(document.getElementById('account-integration-modal')).toBeNull();
+  });
+
+  it('omits disabled shared integrations from account scope', async () => {
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse(makeAccountState([makeIntegrationServer()], [
+        makeIntegrationServer({
+          id: 'shared-disabled',
+          name: 'Disabled Shared MCP',
+          url: 'https://disabled.example.com',
+          enabled: false,
+          access_label: 'Shared',
+          visible_for_user: false,
+          hidden_for_user: true,
+          tools: [
+            { name: 'disabled_search', title: 'Disabled Search', description: 'Disabled tool', enabled: true },
+          ],
+        }),
+      ])))
+      .mockResolvedValueOnce(jsonResponse({
+        servers: [makeIntegrationServer()],
+        accessible_servers: [
+          makeIntegrationServer({
+            id: 'shared-disabled',
+            name: 'Disabled Shared MCP',
+            url: 'https://disabled.example.com',
+            enabled: false,
+            access_label: 'Shared',
+            visible_for_user: false,
+            hidden_for_user: true,
+            tools: [
+              { name: 'disabled_search', title: 'Disabled Search', description: 'Disabled tool', enabled: true },
+            ],
+          }),
+        ],
+      }));
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush(4);
+
+    expect(document.body.textContent).not.toContain('Disabled Shared MCP');
+    expect(document.querySelector('[data-tool-server-row="shared-disabled"]')).toBeNull();
+  }, 10000);
+
+  it('sorts enabled personal integrations before disabled ones and keeps visible shared servers above hidden ones', async () => {
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse(makeAccountState([
+        makeIntegrationServer({
+          id: 'mcp-disabled',
+          name: 'Personal Disabled',
+          url: 'https://disabled.example.com',
+          enabled: false,
+        }),
+        makeIntegrationServer({
+          id: 'mcp-enabled',
+          name: 'Personal Enabled',
+          url: 'https://enabled.example.com',
+          enabled: true,
+        }),
+      ], [
+        makeIntegrationServer({
+          id: 'shared-hidden',
+          name: 'Shared Hidden',
+          url: 'https://hidden.example.com',
+          enabled: true,
+          access_label: 'Shared',
+          visible_for_user: false,
+          hidden_for_user: true,
+        }),
+        makeIntegrationServer({
+          id: 'shared-visible',
+          name: 'Shared Visible',
+          url: 'https://visible.example.com',
+          enabled: true,
+          access_label: 'Shared',
+          visible_for_user: true,
+          hidden_for_user: false,
+        }),
+      ])))
+      .mockResolvedValueOnce(jsonResponse({
+        servers: [
+          makeIntegrationServer({
+            id: 'mcp-disabled',
+            name: 'Personal Disabled',
+            url: 'https://disabled.example.com',
+            enabled: false,
+          }),
+          makeIntegrationServer({
+            id: 'mcp-enabled',
+            name: 'Personal Enabled',
+            url: 'https://enabled.example.com',
+            enabled: true,
+          }),
+        ],
+        accessible_servers: [
+          makeIntegrationServer({
+            id: 'shared-hidden',
+            name: 'Shared Hidden',
+            url: 'https://hidden.example.com',
+            enabled: true,
+            access_label: 'Shared',
+            visible_for_user: false,
+            hidden_for_user: true,
+          }),
+          makeIntegrationServer({
+            id: 'shared-visible',
+            name: 'Shared Visible',
+            url: 'https://visible.example.com',
+            enabled: true,
+            access_label: 'Shared',
+            visible_for_user: true,
+            hidden_for_user: false,
+          }),
+        ],
+      }));
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush(4);
+
+    const personalRows = Array.from(document.querySelectorAll('#tool-servers-list [data-tool-server-row]'))
+      .filter((row) => row.closest('.mt-3.space-y-2') === null);
+    expect(personalRows.map((row) => row.getAttribute('data-id'))).toEqual(['mcp-disabled', 'mcp-enabled']);
+
+    const sharedRows = Array.from(document.querySelectorAll('#tool-servers-list .mt-3.space-y-2 [data-tool-server-row]'));
+    expect(sharedRows.map((row) => row.getAttribute('data-id'))).toEqual(['shared-visible', 'shared-hidden']);
   }, 10000);
 
   it('saves a personal integration and refreshes the list', async () => {
@@ -224,8 +372,7 @@ describe('account integrations section', () => {
 
     expect(document.body.textContent).toContain('Personal');
     expect(document.body.textContent).not.toContain('Visible for you');
-    expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(true);
+    expect(document.querySelector('#account-main-footer #save-integrations')).toBeNull();
     const addBtn = document.querySelector('[data-account-integration-add]');
     expect(addBtn).not.toBeNull();
     addBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -350,8 +497,6 @@ describe('account integrations section', () => {
     expect(sharedToolButton?.getAttribute('aria-label')).toBe('Hide for me');
     sharedToolButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(2);
-    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(false);
-    document.querySelector('#account-main-footer #save-integrations')?.click();
     await flush(6);
 
     const updateCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT');
@@ -372,7 +517,121 @@ describe('account integrations section', () => {
     expect(document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_search"]')?.getAttribute('aria-label')).toBe('Show for me');
   });
 
-  it('serializes rapid shared visibility toggles through the staged preferences save queue', async () => {
+  it('toggles tool descriptions without losing the expanded state', async () => {
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse(makeAccountState([
+        makeIntegrationServer({
+          id: 'mcp-1',
+          name: 'Personal MCP',
+          url: 'https://mcp.example.com',
+          tools: [
+            {
+              name: 'search',
+              title: 'Search',
+              description: 'This personal tool has a long description that should collapse and expand when toggled. '.repeat(4),
+              enabled: true,
+            },
+          ],
+        }),
+      ])))
+      .mockResolvedValueOnce(jsonResponse({
+        servers: [
+          makeIntegrationServer({
+            id: 'mcp-1',
+            name: 'Personal MCP',
+            url: 'https://mcp.example.com',
+            tools: [
+              {
+                name: 'search',
+                title: 'Search',
+                description: 'This personal tool has a long description that should collapse and expand when toggled. '.repeat(4),
+                enabled: true,
+              },
+            ],
+          }),
+        ],
+        accessible_servers: [],
+      }));
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush(4);
+
+    document.querySelector('[data-tool-server-row="mcp-1"] .tools-toggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(1);
+
+    const moreButton = document.querySelector('[data-tool-server-row="mcp-1"] .tool-desc-toggle');
+    expect(moreButton).not.toBeNull();
+    expect(document.body.textContent).toContain('More');
+
+    moreButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(1);
+    expect(document.body.textContent).toContain('Less');
+  });
+
+  it('persists personal tool toggles to the server config', async () => {
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse(makeAccountState([
+        makeIntegrationServer({
+          id: 'mcp-1',
+          name: 'Personal MCP',
+          url: 'https://mcp.example.com',
+          tools: [
+            { name: 'search', title: 'Search', description: 'Search tool', enabled: true },
+            { name: 'fetch', title: 'Fetch', description: 'Fetch tool', enabled: true },
+          ],
+        }),
+      ])))
+      .mockResolvedValueOnce(jsonResponse({
+        servers: [
+          makeIntegrationServer({
+            id: 'mcp-1',
+            name: 'Personal MCP',
+            url: 'https://mcp.example.com',
+            tools: [
+              { name: 'search', title: 'Search', description: 'Search tool', enabled: true },
+              { name: 'fetch', title: 'Fetch', description: 'Fetch tool', enabled: true },
+            ],
+          }),
+        ],
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        server: {
+          id: 'mcp-1',
+          enabled: true,
+          tools: [
+            { name: 'search', title: 'Search', description: 'Search tool', enabled: false },
+            { name: 'fetch', title: 'Fetch', description: 'Fetch tool', enabled: true },
+          ],
+        },
+      }));
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush(4);
+
+    const toolsToggle = document.querySelector('[data-tool-server-row="mcp-1"] .tools-toggle');
+    expect(toolsToggle).not.toBeNull();
+    toolsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(1);
+
+    const toolButton = document.querySelector('[data-tool-server-row="mcp-1"] .tool-toggle[data-tool-name="search"]');
+    expect(toolButton).not.toBeNull();
+    toolButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(4);
+
+    const updateCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me/resources/mcp-servers/mcp-1' && String(options?.method || '').toUpperCase() === 'PUT');
+    expect(updateCall).toBeDefined();
+    expect(JSON.parse(updateCall[1].body)).toEqual(expect.objectContaining({
+      tools: expect.arrayContaining([
+        expect.objectContaining({ name: 'search', enabled: false }),
+        expect.objectContaining({ name: 'fetch', enabled: true }),
+      ]),
+    }));
+    expect(document.querySelector('[data-tool-server-row="mcp-1"] .tool-toggle[data-tool-name="search"]')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('keeps rapid shared visibility toggles on the latest immediate save', async () => {
     let resolveFirstSave;
     const firstSave = new Promise((resolve) => {
       resolveFirstSave = resolve;
@@ -438,8 +697,6 @@ describe('account integrations section', () => {
     await flush(2);
     const refreshedSecondToolButton = document.querySelector('[data-tool-toggle-scope="shared"][data-tool-name="shared_fetch"]');
     expect(refreshedSecondToolButton).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(false);
-    document.querySelector('#account-main-footer #save-integrations')?.click();
     await flush(2);
 
     expect(saveCalls).toHaveLength(1);
@@ -495,8 +752,7 @@ describe('account integrations section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush(4);
 
-    expect(document.querySelector('#account-main-footer #save-integrations')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-integrations')?.disabled).toBe(true);
+    expect(document.querySelector('#account-main-footer #save-integrations')).toBeNull();
     const editBtn = document.querySelector('[data-account-integration-edit="mcp-1"]');
     expect(editBtn).not.toBeNull();
     editBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));

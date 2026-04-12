@@ -56,6 +56,8 @@ describe('workspace settings loaders', () => {
     ]);
     mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
       { id: 'shared-1', name: 'Shared', source: 'admin', access_variant: 'shared' },
+      { id: 'shared-hidden', name: 'Hidden Shared', source: 'admin', access_variant: 'shared', hidden_for_user: true, visible_for_user: false },
+      { id: 'shared-disabled', name: 'Disabled Shared', source: 'admin', access_variant: 'shared', enabled: false },
       { id: 'conn-1', name: 'Personal', source: 'user' },
     ]);
     mocks.loadToolServers.mockResolvedValue([
@@ -77,6 +79,16 @@ describe('workspace settings loaders', () => {
         access_variant: 'shared',
         tools: [{ name: 'shared_search', title: 'Shared Search', description: 'Search the workspace', parameters: { type: 'object' }, enabled: true }],
       },
+      {
+        id: 'mcp-disabled',
+        name: 'Disabled Shared MCP',
+        url: 'https://disabled.example.com',
+        enabled: false,
+        source: 'config',
+        access_label: 'Shared',
+        access_variant: 'shared',
+        tools: [{ name: 'disabled_search', title: 'Disabled Search', description: 'Disabled tool', parameters: { type: 'object' }, enabled: true }],
+      },
     ]);
   });
 
@@ -88,6 +100,7 @@ describe('workspace settings loaders', () => {
       userId: 'u1',
       primaryRole: 'member',
       includeDisabled: true,
+      includeHiddenForUser: true,
     });
 
     expect(payload.connections).toEqual([
@@ -96,7 +109,15 @@ describe('workspace settings loaders', () => {
         access_label: 'Shared',
         access_variant: 'shared',
       }),
+      expect.objectContaining({
+        id: 'shared-hidden',
+        access_label: 'Shared',
+        access_variant: 'shared',
+        hidden_for_user: true,
+        visible_for_user: false,
+      }),
     ]);
+    expect(payload.connections.some((connection) => connection.id === 'shared-disabled')).toBe(false);
     expect(payload.my_connections).toEqual([
       expect.objectContaining({
         id: 'conn-1',
@@ -108,6 +129,7 @@ describe('workspace settings loaders', () => {
       userId: 'u1',
       userRole: 'member',
       includeDisabled: true,
+      includeHiddenForUser: true,
     }));
   });
 
@@ -148,6 +170,7 @@ describe('workspace settings loaders', () => {
         ],
       }),
     ]);
+    expect(payload.accessible_servers.some((server) => server.id === 'mcp-disabled')).toBe(false);
     expect(mocks.loadToolServers).toHaveBeenCalledWith({}, { userId: 'u1', includeHiddenForUser: true });
   });
 
@@ -185,7 +208,20 @@ describe('workspace settings loaders', () => {
     });
     expect(payload.settings.general.settings).toEqual({ theme: 'dark' });
     expect(payload.settings.preferences).toEqual({ locale: 'en' });
-    expect(payload.settings.connections.connections).toHaveLength(1);
+    expect(payload.settings.connections.connections).toEqual([
+      expect.objectContaining({
+        id: 'shared-1',
+        access_label: 'Shared',
+        access_variant: 'shared',
+      }),
+      expect.objectContaining({
+        id: 'shared-hidden',
+        access_label: 'Shared',
+        access_variant: 'shared',
+        hidden_for_user: true,
+        visible_for_user: false,
+      }),
+    ]);
     expect(payload.settings.tool_servers.servers).toHaveLength(1);
     expect(payload.settings.tool_servers.accessible_servers).toEqual([
       expect.objectContaining({
@@ -202,6 +238,8 @@ describe('workspace settings loaders', () => {
         ],
       }),
     ]);
+    expect(payload.settings.connections.connections.some((connection) => connection.id === 'shared-disabled')).toBe(false);
+    expect(payload.settings.tool_servers.accessible_servers.some((server) => server.id === 'mcp-disabled')).toBe(false);
     expect(mocks.resolvePermissions).toHaveBeenCalledWith({}, { sub: 'u1' });
     expect(mocks.getUserRoles).toHaveBeenCalledWith({}, 'u1');
   });

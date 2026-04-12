@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   groupChatsByDate,
   getSearchChatDateLabel,
@@ -6,6 +6,14 @@ import {
   renderSearchEmptyStateMarkup,
   renderSearchResultsMarkup,
 } from '../../public/js/shared/components/search-modal-helpers.js';
+
+vi.mock('../../public/js/shared/utils.js', () => ({
+  formatDate: (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  },
+}));
 
 describe('search modal helpers', () => {
   it('normalizes backend queries', () => {

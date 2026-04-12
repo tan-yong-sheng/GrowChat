@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../public/js/shared/utils.js', () => ({
+  escapeHtml: (value) => String(value ?? ''),
+  showToast: vi.fn(),
+}));
+
 async function loadModules() {
   vi.resetModules();
   const store = await import('../../public/js/shared/store.js');
@@ -49,6 +54,29 @@ describe('message input', () => {
     expect(hint).not.toBeNull();
     expect(hint.textContent).toBe('');
     expect(container.textContent).not.toContain('Attachments are disabled for this model.');
+
+    view.destroy();
+  });
+
+  it('disables the composer when no selectable models are available', async () => {
+    const { store, renderMessageInput } = await loadModules();
+    const container = document.getElementById('root');
+
+    store.setState({
+      models: [],
+      activeModelId: null,
+      modelsLoading: false,
+    });
+
+    const view = renderMessageInput(container, vi.fn());
+    const input = container.querySelector('#message-input');
+    const composer = container.querySelector('#composer');
+    const sendBtn = container.querySelector('#send-btn');
+
+    expect(input.disabled).toBe(true);
+    expect(composer.getAttribute('aria-disabled')).toBe('true');
+    expect(sendBtn.disabled).toBe(true);
+    expect(container.textContent).toContain('No selectable models are available. Ask an admin to restore access or hide fewer models.');
 
     view.destroy();
   });

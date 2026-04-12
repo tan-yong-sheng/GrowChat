@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   initShortcuts: vi.fn(),
   renderAccountPage: vi.fn(),
   openAccountSettingsDrawer: vi.fn(),
-  resolveAccountSectionFromPath: vi.fn(() => 'overview'),
+  resolveAccountSectionFromPath: vi.fn(() => 'connections'),
   readChatsCache: vi.fn(),
   readModelsCache: vi.fn(),
   renderAdminPage: vi.fn(),
@@ -56,6 +56,11 @@ vi.mock('../../public/js/shared/api.js', () => ({
   readModelsCache: (...args) => mocks.readModelsCache(...args),
   refreshToken: (...args) => mocks.refreshToken(...args),
   writeChatsCache: (...args) => mocks.writeChatsCache(...args),
+}));
+
+vi.mock('../../public/js/shared/utils.js', () => ({
+  ensureMarkedReady: vi.fn(),
+  renderMessageContent: (content) => content || '',
 }));
 
 vi.mock('../../public/js/features/admin/admin.js', () => ({
@@ -111,7 +116,7 @@ describe('public app bootstrap', () => {
     mocks.renderAccountPage.mockReset();
     mocks.openAccountSettingsDrawer.mockReset();
     mocks.resolveAccountSectionFromPath.mockReset();
-    mocks.resolveAccountSectionFromPath.mockReturnValue('overview');
+    mocks.resolveAccountSectionFromPath.mockReturnValue('connections');
     mocks.readChatsCache.mockReset();
     mocks.readModelsCache.mockReset();
     mocks.renderAdminPage.mockReset();
@@ -160,6 +165,7 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    expect(window.location.pathname).toBe('/admin/users/overview');
     expect(mocks.renderAdminPage).toHaveBeenCalledTimes(1);
     expect(document.getElementById('app').dataset.view).toBe('admin');
   });
@@ -276,14 +282,15 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(window.location.pathname).toBe('/');
+    expect(window.location.pathname).toBe('/account/settings/connections');
     expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledWith({ section: 'connections' });
   });
 
-  it('opens old account settings routes through the account drawer', async () => {
-    window.history.pushState({}, '', '/account/settings/general');
+  it('rerenders account routes when popstate fires after closing the drawer', async () => {
+    window.history.pushState({}, '', '/account/settings/connections');
     mocks.getAuthState.mockReturnValue({ access_token: 'token' });
     mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.resolveAccountSectionFromPath.mockReturnValue('connections');
     mocks.apiFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -308,12 +315,18 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(window.location.pathname).toBe('/');
-    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledWith({ section: 'overview' });
+    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledTimes(1);
+
+    window.history.replaceState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledTimes(1);
+    expect(mocks.renderChat).toHaveBeenCalled();
   });
 
-  it('opens old account preferences routes through the account drawer', async () => {
-    window.history.pushState({}, '', '/account/settings/preferences');
+  it('redirects bare account routes to the connections drawer', async () => {
+    window.history.pushState({}, '', '/account');
     mocks.getAuthState.mockReturnValue({ access_token: 'token' });
     mocks.isAccessTokenUsable.mockReturnValue(true);
     mocks.apiFetch.mockResolvedValue({
@@ -340,8 +353,66 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(window.location.pathname).toBe('/');
-    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledWith({ section: 'overview' });
+    expect(window.location.pathname).toBe('/account/settings/connections');
+    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledWith({ section: 'connections' });
+  });
+
+  it('redirects legacy profile routes to the connections drawer', async () => {
+    window.history.pushState({}, '', '/account/profile/overview');
+    mocks.getAuthState.mockReturnValue({ access_token: 'token' });
+    mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'u1', role: 'user', preferences: {} },
+        permissions: ['chat.read'],
+        roles: [{ role_name: 'user' }],
+        settings: {
+          general: { name: 'User' },
+          preferences: { theme: 'system' },
+          connections: { my_connections: [], connections: [] },
+          integrations: { servers: [] },
+          tool_servers: { servers: [] },
+          models: { default_model_id: null },
+        },
+        app_config: { default_model_id: 'gpt-4' },
+      }),
+    });
+    mocks.readChatsCache.mockReturnValue(null);
+    mocks.readModelsCache.mockReturnValue(null);
+    mocks.fetchChats.mockResolvedValue({ chats: [], limit: 30, offset: 0, has_more: false });
+
+    await loadApp();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(window.location.pathname).toBe('/account/settings/connections');
+    expect(mocks.openAccountSettingsDrawer).toHaveBeenCalledWith({ section: 'connections' });
+  });
+
+  it('removes stale route modals before rendering a new route', async () => {
+    document.body.insertAdjacentHTML('beforeend', '<div id="add-connection-modal"></div><div id="account-settings-drawer-modal"></div><div id="legacy-modal"></div>');
+    window.history.pushState({}, '', '/');
+    mocks.getAuthState.mockReturnValue({ access_token: 'token' });
+    mocks.isAccessTokenUsable.mockReturnValue(true);
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'u1', role: 'user', preferences: {} },
+        permissions: ['chat.read'],
+        roles: [{ role_name: 'user' }],
+        app_config: { default_model_id: 'gpt-4' },
+      }),
+    });
+    mocks.readChatsCache.mockReturnValue(null);
+    mocks.readModelsCache.mockReturnValue(null);
+    mocks.fetchChats.mockResolvedValue({ chats: [], limit: 30, offset: 0, has_more: false });
+
+    await loadApp();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.getElementById('add-connection-modal')).toBeNull();
+    expect(document.querySelector('[data-account-settings-drawer-mount="1"]')).toBeNull();
+    expect(document.getElementById('legacy-modal')).not.toBeNull();
   });
 
   it('chooses the first alphabetical fetched model when no default is configured', async () => {

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  getModelAvailabilityFallbackNotice,
   getModelDisplayLabel,
+  getModelSelectorAvailabilitySummary,
   getModelSelectorDerivedState,
   getPreferredModelId,
   persistDefaultModelSelection,
@@ -47,6 +49,42 @@ describe('model selector helpers', () => {
     expect(html).toContain('data-model-id="m1"');
     expect(html).toContain('aria-selected="true"');
     expect(html).toContain('GPT Mini');
+  });
+
+  it('summarizes chat model availability with scope-aware copy', () => {
+    expect(getModelSelectorAvailabilitySummary(0)).toBe('No selectable models are currently available for this chat.');
+    expect(getModelSelectorAvailabilitySummary(1)).toBe('1 selectable model');
+    expect(getModelSelectorAvailabilitySummary(4)).toBe('4 selectable models');
+    expect(getModelSelectorAvailabilitySummary(7, { loading: true })).toBe('Loading selectable models...');
+  });
+
+  it('describes why a model fallback happened', () => {
+    expect(getModelAvailabilityFallbackNotice({
+      previousModelId: 'm1',
+      fallbackModel: { id: 'm2', name: 'Claude' },
+      hiddenModelIds: ['m1'],
+    })).toEqual(expect.objectContaining({
+      reason: 'personal_hide',
+      message: 'Your previous model is hidden for you. Switched to Claude.',
+    }));
+
+    expect(getModelAvailabilityFallbackNotice({
+      previousModelId: 'm1',
+      fallbackModel: { id: 'm2', name: 'Claude' },
+      disabledModelIds: ['m1'],
+    })).toEqual(expect.objectContaining({
+      reason: 'admin_disabled',
+      message: 'Your previous model was disabled by an admin. Switched to Claude.',
+    }));
+
+    expect(getModelAvailabilityFallbackNotice({
+      previousModelId: 'm1',
+      fallbackModel: { id: 'm2', name: 'Claude' },
+      currentChatModelId: 'm1',
+    })).toEqual(expect.objectContaining({
+      reason: 'chat_context',
+      message: 'This chat no longer allows your previous model. Switched to Claude.',
+    }));
   });
 
   it('persists default model preference or falls back to session storage', async () => {

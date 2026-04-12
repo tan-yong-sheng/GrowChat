@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   canDeleteFiles,
   filterFilesByQuery,
@@ -6,6 +6,15 @@ import {
   renderFilesEmptyStateMarkup,
   renderFilesListMarkup,
 } from '../../public/js/shared/components/files-modal-helpers.js';
+
+vi.mock('../../public/js/shared/utils.js', () => ({
+  formatBytes: (value) => `${Number(value || 0)} B`,
+  formatDate: (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  },
+}));
 
 describe('files modal helpers', () => {
   it('derives file status and delete permission', () => {

@@ -2,6 +2,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildChatRows } from '../../public/js/features/chat/chat-render-helpers.js';
 
+vi.mock('../../public/js/shared/utils.js', () => ({
+  escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+}));
+
 describe('chat render helpers', () => {
   it('builds chat rows and marks the active row', () => {
     const rows = buildChatRows(

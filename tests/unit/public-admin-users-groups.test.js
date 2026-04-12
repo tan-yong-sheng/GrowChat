@@ -124,20 +124,12 @@ describe('admin groups overview', () => {
     expect(window.location.pathname).toBe('/admin/users/groups');
   });
 
-  it('renders a delete button on each group card and stages deletion from the list', async () => {
+  it('deletes a group immediately from the card action', async () => {
     const { renderGroupsOverview } = await loadModule();
     const container = document.getElementById('root');
-    const data = {};
 
-    renderGroupsOverview(container, data, {
-      reload: vi.fn(),
-      onCreate: vi.fn(),
-      onUpdate: vi.fn(),
-      onDelete: vi.fn(),
-      onMemberDelta: vi.fn(),
-    });
-    data.groups = [{ id: 'g1', name: 'Group One', member_count: 0 }];
-    renderGroupsOverview(container, data, {
+    renderGroupsOverview(container, {
+      groups: [{ id: 'g1', name: 'Group One', member_count: 0 }],
       reload: vi.fn(),
       onCreate: vi.fn(),
       onUpdate: vi.fn(),
@@ -149,18 +141,17 @@ describe('admin groups overview', () => {
     container.querySelector('.btn-delete-group').click();
     await tick();
 
-    await vi.waitFor(() => expect(container.textContent).toContain('Pending delete'));
-    expect(data.usersDirtyCheckers.groups()).toBe(true);
+    await vi.waitFor(() => expect(apiMocks.deleteAdminGroup).toHaveBeenCalledWith('g1'));
   });
 
-  it('stages group modal edits and persists them from the shared footer save', async () => {
+  it('creates a group immediately from the modal save', async () => {
     const { renderGroupsOverview } = await loadModule();
     const container = document.getElementById('root');
-    const data = {};
     apiMocks.fetchAdminUsers.mockResolvedValue({ users: [], total: 0 });
     apiMocks.createAdminGroup.mockResolvedValue({ group: { id: 'g2', name: 'Team Two', member_count: 0 } });
 
-    renderGroupsOverview(container, data, {
+    renderGroupsOverview(container, {
+      groups: [],
       reload: vi.fn(),
       onCreate: vi.fn(),
       onUpdate: vi.fn(),
@@ -179,24 +170,18 @@ describe('admin groups overview', () => {
     document.querySelector('#group-save-btn').click();
     await tick();
 
-    expect(apiMocks.createAdminGroup).not.toHaveBeenCalled();
-    expect(data.usersDirtyCheckers?.groups?.() ?? true).toBe(true);
-
-    await data.usersSaveHandlers.groups();
     await vi.waitFor(() => expect(apiMocks.createAdminGroup).toHaveBeenCalledWith(expect.objectContaining({
       name: 'Team Two',
       description: 'Team description',
       member_ids: [],
     })));
-    expect(data.usersDirtyCheckers.groups()).toBe(false);
     expect(apiMocks.addGroupMembers).not.toHaveBeenCalled();
     expect(apiMocks.removeGroupMembers).not.toHaveBeenCalled();
   });
 
-  it('stages delete from the group modal and commits it from the shared footer', async () => {
+  it('deletes a group immediately from the modal', async () => {
     const { renderGroupsOverview } = await loadModule();
     const container = document.getElementById('root');
-    const data = {};
     apiMocks.fetchAdminUsers.mockResolvedValue({ users: [], total: 0 });
     apiMocks.fetchAdminGroup.mockResolvedValue({
       group: {
@@ -205,20 +190,22 @@ describe('admin groups overview', () => {
       },
       members: [],
     });
-    data.groups = [{ id: 'g1', name: 'Group One', member_count: 0 }];
 
     const actions = {
       reload: vi.fn(),
       onCreate: vi.fn(),
       onUpdate: vi.fn(),
       onDelete(groupId) {
-        data.groups = (data.groups || []).filter((group) => group.id !== groupId);
-        renderGroupsOverview(container, data, actions);
+        renderGroupsOverview(container, {
+          groups: [],
+        }, actions);
       },
       onMemberDelta: vi.fn(),
     };
 
-    renderGroupsOverview(container, data, actions);
+    renderGroupsOverview(container, {
+      groups: [{ id: 'g1', name: 'Group One', member_count: 0 }],
+    }, actions);
 
     container.querySelector('.btn-edit-group').click();
     await tick();
@@ -227,12 +214,6 @@ describe('admin groups overview', () => {
     Object.defineProperty(window, 'confirm', { value: vi.fn(() => true), configurable: true });
     document.querySelector('#group-delete-btn').click();
     await tick();
-
-    await vi.waitFor(() => expect(document.getElementById('group-modal')).toBeNull());
-    await vi.waitFor(() => expect(container.textContent).toContain('Pending delete'));
-    expect(data.usersDirtyCheckers.groups()).toBe(true);
-
-    await data.usersSaveHandlers.groups();
 
     await vi.waitFor(() => expect(apiMocks.deleteAdminGroup).toHaveBeenCalledWith('g1'));
     await vi.waitFor(() => expect(container.textContent).not.toContain('Group One'));

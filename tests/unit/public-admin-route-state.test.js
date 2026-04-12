@@ -7,6 +7,12 @@ import {
 
 describe('admin route state', () => {
   it('resolves canonical route state for top-level admin paths', () => {
+    expect(resolveAdminRouteState('/admin')).toEqual({
+      mainTab: 'users',
+      subTab: 'overview',
+      canonicalPath: '/admin/users/overview',
+    });
+
     expect(resolveAdminRouteState('/admin/users')).toEqual({
       mainTab: 'users',
       subTab: 'overview',

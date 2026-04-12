@@ -6,6 +6,10 @@ vi.mock('../../public/js/shared/api.js', () => ({
   fetchChats: vi.fn(async () => ({ chats: [], limit: 20, offset: 0 })),
 }));
 
+vi.mock('../../public/js/shared/utils.js', () => ({
+  renderMessageContent: (content) => content || '',
+}));
+
 async function loadModules() {
   vi.resetModules();
   const store = await import('../../public/js/shared/store.js');
@@ -27,6 +31,7 @@ describe('search modal', () => {
     const loadMessagesFn = vi.fn();
 
     store.setState({
+      showSidebar: true,
       showSearch: true,
       search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true, loading: false },
     });

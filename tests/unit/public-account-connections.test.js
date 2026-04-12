@@ -153,6 +153,147 @@ describe('account connections section', () => {
     expect(document.getElementById('account-connection-modal')).toBeNull();
   }, 10000);
 
+  it('shows hidden shared connections explicitly so they can be restored', async () => {
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...makeAccountState('Personal Conn'),
+        settings: {
+          ...makeAccountState('Personal Conn').settings,
+          preferences: {
+            ...makeAccountState('Personal Conn').settings.preferences,
+            resource_overrides: {
+              connections: {
+                hidden_ids: ['shared-1'],
+              },
+            },
+          },
+          connections: {
+            my_connections: makeAccountState('Personal Conn').settings.connections.my_connections,
+            connections: [
+              {
+                id: 'shared-1',
+                name: 'Shared Conn',
+                note: 'Shared from admin',
+                access_label: 'Shared',
+              },
+            ],
+          },
+        },
+      }),
+    });
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush();
+
+    expect(document.body.textContent).toContain('Hidden for you');
+    expect(document.querySelector('[data-connection-row="shared-1"]')?.textContent).toContain('Hidden for you');
+    expect(document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]')?.getAttribute('aria-label')).toBe('Show for me');
+  });
+
+  it('keeps shared visibility toggles available when connection management is disabled', async () => {
+    const accountState = makeAccountState('Personal Conn', { canManageConnections: false });
+    accountState.settings.connections.connections = [
+      {
+        id: 'shared-1',
+        name: 'Shared Conn',
+        note: 'Shared from admin',
+        access_label: 'Shared',
+        hidden_for_user: false,
+        visible_for_user: true,
+      },
+    ];
+    mocks.apiFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => accountState,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          user: {
+            preferences: {
+              connections: {
+                hidden_ids: ['shared-1'],
+              },
+            },
+          },
+        }),
+      });
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush();
+
+    const sharedToggle = document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]');
+    expect(sharedToggle).not.toBeNull();
+    expect(sharedToggle?.getAttribute('aria-label')).toBe('Hide for me');
+    expect(sharedToggle?.hasAttribute('disabled')).toBe(false);
+    sharedToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush(10);
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({ method: 'PUT' }));
+  });
+
+  it('sorts enabled personal connections before disabled ones and keeps visible shared rows above hidden ones', async () => {
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...makeAccountState('Personal B'),
+        settings: {
+          ...makeAccountState('Personal B').settings,
+          connections: {
+            my_connections: [
+              {
+                id: 'conn-b',
+                name: 'Personal B',
+                provider_type: 'openai-compatible',
+                base_url: 'https://b.example.com',
+                enabled: false,
+              },
+              {
+                id: 'conn-a',
+                name: 'Personal A',
+                provider_type: 'openai-compatible',
+                base_url: 'https://a.example.com',
+                enabled: true,
+              },
+            ],
+            connections: [
+              {
+                id: 'shared-hidden',
+                name: 'Shared Hidden',
+                note: 'Shared hidden',
+                access_label: 'Shared',
+                hidden_for_user: true,
+                visible_for_user: false,
+              },
+              {
+                id: 'shared-visible',
+                name: 'Shared Visible',
+                note: 'Shared visible',
+                access_label: 'Shared',
+                hidden_for_user: false,
+                visible_for_user: true,
+              },
+            ],
+          },
+        },
+      }),
+    });
+
+    const { renderAccountPage } = await loadModule();
+    await renderAccountPage(document.getElementById('app'));
+    await flush();
+
+    const personalRows = Array.from(document.querySelectorAll('[data-account-personal-connections] [data-connection-row]'));
+    expect(personalRows.map((row) => row.getAttribute('data-id'))).toEqual(['conn-a', 'conn-b']);
+
+    const sharedRows = Array.from(document.querySelectorAll('#manage-connections-section [data-connection-row]'))
+      .filter((row) => row.closest('[data-account-personal-connections]') === null);
+    expect(sharedRows.map((row) => row.getAttribute('data-id'))).toEqual(['shared-visible', 'shared-hidden']);
+  }, 10000);
+
   it('opens the add connection modal with the shared admin-style shell', async () => {
     mocks.apiFetch.mockResolvedValue({
       ok: true,
@@ -163,12 +304,12 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush();
 
-    expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(true);
+    expect(document.querySelector('#account-main-footer #save-connections')).toBeNull();
     document.querySelector('[data-account-connection-add]')?.click();
 
     const modalRoot = document.getElementById('account-connection-modal');
     expect(modalRoot).not.toBeNull();
+    expect(window.location.hash).toBe('#add-account-connection-modal');
     expect(modalRoot?.className).toContain('items-start');
     expect(modalRoot?.className).toContain('overflow-y-auto');
     expect(modalRoot?.querySelector('#modal-title')).not.toBeNull();
@@ -178,7 +319,7 @@ describe('account connections section', () => {
     expect(modalRoot?.textContent).toContain('Add Connection');
   });
 
-  it('stages shared connection visibility and saves it from the footer', async () => {
+  it('saves shared connection visibility immediately', async () => {
     mocks.apiFetch.mockImplementation(async (url, options = {}) => {
       const method = String(options.method || 'GET').toUpperCase();
       if (String(url) === '/api/users/me/settings?include=permissions,roles' && method === 'GET') {
@@ -200,16 +341,13 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush(4);
 
-    expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(true);
+    expect(document.querySelector('#account-main-footer #save-connections')).toBeNull();
 
     const sharedToggle = document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]');
     expect(sharedToggle).not.toBeNull();
     sharedToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(2);
 
-    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(false);
-    document.querySelector('#account-main-footer #save-connections')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(8);
 
     const updateCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT');
@@ -247,8 +385,7 @@ describe('account connections section', () => {
     expect(document.body.textContent).not.toContain('Admin');
     expect(document.body.textContent).not.toContain('Shared providers');
     expect(document.body.textContent).not.toContain('Visible for you');
-    expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(true);
+    expect(document.querySelector('#account-main-footer #save-connections')).toBeNull();
     document.querySelector('[data-account-connection-edit="conn-1"]')?.click();
     expect(document.getElementById('account-connection-modal')?.textContent).toContain('Edit Connection');
 
@@ -257,7 +394,7 @@ describe('account connections section', () => {
     expect(nameInput).not.toBeNull();
     expect(modal?.querySelector('#modal-conn-key')?.getAttribute('placeholder')).toBe('Leave blank to keep current key');
     expect(modal?.textContent).toContain('A key is already saved. Leave this blank to keep it.');
-    expect(modal?.querySelector('#modal-models-status')?.textContent).toContain('Models enabled in this connection: 1 of 1');
+    expect(modal?.querySelector('#modal-models-status')?.textContent).toContain('Models selected in this connection: 1');
     expect(modal?.querySelector('#modal-models-list')?.textContent).toContain('GPT-4o');
     nameInput.value = 'Updated Conn';
 
@@ -275,7 +412,8 @@ describe('account connections section', () => {
       headers: expect.stringContaining('"X-Test": "1"'),
     }));
     expect(document.getElementById('account-connection-modal')).toBeNull();
-    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(1);
+    expect(window.location.hash).toBe('');
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(2);
   });
 
   it('deletes a connection after confirmation and refreshes the list', async () => {
@@ -310,8 +448,7 @@ describe('account connections section', () => {
     expect(document.body.textContent).not.toContain('Admin');
     expect(document.body.textContent).not.toContain('Shared providers');
     expect(document.body.textContent).not.toContain('Visible for you');
-    expect(document.querySelector('#account-main-footer #save-connections')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer #save-connections')?.disabled).toBe(true);
+    expect(document.querySelector('#account-main-footer #save-connections')).toBeNull();
     document.querySelector('[data-account-connection-edit="conn-1"]')?.click();
     await flush(2);
     document.querySelector('[data-account-connection-delete-modal]')?.click();
@@ -321,6 +458,6 @@ describe('account connections section', () => {
     expect(mocks.deleteUserConnection).toHaveBeenCalledWith('conn-1');
     expect(document.querySelector('[data-connection-row="conn-1"]')).toBeNull();
     expect(document.querySelector('[data-connection-row="shared-1"]')).not.toBeNull();
-    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(1);
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(2);
   });
 });

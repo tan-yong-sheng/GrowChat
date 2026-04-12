@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildChatSidebarListFragment } from '../../public/js/features/chat/chat-sidebar-list.js';
 
+vi.mock('../../public/js/features/chat/chat-render-helpers.js', () => ({
+  buildChatRows: () => ({
+    appendChild() {},
+  }),
+}));
 describe('chat sidebar list fragment', () => {
   it('renders pinned and grouped chat sections with loading sentinel support', () => {
     const originalDocument = globalThis.document;

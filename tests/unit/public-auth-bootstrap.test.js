@@ -25,9 +25,30 @@ describe('public auth bootstrap', () => {
           <button id="auth-submit" type="submit">Sign in</button>
         </form>
         <button id="toggle-mode" type="button">Sign up</button>
+        <button id="forgot-password" type="button">Forgot password</button>
         <span id="toggle-text"></span>
         <h1 id="auth-title"></h1>
         <p id="auth-error" class="hidden"></p>
+
+        <div id="forgot-password-modal" class="hidden">
+          <button id="modal-close" type="button">Close</button>
+          <form id="forgot-password-form">
+            <input id="forgot-email" />
+            <button id="forgot-submit" type="submit">Send</button>
+          </form>
+          <p id="modal-error" class="hidden"></p>
+          <p id="modal-success" class="hidden"></p>
+        </div>
+
+        <div id="reset-password-modal" class="hidden">
+          <form id="reset-password-form">
+            <input id="new-password" />
+            <input id="confirm-password" />
+            <button id="reset-submit" type="submit">Reset</button>
+          </form>
+          <p id="reset-error" class="hidden"></p>
+          <p id="reset-success" class="hidden"></p>
+        </div>
       </div>
     `;
     mocks.setAuthState.mockReset();

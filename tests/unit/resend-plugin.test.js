@@ -121,19 +121,23 @@ describe('ResendPlugin', () => {
         html: '<p>Click here to reset</p>',
       });
 
-      expect(global.fetch).toHaveBeenCalledWith('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer test-key-abc',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'noreply@growchat.app',
-          to: 'user@example.com',
-          subject: 'Password Reset',
-          html: '<p>Click here to reset</p>',
-        }),
-      });
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://api.resend.com/emails',
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer test-key-abc',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'noreply@growchat.app',
+            to: 'user@example.com',
+            subject: 'Password Reset',
+            html: '<p>Click here to reset</p>',
+          }),
+          signal: expect.any(Object),
+        })
+      );
     });
 
     it('should use custom from address when provided', async () => {

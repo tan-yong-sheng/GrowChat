@@ -75,9 +75,10 @@ describe('public api helpers', () => {
 
     const staleAt = Date.now() - (16 * 60 * 1000);
     localStorage.setItem(
-      'growchat_models_cache_v1',
+      'growchat_models_cache_v1_global',
       JSON.stringify({ savedAt: staleAt, value: { models: [{ id: 'old' }] } })
     );
+    localStorage.removeItem('growchat_models_cache_v1');
 
     expect(readModelsCache()).toBeNull();
     expect(readChatsCache(null)).toBeNull();
@@ -153,6 +154,15 @@ describe('public api helpers', () => {
     expect(fetchMock.mock.calls[3][0]).toBe('/api/chats/archived');
     expect(fetchMock.mock.calls[3][1]).toMatchObject({ cache: 'no-store' });
     expect(readModelsCache()).toEqual({ models: [{ id: 'm1' }] });
+  });
+
+  it('builds scoped model requests for account and chat surfaces', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ models: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchModels({ scope: 'effective' });
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/models?scope=effective');
   });
 
   it('builds admin RBAC role requests with the expected methods and paths', async () => {

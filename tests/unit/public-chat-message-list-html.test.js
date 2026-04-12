@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildChatMessageListHtml } from '../../public/js/features/chat/chat-message-list-html.js';
 
+vi.mock('../../public/js/shared/utils.js', () => ({
+  escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+}));
 describe('chat message list html builder', () => {
   it('renders user and assistant message rows with the provided render helpers', () => {
     const originalDocument = globalThis.document;

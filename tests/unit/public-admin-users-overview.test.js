@@ -83,7 +83,7 @@ describe('admin users overview', () => {
     expect(container.querySelector('.relative.flex-1.min-h-0.overflow-hidden.w-full.rounded-3xl.border.border-gray-100.bg-white .h-full.overflow-auto .min-w-\\[1120px\\]')).toBeTruthy();
   });
 
-  it('stages user modal changes locally and persists them from the shared footer save', async () => {
+  it('saves user modal changes immediately', async () => {
     const { renderUserOverview } = await loadModule();
     const container = document.getElementById('root');
     const data = {
@@ -156,11 +156,8 @@ describe('admin users overview', () => {
     document.querySelector('#add-user-save-btn').click();
     await tick();
 
-    expect(mocks.apiFetch).not.toHaveBeenCalled();
-    expect(data.usersDirtyCheckers.overview()).toBe(true);
-
-    await data.usersSaveHandlers.overview();
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/users', expect.objectContaining({ method: 'POST' })));
+    expect(actions.prependUser).toHaveBeenCalled();
 
     document.querySelector('[data-close-add-user]')?.click();
     await tick();
@@ -176,9 +173,8 @@ describe('admin users overview', () => {
     document.querySelector('#edit-user-save-btn').click();
     await tick();
 
-    expect(data.usersDirtyCheckers.overview()).toBe(true);
-    await data.usersSaveHandlers.overview();
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/users/u1', expect.objectContaining({ method: 'PUT' })));
+    expect(actions.updateUser).toHaveBeenCalled();
   });
 
   it('shows custom roles in the row badge and role selector', async () => {
@@ -236,11 +232,24 @@ describe('admin users overview', () => {
             resource_id: 'model-1',
             principal_type: 'group',
             principal_label: 'Group: test1',
-            effect: 'allow',
+            effect: 'deny',
             action: 'use',
+            access_state: 'revoked',
           },
         ],
-        connections: [],
+        connections: [
+          {
+            family: 'connection',
+            resource_id: 'conn-1',
+            principal_type: 'user',
+            principal_label: 'Direct user',
+            effect: 'allow',
+            action: 'use',
+            hidden_for_user: true,
+            visible_for_user: false,
+            access_state: 'hidden_for_user',
+          },
+        ],
         mcp_servers: [],
       },
     });
@@ -273,6 +282,8 @@ describe('admin users overview', () => {
     expect(document.body.textContent).toContain('Role Permissions');
     expect(document.body.textContent).toContain('admin.user.read');
     expect(document.body.textContent).toContain('test1');
+    expect(document.body.textContent).toContain('Revoked');
+    expect(document.body.textContent).toContain('Hidden for user');
   });
 
   it('refreshes the ACL inspector after access invalidation events', async () => {
@@ -335,7 +346,7 @@ describe('admin users overview', () => {
     window.dispatchEvent(new CustomEvent('growchat:connections-invalidated', { detail: { token: 'refresh-1' } }));
     await vi.waitFor(() => expect(document.body.textContent).toContain('Refreshing ACL inspector...'));
     await vi.waitFor(() => expect(mocks.fetchAdminUserAccess).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(document.body.textContent).toContain('deny'));
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Revoked'));
   });
 
   it('hides disabled ACL rules by default and reveals them with a toggle', async () => {
@@ -404,7 +415,7 @@ describe('admin users overview', () => {
     expect(document.querySelector('#user-access-modal [data-admin-modal-body] .opacity-60')).toBeTruthy();
   });
 
-  it('stages inline delete actions until the shared footer save commits them', async () => {
+  it('deletes users immediately from the row action', async () => {
     const { renderUserOverview } = await loadModule();
     const container = document.getElementById('root');
     const data = {
@@ -440,17 +451,12 @@ describe('admin users overview', () => {
     });
 
     await container.querySelector('.btn-delete-user').click();
-    expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/users/u1' && String(init?.method || '').toUpperCase() === 'DELETE')).toBe(false);
-    expect(data.usersDirtyCheckers.overview()).toBe(true);
-    expect(container.querySelector('[data-user-row="u1"]')?.textContent).toContain('Pending delete');
-
-    await data.usersSaveHandlers.overview();
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/users/u1', expect.objectContaining({ method: 'DELETE' })));
     await vi.waitFor(() => expect(removeUser).toHaveBeenCalledWith('u1'));
     expect(confirmSpy).toHaveBeenCalledWith('Delete user Ada Lovelace? This will permanently remove the account record.');
   });
 
-  it('stages inline role changes until the shared footer save commits them', async () => {
+  it('changes user roles immediately from the row action', async () => {
     const { renderUserOverview } = await loadModule();
     const container = document.getElementById('root');
     const data = {
@@ -494,11 +500,6 @@ describe('admin users overview', () => {
     });
 
     await container.querySelector('.btn-change-role').click();
-    expect(mocks.apiFetch.mock.calls.some(([url, init]) => String(url) === '/api/admin/users/u1' && String(init?.method || '').toUpperCase() === 'PUT')).toBe(false);
-    expect(data.usersDirtyCheckers.overview()).toBe(true);
-    expect(container.querySelector('[data-user-row="u1"]')?.textContent).toContain('Admin');
-
-    await data.usersSaveHandlers.overview();
     await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/users/u1', expect.objectContaining({ method: 'PUT' })));
     await vi.waitFor(() => expect(updateUser).toHaveBeenCalled());
     expect(confirmSpy).toHaveBeenCalledWith('Change role for Ada Lovelace to ADMIN?');
