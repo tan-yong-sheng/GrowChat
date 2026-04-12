@@ -186,7 +186,7 @@ describe('worker entry point', () => {
     const res = await app.fetch(makeReq('/api/files/upload', 'POST'), env, ctx);
 
     expect(res.status).toBe(500);
-    await expect(res.json()).resolves.toMatchObject({ error: 'FILES binding missing' });
+    await expect(res.json()).resolves.toMatchObject({ error: 'An error occurred. Please try again later.' });
     expect(mocks.filesRouter).not.toHaveBeenCalled();
   });
 
@@ -197,7 +197,7 @@ describe('worker entry point', () => {
     const res = await app.fetch(makeReq('/api/realtime/stream'), env, ctx);
 
     expect(res.status).toBe(500);
-    await expect(res.json()).resolves.toMatchObject({ error: 'MESSAGE_QUEUE binding missing' });
+    await expect(res.json()).resolves.toMatchObject({ error: 'An error occurred. Please try again later.' });
     expect(mocks.realtimeRouter).not.toHaveBeenCalled();
   });
 

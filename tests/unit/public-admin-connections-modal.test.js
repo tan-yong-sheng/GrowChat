@@ -72,6 +72,52 @@ describe('admin connections modal', () => {
     });
   });
 
+  it('verifies a new connection without payload TDZ errors', async () => {
+    mocks.apiFetch.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.includes('/api/admin/openai/connections?include_disabled=1')) {
+        return new Response(JSON.stringify({
+          enabled: true,
+          connections: [],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (target.includes('/api/admin/models')) {
+        return new Response(JSON.stringify({ models: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (target.includes('/api/admin/openai/connections/test') && init?.method === 'POST') {
+        return new Response(JSON.stringify({
+          ok: true,
+          models: [{ id: 'conn_test__gpt-4o-mini', name: 'gpt-4o-mini' }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+
+    renderConnectionsSettings(container, {});
+    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/openai/connections?include_disabled=1'));
+
+    container.querySelector('#add-connection')?.click();
+    container.querySelector('#modal-conn-name').value = 'OpenAI';
+    container.querySelector('#modal-conn-url').value = 'https://api.openai.com/v1';
+    container.querySelector('#modal-conn-key').value = 'secret';
+
+    container.querySelector('#test-connection')?.click();
+
+    await vi.waitFor(() => {
+      expect(mocks.apiFetch.mock.calls.some(([url, reqInit]) =>
+        String(url) === '/api/admin/openai/connections/test' && reqInit?.method === 'POST'
+      )).toBe(true);
+    });
+
+    expect(container.textContent || '').not.toContain("Cannot access 'payload' before initialization");
+  });
+
   it('labels the modal as edit when opening an existing connection', async () => {
     mocks.apiFetch.mockImplementation(async (url) => {
       if (String(url).includes('/api/admin/openai/connections')) {
