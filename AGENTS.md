@@ -1,371 +1,142 @@
-# GrowChat Architecture Guide
-
-This file provides guidance to Claude Code when working with the GrowChat repository.
-
-Website on localhost:8787:
-- Use environment variables for local test credentials (for example `TEST_EMAIL` and `TEST_PASSWORD`).
-
-Available skills & agents: superpowers agent, playwright cli, ai-vision cli, design-eval agent 
+# GrowChat Agent Instructions
 
 ## Project Overview
+**GrowChat** is a multi-user Cloudflare Workers chat application with support for multiple LLM providers via user-configured OpenAI-compatible connections.
 
-**GrowChat** is a multi-user Cloudflare Workers chat application with support for multiple LLM providers (Workers AI and OpenAI-compatible APIs).
+**Stack:** Cloudflare Workers (D1, KV, R2, Durable Objects) + Vanilla JS SPA + Tailwind CSS
 
-### Core Components
-- **Backend API**: Cloudflare Worker in `src/index.js` handling all API routes
-- **Database**: SQLite (D1) for persistent user/chat/message storage
-- **Session Management**: KV namespace for refresh token storage with TTL
-- **Frontend**: Vanilla JS SPA in `public/` (auth page + chat app)
-- **Styling**: Tailwind CSS compiled to `public/styles.css`
+**Website:** `localhost:8787` (use `TEST_EMAIL`/`TEST_PASSWORD` env vars for local testing)
 
-## Common Commands
+**ESM only** — `"type": "module"` in package.json.
 
-From repository root:
+## Exact Commands
 
-- Install dependencies: `npm install`
-- Build CSS: `npm run build:css`
-- Local dev (CSS build + Wrangler dev): `npm run dev`
-- Deploy to Cloudflare: `npm run deploy`
-
-### Testing & Linting Status
-
-- **No test framework** currently configured (`package.json` has no `test` script)
-- **No linter** currently configured (`package.json` has no `lint` script)
-- See **Phase 3 Roadmap** for testing infrastructure plans
-
-## Architecture Overview
-
-### Phase 1: User Authentication & Multi-User Chat (Current)
-
-#### Database Schema (D1)
-
-```sql
-users (id, email, password_hash, name, role, settings, created_at, updated_at)
-chats (id, user_id, title, model, pinned, tags, created_at, updated_at)
-messages (id, chat_id, role, content, model, citations, created_at)
-refresh_tokens (hash, user_id, expires_at)  -- Reserved for audit trail; tokens stored in KV at runtime
-```
-
-#### Request Flow
-
-`src/index.js` entry point:
-1. Parses request path and HTTP method
-2. Reads `Authorization: Bearer <JWT>` header and verifies JWT with `env.JWT_SECRET`
-3. Routes authenticated requests to API handlers
-4. Falls back to `env.ASSETS.fetch(req)` for static files
-
-#### API Routes
-
-**Authentication** (`src/routers/auth.js`):
-- `POST /api/auth/register` - Create account with email/password
-- `POST /api/auth/login` - Get access token + refresh token
-- `POST /api/auth/refresh` - Exchange refresh token for new access token
-- `POST /api/auth/logout` - Revoke refresh token (optional)
-
-**Users** (`src/routers/users.js`):
-- `GET /api/users/me` - Get current user profile (requires auth)
-- `PUT /api/users/me` - Update user profile (name, settings)
-
-**Chats** (`src/routers/chat.js`):
-- `GET /api/chats` - List all user chats (paginated, limited to 100)
-- `POST /api/chats` - Create new chat with optional title/model
-- `GET /api/chats/:id` - Get chat with message history
-- `PUT /api/chats/:id` - Update chat title/pinned/tags
-- `DELETE /api/chats/:id` - Delete chat (cascade deletes messages)
-- `POST /api/chats/:id/messages` - Send message + stream LLM response via SSE
-
-#### Authentication System
-
-**JWT Tokens**:
-- **Access Token**: Signed with `env.JWT_SECRET`, expires in 15 minutes, payload `{ sub, email, role, name }`
-- **Refresh Token**: Opaque 32-byte token hashed with SHA-256, stored in `SESSIONS` KV, expires in 7 days
-
-**Password Security**:
-- Hashed with PBKDF2 (100,000 iterations, SHA-256)
-- Uses Web Crypto API for constant-time comparison
-
-#### LLM Model Routing
-
-In `src/llm.js`:
-- If model starts with `@cf/` → use `env.AI.run(model, { messages, stream: true })`
-- Otherwise → call OpenAI-compatible endpoint at `env.OPENAI_BASE_URL/chat/completions`
-
-**Model Selection** (in order of precedence):
-1. User-provided `model` in request body
-2. Chat's stored `model` field
-3. `env.DEFAULT_MODEL` environment variable (set in `wrangler.jsonc` or `wrangler secret`)
-4. Fallback to `@cf/meta/llama-3.1-8b-instruct` (free Workers AI model)
-
-#### Streaming Pipeline
-
-`src/routers/chat.js` + `src/llm.js`:
-1. Inserts user message into D1
-2. Loads chat history (last 30 messages)
-3. Calls `streamLLM()` which returns raw response body stream
-4. Wraps stream in `ReadableStream` with `SseLineParser` for chunk-safe parsing
-5. Parses SSE lines and buffers incomplete JSON across chunk boundaries
-6. On stream end, flushes parser buffer for final token
-7. Inserts complete assistant message into D1
-8. Updates chat's `updated_at` timestamp
-
-**Error Handling**:
-- If LLM setup fails (missing key, bad model, network error), returns SSE error event instead of crashing:
-  ```
-  event: start
-  data: {"event": "start", "chat_id": "..."}
-
-  data: {"error": "llm_unavailable", "message": "LLM setup failed"}
-  data: [DONE]
-  ```
-
-#### Frontend Architecture
-
-**Pages**:
-- `public/auth.html` - Login/register form with tab switcher
-- `public/index.html` - Main app entry point
-
-**Modules** (`public/js/`):
-- `auth.js` - Login/register form handler, token refresh, logout
-- `api.js` - Fetch wrapper with bearer token, automatic token refresh on 401
-- `app.js` - Bootstrap auth check, load chats, initialize chat view
-- `chat.js` - Chat list + message display, message sending with SSE parsing
-
-**Authentication State**:
-- Stored in `localStorage` under key `growchat_auth`: object with `access_token`, `refresh_token`, `user`
-- Auto-refresh on 401 response from API
-- Redirect to `/auth.html` if no valid token
-
-**SSE Parsing** (`public/js/chat.js`):
-- Accumulates chunks in buffer until complete SSE line
-- Parses `data: {"response": "..."}` payloads
-- Handles error payloads: `data: {"error": "...", "message": "..."}`
-- Incremental DOM updates to message UI
-
-### Cloudflare Bindings (wrangler.jsonc)
-
-```jsonc
-{
-  "ai": { "binding": "AI" },  // Workers AI inference
-  "d1_databases": [{ "binding": "DB", "database_id": "..." }],  // SQLite
-  "kv_namespaces": [
-    { "binding": "CHAT_SESSIONS", "id": "..." },  // Legacy session storage (Phase 0)
-    { "binding": "SESSIONS", "id": "..." },  // Refresh token storage
-    { "binding": "CACHE", "id": "..." }  // Future caching layer
-  ],
-  "vars": {
-    "OPENAI_BASE_URL": "https://proxy.tanyongsheng.site/v1",
-    "DEFAULT_MODEL": "gpt-5-mini",
-    "APP_NAME": "GrowChat"
-  }
-}
-```
-
-**Secrets** (set via `wrangler secret`):
-- `JWT_SECRET` - For signing/verifying JWT tokens
-- `OPENAI_API_KEY` - For OpenAI-compatible API calls
-
-### Configuration
-
-**Environment Variables** (`.env` or `wrangler.jsonc` vars):
-- `OPENAI_BASE_URL` - Base URL for OpenAI-compatible endpoint (e.g., `https://api.openai.com/v1`)
-- `OPENAI_API_KEY` - API key for OpenAI-compatible endpoint (set as secret)
-- `DEFAULT_MODEL` - Default LLM model (checked before hardcoded fallback)
-- `JWT_SECRET` - Secret for JWT signing/verification (set as secret)
-
-## Phase 2 Roadmap (Planned)
-
-- [ ] RAG integration with Cloudflare Vectorize
-  - Embed FAQ documents with Workers AI embeddings model
-  - Query vector index before sending to LLM
-  - Include relevant FAQ snippets in system prompt
-- [ ] File uploads with R2
-  - Upload documents/images to R2 bucket
-  - Generate embeddings for uploaded files
-  - Support file references in messages
-- [ ] Admin panel
-  - View user statistics
-  - Manage FAQs and vector index
-  - Monitor API usage
-
-## Phase 3 Roadmap (Planned)
-
-- [ ] Testing infrastructure
-  - Jest or Vitest for unit tests
-  - Playwright E2E tests
-  - Target 80%+ code coverage
-- [ ] Advanced features
-  - Message sharing/public links
-  - Conversation export (PDF/JSON)
-  - Model-specific system prompts
-  - User preferences UI
-
-## Repository Structure
-
-```
-GrowChat/
-├── public/                  # Static assets & frontend
-│   ├── index.html          # Chat app entry point
-│   ├── auth.html           # Login/register page
-│   ├── js/                 # Frontend modules
-│   │   ├── app.js
-│   │   ├── auth.js
-│   │   ├── api.js
-│   │   └── chat.js
-│   └── styles.css          # Compiled Tailwind CSS
-├── src/                     # Backend API
-│   ├── index.js            # Worker entry point & routing
-│   ├── auth.js             # JWT signing/verification
-│   ├── db.js               # D1 database abstraction
-│   ├── llm.js              # LLM streaming & SSE parsing
-│   ├── session.js          # Refresh token management
-│   ├── routers/
-│   │   ├── auth.js         # Auth endpoints
-│   │   ├── chat.js         # Chat & message endpoints
-│   │   └── users.js        # User profile endpoints
-│   ├── utils/
-│   │   └── response.js     # HTTP response helpers
-│   └── input.css           # Tailwind input
-├── migrations/
-│   └── 001_initial.sql     # D1 schema
-├── wrangler.jsonc          # Cloudflare Worker config
-├── tailwind.config.js      # Tailwind configuration
-├── package.json
-└── AGENTS.md               # This file
-
-```
-
-## Development Workflow
-
-### Local Development
+### Development
 ```bash
-npm install
-npm run dev  # Runs wrangler dev with CSS rebuild watch
+# Full dev setup: CSS build → DB init → local server
+npm run dev                         # localhost:8787, --log-level debug
+
+# Individual steps
+npm run build:css                   # Tailwind: src/input.css → public/styles.css
+npm run dev:db                      # Initialize local D1 database only
+npm run dev:remote                  # Connect to remote DB (skip local setup)
 ```
 
-Visit `http://localhost:8787` to test locally.
+### Testing (Vitest + Playwright)
+```bash
+# Unit tests - frontend coverage on public/js/** modules
+npm test                           # Run all tests (src/**/*.test.js + tests/unit/**)
+npm run test:watch                 # Watch mode
+npm run test:coverage              # Coverage report (coverage/ folder)
+
+# E2E tests (Playwright) - tests exist in tests/e2e/frontend/
+npm run test:e2e                   # Run E2E tests against python3 http.server on port 3007
+npm run test:e2e:ui                # Playwright UI mode
+npm run test:e2e:update-snapshots  # Update visual snapshots
+```
 
 ### Deployment
 ```bash
-# Set secrets (one-time setup)
+# Required secrets (set once via wrangler)
 wrangler secret put JWT_SECRET
-wrangler secret put OPENAI_API_KEY
+wrangler secret put RESEND_API_KEY
 
-# Deploy
-npm run deploy  # Builds CSS and deploys Worker
+# Deploy to Cloudflare
+npm run deploy                     # Triggers predeploy → tests → coverage → CSS → migrations → wrangler deploy
 ```
 
-### Creating Database Migrations
-
-D1 applies `migrations/` SQL files **only on initial database creation**. For schema changes to an existing database, you must apply them manually:
-
+### Database & Migrations
 ```bash
-wrangler d1 execute growchat --file=./migrations/changes.sql
+# Local DB init applies migrations automatically via scripts/init-local-db.js
+# Schema in migrations/ (3 files)
+001_initial.sql                    # Core tables (22 tables)
+002_settings_permissions.sql       # RBAC + settings
+003_password_reset_tokens.sql      # Password reset system
+
+# Validate migrations before deploy (included in predeploy)
+npm run validate:migrations
+
+# Local D1 management
+npx wrangler d1 migrations apply growchat --local  # Apply migrations manually
 ```
 
-Or via the Cloudflare dashboard SQL editor.
+**Email:** Uses Resend for transactional emails (password reset). Configure via `RESEND_API_KEY` secret + `RESEND_FROM_EMAIL` in app config.
 
-## Important Notes
+## Key Architecture Points
 
-1. **Token-based auth**: All API requests (except `/api/auth/*`) require `Authorization: Bearer <token>` header
-2. **SSE format**: Responses stream as `data: <JSON>\n\n` lines; incomplete JSON across chunks is buffered and reconstructed
-3. **Error handling**: LLM failures return SSE error events, not HTTP 500 responses
-4. **Model fallback**: If user doesn't specify a model, the system checks (in order): request body → chat record → `DEFAULT_MODEL` env var → hardcoded Workers AI model
-5. **SESSIONS KV**: Stores hashed refresh tokens only; user records live in D1 for consistency
-6. **Vectorize binding**: Currently commented out in `wrangler.jsonc` (Phase 2 feature); uncomment when ready to implement RAG
+### Cloudflare Bindings (wrangler.jsonc)
+```jsonc
+"assets": { "directory": "./public", "binding": "ASSETS" },
+"d1_databases": [{ "binding": "DB", "database_name": "growchat" }],
+"r2_buckets": [{ "binding": "FILES", "bucket_name": "growchat-files" }],
+"durable_objects": [{ "name": "MESSAGE_QUEUE", "class_name": "MessageQueueDO" }],
+"kv_namespaces": ["CHAT_SESSIONS", "SESSIONS", "CACHE"]
+```
 
-## UI Performance Notes
+### Entry Points
+- **Worker:** `src/index.js` → `router-registry.js` → API_ROUTES
+- **Frontend:** `public/index.html` → `public/js/bootstrap/app.js` → route matching
+- **CSS:** `src/input.css` (Tailwind config) → `public/styles.css` (must be built)
 
-When optimizing frontend lag in GrowChat, prefer fixing render and request patterns before adding complexity like code splitting.
+### Model ID Format
+`{connectionId}__{modelId}` (e.g., `conn_123__gpt-4`) or user's single enabled connection
 
-1. Avoid full-shell rerenders for subview data refreshes.
-2. Keep persistent UI mounted once: sidebar, nav, footer, modal roots.
-3. Update local state in place after row-level mutations instead of refetching the entire view by default.
-4. Do not recreate components that trigger their own fetches during unrelated content updates.
-5. Use lazy loading only after measuring whether interaction lag is caused by bundle size rather than DOM churn or redundant network calls.
-6. For admin tables, prefer partial updates, optimistic row replacement/removal, and scoped loading indicators over page-wide reload spinners.
-7. When debugging route-transition lag, first distinguish between SPA state swaps and full document navigations; full navigations re-run bootstrap, auth/profile fetches, RBAC init, realtime startup, and primary data loads.
+### Authentication
+- **Access Token:** JWT with HS256, 15-minute TTL
+- **Refresh Token:** SHA-256 hashed, stored in KV, 7-day TTL
+- **Password:** PBKDF2 100k iterations + constant-time comparison
 
-## Network & Latency Reduction Architecture
+### File Upload Flow
+1. `POST /api/files/upload` → R2 presigned URL
+2. Upload to R2 directly
+3. `POST /api/files` → register metadata in `documents` table
+4. Async text extraction for RAG
 
-1. **Bootstrap consolidation**: Keep `/api/users/me` as the single bootstrap call by supporting `include=permissions,roles` and passing the data directly into `initRBAC` to eliminate separate permissions/roles requests.
-2. **Route-aware boot**: Skip chat list/message fetches when visiting `/admin` or other non-chat routes; avoid loading chat modules until the route needs them.
-3. **On-demand modules**: Lazy-load non-critical UI modules (search modal, files modal, icon picker, tag modal, folder sidebar, profile footer) and only initialize when the user opens those features.
-4. **Optimistic UI**: Render new chats and deletes optimistically in the sidebar and message list to avoid latency gaps while the API call completes.
-5. **Avoid duplicate fetches**: Keep a per-route cache (in-memory) of chats/messages and re-use when navigating back; only refetch when data is stale or a mutation occurred.
-6. **Realtime guard**: Defer realtime stream connect until after first paint and guard against repeated 500 reconnect loops; disable realtime for routes that do not need it.
-7. **Incremental payloads**: Prefer paging and deltas over full list reloads after each mutation; update local state in place on success.
-8. **Server-side pruning**: Limit initial `/api/chats` payload (default 30) and return `has_more`; load more only on scroll or user request.
-9. **Asset discipline**: Keep third-party scripts `defer`/`async` and load markdown/rendering libraries only when the first assistant message is rendered.
-10. **Shared chat route**: Resolve shared chat metadata without pulling the full chat list; avoid bootstrapping the whole app if landing directly on `/s/:id`.
+### Streaming LLM Responses
+- `POST /api/chats/:id/messages` returns SSE stream
+- Max 100 tool steps, 20 follow-ups, 10-minute timeout
+- Message deltas stored in `message_deltas` for resume capability
 
-## QA Testing Workflow
+## Gotchas & Constraints
 
-The folder to store qa artifacts: `.playwright-cli` and `docs/qa/` 
+### Security
+1. **No CSRF on API routes** (only session-based)
+2. **No email verification** for registration
+3. **SRI hashes** injected into HTML automatically
+4. **Account status check:** `'active'` required, `'pending'` returns 403
 
-### Skills & Tools
-- **playwright-cli** — E2E test generation and execution via Playwright
-- **ai-vision** — Visual regression detection, screenshot analysis, component detection
-- **e2e-testing** — Test framework setup and best practices reference
-- **tdd-workflow** — Test-driven development methodology (RED → GREEN → IMPROVE)
-- **verification-loop** — Test result validation and iteration before shipping
+### Testing
+1. **Coverage includes** only specific `public/js/` modules (not all frontend files)
+2. **Coverage excludes:** `*.test.js`, `components/`, `bootstrap/auth.js`, `chat.js`, `admin.js`
+3. **E2E tests serve static files** via `python3 -m http.server 3007` (NOT wrangler dev server)
+4. **E2E has 2 projects:** `chromium-guest` (auth.spec.ts) and `chromium-auth` (chat, admin-settings; requires `tests/e2e/fixtures/auth-state.json`)
+5. **E2E test directory:** `tests/e2e/frontend/` with specs: auth.spec.ts, chat.spec.ts, admin-settings.spec.ts
+6. **No `.only()`/`.skip()` in test files** (checked by grep)
 
-### Learning & Evolution Skills
-| Skill | Purpose | Usage |
-|-------|---------|-------|
-| **everything-claude-code:evolve** | Analyze instincts and cluster related patterns into commands/skills/agents | `/evolve` (preview) or `/evolve --execute` (create structures) |
-| **everything-claude-code:learn** | Analyze codebase patterns and document learnings in homunculus | `/learn --mode init` (setup) or `/learn --mode update --scope public/js` (targeted learning) |
-| **everything-claude-code:learn-eval** | Evaluate quality of learned patterns and instincts | `/learn-eval --check` (validate patterns) or `/learn-eval --improve` (refine) |
-| **autoresearch:learn** | Autonomous research and learning from codebase structure | `/autoresearch:learn --depth deep --scope docs/qa` (analyze QA docs) |
-| **continuous-learning-v2** | Continuous learning system that evolves through iterations | Enable auto-learning on code changes for ongoing pattern discovery |
+### Development
+1. **CSS must be built before dev:** `npm run dev` handles this
+2. **Local DB init required:** `npm run dev:db` if using local D1
+3. **Workers AI disabled:** Only OpenAI-compatible APIs via user connections
+4. **Durable Objects:** MessageQueueDO for real-time SSE (15s keepalive)
+5. **Predeploy hook** (`predeploy` in package.json) runs: test → coverage → build:css → validate migrations → wrangler deploy
 
-**When to use learning skills in QA workflow:**
-- After discovering a bug pattern, use `/evolve` to create a reusable skill/command for that test scenario
-- Use `/learn --mode update` to analyze discovered QA patterns and auto-document best practices
-- Use `/learn-eval` to validate that learned QA patterns are effective and well-formed
-- Use `/autoresearch:learn` to research testing best practices across the codebase
-- Enable `continuous-learning-v2` to automatically learn from QA test results and improve future iterations
-- **Every 10 turns**: Run `/evolve --preview` and `/autoresearch:learn --depth deep --scope docs/qa` to summarize experience, cluster discovered bug patterns into reusable test strategies, and document learnings for improving future QA iterations
+### Performance
+1. **Chat list paginated:** Default 30 chats, `has_more` flag
+2. **Frontend lazy loading:** Admin/chat modules loaded on demand
+3. **Message deltas no cleanup:** Persistent storage, no auto-purge
 
-### Subagents
-| Agent | Purpose |
-|-------|---------|
-| **everything-claude-code:e2e-runner** | Runs E2E tests, manages test journeys, quarantines flaky tests, uploads artifacts (screenshots, videos, traces) |
-| **design-eval:accessibility-tester** | WCAG 2.1/3.0 compliance verification, assistive tech assessment |
-| **design-eval:visual-consistency-tester** | Design token compliance, visual regression detection |
-| **superpowers:systematic-debugging** | Debug test failures, root cause analysis, race conditions |
-| **superpowers:test-driven-development** | Write tests first (RED) → implement (GREEN) → refactor (IMPROVE) |
+## When Making Changes
 
-### Step-by-Step QA Workflow
+1. **CSS changes:** Always run `npm run build:css`
+2. **Schema changes:** Add migration file, run `npm run validate:migrations`
+3. **Deploy:** Set secrets first, `npm run deploy` runs full predeploy gate
+4. **Testing:** Frontend coverage expected on key modules in `public/js/`
 
-1. **Identify Critical User Flows** — Auth (login/register), chat creation, message send, LLM streaming
-2. **Write Tests First** (TDD) — Use **tdd-workflow** skill to scaffold unit + integration + E2E tests before implementation
-3. **Generate E2E Tests** — Invoke **playwright-cli** to auto-generate Playwright tests for critical flows
-4. **Run E2E Tests** — Dispatch **e2e-runner** subagent to execute tests in headless browser, capture screenshots/videos/traces
-5. **Visual Regression Detection** — Use **ai-vision** to compare before/after screenshots, detect layout/styling inconsistencies
-6. **Accessibility Audit** — Run **design-eval:accessibility-tester** for WCAG compliance, keyboard navigation, screen reader support
-7. **Visual Consistency Check** — Run **design-eval:visual-consistency-tester** to validate design tokens, spacing, typography consistency
-8. **Debug Test Failures** — Use **systematic-debugging** skill to diagnose flaky tests, timeouts, race conditions, environment issues
-9. **Quarantine Flaky Tests** — E2E runner automatically isolates unreliable tests for investigation
-10. **Coverage Validation** — Target 80%+ coverage across unit, integration, and E2E tests
-11. **Final Verification** — Use **verification-loop** skill before merging to ensure all tests pass and no regressions
-
-### When to Use Each Tool
-
-| Tool | Use Case |
-|------|----------|
-| **e2e-runner** | Critical user flows (auth, chat ops, payments), prod-like environment testing |
-| **ai-vision** | Before/after styling changes, responsive design breakpoints, visual consistency |
-| **playwright-cli** | Recording new test scenarios, debugging failed test steps, generating fixtures |
-| **design-eval** | Pre-release accessibility audits, design system compliance, brand consistency |
-| **systematic-debugging** | Intermittent failures, timing issues, environment-specific bugs |
-
-### Testing Checklist Before Commit
-
-- [ ] All unit tests pass (80%+ coverage)
-- [ ] All E2E tests pass (critical flows covered)
-- [ ] No visual regressions detected (ai-vision comparison)
-- [ ] WCAG compliance verified (accessibility-tester)
-- [ ] Design tokens consistent (visual-consistency-tester)
-- [ ] Flaky tests quarantined and debugged
-- [ ] Screenshots/videos/traces uploaded as artifacts
-- [ ] Test suite runs under 5 minutes
+## File Reference
+- **Backend routes:** `src/routers/` + `src/bootstrap/router-registry.js`
+- **Frontend modules:** `public/js/bootstrap/` → `public/js/features/` → `public/js/shared/`
+- **LLM integration:** `src/llm/` + `src/chat/assistant-runner.js`
+- **DB migrations:** `migrations/` (3 files)
+- **Build/scripts:** `scripts/` (init-local-db.js, pre-deploy.js, generate-api-docs.js)
+- **E2E tests:** `tests/e2e/frontend/` — auth, chat, admin-settings, visual
+- **Unit tests:** `src/**/*.test.js` + `tests/unit/` + `tests/rbac.test.js`, `rbac.integration.test.js`
