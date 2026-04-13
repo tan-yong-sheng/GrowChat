@@ -289,25 +289,31 @@ export async function loadWorkspaceSettingsPayload({
   );
   if (!row) return null;
 
-  const primaryRole = (await loadPrimaryRole(db, userId)) || 'member';
-  let defaultModelId = null;
-  try {
-    const rawDefault = await getConfigValue(db, 'default_model_id', null);
-    defaultModelId = rawDefault ? String(rawDefault).trim() : null;
-  } catch {
-    defaultModelId = null;
-  }
+  const [rawPrimaryRole, defaultModelId] = await Promise.all([
+    loadPrimaryRole(db, userId),
+    (async () => {
+      try {
+        const rawDefault = await getConfigValue(db, 'default_model_id', null);
+        return rawDefault ? String(rawDefault).trim() : null;
+      } catch {
+        return null;
+      }
+    })(),
+  ]);
+  const primaryRole = rawPrimaryRole || 'member';
 
-  const permissions = await resolvePermissions(env, { sub: userId });
-  const roles = await getUserRoles(env, userId);
-  const ownConnections = await loadUserOpenAIConnectionConfigs(db, userId, { includeDisabled: true });
-  const allConnections = await getAllOpenAIConnectionConfigs(env, {
-    userId,
-    userRole: primaryRole,
-    includeDisabled: true,
-    includeHiddenForUser: true,
-  });
-  const allToolServers = await loadToolServers(db, { userId, includeHiddenForUser: true });
+  const [permissions, roles, ownConnections, allConnections, allToolServers] = await Promise.all([
+    resolvePermissions(env, { sub: userId }),
+    getUserRoles(env, userId),
+    loadUserOpenAIConnectionConfigs(db, userId, { includeDisabled: true }),
+    getAllOpenAIConnectionConfigs(env, {
+      userId,
+      userRole: primaryRole,
+      includeDisabled: true,
+      includeHiddenForUser: true,
+    }),
+    loadToolServers(db, { userId, includeHiddenForUser: true }),
+  ]);
   const toolServers = allToolServers.filter((server) => server.source === 'user');
   const accessibleToolServers = allToolServers.filter((server) => server.source !== 'user');
 

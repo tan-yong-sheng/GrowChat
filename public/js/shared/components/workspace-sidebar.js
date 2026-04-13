@@ -1,8 +1,6 @@
 import { state, setState, subscribe } from '../store.js';
 import { renderSidebar } from './sidebar.js';
 import { createUserProfileFooter } from './user-profile-footer.js';
-import { renderSearchModal } from './search-modal.js';
-import { renderFilesModal } from './files-modal.js';
 
 export function renderWorkspaceSidebar({
   homeHref = '/',
@@ -90,12 +88,42 @@ export function wireWorkspaceSidebar(root, {
     }
   };
 
-  const destroySearchModal = showSearchModal && searchModalContainer
-    ? renderSearchModal(searchModalContainer, navigateToHome, navigateToHome)
-    : null;
-  const destroyFilesModal = showFilesModal && filesModalContainer
-    ? renderFilesModal(filesModalContainer)
-    : null;
+  let destroySearchModal = null;
+  let destroyFilesModal = null;
+  let searchModalInitPromise = null;
+  let filesModalInitPromise = null;
+
+  const ensureSearchModal = async () => {
+    if (!showSearchModal || !searchModalContainer) return;
+    if (typeof destroySearchModal === 'function') return;
+    if (searchModalInitPromise) return searchModalInitPromise;
+
+    searchModalInitPromise = import('./search-modal.js')
+      .then(({ renderSearchModal }) => {
+        destroySearchModal = renderSearchModal(searchModalContainer, navigateToHome, navigateToHome);
+      })
+      .finally(() => {
+        searchModalInitPromise = null;
+      });
+
+    return searchModalInitPromise;
+  };
+
+  const ensureFilesModal = async () => {
+    if (!showFilesModal || !filesModalContainer) return;
+    if (typeof destroyFilesModal === 'function') return;
+    if (filesModalInitPromise) return filesModalInitPromise;
+
+    filesModalInitPromise = import('./files-modal.js')
+      .then(({ renderFilesModal }) => {
+        destroyFilesModal = renderFilesModal(filesModalContainer);
+      })
+      .finally(() => {
+        filesModalInitPromise = null;
+      });
+
+    return filesModalInitPromise;
+  };
 
   const onToggleSidebar = () => {
     if (state.isMobile) {
@@ -106,7 +134,10 @@ export function wireWorkspaceSidebar(root, {
       setState({ sidebarCollapsed: !state.sidebarCollapsed });
     }
   };
-  const onOpenSearch = () => setState({ showSearch: true });
+  const onOpenSearch = async () => {
+    await ensureSearchModal();
+    setState({ showSearch: true });
+  };
   const onNewChat = async () => {
     if (typeof guardNavigation === 'function') {
       const allowed = await guardNavigation();
@@ -117,7 +148,9 @@ export function wireWorkspaceSidebar(root, {
 
   toggleSidebarMobile?.addEventListener('click', onToggleSidebar);
   toggleSidebarDesktop?.addEventListener('click', onToggleSidebar);
-  openSearchBtn?.addEventListener('click', onOpenSearch);
+  openSearchBtn?.addEventListener('click', () => {
+    void onOpenSearch();
+  });
   newChatBtn?.addEventListener('click', () => {
     void onNewChat();
   });
@@ -133,6 +166,13 @@ export function wireWorkspaceSidebar(root, {
     } else {
       sidebarBackdrop?.classList.add('hidden');
       document.body.style.overflow = '';
+    }
+
+    if (currentState.showSearch) {
+      void ensureSearchModal();
+    }
+    if (currentState.showFiles) {
+      void ensureFilesModal();
     }
   });
 

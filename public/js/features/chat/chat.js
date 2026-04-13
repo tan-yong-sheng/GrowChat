@@ -42,20 +42,21 @@ import {
 import { createChatCacheController } from './chat-cache-controller.js';
 import { createChatMessageIdentityTracker } from './chat-message-identity.js';
 import { createChatMessageStream } from './chat-message-stream.js';
-import { createChatRealtimeController } from './chat-realtime-controller.js';
 import { createChatDataController } from './chat-data-controller.js';
-import { createChatMessageListController } from './chat-message-list-controller.js';
 import { createChatRenderController } from './chat-render-controller.js';
 import { createChatShellController } from './chat-shell-controller.js';
-import { createChatStreamController } from './chat-stream-controller.js';
-import { createChatStreamState } from './chat-stream-state.js';
-import { consumeSseTextStream } from './chat-stream.js';
-import { createChatListHandlers } from './chat-list-actions.js';
-import { createChatModals } from './chat-modals.js';
-import { bindChatFileEvents } from './chat-file-events.js';
-import { createMessageSequenceTracker } from './chat-message-seq.js';
 import { createChatUiResources } from './chat-ui-resources.js';
-import { buildChatSidebarListFragment } from './chat-sidebar-list.js';
+
+const loadChatStreamModule = () => import('./chat-stream.js');
+const loadChatModalsModule = () => import('./chat-modals.js');
+const loadChatFileEventsModule = () => import('./chat-file-events.js');
+const loadChatMessageSeqModule = () => import('./chat-message-seq.js');
+const loadChatSidebarListModule = () => import('./chat-sidebar-list.js');
+const loadChatStreamControllerModule = () => import('./chat-stream-controller.js');
+const loadChatStreamStateModule = () => import('./chat-stream-state.js');
+const loadChatListActionsModule = () => import('./chat-list-actions.js');
+const loadChatMessageListControllerModule = () => import('./chat-message-list-controller.js');
+const loadChatRealtimeControllerModule = () => import('./chat-realtime-controller.js');
 
 export function renderChat(container) {
   if (typeof container.__cleanup === 'function') {
@@ -198,7 +199,66 @@ function wireChat(root) {
     recentChatIds,
     maxCachedChats: MAX_CACHED_CHATS,
   });
-  const streamSession = createChatStreamController({ apiFetch });
+  let streamSessionImpl = null;
+  let streamSessionReadyPromise = null;
+  const ensureStreamSession = () => {
+    if (streamSessionImpl) return Promise.resolve(streamSessionImpl);
+    if (streamSessionReadyPromise) return streamSessionReadyPromise;
+    streamSessionReadyPromise = loadChatStreamControllerModule()
+      .then(({ createChatStreamController }) => {
+        streamSessionImpl = createChatStreamController({ apiFetch });
+        return streamSessionImpl;
+      })
+      .catch((err) => {
+        console.warn('Failed to load stream session controller:', err);
+        streamSessionReadyPromise = null;
+        return null;
+      });
+    return streamSessionReadyPromise;
+  };
+  const streamSession = {
+    getRunningMessageId(messages = []) {
+      if (streamSessionImpl?.getRunningMessageId) return streamSessionImpl.getRunningMessageId(messages);
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const msg = messages[i];
+        const status = String(msg?.status || '');
+        if (msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running')) {
+          return msg.id;
+        }
+      }
+      return null;
+    },
+    stopStreamPolling(chatId) {
+      streamSessionImpl?.stopStreamPolling?.(chatId);
+    },
+    getStreamPolling(chatId) {
+      return streamSessionImpl?.getStreamPolling?.(chatId) || null;
+    },
+    startStreamPolling(chatId, messageId, options) {
+      if (streamSessionImpl?.startStreamPolling) {
+        streamSessionImpl.startStreamPolling(chatId, messageId, options);
+        return;
+      }
+      void ensureStreamSession().then((session) => {
+        session?.startStreamPolling?.(chatId, messageId, options);
+      });
+    },
+    getResumeStream(chatId) {
+      return streamSessionImpl?.getResumeStream?.(chatId) || null;
+    },
+    setResumeStream(chatId, entry) {
+      streamSessionImpl?.setResumeStream?.(chatId, entry);
+    },
+    clearResumeStream(chatId, controller) {
+      streamSessionImpl?.clearResumeStream?.(chatId, controller);
+    },
+    stopResumeStream(chatId) {
+      streamSessionImpl?.stopResumeStream?.(chatId);
+    },
+    dispose() {
+      streamSessionImpl?.dispose?.();
+    },
+  };
   let chatMessageFlow = null;
   const uiResources = createChatUiResources({
     state,
@@ -207,6 +267,95 @@ function wireChat(root) {
     consumeToolServersInvalidation,
     getFileBlob,
   });
+
+  let consumeSseTextStreamImpl = null;
+  const consumeSseTextStream = async (...args) => {
+    if (!consumeSseTextStreamImpl) {
+      const streamModule = await loadChatStreamModule();
+      consumeSseTextStreamImpl = streamModule.consumeSseTextStream;
+    }
+    return consumeSseTextStreamImpl(...args);
+  };
+
+  let chatModalsReadyPromise = null;
+  let renderShareModalImpl = null;
+  let openArchivedModalImpl = null;
+  let openCitationModalImpl = null;
+  const renderShareModal = (...args) => {
+    if (typeof renderShareModalImpl === 'function') {
+      return renderShareModalImpl(...args);
+    }
+    void ensureChatModals().then(() => renderShareModalImpl?.(...args));
+    return undefined;
+  };
+  const openArchivedModal = (...args) => {
+    if (typeof openArchivedModalImpl === 'function') {
+      return openArchivedModalImpl(...args);
+    }
+    void ensureChatModals().then(() => openArchivedModalImpl?.(...args));
+    return undefined;
+  };
+  let destroyChatFileEvents = null;
+
+  function ensureChatModals() {
+    if (chatModalsReadyPromise) return chatModalsReadyPromise;
+    chatModalsReadyPromise = loadChatModalsModule()
+      .then(({ createChatModals }) => {
+        const {
+          renderShareModal: renderShareModalLoaded,
+          openCitation: openCitationLoaded,
+          openArchivedModal: openArchivedModalLoaded,
+        } = createChatModals({
+          state,
+          shareChat,
+          unshareChat,
+          fetchArchivedChats,
+          toggleArchiveChat,
+          getFileMetadata,
+          getFileContent,
+          drawChats,
+          loadChats,
+          sharedByChatId,
+          escapeHtml,
+          shareModalContainer,
+          archivedModalContainer,
+          citationModalContainer,
+        });
+        renderShareModalImpl = renderShareModalLoaded;
+        openArchivedModalImpl = openArchivedModalLoaded;
+        openCitationModalImpl = openCitationLoaded;
+      })
+      .catch((err) => {
+        console.warn('Failed to load chat modals:', err);
+      });
+    return chatModalsReadyPromise;
+  }
+
+  const ensureChatFileEvents = async () => {
+    if (destroyChatFileEvents) return;
+    const { bindChatFileEvents } = await loadChatFileEventsModule();
+    destroyChatFileEvents = bindChatFileEvents({
+      state,
+      uploadFile,
+      showToast,
+      showToastProgress,
+      getDraftAttachments,
+      setDraftAttachments,
+      getAllowedAttachmentKinds,
+      getAllowedNonLocalKinds,
+      getFileContentType,
+      isAttachmentAllowedByModel,
+      isSupportedAttachmentType,
+    });
+  };
+
+  openCitationImpl = (...args) => {
+    if (typeof openCitationModalImpl === 'function') {
+      return openCitationModalImpl(...args);
+    }
+    void ensureChatModals().then(() => openCitationModalImpl?.(...args));
+    return undefined;
+  };
 
   const toggleChatsBtn = root.querySelector('#toggle-chats-btn');
   const toggleChatsIcon = root.querySelector('#toggle-chats-icon');
@@ -232,13 +381,70 @@ function wireChat(root) {
   const archivedModalContainer = root.querySelector('#archived-modal-container');
   const citationModalContainer = root.querySelector('#citation-modal-container');
   const modelSelectorContainer = root.querySelector('#model-selector-container');
+  let chatListObserverArmed = false;
+  let buildChatSidebarListFragmentImpl = null;
+  let sidebarHydrationWarmupTimer = null;
+  let chatSidebarListReadyPromise = null;
+  const ensureChatSidebarListBuilder = () => {
+    if (buildChatSidebarListFragmentImpl) return Promise.resolve(buildChatSidebarListFragmentImpl);
+    if (chatSidebarListReadyPromise) return chatSidebarListReadyPromise;
+    chatSidebarListReadyPromise = loadChatSidebarListModule()
+      .then(({ buildChatSidebarListFragment }) => {
+        buildChatSidebarListFragmentImpl = buildChatSidebarListFragment;
+        drawChats(state.chats, state.activeChatId);
+        return buildChatSidebarListFragmentImpl;
+      })
+      .catch((err) => {
+        console.warn('Failed to load chat sidebar list module:', err);
+        return null;
+      });
+    return chatSidebarListReadyPromise;
+  };
+  const armChatListObserver = () => {
+    if (chatListObserverArmed) return;
+    chatListObserverArmed = true;
+    refreshChatListObserver();
+  };
+  const maybeRefreshChatListObserver = () => {
+    if (!chatListObserverArmed) return;
+    refreshChatListObserver();
+  };
+  const onChatListInteraction = () => {
+    void ensureChatSidebarListBuilder();
+    void ensureChatListHandlers();
+    warmupToolServers();
+    armChatListObserver();
+  };
+  const scheduleSidebarHydrationWarmup = () => {
+    if (buildChatSidebarListFragmentImpl) return;
+    if (sidebarHydrationWarmupTimer) return;
+    sidebarHydrationWarmupTimer = setTimeout(() => {
+      sidebarHydrationWarmupTimer = null;
+      void ensureChatSidebarListBuilder();
+      void ensureChatListHandlers();
+    }, 300);
+  };
 
   const sharedByChatId = new Map();
   const processedRealtimeEvents = new Map();
-  const {
-    getMessageSeq,
-    notePayloadSeq,
-  } = createMessageSequenceTracker();
+  let getMessageSeqImpl = () => 0;
+  let notePayloadSeqImpl = () => {};
+  const getMessageSeq = (...args) => getMessageSeqImpl(...args);
+  const notePayloadSeq = (...args) => notePayloadSeqImpl(...args);
+  let messageSequenceReadyPromise = null;
+  const ensureMessageSequenceTracker = () => {
+    if (messageSequenceReadyPromise) return messageSequenceReadyPromise;
+    messageSequenceReadyPromise = loadChatMessageSeqModule()
+      .then(({ createMessageSequenceTracker }) => {
+        const tracker = createMessageSequenceTracker();
+        getMessageSeqImpl = tracker.getMessageSeq;
+        notePayloadSeqImpl = tracker.notePayloadSeq;
+      })
+      .catch((err) => {
+        console.warn('Failed to load message sequence tracker:', err);
+      });
+    return messageSequenceReadyPromise;
+  };
   const thinkingStartByMessageId = new Map();
   const thinkingDurationByMessageId = new Map();
   const thinkingCollapsedByKey = new Map();
@@ -360,49 +566,115 @@ function wireChat(root) {
   } = messageIdentityTracker;
   const isTempChatId = (id) => String(id || '').startsWith('temp-');
 
-  const {
-    setStreamingState,
-    requestCancelStream,
-  } = createChatStreamState({
-    state,
-    setState,
-    apiFetch,
-    streamSession,
-    streamingOverrideByChat,
-    drawMessages,
-    getActiveStreamAbort: () => activeStreamAbort,
-    setActiveStreamAbort: (value) => { activeStreamAbort = value; },
-    clearGlobalStreamAbort,
-  });
-  window.__growchatRequestCancel = requestCancelStream;
+  let setStreamingStateImpl = () => {};
+  let requestCancelStreamImpl = async () => false;
+  const setStreamingState = (...args) => setStreamingStateImpl(...args);
+  let streamRuntimeReadyPromise = null;
+  const ensureStreamRuntime = () => {
+    if (streamRuntimeReadyPromise) return streamRuntimeReadyPromise;
+    streamRuntimeReadyPromise = Promise.all([
+      ensureStreamSession(),
+      loadChatStreamStateModule(),
+    ])
+      .then(([session, streamStateModule]) => {
+        if (!session || !streamStateModule?.createChatStreamState) return null;
+        const streamState = streamStateModule.createChatStreamState({
+          state,
+          setState,
+          apiFetch,
+          streamSession,
+          streamingOverrideByChat,
+          drawMessages,
+          getActiveStreamAbort: () => activeStreamAbort,
+          setActiveStreamAbort: (value) => { activeStreamAbort = value; },
+          clearGlobalStreamAbort,
+        });
+        setStreamingStateImpl = streamState?.setStreamingState || (() => {});
+        requestCancelStreamImpl = streamState?.requestCancelStream || (async () => false);
+        return true;
+      })
+      .catch((err) => {
+        console.warn('Failed to initialize stream runtime:', err);
+        streamRuntimeReadyPromise = null;
+        return null;
+      });
+    return streamRuntimeReadyPromise;
+  };
+  const requestCancelStream = async (...args) => {
+    await ensureStreamRuntime();
+    return requestCancelStreamImpl(...args);
+  };
+  window.__growchatRequestCancel = (...args) => requestCancelStream(...args);
 
-  const realtimeController = createChatRealtimeController({
-    state,
-    setState,
-    drawMessages,
-    loadChats,
-    loadMessages,
-    touchRecentChat,
-    schedulePrune,
-    currentLeafByChatId,
-    streamingOverrideByChat,
-    setStreamingState,
-    updateToolCallState,
-    updateMessageContentDom,
-    matchPendingTempMessage,
-    getActiveStreamAbort: () => activeStreamAbort,
-    setActiveStreamAbort: (value) => { activeStreamAbort = value; },
-    clearGlobalStreamAbort,
-    clientSessionId,
-    processedRealtimeEvents,
-    toolCallsByMessageId,
-    messageBlocksById,
-    isTempChatId,
-  });
-  const {
-    onRealtimeEvent,
-    updateChatTitleLocal,
-  } = realtimeController;
+  const createFallbackTitleUpdater = () => (chatId, nextTitle) => {
+    const targetId = String(chatId || '');
+    const title = String(nextTitle || '').trim();
+    if (!targetId || !title) return;
+    setState((prev) => {
+      const chats = Array.isArray(prev.chats) ? prev.chats : [];
+      let changed = false;
+      const nextChats = chats.map((chat) => {
+        if (String(chat?.id || '') !== targetId) return chat;
+        if (String(chat?.title || '') === title) return chat;
+        changed = true;
+        return { ...chat, title };
+      });
+      return changed ? { chats: nextChats } : {};
+    });
+  };
+
+  const fallbackUpdateChatTitleLocal = createFallbackTitleUpdater();
+  let updateChatTitleLocalImpl = fallbackUpdateChatTitleLocal;
+  let onRealtimeEventImpl = null;
+  let realtimeControllerReadyPromise = null;
+  const updateChatTitleLocal = (...args) => updateChatTitleLocalImpl(...args);
+  const ensureRealtimeController = () => {
+    if (realtimeControllerReadyPromise) return realtimeControllerReadyPromise;
+    realtimeControllerReadyPromise = loadChatRealtimeControllerModule()
+      .then(({ createChatRealtimeController }) => {
+        const realtimeController = createChatRealtimeController({
+          state,
+          setState,
+          drawMessages,
+          loadChats,
+          loadMessages,
+          touchRecentChat,
+          schedulePrune,
+          currentLeafByChatId,
+          streamingOverrideByChat,
+          setStreamingState,
+          updateToolCallState,
+          updateMessageContentDom,
+          matchPendingTempMessage,
+          getActiveStreamAbort: () => activeStreamAbort,
+          setActiveStreamAbort: (value) => { activeStreamAbort = value; },
+          clearGlobalStreamAbort,
+          clientSessionId,
+          processedRealtimeEvents,
+          toolCallsByMessageId,
+          messageBlocksById,
+          isTempChatId,
+        });
+        onRealtimeEventImpl = realtimeController?.onRealtimeEvent || null;
+        updateChatTitleLocalImpl = realtimeController?.updateChatTitleLocal || fallbackUpdateChatTitleLocal;
+        return realtimeController;
+      })
+      .catch((err) => {
+        console.warn('Failed to initialize realtime controller:', err);
+        realtimeControllerReadyPromise = null;
+        return null;
+      });
+    return realtimeControllerReadyPromise;
+  };
+  const onRealtimeEvent = (event) => {
+    if (onRealtimeEventImpl) {
+      onRealtimeEventImpl(event);
+      return;
+    }
+    void ensureRealtimeController().then((controller) => {
+      controller?.onRealtimeEvent?.(event);
+    });
+  };
 
   const buildFallbackAssistantMessage = (chatId, messageId, options = {}) => {
     if (!chatId || !messageId) return null;
@@ -489,51 +761,84 @@ function wireChat(root) {
   });
   drawMessagesImpl = renderController.drawMessages;
 
-  const {
-    renderShareModal,
-    openCitation: openCitationModal,
-    openArchivedModal,
-  } = createChatModals({
-    state,
-    shareChat,
-    unshareChat,
-    fetchArchivedChats,
-    toggleArchiveChat,
-    getFileMetadata,
-    getFileContent,
-    drawChats,
-    loadChats,
-    sharedByChatId,
-    escapeHtml,
-    shareModalContainer,
-    archivedModalContainer,
-    citationModalContainer,
-  });
-  openCitationImpl = openCitationModal;
 
-  const destroyMessageListInteractions = createChatMessageListController({
-    messagesList,
-    thinkingCollapsedByKey,
-    toolExpandedByKey,
-    openCitation,
-  });
+  let destroyMessageListInteractions = null;
+  let messageListInteractionsReadyPromise = null;
+  const ensureMessageListInteractions = () => {
+    if (destroyMessageListInteractions) return Promise.resolve(true);
+    if (messageListInteractionsReadyPromise) return messageListInteractionsReadyPromise;
+    messageListInteractionsReadyPromise = loadChatMessageListControllerModule()
+      .then(({ createChatMessageListController }) => {
+        destroyMessageListInteractions = createChatMessageListController({
+          messagesList,
+          thinkingCollapsedByKey,
+          toolExpandedByKey,
+          openCitation,
+        });
+        return true;
+      })
+      .catch((err) => {
+        console.warn('Failed to load chat message list interactions:', err);
+        messageListInteractionsReadyPromise = null;
+        return null;
+      });
+    return messageListInteractionsReadyPromise;
+  };
 
-  const getChatHandlers = createChatListHandlers({
-    state,
-    apiFetch,
-    loadChats,
-    loadMessages,
-    syncChatUrl,
-    setState,
-    isTempChatId,
-    refreshShareState,
-    renderShareModal,
-    sharedByChatId,
-    toggleArchiveChat,
-    drawMessages,
-    currentLeafByChatId,
-    streamingOverrideByChatId: streamingOverrideByChat,
+  const createFallbackChatHandlers = (chat = {}) => ({
+    onClick: (id) => {
+      if (isTempChatId(id)) {
+        setState({ activeChatId: id });
+        syncChatUrl(null);
+        drawMessages([]);
+        if (state.isMobile) setState({ showSidebar: false });
+        return;
+      }
+      syncChatUrl(id);
+      setState({ activeChatId: id });
+      void loadMessages(id, { modelMode: 'default' });
+      if (state.isMobile) setState({ showSidebar: false });
+    },
+    rename: async () => {},
+    pin: async () => {},
+    duplicate: async () => {},
+    share: async () => {},
+    archive: async () => {},
+    delete: async () => {},
   });
+  let getChatHandlersImpl = createFallbackChatHandlers;
+  const getChatHandlers = (...args) => getChatHandlersImpl(...args);
+  let chatListHandlersReadyPromise = null;
+  const ensureChatListHandlers = () => {
+    if (chatListHandlersReadyPromise) return chatListHandlersReadyPromise;
+    chatListHandlersReadyPromise = loadChatListActionsModule()
+      .then(({ createChatListHandlers }) => {
+        getChatHandlersImpl = createChatListHandlers({
+          state,
+          apiFetch,
+          loadChats,
+          loadMessages,
+          syncChatUrl,
+          setState,
+          isTempChatId,
+          refreshShareState,
+          renderShareModal,
+          sharedByChatId,
+          toggleArchiveChat,
+          drawMessages,
+          currentLeafByChatId,
+          streamingOverrideByChatId: streamingOverrideByChat,
+        });
+        drawChats(state.chats, state.activeChatId);
+        return true;
+      })
+      .catch((err) => {
+        console.warn('Failed to load chat list handlers:', err);
+        chatListHandlersReadyPromise = null;
+        return null;
+      });
+    return chatListHandlersReadyPromise;
+  };
   const pruneTempChats = (list) => (Array.isArray(list) ? list.filter((c) => !isTempChatId(c?.id)) : []);
   const buildTempChat = (id = null) => {
     const nowTs = Math.floor(Date.now() / 1000);
@@ -669,7 +974,12 @@ function wireChat(root) {
   });
   bindToolServersInvalidationListener();
   checkToolServersInvalidation();
-  void loadAllowedToolServers();
+  let toolServersWarmupTriggered = false;
+  const warmupToolServers = () => {
+    if (toolServersWarmupTriggered) return;
+    toolServersWarmupTriggered = true;
+    void loadAllowedToolServers();
+  };
 
   function getActiveModel() {
     return state.models.find((m) => m.id === state.activeModelId) || null;
@@ -688,7 +998,45 @@ function wireChat(root) {
   drawPlaceholder();
 
   function drawChats(chats, activeId) {
-    const fragment = buildChatSidebarListFragment({
+    if (!buildChatSidebarListFragmentImpl) {
+      scheduleSidebarHydrationWarmup();
+      const fallbackFragment = document.createDocumentFragment();
+      const chatItems = Array.isArray(chats) ? chats : [];
+      if (chatItems.length === 0 && !state?.chatsPagination?.loading) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'px-3 py-4 text-sm text-gray-400 sidebar-full-only';
+        emptyState.textContent = 'No chat sessions yet.';
+        fallbackFragment.appendChild(emptyState);
+      } else {
+        chatItems.slice(0, 24).forEach((chat) => {
+          const handlers = getChatHandlers(chat);
+          const item = document.createElement('li');
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = `w-full text-left px-3 py-2 rounded-lg text-sm transition ${String(chat?.id) === String(activeId) ? 'bg-white text-gray-900 font-medium' : 'text-gray-600 hover:bg-white'}`;
+          button.textContent = chat?.title || 'Untitled Chat';
+          button.addEventListener('click', () => handlers.onClick?.(chat?.id));
+          item.appendChild(button);
+          fallbackFragment.appendChild(item);
+        });
+      }
+      if (state?.chatsPagination?.loading) {
+        const loadingRow = document.createElement('div');
+        loadingRow.className = 'px-3 py-3 text-xs text-gray-400';
+        loadingRow.textContent = 'Loading more chats...';
+        fallbackFragment.appendChild(loadingRow);
+      } else if (state?.chatsPagination?.hasMore) {
+        const sentinel = document.createElement('div');
+        sentinel.id = 'chat-list-load-more';
+        sentinel.className = 'h-6';
+        fallbackFragment.appendChild(sentinel);
+      }
+      chatList.innerHTML = '';
+      chatList.appendChild(fallbackFragment);
+      return;
+    }
+
+    const fragment = buildChatSidebarListFragmentImpl({
       chats,
       activeId,
       models: state.models,
@@ -713,6 +1061,8 @@ function wireChat(root) {
   window.addEventListener('growchat:realtime', onRealtimeEvent);
 
   async function sendSingleMessage(text, hooks = {}, options = {}) {
+    await ensureStreamRuntime();
+    await ensureMessageSequenceTracker();
     return chatMessageFlow?.sendSingleMessage?.(text, hooks, options);
   }
 
@@ -722,22 +1072,70 @@ function wireChat(root) {
       hooks.onFinished?.();
       return;
     }
+    await ensureStreamRuntime();
+    await ensureMessageSequenceTracker();
     return chatMessageFlow?.sendMessage?.(prompt, hooks, options);
   }
 
-  const destroyChatFileEvents = bindChatFileEvents({
-    state,
-    uploadFile,
-    showToast,
-    showToastProgress,
-    getDraftAttachments,
-    setDraftAttachments,
-    getAllowedAttachmentKinds,
-    getAllowedNonLocalKinds,
-    getFileContentType,
-    isAttachmentAllowedByModel,
-    isSupportedAttachmentType,
-  });
+  messageInputContainer.addEventListener('focusin', () => {
+    void ensureChatFileEvents();
+    warmupToolServers();
+    void ensureMessageSequenceTracker();
+  }, { once: true });
+  const onHeaderMenuInteraction = () => {
+    void ensureChatListHandlers();
+    warmupToolServers();
+  };
+  const handleMessageListInteractionFallback = (event) => {
+    if (!event?.target) return;
+
+    const thinkingTarget = event.target.closest?.('[data-thinking-toggle]');
+    if (thinkingTarget) {
+      const key = thinkingTarget.getAttribute('data-thinking-toggle');
+      if (!key) return;
+      const isCollapsed = thinkingCollapsedByKey.get(key) ?? false;
+      const next = !isCollapsed;
+      thinkingCollapsedByKey.set(key, next);
+      const body = messagesList?.querySelector(`[data-thinking-body="${key}"]`);
+      const chevron = messagesList?.querySelector(`[data-thinking-chevron="${key}"]`);
+      if (body) body.classList.toggle('hidden', next);
+      if (chevron) {
+        chevron.classList.toggle('-rotate-90', next);
+        chevron.classList.toggle('rotate-0', !next);
+      }
+      return;
+    }
+
+    const toolTarget = event.target.closest?.('[data-tool-toggle]');
+    if (toolTarget) {
+      const key = toolTarget.getAttribute('data-tool-toggle');
+      if (!key) return;
+      const expanded = toolExpandedByKey.get(key) === true;
+      const next = !expanded;
+      toolExpandedByKey.set(key, next);
+      const body = messagesList?.querySelector(`[data-tool-body="${key}"]`);
+      const chevron = messagesList?.querySelector(`[data-tool-chevron="${key}"]`);
+      if (body) body.classList.toggle('hidden', !next);
+      if (chevron) {
+        chevron.classList.toggle('-rotate-90', !next);
+        chevron.classList.toggle('rotate-0', next);
+      }
+      return;
+    }
+
+    const citationTarget = event.target.closest?.('[data-citation-id]');
+    if (citationTarget) {
+      const id = citationTarget.getAttribute('data-citation-id');
+      if (!id) return;
+      openCitation(id);
+    }
+  };
+  const onMessageListInteraction = (event) => {
+    handleMessageListInteractionFallback(event);
+    void ensureMessageListInteractions();
+    void ensureStreamRuntime();
+    void ensureMessageSequenceTracker();
+  };
 
   let lastActiveChatId = state.activeChatId;
   const unsubscribe = subscribe((currentState) => {
@@ -759,6 +1157,7 @@ function wireChat(root) {
 
     if (currentState.activeChatId && currentState.activeChatId !== lastActiveChatId) {
       if (lastActiveChatId) streamSession.stopStreamPolling(lastActiveChatId);
+      void ensureRealtimeController();
       touchRecentChat(recentChatIds, currentState.activeChatId);
       schedulePrune();
     }
@@ -766,21 +1165,32 @@ function wireChat(root) {
 
     headerMenuBtn.disabled = !currentState.activeChatId || isTempChatId(currentState.activeChatId);
     drawChats(currentState.chats, currentState.activeChatId);
-    refreshChatListObserver();
+    maybeRefreshChatListObserver();
   });
 
+  chatListContainerEl?.addEventListener('wheel', onChatListInteraction, { once: true, passive: true });
+  chatListContainerEl?.addEventListener('touchstart', onChatListInteraction, { once: true, passive: true });
+  chatListContainerEl?.addEventListener('scroll', onChatListInteraction, { once: true, passive: true });
+  chatListContainerEl?.addEventListener('pointerenter', onChatListInteraction, { once: true, passive: true });
+  chatListContainerEl?.addEventListener('focusin', onChatListInteraction, { once: true });
+  chatListContainerEl?.addEventListener('click', onChatListInteraction, { once: true, capture: true });
+  headerMenuBtn?.addEventListener('click', onHeaderMenuInteraction, { once: true });
+  headerMenuDropdown?.addEventListener('click', onHeaderMenuInteraction, { once: true });
+  messagesList?.addEventListener('click', onMessageListInteraction, { once: true, capture: true });
+
   drawChats(state.chats, state.activeChatId);
-  refreshChatListObserver();
+  maybeRefreshChatListObserver();
 
   requestAnimationFrame(() => {
     drawChats(state.chats, state.activeChatId);
-    refreshChatListObserver();
+    maybeRefreshChatListObserver();
   });
 
   if (state.activeChatId) {
+    void ensureRealtimeController();
     loadMessages(state.activeChatId, { modelMode: 'default' }).finally(() => {
       drawChats(state.chats, state.activeChatId);
-      refreshChatListObserver();
+      maybeRefreshChatListObserver();
     });
   }
 
@@ -792,6 +1202,7 @@ function wireChat(root) {
 
   function startStreamPolling(chatId, messageId) {
     if (!chatId || !messageId) return;
+    void ensureStreamRuntime();
     streamSession.startStreamPolling(chatId, messageId, {
       onMessage: (msg, { isRunning } = {}) => {
         const messages = [...(state.messagesByChat[chatId] || [])];
@@ -828,10 +1239,16 @@ function wireChat(root) {
   }
 
   async function startResumeStream(chatId, messageId) {
+    await ensureStreamRuntime();
+    await ensureMessageSequenceTracker();
     return chatMessageFlow?.startResumeStream?.(chatId, messageId);
   }
 
   return () => {
+    if (sidebarHydrationWarmupTimer) {
+      clearTimeout(sidebarHydrationWarmupTimer);
+      sidebarHydrationWarmupTimer = null;
+    }
     if (activeStreamAbort) activeStreamAbort();
     streamSession.dispose();
     unsubscribe();
@@ -846,6 +1263,12 @@ function wireChat(root) {
     destroyMessageListInteractions?.();
     window.removeEventListener('growchat:realtime', onRealtimeEvent);
     unbindToolServersInvalidationListener();
+    chatListContainerEl?.removeEventListener('wheel', onChatListInteraction);
+    chatListContainerEl?.removeEventListener('touchstart', onChatListInteraction);
+    chatListContainerEl?.removeEventListener('scroll', onChatListInteraction);
+    headerMenuBtn?.removeEventListener('click', onHeaderMenuInteraction);
+    headerMenuDropdown?.removeEventListener('click', onHeaderMenuInteraction);
+    messagesList?.removeEventListener('click', onMessageListInteraction, true);
     destroyShellEvents?.();
     shellController.dispose?.();
     root.__cleanup = null;

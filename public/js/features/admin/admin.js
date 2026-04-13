@@ -8,17 +8,17 @@ import {
   renderWorkspaceTopNavSidebarToggle,
 } from '../../shared/components/settings-top-nav.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
-import { renderUserOverview } from './users/overview.js';
-import { preloadGroupsData, renderGroupsOverview } from './users/groups.js';
-import { shouldLoadGroups } from './users/groups-helpers.js';
-import { removeGroupById, updateGroupMemberCount, upsertGroup } from './users/groups-list-helpers.js';
-import { renderGeneralSettings } from './settings/general.js';
-import { renderSecuritySettings } from './settings/security.js';
-import { renderConnectionsSettings } from './settings/connections.js';
-import { renderModelsSettings } from './settings/models.js';
-import { renderIntegrationsSettings } from './settings/integrations.js';
-import { renderPoliciesSettings } from './settings/policies.js';
-import { renderRolesPage } from './users/roles.js';
+const loadAdminUsersOverviewModule = () => import('./users/overview.js');
+const loadAdminUsersGroupsModule = () => import('./users/groups.js');
+const loadAdminUsersGroupsHelpersModule = () => import('./users/groups-helpers.js');
+const loadAdminUsersGroupsListHelpersModule = () => import('./users/groups-list-helpers.js');
+const loadAdminSettingsGeneralModule = () => import('./settings/general.js');
+const loadAdminSettingsSecurityModule = () => import('./settings/security.js');
+const loadAdminSettingsConnectionsModule = () => import('./settings/connections.js');
+const loadAdminSettingsModelsModule = () => import('./settings/models.js');
+const loadAdminSettingsIntegrationsModule = () => import('./settings/integrations.js');
+const loadAdminSettingsPoliciesModule = () => import('./settings/policies.js');
+const loadAdminUsersRolesModule = () => import('./users/roles.js');
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
 import {
@@ -61,6 +61,114 @@ export async function renderAdminPage(container) {
       page: 1,
       pageSize: 20,
     },
+  };
+
+  const usersModules = {
+    renderUserOverview: null,
+    preloadGroupsData: null,
+    renderGroupsOverview: null,
+    shouldLoadGroups: null,
+    removeGroupById: null,
+    updateGroupMemberCount: null,
+    upsertGroup: null,
+    renderPoliciesSettings: null,
+    renderRolesPage: null,
+  };
+  const settingsModules = {
+    renderConnectionsSettings: null,
+    renderModelsSettings: null,
+    renderIntegrationsSettings: null,
+  };
+  const systemModules = {
+    renderGeneralSettings: null,
+    renderSecuritySettings: null,
+  };
+
+  let usersModulesReadyPromise = null;
+  let settingsModulesReadyPromise = null;
+  let systemModulesReadyPromise = null;
+
+  const ensureUsersModules = () => {
+    if (usersModules.renderUserOverview) return Promise.resolve(usersModules);
+    if (usersModulesReadyPromise) return usersModulesReadyPromise;
+    usersModulesReadyPromise = Promise.all([
+      loadAdminUsersOverviewModule(),
+      loadAdminUsersGroupsModule(),
+      loadAdminUsersGroupsHelpersModule(),
+      loadAdminUsersGroupsListHelpersModule(),
+      loadAdminSettingsPoliciesModule(),
+      loadAdminUsersRolesModule(),
+    ])
+      .then(([
+        overviewModule,
+        groupsModule,
+        groupsHelpersModule,
+        groupsListHelpersModule,
+        policiesModule,
+        rolesModule,
+      ]) => {
+        usersModules.renderUserOverview = overviewModule.renderUserOverview;
+        usersModules.preloadGroupsData = groupsModule.preloadGroupsData;
+        usersModules.renderGroupsOverview = groupsModule.renderGroupsOverview;
+        usersModules.shouldLoadGroups = groupsHelpersModule.shouldLoadGroups;
+        usersModules.removeGroupById = groupsListHelpersModule.removeGroupById;
+        usersModules.updateGroupMemberCount = groupsListHelpersModule.updateGroupMemberCount;
+        usersModules.upsertGroup = groupsListHelpersModule.upsertGroup;
+        usersModules.renderPoliciesSettings = policiesModule.renderPoliciesSettings;
+        usersModules.renderRolesPage = rolesModule.renderRolesPage;
+        return usersModules;
+      })
+      .catch((err) => {
+        usersModulesReadyPromise = null;
+        throw err;
+      });
+    return usersModulesReadyPromise;
+  };
+
+  const ensureSettingsModules = () => {
+    if (settingsModules.renderConnectionsSettings) return Promise.resolve(settingsModules);
+    if (settingsModulesReadyPromise) return settingsModulesReadyPromise;
+    settingsModulesReadyPromise = Promise.all([
+      loadAdminSettingsConnectionsModule(),
+      loadAdminSettingsModelsModule(),
+      loadAdminSettingsIntegrationsModule(),
+    ])
+      .then(([connectionsModule, modelsModule, integrationsModule]) => {
+        settingsModules.renderConnectionsSettings = connectionsModule.renderConnectionsSettings;
+        settingsModules.renderModelsSettings = modelsModule.renderModelsSettings;
+        settingsModules.renderIntegrationsSettings = integrationsModule.renderIntegrationsSettings;
+        return settingsModules;
+      })
+      .catch((err) => {
+        settingsModulesReadyPromise = null;
+        throw err;
+      });
+    return settingsModulesReadyPromise;
+  };
+
+  const ensureSystemModules = () => {
+    if (systemModules.renderGeneralSettings) return Promise.resolve(systemModules);
+    if (systemModulesReadyPromise) return systemModulesReadyPromise;
+    systemModulesReadyPromise = Promise.all([
+      loadAdminSettingsGeneralModule(),
+      loadAdminSettingsSecurityModule(),
+    ])
+      .then(([generalModule, securityModule]) => {
+        systemModules.renderGeneralSettings = generalModule.renderGeneralSettings;
+        systemModules.renderSecuritySettings = securityModule.renderSecuritySettings;
+        return systemModules;
+      })
+      .catch((err) => {
+        systemModulesReadyPromise = null;
+        throw err;
+      });
+    return systemModulesReadyPromise;
+  };
+
+  const ensureMainTabModules = async (tab) => {
+    if (tab === 'users') return ensureUsersModules();
+    if (tab === 'system') return ensureSystemModules();
+    return ensureSettingsModules();
   };
 
   const guardNavigation = async () => true;
@@ -119,7 +227,7 @@ export async function renderAdminPage(container) {
     data.total += 1;
   };
 
-  const renderSubContent = () => {
+  const renderSubContent = async () => {
     const mainContentEl = container.querySelector('#admin-main-content');
     if (!mainContentEl) return;
 
@@ -211,17 +319,34 @@ export async function renderAdminPage(container) {
     const subContentEl = container.querySelector('#admin-sub-body') || container.querySelector('#admin-sub-content');
     if (!subContentEl) return;
 
+    const needsModuleLoad = (mainTab === 'users' && !usersModules.renderUserOverview)
+      || (mainTab === 'system' && !systemModules.renderGeneralSettings)
+      || (mainTab === 'settings' && !settingsModules.renderConnectionsSettings);
+    if (needsModuleLoad) {
+      subContentEl.innerHTML = mainTab === 'users' ? renderLoadingState() : renderSettingsSkeleton();
+      renderMainActionFooter();
+      updateMainActionFooter();
+      try {
+        await ensureMainTabModules(mainTab);
+      } catch (err) {
+        subContentEl.innerHTML = renderErrorState(err?.message || 'Failed to load admin section.');
+        renderMainActionFooter();
+        updateMainActionFooter();
+        return;
+      }
+    }
+
     subContentEl.dataset.settingsTab = subTab;
     data.sharedActionFooter = false;
     renderMainActionFooter();
 
     if (mainTab === 'settings') {
       if (subTab === 'connections') {
-        renderConnectionsSettings(subContentEl, data);
+        settingsModules.renderConnectionsSettings?.(subContentEl, data);
       } else if (subTab === 'models') {
-        renderModelsSettings(subContentEl, data);
+        settingsModules.renderModelsSettings?.(subContentEl, data);
       } else if (subTab === 'integrations') {
-        renderIntegrationsSettings(subContentEl, data);
+        settingsModules.renderIntegrationsSettings?.(subContentEl, data);
       } else {
         subContentEl.innerHTML = `
           <div class="flex flex-col items-center justify-center h-full text-center p-10">
@@ -242,9 +367,9 @@ export async function renderAdminPage(container) {
 
     if (mainTab === 'system') {
       if (subTab === 'general') {
-        renderGeneralSettings(subContentEl, data);
+        systemModules.renderGeneralSettings?.(subContentEl, data);
       } else if (subTab === 'security') {
-        renderSecuritySettings(subContentEl, data);
+        systemModules.renderSecuritySettings?.(subContentEl, data);
       } else {
         subContentEl.innerHTML = `
           <div class="flex flex-col items-center justify-center h-full text-center p-10">
@@ -264,14 +389,14 @@ export async function renderAdminPage(container) {
     }
 
     if (mainTab === 'users' && subTab === 'roles') {
-      renderRolesPage(subContentEl, data);
+      usersModules.renderRolesPage?.(subContentEl, data);
       renderMainActionFooter();
       updateMainActionFooter();
       return;
     }
 
     if (mainTab === 'users' && subTab === 'policies') {
-      renderPoliciesSettings(subContentEl, data);
+      usersModules.renderPoliciesSettings?.(subContentEl, data);
       renderMainActionFooter();
       updateMainActionFooter();
       return;
@@ -280,7 +405,7 @@ export async function renderAdminPage(container) {
     if (data.error) {
       subContentEl.innerHTML = renderErrorState(data.error);
     } else if (subTab === 'overview') {
-      renderUserOverview(subContentEl, data, {
+      usersModules.renderUserOverview?.(subContentEl, data, {
         reload: loadUsers,
         setUsers(nextUsers, total = nextUsers.length) {
           data.users = nextUsers;
@@ -309,27 +434,27 @@ export async function renderAdminPage(container) {
     } else if (data.loading && data.loadingMode === 'initial') {
       subContentEl.innerHTML = renderLoadingState();
     } else {
-      renderGroupsOverview(subContentEl, data, {
+      usersModules.renderGroupsOverview?.(subContentEl, data, {
         reload: loadGroups,
         onSortChange(nextSort) {
           data.groupsSort = nextSort;
           renderSubContent();
         },
         onCreate(group) {
-          data.groups = upsertGroup(data.groups, group);
+          data.groups = usersModules.upsertGroup?.(data.groups, group) || data.groups;
           renderSubContent();
         },
         onUpdate(group) {
-          data.groups = upsertGroup(data.groups, group);
+          data.groups = usersModules.upsertGroup?.(data.groups, group) || data.groups;
           renderSubContent();
         },
         onDelete(groupId) {
-          data.groups = removeGroupById(data.groups, groupId);
+          data.groups = usersModules.removeGroupById?.(data.groups, groupId) || data.groups;
           renderSubContent();
         },
         onMemberDelta(groupId, delta) {
           if (!delta) return;
-          data.groups = updateGroupMemberCount(data.groups, groupId, delta);
+          data.groups = usersModules.updateGroupMemberCount?.(data.groups, groupId, delta) || data.groups;
           renderSubContent();
         },
       });
@@ -450,8 +575,15 @@ export async function renderAdminPage(container) {
           return;
         }
         renderSubContent();
-        if (mainTab === 'users' && subTab === 'groups' && shouldLoadGroups(data)) {
-          await loadGroups({ preserveContent: false });
+        if (mainTab === 'users' && subTab === 'groups') {
+          try {
+            await ensureUsersModules();
+            if (usersModules.shouldLoadGroups?.(data)) {
+              await loadGroups({ preserveContent: false });
+            }
+          } catch {
+            // Ignore route-preload failures here; renderSubContent handles module-load errors.
+          }
         }
       };
     });
@@ -546,13 +678,16 @@ export async function renderAdminPage(container) {
   if (mainTab === 'users' && data.users.length === 0) {
     await loadUsers({ preserveContent: false });
   }
-  if (mainTab === 'users' && subTab === 'groups' && shouldLoadGroups(data)) {
+  if (mainTab === 'users' && subTab === 'groups') {
     try {
-      const preload = await preloadGroupsData();
-      data.groups = preload.groups || [];
-      data.groupsError = null;
-      data.groupsLoading = false;
-      renderSubContent();
+      await ensureUsersModules();
+      if (usersModules.shouldLoadGroups?.(data)) {
+        const preload = await usersModules.preloadGroupsData?.();
+        data.groups = preload?.groups || [];
+        data.groupsError = null;
+        data.groupsLoading = false;
+        renderSubContent();
+      }
     } catch (err) {
       data.groupsError = err.message || 'Failed to fetch groups.';
     }

@@ -413,7 +413,7 @@ describe('account integrations section', () => {
       }));
     expect(document.body.textContent).toContain('Updated MCP');
     expect(document.body.textContent).toContain('Tools: 1 / 1 enabled');
-    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(1);
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings')).toHaveLength(1);
   });
 
   it('persists shared tool visibility overrides for shared integrations', async () => {
@@ -763,7 +763,7 @@ describe('account integrations section', () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/users/me/resources/mcp-servers/mcp-1' && String(options?.method || '').toUpperCase() === 'DELETE')).toBe(true);
     expect(document.body.textContent).toContain('No tool servers configured');
-    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(1);
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings')).toHaveLength(1);
   });
 });
 

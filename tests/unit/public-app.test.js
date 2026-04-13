@@ -193,6 +193,7 @@ describe('public app bootstrap', () => {
     expect(window.location.pathname).toBe('/admin/system/general');
     expect(mocks.renderAdminPage).toHaveBeenCalledTimes(1);
     expect(document.getElementById('app').dataset.view).toBe('admin');
+    expect(mocks.fetchModels).not.toHaveBeenCalled();
   });
 
   it('boots the chat shell on the home route', async () => {

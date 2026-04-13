@@ -673,25 +673,33 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const includeRoles = include.has('roles') || include.has('all');
 
     const row = await db.first(
-      'SELECT id, email, name, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at, last_active_at FROM users WHERE id = ?',
+      'SELECT id, email, name, primary_role, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at, last_active_at FROM users WHERE id = ?',
       [user.sub]
     );
 
     if (!row) return error(req, 'User not found', 404);
-    const primaryRole = (await loadPrimaryRole(db, user.sub)) || 'member';
-    const roles = await getUserRoles(env, user.sub);
-    let globalDefaultModelId = null;
-    try {
-      const rawDefault = await getConfigValue(db, 'default_model_id', null);
-      globalDefaultModelId = rawDefault ? String(rawDefault).trim() : null;
-    } catch {
-      globalDefaultModelId = null;
-    }
+    const fallbackPrimaryRole = normalizePublicRole(row.primary_role);
+    const primaryRolePromise = includeRoles
+      ? loadPrimaryRole(db, user.sub)
+      : Promise.resolve(fallbackPrimaryRole);
+    const globalDefaultModelIdPromise = getConfigValue(db, 'default_model_id', null)
+      .then((rawDefault) => (rawDefault ? String(rawDefault).trim() : null))
+      .catch(() => null);
+    const rolesPromise = includeRoles ? getUserRoles(env, user.sub) : Promise.resolve([]);
+    const permissionsPromise = includePermissions ? resolvePermissions(env, user) : Promise.resolve([]);
+
+    const [primaryRoleRaw, globalDefaultModelId, roles, permissions] = await Promise.all([
+      primaryRolePromise,
+      globalDefaultModelIdPromise,
+      rolesPromise,
+      permissionsPromise,
+    ]);
+    const primaryRole = normalizePublicRole(primaryRoleRaw || fallbackPrimaryRole);
 
     const payload = buildUserProfileResponse(row, { defaultModelId: globalDefaultModelId, primaryRole });
 
     if (includePermissions) {
-      payload.permissions = await resolvePermissions(env, user);
+      payload.permissions = permissions;
     }
     if (includeRoles) {
       payload.roles = roles;

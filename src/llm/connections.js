@@ -612,6 +612,15 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
   const includeHiddenForUser = options.includeHiddenForUser === true;
   const userId = options.userId ? String(options.userId).trim() : '';
   const userRole = String(options.userRole || 'member').trim().toLowerCase() || 'member';
+  const providedUserGroupIds = (() => {
+    if (options.userGroupIds instanceof Set) {
+      return new Set(Array.from(options.userGroupIds).map((value) => String(value || '').trim()).filter(Boolean));
+    }
+    if (Array.isArray(options.userGroupIds)) {
+      return new Set(options.userGroupIds.map((value) => String(value || '').trim()).filter(Boolean));
+    }
+    return null;
+  })();
   const storedConnections = await getStoredOpenAIConnectionConfigs(env, { includeDisabled });
   let userConnections = [];
   if (userId && env?.DB) {
@@ -634,8 +643,11 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     const db = createDB(env.DB);
     const userOverrides = await loadUserResourceOverrides(db, userId);
     const hiddenConnectionIds = new Set(userOverrides.connections.hidden_ids || []);
-    const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [userId]);
-    const userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
+    let userGroupIds = providedUserGroupIds;
+    if (!userGroupIds) {
+      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [userId]);
+      userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
+    }
     const aclRules = await loadConnectionAclRules(db);
     const aclIndex = buildConnectionAclIndex(aclRules);
 

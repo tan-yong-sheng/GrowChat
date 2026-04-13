@@ -322,7 +322,7 @@ describe('account connections section', () => {
   it('saves shared connection visibility immediately', async () => {
     mocks.apiFetch.mockImplementation(async (url, options = {}) => {
       const method = String(options.method || 'GET').toUpperCase();
-      if (String(url) === '/api/users/me/settings?include=permissions,roles' && method === 'GET') {
+      if (String(url) === '/api/users/me/settings' && method === 'GET') {
         return {
           ok: true,
           json: async () => makeAccountState('Personal Conn'),
@@ -413,7 +413,7 @@ describe('account connections section', () => {
     }));
     expect(document.getElementById('account-connection-modal')).toBeNull();
     expect(window.location.hash).toBe('');
-    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(2);
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings')).toHaveLength(2);
   });
 
   it('deletes a connection after confirmation and refreshes the list', async () => {
@@ -458,6 +458,6 @@ describe('account connections section', () => {
     expect(mocks.deleteUserConnection).toHaveBeenCalledWith('conn-1');
     expect(document.querySelector('[data-connection-row="conn-1"]')).toBeNull();
     expect(document.querySelector('[data-connection-row="shared-1"]')).not.toBeNull();
-    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings?include=permissions,roles')).toHaveLength(2);
+    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings')).toHaveLength(2);
   });
 });

@@ -1,6 +1,8 @@
-import { getAdminModalPreset } from '../../features/admin/modal-shell.js';
-
-const STANDARD_MODAL_PRESET = getAdminModalPreset('standard');
+const STANDARD_MODAL_PRESET = {
+  outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
+  overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
+  zIndex: 150,
+};
 
 const AUTH_TYPE_OPTIONS = [
   { value: 'none', label: 'None' },

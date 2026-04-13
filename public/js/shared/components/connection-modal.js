@@ -1,6 +1,5 @@
 import { filterModelsBySearch } from '../utils/model-search.js';
 import { sortModelsByActiveThenName } from '../utils/model-state.js';
-import { getAdminModalPreset } from '../../features/admin/modal-shell.js';
 import {
   connectionApiTypeDetails,
   isCompatibleProviderType,
@@ -10,7 +9,11 @@ import {
   resolveUrlLabel,
 } from '../../features/admin/settings/connections-helpers.js';
 
-const STANDARD_MODAL_PRESET = getAdminModalPreset('standard');
+const STANDARD_MODAL_PRESET = {
+  outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
+  overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
+  zIndex: 150,
+};
 
 function escapeHtml(value) {
   return String(value ?? '')

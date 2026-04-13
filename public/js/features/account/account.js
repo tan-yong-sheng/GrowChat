@@ -12,9 +12,35 @@ import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-v
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
-import { renderAccountConnectionsSection } from './account-connections.js';
-import { renderAccountIntegrationsSection } from './account-integrations.js';
-import { renderAccountModelsSection } from './account-models.js';
+
+const accountSectionRenderers = {
+  connections: null,
+  models: null,
+  integrations: null,
+};
+
+async function loadAccountSectionRenderer(section) {
+  const normalized = normalizeAccountSection(section);
+  if (accountSectionRenderers[normalized]) {
+    return accountSectionRenderers[normalized];
+  }
+
+  if (normalized === 'connections') {
+    accountSectionRenderers.connections = import('./account-connections.js')
+      .then(({ renderAccountConnectionsSection }) => renderAccountConnectionsSection);
+    return accountSectionRenderers.connections;
+  }
+
+  if (normalized === 'models') {
+    accountSectionRenderers.models = import('./account-models.js')
+      .then(({ renderAccountModelsSection }) => renderAccountModelsSection);
+    return accountSectionRenderers.models;
+  }
+
+  accountSectionRenderers.integrations = import('./account-integrations.js')
+    .then(({ renderAccountIntegrationsSection }) => renderAccountIntegrationsSection);
+  return accountSectionRenderers.integrations;
+}
 
 function normalizeAccountSection(section) {
   const value = String(section || '').trim();
@@ -70,7 +96,7 @@ function formatSectionLabel(section) {
 }
 
 async function loadAccountState() {
-  const res = await apiFetch('/api/users/me/settings?include=permissions,roles');
+  const res = await apiFetch('/api/users/me/settings');
   if (!res.ok) {
     throw new Error('Failed to load account settings');
   }
@@ -161,7 +187,8 @@ async function renderAccountSection({
       await onRefresh?.();
       return accountState;
     };
-    renderAccountConnectionsSection(content, accountState, {
+    const renderConnectionsSection = await loadAccountSectionRenderer('connections');
+    renderConnectionsSection(content, accountState, {
       onRefresh: rerenderConnections,
       footerHost,
       routeCache: settingsRouteCache,
@@ -174,7 +201,8 @@ async function renderAccountSection({
       await onRefresh?.();
       return accountState;
     };
-    renderAccountModelsSection(content, accountState, {
+    const renderModelsSection = await loadAccountSectionRenderer('models');
+    renderModelsSection(content, accountState, {
       onRefresh: refreshModels,
       footerHost,
       routeCache: settingsRouteCache,
@@ -187,7 +215,8 @@ async function renderAccountSection({
       await onRefresh?.();
       return accountState;
     };
-    renderAccountIntegrationsSection(content, accountState, {
+    const renderIntegrationsSection = await loadAccountSectionRenderer('integrations');
+    renderIntegrationsSection(content, accountState, {
       onRefresh: refreshIntegrations,
       footerHost,
       routeCache: settingsRouteCache,

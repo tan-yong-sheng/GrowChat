@@ -215,15 +215,29 @@ export function ensureRealtime() {
   realtimeStarted = true;
 }
 
+function scheduleDeferredTask(task, timeout = 3000) {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(task, { timeout });
+    return;
+  }
+  setTimeout(task, 0);
+}
+
 export function scheduleDeferredBootstrap(user, preloadedRBAC = null) {
   if (deferredBootstrapPromise) return deferredBootstrapPromise;
 
-  deferredBootstrapPromise = (async () => {
-    await Promise.resolve();
-    await initRBAC(user, preloadedRBAC);
-    ensureRealtime();
-  })().catch((err) => {
-    console.warn('Deferred bootstrap failed:', err);
+  deferredBootstrapPromise = new Promise((resolve) => {
+    scheduleDeferredTask(() => {
+      Promise.resolve()
+        .then(() => initRBAC(user, preloadedRBAC))
+        .then(() => {
+          ensureRealtime();
+        })
+        .catch((err) => {
+          console.warn('Deferred bootstrap failed:', err);
+        })
+        .finally(resolve);
+    });
   });
 
   return deferredBootstrapPromise;
@@ -244,10 +258,18 @@ async function initRBAC(user, preloaded = null) {
       return;
     }
 
-    const [permData, roleData] = await Promise.all([
-      fetchMyPermissions().catch(() => ({ permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member })),
-      fetchMyRoles().catch(() => ({ roles: [{ role_name: roleName }] })),
-    ]);
+    const permissionsRequest = typeof fetchMyPermissions === 'function'
+      ? Promise.resolve(fetchMyPermissions())
+        .then((value) => value || { permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member })
+        .catch(() => ({ permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member }))
+      : Promise.resolve({ permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member });
+    const rolesRequest = typeof fetchMyRoles === 'function'
+      ? Promise.resolve(fetchMyRoles())
+        .then((value) => value || { roles: [{ role_name: roleName }] })
+        .catch(() => ({ roles: [{ role_name: roleName }] }))
+      : Promise.resolve({ roles: [{ role_name: roleName }] });
+
+    const [permData, roleData] = await Promise.all([permissionsRequest, rolesRequest]);
 
     setState({
       permissions: permData.permissions || [],
@@ -295,12 +317,12 @@ export async function ensureSession({ preferRefresh = false } = {}) {
     }
   }
 
-  let meRes = await apiFetch('/api/users/me?include=permissions,roles');
+  let meRes = await apiFetch('/api/users/me');
   if (meRes.status === 401 && currentAuth?.refresh_token) {
     const refreshed = await refreshToken(currentAuth.refresh_token);
     if (refreshed?.access_token) {
       currentAuth = refreshed;
-      meRes = await apiFetch('/api/users/me?include=permissions,roles');
+      meRes = await apiFetch('/api/users/me');
     }
   }
   if (!meRes.ok) {
@@ -311,9 +333,10 @@ export async function ensureSession({ preferRefresh = false } = {}) {
   const meData = await meRes.json();
   const user = meData.user || {};
 
+  const bootstrapRoleName = normalizePublicRole(user.primary_role);
   setState({
-    permissions: Array.isArray(meData.permissions) ? meData.permissions : [],
-    userRoles: Array.isArray(meData.roles) ? meData.roles : [],
+    permissions: FALLBACK_PERMISSIONS[bootstrapRoleName] || FALLBACK_PERMISSIONS.member,
+    userRoles: [{ role_name: bootstrapRoleName }],
   });
 
   ensureShortcuts();
@@ -335,80 +358,60 @@ export async function ensureSession({ preferRefresh = false } = {}) {
   const globalDefaultModelId = meData?.app_config?.default_model_id || null;
   const initialModelId = getPreferredModelId([], [modelParam, serverDefaultModelId, globalDefaultModelId, cachedDefaultModelId]);
 
-  if (shouldBootstrapChats && cachedChats?.chats?.length) {
-    const cachedActiveChatId = resolveActiveChatId(routeChatId, cachedChats.chats, isHomeRoute);
-    const nextCachedChats = injectTempChat(cachedChats.chats, routeChatId, initialModelId);
-
-    setState({
-      user,
-      chats: nextCachedChats || [],
-      chatsPagination: {
-        limit: cachedChats.limit || INITIAL_CHAT_LIMIT,
-        offset: cachedChats.offset || (cachedChats.chats?.length || 0),
-        hasMore: cachedChats.has_more === true,
-        loading: false,
-      },
-      activeChatId: cachedActiveChatId,
-      messagesByChat: {},
-      models: [],
-      modelCatalogMeta: null,
-      modelsLoading: false,
-      activeModelId: initialModelId,
-      defaultModelId: serverDefaultModelId || null,
-      globalDefaultModelId: globalDefaultModelId || null,
-    });
-  }
-
   if (shouldBootstrapChats) {
-    let chatsData = cachedChats;
+    const applyChatsState = (chatsData, { resetConversationState = false } = {}) => {
+      const nextChatsData = injectTempChat(chatsData.chats || [], routeChatId, initialModelId);
+      setState({
+        user,
+        chats: nextChatsData,
+        chatsPagination: {
+          limit: chatsData.limit || INITIAL_CHAT_LIMIT,
+          offset: (chatsData.offset || 0) + (chatsData.chats?.length || 0),
+          hasMore: chatsData.has_more === true,
+          loading: false,
+        },
+        activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
+        ...(resetConversationState ? {
+          messagesByChat: {},
+          models: state.models || [],
+          modelCatalogMeta: state.modelCatalogMeta || null,
+          activeModelId: initialModelId,
+          defaultModelId: serverDefaultModelId || null,
+          globalDefaultModelId: globalDefaultModelId || null,
+        } : {}),
+      });
+    };
+
     const hasCachedChats = cachedChats?.chats?.length;
-    if (!hasCachedChats) {
-      try {
-        chatsData = await fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 });
-        writeChatsCache(user.id, chatsData);
-      } catch {
-        document.getElementById('app').innerHTML = '<div class="p-6 text-center mt-20 text-gray-500">Failed to load chats. Please refresh.</div>';
-        return false;
-      }
+    if (hasCachedChats) {
+      applyChatsState(cachedChats, { resetConversationState: true });
+      const refreshChats = () => {
+        fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
+          .then((fresh) => {
+            writeChatsCache(user.id, fresh);
+            applyChatsState(fresh);
+          })
+          .catch((err) => {
+            console.warn('Failed to refresh chats:', err);
+          });
+      };
+      setTimeout(refreshChats, 25000);
     } else {
+      applyChatsState({
+        chats: [],
+        limit: INITIAL_CHAT_LIMIT,
+        offset: 0,
+        has_more: false,
+      }, { resetConversationState: true });
       fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
         .then((fresh) => {
           writeChatsCache(user.id, fresh);
-          const nextFreshChats = injectTempChat(fresh.chats || [], routeChatId, initialModelId);
-          setState({
-            chats: nextFreshChats,
-            chatsPagination: {
-              limit: fresh.limit || INITIAL_CHAT_LIMIT,
-              offset: (fresh.offset || 0) + (fresh.chats?.length || 0),
-              hasMore: fresh.has_more === true,
-              loading: false,
-            },
-            activeChatId: resolveActiveChatId(routeChatId, fresh.chats, isHomeRoute),
-          });
+          applyChatsState(fresh);
         })
         .catch((err) => {
-          console.warn('Failed to refresh chats:', err);
+          console.warn('Failed to fetch initial chats:', err);
         });
     }
-
-    const nextChatsData = injectTempChat(chatsData.chats || [], routeChatId, initialModelId);
-    setState({
-      user,
-      chats: nextChatsData,
-      chatsPagination: {
-        limit: chatsData.limit || INITIAL_CHAT_LIMIT,
-        offset: (chatsData.offset || 0) + (chatsData.chats?.length || 0),
-        hasMore: chatsData.has_more === true,
-        loading: false,
-      },
-      activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
-      messagesByChat: {},
-      models: state.models || [],
-      modelCatalogMeta: state.modelCatalogMeta || null,
-      activeModelId: initialModelId,
-      defaultModelId: serverDefaultModelId || null,
-      globalDefaultModelId: globalDefaultModelId || null,
-    });
   } else {
     setState({
       user,
@@ -431,9 +434,11 @@ export async function ensureSession({ preferRefresh = false } = {}) {
   if (serverDefaultModelId && serverDefaultModelId !== cachedDefaultModelId) {
     localStorage.setItem('defaultModelId', serverDefaultModelId);
   }
-  scheduleModelsPrefetch({ allowCache: true, cacheBust: invalidateToken, force: true });
+  if (shouldBootstrapChats) {
+    scheduleModelsPrefetch({ allowCache: true, cacheBust: invalidateToken, force: true });
+  }
 
   bootstrapped = true;
-  scheduleDeferredBootstrap(user, { permissions: meData.permissions, roles: meData.roles });
+  scheduleDeferredBootstrap(user);
   return true;
 }

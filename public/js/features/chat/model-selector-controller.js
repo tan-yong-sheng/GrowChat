@@ -101,23 +101,10 @@ export function createModelSelectorController(container) {
 
   const ensureModelsLoaded = async () => {
     if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
-    setState({ modelsLoading: true });
     loadingPromise = (async () => {
       try {
-        const { fetchModels } = await import('../../shared/api.js');
-        const data = await fetchModels({ scope: 'effective' });
-        const models = filterEnabledModels((data.models || []).filter((model) => model?.hidden_for_user !== true));
-        const nextActiveModelId = getPreferredModelId(models, [
-          state.activeModelId,
-          state.defaultModelId,
-          state.globalDefaultModelId,
-        ]);
-        setState({
-          models,
-          modelCatalogMeta: data.visibility || null,
-          activeModelId: nextActiveModelId,
-          modelsLoading: false,
-        });
+        const { prefetchModels } = await import('../../bootstrap/session-bootstrap.js');
+        await prefetchModels({ allowCache: true });
       } catch (err) {
         console.error('Failed to load models:', err);
         setState({ modelsLoading: false });

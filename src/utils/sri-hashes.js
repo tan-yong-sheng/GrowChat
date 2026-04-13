@@ -22,6 +22,7 @@ const SRI_RESOURCES = {
 const sriCache = new Map();
 const SRI_CACHE_KEY = 'sri-hashes:v2';
 const SRI_CACHE_TTL_SECONDS = 86400;
+const SRI_PARTIAL_CACHE_TTL_SECONDS = 60;
 const SRI_FETCH_TIMEOUT_MS = 10000;
 const SRI_INJECT_PATTERNS = new Map([
   ['bootstrap-icons', /data-sri-key="bootstrap-icons"/g],
@@ -74,6 +75,48 @@ async function readPersistedSriHashes(env) {
   }
 }
 
+async function persistSriHashes(env, hashes) {
+  if (!env?.CACHE) return;
+  try {
+    await env.CACHE.put(SRI_CACHE_KEY, JSON.stringify(hashes), {
+      expirationTtl: SRI_CACHE_TTL_SECONDS,
+    });
+  } catch (err) {
+    console.warn('Failed to cache SRI hashes:', err?.message || err);
+  }
+}
+
+async function refreshMissingSriHashesInBackground(env, missingEntries = [], baseHashes = {}) {
+  if (!Array.isArray(missingEntries) || missingEntries.length === 0) return;
+
+  const entries = await Promise.all(missingEntries.map(async ([key, resource]) => {
+    try {
+      const hash = await fetchSriHash(resource.url);
+      sriCache.set(key, { url: resource.url, hash });
+      return [key, hash];
+    } catch (err) {
+      if (!sriWarningState.fetchFailures.has(key)) {
+        sriWarningState.fetchFailures.add(key);
+        console.warn(`Failed to fetch SRI hash for ${key}:`, err?.message || err);
+      }
+      return [key, null];
+    }
+  }));
+
+  const nextHashes = { ...baseHashes };
+  let changed = false;
+  for (const [key, hash] of entries) {
+    if (!hash) continue;
+    nextHashes[key] = hash;
+    changed = true;
+  }
+  if (!changed) return;
+
+  sriHashesState.value = nextHashes;
+  sriHashesState.expiresAt = Date.now() + SRI_CACHE_TTL_SECONDS * 1000;
+  await persistSriHashes(env, nextHashes);
+}
+
 async function loadSriHashes(env) {
   if (sriHashesState.value && Date.now() < sriHashesState.expiresAt) return sriHashesState.value;
   if (sriHashesPromise) return sriHashesPromise;
@@ -81,47 +124,35 @@ async function loadSriHashes(env) {
   sriHashesPromise = (async () => {
     const persistedHashes = await readPersistedSriHashes(env);
     const hashes = {};
+    const missingEntries = [];
 
-    const entries = await Promise.all(Object.entries(SRI_RESOURCES).map(async ([key, resource]) => {
+    for (const [key, resource] of Object.entries(SRI_RESOURCES)) {
       const cached = sriCache.get(key);
       if (cached?.url === resource.url && cached.hash) {
-        return [key, cached.hash];
+        hashes[key] = cached.hash;
+        continue;
       }
 
       if (persistedHashes?.[key]) {
         sriCache.set(key, { url: resource.url, hash: persistedHashes[key] });
-        return [key, persistedHashes[key]];
+        hashes[key] = persistedHashes[key];
+        continue;
       }
 
-      try {
-        const hash = await fetchSriHash(resource.url);
-        sriCache.set(key, { url: resource.url, hash });
-        return [key, hash];
-      } catch (err) {
-        if (!sriWarningState.fetchFailures.has(key)) {
-          sriWarningState.fetchFailures.add(key);
-          console.warn(`Failed to fetch SRI hash for ${key}:`, err?.message || err);
-        }
-        return [key, persistedHashes?.[key] || null];
-      }
-    }));
-
-    for (const [key, hash] of entries) {
-      hashes[key] = hash;
+      hashes[key] = null;
+      missingEntries.push([key, resource]);
     }
 
-    if (env?.CACHE) {
-      try {
-        await env.CACHE.put(SRI_CACHE_KEY, JSON.stringify(hashes), {
-          expirationTtl: SRI_CACHE_TTL_SECONDS,
-        });
-      } catch (err) {
-        console.warn('Failed to cache SRI hashes:', err?.message || err);
-      }
-    }
-
+    const hasMissing = missingEntries.length > 0;
     sriHashesState.value = hashes;
-    sriHashesState.expiresAt = Date.now() + SRI_CACHE_TTL_SECONDS * 1000;
+    sriHashesState.expiresAt = Date.now() + (hasMissing ? SRI_PARTIAL_CACHE_TTL_SECONDS : SRI_CACHE_TTL_SECONDS) * 1000;
+
+    if (hasMissing) {
+      void refreshMissingSriHashesInBackground(env, missingEntries, hashes);
+    } else {
+      await persistSriHashes(env, hashes);
+    }
+
     return hashes;
   })().finally(() => {
     sriHashesPromise = null;

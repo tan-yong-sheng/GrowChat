@@ -648,7 +648,7 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
         scope: 'account',
         family: 'mcp-servers',
         owner: 'account effective truth',
-        read: ['/api/users/me/settings?include=permissions,roles', '/api/users/me/resources/mcp-servers'],
+        read: ['/api/users/me/settings', '/api/users/me/resources/mcp-servers'],
         write: ['/api/users/me/resources/mcp-servers/:id', '/api/users/me'],
         invalidation: 'account settings only',
       });
@@ -820,7 +820,7 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     modal.setAttribute('data-trace-family', 'mcp-servers');
     modal.setAttribute('data-trace-owner', 'account effective truth');
     modal.setAttribute('data-trace-action', isEdit ? 'edit server' : 'add server');
-    modal.setAttribute('data-trace-read', '/api/users/me/settings?include=permissions,roles | /api/users/me/resources/mcp-servers');
+    modal.setAttribute('data-trace-read', '/api/users/me/settings | /api/users/me/resources/mcp-servers');
     modal.setAttribute('data-trace-write', '/api/users/me/resources/mcp-servers/:id | /api/users/me');
     modal.setAttribute('data-trace-invalidation', 'account settings only');
 

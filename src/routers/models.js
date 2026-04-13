@@ -19,6 +19,9 @@ import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/ut
 
 const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
 const DEFAULT_ATTACHMENT_CAPS = { text: true };
+const CONNECTION_DISCOVERY_CACHE_TTL_MS = 60 * 1000;
+const connectionDiscoveryCacheByEnv = new WeakMap();
+const fallbackConnectionDiscoveryCache = new Map();
 
 function isValidModelId(value) {
   const id = String(value || '').trim();
@@ -162,12 +165,71 @@ function shouldSuppressDiscoveryWarning(connection = {}, discovery = {}) {
   return !hasConnectionAuthCredentials(connection);
 }
 
+function createConnectionDiscoveryCacheKey(env, uniqueConnections = [], allowSet = null) {
+  const normalizedConnections = uniqueConnections.map((conn) => ({
+    id: String(conn?.id || ''),
+    source: String(conn?.source || ''),
+    providerType: String(conn?.providerType || ''),
+    providerFamily: String(conn?.providerFamily || ''),
+    baseUrl: String(conn?.baseUrl || ''),
+    key: String(conn?.key || ''),
+    headers: conn?.headers && typeof conn.headers === 'object'
+      ? Object.entries(conn.headers)
+        .map(([name, value]) => [String(name || '').toLowerCase(), String(value || '')])
+        .sort((a, b) => a[0].localeCompare(b[0]))
+      : [],
+    manualModelsMode: String(conn?.manualModelsMode || conn?.manual_models_mode || ''),
+    manualModels: normalizeConnectionManualModels(conn?.manualModels)
+      .map((model) => ({
+        modelId: String(model?.modelId || ''),
+        name: String(model?.name || ''),
+      }))
+      .sort((a, b) => a.modelId.localeCompare(b.modelId)),
+  }));
+  const allowed = allowSet ? Array.from(allowSet).sort() : [];
+  return JSON.stringify({
+    openaiModels: String(env.OPENAI_MODELS || env.OPENAI_API_MODELS || ''),
+    defaultModels: String(env.DEFAULT_MODELS || ''),
+    allowed,
+    normalizedConnections,
+  });
+}
+
+function getConnectionDiscoveryCache(env) {
+  if (env && typeof env === 'object') {
+    let cache = connectionDiscoveryCacheByEnv.get(env);
+    if (!cache) {
+      cache = new Map();
+      connectionDiscoveryCacheByEnv.set(env, cache);
+    }
+    return cache;
+  }
+  return fallbackConnectionDiscoveryCache;
+}
+
+function pruneExpiredConnectionDiscoveryCache(cache, now = Date.now()) {
+  for (const [key, entry] of cache.entries()) {
+    if (!entry || entry.expiresAt <= now) {
+      cache.delete(key);
+    }
+  }
+}
+
 async function fetchBaseModelsFromOpenAI(env, connections = []) {
   const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
   const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
   const discovered = [];
   const discoveredIds = new Set();
   const uniqueConnections = dedupeConnectionConfigs(connections);
+
+  const now = Date.now();
+  const connectionDiscoveryCache = getConnectionDiscoveryCache(env);
+  pruneExpiredConnectionDiscoveryCache(connectionDiscoveryCache, now);
+  const cacheKey = createConnectionDiscoveryCacheKey(env, uniqueConnections, allowSet);
+  const cached = connectionDiscoveryCache.get(cacheKey);
+  if (cached && cached.expiresAt > now && Array.isArray(cached.models)) {
+    return cached.models.map((model) => ({ ...model }));
+  }
 
   for (const conn of uniqueConnections) {
     try {
@@ -305,6 +367,11 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
       });
     }
   }
+
+  connectionDiscoveryCache.set(cacheKey, {
+    expiresAt: Date.now() + CONNECTION_DISCOVERY_CACHE_TTL_MS,
+    models: discovered.map((model) => ({ ...model })),
+  });
 
   return discovered;
 }
@@ -499,6 +566,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       let openaiEnabled = true;
       let db = null;
       let modelConnections = [];
+      let effectiveUserGroupIds = null;
 
       if (env.DB) {
         try {
@@ -512,10 +580,15 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       // Load base models from OpenAI-compatible env configuration.
       // If this fails, log but continue with baseModels = []
       try {
+        if (db && scope === 'effective' && user?.sub) {
+          const userGroupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub]);
+          effectiveUserGroupIds = new Set((Array.isArray(userGroupRows) ? userGroupRows : []).map((row) => row.group_id).filter(Boolean));
+        }
         const connectionLoadOptions = {
           includeHiddenForUser: true,
           userId: user?.sub || '',
           userRole: user?.primary_role || 'member',
+          userGroupIds: effectiveUserGroupIds ? Array.from(effectiveUserGroupIds) : undefined,
         };
         modelConnections = await getAllOpenAIConnectionConfigs(env, {
           ...connectionLoadOptions,
@@ -553,12 +626,13 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       }
       if (db) {
         if (scope === 'effective' && user?.sub) {
-          const accessMap = await getModelAccessMap(db);
-          const userOverrides = await loadUserResourceOverrides(db, user.sub);
+          const [accessMap, userOverrides, aclRules] = await Promise.all([
+            getModelAccessMap(db),
+            loadUserResourceOverrides(db, user.sub),
+            loadModelAclRules(db),
+          ]);
           const hiddenModelIds = new Set(userOverrides?.models?.hidden_ids || []);
-          const userGroupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub]);
-          const userGroupIds = new Set((Array.isArray(userGroupRows) ? userGroupRows : []).map((row) => row.group_id).filter(Boolean));
-          const aclRules = await loadModelAclRules(db);
+          const userGroupIds = effectiveUserGroupIds || new Set();
           const aclIndex = buildModelAclIndex(aclRules);
 
           const scopedModels = publicModels
