@@ -1,5 +1,5 @@
 ---
-name: checkpoint
+name: gstack-checkpoint
 preamble-tier: 2
 version: 1.0.0
 description: |

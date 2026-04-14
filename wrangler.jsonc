@@ -20,8 +20,8 @@
 		{
 			"binding": "DB",
 			"database_name": "growchat",
-			"database_id": "121941cf-6877-4012-a801-4be91e3f31cb",
-			"preview_database_id": "121941cf-6877-4012-a801-4be91e3f31cb"
+			"database_id": "f85fe809-20c2-40e2-88e1-313d6f04b95f",
+			"preview_database_id": "f85fe809-20c2-40e2-88e1-313d6f04b95f"
 		}
 	],
 	// R2 bucket (used in Phase 2 - requires R2:Edit token permission to deploy)
@@ -83,7 +83,7 @@
 				{
 					"binding": "DB",
 					"database_name": "growchat",
-					"database_id": "121941cf-6877-4012-a801-4be91e3f31cb"
+					"database_id": "f85fe809-20c2-40e2-88e1-313d6f04b95f"
 				}
 			],
 			"r2_buckets": [

@@ -300,7 +300,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const perms = await resolvePermissions(mockEnv, user);
+      const perms = await resolvePermissions(mockDB, user);
 
       expect(perms).toEqual(['chat.read', 'chat.write']);
     });
@@ -318,7 +318,7 @@ describe('authorize.js - Authorization Core', () => {
           first: vi.fn().mockResolvedValue({ role: null }),
         }));
 
-      const perms = await resolvePermissions(mockEnv, user);
+      const perms = await resolvePermissions(mockDB, user);
 
       expect(perms).toEqual(['chat.read']);
     });
@@ -326,7 +326,7 @@ describe('authorize.js - Authorization Core', () => {
     it('should return empty array for user with no sub', async () => {
       const user = { role: 'user' };
 
-      const perms = await resolvePermissions(mockEnv, user);
+      const perms = await resolvePermissions(mockDB, user);
 
       expect(perms).toEqual([]);
     });
@@ -346,7 +346,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      await resolvePermissions(mockEnv, user, { resource: 'chat', resourceId: 'chat-789' });
+      await resolvePermissions(mockDB, user, { resource: 'chat', resourceId: 'chat-789' });
 
       expect(mockStatement.bind).toHaveBeenCalledWith('user-456');
     });
@@ -358,7 +358,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      await resolvePermissions(mockEnv, user);
+      await resolvePermissions(mockDB, user);
 
       expect(mockStatement.bind).toHaveBeenCalledWith('user-123');
     });
@@ -370,7 +370,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const perms = await resolvePermissions(mockEnv, user);
+      const perms = await resolvePermissions(mockDB, user);
 
       expect(Array.isArray(perms)).toBe(true);
       expect(perms).toEqual([]);
@@ -389,7 +389,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const perms = await resolvePermissions(mockEnv, user);
+      const perms = await resolvePermissions(mockDB, user);
 
       expect(perms).toEqual(['chat.read', 'chat.write']);
     });
@@ -676,7 +676,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const roles = await getUserRoles(mockEnv, 'user-123');
+      const roles = await getUserRoles(mockDB, 'user-123');
 
       expect(roles.length).toBe(2);
       expect(roles[0].role_name).toBe('admin');
@@ -689,7 +689,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const roles = await getUserRoles(mockEnv, 'user-123');
+      const roles = await getUserRoles(mockDB, 'user-123');
 
       expect(roles).toEqual([]);
     });
@@ -700,7 +700,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const roles = await getUserRoles(mockEnv, 'user-123');
+      const roles = await getUserRoles(mockDB, 'user-123');
 
       expect(roles).toEqual([]);
     });
@@ -930,7 +930,7 @@ describe('authorize.js - Authorization Core', () => {
       mockDB.prepare.mockReturnValue(mockStatement);
 
       const user = { sub: 'user-123; DROP TABLE users;--' };
-      await resolvePermissions(mockEnv, user);
+      await resolvePermissions(mockDB, user);
 
       expect(mockStatement.bind).toHaveBeenCalledWith('user-123; DROP TABLE users;--');
     });

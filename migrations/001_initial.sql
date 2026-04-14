@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
+  primary_role TEXT NOT NULL DEFAULT 'member',
   account_status TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'pending')),
   settings TEXT NOT NULL DEFAULT '{}',
   preferences TEXT NOT NULL DEFAULT '{}',

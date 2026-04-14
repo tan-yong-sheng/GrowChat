@@ -240,7 +240,7 @@ describe('workspace settings loaders', () => {
     ]);
     expect(payload.settings.connections.connections.some((connection) => connection.id === 'shared-disabled')).toBe(false);
     expect(payload.settings.tool_servers.accessible_servers.some((server) => server.id === 'mcp-disabled')).toBe(false);
-    expect(mocks.resolvePermissions).toHaveBeenCalledWith({}, { sub: 'u1' });
-    expect(mocks.getUserRoles).toHaveBeenCalledWith({}, 'u1');
+    expect(mocks.resolvePermissions).toHaveBeenCalledWith(expect.objectContaining({}), { sub: 'u1' });
+    expect(mocks.getUserRoles).toHaveBeenCalledWith(expect.objectContaining({}), 'u1');
   });
 });

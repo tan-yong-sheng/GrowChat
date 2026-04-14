@@ -5,6 +5,8 @@
  * Implements deny-by-default model with machine-readable denial reasons.
  */
 
+import { createDB } from '../db.js';
+
 /**
  * Denial reason codes for machine-readable error classification
  */
@@ -19,11 +21,11 @@ export const DENIAL_REASONS = {
 /**
  * Resolve user's permissions from database
  *
- * @param {Object} env - Cloudflare environment with DB binding
+ * @param {Object} db - Database instance (wrapped DB or raw D1)
  * @param {Object} user - User object with sub (user ID)
  * @returns {Promise<string[]>} Array of permission keys user has
  */
-export async function resolvePermissions(env, user) {
+export async function resolvePermissions(db, user) {
   if (!user?.sub) return [];
 
   try {
@@ -37,7 +39,7 @@ export async function resolvePermissions(env, user) {
       WHERE ur.user_id = ?
     `;
 
-    const roleResult = await env.DB.prepare(roleQuery).bind(user.sub).all();
+    const roleResult = await db.prepare(roleQuery).bind(user.sub).all();
 
     const rolePermissions = (roleResult.results || []).map((row) => row.key);
     return Array.from(new Set(rolePermissions));
@@ -83,8 +85,10 @@ export async function authorize(env, user, options = {}) {
   }
 
   try {
+    const db = createDB(env.DB);
+
     // Resolve user's permissions
-    const permissions = await resolvePermissions(env, user);
+    const permissions = await resolvePermissions(db, user);
 
     // Check if user has required permission
     if (permissions.includes(action)) {
@@ -350,11 +354,11 @@ export async function getAuditLog(env, options = {}) {
 /**
  * Get user's roles
  *
- * @param {Object} env - Cloudflare environment with DB binding
+ * @param {Object} db - Database instance (wrapped DB or raw D1)
  * @param {string} userId - User ID
  * @returns {Promise<Object[]>} Array of { role_id, role_name }
  */
-export async function getUserRoles(env, userId) {
+export async function getUserRoles(db, userId) {
   try {
     const query = `
       SELECT ur.id, ur.role_id, r.name as role_name
@@ -364,7 +368,7 @@ export async function getUserRoles(env, userId) {
       ORDER BY r.name ASC
     `;
 
-    const result = await env.DB.prepare(query).bind(userId).all();
+    const result = await db.prepare(query).bind(userId).all();
     return result.results || [];
   } catch (err) {
     console.error('Failed to get user roles:', err);

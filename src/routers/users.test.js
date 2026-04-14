@@ -207,8 +207,15 @@ describe('usersRouter', () => {
     const body = await res.json();
     expect(body.permissions).toEqual(['chat.read']);
     expect(body.roles).toEqual([{ role_name: 'member' }]);
-    expect(mocks.resolvePermissions).toHaveBeenCalledWith(env, user);
-    expect(mocks.getUserRoles).toHaveBeenCalledWith(env, user.sub);
+    // Verify functions were called with a DB-like object (wrapped DB instance)
+    expect(mocks.resolvePermissions).toHaveBeenCalledWith(
+      expect.objectContaining({ prepare: expect.any(Function) }),
+      user
+    );
+    expect(mocks.getUserRoles).toHaveBeenCalledWith(
+      expect.objectContaining({ prepare: expect.any(Function) }),
+      user.sub
+    );
   });
 
   it('updates the current user profile with PUT /api/users/me', async () => {

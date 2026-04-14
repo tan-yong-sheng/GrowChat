@@ -1,5 +1,5 @@
 ---
-name: design-consultation
+name: gstack-design-consultation
 preamble-tier: 3
 version: 1.0.0
 description: |

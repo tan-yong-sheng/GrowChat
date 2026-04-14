@@ -250,12 +250,14 @@ export async function usersRouter(req, env, _ctx, user, path) {
   if (!user) return error(req, 'Unauthorized', 401);
 
   if (req.method === 'GET' && path === '/api/users/me/permissions') {
-    const permissions = await resolvePermissions(env, user);
+    const db = createDB(env.DB);
+    const permissions = await resolvePermissions(db, user);
     return json(req, { permissions });
   }
 
   if (req.method === 'GET' && path === '/api/users/me/roles') {
-    const roles = await getUserRoles(env, user.sub);
+    const db = createDB(env.DB);
+    const roles = await getUserRoles(db, user.sub);
     return json(req, { roles });
   }
 
@@ -685,8 +687,8 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const globalDefaultModelIdPromise = getConfigValue(db, 'default_model_id', null)
       .then((rawDefault) => (rawDefault ? String(rawDefault).trim() : null))
       .catch(() => null);
-    const rolesPromise = includeRoles ? getUserRoles(env, user.sub) : Promise.resolve([]);
-    const permissionsPromise = includePermissions ? resolvePermissions(env, user) : Promise.resolve([]);
+    const rolesPromise = includeRoles ? getUserRoles(db, user.sub) : Promise.resolve([]);
+    const permissionsPromise = includePermissions ? resolvePermissions(db, user) : Promise.resolve([]);
 
     const [primaryRoleRaw, globalDefaultModelId, roles, permissions] = await Promise.all([
       primaryRolePromise,
@@ -912,7 +914,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       );
       const groupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((group) => group.id).filter(Boolean));
       const groupMap = new Map((Array.isArray(groupRows) ? groupRows : []).map((group) => [group.id, group.name]));
-      const userPermissions = await resolvePermissions(env, { sub: userId, role: primaryRole });
+      const userPermissions = await resolvePermissions(db, { sub: userId, role: primaryRole });
       const modelEnabledMap = await loadModelEnabledMap(db);
       const connectionEnabledMap = new Map(
         (await getAllOpenAIConnectionConfigs(env, { includeDisabled: true, includeHiddenForUser: true }))

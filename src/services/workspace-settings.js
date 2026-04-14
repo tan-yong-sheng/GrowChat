@@ -303,8 +303,8 @@ export async function loadWorkspaceSettingsPayload({
   const primaryRole = rawPrimaryRole || 'member';
 
   const [permissions, roles, ownConnections, allConnections, allToolServers] = await Promise.all([
-    resolvePermissions(env, { sub: userId }),
-    getUserRoles(env, userId),
+    resolvePermissions(db, { sub: userId }),
+    getUserRoles(db, userId),
     loadUserOpenAIConnectionConfigs(db, userId, { includeDisabled: true }),
     getAllOpenAIConnectionConfigs(env, {
       userId,
