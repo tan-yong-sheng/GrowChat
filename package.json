@@ -1,39 +1,47 @@
 {
-	"name": "growchat",
-	"version": "1.0.0",
-	"private": true,
-	"type": "module",
-	"scripts": {
-		"build:css": "npx tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
-		"deploy": "npm run build:css && wrangler deploy",
-		"dev": "npm run build:css && node scripts/init-local-db.js && wrangler dev --ip 0.0.0.0 -- --log-level debug",
-		"dev:db": "node scripts/init-local-db.js",
-		"dev:remote": "npm run build:css && wrangler dev --remote --ip 0.0.0.0 -- --log-level debug",
-		"predeploy": "node scripts/pre-deploy.js",
-		"generate:api-docs": "node scripts/generate-api-docs.js",
-		"validate:migrations": "node scripts/validate-migrations.js",
-		"test": "vitest run",
-		"test:watch": "vitest",
-		"test:coverage": "vitest run --coverage",
-		"test:e2e": "playwright test",
-		"test:e2e:ui": "playwright test --ui",
-		"test:e2e:update-snapshots": "playwright test --update-snapshots"
-	},
-	"devDependencies": {
-		"@playwright/test": "^1.58.2",
-		"@types/node": "^25.3.5",
-		"@vitest/coverage-v8": "^4.0.18",
-		"autoprefixer": "^10.4.23",
-		"jsdom": "^29.0.1",
-		"node-fetch": "^2.7.0",
-		"postcss": "^8.5.6",
-		"tailwindcss": "^3.4.19",
-		"vitest": "^4.0.18",
-		"wrangler": "^4.75.0"
-	},
-	"dependencies": {
-		"dompurify": "^3.3.3",
-		"ecc-universal": "^1.9.0",
-		"zod": "^4.3.6"
-	}
+  "name": "growchat",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
+    "deploy": "npm run build:css && wrangler deploy",
+    "dev": "npm run build:css && node scripts/init-local-db.js && wrangler dev --ip 0.0.0.0 -- --log-level debug",
+    "dev:db": "node scripts/init-local-db.js",
+    "dev:remote": "npm run build:css && wrangler dev --remote --ip 0.0.0.0 -- --log-level debug",
+    "predeploy": "node scripts/pre-deploy.js",
+    "generate:api-docs": "node scripts/generate-api-docs.js",
+    "validate:migrations": "node scripts/validate-migrations.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:update-snapshots": "playwright test --update-snapshots",
+    "lint": "eslint \"src/**/*.js\" \"public/js/**/*.js\" --ignore-pattern node_modules",
+    "lint:fix": "eslint \"src/**/*.js\" \"public/js/**/*.js\" --fix",
+    "format": "prettier --write \"src/**/*.js\" \"public/js/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.js\" \"public/js/**/*.js\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.3.5",
+    "@vitest/coverage-v8": "^4.0.18",
+    "autoprefixer": "^10.4.23",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jsdom": "^29.0.1",
+    "node-fetch": "^2.7.0",
+    "postcss": "^8.5.6",
+    "prettier": "^3.8.3",
+    "tailwindcss": "^3.4.19",
+    "vitest": "^4.0.18",
+    "wrangler": "^4.75.0"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.3",
+    "ecc-universal": "^1.9.0",
+    "zod": "^4.3.6"
+  }
 }
