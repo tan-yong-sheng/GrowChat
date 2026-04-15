@@ -93,7 +93,7 @@ export async function resendVerification({ email, env }) {
 
   // TODO: Send verification email via Resend
   // For now, just log the verification URL
-  console.log(`Verification URL: ${env?.BASE_URL || 'http://localhost:8787'}/verify-email?token=${token}`);
+  console.info('Verification email requested', { userId: user?.id });
 
   return Response.json({ message: 'If the email exists, a verification email has been sent' });
 }
@@ -117,7 +117,7 @@ export async function createEmailVerification(userId, email, env) {
     .run();
 
   // TODO: Send verification email via Resend
-  console.log(`Verification URL for ${email}: ${env?.BASE_URL || 'http://localhost:8787'}/verify-email?token=${token}`);
+  console.info('Verification token created', { userId });
 
   return token;
 }
