@@ -44,7 +44,7 @@ async function loadAccountSectionRenderer(section) {
 
 function normalizeAccountSection(section) {
   const value = String(section || '').trim();
-  if (value === 'connections' || value === 'models' || value === 'integrations') {
+  if (value === 'connections' || value === 'models' || value === 'integrations' || value === 'security') {
     return value;
   }
   return 'connections';
