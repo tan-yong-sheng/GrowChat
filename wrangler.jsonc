@@ -69,7 +69,8 @@
 	"vars": {
 		"APP_NAME": "GrowChat",
 		"ENVIRONMENT": "dev",
-		"EMAIL_PROVIDER": "resend"
+		"EMAIL_PROVIDER": "resend",
+    "ALLOWED_ORIGINS": "http://localhost:8787,http://127.0.0.1:8787"
 	},
 	"env": {
 		"production": {
@@ -77,6 +78,7 @@
 				"APP_NAME": "GrowChat",
 				"ENVIRONMENT": "production",
 				"EMAIL_PROVIDER": "resend",
+    "ALLOWED_ORIGINS": "http://localhost:8787,http://127.0.0.1:8787",
 				"RESEND_API_KEY": "re_xxxxx"
 			},
 			"d1_databases": [

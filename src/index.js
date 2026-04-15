@@ -1,3 +1,4 @@
+import { validateOrigin } from './middleware/cors.js';
 import { API_ROUTES, isPublicRoute } from './bootstrap/router-registry.js';
 import {
   getPath,
@@ -71,6 +72,10 @@ export default {
       }
 
       if (path.startsWith('/api/') || isPublicSharePath) {
+      // CORS origin validation (defense in depth)
+      const corsReject = validateOrigin(req, env);
+      if (corsReject) return corsReject;
+
         if (!env.DB) return error(req, 'DB binding missing', 500);
         if (!env.SESSIONS && path.startsWith('/api/')) return error(req, 'SESSIONS KV binding missing', 500);
         const bindingError = validateRouteBindings(req, env, path);
@@ -148,6 +153,10 @@ export default {
       console.error('Unhandled worker error:', err);
       const message = err?.message || 'Unhandled worker error';
       if (path.startsWith('/api/') || isPublicSharePath) {
+      // CORS origin validation (defense in depth)
+      const corsReject = validateOrigin(req, env);
+      if (corsReject) return corsReject;
+
         return error(req, `worker_crash: ${message}`, 500);
       }
       return new Response(`Worker crash: ${message}`, {
