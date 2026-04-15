@@ -17,13 +17,18 @@ const SRI_RESOURCES = {
   'graphviz': {
     url: 'https://cdn.jsdelivr.net/npm/@hpcc-js/wasm@1.12.8/dist/index.js',
   },
+  'dompurify': {
+    url: 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs',
+  },
 };
 
 const sriCache = new Map();
+
 const SRI_CACHE_KEY = 'sri-hashes:v2';
 const SRI_CACHE_TTL_SECONDS = 86400;
 const SRI_PARTIAL_CACHE_TTL_SECONDS = 60;
 const SRI_FETCH_TIMEOUT_MS = 10000;
+
 const SRI_INJECT_PATTERNS = new Map([
   ['bootstrap-icons', /data-sri-key="bootstrap-icons"/g],
   ['katex-css', /data-sri-key="katex-css"/g],
@@ -31,12 +36,16 @@ const SRI_INJECT_PATTERNS = new Map([
   ['katex-js', /data-sri-key="katex-js"/g],
   ['mermaid', /data-sri-key="mermaid"/g],
   ['graphviz', /data-sri-key="graphviz"/g],
+  ['dompurify', /data-sri-key="dompurify"/g],
 ]);
+
 const sriHashesState = { value: null, expiresAt: 0 };
+
 const sriWarningState = {
   fetchFailures: new Set(),
   missingHashes: new Set(),
 };
+
 let sriHashesPromise = null;
 
 async function computeSriHash(buffer) {
@@ -89,19 +98,21 @@ async function persistSriHashes(env, hashes) {
 async function refreshMissingSriHashesInBackground(env, missingEntries = [], baseHashes = {}) {
   if (!Array.isArray(missingEntries) || missingEntries.length === 0) return;
 
-  const entries = await Promise.all(missingEntries.map(async ([key, resource]) => {
-    try {
-      const hash = await fetchSriHash(resource.url);
-      sriCache.set(key, { url: resource.url, hash });
-      return [key, hash];
-    } catch (err) {
-      if (!sriWarningState.fetchFailures.has(key)) {
-        sriWarningState.fetchFailures.add(key);
-        console.warn(`Failed to fetch SRI hash for ${key}:`, err?.message || err);
+  const entries = await Promise.all(
+    missingEntries.map(async ([key, resource]) => {
+      try {
+        const hash = await fetchSriHash(resource.url);
+        sriCache.set(key, { url: resource.url, hash });
+        return [key, hash];
+      } catch (err) {
+        if (!sriWarningState.fetchFailures.has(key)) {
+          sriWarningState.fetchFailures.add(key);
+          console.warn(`Failed to fetch SRI hash for ${key}:`, err?.message || err);
+        }
+        return [key, null];
       }
-      return [key, null];
-    }
-  }));
+    })
+  );
 
   const nextHashes = { ...baseHashes };
   let changed = false;
@@ -110,15 +121,18 @@ async function refreshMissingSriHashesInBackground(env, missingEntries = [], bas
     nextHashes[key] = hash;
     changed = true;
   }
+
   if (!changed) return;
 
   sriHashesState.value = nextHashes;
   sriHashesState.expiresAt = Date.now() + SRI_CACHE_TTL_SECONDS * 1000;
+
   await persistSriHashes(env, nextHashes);
 }
 
 async function loadSriHashes(env) {
   if (sriHashesState.value && Date.now() < sriHashesState.expiresAt) return sriHashesState.value;
+
   if (sriHashesPromise) return sriHashesPromise;
 
   sriHashesPromise = (async () => {
@@ -132,20 +146,19 @@ async function loadSriHashes(env) {
         hashes[key] = cached.hash;
         continue;
       }
-
       if (persistedHashes?.[key]) {
         sriCache.set(key, { url: resource.url, hash: persistedHashes[key] });
         hashes[key] = persistedHashes[key];
         continue;
       }
-
       hashes[key] = null;
       missingEntries.push([key, resource]);
     }
 
     const hasMissing = missingEntries.length > 0;
     sriHashesState.value = hashes;
-    sriHashesState.expiresAt = Date.now() + (hasMissing ? SRI_PARTIAL_CACHE_TTL_SECONDS : SRI_CACHE_TTL_SECONDS) * 1000;
+    sriHashesState.expiresAt =
+      Date.now() + (hasMissing ? SRI_PARTIAL_CACHE_TTL_SECONDS : SRI_CACHE_TTL_SECONDS) * 1000;
 
     if (hasMissing) {
       void refreshMissingSriHashesInBackground(env, missingEntries, hashes);
@@ -172,8 +185,10 @@ function injectSriHashes(html, hashes) {
       }
       continue;
     }
+
     const pattern = SRI_INJECT_PATTERNS.get(key);
     if (!pattern) continue;
+
     modified = modified.replace(pattern, `integrity="${hashValue}" crossorigin="anonymous"`);
   }
 
@@ -184,4 +199,4 @@ async function getSriHashes(env) {
   return loadSriHashes(env);
 }
 
-export { getSriHashes, injectSriHashes };
+export { getSriHashes, injectSriHashes, SRI_RESOURCES, SRI_INJECT_PATTERNS };
