@@ -17,7 +17,8 @@ const loadAdminSettingsSecurityModule = () => import('./settings/security.js');
 const loadAdminSettingsConnectionsModule = () => import('./settings/connections.js');
 const loadAdminSettingsModelsModule = () => import('./settings/models.js');
 const loadAdminSettingsIntegrationsModule = () => import('./settings/integrations.js');
-const loadAdminSettingsPoliciesModule = () => import('./settings/policies.js'); const loadAdminAuditLogsModule = () => import('./audit-logs.js');
+const loadAdminSettingsPoliciesModule = () => import('./settings/policies.js');
+const loadAdminAuditLogsModule = () => import('./audit-logs.js');
 const loadAdminUsersRolesModule = () => import('./users/roles.js');
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
@@ -283,7 +284,14 @@ export async function renderAdminPage(container) {
             </svg>
             <span>General</span>
           </a>
-          <a href="/admin/system/security"</a> <a href="/admin/system/audit" data-subnav="audit" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'audit' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span>Audit Logs</span> data-subnav="security" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'security' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+          <a href="/admin/system/security" data-subnav="security" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'security' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+ <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5"><path d="M8 1a.75.75 0 0 1 .75.75v1.258a5.25 5.25 0 1 1-1.5 0V1.75A.75.75 0 0 1 8 1ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Z"/></svg>
+ <span>Security</span>
+ </a>
+ <a href="/admin/system/audit" data-subnav="audit" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'audit' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
+ <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+ <span>Audit Logs</span>
+ </a>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5"><path d="M8 1a.75.75 0 0 1 .75.75v1.258a5.25 5.25 0 1 1-1.5 0V1.75A.75.75 0 0 1 8 1ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Z"/></svg>
             <span>Security</span>
           </a>
