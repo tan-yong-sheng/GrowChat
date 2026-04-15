@@ -559,5 +559,34 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     return json(req, { message: 'Password reset successful. Please log in with your new password.' });
   }
 
+  // Email verification endpoints
+  if (req.method === 'GET' && path === '/api/auth/verify-email') {
+    const url = new URL(req.url);
+    const token = url.searchParams.get('token');
+    if (!token) {
+      return error(req, 'Token is required', 400);
+    }
+    
+    const { verifyEmail } = await import('./email-verification.js');
+    return verifyEmail({ token });
+  }
+
+  if (req.method === 'POST' && path === '/api/auth/resend-verification') {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+    
+    const email = body?.email;
+    if (!email) {
+      return error(req, 'Email is required', 400);
+    }
+    
+    const { resendVerification } = await import('./email-verification.js');
+    return resendVerification({ email, env });
+  }
+
   return null;
 }

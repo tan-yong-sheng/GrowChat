@@ -146,6 +146,20 @@ export async function renderCurrentRoute() {
     setState({ activeChatId: routeChatId });
   }
 
+  // Handle email verification route (no auth required)
+  if (path === '/verify-email' || path.startsWith('/verify-email')) {
+    const { renderVerificationPage } = await import('../features/auth/verification-success.js');
+    const { apiFetch } = await import('../shared/api.js');
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      await renderVerificationPage(token, { apiFetch }, app);
+    } else {
+      app.innerHTML = '<div class="p-8 text-center text-gray-500">Invalid verification link.</div>';
+    }
+    return;
+  }
+
   if (path.startsWith('/admin')) {
     setSidebarRouteScope('admin');
     await renderAdminRoute(app);
