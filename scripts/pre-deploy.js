@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-
 import { spawnSync } from 'node:child_process';
 
 const steps = [
-  ['test', ['npm', ['test', '--', '--pool', 'forks', '--maxWorkers=1']]],
-  ['coverage', ['npm', ['run', 'test:coverage', '--', '--pool', 'forks', '--maxWorkers=1']]],
+  ['test', ['npm', ['test']]],
+  ['coverage', ['npm', ['run', 'test:coverage']]],
   ['css', ['npm', ['run', 'build:css']]],
   ['migrations', ['node', ['scripts/validate-migrations.js']]],
 ];
@@ -16,5 +15,4 @@ for (const [label, [cmd, args]] of steps) {
     process.exit(result.status ?? 1);
   }
 }
-
 console.log('Pre-deploy checks passed.');

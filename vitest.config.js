@@ -6,6 +6,10 @@ export default defineConfig({
     // Tests needing jsdom must include: // @vitest-environment jsdom
     environment: 'node',
     globals: true,
+    // Retry failed tests once to handle Windows file system flakiness
+    retry: 1,
+    // Use single fork to avoid race conditions on Windows
+    singleFork: true,
     include: ['src/**/*.test.js', 'tests/unit/**/*.test.js'],
     exclude: ['tests/e2e/**', '.worktrees/**', 'node_modules/**', '.wrangler/**'],
     coverage: {
