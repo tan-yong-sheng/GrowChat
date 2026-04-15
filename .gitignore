@@ -15,6 +15,9 @@ generative-ui-demo/
 ClawRouter/
 
 artifacts/
+.gstack/
+.pi/
+.omx/
 .dev-server.log
 tmp-dev.err.log
 tmp-dev.out.log
@@ -216,3 +219,4 @@ dist
 !.env.example
 .wrangler/
 worker-configuration.d.ts
+.worktrees/
