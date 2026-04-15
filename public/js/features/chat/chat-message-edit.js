@@ -260,7 +260,7 @@ export function bindChatMessageEditActions({ messagesList, messages, apiFetch, s
         originalContent: message.content,
         onSave: async (messageId, newContent) => {
           const res = await apiFetch(`/api/chats/${message.chat_id}/messages/${messageId}`, {
-            method: 'PATCH',
+            method: 'PUT',
             body: JSON.stringify({ content: newContent }),
           });
 

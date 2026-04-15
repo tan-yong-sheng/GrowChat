@@ -7,7 +7,7 @@
 
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { authorize, logAuditEvent } from '../utils/authorize.js';
+import { authorize, logAuditEvent, getAuditLog } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../chat/attachments.js';
 import { buildConnectionHeaders, discoverConnectionModels, ensureConnectionId, extractConnectionModelId, getAllOpenAIConnectionConfigs, getConnectionApiType, getConnectionDefaultBaseUrl, isConnectionUrlRequired, normalizeConnectionManualModels } from '../llm/connections.js';
@@ -533,7 +533,31 @@ export async function adminRouter(req, env, ctx, user, path) {
     return error(req, 'Method not allowed', 405);
   }
 
-  // GET /api/admin/config - Fetch admin configuration
+  // GET /api/admin/audit-logs - List audit logs
+if (req.method === 'GET' && path === '/api/admin/audit-logs') {
+try {
+const url = new URL(req.url);
+const actor_id = url.searchParams.get('userId') || undefined;
+const action = url.searchParams.get('action') || undefined;
+const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+
+const result = await getAuditLog(env, { actor_id, action, limit, offset });
+// Map column names for frontend compatibility
+const mappedLogs = (result.entries || []).map(entry => ({
+...entry,
+user_id: entry.actor_id,
+user_email: null, // Not stored in audit_log
+details: entry.metadata,
+}));
+return json(req, { logs: mappedLogs, total: result.total || mappedLogs.length });
+} catch (err) {
+console.error('Audit logs fetch failed:', err);
+return error(req, 'Failed to fetch audit logs', 500);
+}
+}
+
+// GET /api/admin/config - Fetch admin configuration
   if (req.method === 'GET' && path === '/api/admin/config') {
     try {
       const publicRegistration = await getConfigBool(db, 'public_registration', true);

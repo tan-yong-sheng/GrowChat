@@ -21,6 +21,7 @@ vi.mock('../db.js', () => ({
 vi.mock('../shared/crypto.js', () => ({
   generateToken: vi.fn(() => 'test-token-123'),
   hashToken: vi.fn((token) => `hashed-${token}`),
+  hashTokenAsync: vi.fn(async (token) => `hashed-${token}`),
   constantTimeEquals: vi.fn((a, b) => a === b),
 }));
 

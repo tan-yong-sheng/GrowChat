@@ -120,6 +120,20 @@ export async function renderCurrentRoute() {
     return renderCurrentRoute();
   }
 
+// Handle email verification route (no auth required - must be before ensureSession)
+if (path === '/verify-email' || path.startsWith('/verify-email')) {
+const { renderVerificationPage } = await import('../features/auth/verification-success.js');
+const { apiFetch } = await import('../shared/api.js');
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token');
+if (token) {
+await renderVerificationPage(token, { apiFetch }, app);
+} else {
+app.innerHTML = '<div class="p-8 text-center text-gray-500">Invalid verification link.</div>';
+}
+return;
+}
+
   if (sharedMatch) {
     try {
       const data = await fetchPublicSharedChat(sharedMatch[1]);
@@ -144,20 +158,6 @@ export async function renderCurrentRoute() {
 
   if (routeChatId && state.activeChatId !== routeChatId) {
     setState({ activeChatId: routeChatId });
-  }
-
-  // Handle email verification route (no auth required)
-  if (path === '/verify-email' || path.startsWith('/verify-email')) {
-    const { renderVerificationPage } = await import('../features/auth/verification-success.js');
-    const { apiFetch } = await import('../shared/api.js');
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    if (token) {
-      await renderVerificationPage(token, { apiFetch }, app);
-    } else {
-      app.innerHTML = '<div class="p-8 text-center text-gray-500">Invalid verification link.</div>';
-    }
-    return;
   }
 
   if (path.startsWith('/admin')) {

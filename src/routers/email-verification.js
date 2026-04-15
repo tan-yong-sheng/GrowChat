@@ -4,7 +4,7 @@
  */
 
 import db from '../db.js';
-import { generateToken, hashToken, constantTimeEquals } from '../shared/crypto.js';
+import { generateToken, hashTokenAsync, constantTimeEquals } from '../shared/crypto.js';
 
 const VERIFICATION_TOKEN_EXPIRY_SECONDS = 24 * 60 * 60; // 24 hours
 
@@ -20,7 +20,7 @@ export async function verifyEmail({ token }) {
     return Response.json({ error: 'Token is required' }, { status: 400 });
   }
 
-  const tokenHash = hashToken(token);
+  const tokenHash = await hashTokenAsync(token);
 
   // Find verification record
   const verification = await db
@@ -78,7 +78,7 @@ export async function resendVerification({ email, env }) {
 
   // Generate new verification token
   const token = generateToken();
-  const tokenHash = hashToken(token);
+  const tokenHash = await hashTokenAsync(token);
   const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_TOKEN_EXPIRY_SECONDS;
   const verificationId = crypto.randomUUID();
 
@@ -107,7 +107,7 @@ export async function resendVerification({ email, env }) {
  */
 export async function createEmailVerification(userId, email, env) {
   const token = generateToken();
-  const tokenHash = hashToken(token);
+  const tokenHash = await hashTokenAsync(token);
   const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_TOKEN_EXPIRY_SECONDS;
   const verificationId = crypto.randomUUID();
 
