@@ -45,7 +45,10 @@ export async function loadUserAccountStatus(env, userId) {
     const row = await env.DB.prepare('SELECT account_status FROM users WHERE id = ?').bind(userId).first();
     if (!row) return null;
     const normalized = String(row.account_status || 'active').trim().toLowerCase();
-    return normalized === 'pending' ? 'pending' : 'active';
+    // Explicit allowlist: only 'active' grants access. Future statuses
+    // like 'suspended' or 'banned' must be added here explicitly.
+    if (normalized === 'active') return 'active';
+    return 'pending';
   } catch {
     return null;
   }

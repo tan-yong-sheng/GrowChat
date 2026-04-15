@@ -153,24 +153,30 @@ describe('session.js - Refresh Token Management', () => {
       expect(result.expiresAt).toBeLessThanOrEqual(expectedMax);
     });
 
-    it('should store userData in KV value', async () => {
+    it('should store gate key and data key in KV', async () => {
       const userId = 'user-abc';
       await createRefreshToken(mockEnv, userId);
 
-      const call = mockEnv.SESSIONS.put.mock.calls[0];
-      const storedData = JSON.parse(call[1]);
-
+      expect(mockEnv.SESSIONS.put).toHaveBeenCalledTimes(2);
+      // Gate key: refresh:HASH = '1'
+      const gateCall = mockEnv.SESSIONS.put.mock.calls[0];
+      expect(gateCall[0]).toMatch(/^refresh:/);
+      expect(gateCall[1]).toBe('1');
+      // Data key: refresh-data:HASH = { userId, expiresAt }
+      const dataCall = mockEnv.SESSIONS.put.mock.calls[1];
+      expect(dataCall[0]).toMatch(/^refresh-data:/);
+      const storedData = JSON.parse(dataCall[1]);
       expect(storedData.userId).toBe(userId);
       expect(storedData.expiresAt).toBeTruthy();
     });
 
-    it('should set KV TTL to 7 days', async () => {
+    it('should set KV TTL to 7 days on both keys', async () => {
       await createRefreshToken(mockEnv, 'user-xyz');
 
-      const call = mockEnv.SESSIONS.put.mock.calls[0];
-      const options = call[2];
-
-      expect(options.expirationTtl).toBe(60 * 60 * 24 * 7);
+      const gateCall = mockEnv.SESSIONS.put.mock.calls[0];
+      const dataCall = mockEnv.SESSIONS.put.mock.calls[1];
+      expect(gateCall[2].expirationTtl).toBe(60 * 60 * 24 * 7);
+      expect(dataCall[2].expirationTtl).toBe(60 * 60 * 24 * 7);
     });
 
     it('should generate opaque token each time', async () => {
@@ -187,7 +193,7 @@ describe('session.js - Refresh Token Management', () => {
   });
 
   describe('consumeRefreshToken', () => {
-    it('should retrieve and delete token from KV', async () => {
+    it('should delete gate key then read data key from KV', async () => {
       const tokenHash = await sha256Hex('test-token');
       const userData = { userId: 'user-123', expiresAt: Math.floor(Date.now() / 1000) + 3600 };
 
@@ -197,17 +203,18 @@ describe('session.js - Refresh Token Management', () => {
       const result = await consumeRefreshToken(mockEnv, token);
 
       expect(result).toEqual(userData);
-      expect(mockEnv.SESSIONS.get).toHaveBeenCalledWith(`refresh:${tokenHash}`, 'json');
-      expect(mockEnv.SESSIONS.delete).toHaveBeenCalled();
+      // Gate deleted first
+      expect(mockEnv.SESSIONS.delete).toHaveBeenNthCalledWith(1, `refresh:${tokenHash}`);
+      // Data read from separate key
+      expect(mockEnv.SESSIONS.get).toHaveBeenCalledWith(`refresh-data:${tokenHash}`, 'json');
     });
 
-    it('should return null for missing token', async () => {
+    it('should return null for missing data', async () => {
       mockEnv.SESSIONS.get.mockResolvedValue(null);
 
       const result = await consumeRefreshToken(mockEnv, 'nonexistent-token');
 
       expect(result).toBeNull();
-      expect(mockEnv.SESSIONS.delete).not.toHaveBeenCalled();
     });
 
     it('should return null for null token', async () => {
@@ -226,7 +233,7 @@ describe('session.js - Refresh Token Management', () => {
       expect(result).toBeNull();
     });
 
-    it('should delete token after consumption', async () => {
+    it('should delete gate key on consumption', async () => {
       const userData = { userId: 'user-456', expiresAt: Math.floor(Date.now() / 1000) + 3600 };
       mockEnv.SESSIONS.get.mockResolvedValue(userData);
 
@@ -237,26 +244,6 @@ describe('session.js - Refresh Token Management', () => {
       expect(mockEnv.SESSIONS.delete).toHaveBeenCalledWith(`refresh:${tokenHash}`);
     });
 
-    it('should not delete token if not found', async () => {
-      mockEnv.SESSIONS.get.mockResolvedValue(null);
-
-      await consumeRefreshToken(mockEnv, 'nonexistent');
-
-      expect(mockEnv.SESSIONS.delete).not.toHaveBeenCalled();
-    });
-
-    it('should delete expired token without returning it', async () => {
-      const expiredData = { userId: 'user-789', expiresAt: Math.floor(Date.now() / 1000) - 100 };
-      mockEnv.SESSIONS.get.mockResolvedValue(expiredData);
-
-      const token = 'expired-token';
-      const result = await consumeRefreshToken(mockEnv, token);
-
-      expect(result).toBeNull();
-      // Should still delete the expired token
-      expect(mockEnv.SESSIONS.delete).toHaveBeenCalled();
-    });
-
     it('should handle undefined token', async () => {
       const result = await consumeRefreshToken(mockEnv, undefined);
 
@@ -265,13 +252,15 @@ describe('session.js - Refresh Token Management', () => {
   });
 
   describe('revokeRefreshToken', () => {
-    it('should delete token from KV', async () => {
+    it('should delete both gate and data keys from KV', async () => {
       const token = 'token-to-revoke';
       const tokenHash = await sha256Hex(token);
 
       await revokeRefreshToken(mockEnv, token);
 
+      expect(mockEnv.SESSIONS.delete).toHaveBeenCalledTimes(2);
       expect(mockEnv.SESSIONS.delete).toHaveBeenCalledWith(`refresh:${tokenHash}`);
+      expect(mockEnv.SESSIONS.delete).toHaveBeenCalledWith(`refresh-data:${tokenHash}`);
     });
 
     it('should handle null token gracefully', async () => {
@@ -293,7 +282,7 @@ describe('session.js - Refresh Token Management', () => {
       await revokeRefreshToken(mockEnv, token);
       await revokeRefreshToken(mockEnv, token);
 
-      expect(mockEnv.SESSIONS.delete).toHaveBeenCalledTimes(3);
+      expect(mockEnv.SESSIONS.delete).toHaveBeenCalledTimes(6);
     });
 
     it('should hash token before deletion', async () => {
@@ -303,6 +292,7 @@ describe('session.js - Refresh Token Management', () => {
       await revokeRefreshToken(mockEnv, token);
 
       expect(mockEnv.SESSIONS.delete).toHaveBeenCalledWith(`refresh:${hash}`);
+      expect(mockEnv.SESSIONS.delete).toHaveBeenCalledWith(`refresh-data:${hash}`);
     });
   });
 
@@ -311,9 +301,9 @@ describe('session.js - Refresh Token Management', () => {
       const userId = 'user-integration';
       const { token, expiresAt } = await createRefreshToken(mockEnv, userId);
 
-      const storedCall = mockEnv.SESSIONS.put.mock.calls[0];
-      const storedData = JSON.parse(storedCall[1]);
-      const tokenHash = await sha256Hex(token);
+      // Data is stored in the second put call (refresh-data key)
+      const dataCall = mockEnv.SESSIONS.put.mock.calls[1];
+      const storedData = JSON.parse(dataCall[1]);
 
       mockEnv.SESSIONS.get.mockResolvedValue(storedData);
 

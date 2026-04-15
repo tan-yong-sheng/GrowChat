@@ -2,7 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    environment: 'jsdom',
+    // Default to 'node' environment for faster tests.
+    // Tests needing jsdom must include: // @vitest-environment jsdom
+    environment: 'node',
     globals: true,
     include: ['src/**/*.test.js', 'tests/unit/**/*.test.js'],
     exclude: ['tests/e2e/**', '.worktrees/**', 'node_modules/**', '.wrangler/**'],

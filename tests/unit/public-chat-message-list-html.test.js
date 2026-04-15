@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { buildChatMessageListHtml } from '../../public/js/features/chat/chat-message-list-html.js';
 

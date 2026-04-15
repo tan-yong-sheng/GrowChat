@@ -51,6 +51,22 @@ function isValidModelAccessId(value) {
   return true;
 }
 
+/**
+ * Resolve required permission for an admin route.
+ * Keeps the permission policy visible in one place instead of
+ * scattered across sequential if-statements.
+ */
+function resolveAdminPermission(path, method) {
+  // Read-only GET requests default to read permission.
+  if (method === 'GET') return 'admin.user.read';
+
+  // PUT on config needs write permission.
+  if (path === '/api/admin/config' && method === 'PUT') return 'admin.user.write';
+
+  // All other admin mutations (POST, DELETE, PUT) need full admin permission.
+  return 'admin.rbac.admin';
+}
+
 // Keep ACL and mutation permissions explicit at the branch level so the route
 // policy is visible where the write happens, not only at the top-level router.
 async function ensureAdminAclAccess(env, user, resource = 'admin') {
@@ -73,39 +89,7 @@ async function ensureAdminMutationAccess(env, user, permission, resource = 'admi
 export async function adminRouter(req, env, ctx, user, path) {
   if (!path.startsWith('/api/admin/')) return null;
 
-  let requiredPermission = 'admin.user.read';
-  if (path === '/api/admin/config' && req.method === 'PUT') {
-    requiredPermission = 'admin.user.write';
-  }
-  if (path === '/api/admin/model-attachment-caps') {
-    requiredPermission = 'admin.rbac.admin';
-  }
-  if (path === '/api/admin/openai/connections' || path === '/api/admin/openai/connections/test') {
-    requiredPermission = 'admin.rbac.admin';
-  }
-  if (path.startsWith('/api/admin/openai/connections/') && path.endsWith('/access')) {
-    requiredPermission = 'admin.rbac.admin';
-  }
-  if (path === '/api/admin/openai/connections/access') {
-    requiredPermission = 'admin.rbac.admin';
-  }
-  if (path.startsWith('/api/admin/tool-servers/') && path.endsWith('/access')) {
-    requiredPermission = 'admin.rbac.admin';
-  }
-  if (path === '/api/admin/tool-servers/access') {
-    requiredPermission = 'admin.rbac.admin';
-  }
-  if (
-    path === '/api/admin/tool-servers' ||
-    path === '/api/admin/tool-servers/test' ||
-    path === '/api/admin/tool-servers/oauth/start' ||
-    path === '/api/admin/tool-servers/oauth/callback'
-  ) {
-    requiredPermission = 'admin.rbac.admin';
-  }
-  if (path === '/api/admin/email-config' || path === '/api/admin/email-config/test') {
-    requiredPermission = 'admin.rbac.admin';
-  }
+  const requiredPermission = resolveAdminPermission(path, req.method);
   const skipAuth = path === '/api/admin/tool-servers/oauth/callback';
   if (!skipAuth) {
     const authDecision = await authorize(env, user, { action: requiredPermission });

@@ -25,17 +25,43 @@ describe('shared/session', () => {
     expect(token).toMatch(/^[A-Za-z0-9\-_]+$/);
   });
 
-  it('creates, consumes, and revokes refresh tokens', async () => {
+  it('creates refresh tokens with two-key pattern', async () => {
+    const { token } = await createRefreshToken(env, 'u1');
+    expect(env.SESSIONS.put).toHaveBeenCalledTimes(2);
+    expect(env.SESSIONS.put).toHaveBeenNthCalledWith(1, expect.stringMatching(/^refresh:/), '1', expect.any(Object));
+    expect(env.SESSIONS.put).toHaveBeenNthCalledWith(2, expect.stringMatching(/^refresh-data:/), expect.stringMatching(/"u1"/), expect.any(Object));
+  });
+
+  it('consumeRefreshToken deletes gate first then reads data', async () => {
     const { token } = await createRefreshToken(env, 'u1');
     const tokenHash = await sha256Hex(token);
-    const stored = JSON.parse(env.SESSIONS.put.mock.calls[0][1]);
+    const storedData = JSON.parse(env.SESSIONS.put.mock.calls[1][1]);
 
-    env.SESSIONS.get.mockResolvedValueOnce(stored);
+    env.SESSIONS.get.mockResolvedValueOnce(storedData);
 
-    await expect(consumeRefreshToken(env, token)).resolves.toMatchObject({ userId: 'u1' });
-    expect(env.SESSIONS.get).toHaveBeenCalledWith(`refresh:${tokenHash}`, 'json');
+    const result = await consumeRefreshToken(env, token);
 
-    await revokeRefreshToken(env, token);
+    // Gate deleted first
+    expect(env.SESSIONS.delete).toHaveBeenNthCalledWith(1, `refresh:${tokenHash}`);
+    // Then data read from separate key
+    expect(env.SESSIONS.get).toHaveBeenCalledWith(`refresh-data:${tokenHash}`, 'json');
+    expect(result).toMatchObject({ userId: 'u1' });
+  });
+
+  it('consumeRefreshToken returns null for missing gate', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce(null);
+    // Gate already deleted — data key would also be missing
+    env.SESSIONS.get.mockResolvedValueOnce(null);
+
+    await expect(consumeRefreshToken(env, 'fake-token')).resolves.toBeNull();
+  });
+
+  it('revokeRefreshToken deletes both keys', async () => {
+    env.SESSIONS.delete.mockClear();
+    await revokeRefreshToken(env, 'some-token');
+    const tokenHash = await sha256Hex('some-token');
+    expect(env.SESSIONS.delete).toHaveBeenCalledTimes(2);
     expect(env.SESSIONS.delete).toHaveBeenCalledWith(`refresh:${tokenHash}`);
+    expect(env.SESSIONS.delete).toHaveBeenCalledWith(`refresh-data:${tokenHash}`);
   });
 });

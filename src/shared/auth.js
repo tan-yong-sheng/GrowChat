@@ -48,7 +48,7 @@ export async function verifyJWT(token, secret) {
 
   const [header, body, signature] = parts;
   const expected = await hmacSign(`${header}.${body}`, secret);
-  if (signature !== expected) throw new Error('Invalid signature');
+  if (!constantTimeEquals(signature, expected)) throw new Error('Invalid signature');
 
   const payload = decodeJson(body);
   if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) {

@@ -21,8 +21,16 @@ export async function createRefreshToken(env, userId) {
   const tokenHash = await sha256Hex(token);
   const expiresAt = Math.floor(Date.now() / 1000) + REFRESH_TTL_SECONDS;
 
+  // Two-key pattern prevents concurrent token reuse:
+  // refresh:{hash} — the "gate" key, deleted on consume (prevents reuse)
+  // refresh-data:{hash} — session data, read-only after gate is gone
   await env.SESSIONS.put(
     `refresh:${tokenHash}`,
+    '1',
+    { expirationTtl: REFRESH_TTL_SECONDS }
+  );
+  await env.SESSIONS.put(
+    `refresh-data:${tokenHash}`,
     JSON.stringify({ userId, expiresAt }),
     { expirationTtl: REFRESH_TTL_SECONDS }
   );
@@ -37,11 +45,16 @@ export async function consumeRefreshToken(env, token) {
   if (!token) return null;
 
   const tokenHash = await sha256Hex(token);
-  const key = `refresh:${tokenHash}`;
-  const raw = await env.SESSIONS.get(key, 'json');
-  if (!raw) return null;
+  const gateKey = `refresh:${tokenHash}`;
+  const dataKey = `refresh-data:${tokenHash}`;
 
-  await env.SESSIONS.delete(key);
+  // Two-key pattern: delete the gate first to prevent concurrent reuse,
+  // then read session data from the separate key.
+  // Cloudflare KV lacks transactions, so this minimizes the race window.
+  await env.SESSIONS.delete(gateKey);
+
+  const raw = await env.SESSIONS.get(dataKey, 'json');
+  if (!raw) return null;
 
   if (raw.expiresAt <= Math.floor(Date.now() / 1000)) {
     return null;
@@ -54,4 +67,5 @@ export async function revokeRefreshToken(env, token) {
   if (!token) return;
   const tokenHash = await sha256Hex(token);
   await env.SESSIONS.delete(`refresh:${tokenHash}`);
+  await env.SESSIONS.delete(`refresh-data:${tokenHash}`);
 }

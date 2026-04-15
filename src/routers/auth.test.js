@@ -4,6 +4,12 @@ const mocks = vi.hoisted(() => ({
   db: {
     first: vi.fn(),
     run: vi.fn(),
+    prepare: vi.fn().mockReturnValue({
+      bind: vi.fn().mockReturnThis(),
+      run: vi.fn().mockResolvedValue({}),
+      first: vi.fn().mockResolvedValue(null),
+    }),
+    batch: vi.fn().mockResolvedValue([]),
   },
   hashPassword: vi.fn(),
   verifyPassword: vi.fn(),

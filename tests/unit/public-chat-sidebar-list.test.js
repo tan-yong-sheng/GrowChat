@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { buildChatSidebarListFragment } from '../../public/js/features/chat/chat-sidebar-list.js';
 

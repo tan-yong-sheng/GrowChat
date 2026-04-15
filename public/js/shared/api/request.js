@@ -36,7 +36,7 @@ export async function apiFetch(path, options = {}) {
     }
   }
 
-  if (response.status === 403 && auth?.refresh_token && typeof path === 'string' && path.startsWith('/api/admin/')) {
+  if (response.status === 403 && auth?.refresh_token) {
     const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
     if (refreshed) {
       headers.set('Authorization', `Bearer ${refreshed.access_token}`);

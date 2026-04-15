@@ -28,7 +28,10 @@ function escapeHtml(text) {
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback).trim().toLowerCase();
-  return status === 'pending' ? 'pending' : 'active';
+  // Explicit allowlist: only 'active' is treated as active.
+  // Future statuses like 'suspended' or 'banned' must be added here.
+  if (status === 'active') return 'active';
+  return 'pending';
 }
 
 function isActiveAccount(user) {
@@ -50,14 +53,16 @@ async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active')
   const mappedRole = normalizePublicRole(role);
 
   try {
-    await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
-    await db.run(
-      `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
-       SELECT ?, ?, r.id, unixepoch()
-       FROM roles r
-       WHERE r.name = ?`,
-      [crypto.randomUUID(), userId, mappedRole]
-    );
+    // Use batch for atomicity: if INSERT fails, DELETE is rolled back too.
+    await db.batch([
+      db.prepare('DELETE FROM user_roles WHERE user_id = ?').bind(userId),
+      db.prepare(
+        `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
+         SELECT ?, ?, r.id, unixepoch()
+         FROM roles r
+         WHERE r.name = ?`
+      ).bind(crypto.randomUUID(), userId, mappedRole),
+    ]);
   } catch (err) {
     // Temporary safety net: do not block auth when RBAC tables are not migrated yet.
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
@@ -391,7 +396,14 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       const emailService = createEmailService(env);
       const userNameEscaped = escapeHtml(user.name);
       const origin = new URL(req.url).origin;
-      const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
+      // SECURITY NOTE: The reset token is embedded in the URL query parameter.
+  // This is a standard pattern for password reset emails but has known risks:
+  // - Token appears in server access logs (mitigated by logging URL paths only)
+  // - Token stored in browser history (cleared on tab close in modern browsers)
+  // - Token visible in URL bar (user should close tab after use)
+  // - Token could leak via Referer header (reset page has no external links)
+  // The token is hashed in the database and is single-use (deleted on consumption).
+  const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
 
       const emailHtml = `<!DOCTYPE html>
 <html lang="en">
