@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { getSessions, revokeSession } from './session-management.js';
+import { getSessions, revokeSession, sessionManagementRouter } from './session-management.js';
 
 // Mock KV namespace
 const mockKV = {
@@ -30,7 +30,6 @@ describe('Session Management', () => {
   describe('getSessions', () => {
     it('returns empty array when no sessions', async () => {
       mockKV.list.mockResolvedValue({ keys: [] });
-
       const result = await getSessions({ userId: 'user-1', kv: mockKV });
       expect(result.status).toBe(200);
       const body = await result.json();
@@ -67,14 +66,12 @@ describe('Session Management', () => {
 
     it('returns 404 when session not found', async () => {
       mockKV.get.mockResolvedValue(null);
-
       const result = await revokeSession({ sessionId: 'nonexistent', userId: 'user-1', kv: mockKV });
       expect(result.status).toBe(404);
     });
 
     it('returns 403 when session belongs to another user', async () => {
       mockKV.get.mockResolvedValue(JSON.stringify({ userId: 'other-user' }));
-
       const result = await revokeSession({ sessionId: 'session-1', userId: 'user-1', kv: mockKV });
       expect(result.status).toBe(403);
     });
@@ -82,11 +79,44 @@ describe('Session Management', () => {
     it('revokes session successfully', async () => {
       mockKV.get.mockResolvedValue(JSON.stringify({ userId: 'user-1', device: 'Chrome' }));
       mockKV.delete.mockResolvedValue(undefined);
-
       const result = await revokeSession({ sessionId: 'session-1', userId: 'user-1', kv: mockKV });
       expect(result.status).toBe(200);
       const body = await result.json();
       expect(body.message).toContain('revoked');
+    });
+  });
+
+  describe('sessionManagementRouter', () => {
+    const mockReq = { method: 'GET', headers: { get: vi.fn(() => null) } };
+    const mockDeleteReq = { method: 'DELETE', headers: { get: vi.fn(() => null) } };
+
+    it('returns null for non-session paths', async () => {
+      const result = await sessionManagementRouter(mockReq, {}, {}, null, '/api/users/me');
+      expect(result).toBeNull();
+    });
+
+    it('returns 401 when not authenticated', async () => {
+      const result = await sessionManagementRouter(mockReq, {}, {}, null, '/api/user/sessions');
+      expect(result.status).toBe(401);
+    });
+
+    it('handles GET /api/user/sessions', async () => {
+      const env = { SESSIONS: mockKV };
+      const user = { sub: 'user-1' };
+      mockKV.list.mockResolvedValue({ keys: [] });
+      const result = await sessionManagementRouter(mockReq, env, {}, user, '/api/user/sessions');
+      expect(result.status).toBe(200);
+      const body = await result.json();
+      expect(body.sessions).toEqual([]);
+    });
+
+    it('handles DELETE /api/user/sessions/:id', async () => {
+      const env = { SESSIONS: mockKV };
+      const user = { sub: 'user-1' };
+      mockKV.get.mockResolvedValue(JSON.stringify({ userId: 'user-1', device: 'Chrome' }));
+      mockKV.delete.mockResolvedValue(undefined);
+      const result = await sessionManagementRouter(mockDeleteReq, env, {}, user, '/api/user/sessions/session-1');
+      expect(result.status).toBe(200);
     });
   });
 });

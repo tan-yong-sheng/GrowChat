@@ -9,6 +9,7 @@ import { rbacRouter } from '../routers/rbac.js';
 import { groupsRouter } from '../routers/groups.js';
 import { publicRouter } from '../routers/public.js';
 import { realtimeRouter } from '../routers/realtime.js';
+import { sessionManagementRouter } from '../routers/session-management.js';
 
 export const API_ROUTES = [
   publicRouter,
@@ -22,6 +23,7 @@ export const API_ROUTES = [
   groupsRouter,
   rbacRouter,
   realtimeRouter,
+  sessionManagementRouter,
 ];
 
 export const PUBLIC_ROUTES = [

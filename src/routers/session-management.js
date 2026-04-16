@@ -2,6 +2,44 @@
  * Session Management Router
  * Handles session listing and revocation
  */
+import { error } from '../utils/response.js';
+
+/**
+ * Router for session management endpoints
+ * @param {Request} req - Request object
+ * @param {Object} env - Worker environment
+ * @param {Object} _ctx - Execution context
+ * @param {Object} user - Authenticated user
+ * @param {string} path - Request path
+ * @returns {Promise<Response|null>}
+ */
+export async function sessionManagementRouter(req, env, _ctx, user, path) {
+  // Only handle /api/user/sessions paths
+  if (!path.startsWith('/api/user/sessions')) return null;
+  
+  // Require authentication
+  if (!user) return error(req, 'Unauthorized', 401);
+  
+  const kv = env.SESSIONS;
+  if (!kv) {
+    return Response.json({ sessions: [] });
+  }
+  
+  // GET /api/user/sessions - list all sessions
+  if (req.method === 'GET' && path === '/api/user/sessions') {
+    return getSessions({ userId: user.sub, kv });
+  }
+  
+  // DELETE /api/user/sessions/:id - revoke a session
+  if (req.method === 'DELETE') {
+    const sessionId = path.replace('/api/user/sessions/', '').replace('/api/user/sessions', '');
+    if (sessionId && sessionId !== path) {
+      return revokeSession({ sessionId, userId: user.sub, kv });
+    }
+  }
+  
+  return null;
+}
 
 /**
  * Get all active sessions for a user
