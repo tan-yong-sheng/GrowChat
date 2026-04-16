@@ -16,20 +16,25 @@ import { error } from '../utils/response.js';
 export async function sessionManagementRouter(req, env, _ctx, user, path) {
   // Only handle /api/user/sessions paths
   if (!path.startsWith('/api/user/sessions')) return null;
-  
+
   // Require authentication
   if (!user) return error(req, 'Unauthorized', 401);
-  
+
   const kv = env.SESSIONS;
   if (!kv) {
-    return Response.json({ sessions: [] });
+    // For GET requests, return empty sessions
+    // For DELETE requests, return error (cannot revoke without KV)
+    if (req.method === 'GET') {
+      return Response.json({ sessions: [] });
+    }
+    return Response.json({ error: 'Session storage unavailable' }, { status: 503 });
   }
-  
+
   // GET /api/user/sessions - list all sessions
   if (req.method === 'GET' && path === '/api/user/sessions') {
     return getSessions({ userId: user.sub, kv });
   }
-  
+
   // DELETE /api/user/sessions/:id - revoke a session
   if (req.method === 'DELETE') {
     const sessionId = path.replace('/api/user/sessions/', '').replace('/api/user/sessions', '');
@@ -37,7 +42,7 @@ export async function sessionManagementRouter(req, env, _ctx, user, path) {
       return revokeSession({ sessionId, userId: user.sub, kv });
     }
   }
-  
+
   return null;
 }
 
@@ -61,15 +66,19 @@ export async function getSessions({ userId, kv }) {
   for (const key of keys) {
     const sessionId = key.name.replace(prefix, '');
     const metadata = await kv.get(key.name);
-
     if (metadata) {
-      const data = JSON.parse(metadata);
-      sessions.push({
-        id: sessionId,
-        device: data.device || 'Unknown',
-        ip: data.ip || 'Unknown',
-        lastActive: data.lastActive,
-      });
+      try {
+        const data = JSON.parse(metadata);
+        sessions.push({
+          id: sessionId,
+          device: data.device || 'Unknown',
+          ip: data.ip || 'Unknown',
+          lastActive: data.lastActive,
+        });
+      } catch (e) {
+        // Skip corrupted session metadata
+        console.warn(`Corrupted session metadata for ${sessionId}:`, e.message);
+      }
     }
   }
 
@@ -94,12 +103,17 @@ export async function revokeSession({ sessionId, userId, kv }) {
 
   const key = `session:${userId}:${sessionId}`;
   const sessionData = await kv.get(key);
-
   if (!sessionData) {
     return Response.json({ error: 'Session not found' }, { status: 404 });
   }
 
-  const session = JSON.parse(sessionData);
+  let session;
+  try {
+    session = JSON.parse(sessionData);
+  } catch (e) {
+    // Treat parse failure as corrupted data
+    return Response.json({ error: 'Session data corrupted' }, { status: 410 });
+  }
 
   // Check ownership
   if (session.userId !== userId) {
@@ -108,7 +122,6 @@ export async function revokeSession({ sessionId, userId, kv }) {
 
   // Delete the session
   await kv.delete(key);
-
   return Response.json({ message: 'Session revoked successfully' });
 }
 
@@ -122,8 +135,8 @@ export async function revokeSession({ sessionId, userId, kv }) {
 export async function storeSessionMetadata(userId, sessionId, metadata, kv) {
   const key = `session:${userId}:${sessionId}`;
   const data = {
-    userId,
     ...metadata,
+    userId,
     lastActive: Math.floor(Date.now() / 1000),
   };
   await kv.put(key, JSON.stringify(data));

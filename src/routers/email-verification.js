@@ -34,7 +34,7 @@ export async function verifyEmail({ token }) {
 
   // Check if token expired
   const now = Math.floor(Date.now() / 1000);
-  if (verification.expires_at < now) {
+  if (verification.expires_at <= now) {
     return Response.json({ error: 'Token has expired' }, { status: 400 });
   }
 
@@ -92,8 +92,6 @@ export async function resendVerification({ email, env }) {
     .run();
 
   // TODO: Send verification email via Resend
-  // For now, just log the verification URL
-  console.info('Verification email requested', { userId: user?.id });
 
   return Response.json({ message: 'If the email exists, a verification email has been sent' });
 }
@@ -117,7 +115,6 @@ export async function createEmailVerification(userId, email, env) {
     .run();
 
   // TODO: Send verification email via Resend
-  console.info('Verification token created', { userId });
 
   return token;
 }

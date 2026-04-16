@@ -101,7 +101,9 @@ describe('account shell tabs', () => {
       'Connections',
       'Models',
       'Integrations',
+      'Security',
     ]);
+    expect(document.querySelector('[data-subnav="security"]')).not.toBeNull();
   }, 10000);
 
   it('keeps Settings active on a settings subsection route', async () => {
@@ -130,7 +132,9 @@ describe('account shell tabs', () => {
       'Connections',
       'Models',
       'Integrations',
+      'Security',
     ]);
+    expect(document.querySelector('[data-subnav="security"]')).not.toBeNull();
   });
 
   it('renders the shared workspace sidebar chrome', async () => {

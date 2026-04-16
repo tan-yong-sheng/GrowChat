@@ -12,6 +12,8 @@ import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-v
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
+import { showToast } from '../../shared/utils.js';
+import { renderSessionsSection } from './sessions.js';
 
 const accountSectionRenderers = {
   connections: null,
@@ -57,6 +59,7 @@ export function resolveAccountSectionFromPath(pathname) {
   if (pathname.startsWith('/account/settings/connections')) return 'connections';
   if (pathname.startsWith('/account/settings/models')) return 'models';
   if (pathname.startsWith('/account/settings/integrations')) return 'integrations';
+  if (pathname.startsWith('/account/settings/security')) return 'security';
   return 'connections';
 }
 
@@ -68,6 +71,8 @@ function getAccountSectionPath(section) {
       return '/account/settings/models';
     case 'integrations':
       return '/account/settings/integrations';
+    case 'security':
+      return '/account/settings/security';
     default:
       return '/account/settings/connections';
   }
@@ -149,6 +154,12 @@ function getAccountNavItems(section) {
       label: 'Integrations',
       active: activeSection === 'integrations',
     },
+    {
+      href: '#security',
+      key: 'security',
+      label: 'Security',
+      active: activeSection === 'security',
+    },
   ];
 }
 
@@ -221,6 +232,16 @@ async function renderAccountSection({
       footerHost,
       routeCache: settingsRouteCache,
     });
+    return;
+  }
+
+  if (section === 'security') {
+    const sessionsEl = await renderSessionsSection({
+      apiFetch,
+      showToast: (message) => showToast(message),
+    });
+    content.replaceChildren(sessionsEl);
+    if (footerHost) footerHost.innerHTML = '';
     return;
   }
 

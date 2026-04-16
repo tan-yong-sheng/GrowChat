@@ -13,11 +13,6 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-/**
- * Format relative time
- * @param {number} timestamp - Unix timestamp (seconds)
- * @returns {string} Human-readable relative time
- */
 function formatRelativeTime(timestamp) {
   if (!timestamp) return 'Unknown';
   const seconds = Math.floor((Date.now() / 1000) - timestamp);
@@ -27,11 +22,6 @@ function formatRelativeTime(timestamp) {
   return `${Math.floor(seconds / 86400)} days ago`;
 }
 
-/**
- * Get device icon based on device string
- * @param {string} device - Device name
- * @returns {string} Icon class
- */
 function getDeviceIcon(device) {
   const d = String(device || '').toLowerCase();
   if (d.includes('iphone') || d.includes('android') || d.includes('mobile')) {
@@ -46,11 +36,6 @@ function getDeviceIcon(device) {
   return 'bi-display';
 }
 
-/**
- * Render skeleton loading state
- * @param {number} count - Number of skeleton cards
- * @returns {string} HTML string
- */
 function renderSkeletonCards(count = 3) {
   let html = '';
   for (let i = 0; i < count; i++) {
@@ -69,57 +54,29 @@ function renderSkeletonCards(count = 3) {
   return html;
 }
 
-/**
- * Render sessions list
- * @param {Array} sessions - Array of session objects
- * @param {Object} options - Options
- * @param {string} options.currentSessionId - Current session ID
- * @param {Function} options.onRevoke - Called when revoking (sessionId) => Promise<void>
- * @param {Function} options.onRevokeAll - Called when revoking all other sessions () => Promise<void>
- * @returns {HTMLElement} Container element
- */
-export function renderSessionsList(sessions, { currentSessionId, onRevoke, onRevokeAll }) {
+export function renderSessionsList(sessions, { onRevoke, onRevokeAll }) {
   const container = document.createElement('div');
   container.className = 'sessions-list';
   container.setAttribute('role', 'region');
   container.setAttribute('aria-label', 'Active sessions');
 
-  const currentSession = sessions.find(s => s.id === currentSessionId);
-  const otherSessions = sessions.filter(s => s.id !== currentSessionId);
-
+  const sessionList = Array.isArray(sessions) ? sessions : [];
   let html = '<h3 class="text-lg font-medium mb-4">Active Sessions</h3>';
+  html += `
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
+      This list shows your active sessions. The current browser session isn’t yet mapped to a server session ID in this view, so every entry can be revoked here.
+    </div>
+  `;
 
-  // Current session (highlighted)
-  if (currentSession) {
-    html += `
-      <div class="session-card current-session bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4" 
-           data-current="true" 
-           data-session-id="${escapeHtml(currentSession.id)}"
-           aria-label="Current session: ${escapeHtml(currentSession.device)}">
-        <div class="flex items-center gap-3">
-          <i class="bi ${getDeviceIcon(currentSession.device)} text-xl text-blue-600"></i>
-          <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <span class="font-medium text-gray-900">${escapeHtml(currentSession.device)}</span>
-              <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">This device</span>
-            </div>
-            <p class="text-sm text-gray-500">${escapeHtml(currentSession.ip || 'Unknown location')}</p>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Other sessions
-  if (otherSessions.length > 0) {
+  if (sessionList.length > 0) {
     html += `
       <h4 class="text-sm font-medium text-gray-700 mb-2" id="other-sessions-heading">
-        Other sessions (${otherSessions.length})
+        Sessions (${sessionList.length})
       </h4>
       <div class="other-sessions" role="list" aria-labelledby="other-sessions-heading">
     `;
 
-    otherSessions.forEach(session => {
+    sessionList.forEach((session) => {
       html += `
         <div class="session-card bg-white border rounded-lg p-4 mb-2 hover:border-gray-300 transition-colors"
              data-session-id="${escapeHtml(session.id)}"
@@ -143,30 +100,26 @@ export function renderSessionsList(sessions, { currentSessionId, onRevoke, onRev
     });
 
     html += '</div>';
-
-    // Revoke all button
     html += `
       <button class="revoke-all-btn btn-danger-outline mt-4 w-full" id="revoke-all-other">
         <i class="bi bi-x-lg mr-1"></i>
-        Revoke all other sessions (${otherSessions.length})
+        Revoke all sessions shown here (${sessionList.length})
       </button>
     `;
   } else {
-    // Empty state - warm and reassuring
     html += `
       <div class="empty-state bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
         <i class="bi bi-check-circle text-3xl text-green-500 mb-2"></i>
-        <p class="text-gray-700 font-medium">No other sessions</p>
-        <p class="text-sm text-gray-500 mt-1">You're only logged in on this device.</p>
+        <p class="text-gray-700 font-medium">No sessions found</p>
+        <p class="text-sm text-gray-500 mt-1">There are no active sessions to display.</p>
       </div>
     `;
   }
 
   container.innerHTML = html;
 
-  // Wire up revoke buttons
-  container.querySelectorAll('.revoke-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+  container.querySelectorAll('.revoke-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
       const sessionId = btn.dataset.sessionId;
       const card = btn.closest('.session-card');
       const deviceName = card?.querySelector('.font-medium')?.textContent || 'this device';
@@ -177,37 +130,33 @@ export function renderSessionsList(sessions, { currentSessionId, onRevoke, onRev
 
         try {
           await onRevoke(sessionId);
-
-          // Animate card out
           card.style.transition = 'opacity 0.3s, transform 0.3s';
           card.style.opacity = '0';
           card.style.transform = 'translateX(-20px)';
 
           setTimeout(() => {
             card.remove();
-
-            // Update count and check for empty state
             const remainingCards = container.querySelectorAll('.other-sessions .session-card');
             if (remainingCards.length === 0) {
-              // Replace with empty state
               const otherSection = container.querySelector('.other-sessions');
               const revokeAllBtn = container.querySelector('#revoke-all-other');
               const heading = container.querySelector('#other-sessions-heading');
-
               if (otherSection) otherSection.remove();
               if (revokeAllBtn) revokeAllBtn.remove();
               if (heading) heading.remove();
-
-              // Add empty state
-              container.querySelector('.session-card[data-current="true"]')?.insertAdjacentHTML('afterend', `
+              container.innerHTML = `
+                <h3 class="text-lg font-medium mb-4">Active Sessions</h3>
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
+                  This list shows your active sessions. The current browser session isn’t yet mapped to a server session ID in this view, so every entry can be revoked here.
+                </div>
                 <div class="empty-state bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
                   <i class="bi bi-check-circle text-3xl text-green-500 mb-2"></i>
-                  <p class="text-gray-700 font-medium">No other sessions</p>
-                  <p class="text-sm text-gray-500 mt-1">You're only logged in on this device.</p>
+                  <p class="text-gray-700 font-medium">No sessions remain in this list</p>
+                  <p class="text-sm text-gray-500 mt-1">This view does not distinguish the current browser session.</p>
                 </div>
-              `);
+              `;
             } else {
-              // Update count
+              const heading = container.querySelector('#other-sessions-heading');
               const countMatch = heading?.textContent?.match(/\(\d+\)/);
               if (countMatch && heading) {
                 heading.textContent = heading.textContent.replace(/\(\d+\)/, `(${remainingCards.length})`);
@@ -223,20 +172,17 @@ export function renderSessionsList(sessions, { currentSessionId, onRevoke, onRev
     });
   });
 
-  // Revoke all button
   const revokeAllBtn = container.querySelector('#revoke-all-other');
   if (revokeAllBtn) {
     revokeAllBtn.addEventListener('click', async () => {
-      const count = otherSessions.length;
-      if (confirm(`Are you sure you want to revoke all ${count} other sessions?`)) {
+      const count = sessionList.length;
+      if (confirm(`Are you sure you want to revoke all ${count} sessions shown here?`)) {
         revokeAllBtn.disabled = true;
         revokeAllBtn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></span> Revoking...';
 
         try {
           await onRevokeAll();
-
-          // Remove all other session cards
-          container.querySelectorAll('.other-sessions .session-card').forEach(card => {
+          container.querySelectorAll('.other-sessions .session-card').forEach((card) => {
             card.style.transition = 'opacity 0.3s';
             card.style.opacity = '0';
           });
@@ -245,22 +191,23 @@ export function renderSessionsList(sessions, { currentSessionId, onRevoke, onRev
             const otherSection = container.querySelector('.other-sessions');
             if (otherSection) otherSection.remove();
             revokeAllBtn.remove();
-
             const heading = container.querySelector('#other-sessions-heading');
             if (heading) heading.remove();
-
-            // Add empty state
-            container.querySelector('.session-card[data-current="true"]')?.insertAdjacentHTML('afterend', `
+            container.innerHTML = `
+              <h3 class="text-lg font-medium mb-4">Active Sessions</h3>
+              <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
+                This list shows your active sessions. The current browser session isn’t yet mapped to a server session ID in this view, so every entry can be revoked here.
+              </div>
               <div class="empty-state bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
                 <i class="bi bi-check-circle text-3xl text-green-500 mb-2"></i>
-                <p class="text-gray-700 font-medium">No other sessions</p>
-                <p class="text-sm text-gray-500 mt-1">You're only logged in on this device.</p>
+                <p class="text-gray-700 font-medium">No sessions remain in this list</p>
+                <p class="text-sm text-gray-500 mt-1">This view does not distinguish the current browser session.</p>
               </div>
-            `);
+            `;
           }, 300);
         } catch (err) {
           revokeAllBtn.disabled = false;
-          revokeAllBtn.innerHTML = `<i class="bi bi-x-lg mr-1"></i> Revoke all other sessions (${count})`;
+          revokeAllBtn.innerHTML = `<i class="bi bi-x-lg mr-1"></i> Revoke all sessions shown here (${count})`;
           throw err;
         }
       }
@@ -270,38 +217,24 @@ export function renderSessionsList(sessions, { currentSessionId, onRevoke, onRev
   return container;
 }
 
-/**
- * Render sessions section with API integration
- * @param {Object} api - API helpers
- * @param {Function} api.apiFetch - Fetch wrapper
- * @param {Function} api.showToast - Toast notification helper
- * @param {string} api.currentSessionId - Current session ID
- * @returns {Promise<HTMLElement>} Container element
- */
-export async function renderSessionsSection({ apiFetch, showToast, currentSessionId }) {
+export async function renderSessionsSection({ apiFetch, showToast }) {
   const container = document.createElement('div');
   container.className = 'sessions-section';
 
-  // Show loading state
   container.innerHTML = `
     <h3 class="text-lg font-medium mb-4">Active Sessions</h3>
     ${renderSkeletonCards(3)}
   `;
 
   try {
-    // Fetch sessions
     const res = await apiFetch('/api/user/sessions');
     if (!res.ok) {
       throw new Error('Failed to load sessions');
     }
     const data = await res.json();
 
-    // Clear loading state
     container.innerHTML = '';
-
-    // Render sessions list
     const listEl = renderSessionsList(data.sessions || [], {
-      currentSessionId,
       onRevoke: async (sessionId) => {
         const revokeRes = await apiFetch(`/api/user/sessions/${sessionId}`, {
           method: 'DELETE',
@@ -310,22 +243,25 @@ export async function renderSessionsSection({ apiFetch, showToast, currentSessio
           const errData = await revokeRes.json().catch(() => ({}));
           throw new Error(errData.error || 'Failed to revoke session');
         }
+        data.sessions = (data.sessions || []).filter((s) => s.id !== sessionId);
         showToast('Session revoked', 'success');
       },
       onRevokeAll: async () => {
-        // Revoke all other sessions
-        const otherSessions = (data.sessions || []).filter(s => s.id !== currentSessionId);
-        await Promise.all(
-          otherSessions.map(s =>
-            apiFetch(`/api/user/sessions/${s.id}`, { method: 'DELETE' })
-          )
-        );
-        showToast('All other sessions revoked', 'success');
+        const sessions = (data.sessions || []);
+        await Promise.all(sessions.map(async (session) => {
+          const res = await apiFetch(`/api/user/sessions/${session.id}`, { method: 'DELETE' });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Failed to revoke session ${session.id}`);
+          }
+        }));
+        data.sessions = [];
+        showToast('All sessions revoked', 'success');
       },
     });
 
     container.appendChild(listEl);
-  } catch (err) {
+  } catch {
     container.innerHTML = `
       <div class="error-state text-center py-8">
         <i class="bi bi-exclamation-circle text-3xl text-red-500 mb-2"></i>
@@ -334,19 +270,15 @@ export async function renderSessionsSection({ apiFetch, showToast, currentSessio
       </div>
     `;
 
-    container.querySelector('#retry-sessions')?.addEventListener('click', () => {
-      // Re-render
-      return renderSessionsSection({ apiFetch, showToast, currentSessionId });
+    container.querySelector('#retry-sessions')?.addEventListener('click', async () => {
+      const next = await renderSessionsSection({ apiFetch, showToast });
+      container.replaceWith(next);
     });
   }
 
   return container;
 }
 
-/**
- * Render loading skeleton
- * @returns {HTMLElement} Container with skeleton
- */
 export function renderSessionsLoading() {
   const container = document.createElement('div');
   container.className = 'sessions-section';

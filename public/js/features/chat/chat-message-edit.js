@@ -71,7 +71,8 @@ export class MessageEditController {
 
     // Store original HTML for cancel
     this.originalHtml = this.contentEl.innerHTML;
-    const currentText = this.contentEl.textContent || this.originalContent;
+    // Use saved content, not textContent (which includes "(edited)" badge)
+    const currentText = this.originalContent;
 
     // Replace content with edit UI
     this.contentEl.innerHTML = `
@@ -153,11 +154,16 @@ export class MessageEditController {
     saveBtn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full"></span> Saving...';
 
     try {
-      await this.onSave(this.messageId, newContent);
+      const response = await this.onSave(this.messageId, newContent);
       
       // Exit edit mode and show edited badge
       this.exitEditMode(true);
       this.showEditedBadge();
+      
+      // Update originalContent with server response to prevent stale data on re-edit
+      if (response && response.message) {
+        this.originalContent = response.message.content;
+      }
       this.showToast('Message updated', 'success');
     } catch (err) {
       saveBtn.disabled = false;

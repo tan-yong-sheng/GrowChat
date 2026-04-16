@@ -572,6 +572,17 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
   }
 
   if (req.method === 'POST' && path === '/api/auth/resend-verification') {
+    const resendLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-resend-verification',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authResendVerification,
+    });
+    if (!resendLimit.allowed) {
+      return error(req, 'Too many resend attempts', 429, {
+        retry_after: Math.ceil((resendLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
     let body;
     try {
       body = await req.json();
