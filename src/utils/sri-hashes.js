@@ -19,6 +19,7 @@ const SRI_RESOURCES = {
   },
   'dompurify': {
     url: 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs',
+    type: 'module',
   },
 };
 
@@ -189,7 +190,8 @@ function injectSriHashes(html, hashes) {
     const pattern = SRI_INJECT_PATTERNS.get(key);
     if (!pattern) continue;
 
-    modified = modified.replace(pattern, `integrity="${hashValue}" crossorigin="anonymous"`);
+    const extraAttrs = key === 'dompurify' ? ' type="module"' : '';
+    modified = modified.replace(pattern, `${extraAttrs} integrity="${hashValue}" crossorigin="anonymous"`);
   }
 
   return modified;

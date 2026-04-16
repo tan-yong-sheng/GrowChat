@@ -14,10 +14,11 @@ describe('SRI hashes for DOMPurify', () => {
     expect(SRI_INJECT_PATTERNS.has('dompurify')).toBe(true);
   });
 
-  it('injects dompurify SRI hash into HTML', () => {
+  it('injects dompurify as a module script with SRI attributes', () => {
     const hashes = { dompurify: 'sha384-testhash' };
     const html = '<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs" data-sri-key="dompurify"></script>';
     const result = injectSriHashes(html, hashes);
+    expect(result).toContain('type="module"');
     expect(result).toContain('integrity="sha384-testhash"');
     expect(result).toContain('crossorigin="anonymous"');
   });
