@@ -1,9 +1,4 @@
 {
-  "src/**/*.{js}": [
-    "eslint --fix --max-warnings=0",
-    "prettier --write"
-  ],
-  "src/**/*.{css,json,md,yml,yaml}": [
-    "prettier --write"
-  ]
+  "**/*.js": ["eslint --fix --max-warnings=0", "prettier --write"],
+  "**/*.{css,json,md,yml,yaml}": ["prettier --write"]
 }
