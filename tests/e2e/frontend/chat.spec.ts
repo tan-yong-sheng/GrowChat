@@ -113,7 +113,7 @@ test.describe('Core Chat UI Logic', () => {
       }
     });
 
-    await page.click('#send-btn, button:has(svg path[d*="M6"])');
+    await page.click('#send-btn');
     await expect(page.locator('text=What is 2+2?').first()).toBeVisible({ timeout: 15000 });
   });
 
@@ -123,7 +123,7 @@ test.describe('Core Chat UI Logic', () => {
 
     const input = page.locator('#message-input, textarea').first();
     await input.fill('   ');
-    const sendBtn = page.locator('#send-btn, button:has(svg path[d*="M6"])').first();
+    const sendBtn = page.locator('#send-btn').first();
     const isVisible = await sendBtn.isVisible();
     if (isVisible) {
       await expect(sendBtn).toBeDisabled();
@@ -149,7 +149,7 @@ test.describe('Core Chat UI Logic', () => {
     await page.route('**/api/chats/c1/messages', (route) => route.fulfill({ status: 500, body: JSON.stringify({ error: 'LLM Error' }) }));
 
     await page.fill('#message-input, textarea', 'Fail me');
-    await page.click('#send-btn, button:has(svg path[d*="M6"])');
+    await page.click('#send-btn');
     await expect(page.locator('#message-input, textarea').first()).toBeVisible({ timeout: 15000 });
   });
 });
