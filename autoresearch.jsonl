@@ -1,0 +1,1 @@
+{"type":"config","name":"precommit-gated-coding-environment","metricName":"commit_duration_ms","metricUnit":"","bestDirection":"lower"}
