@@ -1,5 +1,7 @@
 # Auth APIs
 
+*Related UI Flow:* [Authentication User Flow](../../ui-ux/user-flows/00-authentication.md)
+
 ## `POST /api/auth/register`
 **Responsibility**: Creates a new user account and initializes their primary role. The first user created becomes the `admin` and disables public registration. Subsequent users become `member` or `pending`.
 

@@ -1,43 +1,52 @@
-# GrowChat Documentation
+# GrowChat Developer Wiki 📚
 
-## Architecture
+Welcome to the GrowChat knowledge graph. This documentation is structured as an interconnected wiki, designed to map the system from high-level user flows down to low-level database state machines.
 
-- [Frontend Architecture](./architecture/frontend-overview.md) — SPA design, routing, bootstrap, state management, module patterns
-- [Project Structure](./architecture/project-structure.md) — Complete directory map of all code (backend + frontend + tests)
-- [ADR 001: Refactor by Boundary](./adr/001-refactor-boundaries.md) — Code organization by responsibility
-- [ADR 002: Forward-Only Migration Policy](./adr/002-migration-policy.md) — Database migration conventions
-- [ADR 003: Shared Workspace Settings](./adr/003-workspace-settings-boundaries.md) — Shared admin/account settings architecture
+## 🎨 Frontend & UX (The UI Knowledge Graph)
+The `ui-ux` directory maps the exact interaction behaviors, components, and visual states of the application.
 
-## API Reference
+*   **[Navigation & IA](ui-ux/ia/navigation-structure.md)**: What pages exist and how they are structured.
+*   **[User Flows](ui-ux/user-flows/)**: The happy paths for users.
+    *   [Authentication Flow](ui-ux/user-flows/00-authentication.md)
+    *   [Main Chat Interface](ui-ux/user-flows/01-main-chat-interface.md)
+    *   [Account Settings Drawer](ui-ux/user-flows/02-account-settings-drawer.md)
+    *   [Admin Workspace](ui-ux/user-flows/03-admin-workspace.md)
+*   **[UI Components](ui-ux/components/)**: Reusable interface elements and their strict visual rules.
+    *   [Chat Components](ui-ux/components/chat-components.md)
+    *   [Auth Modals](ui-ux/components/auth-modals.md)
+    *   [Workspace Components](ui-ux/components/workspace-components.md)
+*   **[State Machines](ui-ux/states/)**: Explicit UI states (Idle -> Loading -> Error) for hunting edge-case bugs.
+    *   [Auth States](ui-ux/states/auth.states.md)
+    *   [Chat States](ui-ux/states/chat.states.md)
+    *   [Account Drawer States](ui-ux/states/account-drawer.states.md)
+    *   [Admin Workspace States](ui-ux/states/admin-workspace.states.md)
 
-- [API Index](./api/README.md)
-- [Public Routes](./api/public-routes.md)
-- [Auth Routes](./api/auth-routes.md)
-- [User Routes](./api/user-routes.md)
-- [Chat Routes](./api/chat-routes.md)
-- [Files Routes](./api/files-routes.md)
-- [Models Routes](./api/models-routes.md)
-- [Admin Routes](./api/admin-routes.md)
-- [RBAC & Groups Routes](./api/rbac-routes.md)
-- [Realtime Routes](./api/realtime-routes.md)
+## ⚙️ Backend & Architecture (The System Graph)
+The `backend` directory maps APIs, background jobs, database schemas, and data flows.
 
-## Testing
+*   **[APIs](backend/apis/)**: HTTP Endpoint contracts, internal side-effects, and dependencies.
+    *   [Authentication APIs](backend/apis/auth.md)
+    *   [Chat & Realtime APIs](backend/apis/chat.md)
+    *   [Admin & Settings APIs](backend/apis/admin.md)
+    *   [Model Management APIs](backend/apis/models.md)
+*   **[System Flows](backend/flows/)**: End-to-end sequence diagrams mapping requests through the system.
+    *   [Chat Streaming & SSE](backend/flows/chat-streaming.flow.md)
+    *   [Model Discovery & Merging](backend/flows/model-discovery.flow.md)
+    *   [User Login & Auth](backend/flows/user-login.flow.md)
+    *   [RBAC Authorization Engine](backend/flows/rbac-authorization.flow.md)
+*   **[Data Models](backend/data-models/)**: Database schemas and their implicit relationships.
+    *   [Users & Sessions](backend/data-models/user.md)
+    *   [Chats & Messages](backend/data-models/chat.md)
+    *   [Admin Configurations & ACLs](backend/data-models/admin-settings.md)
+*   **[Events](backend/events/)**: Realtime SSE event payloads.
+    *   [MessageQueueDO Realtime Events](backend/events/realtime.md)
+*   **[Backend States](backend/states/)**: Implicit state machines mapped in the database.
+    *   [User Account States](backend/states/user.states.md)
+    *   [Chat Message States](backend/states/chat-message.states.md)
 
-- [Test Strategy](./testing/test-strategy.md) — Test layers, frameworks, commands, coverage gaps
-- [QA Test Matrix](./qa/test-matrix.md) — Maps QA test IDs #1–#80 to automated test files
-- [QA Test Cases](./qa/test-cases/) — Manual test case documents with evidence
-- [Known Issues](./qa/known-issues.md) — Unresolved issues and partially-tested features
+## 🐞 Bug Hunting & Standards
+*   **[DESIGN.md](../DESIGN.md)**: The ultimate source of truth for the Apple-style, low-density aesthetic language used throughout GrowChat.
+*   **[UI/UX Bug Tracker](ui-ux/BUGS.md)**: A running checklist of visual deviations and unhandled edge cases discovered during mapping.
 
-## QA Test Cases (Manual)
-
-- [01: Authentication](./qa/test-cases/01-authentication.md) — Tests #1–#4
-- [02: Home Page](./qa/test-cases/02-home-page.md) — Tests #5–#8
-- [Known Issues](./qa/known-issues.md) — Unresolved issues tracker (formerly 03-rapid-testing-summary)
-- [04: Admin Settings](./qa/test-cases/04-admin-settings.md) — Tests #41–#55
-- [05: User Settings & Admin Pages](./qa/test-cases/05-user-settings-admin-pages.md) — Tests #56–#62
-- [06: Search, Mobile, Advanced](./qa/test-cases/06-search-mobile-advanced.md) — Tests #63–#80
-
-## Deployment & Database
-
-- [Database Schema](./database/schema.md) — 22 tables, seed data, relationships, migration policy
-- **Deployment:** See `AGENTS.md` (Secrets, Local Dev, Deploy, Bindings)
+---
+*Tip: When debugging a feature, start by finding its Flow diagram, trace the API endpoint, check the relevant UI State Machine, and verify the Data Model expectations.*

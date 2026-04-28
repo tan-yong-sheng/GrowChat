@@ -58,6 +58,7 @@ stateDiagram-v2
 
 ### 3. Submission & API Error States
 - **Trigger**: User provides valid inputs and clicks "Sign in" / "Sign up".
+- **Backend Flow**: Triggers [`POST /api/auth/login`](../../backend/apis/auth.md) or [`POST /api/auth/register`](../../backend/apis/auth.md).
 - **UI State during submission**:
   - Button text changes to "Signing in…" or "Signing up…".
   - Button becomes temporarily disabled to prevent double-submission.
@@ -69,19 +70,10 @@ stateDiagram-v2
 
 ### 4. Forgot Password Modal
 - **Trigger**: Clicking "Forgot password?".
+- **Backend Flow**: Triggers [`POST /api/auth/forgot-password`](../../backend/apis/auth.md).
 - **UI State**:
   - A fixed overlay (`bg-black bg-opacity-50`) appears, trapping focus.
   - Presents an email input and a "Send reset link" button.
 - **Interaction**:
   - Clicking outside the modal container or clicking "Cancel" closes the modal and clears the input.
   - Success state replaces the modal form with a green success message before auto-closing after 2 seconds.
-
----
-
-## Design System Deviations (Needs Fixing)
-
-Based on the newly established `DESIGN.md` guidelines, the current Authentication page has significant visual bugs:
-
-1. **Brand Accent Color Violation**: The current submit button uses `bg-[#171717]` (Near-Black). The design guidelines strictly mandate `Action Blue (#0066cc)` for all primary "click me" signals.
-2. **Border Radius Scale Violation**: The inputs and buttons currently use `rounded-[20px]`. The design guidelines dictate `{rounded.pill}` (9999px) for primary actions and inputs to match the "Apple pill" aesthetic.
-3. **Typography**: The page title currently uses standard generic font weight handling rather than the specific `-0.374px` letter-spacing tracking required for `{typography.display-lg}`.
