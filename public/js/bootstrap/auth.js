@@ -289,9 +289,9 @@ resetPasswordModal.addEventListener('click', (e) => {
 });
 
 // Form validation listeners
-emailInput.addEventListener('input', () => updateButtonState(form, authSubmit, isSubmitting));
-passwordInput.addEventListener('input', () => updateButtonState(form, authSubmit, isSubmitting));
-nameInput.addEventListener('input', () => updateButtonState(form, authSubmit, isSubmitting));
+emailInput.addEventListener('input', () => { err.classList.add('hidden'); updateButtonState(form, authSubmit, isSubmitting); });
+passwordInput.addEventListener('input', () => { err.classList.add('hidden'); updateButtonState(form, authSubmit, isSubmitting); });
+nameInput.addEventListener('input', () => { err.classList.add('hidden'); updateButtonState(form, authSubmit, isSubmitting); });
 
 form.addEventListener('submit', submit);
 setMode('login');

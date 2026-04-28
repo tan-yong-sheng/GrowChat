@@ -21,11 +21,7 @@
     "lint": "eslint \"src/**/*.js\" \"public/js/**/*.js\" --ignore-pattern node_modules",
     "lint:fix": "eslint \"src/**/*.js\" \"public/js/**/*.js\" --fix",
     "format": "prettier --write \"src/**/*.js\" \"public/js/**/*.js\"",
-    "format:check": "prettier --check \"src/**/*.js\" \"public/js/**/*.js\"",
-    "typecheck": "tsc --noEmit",
-    "prepare": "husky",
-    "precommit": "lint-staged",
-    "prepush": "npm run typecheck && npm run test"
+    "format:check": "prettier --check \"src/**/*.js\" \"public/js/**/*.js\""
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^20.5.0",

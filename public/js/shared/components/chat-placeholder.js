@@ -84,7 +84,7 @@ export function renderPlaceholder(container, options = {}) {
     const grid = container.querySelector('#welcome-suggestions-grid');
     if (grid) {
       grid.innerHTML = displayed.length > 0 ? displayed.map((s) => `
-        <button class="suggestion-btn group p-5 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-2xl text-left transition-all duration-200 active:scale-[0.98] shadow-md hover:shadow-lg bg-white">
+        <button class="suggestion-btn group p-5 border border-gray-200 hover:border-gray-300 hover:bg-white rounded-[18px] text-left transition-all duration-200 active:scale-[0.95] bg-[#f5f5f7]">
            <div class="font-semibold text-[15px] text-gray-800 group-hover:text-black transition-colors mb-1">${s.title}</div>
            <div class="text-gray-500 text-sm transition-colors group-hover:text-gray-600 line-clamp-2">${s.subtitle}</div>
         </button>

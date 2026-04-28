@@ -799,12 +799,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     const db = createDB(env.DB);
-    const { limit, offset } = parsePagination(new URL(req.url), { defaultLimit: 20, maxLimit: 100, defaultOffset: 0 });
+    const url = new URL(req.url);
+    const { limit, offset } = parsePagination(url, { defaultLimit: 20, maxLimit: 100, defaultOffset: 0 });
+    const query = (url.searchParams.get('q') || '').trim();
 
     try {
-      const totalRow = await db.first('SELECT COUNT(*) as count FROM users');
-      const users = await db.all(
-        `SELECT
+      let countSql = 'SELECT COUNT(*) as count FROM users';
+      let dataSql = `SELECT
            u.id,
            u.email,
            u.name,
@@ -821,7 +822,21 @@ export async function usersRouter(req, env, _ctx, user, path) {
              ORDER BY r.name ASC
              LIMIT 1
            ), 'member') AS primary_role
-         FROM users u
+         FROM users u`;
+
+      const params = [];
+      const countParams = [];
+
+      if (query) {
+        const likeQuery = `%${query}%`;
+        const whereClause = ' WHERE u.email LIKE ? OR u.name LIKE ?';
+        countSql += whereClause;
+        dataSql += whereClause;
+        countParams.push(likeQuery, likeQuery);
+        params.push(likeQuery, likeQuery);
+      }
+
+      dataSql += `
          ORDER BY
            CASE COALESCE((
              SELECT r.name
@@ -842,9 +857,12 @@ export async function usersRouter(req, env, _ctx, user, path) {
            END,
            LOWER(COALESCE(name, '')) ASC,
            LOWER(email) ASC
-         LIMIT ? OFFSET ?`,
-        [limit, offset]
-      );
+         LIMIT ? OFFSET ?`;
+      
+      params.push(limit, offset);
+
+      const totalRow = await db.first(countSql, countParams);
+      const users = await db.all(dataSql, params);
 
       // Parse settings JSON
       const parsedUsers = users.map((u) => ({

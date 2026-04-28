@@ -14,7 +14,7 @@ export function renderMessageInput(container, onSend) {
     <div id="pending-queue" class="hidden mb-2 space-y-1"></div>
     <div id="attachment-list" class="hidden mb-2 flex flex-wrap gap-2"></div>
     <div id="attachment-hint" class="hidden mb-2 text-xs font-medium text-amber-700"></div>
-    <form id="composer" class="relative bg-[#f4f4f4] rounded-[24px] p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 focus-within:ring-gray-300 focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-transparent focus-within:border-gray-200">
+    <form id="composer" class="relative bg-[#f4f4f4] rounded-full p-1.5 flex items-end transition focus-within:bg-white focus-within:ring-1 border border-transparent focus-within:border-gray-200">
        <div class="relative flex-shrink-0 ml-1 flex items-center gap-1">
          <button type="button" id="open-files-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition mb-0.5" title="Attach file" aria-label="Attach file" aria-expanded="false">
            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -60,7 +60,7 @@ export function renderMessageInput(container, onSend) {
          <button type="button" id="mic-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition" title="Voice input" aria-label="Voice input">
            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
          </button>
-         <button id="send-btn" class="hidden p-2 bg-black text-white rounded-full hover:bg-gray-800 transition disabled:opacity-50" title="Send message (Ctrl+Enter / Cmd+Enter)" aria-label="Send message">
+         <button id="send-btn" class="hidden p-2 bg-[#0066cc] text-white rounded-full hover:bg-[#0071e3] active:scale-95 transition disabled:opacity-50" title="Send message (Ctrl+Enter / Cmd+Enter)" aria-label="Send message">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
          </button>
        </div>

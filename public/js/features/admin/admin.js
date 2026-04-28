@@ -464,7 +464,8 @@ export async function renderAdminPage(container) {
   };
 
   async function loadUsers({ preserveContent = true } = {}) {
-    const cacheKey = `${data.pagination.page}:${data.pagination.pageSize}`;
+    const qParam = data.pagination.query ? `&q=${encodeURIComponent(data.pagination.query)}` : '';
+    const cacheKey = `${data.pagination.page}:${data.pagination.pageSize}:${data.pagination.query}`;
     const cached = data.usersCache[cacheKey];
 
     if (cached) {
@@ -484,7 +485,7 @@ export async function renderAdminPage(container) {
 
     try {
       const offset = (data.pagination.page - 1) * data.pagination.pageSize;
-      const res = await apiFetch(`/api/admin/users?limit=${data.pagination.pageSize}&offset=${offset}`);
+      const res = await apiFetch(`/api/admin/users?limit=${data.pagination.pageSize}&offset=${offset}${qParam}`);
       if (res.status === 403) {
         data.error = 'You do not have permission to manage users.';
       } else if (!res.ok) {
