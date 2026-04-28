@@ -1,0 +1,107 @@
+#!/usr/bin/env node
+/**
+ * Simple secret scanning for common patterns
+ * Runs before commit to catch secrets before they enter git
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+// Patterns for common secrets
+const SECRET_PATTERNS = [
+  { name: 'AWS Secret Key', regex: /AKIA[0-9A-Z]{16}/g },
+  { name: 'AWS Secret Access Key', regex: /aws_secret_access_key\s*=\s*["'][^"']+["']/gi },
+  { name: 'GitHub Personal Token', regex: /ghp_[a-zA-Z0-9]{36}/g },
+  { name: 'GitHub OAuth Token', regex: /gho_[a-zA-Z0-9]{36}/g },
+  { name: 'Stripe Live Key', regex: /sk_live_[a-zA-Z0-9]{24,}/g },
+  { name: 'Stripe Test Key', regex: /sk_test_[a-zA-Z0-9]{24,}/g },
+  { name: 'OpenAI API Key', regex: /sk-[a-zA-Z0-9]{20,}/g },
+  { name: 'JWT Token', regex: /eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g },
+  { name: 'Private Key', regex: /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----/g },
+  { name: 'Database Connection', regex: /mysql:\/\/[^:]+:[^@]+@/g },
+  { name: 'Password in URL', regex: /(?:password|passwd|pwd)\s*=\s*["'][^"']+["']/gi },
+];
+
+function scanFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  
+  const skipExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.zip', '.tar', '.gz', '.woff', '.woff2', '.ttf'];
+  if (skipExtensions.includes(ext)) return null;
+  
+  if (filePath.includes('node_modules') || filePath.includes('.git')) return null;
+  if (filePath.includes('coverage') || filePath.includes('dist') || filePath.includes('build')) return null;
+  
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const findings = [];
+    
+    for (const pattern of SECRET_PATTERNS) {
+      const matches = content.match(pattern.regex) || [];
+      if (matches.length > 0) {
+        findings.push({
+          file: filePath,
+          type: pattern.name,
+          matches: matches.slice(0, 3)
+        });
+      }
+    }
+    
+    return findings.length > 0 ? findings : null;
+  } catch {
+    return null;
+  }
+}
+
+function getStagedFiles() {
+  try {
+    const result = execSync('git diff --cached --name-only --diff-filter=ACM').toString();
+    return result.trim().split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function main() {
+  console.log('🔍 Secret scanning staged files...');
+  
+  const stagedFiles = getStagedFiles();
+  
+  if (stagedFiles.length === 0) {
+    console.log('No staged files to scan.');
+    process.exit(0);
+  }
+  
+  let allFindings = [];
+  
+  for (const file of stagedFiles) {
+    if (file === '.secrets.baseline') continue;
+    
+    const findings = scanFile(file);
+    if (findings) {
+      allFindings = allFindings.concat(findings);
+    }
+  }
+  
+  if (allFindings.length === 0) {
+    console.log('✅ No secrets detected in staged files.');
+    process.exit(0);
+  }
+  
+  console.log('\n❌ Potential secrets detected in staged files:\n');
+  
+  for (const finding of allFindings) {
+    console.log(`  📁 ${finding.file}`);
+    console.log(`  🔑 Type: ${finding.type}`);
+    console.log(`  🔍 Matches: ${finding.matches.length}`);
+    console.log('');
+  }
+  
+  console.log(`Found ${allFindings.length} files with potential secrets.`);
+  console.log('\nRemove the secret(s) and try again.');
+  console.log('Use `git rm --cached <file>` to remove from staging without deleting the file.');
+  
+  process.exit(1);
+}
+
+main();
