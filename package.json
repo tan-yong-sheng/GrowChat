@@ -21,17 +21,22 @@
     "lint": "eslint \"src/**/*.js\" \"public/js/**/*.js\" --ignore-pattern node_modules",
     "lint:fix": "eslint \"src/**/*.js\" \"public/js/**/*.js\" --fix",
     "format": "prettier --write \"src/**/*.js\" \"public/js/**/*.js\"",
-    "format:check": "prettier --check \"src/**/*.js\" \"public/js/**/*.js\""
+    "format:check": "prettier --check \"src/**/*.js\" \"public/js/**/*.js\"",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.3.5",
     "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.23",
+    "commitlint": "^20.5.2",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
     "jsdom": "^29.0.1",
+    "lint-staged": "^16.4.0",
     "node-fetch": "^2.7.0",
     "playwright": "^1.59.1",
     "postcss": "^8.5.6",
