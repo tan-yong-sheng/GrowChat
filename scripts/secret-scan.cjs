@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 /**
- * Simple secret scanning for common patterns
- * Runs before commit to catch secrets before they enter git
+ * Secret scanning with caching - only scans changed files
  */
 
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-// Patterns for common secrets
 const SECRET_PATTERNS = [
   { name: 'AWS Secret Key', regex: /AKIA[0-9A-Z]{16}/g },
   { name: 'AWS Secret Access Key', regex: /aws_secret_access_key\s*=\s*["'][^"']+["']/gi },
@@ -23,7 +21,31 @@ const SECRET_PATTERNS = [
   { name: 'Password in URL', regex: /(?:password|passwd|pwd)\s*=\s*["'][^"']+["']/gi },
 ];
 
-function scanFile(filePath) {
+const CACHE_FILE = '.secrets.cache.json';
+
+function loadCache() {
+  try {
+    const data = fs.readFileSync(CACHE_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
+}
+
+function saveCache(cache) {
+  fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
+}
+
+function getFileHash(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    return require('crypto').createHash('md5').update(content).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+function scanFile(filePath, cache) {
   const ext = path.extname(filePath).toLowerCase();
   
   const skipExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.zip', '.tar', '.gz', '.woff', '.woff2', '.ttf'];
@@ -31,6 +53,12 @@ function scanFile(filePath) {
   
   if (filePath.includes('node_modules') || filePath.includes('.git')) return null;
   if (filePath.includes('coverage') || filePath.includes('dist') || filePath.includes('build')) return null;
+  
+  // Check cache first
+  const fileHash = getFileHash(filePath);
+  if (fileHash && cache[filePath] && cache[filePath].hash === fileHash) {
+    return null; // Cache hit, no new secrets
+  }
   
   try {
     const content = fs.readFileSync(filePath, 'utf8');
@@ -45,6 +73,11 @@ function scanFile(filePath) {
           matches: matches.slice(0, 3)
         });
       }
+    }
+    
+    // Update cache
+    if (fileHash) {
+      cache[filePath] = { hash: fileHash };
     }
     
     return findings.length > 0 ? findings : null;
@@ -63,9 +96,10 @@ function getStagedFiles() {
 }
 
 function main() {
-  console.log('🔍 Secret scanning staged files...');
-  
+  const cache = loadCache();
   const stagedFiles = getStagedFiles();
+  
+  console.log('🔍 Secret scanning staged files...');
   
   if (stagedFiles.length === 0) {
     console.log('No staged files to scan.');
@@ -73,18 +107,26 @@ function main() {
   }
   
   let allFindings = [];
+  let cacheHits = 0;
+  let cacheMisses = 0;
   
   for (const file of stagedFiles) {
-    if (file === '.secrets.baseline') continue;
+    if (file === '.secrets.baseline' || file === '.secrets.cache.json') continue;
     
-    const findings = scanFile(file);
+    const findings = scanFile(file, cache);
     if (findings) {
       allFindings = allFindings.concat(findings);
+    } else if (cache[file]) {
+      cacheHits++;
+    } else {
+      cacheMisses++;
     }
   }
   
+  saveCache(cache);
+  
   if (allFindings.length === 0) {
-    console.log('✅ No secrets detected in staged files.');
+    console.log(`✅ No secrets detected in staged files. Cache: ${cacheHits} hits, ${cacheMisses} misses.`);
     process.exit(0);
   }
   
@@ -98,9 +140,6 @@ function main() {
   }
   
   console.log(`Found ${allFindings.length} files with potential secrets.`);
-  console.log('\nRemove the secret(s) and try again.');
-  console.log('Use `git rm --cached <file>` to remove from staging without deleting the file.');
-  
   process.exit(1);
 }
 
