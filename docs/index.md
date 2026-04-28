@@ -29,6 +29,8 @@ The `backend` directory maps APIs, background jobs, database schemas, and data f
     *   [Chat & Realtime APIs](backend/apis/chat.md)
     *   [Admin & Settings APIs](backend/apis/admin.md)
     *   [Model Management APIs](backend/apis/models.md)
+    *   [User & Profile APIs](backend/apis/users.md)
+    *   [File Upload APIs](backend/apis/files.md)
 *   **[System Flows](backend/flows/)**: End-to-end sequence diagrams mapping requests through the system.
     *   [Chat Streaming & SSE](backend/flows/chat-streaming.flow.md)
     *   [Model Discovery & Merging](backend/flows/model-discovery.flow.md)
@@ -43,6 +45,12 @@ The `backend` directory maps APIs, background jobs, database schemas, and data f
 *   **[Backend States](backend/states/)**: Implicit state machines mapped in the database.
     *   [User Account States](backend/states/user.states.md)
     *   [Chat Message States](backend/states/chat-message.states.md)
+*   **Other Subsystems**:
+    *   [Architecture Decisions](backend/architecture/)
+    *   [Background Jobs](backend/jobs/)
+    *   [External Integrations](backend/integrations/)
+    *   [Infrastructure & Deployments](backend/infra/)
+    *   [Auth & Identity Flow Details](backend/auth/)
 
 ## 🐞 Bug Hunting & Standards
 *   **[DESIGN.md](../DESIGN.md)**: The ultimate source of truth for the Apple-style, low-density aesthetic language used throughout GrowChat.
