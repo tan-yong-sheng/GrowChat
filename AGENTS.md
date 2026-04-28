@@ -3,11 +3,19 @@
 ## Project Overview
 **GrowChat** is a multi-user Cloudflare Workers chat application with support for multiple LLM providers via user-configured OpenAI-compatible connections.
 
-**Stack:** Cloudflare Workers (D1, KV, R2, Durable Objects) + Vanilla JS SPA + Tailwind CSS
+**Stack:** Cloudflare Workers (D1, KV, R2, Durable Objects) + Vanilla JS SPA + Tailwind CSS + Vitest + Playwright
 
 **Website:** `localhost:8787` (use `TEST_EMAIL`/`TEST_PASSWORD` env vars for local testing)
 
 **ESM only** — `"type": "module"` in package.json.
+
+## Developer Wiki & Knowledge Graph 📚
+The core structure, architecture, and behavior of GrowChat are fully mapped as an interconnected wiki inside the `docs/` folder. **Always start here when debugging or building new features:**
+- **Entry point:** [`docs/index.md`](docs/index.md)
+- **UI/UX Mapping (`docs/ui-ux/`)**: Contains detailed Interaction Maps, UI State Machines, wireflows, and component guidelines outlining the strict "Action Blue" and "Pill" geometry aesthetics (dictated by `DESIGN.md`).
+- **Backend Architecture (`docs/backend/`)**: Contains HTTP API contracts, RBAC authorization flows, data models, and Mermaid sequence diagrams (e.g., the Chat Streaming & SSE flow).
+- **Design Guidelines**: Refer to `DESIGN.md` for the strict low-density, minimal UI aesthetics.
+- **UI/UX Bug Tracker**: Refer to `docs/ui-ux/BUGS.md` for known limitations or edge cases.
 
 ## Exact Commands
 
@@ -30,9 +38,17 @@ npm run test:watch                 # Watch mode
 npm run test:coverage              # Coverage report (coverage/ folder)
 
 # E2E tests (Playwright) - tests exist in tests/e2e/frontend/
-npm run test:e2e                   # Run E2E tests against python3 http.server on port 3007
+# Note: Ensure `npm run dev` is running on port 8787 in another terminal before running E2E
+npm run test:e2e                   # Run E2E tests
 npm run test:e2e:ui                # Playwright UI mode
 npm run test:e2e:update-snapshots  # Update visual snapshots
+```
+
+### Code Quality (ESLint & Prettier)
+```bash
+npm run format                     # Format files using Prettier
+npm run lint                       # Check for ESLint warnings/errors
+npm run lint:fix                   # Auto-fix ESLint issues
 ```
 
 ### Deployment
@@ -100,15 +116,15 @@ npx wrangler d1 migrations apply growchat --local  # Apply migrations manually
 ## Gotchas & Constraints
 
 ### Security
-1. **No CSRF on API routes** (only session-based)
-2. **No email verification** for registration
-3. **SRI hashes** injected into HTML automatically
+1. **No CSRF on API routes** (only session-based via Bearer token)
+2. **No email verification** for registration (Planned for future)
+3. **SRI hashes** injected into HTML automatically (plus DOMPurify CDN import)
 4. **Account status check:** `'active'` required, `'pending'` returns 403
 
 ### Testing
 1. **Coverage includes** only specific `public/js/` modules (not all frontend files)
 2. **Coverage excludes:** `*.test.js`, `components/`, `bootstrap/auth.js`, `chat.js`, `admin.js`
-3. **E2E tests serve static files** via `python3 -m http.server 3007` (NOT wrangler dev server)
+3. **E2E tests serve static files** via an internal Python web server but test against the local wrangler dev environment on `localhost:8787`.
 4. **E2E has 2 projects:** `chromium-guest` (auth.spec.ts) and `chromium-auth` (chat, admin-settings; requires `tests/e2e/fixtures/auth-state.json`)
 5. **E2E test directory:** `tests/e2e/frontend/` with specs: auth.spec.ts, chat.spec.ts, admin-settings.spec.ts
 6. **No `.only()`/`.skip()` in test files** (checked by grep)
@@ -118,7 +134,7 @@ npx wrangler d1 migrations apply growchat --local  # Apply migrations manually
 2. **Local DB init required:** `npm run dev:db` if using local D1
 3. **Workers AI disabled:** Only OpenAI-compatible APIs via user connections
 4. **Durable Objects:** MessageQueueDO for real-time SSE (15s keepalive)
-5. **Predeploy hook** (`predeploy` in package.json) runs: test → coverage → build:css → validate migrations → wrangler deploy
+5. **Predeploy hook** (`predeploy` in package.json) runs: lint → format check → test → coverage → build:css → validate migrations → wrangler deploy
 
 ### Performance
 1. **Chat list paginated:** Default 30 chats, `has_more` flag
@@ -131,12 +147,14 @@ npx wrangler d1 migrations apply growchat --local  # Apply migrations manually
 2. **Schema changes:** Add migration file, run `npm run validate:migrations`
 3. **Deploy:** Set secrets first, `npm run deploy` runs full predeploy gate
 4. **Testing:** Frontend coverage expected on key modules in `public/js/`
+5. **Documentation:** Update the `docs/` Developer Wiki Knowledge Graph if new states, components, endpoints, or flows are introduced.
 
 ## File Reference
+- **Developer Wiki Knowledge Graph:** `docs/index.md` (Central Hub for all system behavior)
 - **Backend routes:** `src/routers/` + `src/bootstrap/router-registry.js`
 - **Frontend modules:** `public/js/bootstrap/` → `public/js/features/` → `public/js/shared/`
 - **LLM integration:** `src/llm/` + `src/chat/assistant-runner.js`
-- **DB migrations:** `migrations/` (3 files)
-- **Build/scripts:** `scripts/` (init-local-db.js, pre-deploy.js, generate-api-docs.js)
+- **DB migrations:** `migrations/`
+- **Build/scripts:** `scripts/` (init-local-db.js, pre-deploy.js, validate-graphs.js)
 - **E2E tests:** `tests/e2e/frontend/` — auth, chat, admin-settings, visual
 - **Unit tests:** `src/**/*.test.js` + `tests/unit/` + `tests/rbac.test.js`, `rbac.integration.test.js`
