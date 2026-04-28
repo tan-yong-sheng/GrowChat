@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+set -euo pipefail
+
+# Skip if typecheck or test scripts missing
+npm pkg get scripts.typecheck >/dev/null 2>&1 || exit 0
+npm pkg get scripts.test >/dev/null 2>&1 || exit 0
+
+npm run typecheck && npm run test

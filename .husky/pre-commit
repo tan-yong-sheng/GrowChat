@@ -1,1 +1,11 @@
-npm test
+#!/usr/bin/env sh
+set -euo pipefail
+
+# Skip in CI (CI runs full scan via GitHub Actions)
+if [ -n "$CI" ]; then exit 0; fi
+
+# Run gitleaks (fast, local only)
+npx gitleaks detect --source . -v --exit-code 1 || exit 1
+
+# Run lint-staged
+npx lint-staged
