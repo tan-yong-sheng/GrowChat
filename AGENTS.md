@@ -5,7 +5,7 @@
 
 **Stack:** Cloudflare Workers (D1, KV, R2, Durable Objects) + Vanilla JS SPA + Tailwind CSS + Vitest + Playwright
 
-**Website:** `localhost:8787` (use `TEST_EMAIL`/`TEST_PASSWORD` env vars for local testing)
+**Website:** `localhost:8787` (use `TEST_EMAIL`/`TEST_PASSWORD`/`TEST_URL` env vars for local playwright testing)
 
 **ESM only** — `"type": "module"` in package.json.
 

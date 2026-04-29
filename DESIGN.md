@@ -1,11 +1,11 @@
 ---
 version: 1.0
 name: GrowChat UI
-description: A clean, low-density conversational interface anchored by a content-first philosophy. The UI recedes so the content (chat) can speak. The application utilizes a split-pane layout with a light-gray utility sidebar and a pure-white canvas. Elevation is virtually non-existent; separation is achieved through subtle background tints (pure white vs. off-white) and 1px hairlines. The single interactive accent color is Action Blue, applied strictly to primary actions and focus states. Component geometry relies heavily on the "Pill" (fully rounded) for inputs and actions, and large soft radii (18px+) for structural cards.
+description: A clean, low-density conversational interface anchored by a content-first philosophy. The UI recedes so the content (chat) can speak. The application utilizes a split-pane layout with a light-gray utility sidebar and a pure-white canvas. Elevation is virtually non-existent; separation is achieved through subtle background tints (pure white vs. off-white) and 1px hairlines. The single interactive accent color is Neutral Black, applied strictly to primary actions and focus states. Component geometry relies heavily on the "Pill" (fully rounded) for inputs and actions, and large soft radii (18px+) for structural cards.
 
 colors:
-  primary: "#0066cc"
-  primary-focus: "#0071e3"
+  primary: "#171717"
+  primary-focus: "#000000"
   ink: "#111827"
   body: "#374151"
   muted: "#6b7280"
@@ -163,10 +163,10 @@ The application utilizes a split-pane layout to organize information architectur
 - **The Sidebar (`{colors.surface-sidebar}`)**: A subtle off-white/light-gray background (`#f9f9f9`) anchors the left side of the screen. This provides a visual nesting area for navigation and history without feeling like a heavy "admin" panel.
 - **The Main Canvas (`{colors.canvas}`)**: The primary chat area is pure white (`#ffffff`). The lack of a hard boundary between the chat area and the input zone creates an airy, infinite-scroll feeling.
 
-### 2. The "Action Blue" Principle
-There is exactly **one** interactive brand color in the system: **Action Blue (`#0066cc`)**. 
+### 2. The "Monochrome" Principle
+There is exactly **one** interactive primary color in the system: **Neutral Black (`#171717`)**. 
 - It is used strictly for primary "click me" signals: the "Send" button in the composer, primary submit buttons in modals, and active toggle switches in settings.
-- There are no secondary accent colors. If an element is not a primary action, it must rely on neutral grays and hover-state background changes (`{colors.surface-hover}`) for interactivity.
+- There are no colorful accent colors. If an element is not a primary action, it must rely on neutral grays and hover-state background changes (`{colors.surface-hover}`) for interactivity.
 
 ### 3. Component Geometry: Pills and Cards
 The system relies on two distinct shape grammars:
@@ -179,10 +179,10 @@ The system relies on two distinct shape grammars:
 
 ### 5. Micro-interactions
 - **Active Scaling**: Primary buttons do not shift colors drastically on press; instead, they utilize an `active:scale-95` transform to provide tactile, physical feedback that the button has been depressed.
-- **Focus Rings**: Keyboard accessibility is maintained through clean, 2px solid Focus Blue (`#0071e3`) outlines, avoiding default browser fuzziness.
+- **Focus Rings**: Keyboard accessibility is maintained through clean, 2px solid Focus Black (`#000000`) outlines, avoiding default browser fuzziness.
 
 ## Admin Workspace Modifications
 While the core chat interface is airy and conversational, the `/admin` and `/account` settings routes transition into a slightly denser, data-management mode:
 - **Full-page tables**: Rely on 1px borders and `{rounded.lg}` containment.
-- **Pill Badges**: Status indicators (e.g., User Roles, "Online" status) utilize `{rounded.pill}` badges with highly desaturated background tints (e.g., `bg-emerald-50` with `text-emerald-700`) to provide scannable information without dominating the visual hierarchy.
+- **Pill Badges**: Status indicators (e.g., User Roles, "Online" status) utilize `{rounded.pill}` badges with highly desaturated background tints (e.g., `bg-neutral-100` with `text-neutral-700`) to provide scannable information without dominating the visual hierarchy.
 - **Drawers vs. Pages**: Personal settings (`/account`) open as a floating drawer over the chat context (utilizing a dimmed backdrop), while Workspace settings (`/admin`) navigate to a distinct full-page layout, communicating the severity and scope of the administrative actions.
