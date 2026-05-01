@@ -11,7 +11,9 @@ export function sortResourcesByEnabledThenLabel(resources = []) {
     const labelCompare = aLabel.localeCompare(bLabel);
     if (labelCompare !== 0) return labelCompare;
 
-    return String(a?.id || '').toLowerCase().localeCompare(String(b?.id || '').toLowerCase());
+    return String(a?.id || '')
+      .toLowerCase()
+      .localeCompare(String(b?.id || '').toLowerCase());
   });
 }
 
@@ -26,6 +28,8 @@ export function sortResourcesByEnabledThenVisibilityThenLabel(resources = []) {
     const labelCompare = aLabel.localeCompare(bLabel);
     if (labelCompare !== 0) return labelCompare;
 
-    return String(a?.id || '').toLowerCase().localeCompare(String(b?.id || '').toLowerCase());
+    return String(a?.id || '')
+      .toLowerCase()
+      .localeCompare(String(b?.id || '').toLowerCase());
   });
 }

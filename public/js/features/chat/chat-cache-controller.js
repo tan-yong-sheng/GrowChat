@@ -19,7 +19,10 @@ export function createChatCacheController({
       maxCachedChats,
     });
     if (result.changed) {
-      setStateFn({ messagesByChat: result.messagesByChat, attachmentsByChat: result.attachmentsByChat });
+      setStateFn({
+        messagesByChat: result.messagesByChat,
+        attachmentsByChat: result.attachmentsByChat,
+      });
     }
     isPruning = false;
   }
@@ -38,4 +41,3 @@ export function createChatCacheController({
     schedulePrune,
   };
 }
-

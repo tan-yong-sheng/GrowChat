@@ -9,7 +9,8 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
     overlayId: 'modal-overlay',
     zIndex: 100,
     title: '',
-    shellClass: 'relative z-10 w-full max-w-3xl bg-white md:rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh] md:h-[600px]',
+    shellClass:
+      'relative z-10 w-full max-w-3xl bg-white md:rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh] md:h-[600px]',
     header: `
       <div class="p-4 border-b border-gray-100 flex items-center gap-3">
         <div class="flex-shrink-0 text-gray-500">
@@ -61,5 +62,3 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
 
   return createSearchModalController(container, createChatFn, loadMessagesFn);
 }
-
-

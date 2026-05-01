@@ -6,9 +6,7 @@ import {
   getAllOpenAIConnectionConfigs,
   loadUserOpenAIConnectionConfigs,
 } from '../llm/connections.js';
-import {
-  loadToolServers,
-} from '../admin/tool-servers.js';
+import { loadToolServers } from '../admin/tool-servers.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 
 function parseJsonObject(raw) {
@@ -59,7 +57,10 @@ export function toPersonalConnectionSummary(connection) {
     manual_models: Array.isArray(connection.manualModels || connection.manual_models)
       ? [...(connection.manualModels || connection.manual_models)]
       : [],
-    manual_models_mode: normalizeConnectionModelSelectionMode(connection.manualModelsMode || connection.manual_models_mode) || 'all',
+    manual_models_mode:
+      normalizeConnectionModelSelectionMode(
+        connection.manualModelsMode || connection.manual_models_mode
+      ) || 'all',
     note: connection.baseUrl || connection.url || '',
   };
 }
@@ -69,7 +70,12 @@ export function toAccessibleConnectionSummary(connection, accessVariant = 'admin
     id: connection.id,
     name: connection.name || connection.id,
     typeLabel: 'Connection',
-    note: connection.baseUrl || connection.url || connection.providerFamily || connection.providerType || '',
+    note:
+      connection.baseUrl ||
+      connection.url ||
+      connection.providerFamily ||
+      connection.providerType ||
+      '',
     access_label: accessVariant === 'shared' ? 'Shared' : 'Admin',
     access_variant: accessVariant,
     visible_for_user: connection.visible_for_user !== false,
@@ -100,17 +106,22 @@ export function toPersonalToolServerSummary(server) {
     oauth_connected: Boolean(server.oauth_connected),
     oauth_connected_at: server.oauth_connected_at || null,
     tools: Array.isArray(server.tools)
-      ? server.tools.map((tool) => ({
-        name: String(tool?.name || '').trim(),
-        title: String(tool?.title || '').trim(),
-        description: String(tool?.description || '').trim(),
-        enabled: tool?.enabled !== false,
-        visible_for_user: tool?.visible_for_user !== false,
-        hidden_for_user: tool?.hidden_for_user === true,
-        parameters: tool?.parameters && typeof tool.parameters === 'object' && !Array.isArray(tool.parameters)
-          ? tool.parameters
-          : undefined,
-      })).filter((tool) => tool.name)
+      ? server.tools
+          .map((tool) => ({
+            name: String(tool?.name || '').trim(),
+            title: String(tool?.title || '').trim(),
+            description: String(tool?.description || '').trim(),
+            enabled: tool?.enabled !== false,
+            visible_for_user: tool?.visible_for_user !== false,
+            hidden_for_user: tool?.hidden_for_user === true,
+            parameters:
+              tool?.parameters &&
+              typeof tool.parameters === 'object' &&
+              !Array.isArray(tool.parameters)
+                ? tool.parameters
+                : undefined,
+          }))
+          .filter((tool) => tool.name)
       : [],
   };
 }
@@ -126,19 +137,24 @@ export function toAccessibleToolServerSummary(server) {
     access_label: server.access_label || (server.source === 'user' ? 'Personal' : 'Admin'),
     access_variant: server.access_variant || (server.source === 'user' ? 'personal' : 'admin'),
     enabled: server.enabled !== false,
-    note: visibleTools.length ? `${visibleTools.length} tools available` : (server.url || ''),
+    note: visibleTools.length ? `${visibleTools.length} tools available` : server.url || '',
     tools: Array.isArray(server.tools)
-      ? server.tools.map((tool) => ({
-        name: String(tool?.name || '').trim(),
-        title: String(tool?.title || '').trim(),
-        description: String(tool?.description || '').trim(),
-        enabled: tool?.enabled !== false,
-        visible_for_user: tool?.visible_for_user !== false,
-        hidden_for_user: tool?.hidden_for_user === true,
-        parameters: tool?.parameters && typeof tool.parameters === 'object' && !Array.isArray(tool.parameters)
-          ? tool.parameters
-          : undefined,
-      })).filter((tool) => tool.name)
+      ? server.tools
+          .map((tool) => ({
+            name: String(tool?.name || '').trim(),
+            title: String(tool?.title || '').trim(),
+            description: String(tool?.description || '').trim(),
+            enabled: tool?.enabled !== false,
+            visible_for_user: tool?.visible_for_user !== false,
+            hidden_for_user: tool?.hidden_for_user === true,
+            parameters:
+              tool?.parameters &&
+              typeof tool.parameters === 'object' &&
+              !Array.isArray(tool.parameters)
+                ? tool.parameters
+                : undefined,
+          }))
+          .filter((tool) => tool.name)
       : [],
   };
 }
@@ -164,14 +180,18 @@ export function buildWorkspaceSettingsPayload({
   const payload = profileResponseFactory(row, { defaultModelId, primaryRole });
   const accessibleConnections = (Array.isArray(allConnections) ? allConnections : [])
     .filter((connection) => connection.source !== 'user')
-    .map((connection) => toAccessibleConnectionSummary(connection, connection.access_variant || 'admin'));
+    .map((connection) =>
+      toAccessibleConnectionSummary(connection, connection.access_variant || 'admin')
+    );
   const ownedConnections = Array.isArray(ownConnections) ? ownConnections : [];
   const ownedServers = Array.isArray(toolServers) ? toolServers : [];
-  const capabilities = capabilityOverrides || resolveWorkspaceCapabilities({
-    route,
-    permissions,
-    primaryRole,
-  });
+  const capabilities =
+    capabilityOverrides ||
+    resolveWorkspaceCapabilities({
+      route,
+      permissions,
+      primaryRole,
+    });
 
   payload.permissions = permissions;
   payload.roles = roles;
@@ -194,19 +214,23 @@ export function buildWorkspaceSettingsPayload({
     },
     integrations: {
       servers: ownedServers.map(toPersonalToolServerSummary),
-      accessible_servers: Array.isArray(accessibleToolServers) ? accessibleToolServers.map((server) => ({
-        ...toAccessibleToolServerSummary(server),
-        visible_for_user: server.visible_for_user !== false,
-        hidden_for_user: server.hidden_for_user === true,
-      })) : [],
+      accessible_servers: Array.isArray(accessibleToolServers)
+        ? accessibleToolServers.map((server) => ({
+            ...toAccessibleToolServerSummary(server),
+            visible_for_user: server.visible_for_user !== false,
+            hidden_for_user: server.hidden_for_user === true,
+          }))
+        : [],
     },
     tool_servers: {
       servers: ownedServers.map(toPersonalToolServerSummary),
-      accessible_servers: Array.isArray(accessibleToolServers) ? accessibleToolServers.map((server) => ({
-        ...toAccessibleToolServerSummary(server),
-        visible_for_user: server.visible_for_user !== false,
-        hidden_for_user: server.hidden_for_user === true,
-      })) : [],
+      accessible_servers: Array.isArray(accessibleToolServers)
+        ? accessibleToolServers.map((server) => ({
+            ...toAccessibleToolServerSummary(server),
+            visible_for_user: server.visible_for_user !== false,
+            hidden_for_user: server.hidden_for_user === true,
+          }))
+        : [],
     },
     models: {
       default_model_id: defaultModelId,
@@ -248,17 +272,16 @@ export async function loadWorkspaceConnectionsPayload({
   };
 }
 
-export async function loadWorkspaceToolServersPayload({
-  db,
-  userId,
-} = {}) {
+export async function loadWorkspaceToolServersPayload({ db, userId } = {}) {
   if (!db || !userId) {
     throw new TypeError('db and userId are required');
   }
 
   const servers = await loadToolServers(db, { userId, includeHiddenForUser: true });
   const personalServers = servers.filter((server) => server.source === 'user');
-  const accessibleServers = servers.filter((server) => server.source !== 'user' && server.enabled !== false);
+  const accessibleServers = servers.filter(
+    (server) => server.source !== 'user' && server.enabled !== false
+  );
   return {
     servers: personalServers.map(toPersonalToolServerSummary),
     accessible_servers: accessibleServers.map((server) => ({
@@ -324,9 +347,9 @@ export async function loadWorkspaceSettingsPayload({
     permissions,
     roles,
     ownConnections,
-    allConnections: allConnections.filter((connection) => connection.source !== 'user' && connection.enabled !== false).concat(
-      allConnections.filter((connection) => connection.source === 'user')
-    ),
+    allConnections: allConnections
+      .filter((connection) => connection.source !== 'user' && connection.enabled !== false)
+      .concat(allConnections.filter((connection) => connection.source === 'user')),
     toolServers,
     accessibleToolServers: accessibleToolServers.filter((server) => server.enabled !== false),
     profileResponseFactory,

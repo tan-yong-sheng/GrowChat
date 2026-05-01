@@ -63,10 +63,7 @@ export async function filesRouter(req, env, ctx, user, path) {
       const timeout = new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error('R2 health check timed out')), ms);
       });
-      return Promise.race([
-        promise.finally(() => clearTimeout(timer)),
-        timeout,
-      ]);
+      return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
     };
 
     try {
@@ -83,7 +80,7 @@ export async function filesRouter(req, env, ctx, user, path) {
     // Check authorization
     const authDecision = await authorize(env, user, {
       action: 'file.upload',
-      resource: 'file'
+      resource: 'file',
     });
 
     if (!authDecision.allow) {
@@ -144,7 +141,7 @@ export async function filesRouter(req, env, ctx, user, path) {
         action: 'file_uploaded',
         resource_type: 'file',
         resource_id: documentId,
-        metadata: { filename, contentType, fileSize }
+        metadata: { filename, contentType, fileSize },
       });
 
       // Extract content asynchronously
@@ -231,7 +228,7 @@ export async function filesRouter(req, env, ctx, user, path) {
     const authDecision = await authorize(env, user, {
       action: 'file.delete',
       resource: 'file',
-      resourceId: path.split('/').pop()
+      resourceId: path.split('/').pop(),
     });
 
     if (!authDecision.allow) {
@@ -249,7 +246,7 @@ export async function filesRouter(req, env, ctx, user, path) {
         actor_id: user.sub,
         action: 'file_deleted',
         resource_type: 'file',
-        resource_id: documentId
+        resource_id: documentId,
       });
 
       return json(req, { success: true });
@@ -320,7 +317,10 @@ export async function filesRouter(req, env, ctx, user, path) {
 
       const safeName = String(doc.filename || 'file').replace(/["\\]/g, '_');
       const headers = new Headers();
-      headers.set('Content-Type', doc.content_type || object.httpMetadata?.contentType || 'application/octet-stream');
+      headers.set(
+        'Content-Type',
+        doc.content_type || object.httpMetadata?.contentType || 'application/octet-stream'
+      );
       headers.set('Content-Disposition', `inline; filename="${safeName}"`);
       headers.set('Cache-Control', 'private, max-age=3600');
 
@@ -343,8 +343,8 @@ export async function filesRouter(req, env, ctx, user, path) {
       const doc = owned.doc;
 
       // Map numeric status to human-readable state
-      const extractionState = doc.extraction_status === 1 ? 'done' :
-                             doc.extraction_status === -1 ? 'failed' : 'pending';
+      const extractionState =
+        doc.extraction_status === 1 ? 'done' : doc.extraction_status === -1 ? 'failed' : 'pending';
 
       return json(req, {
         id: doc.id,
@@ -374,11 +374,9 @@ export async function filesRouter(req, env, ctx, user, path) {
       const doc = owned.doc;
 
       // Determine safe representation based on content type
-      let responseType = 'text/plain';
       let content = null;
 
       if (doc.content_type?.startsWith('application/json')) {
-        responseType = 'application/json';
         try {
           content = JSON.parse(doc.text_excerpt || '{}');
         } catch {

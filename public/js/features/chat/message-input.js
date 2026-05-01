@@ -1,4 +1,4 @@
-import { state, setState, subscribe } from '../../shared/store.js';
+import { setState, subscribe } from '../../shared/store.js';
 import {
   getAttachmentAcceptTypes,
   moveQueueItem,
@@ -81,4 +81,3 @@ export function renderMessageInput(container, onSend) {
     renderPendingQueueMarkup,
   });
 }
-

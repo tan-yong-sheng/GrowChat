@@ -25,7 +25,12 @@ export function createChatMessageDom({
     if (!messageId) return false;
     const el = messagesList?.querySelector?.(`[data-message-content="${messageId}"]`);
     if (!el) return false;
-    const { isError = false, isStreaming = false, errorMessage = '', chatId = state.activeChatId } = options;
+    const {
+      isError = false,
+      isStreaming = false,
+      errorMessage = '',
+      chatId = state.activeChatId,
+    } = options;
     const forceError = isError || el.dataset.messageError === '1';
     if (forceError) {
       el.dataset.messageError = '1';
@@ -68,4 +73,3 @@ export function createChatMessageDom({
     applyAssistantErrorMessage,
   };
 }
-

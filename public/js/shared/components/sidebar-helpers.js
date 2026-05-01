@@ -42,5 +42,3 @@ export function deriveSidebarLayout(currentState = {}) {
     showHandle: true,
   };
 }
-
-

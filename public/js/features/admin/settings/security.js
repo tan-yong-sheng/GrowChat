@@ -13,10 +13,12 @@ const escapeHtml = (text) => {
 
 export function renderSecuritySettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'security';
-  const settingsState = data.securitySettings || (data.securitySettings = {
-    resendApiKeyConfigured: false,
-    adminConfigLoaded: false,
-  });
+  const settingsState =
+    data.securitySettings ||
+    (data.securitySettings = {
+      resendApiKeyConfigured: false,
+      adminConfigLoaded: false,
+    });
 
   let savingApiKey = false;
   let sendingTestEmail = false;
@@ -40,12 +42,6 @@ export function renderSecuritySettings(container, data) {
       : 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
     feedback.classList.remove('hidden');
     setTimeout(() => feedback.classList.add('hidden'), 3000);
-  };
-
-  const maskApiKey = (key) => {
-    if (!key) return '';
-    if (key.length <= 8) return '*'.repeat(key.length);
-    return key.substring(0, 4) + '*'.repeat(key.length - 8) + key.substring(key.length - 4);
   };
 
   const getHintText = () => {
@@ -143,7 +139,7 @@ export function renderSecuritySettings(container, data) {
 
       const res = await apiFetch('/api/admin/email-config', {
         method: 'PUT',
-        body: JSON.stringify({ resend_api_key: newValue })
+        body: JSON.stringify({ resend_api_key: newValue }),
       });
 
       if (!res.ok) {
@@ -190,7 +186,7 @@ export function renderSecuritySettings(container, data) {
 
       const res = await apiFetch('/api/admin/email-config/test', {
         method: 'POST',
-        body: JSON.stringify({ email: email.trim() })
+        body: JSON.stringify({ email: email.trim() }),
       });
 
       if (!res.ok) {

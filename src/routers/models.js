@@ -10,10 +10,28 @@ import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue } from '../utils/app-config.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../admin/tool-servers.js';
-import { buildModelAclIndex, buildModelAclRuleSaveStatements, evaluateModelAclAccess, loadModelAclRules, normalizeModelAclRule, saveModelAclRulesForModel } from '../utils/model-acl.js';
-import { dedupeConnectionConfigs, discoverConnectionModels, extractConnectionModelId, getAllOpenAIConnectionConfigs, normalizeConnectionManualModels } from '../llm/connections.js';
+import {
+  buildModelAclIndex,
+  buildModelAclRuleSaveStatements,
+  evaluateModelAclAccess,
+  loadModelAclRules,
+  normalizeModelAclRule,
+  saveModelAclRulesForModel,
+} from '../utils/model-acl.js';
+import {
+  dedupeConnectionConfigs,
+  discoverConnectionModels,
+  extractConnectionModelId,
+  getAllOpenAIConnectionConfigs,
+  normalizeConnectionManualModels,
+} from '../llm/connections.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../llm/model-state.js';
-import { buildProviderId, formatModelId, normalizeConnectionModelId, normalizeProviderFamily } from '../llm/provider-registry.js';
+import {
+  buildProviderId,
+  formatModelId,
+  normalizeConnectionModelId,
+  normalizeProviderFamily,
+} from '../llm/provider-registry.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 
@@ -151,7 +169,9 @@ function hasConnectionAuthCredentials(connection = {}) {
   const headers = connection?.headers;
   if (!headers || typeof headers !== 'object') return false;
   return Object.entries(headers).some(([name, value]) => {
-    const normalizedName = String(name || '').trim().toLowerCase();
+    const normalizedName = String(name || '')
+      .trim()
+      .toLowerCase();
     if (!['authorization', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(normalizedName)) {
       return false;
     }
@@ -173,11 +193,12 @@ function createConnectionDiscoveryCacheKey(env, uniqueConnections = [], allowSet
     providerFamily: String(conn?.providerFamily || ''),
     baseUrl: String(conn?.baseUrl || ''),
     key: String(conn?.key || ''),
-    headers: conn?.headers && typeof conn.headers === 'object'
-      ? Object.entries(conn.headers)
-        .map(([name, value]) => [String(name || '').toLowerCase(), String(value || '')])
-        .sort((a, b) => a[0].localeCompare(b[0]))
-      : [],
+    headers:
+      conn?.headers && typeof conn.headers === 'object'
+        ? Object.entries(conn.headers)
+            .map(([name, value]) => [String(name || '').toLowerCase(), String(value || '')])
+            .sort((a, b) => a[0].localeCompare(b[0]))
+        : [],
     manualModelsMode: String(conn?.manualModelsMode || conn?.manual_models_mode || ''),
     manualModels: normalizeConnectionManualModels(conn?.manualModels)
       .map((model) => ({
@@ -240,7 +261,9 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
           .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
           .filter(Boolean)
       );
-      const selectionMode = normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all';
+      const selectionMode =
+        normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
+        'all';
       const discovery = await discoverConnectionModels(conn);
       if (!discovery.items.length) {
         const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
@@ -262,16 +285,20 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
           name: rawId,
           provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
           provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
-          provider_family: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
+          provider_family:
+            normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
           provider_id: providerId,
           connection_id: conn.id,
           connection_name: conn.name || null,
           connection_source: conn.source || null,
           free: false,
           description: `Model discovered from ${discovery.url || conn.baseUrl}`,
-          enabled: selectionMode === 'none'
-            ? false
-            : (selectionMode === 'some' ? manualModelIds.has(rawId) : true),
+          enabled:
+            selectionMode === 'none'
+              ? false
+              : selectionMode === 'some'
+                ? manualModelIds.has(rawId)
+                : true,
         });
       }
     } catch (err) {
@@ -288,7 +315,9 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
           .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
           .filter(Boolean)
       );
-      const selectionMode = normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all';
+      const selectionMode =
+        normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
+        'all';
       for (const rawId of allowSet) {
         const fullId = formatModelId(providerId, rawId);
         if (discoveredIds.has(fullId)) continue;
@@ -298,16 +327,20 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
           name: rawId,
           provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
           provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
-          provider_family: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
+          provider_family:
+            normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
           provider_id: providerId,
           connection_id: conn.id,
           connection_name: conn.name || null,
           connection_source: conn.source || null,
           free: false,
           description: 'Configured via OPENAI_MODELS',
-          enabled: selectionMode === 'none'
-            ? false
-            : (selectionMode === 'some' ? manualModelIds.has(rawId) : true),
+          enabled:
+            selectionMode === 'none'
+              ? false
+              : selectionMode === 'some'
+                ? manualModelIds.has(rawId)
+                : true,
         });
       }
     }
@@ -316,12 +349,14 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
   for (const conn of uniqueConnections) {
     const providerId = buildProviderId(conn);
     const manualModels = normalizeConnectionManualModels(conn.manualModels);
-      const manualModelIds = new Set(
-        manualModels
-          .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
-          .filter(Boolean)
-      );
-      const selectionMode = normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all';
+    const manualModelIds = new Set(
+      manualModels
+        .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
+        .filter(Boolean)
+    );
+    const selectionMode =
+      normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
+      'all';
     for (const manual of manualModels) {
       const normalizedManualId = normalizeConnectionModelId(providerId, manual.modelId);
       const fullId = formatModelId(providerId, normalizedManualId);
@@ -332,7 +367,8 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         name: manual.name || normalizedManualId,
         provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
         provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
-        provider_family: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
+        provider_family:
+          normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
         provider_id: providerId,
         connection_id: conn.id,
         connection_name: conn.name || null,
@@ -341,9 +377,12 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         description: 'Manually added to this connection',
         manual: true,
         manual_model_id: normalizedManualId,
-        enabled: selectionMode === 'none'
-          ? false
-          : (selectionMode === 'some' ? manualModelIds.has(normalizedManualId) : true),
+        enabled:
+          selectionMode === 'none'
+            ? false
+            : selectionMode === 'some'
+              ? manualModelIds.has(normalizedManualId)
+              : true,
       });
     }
   }
@@ -356,9 +395,17 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
       discovered.push({
         id: formatModelId(providerId, fallbackModel),
         name: fallbackModel,
-        provider: normalizeProviderFamily(uniqueConnections[0].providerFamily || uniqueConnections[0].providerType) || 'openai',
-        provider_type: String(uniqueConnections[0].providerType || uniqueConnections[0].providerFamily || 'openai').toLowerCase(),
-        provider_family: normalizeProviderFamily(uniqueConnections[0].providerFamily || uniqueConnections[0].providerType) || 'openai',
+        provider:
+          normalizeProviderFamily(
+            uniqueConnections[0].providerFamily || uniqueConnections[0].providerType
+          ) || 'openai',
+        provider_type: String(
+          uniqueConnections[0].providerType || uniqueConnections[0].providerFamily || 'openai'
+        ).toLowerCase(),
+        provider_family:
+          normalizeProviderFamily(
+            uniqueConnections[0].providerFamily || uniqueConnections[0].providerType
+          ) || 'openai',
         provider_id: providerId,
         connection_id: uniqueConnections[0].id,
         connection_name: uniqueConnections[0].name || null,
@@ -377,7 +424,9 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
 }
 
 function toPublicModel(model) {
-  const providerFamily = normalizeProviderFamily(model.provider_family || model.provider_type || model.provider) || 'openai';
+  const providerFamily =
+    normalizeProviderFamily(model.provider_family || model.provider_type || model.provider) ||
+    'openai';
   return {
     id: model.id,
     name: model.name,
@@ -405,8 +454,7 @@ export function applyUserModelVisibilityOverrides(models = [], hiddenModelIds = 
 
   return normalizedModels.map((model) => {
     const id = String(model?.id || '').trim();
-    const hiddenForUser = hiddenModelIds instanceof Set
-      && hiddenModelIds.has(id);
+    const hiddenForUser = hiddenModelIds instanceof Set && hiddenModelIds.has(id);
     return {
       ...model,
       visible_for_user: !hiddenForUser,
@@ -438,35 +486,42 @@ function splitModelScopeByUserVisibility(models = [], hiddenModelIds = new Set()
 }
 
 function isOpenAIProvider(model) {
-  return normalizeProviderFamily(model?.provider_family || model?.provider_type || model?.provider) === 'openai';
+  return (
+    normalizeProviderFamily(model?.provider_family || model?.provider_type || model?.provider) ===
+    'openai'
+  );
 }
 
 function getProviderKey(model) {
-  const raw = model?.connection_name
-    || model?.connectionName
-    || model?.provider_id
-    || model?.providerId
-    || model?.provider_family
-    || model?.providerFamily
-    || model?.provider_type
-    || model?.providerType
-    || model?.provider
-    || '';
-  const normalized = String(raw || '').trim().toLowerCase();
+  const raw =
+    model?.connection_name ||
+    model?.connectionName ||
+    model?.provider_id ||
+    model?.providerId ||
+    model?.provider_family ||
+    model?.providerFamily ||
+    model?.provider_type ||
+    model?.providerType ||
+    model?.provider ||
+    '';
+  const normalized = String(raw || '')
+    .trim()
+    .toLowerCase();
   return normalized || 'unknown';
 }
 
 function getProviderLabel(model) {
-  const raw = model?.connection_name
-    || model?.connectionName
-    || model?.provider_id
-    || model?.providerId
-    || model?.provider_family
-    || model?.providerFamily
-    || model?.provider_type
-    || model?.providerType
-    || model?.provider
-    || '';
+  const raw =
+    model?.connection_name ||
+    model?.connectionName ||
+    model?.provider_id ||
+    model?.providerId ||
+    model?.provider_family ||
+    model?.providerFamily ||
+    model?.provider_type ||
+    model?.providerType ||
+    model?.provider ||
+    '';
   const trimmed = String(raw || '').trim();
   return trimmed || 'unknown';
 }
@@ -558,8 +613,12 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const offset = parseInt(url.searchParams.get('offset') || '0', 10);
       const rawQuery = url.searchParams.get('q') || '';
       const query = String(rawQuery).trim().toLowerCase();
-      const scope = String(url.searchParams.get('scope') || '').trim().toLowerCase();
-      const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
+      const scope = String(url.searchParams.get('scope') || '')
+        .trim()
+        .toLowerCase();
+      const includeDisabled = ['1', 'true', 'yes'].includes(
+        String(url.searchParams.get('include_disabled') || '').toLowerCase()
+      );
 
       let customModels = [];
       let baseModels = [];
@@ -581,8 +640,15 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       // If this fails, log but continue with baseModels = []
       try {
         if (db && scope === 'effective' && user?.sub) {
-          const userGroupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub]);
-          effectiveUserGroupIds = new Set((Array.isArray(userGroupRows) ? userGroupRows : []).map((row) => row.group_id).filter(Boolean));
+          const userGroupRows = await db.all(
+            'SELECT group_id FROM group_members WHERE user_id = ?',
+            [user.sub]
+          );
+          effectiveUserGroupIds = new Set(
+            (Array.isArray(userGroupRows) ? userGroupRows : [])
+              .map((row) => row.group_id)
+              .filter(Boolean)
+          );
         }
         const connectionLoadOptions = {
           includeHiddenForUser: true,
@@ -621,7 +687,12 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           const id = String(model?.id || '').toLowerCase();
           const connection = String(model?.connection_name || '').toLowerCase();
           const provider = String(model?.provider || '').toLowerCase();
-          return name.includes(query) || id.includes(query) || connection.includes(query) || provider.includes(query);
+          return (
+            name.includes(query) ||
+            id.includes(query) ||
+            connection.includes(query) ||
+            provider.includes(query)
+          );
         });
       }
       if (db) {
@@ -655,8 +726,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
             .filter((model) => accessMap.get(model.id) === false || model.enabled === false)
             .map((model) => model.id)
             .filter(Boolean);
-          const eligibleModels = scopedModels.filter((model) => model.enabled !== false)
-            .map(({ allowed, ...model }) => model);
+          const eligibleModels = scopedModels.filter((model) => model.enabled !== false);
           const scopedModelIds = new Set(eligibleModels.map((model) => model.id));
           const scopedVisibility = splitModelScopeByUserVisibility(eligibleModels, hiddenModelIds);
           const visibleModels = sortModelsByActiveThenName(scopedVisibility.visibleModels);
@@ -681,22 +751,28 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           const visibilityTag = `|${Array.from(hiddenModelIds).join(',')}`;
           const etag = createWeakEtag(`${tagSource}|${visibilityTag}`);
 
-          return jsonCached(req, {
-            models: visibleWithCaps,
-            hidden_models: hiddenWithCaps,
-            total,
-            active_total: activeTotal,
-            limit,
-            offset,
-            providers: buildProviderStats(visibleModels),
-            visibility: {
-              disabled_model_ids: disabledModelIds,
-              hidden_model_ids: Array.from(hiddenModelIds).filter((modelId) => scopedModelIds.has(modelId)),
+          return jsonCached(
+            req,
+            {
+              models: visibleWithCaps,
+              hidden_models: hiddenWithCaps,
+              total,
+              active_total: activeTotal,
+              limit,
+              offset,
+              providers: buildProviderStats(visibleModels),
+              visibility: {
+                disabled_model_ids: disabledModelIds,
+                hidden_model_ids: Array.from(hiddenModelIds).filter((modelId) =>
+                  scopedModelIds.has(modelId)
+                ),
+              },
             },
-          }, {
-            etag,
-            cacheControl: 'private, no-store',
-          });
+            {
+              etag,
+              cacheControl: 'private, no-store',
+            }
+          );
         }
 
         const disabledSet = await getDisabledModelSet(db);
@@ -728,17 +804,21 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const visibilityTag = `${visibility.disabled_model_ids.join(',')}|${visibility.hidden_model_ids.join(',')}`;
       const etag = createWeakEtag(`${tagSource}|${visibilityTag}`);
 
-      return jsonCached(req, {
-        models: paginatedModels,
-        total: total,
-        active_total: activeTotal,
-        limit: limit,
-        offset: offset,
-        visibility,
-      }, {
-        etag,
-        cacheControl: 'private, no-store',
-      });
+      return jsonCached(
+        req,
+        {
+          models: paginatedModels,
+          total: total,
+          active_total: activeTotal,
+          limit: limit,
+          offset: offset,
+          visibility,
+        },
+        {
+          etag,
+          cacheControl: 'private, no-store',
+        }
+      );
     } catch (err) {
       console.error('Unexpected error listing models:', err);
       return error(req, 'Failed to list models', 500);
@@ -1004,11 +1084,13 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const offset = parseInt(url.searchParams.get('offset') || '0', 10);
       const rawQuery = url.searchParams.get('q') || '';
       const query = String(rawQuery).trim().toLowerCase();
-      const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
-      const providerParam = String(url.searchParams.get('provider') || '').trim().toLowerCase();
-      const providerFilter = providerParam && providerParam !== 'all'
-        ? providerParam
-        : '';
+      const includeDisabled = ['1', 'true', 'yes'].includes(
+        String(url.searchParams.get('include_disabled') || '').toLowerCase()
+      );
+      const providerParam = String(url.searchParams.get('provider') || '')
+        .trim()
+        .toLowerCase();
+      const providerFilter = providerParam && providerParam !== 'all' ? providerParam : '';
 
       let customModels = [];
       let baseModels = [];
@@ -1048,7 +1130,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       const accessMap = await getModelAccessMap(db);
       const adminModels = allModels.map((model) => {
         const publicModel = toPublicModel(model);
-        const enabled = (publicModel.enabled !== false) && (accessMap.has(model.id) ? accessMap.get(model.id) : true);
+        const enabled =
+          publicModel.enabled !== false &&
+          (accessMap.has(model.id) ? accessMap.get(model.id) : true);
         return { ...publicModel, enabled };
       });
       const providerStats = buildProviderStats(adminModels);
@@ -1060,7 +1144,12 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           const id = String(model?.id || '').toLowerCase();
           const connection = String(model?.connection_name || '').toLowerCase();
           const provider = String(model?.provider || '').toLowerCase();
-          return name.includes(query) || id.includes(query) || connection.includes(query) || provider.includes(query);
+          return (
+            name.includes(query) ||
+            id.includes(query) ||
+            connection.includes(query) ||
+            provider.includes(query)
+          );
         });
       }
       if (providerFilter) {
@@ -1132,7 +1221,11 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         ? body.accessUpdates
         : [];
 
-    if (updatesInput.length > 500 || attachmentUpdatesInput.length > 500 || accessUpdatesInput.length > 500) {
+    if (
+      updatesInput.length > 500 ||
+      attachmentUpdatesInput.length > 500 ||
+      accessUpdatesInput.length > 500
+    ) {
       return error(req, 'Too many updates (max 500)', 400);
     }
 
@@ -1193,7 +1286,11 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       }
     }
 
-    if (!sanitizedUpdates.length && !sanitizedAttachmentUpdates.length && !sanitizedAccessUpdates.length) {
+    if (
+      !sanitizedUpdates.length &&
+      !sanitizedAttachmentUpdates.length &&
+      !sanitizedAccessUpdates.length
+    ) {
       return error(req, 'No model changes provided', 400);
     }
 
@@ -1212,7 +1309,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
             updated_at INTEGER NOT NULL DEFAULT (unixepoch())
           )`
         ),
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_model_access_enabled ON model_access (is_enabled)'),
+        db.prepare(
+          'CREATE INDEX IF NOT EXISTS idx_model_access_enabled ON model_access (is_enabled)'
+        ),
       ];
 
       for (const update of sanitizedUpdates) {
@@ -1232,7 +1331,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
       if (sanitizedAccessUpdates.length > 0) {
         const groups = await db.all('SELECT id FROM groups');
-        const validGroupIds = new Set((Array.isArray(groups) ? groups : []).map((group) => group.id).filter(Boolean));
+        const validGroupIds = new Set(
+          (Array.isArray(groups) ? groups : []).map((group) => group.id).filter(Boolean)
+        );
         let includeSchemaStatements = true;
         const normalizedAccessUpdates = [];
 
@@ -1324,7 +1425,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     // Check authorization
     const authDecision = await authorize(env, user, {
       action: 'model.admin',
-      resource: 'model'
+      resource: 'model',
     });
 
     if (!authDecision.allow) {
@@ -1354,7 +1455,11 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       'claude-compatible',
     ];
     if (!validProviders.includes(body.provider)) {
-      return error(req, 'Provider must be one of: openai, custom, openai-compatible, google, gemini-compatible, anthropic, claude-compatible', 400);
+      return error(
+        req,
+        'Provider must be one of: openai, custom, openai-compatible, google, gemini-compatible, anthropic, claude-compatible',
+        400
+      );
     }
 
     // Validate base_url
@@ -1368,7 +1473,11 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     try {
       // Check for CACHE binding early. This operation requires KV.
       if (!env.CACHE) {
-        return error(req, 'CACHE KV binding required to create custom models. Please configure CACHE in wrangler.jsonc', 500);
+        return error(
+          req,
+          'CACHE KV binding required to create custom models. Please configure CACHE in wrangler.jsonc',
+          500
+        );
       }
 
       // Store in KV with expiration (1 year)
@@ -1410,13 +1519,17 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         action: 'model_created',
         resource_type: 'model',
         resource_id: body.id,
-        metadata: { provider: body.provider, name: body.name }
+        metadata: { provider: body.provider, name: body.name },
       });
 
-      return json(req, {
-        model: newModel,
-        message: 'Model configured successfully',
-      }, 201);
+      return json(
+        req,
+        {
+          model: newModel,
+          message: 'Model configured successfully',
+        },
+        201
+      );
     } catch (err) {
       console.error('Add custom model failed:', err);
       return error(req, 'Failed to add custom model', 500);
@@ -1435,7 +1548,10 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         const modelConnections = await getAllOpenAIConnectionConfigs(env);
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
-        console.warn('Failed to discover base models for GET /api/models/:id:', err?.message || err);
+        console.warn(
+          'Failed to discover base models for GET /api/models/:id:',
+          err?.message || err
+        );
       }
 
       if (baseModels.length > 0) {
@@ -1469,7 +1585,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     const authDecision = await authorize(env, user, {
       action: 'model.admin',
       resource: 'model',
-      resourceId: modelId
+      resourceId: modelId,
     });
 
     if (!authDecision.allow) {
@@ -1493,7 +1609,11 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
       // Check for CACHE binding early. This operation requires KV.
       if (!env.CACHE) {
-        return error(req, 'CACHE KV binding required to update custom models. Please configure CACHE in wrangler.jsonc', 500);
+        return error(
+          req,
+          'CACHE KV binding required to update custom models. Please configure CACHE in wrangler.jsonc',
+          500
+        );
       }
 
       // Check custom models from KV
@@ -1506,8 +1626,6 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       }
 
       // Track changes for audit
-      const oldModel = { ...customModels[modelIndex] };
-
       // Apply updates
       if (body.name !== undefined) {
         customModels[modelIndex].name = body.name;
@@ -1541,7 +1659,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         action: 'model_updated',
         resource_type: 'model',
         resource_id: modelId,
-        metadata: { fields_changed: Object.keys(body) }
+        metadata: { fields_changed: Object.keys(body) },
       });
 
       return json(req, {
@@ -1562,7 +1680,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     const authDecision = await authorize(env, user, {
       action: 'model.admin',
       resource: 'model',
-      resourceId: modelId
+      resourceId: modelId,
     });
 
     if (!authDecision.allow) {
@@ -1579,7 +1697,11 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
       // Check for CACHE binding early. This operation requires KV.
       if (!env.CACHE) {
-        return error(req, 'CACHE KV binding required to delete custom models. Please configure CACHE in wrangler.jsonc', 500);
+        return error(
+          req,
+          'CACHE KV binding required to delete custom models. Please configure CACHE in wrangler.jsonc',
+          500
+        );
       }
 
       // Check custom models from KV
@@ -1606,7 +1728,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         action: 'model_deleted',
         resource_type: 'model',
         resource_id: modelId,
-        metadata: { provider: deletedModel.provider, name: deletedModel.name }
+        metadata: { provider: deletedModel.provider, name: deletedModel.name },
       });
 
       return json(req, { success: true, message: 'Model removed successfully' });

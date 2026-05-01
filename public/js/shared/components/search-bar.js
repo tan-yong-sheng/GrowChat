@@ -87,7 +87,10 @@ function escapeSelectorValue(value) {
   return raw.replace(/["\\]/g, '\\$&');
 }
 
-export function captureRenderState(container, { inputId = '', scrollSelector = '[data-models-scroll]' } = {}) {
+export function captureRenderState(
+  container,
+  { inputId = '', scrollSelector = '[data-models-scroll]' } = {}
+) {
   if (!container) return null;
   const scrollEl = scrollSelector ? container.querySelector(scrollSelector) : null;
   const input = inputId ? container.querySelector(`#${escapeSelectorValue(inputId)}`) : null;
@@ -97,13 +100,18 @@ export function captureRenderState(container, { inputId = '', scrollSelector = '
     scrollLeft: scrollEl?.scrollLeft ?? null,
     inputId: isFocused ? inputId : '',
     inputValue: isFocused ? input.value : '',
-    selectionStart: isFocused && typeof input.selectionStart === 'number' ? input.selectionStart : null,
+    selectionStart:
+      isFocused && typeof input.selectionStart === 'number' ? input.selectionStart : null,
     selectionEnd: isFocused && typeof input.selectionEnd === 'number' ? input.selectionEnd : null,
     isFocused,
   };
 }
 
-export function restoreRenderState(container, snapshot, { inputId = '', scrollSelector = '[data-models-scroll]' } = {}) {
+export function restoreRenderState(
+  container,
+  snapshot,
+  { inputId = '', scrollSelector = '[data-models-scroll]' } = {}
+) {
   if (!container || !snapshot) return;
 
   const restoreScroll = () => {

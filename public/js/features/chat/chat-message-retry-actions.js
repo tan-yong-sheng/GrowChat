@@ -49,7 +49,9 @@ export function bindChatMessageRetryActions({
         id = resolved;
       }
 
-      const sourceMsg = getMessageById(chatId, id) || projectedMessages.find((msg) => String(msg.id) === String(id));
+      const sourceMsg =
+        getMessageById(chatId, id) ||
+        projectedMessages.find((msg) => String(msg.id) === String(id));
       if (!sourceMsg) return;
       const branchParentId = sourceMsg.parent_id || null;
 
@@ -69,12 +71,51 @@ export function bindChatMessageRetryActions({
 
       currentLeafByChatId.set(chatId, tempAssistantId);
       setBranchSelection(chatId, branchParentId, tempAssistantId);
-      setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
+      setState((prev) => ({
+        messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages },
+      }));
       if (state.activeChatId === chatId) drawMessages(localMessages);
 
       const controller = new AbortController();
       setActiveStreamAbort(() => controller.abort());
       setGlobalStreamAbort(getActiveStreamAbort());
+
+      let assistantMessageId = tempAssistantId;
+      let errorMessage = null;
+      let errorActive = false;
+      let assistantText = '';
+
+      function applyAssistantText(streaming = true) {
+        streamingOverrideByChat.set(chatId, {
+          targetMsgId: assistantMessageId,
+          content: assistantText,
+        });
+
+        const currentMessages = [...(state.messagesByChat[chatId] || [])];
+        const targetIdx = currentMessages.findIndex(
+          (m) => String(m.id) === String(assistantMessageId)
+        );
+        if (targetIdx >= 0) {
+          currentMessages[targetIdx] = {
+            ...currentMessages[targetIdx],
+            content: assistantText,
+            status: errorActive ? 'error' : currentMessages[targetIdx].status,
+            error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
+          };
+          setState((prev) => ({
+            messagesByChat: {
+              ...prev.messagesByChat,
+              [chatId]: currentMessages,
+            },
+          }));
+        }
+        if (state.activeChatId === chatId) {
+          updateMessageContentDom(assistantMessageId, assistantText, {
+            isError: errorActive,
+            isStreaming: streaming,
+          });
+        }
+      }
 
       try {
         setStreamingState(chatId, true);
@@ -88,35 +129,6 @@ export function bindChatMessageRetryActions({
           const err = await res.json().catch(() => ({}));
           alert(err.error || 'backend api not found');
           return;
-        }
-
-        let assistantMessageId = tempAssistantId;
-        let errorMessage = null;
-        let errorActive = false;
-        let assistantText = '';
-
-        function applyAssistantText(streaming = true) {
-          streamingOverrideByChat.set(chatId, {
-            targetMsgId: assistantMessageId,
-            content: assistantText,
-          });
-
-          const currentMessages = [...(state.messagesByChat[chatId] || [])];
-          const targetIdx = currentMessages.findIndex((m) => String(m.id) === String(assistantMessageId));
-          if (targetIdx >= 0) {
-            currentMessages[targetIdx] = {
-              ...currentMessages[targetIdx],
-              content: assistantText,
-              status: errorActive ? 'error' : currentMessages[targetIdx].status,
-              error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
-            };
-            setState((prev) => ({
-              messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
-            }));
-          }
-          if (state.activeChatId === chatId) {
-            updateMessageContentDom(assistantMessageId, assistantText, { isError: errorActive, isStreaming: streaming });
-          }
         }
 
         await consumeSseTextStream(res.body, {
@@ -156,7 +168,10 @@ export function bindChatMessageRetryActions({
               thinkingActiveByMessageId.delete(String(assistantMessageId));
             }
             if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-              const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
+              const targetId = resolveTempMessageId(
+                chatId,
+                payload?.message_id || assistantMessageId
+              );
               updateToolCallState(toolCallsByMessageId, messageBlocksById, targetId, payload);
               applyAssistantText();
             }

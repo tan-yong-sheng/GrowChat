@@ -17,6 +17,7 @@ ClawRouter/
 
 artifacts/
 .gstack/
+.ralph/
 .pi/
 .omx/
 .dev-server.log

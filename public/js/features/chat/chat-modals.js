@@ -1,4 +1,7 @@
-import { suspendSidebarVisibility, restoreSidebarVisibility } from '../../shared/utils/sidebar-visibility.js';
+import {
+  suspendSidebarVisibility,
+  restoreSidebarVisibility,
+} from '../../shared/utils/sidebar-visibility.js';
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 
 export function createChatModals({
@@ -68,13 +71,15 @@ export function createChatModals({
       }
     });
 
-    shareModalContainer.querySelector('#generate-share-link')?.addEventListener('click', async () => {
-      if (!state.activeChatId) return;
-      const data = await shareChat(state.activeChatId);
-      sharedByChatId.set(state.activeChatId, data);
-      drawChats(state.chats, state.activeChatId);
-      renderShareModal(data);
-    });
+    shareModalContainer
+      .querySelector('#generate-share-link')
+      ?.addEventListener('click', async () => {
+        if (!state.activeChatId) return;
+        const data = await shareChat(state.activeChatId);
+        sharedByChatId.set(state.activeChatId, data);
+        drawChats(state.chats, state.activeChatId);
+        renderShareModal(data);
+      });
 
     shareModalContainer.querySelector('#revoke-share-link')?.addEventListener('click', async () => {
       if (!state.activeChatId) return;
@@ -124,17 +129,18 @@ export function createChatModals({
   }
 
   async function openCitation(citationId) {
-    let detailText = `Source ID: ${citationId}`;
+    let detailText;
     try {
       const meta = await getFileMetadata(citationId);
       detailText = `${meta.filename || citationId}\n\nType: ${meta.content_type || 'unknown'}\n\n`;
       try {
         const content = await getFileContent(citationId);
-        detailText += typeof content.content === 'string'
-          ? content.content
-          : JSON.stringify(content.content, null, 2);
+        detailText +=
+          typeof content.content === 'string'
+            ? content.content
+            : JSON.stringify(content.content, null, 2);
       } catch {
-        detailText += (meta.text_excerpt || 'No content preview available');
+        detailText += meta.text_excerpt || 'No content preview available';
       }
     } catch {
       detailText = `Source ID: ${citationId}\n\nNo detailed preview found for this source.`;
@@ -161,14 +167,20 @@ export function createChatModals({
             <button id="close-archived-modal" class="p-2 hover:bg-gray-100 rounded-lg">✕</button>
           </div>
           <div class="space-y-2 max-h-[60vh] overflow-auto">
-            ${(data.chats || []).map((chat) => `
+            ${
+              (data.chats || [])
+                .map(
+                  (chat) => `
               <div class="border border-gray-200 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
                 <div class="min-w-0">
                   <p class="text-sm font-medium text-gray-800 truncate">${escapeHtml(chat.title || 'Untitled')}</p>
                 </div>
                 <button data-restore-chat="${chat.id}" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-black text-white hover:bg-gray-800">Restore</button>
               </div>
-            `).join('') || '<p class="text-sm text-gray-500">No archived chats.</p>'}
+            `
+                )
+                .join('') || '<p class="text-sm text-gray-500">No archived chats.</p>'
+            }
           </div>
         </div>
       </div>
@@ -183,7 +195,9 @@ export function createChatModals({
         clearModalHash('archived-modal');
       };
       archivedModalContainer.querySelector('#archived-overlay')?.addEventListener('click', close);
-      archivedModalContainer.querySelector('#close-archived-modal')?.addEventListener('click', close);
+      archivedModalContainer
+        .querySelector('#close-archived-modal')
+        ?.addEventListener('click', close);
       archivedModalContainer.querySelectorAll('[data-restore-chat]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const id = btn.getAttribute('data-restore-chat');
@@ -208,4 +222,3 @@ export function createChatModals({
     openArchivedModal,
   };
 }
-

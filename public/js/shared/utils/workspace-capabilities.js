@@ -1,6 +1,4 @@
-import {
-  deriveWorkspaceCapabilityFlags,
-} from './workspace-permissions.js';
+import { deriveWorkspaceCapabilityFlags } from './workspace-permissions.js';
 
 const DEFAULT_ACCOUNT_CAPABILITIES = {
   route: 'account',
@@ -29,29 +27,45 @@ function toBoolean(value, fallback = false) {
 }
 
 function normalizePermissions(permissions) {
-  return Array.from(new Set(
-    Array.isArray(permissions)
-      ? permissions.map((permission) => String(permission || '').trim()).filter(Boolean)
-      : [],
-  ));
+  return Array.from(
+    new Set(
+      Array.isArray(permissions)
+        ? permissions.map((permission) => String(permission || '').trim()).filter(Boolean)
+        : []
+    )
+  );
 }
 
 export function normalizeWorkspaceCapabilities(capabilities = {}, { route = 'account' } = {}) {
   const isAdminRoute = String(route || '').toLowerCase() === 'admin';
   const defaults = isAdminRoute ? DEFAULT_ADMIN_CAPABILITIES : DEFAULT_ACCOUNT_CAPABILITIES;
-  const source = capabilities && typeof capabilities === 'object' && !Array.isArray(capabilities) ? capabilities : {};
+  const source =
+    capabilities && typeof capabilities === 'object' && !Array.isArray(capabilities)
+      ? capabilities
+      : {};
   const permissions = normalizePermissions(source.permissions || defaults.permissions);
   const derivedFlags = deriveWorkspaceCapabilityFlags(route, permissions);
-  const hasExplicitConnectionCapability = Object.prototype.hasOwnProperty.call(source, 'canManageConnections');
-  const hasExplicitToolServerCapability = Object.prototype.hasOwnProperty.call(source, 'canManageToolServers');
-  const hasExplicitModelCapability = Object.prototype.hasOwnProperty.call(source, 'canManageModels');
+  const hasExplicitConnectionCapability = Object.prototype.hasOwnProperty.call(
+    source,
+    'canManageConnections'
+  );
+  const hasExplicitToolServerCapability = Object.prototype.hasOwnProperty.call(
+    source,
+    'canManageToolServers'
+  );
+  const hasExplicitModelCapability = Object.prototype.hasOwnProperty.call(
+    source,
+    'canManageModels'
+  );
   const hasExplicitAclCapability = Object.prototype.hasOwnProperty.call(source, 'canManageAcls');
 
   return {
     ...defaults,
     ...source,
     route: isAdminRoute ? 'admin' : 'account',
-    primaryRole: String(source.primaryRole || defaults.primaryRole || 'member').toLowerCase() || defaults.primaryRole,
+    primaryRole:
+      String(source.primaryRole || defaults.primaryRole || 'member').toLowerCase() ||
+      defaults.primaryRole,
     permissions,
     canManageConnections: hasExplicitConnectionCapability
       ? toBoolean(source.canManageConnections, derivedFlags.canManageConnections)

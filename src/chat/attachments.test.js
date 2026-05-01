@@ -18,9 +18,9 @@ import {
 
 describe('chat attachment helpers', () => {
   it('normalizes attachment ids and caps the list', () => {
-    expect(normalizeAttachmentIds([' a ', 'b', 'a', '', null, 'c', 'd', 'e', 'f', 'g', 'h'])).toEqual([
-      'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',
-    ]);
+    expect(
+      normalizeAttachmentIds([' a ', 'b', 'a', '', null, 'c', 'd', 'e', 'f', 'g', 'h'])
+    ).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']);
   });
 
   it('identifies supported and text-like content types', () => {
@@ -34,26 +34,38 @@ describe('chat attachment helpers', () => {
   it('derives attachment kinds from content types', () => {
     expect(getAttachmentKind('image/png')).toBe('image');
     expect(getAttachmentKind('application/pdf')).toBe('pdf');
-    expect(getAttachmentKinds([{ content_type: 'text/plain' }, { content_type: 'audio/mpeg' }])).toEqual(['text', 'audio']);
+    expect(
+      getAttachmentKinds([{ content_type: 'text/plain' }, { content_type: 'audio/mpeg' }])
+    ).toEqual(['text', 'audio']);
   });
 
   it('merges text attachment parts', () => {
-    expect(mergeTextAttachmentParts('hello', [
-      { type: 'text', text: ' first ' },
-      { type: 'image_url', image_url: {} },
-      { type: 'text', text: 'second' },
-    ])).toBe('hello\n\nfirst\n\nsecond');
+    expect(
+      mergeTextAttachmentParts('hello', [
+        { type: 'text', text: ' first ' },
+        { type: 'image_url', image_url: {} },
+        { type: 'text', text: 'second' },
+      ])
+    ).toBe('hello\n\nfirst\n\nsecond');
   });
 
   it('formats unsupported attachment messages and resolves caps', () => {
-    expect(formatUnsupportedAttachmentMessage(['image', 'pdf'])).toBe('Selected model does not support image, pdf attachments.');
+    expect(formatUnsupportedAttachmentMessage(['image', 'pdf'])).toBe(
+      'Selected model does not support image, pdf attachments.'
+    );
     expect(applyAttachmentDefaults({ audio: true })).toMatchObject({ text: true, audio: true });
-    expect(getModelAttachmentCapsEntry({ model1: { attachments: { image: false } } }, 'model1')).toMatchObject({ text: true, image: false });
+    expect(
+      getModelAttachmentCapsEntry({ model1: { attachments: { image: false } } }, 'model1')
+    ).toMatchObject({ text: true, image: false });
   });
 
   it('filters unsupported kinds', () => {
-    expect(getUnsupportedAttachmentKinds({ image: false, pdf: true }, ['image', 'pdf'])).toEqual(['image']);
-    expect(getUnsupportedAttachmentKindsStrict({ image: true }, ['image', 'audio'])).toEqual(['audio']);
+    expect(getUnsupportedAttachmentKinds({ image: false, pdf: true }, ['image', 'pdf'])).toEqual([
+      'image',
+    ]);
+    expect(getUnsupportedAttachmentKindsStrict({ image: true }, ['image', 'audio'])).toEqual([
+      'audio',
+    ]);
   });
 
   it('recognizes transient and inferred model errors', () => {

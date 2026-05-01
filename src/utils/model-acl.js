@@ -26,17 +26,23 @@ function expandModelAclResourceIds(ids = []) {
 }
 
 export function normalizeModelAclEffect(value) {
-  const effect = String(value || 'allow').trim().toLowerCase();
+  const effect = String(value || 'allow')
+    .trim()
+    .toLowerCase();
   return effect === 'deny' ? 'deny' : 'allow';
 }
 
 export function normalizeModelAclPrincipalType(value) {
-  const principalType = String(value || 'group').trim().toLowerCase();
+  const principalType = String(value || 'group')
+    .trim()
+    .toLowerCase();
   return principalType === 'user' ? 'user' : 'group';
 }
 
 export function normalizeModelAclAction(value) {
-  const action = String(value || 'use').trim().toLowerCase();
+  const action = String(value || 'use')
+    .trim()
+    .toLowerCase();
   return action || 'use';
 }
 
@@ -78,22 +84,39 @@ function ruleMatchesPrincipal(rule, userId, userGroupIds) {
 }
 
 function isModelAclActionRelevant(action) {
-  const normalized = String(action || 'use').trim().toLowerCase();
+  const normalized = String(action || 'use')
+    .trim()
+    .toLowerCase();
   return ['use', 'manage', 'admin', 'read'].includes(normalized);
 }
 
-export function evaluateModelAclAccess(model, { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}) {
+export function evaluateModelAclAccess(
+  model,
+  { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
+) {
   if (model?.connection_source === 'user') {
     return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
   }
 
-  const normalizedRules = Array.isArray(rules) ? rules.map(normalizeModelAclRule).filter(Boolean) : [];
-  const denyMatched = normalizedRules.some((rule) => rule.effect === 'deny' && isModelAclActionRelevant(rule.action) && ruleMatchesPrincipal(rule, user?.sub, userGroupIds));
+  const normalizedRules = Array.isArray(rules)
+    ? rules.map(normalizeModelAclRule).filter(Boolean)
+    : [];
+  const denyMatched = normalizedRules.some(
+    (rule) =>
+      rule.effect === 'deny' &&
+      isModelAclActionRelevant(rule.action) &&
+      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
+  );
   if (denyMatched) {
     return { allowed: false, access_label: 'No access', access_variant: 'none' };
   }
 
-  const allowMatched = normalizedRules.some((rule) => rule.effect === 'allow' && isModelAclActionRelevant(rule.action) && ruleMatchesPrincipal(rule, user?.sub, userGroupIds));
+  const allowMatched = normalizedRules.some(
+    (rule) =>
+      rule.effect === 'allow' &&
+      isModelAclActionRelevant(rule.action) &&
+      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
+  );
   if (allowMatched) {
     return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
   }
@@ -121,14 +144,23 @@ export async function ensureModelAclRulesTable(db) {
         UNIQUE(model_id, principal_type, principal_id, effect, action)
       )`
     );
-    await db.run('CREATE INDEX IF NOT EXISTS idx_model_acl_rules_model_id ON model_acl_rules(model_id)');
-    await db.run('CREATE INDEX IF NOT EXISTS idx_model_acl_rules_principal ON model_acl_rules(principal_type, principal_id)');
+    await db.run(
+      'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_model_id ON model_acl_rules(model_id)'
+    );
+    await db.run(
+      'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_principal ON model_acl_rules(principal_type, principal_id)'
+    );
   } catch (err) {
     console.warn('Failed to ensure model_acl_rules table:', err?.message || err);
   }
 }
 
-export function buildModelAclRuleSaveStatements(db, modelId, rules = [], { includeSchemaStatements = true } = {}) {
+export function buildModelAclRuleSaveStatements(
+  db,
+  modelId,
+  rules = [],
+  { includeSchemaStatements = true } = {}
+) {
   if (!db || !modelId) throw new Error('Model id is required');
   const canonicalModelId = safeDecodeResourceId(modelId);
   const normalized = (Array.isArray(rules) ? rules : [])
@@ -151,13 +183,20 @@ export function buildModelAclRuleSaveStatements(db, modelId, rules = [], { inclu
           UNIQUE(model_id, principal_type, principal_id, effect, action)
         )`
       ),
-      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_acl_rules_model_id ON model_acl_rules(model_id)'),
-      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_acl_rules_principal ON model_acl_rules(principal_type, principal_id)')
+      db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_model_id ON model_acl_rules(model_id)'
+      ),
+      db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_principal ON model_acl_rules(principal_type, principal_id)'
+      )
     );
   }
   if (deleteIds.length) {
     statements.push(
-      db.prepare(`DELETE FROM model_acl_rules WHERE model_id IN (${deleteIds.map(() => '?').join(', ')})`, deleteIds)
+      db.prepare(
+        `DELETE FROM model_acl_rules WHERE model_id IN (${deleteIds.map(() => '?').join(', ')})`,
+        deleteIds
+      )
     );
   }
   for (const rule of normalized) {
@@ -208,23 +247,28 @@ export async function loadModelAclRules(db, modelId = null, modelIds = null) {
            FROM model_acl_rules
            ORDER BY model_id ASC, effect DESC, principal_type ASC, principal_id ASC, action ASC`
         );
-    return (Array.isArray(rows) ? rows : []).map((row) => ({
-      id: row.id,
-      model_id: safeDecodeResourceId(row.model_id),
-      principal_type: normalizeModelAclPrincipalType(row.principal_type),
-      principal_id: String(row.principal_id || '').trim(),
-      effect: normalizeModelAclEffect(row.effect),
-      action: normalizeModelAclAction(row.action),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    })).filter((row) => row.model_id && row.principal_id)
-      .reduce((acc, row) => {
-        const key = `${row.model_id}:${row.principal_type}:${row.principal_id}:${row.effect}:${row.action}`;
-        if (acc.seen.has(key)) return acc;
-        acc.seen.add(key);
-        acc.items.push(row);
-        return acc;
-      }, { seen: new Set(), items: [] }).items;
+    return (Array.isArray(rows) ? rows : [])
+      .map((row) => ({
+        id: row.id,
+        model_id: safeDecodeResourceId(row.model_id),
+        principal_type: normalizeModelAclPrincipalType(row.principal_type),
+        principal_id: String(row.principal_id || '').trim(),
+        effect: normalizeModelAclEffect(row.effect),
+        action: normalizeModelAclAction(row.action),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }))
+      .filter((row) => row.model_id && row.principal_id)
+      .reduce(
+        (acc, row) => {
+          const key = `${row.model_id}:${row.principal_type}:${row.principal_id}:${row.effect}:${row.action}`;
+          if (acc.seen.has(key)) return acc;
+          acc.seen.add(key);
+          acc.items.push(row);
+          return acc;
+        },
+        { seen: new Set(), items: [] }
+      ).items;
   } catch (err) {
     if (MISSING_TABLE_REGEX.test(String(err?.message || ''))) return [];
     throw err;

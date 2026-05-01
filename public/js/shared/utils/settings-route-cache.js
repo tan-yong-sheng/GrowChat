@@ -1,12 +1,6 @@
-import {
-  consumeConnectionsInvalidation,
-} from './connection-sync.js';
-import {
-  consumeModelsInvalidation,
-} from './model-sync.js';
-import {
-  consumeToolServersInvalidation,
-} from './tool-server-sync.js';
+import { consumeConnectionsInvalidation } from './connection-sync.js';
+import { consumeModelsInvalidation } from './model-sync.js';
+import { consumeToolServersInvalidation } from './tool-server-sync.js';
 
 function invokeHandler(handler) {
   if (typeof handler !== 'function') return;

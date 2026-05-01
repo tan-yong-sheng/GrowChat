@@ -10,8 +10,23 @@ import { error, json } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../chat/attachments.js';
-import { buildConnectionHeaders, discoverConnectionModels, ensureConnectionId, extractConnectionModelId, getAllOpenAIConnectionConfigs, getConnectionApiType, getConnectionDefaultBaseUrl, isConnectionUrlRequired, normalizeConnectionManualModels } from '../llm/connections.js';
-import { buildConnectionAclRuleSaveStatements, loadConnectionAclRules, normalizeConnectionAclRule, saveConnectionAclRulesForConnection } from '../utils/connection-acl.js';
+import {
+  buildConnectionHeaders,
+  discoverConnectionModels,
+  ensureConnectionId,
+  extractConnectionModelId,
+  getAllOpenAIConnectionConfigs,
+  getConnectionApiType,
+  getConnectionDefaultBaseUrl,
+  isConnectionUrlRequired,
+  normalizeConnectionManualModels,
+} from '../llm/connections.js';
+import {
+  buildConnectionAclRuleSaveStatements,
+  loadConnectionAclRules,
+  normalizeConnectionAclRule,
+  saveConnectionAclRulesForConnection,
+} from '../utils/connection-acl.js';
 import { normalizeProviderFamily } from '../llm/provider-registry.js';
 import { MCP_PROTOCOL_VERSION } from '../mcp/client.js';
 import {
@@ -86,13 +101,15 @@ async function ensureAdminMutationAccess(env, user, permission, resource = 'admi
 /**
  * Admin Router Handler
  */
-export async function adminRouter(req, env, ctx, user, path) {
+export async function adminRouter(req, env, _ctx, user, path) {
   if (!path.startsWith('/api/admin/')) return null;
 
   const requiredPermission = resolveAdminPermission(path, req.method);
   const skipAuth = path === '/api/admin/tool-servers/oauth/callback';
   if (!skipAuth) {
-    const authDecision = await authorize(env, user, { action: requiredPermission });
+    const authDecision = await authorize(env, user, {
+      action: requiredPermission,
+    });
     if (!authDecision.allow) {
       return error(req, authDecision.reason || 'Forbidden', 403);
     }
@@ -146,7 +163,9 @@ export async function adminRouter(req, env, ctx, user, path) {
     }
 
     try {
-      const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+      const allConnections = await getAllOpenAIConnectionConfigs(env, {
+        includeDisabled: true,
+      });
       const groups = await db.all('SELECT id FROM groups');
       const validGroupIds = new Set(groups.map((group) => group.id));
       const statements = [];
@@ -158,7 +177,9 @@ export async function adminRouter(req, env, ctx, user, path) {
         if (!connectionId) {
           return error(req, 'connection_id is required', 400);
         }
-        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find((conn) => String(conn.id || '') === String(connectionId));
+        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
+          (conn) => String(conn.id || '') === String(connectionId)
+        );
         if (!currentConnection || currentConnection.enabled === false) {
           return error(req, 'Disabled connections cannot be edited', 409);
         }
@@ -166,7 +187,10 @@ export async function adminRouter(req, env, ctx, user, path) {
         const filteredRules = [];
         const invalidPrincipalTypes = [];
         for (const rule of incomingRules) {
-          const normalized = normalizeConnectionAclRule({ ...rule, connection_id: connectionId });
+          const normalized = normalizeConnectionAclRule({
+            ...rule,
+            connection_id: connectionId,
+          });
           if (!normalized) continue;
           if (normalized.principal_type !== 'group') {
             invalidPrincipalTypes.push(normalized.principal_type);
@@ -256,8 +280,12 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       try {
-        const allConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
-        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find((conn) => String(conn.id || '') === String(connectionId));
+        const allConnections = await getAllOpenAIConnectionConfigs(env, {
+          includeDisabled: true,
+        });
+        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
+          (conn) => String(conn.id || '') === String(connectionId)
+        );
         if (!currentConnection || currentConnection.enabled === false) {
           return error(req, 'Disabled connections cannot be edited', 409);
         }
@@ -267,7 +295,10 @@ export async function adminRouter(req, env, ctx, user, path) {
         const filteredRules = [];
         const invalidPrincipalTypes = [];
         for (const rule of incomingRules) {
-          const normalized = normalizeConnectionAclRule({ ...rule, connection_id: connectionId });
+          const normalized = normalizeConnectionAclRule({
+            ...rule,
+            connection_id: connectionId,
+          });
           if (!normalized) continue;
           if (normalized.principal_type !== 'group') {
             invalidPrincipalTypes.push(normalized.principal_type);
@@ -282,7 +313,11 @@ export async function adminRouter(req, env, ctx, user, path) {
           });
         }
 
-        const savedRules = await saveConnectionAclRulesForConnection(db, connectionId, filteredRules);
+        const savedRules = await saveConnectionAclRulesForConnection(
+          db,
+          connectionId,
+          filteredRules
+        );
 
         await logAuditEvent(env, {
           actor_id: user.sub,
@@ -375,7 +410,9 @@ export async function adminRouter(req, env, ctx, user, path) {
         if (!toolServerId) {
           return error(req, 'tool_server_id is required', 400);
         }
-        const currentServer = (Array.isArray(servers) ? servers : []).find((server) => String(server.id || '') === String(toolServerId));
+        const currentServer = (Array.isArray(servers) ? servers : []).find(
+          (server) => String(server.id || '') === String(toolServerId)
+        );
         if (!currentServer || currentServer.enabled === false) {
           return error(req, 'Disabled MCP servers cannot be edited', 409);
         }
@@ -383,7 +420,10 @@ export async function adminRouter(req, env, ctx, user, path) {
         const filteredRules = [];
         const invalidPrincipalTypes = [];
         for (const rule of incomingRules) {
-          const normalized = normalizeToolServerAclRule({ ...rule, tool_server_id: toolServerId });
+          const normalized = normalizeToolServerAclRule({
+            ...rule,
+            tool_server_id: toolServerId,
+          });
           if (!normalized) continue;
           if (normalized.principal_type !== 'group') {
             invalidPrincipalTypes.push(normalized.principal_type);
@@ -473,7 +513,9 @@ export async function adminRouter(req, env, ctx, user, path) {
 
       try {
         const servers = await loadToolServers(db);
-        const currentServer = (Array.isArray(servers) ? servers : []).find((server) => String(server.id || '') === String(toolServerId));
+        const currentServer = (Array.isArray(servers) ? servers : []).find(
+          (server) => String(server.id || '') === String(toolServerId)
+        );
         if (!currentServer || currentServer.enabled === false) {
           return error(req, 'Disabled MCP servers cannot be edited', 409);
         }
@@ -483,7 +525,11 @@ export async function adminRouter(req, env, ctx, user, path) {
         const filteredRules = [];
         const invalidPrincipalTypes = [];
         for (const rule of incomingRules) {
-          const normalized = normalizeToolServerAclRule({ ...rule, tool_server_id: toolServerId, action: 'use' });
+          const normalized = normalizeToolServerAclRule({
+            ...rule,
+            tool_server_id: toolServerId,
+            action: 'use',
+          });
           if (!normalized) continue;
           if (normalized.principal_type !== 'group') {
             invalidPrincipalTypes.push(normalized.principal_type);
@@ -498,7 +544,11 @@ export async function adminRouter(req, env, ctx, user, path) {
           });
         }
 
-        const savedRules = await saveToolServerAclRulesForToolServer(db, toolServerId, filteredRules);
+        const savedRules = await saveToolServerAclRulesForToolServer(
+          db,
+          toolServerId,
+          filteredRules
+        );
 
         await logAuditEvent(env, {
           actor_id: user.sub,
@@ -537,16 +587,23 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (req.method === 'GET' && path === '/api/admin/config') {
     try {
       const publicRegistration = await getConfigBool(db, 'public_registration', true);
-      const registrationStatusRaw = await getConfigValue(db, 'public_registration_status', 'pending');
+      const registrationStatusRaw = await getConfigValue(
+        db,
+        'public_registration_status',
+        'pending'
+      );
       const defaultModelIdRaw = await getConfigValue(db, 'default_model_id', null);
-      const registrationStatus = String(registrationStatusRaw || 'pending').trim().toLowerCase() === 'active'
-        ? 'active'
-        : 'pending';
+      const registrationStatus =
+        String(registrationStatusRaw || 'pending')
+          .trim()
+          .toLowerCase() === 'active'
+          ? 'active'
+          : 'pending';
       const defaultModelId = defaultModelIdRaw ? String(defaultModelIdRaw).trim() : null;
       return json(req, {
         public_registration: publicRegistration,
         public_registration_status: registrationStatus,
-        default_model_id: defaultModelId || null
+        default_model_id: defaultModelId || null,
       });
     } catch (err) {
       console.error('Admin config fetch failed:', err);
@@ -608,7 +665,11 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     try {
       if (hasPublicRegistration) {
-        await setConfigValue(db, 'public_registration', body.public_registration ? 'true' : 'false');
+        await setConfigValue(
+          db,
+          'public_registration',
+          body.public_registration ? 'true' : 'false'
+        );
       }
       if (hasRegistrationStatus) {
         await setConfigValue(db, 'public_registration_status', normalizedRegistrationStatus);
@@ -620,12 +681,14 @@ export async function adminRouter(req, env, ctx, user, path) {
         actor_id: user.sub,
         action: 'admin_config_updated',
         resource_type: 'admin',
-        resource_id: 'config'
+        resource_id: 'config',
       });
       return json(req, {
         public_registration: hasPublicRegistration ? body.public_registration : undefined,
-        public_registration_status: hasRegistrationStatus ? normalizedRegistrationStatus : undefined,
-        default_model_id: hasDefaultModel ? (normalizedDefaultModel || null) : undefined
+        public_registration_status: hasRegistrationStatus
+          ? normalizedRegistrationStatus
+          : undefined,
+        default_model_id: hasDefaultModel ? normalizedDefaultModel || null : undefined,
       });
     } catch (err) {
       console.error('Admin config update failed:', err);
@@ -718,7 +781,9 @@ export async function adminRouter(req, env, ctx, user, path) {
         if (!modelId) {
           throw new Error('model_id is required');
         }
-        const patch = normalizeAttachmentCaps(update?.attachments, { allowNull: true });
+        const patch = normalizeAttachmentCaps(update?.attachments, {
+          allowNull: true,
+        });
         const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
         const nextAttachments = { ...(current.attachments || {}) };
         for (const [key, value] of Object.entries(patch)) {
@@ -759,7 +824,9 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (req.method === 'GET' && path === '/api/admin/openai/connections') {
     try {
       const url = new URL(req.url);
-      const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
+      const includeDisabled = ['1', 'true', 'yes'].includes(
+        String(url.searchParams.get('include_disabled') || '').toLowerCase()
+      );
       let manualConnections = [];
       const raw = await getConfigValue(db, 'openai_connections', '[]');
       try {
@@ -769,7 +836,8 @@ export async function adminRouter(req, env, ctx, user, path) {
             ...conn,
             id: ensureConnectionId(conn, index),
             providerType: String(conn?.providerType || 'openai-compatible').toLowerCase(),
-            providerFamily: normalizeProviderFamily(conn?.providerType || conn?.providerFamily) || 'openai',
+            providerFamily:
+              normalizeProviderFamily(conn?.providerType || conn?.providerFamily) || 'openai',
             hasKey: Boolean(conn?.key || conn?.keyMasked || conn?.hasKey || conn?.has_key),
             keyMasked: conn?.keyMasked || (conn?.key ? `••••${String(conn.key).slice(-4)}` : ''),
             key: undefined,
@@ -788,7 +856,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         enabled,
         connections: includeDisabled
           ? manualConnections
-          : manualConnections.filter((connection) => connection.enabled !== false)
+          : manualConnections.filter((connection) => connection.enabled !== false),
       });
     } catch (err) {
       console.error('OpenAI connections fetch failed:', err);
@@ -811,7 +879,8 @@ export async function adminRouter(req, env, ctx, user, path) {
     }
 
     const providerType = String(body.providerType || 'openai').toLowerCase();
-    const providerFamily = normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
+    const providerFamily =
+      normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
     const url = String(body.url || '').trim();
     const connectionId = String(body.id || body.connectionId || '').trim();
     const requiresUrl = isConnectionUrlRequired(providerType);
@@ -824,7 +893,7 @@ export async function adminRouter(req, env, ctx, user, path) {
     }
 
     const key = String(body.key || '').trim();
-    let headers = {};
+    let headers;
     try {
       headers = parseHeadersForRequest(body.headers);
     } catch (err) {
@@ -834,13 +903,23 @@ export async function adminRouter(req, env, ctx, user, path) {
     try {
       let existingConnection = null;
       if (connectionId) {
-        const existingConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
-        existingConnection = (Array.isArray(existingConnections) ? existingConnections : [])
-          .find((connection) => String(connection.id || '') === connectionId) || null;
+        const existingConnections = await getAllOpenAIConnectionConfigs(env, {
+          includeDisabled: true,
+        });
+        existingConnection =
+          (Array.isArray(existingConnections) ? existingConnections : []).find(
+            (connection) => String(connection.id || '') === connectionId
+          ) || null;
       }
       const rawAuthType = String(
-        body.authType || body.auth_type || existingConnection?.authType || existingConnection?.auth_type || ''
-      ).trim().toLowerCase();
+        body.authType ||
+          body.auth_type ||
+          existingConnection?.authType ||
+          existingConnection?.auth_type ||
+          ''
+      )
+        .trim()
+        .toLowerCase();
       const authType = ['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(rawAuthType)
         ? rawAuthType
         : '';
@@ -857,29 +936,34 @@ export async function adminRouter(req, env, ctx, user, path) {
       });
       if (!discovery.items.length) {
         const message = discovery.error?.message || 'No models discovered';
-        return error(
-          req,
-          'Connection failed',
-          502,
-          { message: String(message).slice(0, 200) }
-        );
+        return error(req, 'Connection failed', 502, {
+          message: String(message).slice(0, 200),
+        });
       }
 
       return json(req, {
         ok: true,
         message: 'Connection successful',
         discovery_url: discovery.url,
-        models: discovery.items.map((item) => {
-          const rawId = extractConnectionModelId(item);
-          const displayName = String(item?.displayName || item?.display_name || item?.name || item?.id || rawId || '').trim();
-          return {
-            id: rawId,
-            name: displayName.startsWith('models/') ? displayName.slice('models/'.length) : displayName,
-          };
-        }).filter((item) => Boolean(item.id)),
+        models: discovery.items
+          .map((item) => {
+            const rawId = extractConnectionModelId(item);
+            const displayName = String(
+              item?.displayName || item?.display_name || item?.name || item?.id || rawId || ''
+            ).trim();
+            return {
+              id: rawId,
+              name: displayName.startsWith('models/')
+                ? displayName.slice('models/'.length)
+                : displayName,
+            };
+          })
+          .filter((item) => Boolean(item.id)),
       });
     } catch (err) {
-      return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
+      return error(req, 'Connection failed', 502, {
+        message: err?.message || String(err),
+      });
     }
   }
 
@@ -887,9 +971,13 @@ export async function adminRouter(req, env, ctx, user, path) {
   if (req.method === 'GET' && path === '/api/admin/tool-servers') {
     try {
       const url = new URL(req.url);
-      const includeDisabled = ['1', 'true', 'yes'].includes(String(url.searchParams.get('include_disabled') || '').toLowerCase());
+      const includeDisabled = ['1', 'true', 'yes'].includes(
+        String(url.searchParams.get('include_disabled') || '').toLowerCase()
+      );
       const servers = await loadToolServers(db);
-      const filtered = includeDisabled ? servers : servers.filter((server) => server.enabled !== false);
+      const filtered = includeDisabled
+        ? servers
+        : servers.filter((server) => server.enabled !== false);
       return json(req, { servers: filtered.map(redactToolServer) });
     } catch (err) {
       console.error('Tool servers fetch failed:', err);
@@ -916,7 +1004,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Server URL must start with http:// or https://', 400);
     }
 
-    let headers = {};
+    let headers;
     try {
       headers = parseHeadersForRequest(body.headers);
     } catch (err) {
@@ -985,14 +1073,15 @@ export async function adminRouter(req, env, ctx, user, path) {
         method: 'tools/list',
       });
 
-      const tools = Array.isArray(toolsResult.result?.tools)
-        ? toolsResult.result.tools
-        : [];
+      const tools = Array.isArray(toolsResult.result?.tools) ? toolsResult.result.tools : [];
       const toolSummaries = tools
         .map((tool) => {
-          const parameters = tool?.inputSchema && typeof tool.inputSchema === 'object'
-            ? tool.inputSchema
-            : (tool?.parameters && typeof tool.parameters === 'object' ? tool.parameters : {});
+          const parameters =
+            tool?.inputSchema && typeof tool.inputSchema === 'object'
+              ? tool.inputSchema
+              : tool?.parameters && typeof tool.parameters === 'object'
+                ? tool.parameters
+                : {};
           return {
             name: String(tool?.name || '').trim(),
             title: String(tool?.title || '').trim(),
@@ -1040,7 +1129,9 @@ export async function adminRouter(req, env, ctx, user, path) {
           console.warn('Failed to persist tool server error:', persistErr?.message || persistErr);
         }
       }
-      return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
+      return error(req, 'Connection failed', 502, {
+        message: err?.message || String(err),
+      });
     }
   }
 
@@ -1076,13 +1167,17 @@ export async function adminRouter(req, env, ctx, user, path) {
     }
 
     const server = existingServer;
-    const oauthClientName = String(body.oauth_client_name || server.oauth_client_name || 'GrowChat MCP Client').trim();
+    const oauthClientName = String(
+      body.oauth_client_name || server.oauth_client_name || 'GrowChat MCP Client'
+    ).trim();
     const oauthScope = String(body.oauth_scope || server.oauth_scope || '').trim();
-    const authServerUrl = String(body.oauth_authorization_server || server.oauth_authorization_server || serverUrl).trim();
+    const authServerUrl = String(
+      body.oauth_authorization_server || server.oauth_authorization_server || serverUrl
+    ).trim();
 
     const redirectUri = new URL(req.url).origin + '/api/admin/tool-servers/oauth/callback';
 
-    let metadata = null;
+    let metadata;
     try {
       metadata = await discoverAuthorizationMetadata(authServerUrl);
     } catch {
@@ -1091,7 +1186,8 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     let clientId = String(body.oauth_client_id || server.oauth_client_id || '').trim();
     let clientSecret = String(body.oauth_client_secret || server.oauth_client_secret || '').trim();
-    let registrationEndpoint = metadata?.registration_endpoint || server.oauth_registration_endpoint || '';
+    let registrationEndpoint =
+      metadata?.registration_endpoint || server.oauth_registration_endpoint || '';
 
     if (!clientId) {
       if (!registrationEndpoint) {
@@ -1111,13 +1207,17 @@ export async function adminRouter(req, env, ctx, user, path) {
         });
         if (!registrationRes.ok) {
           const text = await registrationRes.text().catch(() => '');
-          return error(req, 'Client registration failed', 502, { message: text });
+          return error(req, 'Client registration failed', 502, {
+            message: text,
+          });
         }
         const registrationData = await registrationRes.json();
         clientId = String(registrationData.client_id || '').trim();
         clientSecret = String(registrationData.client_secret || '').trim();
       } catch (err) {
-        return error(req, 'Client registration failed', 502, { message: err?.message || String(err) });
+        return error(req, 'Client registration failed', 502, {
+          message: err?.message || String(err),
+        });
       }
     }
 
@@ -1125,14 +1225,18 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'OAuth client ID is required', 400);
     }
 
-    const tokenAuthMethod = normalizeTokenAuthMethod(
-      body.oauth_token_auth_method || server.oauth_token_auth_method
-    ) || selectTokenAuthMethod(metadata?.token_endpoint_auth_methods_supported || [], Boolean(clientSecret));
+    const tokenAuthMethod =
+      normalizeTokenAuthMethod(body.oauth_token_auth_method || server.oauth_token_auth_method) ||
+      selectTokenAuthMethod(
+        metadata?.token_endpoint_auth_methods_supported || [],
+        Boolean(clientSecret)
+      );
 
     const codeVerifier = randomString(64);
     const codeChallenge = await sha256Base64Url(codeVerifier);
     const state = randomString(32);
-    const authorizationEndpoint = metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
+    const authorizationEndpoint =
+      metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
     const tokenEndpoint = metadata?.token_endpoint || new URL('/token', authServerUrl).toString();
 
     const authorizationUrl = buildAuthorizationUrl({
@@ -1163,7 +1267,10 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     await saveToolServers(db, servers);
 
-    return json(req, { ok: true, authorization_url: authorizationUrl.toString() });
+    return json(req, {
+      ok: true,
+      authorization_url: authorizationUrl.toString(),
+    });
   }
 
   // GET /api/admin/tool-servers/oauth/callback - OAuth redirect handler
@@ -1176,21 +1283,28 @@ export async function adminRouter(req, env, ctx, user, path) {
       return new Response(`Authorization failed: ${errParam}`, { status: 400 });
     }
     if (!code || !state) {
-      return new Response('Missing authorization code or state', { status: 400 });
+      return new Response('Missing authorization code or state', {
+        status: 400,
+      });
     }
 
     const servers = await loadToolServers(db);
     const serverIndex = servers.findIndex((entry) => entry?.oauth_state === state);
     if (serverIndex === -1) {
-      return new Response('OAuth session not found or expired', { status: 400 });
+      return new Response('OAuth session not found or expired', {
+        status: 400,
+      });
     }
 
     const server = servers[serverIndex];
-    const tokenEndpoint = server.oauth_token_endpoint || new URL('/token', server.oauth_authorization_server || server.url).toString();
+    const tokenEndpoint =
+      server.oauth_token_endpoint ||
+      new URL('/token', server.oauth_authorization_server || server.url).toString();
     const clientId = server.oauth_client_id;
     const clientSecret = server.oauth_client_secret;
     const codeVerifier = server.oauth_code_verifier;
-    const tokenAuthMethod = normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
+    const tokenAuthMethod =
+      normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
 
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -1314,9 +1428,14 @@ export async function adminRouter(req, env, ctx, user, path) {
     let currentConnectionMap = new Map();
     let sanitized;
     try {
-      const currentConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled: true });
+      const currentConnections = await getAllOpenAIConnectionConfigs(env, {
+        includeDisabled: true,
+      });
       currentConnectionMap = new Map(
-        (Array.isArray(currentConnections) ? currentConnections : []).map((connection) => [String(connection.id || ''), connection])
+        (Array.isArray(currentConnections) ? currentConnections : []).map((connection) => [
+          String(connection.id || ''),
+          connection,
+        ])
       );
 
       sanitized = connections
@@ -1324,10 +1443,22 @@ export async function adminRouter(req, env, ctx, user, path) {
         .map((conn) => {
           const existingConnection = currentConnectionMap.get(String(conn.id || ''));
           const providerType = String(conn.providerType || 'openai').toLowerCase();
-          if (!['openai', 'openai-compatible', 'google', 'gemini-compatible', 'anthropic', 'claude-compatible'].includes(providerType)) {
-            throw new Error('Provider type must be one of: openai, openai-compatible, google, gemini-compatible, anthropic, claude-compatible');
+          if (
+            ![
+              'openai',
+              'openai-compatible',
+              'google',
+              'gemini-compatible',
+              'anthropic',
+              'claude-compatible',
+            ].includes(providerType)
+          ) {
+            throw new Error(
+              'Provider type must be one of: openai, openai-compatible, google, gemini-compatible, anthropic, claude-compatible'
+            );
           }
-          const providerFamily = normalizeProviderFamily(providerType || conn.providerFamily) || 'openai';
+          const providerFamily =
+            normalizeProviderFamily(providerType || conn.providerFamily) || 'openai';
           const rawUrl = String(conn.url || '').trim();
           const requiresUrl = isConnectionUrlRequired(providerType);
           const url = rawUrl || getConnectionDefaultBaseUrl(providerType || providerFamily);
@@ -1338,7 +1469,11 @@ export async function adminRouter(req, env, ctx, user, path) {
             throw new Error('Connection URL must start with http:// or https://');
           }
           const keyRaw = conn.key !== undefined ? String(conn.key || '').trim() : '';
-          const key = keyRaw || (existingConnection?.key && String(existingConnection.key).trim() ? String(existingConnection.key).trim() : '');
+          const key =
+            keyRaw ||
+            (existingConnection?.key && String(existingConnection.key).trim()
+              ? String(existingConnection.key).trim()
+              : '');
           if (key.length > 4096) {
             throw new Error('API key is too long');
           }
@@ -1346,11 +1481,12 @@ export async function adminRouter(req, env, ctx, user, path) {
           if (headers.length > 4096) {
             throw new Error('Headers are too long');
           }
-          const defaultName = providerFamily === 'google'
-            ? 'Gemini Compatible'
-            : providerFamily === 'anthropic'
-              ? 'Claude Compatible'
-              : 'OpenAI Compatible';
+          const defaultName =
+            providerFamily === 'google'
+              ? 'Gemini Compatible'
+              : providerFamily === 'anthropic'
+                ? 'Claude Compatible'
+                : 'OpenAI Compatible';
           return {
             id: conn.id || crypto.randomUUID(),
             name: String(conn.name || defaultName).slice(0, 120),
@@ -1362,7 +1498,10 @@ export async function adminRouter(req, env, ctx, user, path) {
             apiType: getConnectionApiType(providerType),
             enabled: conn.enabled !== false,
             manualModels: normalizeConnectionManualModels(conn.manualModels),
-            manualModelsMode: normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all',
+            manualModelsMode:
+              normalizeConnectionModelSelectionMode(
+                conn.manualModelsMode || conn.manual_models_mode
+              ) || 'all',
           };
         })
         .filter(Boolean);
@@ -1397,7 +1536,10 @@ export async function adminRouter(req, env, ctx, user, path) {
         const filteredRules = [];
         const invalidPrincipalTypes = [];
         for (const rule of incomingRules) {
-          const normalized = normalizeConnectionAclRule({ ...rule, connection_id: connectionId });
+          const normalized = normalizeConnectionAclRule({
+            ...rule,
+            connection_id: connectionId,
+          });
           if (!normalized) continue;
           if (normalized.principal_type !== 'group') {
             invalidPrincipalTypes.push(normalized.principal_type);
@@ -1432,7 +1574,9 @@ export async function adminRouter(req, env, ctx, user, path) {
             updated_at INTEGER NOT NULL DEFAULT (unixepoch())
           )`
         ),
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_model_access_enabled ON model_access (is_enabled)'),
+        db.prepare(
+          'CREATE INDEX IF NOT EXISTS idx_model_access_enabled ON model_access (is_enabled)'
+        ),
         db.prepare(
           `CREATE TABLE IF NOT EXISTS connection_acl_rules (
             id TEXT PRIMARY KEY,
@@ -1446,10 +1590,20 @@ export async function adminRouter(req, env, ctx, user, path) {
             UNIQUE(connection_id, principal_type, principal_id, effect, action)
           )`
         ),
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_connection_id ON connection_acl_rules(connection_id)'),
-        db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)'),
-        db.prepare('INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()', ['openai_connections', JSON.stringify(sanitized)]),
-        db.prepare('INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()', ['openai_enabled', enabled ? 'true' : 'false']),
+        db.prepare(
+          'CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_connection_id ON connection_acl_rules(connection_id)'
+        ),
+        db.prepare(
+          'CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)'
+        ),
+        db.prepare(
+          'INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()',
+          ['openai_connections', JSON.stringify(sanitized)]
+        ),
+        db.prepare(
+          'INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = unixepoch()',
+          ['openai_enabled', enabled ? 'true' : 'false']
+        ),
       ];
 
       for (const update of modelUpdates) {
@@ -1465,7 +1619,9 @@ export async function adminRouter(req, env, ctx, user, path) {
 
       for (const entry of normalizedAccessUpdates) {
         statements.push(
-          db.prepare('DELETE FROM connection_acl_rules WHERE connection_id = ?', [entry.connection_id])
+          db.prepare('DELETE FROM connection_acl_rules WHERE connection_id = ?', [
+            entry.connection_id,
+          ])
         );
         for (const rule of entry.rules) {
           statements.push(
@@ -1539,7 +1695,12 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const writeDecision = await ensureAdminMutationAccess(env, user, 'admin.rbac.admin', 'email-config');
+    const writeDecision = await ensureAdminMutationAccess(
+      env,
+      user,
+      'admin.rbac.admin',
+      'email-config'
+    );
     if (!writeDecision.allow) {
       return error(req, writeDecision.reason || 'Forbidden', 403);
     }
@@ -1598,7 +1759,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${resendApiKey}`,
+          Authorization: `Bearer ${resendApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

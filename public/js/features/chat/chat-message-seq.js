@@ -6,7 +6,7 @@ export function createMessageSequenceTracker({
   const messageSeqById = new Map();
 
   const loadMessageSeqs = () => {
-    let stored = {};
+    let stored;
     try {
       stored = JSON.parse(storage?.getItem?.(storageKey) || '{}') || {};
     } catch {
@@ -70,4 +70,3 @@ export function createMessageSequenceTracker({
     notePayloadSeq,
   };
 }
-

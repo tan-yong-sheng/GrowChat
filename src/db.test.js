@@ -99,7 +99,9 @@ describe('db.js - Database Abstraction', () => {
     it('should handle INSERT operations', async () => {
       const sql = 'INSERT INTO users (id, email) VALUES (?, ?)';
       const params = ['123', 'new@example.com'];
-      const mockStatement = createMockStatement({ run: vi.fn().mockResolvedValue({ success: true, meta: { changes: 1 } }) });
+      const mockStatement = createMockStatement({
+        run: vi.fn().mockResolvedValue({ success: true, meta: { changes: 1 } }),
+      });
       mockD1.prepare.mockReturnValue(mockStatement);
 
       const result = await db.run(sql, params);
@@ -177,7 +179,9 @@ describe('db.js - Database Abstraction', () => {
     it('should return empty array when no rows found', async () => {
       const sql = 'SELECT * FROM users WHERE id = ?';
       const params = ['nonexistent'];
-      const mockStatement = createMockStatement({ all: vi.fn().mockResolvedValue({ results: [] }) });
+      const mockStatement = createMockStatement({
+        all: vi.fn().mockResolvedValue({ results: [] }),
+      });
       mockD1.prepare.mockReturnValue(mockStatement);
 
       const result = await db.all(sql, params);
@@ -205,7 +209,7 @@ describe('db.js - Database Abstraction', () => {
       ];
       const mockStatement = {
         bind: vi.fn(),
-        all: vi.fn().mockResolvedValue({ results: expectedRows })
+        all: vi.fn().mockResolvedValue({ results: expectedRows }),
       };
       mockStatement.bind.mockReturnValue(mockStatement);
       mockD1.prepare.mockReturnValue(mockStatement);

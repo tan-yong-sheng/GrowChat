@@ -3,7 +3,13 @@ import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { authorize } from '../utils/authorize.js';
-import { resolveDefaultModel, getOwnedChat, requireOwnedChat, getChatMessages, attachDocumentsToMessages } from './chat-core.js';
+import {
+  resolveDefaultModel,
+  getOwnedChat,
+  requireOwnedChat,
+  getChatMessages,
+  attachDocumentsToMessages,
+} from './chat-core.js';
 
 async function publishRealtimeNow(env, event) {
   try {
@@ -32,17 +38,30 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     if (qRaw.length > 200) {
       return error(req, 'Query parameter "q" exceeds 200 characters', 400);
     }
-    if (!/^[^\x00-\x1F\x7F]*$/.test(qRaw)) {
+    if (
+      Array.from(qRaw).some((char) => {
+        const code = char.charCodeAt(0);
+        return code < 32 || code === 127;
+      })
+    ) {
       return error(req, 'Query parameter "q" contains invalid characters', 400);
     }
 
     const limitParamStr = url.searchParams.get('limit') || '100';
     if (!/^[1-9]\d{0,2}$/.test(limitParamStr)) {
-      return error(req, 'Query parameter "limit" must be a positive integer between 1 and 100', 400);
+      return error(
+        req,
+        'Query parameter "limit" must be a positive integer between 1 and 100',
+        400
+      );
     }
     const limit = Number.parseInt(limitParamStr, 10);
     if (limit > 100) {
-      return error(req, 'Query parameter "limit" must be a positive integer between 1 and 100', 400);
+      return error(
+        req,
+        'Query parameter "limit" must be a positive integer between 1 and 100',
+        400
+      );
     }
 
     const offsetParamStr = url.searchParams.get('offset') || '0';
@@ -75,16 +94,18 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     const has_more = chats.length > limit;
     const items = has_more ? chats.slice(0, limit) : chats;
 
-    const itemsTag = items
-      .map((chat) => `${chat.id || ''}:${chat.updated_at || 0}`)
-      .join('|');
+    const itemsTag = items.map((chat) => `${chat.id || ''}:${chat.updated_at || 0}`).join('|');
     const etag = createWeakEtag(`${user.sub}|${qRaw}|${limit}|${offset}|${itemsTag}`);
 
-    return jsonCached(req, { chats: items, limit, offset, query: qRaw, has_more }, {
-      etag,
-      cacheControl: 'private, max-age=30, stale-while-revalidate=120',
-      vary: 'Authorization',
-    });
+    return jsonCached(
+      req,
+      { chats: items, limit, offset, query: qRaw, has_more },
+      {
+        etag,
+        cacheControl: 'private, max-age=30, stale-while-revalidate=120',
+        vary: 'Authorization',
+      }
+    );
   }
 
   if (req.method === 'POST' && path === '/api/chats') {
@@ -114,13 +135,16 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     );
 
     const chat = await db.first('SELECT * FROM chats WHERE id = ?', [id]);
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'chat.created',
-      userId: user.sub,
-      chatId: id,
-      originSessionId,
-      data: { model, chat },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'chat.created',
+        userId: user.sub,
+        chatId: id,
+        originSessionId,
+        data: { model, chat },
+      })
+    );
     return json(req, { chat }, 201);
   }
 
@@ -176,16 +200,23 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
       const messages = await getChatMessages(db, chatId);
       const withAttachments = await attachDocumentsToMessages(db, messages);
-      const lastMessageAt = messages.reduce((max, msg) => Math.max(max, Number(msg?.created_at || 0)), 0);
+      const lastMessageAt = messages.reduce(
+        (max, msg) => Math.max(max, Number(msg?.created_at || 0)),
+        0
+      );
       const etag = createWeakEtag(
         `${user.sub}|${chatId}|${chat.updated_at || 0}|${chat.current_message_id || ''}|${messages.length}|${lastMessageAt}`
       );
 
-      return jsonCached(req, { chat, messages: withAttachments }, {
-        etag,
-        cacheControl: 'private, max-age=15, stale-while-revalidate=30',
-        vary: 'Authorization',
-      });
+      return jsonCached(
+        req,
+        { chat, messages: withAttachments },
+        {
+          etag,
+          cacheControl: 'private, max-age=15, stale-while-revalidate=30',
+          vary: 'Authorization',
+        }
+      );
     }
 
     if (req.method === 'PUT') {
@@ -219,13 +250,16 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
       const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
       const updated = updatedOwned.chat || null;
-      await publishRealtimeNow(env, createRealtimeEvent({
-        type: 'chat.updated',
-        userId: user.sub,
-        chatId,
-        originSessionId,
-        data: { chat: updated },
-      }));
+      await publishRealtimeNow(
+        env,
+        createRealtimeEvent({
+          type: 'chat.updated',
+          userId: user.sub,
+          chatId,
+          originSessionId,
+          data: { chat: updated },
+        })
+      );
       return json(req, { chat: updated });
     }
 
@@ -241,22 +275,27 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
       const owned = await requireOwnedChat(req, db, chatId, user.sub);
       if (owned.error) return owned.error;
-      const chat = owned.chat;
 
       await db.run('DELETE FROM chats WHERE id = ? AND user_id = ?', [chatId, user.sub]);
-      await publishRealtimeNow(env, createRealtimeEvent({
-        type: 'chat.deleted',
-        userId: user.sub,
-        chatId,
-        originSessionId,
-      }));
-      await publishRealtimeNow(env, createRealtimeEvent({
-        type: 'chat.updated',
-        userId: user.sub,
-        chatId,
-        originSessionId,
-        data: { shared: false, chat: null },
-      }));
+      await publishRealtimeNow(
+        env,
+        createRealtimeEvent({
+          type: 'chat.deleted',
+          userId: user.sub,
+          chatId,
+          originSessionId,
+        })
+      );
+      await publishRealtimeNow(
+        env,
+        createRealtimeEvent({
+          type: 'chat.updated',
+          userId: user.sub,
+          chatId,
+          originSessionId,
+          data: { shared: false, chat: null },
+        })
+      );
 
       return json(req, { ok: true });
     }
@@ -286,13 +325,16 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
     const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
     const updated = updatedOwned.chat || null;
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'chat.updated',
-      userId: user.sub,
-      chatId,
-      originSessionId,
-      data: { chat: updated },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'chat.updated',
+        userId: user.sub,
+        chatId,
+        originSessionId,
+        data: { chat: updated },
+      })
+    );
 
     return json(req, { chat: updated });
   }
@@ -323,14 +365,11 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     const cloneModel = sourceChat.model || (await resolveDefaultModel(env, db, user.sub));
 
     const statements = [
-      db.prepare(
-        'INSERT INTO chats (id, user_id, title, model, pinned, share_id, archived, current_message_id, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, 0, NULL, unixepoch(), unixepoch())'
-      ).bind(
-        newChatId,
-        user.sub,
-        newTitle,
-        cloneModel
-      ),
+      db
+        .prepare(
+          'INSERT INTO chats (id, user_id, title, model, pinned, share_id, archived, current_message_id, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, 0, NULL, unixepoch(), unixepoch())'
+        )
+        .bind(newChatId, user.sub, newTitle, cloneModel),
     ];
 
     const messageIdMap = new Map();
@@ -339,19 +378,23 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     }
 
     for (const message of sourceMessages) {
-      const mappedParentId = message.parent_id ? messageIdMap.get(String(message.parent_id)) || null : null;
+      const mappedParentId = message.parent_id
+        ? messageIdMap.get(String(message.parent_id)) || null
+        : null;
       statements.push(
-        db.prepare(
-          'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())'
-        ).bind(
-          messageIdMap.get(String(message.id)),
-          newChatId,
-          message.role,
-          message.content,
-          message.model,
-          message.citations || null,
-          mappedParentId
-        )
+        db
+          .prepare(
+            'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())'
+          )
+          .bind(
+            messageIdMap.get(String(message.id)),
+            newChatId,
+            message.role,
+            message.content,
+            message.model,
+            message.citations || null,
+            mappedParentId
+          )
       );
     }
 
@@ -360,22 +403,27 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       : null;
     if (mappedCurrentMessageId) {
       statements.push(
-        db.prepare(
-          'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
-        ).bind(mappedCurrentMessageId, newChatId, user.sub)
+        db
+          .prepare(
+            'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
+          )
+          .bind(mappedCurrentMessageId, newChatId, user.sub)
       );
     }
 
     await db.batch(statements);
 
     const createdChat = await getOwnedChat(db, newChatId, user.sub);
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'chat.created',
-      userId: user.sub,
-      chatId: newChatId,
-      originSessionId,
-      data: { model: createdChat?.model, chat: createdChat },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'chat.created',
+        userId: user.sub,
+        chatId: newChatId,
+        originSessionId,
+        data: { model: createdChat?.model, chat: createdChat },
+      })
+    );
 
     return json(req, { chat: createdChat }, 201);
   }
@@ -406,19 +454,26 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     }
 
     const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'chat.updated',
-      userId: user.sub,
-      chatId,
-      originSessionId,
-      data: { shared: true, chat: updatedOwned.chat || null },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'chat.updated',
+        userId: user.sub,
+        chatId,
+        originSessionId,
+        data: { shared: true, chat: updatedOwned.chat || null },
+      })
+    );
 
-    return json(req, {
-      share_id: shareId,
-      share_url: `/s/${shareId}`,
-      chat_id: chatId,
-    }, 200);
+    return json(
+      req,
+      {
+        share_id: shareId,
+        share_url: `/s/${shareId}`,
+        chat_id: chatId,
+      },
+      200
+    );
   }
 
   const unshareMatch = path.match(/^\/api\/chats\/([^/]+)\/share$/);
@@ -471,13 +526,16 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
     const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
     const updated = updatedOwned.chat || null;
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'chat.updated',
-      userId: user.sub,
-      chatId,
-      originSessionId,
-      data: { archived: newArchived === 1 },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'chat.updated',
+        userId: user.sub,
+        chatId,
+        originSessionId,
+        data: { archived: newArchived === 1 },
+      })
+    );
     return json(req, { chat: updated, archived: newArchived === 1 });
   }
 

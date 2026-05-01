@@ -1,23 +1,31 @@
 const MISSING_TABLE_REGEX = /no such table:\s*connection_acl_rules/i;
 
 export function normalizeConnectionAclEffect(value) {
-  const effect = String(value || 'allow').trim().toLowerCase();
+  const effect = String(value || 'allow')
+    .trim()
+    .toLowerCase();
   return effect === 'deny' ? 'deny' : 'allow';
 }
 
 export function normalizeConnectionAclPrincipalType(value) {
-  const principalType = String(value || 'group').trim().toLowerCase();
+  const principalType = String(value || 'group')
+    .trim()
+    .toLowerCase();
   return principalType === 'user' ? 'user' : 'group';
 }
 
 export function normalizeConnectionAclAction(value) {
-  const action = String(value || 'use').trim().toLowerCase();
+  const action = String(value || 'use')
+    .trim()
+    .toLowerCase();
   return action || 'use';
 }
 
 export function normalizeConnectionAclRule(rule = {}) {
   const connectionId = String(rule.connection_id || rule.connectionId || '').trim();
-  const principalType = normalizeConnectionAclPrincipalType(rule.principal_type || rule.principalType);
+  const principalType = normalizeConnectionAclPrincipalType(
+    rule.principal_type || rule.principalType
+  );
   const principalId = String(rule.principal_id || rule.principalId || '').trim();
   const effect = normalizeConnectionAclEffect(rule.effect);
   const action = normalizeConnectionAclAction(rule.action);
@@ -53,22 +61,39 @@ function ruleMatchesPrincipal(rule, userId, userGroupIds) {
 }
 
 function isConnectionAclActionRelevant(action) {
-  const normalized = String(action || 'use').trim().toLowerCase();
+  const normalized = String(action || 'use')
+    .trim()
+    .toLowerCase();
   return ['use', 'manage', 'admin', 'read'].includes(normalized);
 }
 
-export function evaluateConnectionAclAccess(connection, { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}) {
+export function evaluateConnectionAclAccess(
+  connection,
+  { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
+) {
   if (connection?.source === 'user') {
     return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
   }
 
-  const normalizedRules = Array.isArray(rules) ? rules.map(normalizeConnectionAclRule).filter(Boolean) : [];
-  const denyMatched = normalizedRules.some((rule) => rule.effect === 'deny' && isConnectionAclActionRelevant(rule.action) && ruleMatchesPrincipal(rule, user?.sub, userGroupIds));
+  const normalizedRules = Array.isArray(rules)
+    ? rules.map(normalizeConnectionAclRule).filter(Boolean)
+    : [];
+  const denyMatched = normalizedRules.some(
+    (rule) =>
+      rule.effect === 'deny' &&
+      isConnectionAclActionRelevant(rule.action) &&
+      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
+  );
   if (denyMatched) {
     return { allowed: false, access_label: 'No access', access_variant: 'none' };
   }
 
-  const allowMatched = normalizedRules.some((rule) => rule.effect === 'allow' && isConnectionAclActionRelevant(rule.action) && ruleMatchesPrincipal(rule, user?.sub, userGroupIds));
+  const allowMatched = normalizedRules.some(
+    (rule) =>
+      rule.effect === 'allow' &&
+      isConnectionAclActionRelevant(rule.action) &&
+      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
+  );
   if (allowMatched) {
     return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
   }
@@ -96,14 +121,23 @@ export async function ensureConnectionAclRulesTable(db) {
         UNIQUE(connection_id, principal_type, principal_id, effect, action)
       )`
     );
-    await db.run('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_connection_id ON connection_acl_rules(connection_id)');
-    await db.run('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)');
+    await db.run(
+      'CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_connection_id ON connection_acl_rules(connection_id)'
+    );
+    await db.run(
+      'CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)'
+    );
   } catch (err) {
     console.warn('Failed to ensure connection_acl_rules table:', err?.message || err);
   }
 }
 
-export function buildConnectionAclRuleSaveStatements(db, connectionId, rules = [], { includeSchemaStatements = true } = {}) {
+export function buildConnectionAclRuleSaveStatements(
+  db,
+  connectionId,
+  rules = [],
+  { includeSchemaStatements = true } = {}
+) {
   if (!db || !connectionId) throw new Error('Connection id is required');
   const normalized = (Array.isArray(rules) ? rules : [])
     .map((rule) => normalizeConnectionAclRule({ ...rule, connection_id: connectionId }))
@@ -124,8 +158,12 @@ export function buildConnectionAclRuleSaveStatements(db, connectionId, rules = [
           UNIQUE(connection_id, principal_type, principal_id, effect, action)
         )`
       ),
-      db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_connection_id ON connection_acl_rules(connection_id)'),
-      db.prepare('CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)')
+      db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_connection_id ON connection_acl_rules(connection_id)'
+      ),
+      db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)'
+      )
     );
   }
   statements.push(
@@ -163,8 +201,11 @@ export async function loadConnectionAclRules(db, connectionId = null, connection
   if (!db) return [];
   try {
     await ensureConnectionAclRulesTable(db);
-    const idFilter = connectionIds && !connectionId ? buildIdFilterClause('connection_id', connectionIds) : null;
-    const singleFilter = connectionId ? { clause: 'connection_id = ?', values: [connectionId] } : null;
+    const idFilter =
+      connectionIds && !connectionId ? buildIdFilterClause('connection_id', connectionIds) : null;
+    const singleFilter = connectionId
+      ? { clause: 'connection_id = ?', values: [connectionId] }
+      : null;
     const filter = singleFilter || idFilter;
     const rows = filter
       ? await db.all(
@@ -179,16 +220,18 @@ export async function loadConnectionAclRules(db, connectionId = null, connection
            FROM connection_acl_rules
            ORDER BY connection_id ASC, effect DESC, principal_type ASC, principal_id ASC, action ASC`
         );
-    return (Array.isArray(rows) ? rows : []).map((row) => ({
-      id: row.id,
-      connection_id: row.connection_id,
-      principal_type: normalizeConnectionAclPrincipalType(row.principal_type),
-      principal_id: String(row.principal_id || '').trim(),
-      effect: normalizeConnectionAclEffect(row.effect),
-      action: normalizeConnectionAclAction(row.action),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    })).filter((row) => row.connection_id && row.principal_id);
+    return (Array.isArray(rows) ? rows : [])
+      .map((row) => ({
+        id: row.id,
+        connection_id: row.connection_id,
+        principal_type: normalizeConnectionAclPrincipalType(row.principal_type),
+        principal_id: String(row.principal_id || '').trim(),
+        effect: normalizeConnectionAclEffect(row.effect),
+        action: normalizeConnectionAclAction(row.action),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }))
+      .filter((row) => row.connection_id && row.principal_id);
   } catch (err) {
     if (MISSING_TABLE_REGEX.test(String(err?.message || ''))) return [];
     throw err;
@@ -196,7 +239,7 @@ export async function loadConnectionAclRules(db, connectionId = null, connection
 }
 
 export async function saveConnectionAclRulesForConnection(db, connectionId, rules = []) {
-  const { normalized, statements } = buildConnectionAclRuleSaveStatements(db, connectionId, rules);
+  const { statements } = buildConnectionAclRuleSaveStatements(db, connectionId, rules);
   await db.batch(statements);
   return loadConnectionAclRules(db, connectionId);
 }

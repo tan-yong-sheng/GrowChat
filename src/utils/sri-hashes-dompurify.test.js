@@ -16,7 +16,8 @@ describe('SRI hashes for DOMPurify', () => {
 
   it('injects dompurify as a module script with SRI attributes', () => {
     const hashes = { dompurify: 'sha384-testhash' };
-    const html = '<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs" data-sri-key="dompurify"></script>';
+    const html =
+      '<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs" data-sri-key="dompurify"></script>';
     const result = injectSriHashes(html, hashes);
     expect(result).toContain('type="module"');
     expect(result).toContain('integrity="sha384-testhash"');

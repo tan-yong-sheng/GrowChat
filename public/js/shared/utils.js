@@ -1,4 +1,4 @@
-import { ensureMarkedReady, renderMarkdownContent } from './markdown-renderer.js';
+import { renderMarkdownContent } from './markdown-renderer.js';
 
 export { ensureMarkedReady } from './markdown-renderer.js';
 
@@ -10,7 +10,8 @@ export function escapeHtml(str) {
 }
 
 export function renderMessageContent(content, options = {}) {
-  if (!content) return '<span class="inline-block w-2 h-4 bg-gray-400 animate-pulse rounded-sm"></span>';
+  if (!content)
+    return '<span class="inline-block w-2 h-4 bg-gray-400 animate-pulse rounded-sm"></span>';
   return renderMarkdownContent(content, options);
 }
 
@@ -98,7 +99,8 @@ export function formatBytes(bytes) {
 
 export function showToast(message, duration = 3000) {
   const toast = document.createElement('div');
-  toast.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
+  toast.className =
+    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
   toast.textContent = message;
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.remove('opacity-0'));
@@ -111,7 +113,8 @@ export function showToast(message, duration = 3000) {
 
 export function showToastProgress(initialMessage) {
   const toast = document.createElement('div');
-  toast.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
+  toast.className =
+    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
   toast.textContent = initialMessage;
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.remove('opacity-0'));

@@ -16,5 +16,7 @@ export function removeItemById(items, id, key = 'id') {
   const targetId = String(id || '').trim();
   if (!targetId) return Array.isArray(items) ? items.slice() : [];
 
-  return (Array.isArray(items) ? items : []).filter((entry) => String(entry?.[key] || '').trim() !== targetId);
+  return (Array.isArray(items) ? items : []).filter(
+    (entry) => String(entry?.[key] || '').trim() !== targetId
+  );
 }

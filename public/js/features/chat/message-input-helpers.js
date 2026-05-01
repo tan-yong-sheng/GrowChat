@@ -1,4 +1,8 @@
-import { TEXT_LIKE_ACCEPT_TYPES, getAllowedAttachmentKinds, getAllowedNonLocalKinds } from '../../shared/utils/attachment-types.js';
+import {
+  TEXT_LIKE_ACCEPT_TYPES,
+  getAllowedAttachmentKinds,
+  getAllowedNonLocalKinds,
+} from '../../shared/utils/attachment-types.js';
 
 export function getAttachmentAcceptTypes(currentState) {
   const allowedKinds = getAllowedAttachmentKinds(currentState, { localTextLabel: 'text-local' });
@@ -41,15 +45,18 @@ export function removeQueueItem(queue, id) {
 }
 
 function escapeHtml(value) {
-  return String(value ?? '').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  return String(value ?? '')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 }
 
 export function renderAttachmentListMarkup(list = []) {
   if (!Array.isArray(list) || list.length === 0) return '';
-  return list.map((file) => {
-    const label = String(file?.filename || file?.name || 'Attachment');
-    const id = String(file?.id || '');
-    return `
+  return list
+    .map((file) => {
+      const label = String(file?.filename || file?.name || 'Attachment');
+      const id = String(file?.id || '');
+      return `
       <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs text-gray-700 border border-gray-200">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
@@ -59,12 +66,15 @@ export function renderAttachmentListMarkup(list = []) {
         <button type="button" data-attachment-remove="${id}" class="text-gray-400 hover:text-gray-700 transition">✕</button>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 }
 
 export function renderPendingQueueMarkup(pendingQueue = []) {
   if (!Array.isArray(pendingQueue) || !pendingQueue.length) return '';
-  return pendingQueue.map((item, idx) => `
+  return pendingQueue
+    .map(
+      (item, idx) => `
     <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
       <span class="text-[11px] text-gray-400 font-semibold">#${idx + 1}</span>
       <span class="flex-1 truncate text-gray-700">${escapeHtml(item.text)}</span>
@@ -84,6 +94,7 @@ export function renderPendingQueueMarkup(pendingQueue = []) {
         ✕
       </button>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 }
-

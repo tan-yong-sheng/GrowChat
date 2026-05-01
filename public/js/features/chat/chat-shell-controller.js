@@ -8,7 +8,6 @@ export function createChatShellController({
   pruneTempChats = (list) => list,
   setDraftToolNames = () => {},
   isTempChatId = () => false,
-  syncChatUrl = () => {},
   openArchivedModal = () => {},
   ensureSearchModal = async () => {},
   chatListContainerEl = null,
@@ -23,7 +22,7 @@ export function createChatShellController({
   toggleChatsIcon = null,
   headerMenuBtn = null,
   headerMenuDropdown = null,
-  getChatHandlers = () => ({}) ,
+  getChatHandlers = () => ({}),
 } = {}) {
   let loadMoreChatsPromise = null;
   let chatListLoadObserver = null;
@@ -46,7 +45,9 @@ export function createChatShellController({
       .then((data) => {
         const nextChats = data.chats || [];
         const existingIds = new Set(state.chats.map((chat) => chat.id));
-        const mergedChats = state.chats.concat(nextChats.filter((chat) => !existingIds.has(chat.id)));
+        const mergedChats = state.chats.concat(
+          nextChats.filter((chat) => !existingIds.has(chat.id))
+        );
         setState({
           chats: mergedChats,
           chatsPagination: {
@@ -78,23 +79,27 @@ export function createChatShellController({
     const sentinel = root?.querySelector('#chat-list-load-more');
     if (!sentinel) return;
 
-    chatListLoadObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          loadMoreChats();
-        }
-      });
-    }, {
-      root: chatListContainerEl,
-      rootMargin: '120px 0px',
-      threshold: 0.1,
-    });
+    chatListLoadObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            loadMoreChats();
+          }
+        });
+      },
+      {
+        root: chatListContainerEl,
+        rootMargin: '120px 0px',
+        threshold: 0.1,
+      }
+    );
 
     chatListLoadObserver.observe(sentinel);
   }
 
   function startNewChat() {
-    const activeTempId = state.activeChatId && isTempChatId(state.activeChatId) ? state.activeChatId : null;
+    const activeTempId =
+      state.activeChatId && isTempChatId(state.activeChatId) ? state.activeChatId : null;
     if (activeTempId && (state.messagesByChat[activeTempId] || []).length === 0) {
       setState({ activeChatId: activeTempId, newChatDraft: '' });
       if (state.newChatToolSelection !== null) {
@@ -114,7 +119,8 @@ export function createChatShellController({
     setState((prev) => ({
       chats: [tempChat, ...pruneTempChats(prev.chats)],
       activeChatId: tempChat.id,
-      activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
+      activeModelId:
+        prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
       newChatDraft: '',
     }));
     syncRoute(tempChat.id);
@@ -203,7 +209,12 @@ export function createChatShellController({
   };
 
   const onDocumentClickForHeaderMenu = (e) => {
-    if (headerMenuBtn && headerMenuDropdown && !headerMenuBtn.contains(e.target) && !headerMenuDropdown.contains(e.target)) {
+    if (
+      headerMenuBtn &&
+      headerMenuDropdown &&
+      !headerMenuBtn.contains(e.target) &&
+      !headerMenuDropdown.contains(e.target)
+    ) {
       headerMenuDropdown.classList.add('hidden');
     }
   };

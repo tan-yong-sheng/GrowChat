@@ -42,7 +42,9 @@ export function getJwtSecret(env, req) {
 
   // FIX: Reject production hostnames without JWT_SECRET
   if (!isLocalHost(hostname)) {
-    throw new Error('JWT_SECRET environment variable is required for non-localhost deployments. Set it in your Cloudflare Workers secrets.');
+    throw new Error(
+      'JWT_SECRET environment variable is required for non-localhost deployments. Set it in your Cloudflare Workers secrets.'
+    );
   }
 
   // Dev-only: generate ephemeral secret

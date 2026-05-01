@@ -78,28 +78,48 @@ export function inferContentTypeFromFilename(filename) {
   const name = String(filename || '').toLowerCase();
   const ext = name.includes('.') ? name.split('.').pop() : '';
   switch (ext) {
-    case 'png': return 'image/png';
+    case 'png':
+      return 'image/png';
     case 'jpg':
-    case 'jpeg': return 'image/jpeg';
-    case 'webp': return 'image/webp';
-    case 'gif': return 'image/gif';
-    case 'pdf': return 'application/pdf';
-    case 'txt': return 'text/plain';
-    case 'md': return 'text/markdown';
-    case 'csv': return 'text/csv';
-    case 'tsv': return 'text/tsv';
-    case 'json': return 'application/json';
-    case 'json5': return 'application/json5';
-    case 'ndjson': return 'application/x-ndjson';
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'webp':
+      return 'image/webp';
+    case 'gif':
+      return 'image/gif';
+    case 'pdf':
+      return 'application/pdf';
+    case 'txt':
+      return 'text/plain';
+    case 'md':
+      return 'text/markdown';
+    case 'csv':
+      return 'text/csv';
+    case 'tsv':
+      return 'text/tsv';
+    case 'json':
+      return 'application/json';
+    case 'json5':
+      return 'application/json5';
+    case 'ndjson':
+      return 'application/x-ndjson';
     case 'yml':
-    case 'yaml': return 'application/yaml';
-    case 'xml': return 'application/xml';
-    case 'js': return 'application/javascript';
-    case 'ts': return 'application/typescript';
-    case 'html': return 'text/html';
-    case 'css': return 'text/css';
-    case 'py': return 'text/x-python';
-    default: return '';
+    case 'yaml':
+      return 'application/yaml';
+    case 'xml':
+      return 'application/xml';
+    case 'js':
+      return 'application/javascript';
+    case 'ts':
+      return 'application/typescript';
+    case 'html':
+      return 'text/html';
+    case 'css':
+      return 'text/css';
+    case 'py':
+      return 'text/x-python';
+    default:
+      return '';
   }
 }
 
@@ -162,24 +182,24 @@ export async function uploadFileToR2(env, userId, filename, contentType, buffer)
       const timeout = new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error('R2 upload timed out')), ms);
       });
-      return Promise.race([
-        promise.finally(() => clearTimeout(timer)),
-        timeout,
-      ]);
+      return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
     };
 
     // Upload to R2
-    const r2Object = await withTimeout(env.FILES.put(r2Key, buffer, {
-      httpMetadata: {
-        contentType,
-        cacheControl: 'max-age=86400', // Cache for 1 day
-      },
-      customMetadata: {
-        originalFilename: filename,
-        uploadedAt: new Date().toISOString(),
-        userId,
-      },
-    }), 15000);
+    const r2Object = await withTimeout(
+      env.FILES.put(r2Key, buffer, {
+        httpMetadata: {
+          contentType,
+          cacheControl: 'max-age=86400', // Cache for 1 day
+        },
+        customMetadata: {
+          originalFilename: filename,
+          uploadedAt: new Date().toISOString(),
+          userId,
+        },
+      }),
+      15000
+    );
 
     // Generate signed URL (valid for 7 days)
     // Note: In real implementation, you'd use R2 signed URLs
@@ -193,7 +213,7 @@ export async function uploadFileToR2(env, userId, filename, contentType, buffer)
     };
   } catch (err) {
     console.error('R2 upload failed:', err);
-    throw new Error(`R2 upload failed: ${err.message}`);
+    throw new Error(`R2 upload failed: ${err.message}`, { cause: err });
   }
 }
 
@@ -249,10 +269,7 @@ export async function storeFileMetadata(db, fileMetadata) {
  * @returns {Promise<Object>} - Document metadata
  */
 export async function getFileMetadata(db, documentId) {
-  return await db.first(
-    `SELECT * FROM documents WHERE id = ?`,
-    [documentId]
-  );
+  return await db.first(`SELECT * FROM documents WHERE id = ?`, [documentId]);
 }
 
 /**
@@ -263,10 +280,10 @@ export async function getFileMetadata(db, documentId) {
  * @returns {Promise<Object>} - Owned document metadata
  */
 export async function getOwnedDocument(db, documentId, userId) {
-  return await db.first(
-    'SELECT * FROM documents WHERE id = ? AND user_id = ?',
-    [documentId, userId]
-  );
+  return await db.first('SELECT * FROM documents WHERE id = ? AND user_id = ?', [
+    documentId,
+    userId,
+  ]);
 }
 
 /**
@@ -325,10 +342,7 @@ export async function deleteDocument(env, db, documentId, userId) {
   await deleteFileFromR2(env, doc.r2_key);
 
   // Delete from D1 (cascades to message references)
-  await db.run(
-    'DELETE FROM documents WHERE id = ? AND user_id = ?',
-    [documentId, userId]
-  );
+  await db.run('DELETE FROM documents WHERE id = ? AND user_id = ?', [documentId, userId]);
 
   return true;
 }

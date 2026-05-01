@@ -46,7 +46,10 @@ describe('admin tool server helpers', () => {
     expect(selectTokenAuthMethod(['client_secret_basic'], true)).toBe('client_secret_basic');
     expect(normalizeHeaders('{"Authorization":" Bearer x "}')).toBe('{"Authorization":"Bearer x"}');
     expect(parseHeadersForRequest({ a: '1' })).toEqual({ a: '1' });
-    expect(normalizeAttachmentCaps({ image: true, pdf: null }, { allowNull: true })).toEqual({ image: true, pdf: null });
+    expect(normalizeAttachmentCaps({ image: true, pdf: null }, { allowNull: true })).toEqual({
+      image: true,
+      pdf: null,
+    });
   });
 
   it('loads and saves tool servers through app config', async () => {
@@ -113,10 +116,12 @@ describe('admin tool server helpers', () => {
       }),
       first: vi.fn().mockResolvedValue({ role: 'member' }),
     };
-    mocks.getConfigValue.mockResolvedValueOnce(JSON.stringify([
-      { id: 'mcp-admin', name: 'Admin MCP', url: 'https://mcp.example.com', enabled: true },
-      { id: 'mcp-hidden', name: 'Hidden MCP', url: 'https://hidden.example.com', enabled: true },
-    ]));
+    mocks.getConfigValue.mockResolvedValueOnce(
+      JSON.stringify([
+        { id: 'mcp-admin', name: 'Admin MCP', url: 'https://mcp.example.com', enabled: true },
+        { id: 'mcp-hidden', name: 'Hidden MCP', url: 'https://hidden.example.com', enabled: true },
+      ])
+    );
 
     const servers = await loadToolServers(db, { userId: 'u1' });
     expect(servers).toEqual([
@@ -171,18 +176,20 @@ describe('admin tool server helpers', () => {
         return { role: 'member' };
       }),
     };
-    mocks.getConfigValue.mockResolvedValueOnce(JSON.stringify([
-      {
-        id: 'mcp-admin',
-        name: 'Admin MCP',
-        url: 'https://mcp.example.com',
-        enabled: true,
-        tools: [
-          { name: 'shared_search', title: 'Shared Search', enabled: true },
-          { name: 'shared_news', title: 'Shared News', enabled: true },
-        ],
-      },
-    ]));
+    mocks.getConfigValue.mockResolvedValueOnce(
+      JSON.stringify([
+        {
+          id: 'mcp-admin',
+          name: 'Admin MCP',
+          url: 'https://mcp.example.com',
+          enabled: true,
+          tools: [
+            { name: 'shared_search', title: 'Shared Search', enabled: true },
+            { name: 'shared_news', title: 'Shared News', enabled: true },
+          ],
+        },
+      ])
+    );
 
     const servers = await loadToolServers(db, { userId: 'u1' });
     expect(servers).toEqual([
@@ -211,10 +218,12 @@ describe('admin tool server helpers', () => {
       first: vi.fn().mockResolvedValue(null),
     };
 
-    await expect(createUserToolServer(db, 'u1', {
-      name: 'Bad MCP',
-      url: 'ftp://example.com',
-    })).rejects.toThrow('url must start with http:// or https://');
+    await expect(
+      createUserToolServer(db, 'u1', {
+        name: 'Bad MCP',
+        url: 'ftp://example.com',
+      })
+    ).rejects.toThrow('url must start with http:// or https://');
   });
 
   it('merges and redacts tool server secrets', () => {
@@ -235,22 +244,26 @@ describe('admin tool server helpers', () => {
     );
 
     expect(merged.oauth_tokens.access_token).toBe('secret');
-    expect(merged.tools).toEqual([{ name: 'fresh', title: 'Fresh', description: '', parameters: undefined, enabled: true }]);
+    expect(merged.tools).toEqual([
+      { name: 'fresh', title: 'Fresh', description: '', parameters: undefined, enabled: true },
+    ]);
     expect(redactToolServer(merged)).not.toHaveProperty('oauth_tokens');
     expect(redactToolServer(merged).oauth_connected).toBe(true);
   });
 
   it('preserves existing tool enabled flags when merging discovered tools', () => {
-    expect(mergeToolSpecs(
-      [
-        { name: 'tool-a', enabled: false },
-        { name: 'tool-b', enabled: true },
-      ],
-      [
-        { name: 'tool-a', title: 'Tool A' },
-        { name: 'tool-c', title: 'Tool C' },
-      ]
-    )).toEqual([
+    expect(
+      mergeToolSpecs(
+        [
+          { name: 'tool-a', enabled: false },
+          { name: 'tool-b', enabled: true },
+        ],
+        [
+          { name: 'tool-a', title: 'Tool A' },
+          { name: 'tool-c', title: 'Tool C' },
+        ]
+      )
+    ).toEqual([
       { name: 'tool-a', title: 'Tool A', description: '', parameters: undefined, enabled: false },
       { name: 'tool-c', title: 'Tool C', description: '', parameters: undefined, enabled: true },
     ]);
@@ -291,13 +304,18 @@ describe('admin tool server helpers', () => {
     expect(url.searchParams.get('client_id')).toBe('client-1');
     expect(url.searchParams.get('code_challenge')).toBe('challenge');
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
-      JSON.stringify({ authorization_endpoint: 'https://auth.example.com/authorize' }),
-      {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }
-    )));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ authorization_endpoint: 'https://auth.example.com/authorize' }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      )
+    );
 
     const metadata = await discoverAuthorizationMetadata('https://auth.example.com');
     expect(metadata.authorization_endpoint).toBe('https://auth.example.com/authorize');

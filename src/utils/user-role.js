@@ -1,5 +1,7 @@
 export function normalizePublicRole(value) {
-  const role = String(value || '').trim().toLowerCase();
+  const role = String(value || '')
+    .trim()
+    .toLowerCase();
   return role === 'admin' ? 'admin' : 'member';
 }
 

@@ -4,7 +4,9 @@ export function normalizeTool(server = {}) {
     title: String(server.title || '').trim(),
     description: String(server.description || '').trim(),
     parameters:
-      server.parameters && typeof server.parameters === 'object' && !Array.isArray(server.parameters)
+      server.parameters &&
+      typeof server.parameters === 'object' &&
+      !Array.isArray(server.parameters)
         ? server.parameters
         : undefined,
     enabled: server.enabled !== false,
@@ -44,8 +46,7 @@ export function buildIntegrationsSnapshot(toolServers = []) {
         const normalized = normalizeToolServer(server);
         return {
           ...normalized,
-          tools: [...normalized.tools]
-            .sort((a, b) => String(a.name).localeCompare(String(b.name))),
+          tools: [...normalized.tools].sort((a, b) => String(a.name).localeCompare(String(b.name))),
         };
       })
       .sort((a, b) => String(a.id).localeCompare(String(b.id)))
@@ -75,9 +76,8 @@ export function sanitizeIntegrationsServers(toolServers = []) {
 }
 
 export function mapSavedToolServers(payloadServers, fallbackServers = []) {
-  const source = Array.isArray(payloadServers) && payloadServers.length > 0
-    ? payloadServers
-    : fallbackServers;
+  const source =
+    Array.isArray(payloadServers) && payloadServers.length > 0 ? payloadServers : fallbackServers;
   return source.map((server) => ({
     ...server,
     toolsExpanded: false,

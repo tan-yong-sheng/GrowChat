@@ -36,9 +36,10 @@ export function projectConversation(messages, preferredLeafId, branchSelectionMa
   }
 
   const fallbackLeaf = all[all.length - 1];
-  const leaf = preferredLeafId && byId.has(String(preferredLeafId))
-    ? byId.get(String(preferredLeafId))
-    : fallbackLeaf;
+  const leaf =
+    preferredLeafId && byId.has(String(preferredLeafId))
+      ? byId.get(String(preferredLeafId))
+      : fallbackLeaf;
   const preferredAncestry = new Set();
   let cursor = leaf;
   let guard = 0;
@@ -59,7 +60,8 @@ export function projectConversation(messages, preferredLeafId, branchSelectionMa
     const selected = branchSelectionMap.get(parentKey);
     let chosen = selected ? siblings.find((s) => String(s.id) === String(selected)) : null;
     if (!chosen) {
-      chosen = siblings.find((s) => preferredAncestry.has(String(s.id))) || siblings[siblings.length - 1];
+      chosen =
+        siblings.find((s) => preferredAncestry.has(String(s.id))) || siblings[siblings.length - 1];
     }
     visible.push(chosen);
     parentKey = String(chosen.id);
@@ -82,12 +84,15 @@ export function projectConversation(messages, preferredLeafId, branchSelectionMa
   return { visible, roundsByMessageId };
 }
 
-export function resolveConversationLeafId(messages, {
-  preferredLeafId = null,
-  currentMessageId = null,
-  fallbackMessageId = null,
-  previousLeafId = null,
-} = {}) {
+export function resolveConversationLeafId(
+  messages,
+  {
+    preferredLeafId = null,
+    currentMessageId = null,
+    fallbackMessageId = null,
+    previousLeafId = null,
+  } = {}
+) {
   const all = Array.isArray(messages) ? messages : [];
   if (all.length === 0) return null;
   const byId = new Set(all.map((msg) => String(msg?.id || '')).filter(Boolean));

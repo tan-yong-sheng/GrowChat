@@ -49,11 +49,9 @@ export async function logSecurityEvent(env, eventType, details = {}) {
   };
 
   try {
-    await env.SESSIONS.put(
-      eventId,
-      JSON.stringify(event),
-      { expirationTtl: AUDIT_LOG_TTL_SECONDS }
-    );
+    await env.SESSIONS.put(eventId, JSON.stringify(event), {
+      expirationTtl: AUDIT_LOG_TTL_SECONDS,
+    });
   } catch (err) {
     console.error('Failed to log security event:', err);
     // Don't throw - audit logging should not break the application
@@ -78,7 +76,7 @@ export async function trackFailedLoginAttempt(env, email) {
     let attempts = stored?.attempts || [];
 
     // Filter out attempts older than 1 hour
-    attempts = attempts.filter(timestamp => timestamp > oneHourAgo);
+    attempts = attempts.filter((timestamp) => timestamp > oneHourAgo);
 
     // Add current attempt
     attempts.push(now);

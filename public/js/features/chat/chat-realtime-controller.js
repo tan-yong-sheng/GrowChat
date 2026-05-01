@@ -4,8 +4,6 @@ export function createChatRealtimeController({
   drawMessages = () => {},
   loadChats = async () => {},
   loadMessages = async () => {},
-  touchRecentChat = () => {},
-  schedulePrune = () => {},
   currentLeafByChatId = new Map(),
   streamingOverrideByChat = new Map(),
   setStreamingState = () => {},
@@ -19,7 +17,6 @@ export function createChatRealtimeController({
   processedRealtimeEvents = new Map(),
   toolCallsByMessageId = new Map(),
   messageBlocksById = new Map(),
-  isTempChatId = () => false,
 } = {}) {
   function upsertChatFromEvent(chat) {
     if (!chat?.id) return;
@@ -45,11 +42,11 @@ export function createChatRealtimeController({
 
   function updateChatTitleLocal(chatId, title) {
     setState((prev) => ({
-      chats: prev.chats.map((chat) => (
+      chats: prev.chats.map((chat) =>
         String(chat.id) === String(chatId)
           ? { ...chat, title, updated_at: Math.floor(Date.now() / 1000) }
           : chat
-      )),
+      ),
     }));
   }
 
@@ -97,8 +94,11 @@ export function createChatRealtimeController({
 
     if (type.startsWith('chat.')) {
       if (type === 'chat.deleted') {
-        const nextChats = state.chats.filter((chat) => String(chat?.id) !== String(event.chat_id || ''));
-        const nextActiveChatId = state.activeChatId === event.chat_id ? (nextChats[0]?.id || null) : state.activeChatId;
+        const nextChats = state.chats.filter(
+          (chat) => String(chat?.id) !== String(event.chat_id || '')
+        );
+        const nextActiveChatId =
+          state.activeChatId === event.chat_id ? nextChats[0]?.id || null : state.activeChatId;
         setState({ chats: nextChats, activeChatId: nextActiveChatId });
         if (!nextActiveChatId) drawMessages([]);
         return;
@@ -114,7 +114,10 @@ export function createChatRealtimeController({
       if (isSameSession && getActiveStreamAbort() && event.chat_id === previousActiveChatId) {
         return;
       }
-      if (state.activeChatId && (event.chat_id === state.activeChatId || state.activeChatId !== previousActiveChatId)) {
+      if (
+        state.activeChatId &&
+        (event.chat_id === state.activeChatId || state.activeChatId !== previousActiveChatId)
+      ) {
         await loadMessages(state.activeChatId);
       }
       if (!state.activeChatId) {
@@ -131,10 +134,14 @@ export function createChatRealtimeController({
       const payload = event?.data || {};
       updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload);
       if (state.activeChatId === chatId) {
-        updateMessageContentDom(messageId, state.messagesByChat[chatId]?.find((m) => String(m.id) === messageId)?.content || '', {
-          isError: false,
-          isStreaming: true,
-        });
+        updateMessageContentDom(
+          messageId,
+          state.messagesByChat[chatId]?.find((m) => String(m.id) === messageId)?.content || '',
+          {
+            isError: false,
+            isStreaming: true,
+          }
+        );
       }
       return;
     }
@@ -147,7 +154,9 @@ export function createChatRealtimeController({
       }
 
       if (eventMessage) {
-        upsertMessageFromEvent(event.chat_id, eventMessage, { draw: event.chat_id === state.activeChatId });
+        upsertMessageFromEvent(event.chat_id, eventMessage, {
+          draw: event.chat_id === state.activeChatId,
+        });
       } else if (event.chat_id && event.chat_id === state.activeChatId) {
         await loadMessages(event.chat_id);
       }
@@ -164,13 +173,21 @@ export function createChatRealtimeController({
       return;
     }
 
-    if ((type === 'message.created' || type === 'message.delta' || type === 'message.completed') && isSameSession && getActiveStreamAbort()) {
+    if (
+      (type === 'message.created' || type === 'message.delta' || type === 'message.completed') &&
+      isSameSession &&
+      getActiveStreamAbort()
+    ) {
       return;
     }
 
     if (type === 'message.delta') {
       if (!event.chat_id || event.chat_id !== state.activeChatId) return;
-      if (getActiveStreamAbort() && (!event.origin_session_id || event.origin_session_id === clientSessionId)) return;
+      if (
+        getActiveStreamAbort() &&
+        (!event.origin_session_id || event.origin_session_id === clientSessionId)
+      )
+        return;
       const delta = String(event?.data?.delta || '');
       if (!delta) return;
 
@@ -218,7 +235,9 @@ export function createChatRealtimeController({
         if (isSameSession && eventMessage?.role === 'user') {
           matchPendingTempMessage(event.chat_id, eventMessage);
         }
-        upsertMessageFromEvent(event.chat_id, eventMessage, { draw: event.chat_id === state.activeChatId });
+        upsertMessageFromEvent(event.chat_id, eventMessage, {
+          draw: event.chat_id === state.activeChatId,
+        });
         return;
       }
 

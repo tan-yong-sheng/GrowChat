@@ -1,8 +1,6 @@
 export function buildMemberSet(members = []) {
   return new Set(
-    (Array.isArray(members) ? members : [])
-      .map((member) => member?.id)
-      .filter(Boolean)
+    (Array.isArray(members) ? members : []).map((member) => member?.id).filter(Boolean)
   );
 }
 
@@ -28,7 +26,9 @@ export function diffMemberSets(beforeSet, afterSet) {
 
 export function filterUsers(users = [], query = '') {
   const list = Array.isArray(users) ? users : [];
-  const normalized = String(query || '').trim().toLowerCase();
+  const normalized = String(query || '')
+    .trim()
+    .toLowerCase();
   if (!normalized) return list;
 
   return list.filter((user) => {

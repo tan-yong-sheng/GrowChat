@@ -12,9 +12,7 @@ import { error, preflight } from './utils/response.js';
 import { getSriHashes, injectSriHashes } from './utils/sri-hashes.js';
 import { MessageQueueDO } from './durable/message-queue.js';
 
-const QUIET_INCOMING_PATHS = new Set([
-  '/.well-known/appspecific/com.chrome.devtools.json',
-]);
+const QUIET_INCOMING_PATHS = new Set(['/.well-known/appspecific/com.chrome.devtools.json']);
 
 async function injectSriIntoHtmlResponse(response, env) {
   if (!response?.ok) return response;
@@ -72,12 +70,13 @@ export default {
       }
 
       if (path.startsWith('/api/') || isPublicSharePath) {
-      // CORS origin validation (defense in depth)
-      const corsReject = validateOrigin(req, env);
-      if (corsReject) return corsReject;
+        // CORS origin validation (defense in depth)
+        const corsReject = validateOrigin(req, env);
+        if (corsReject) return corsReject;
 
         if (!env.DB) return error(req, 'DB binding missing', 500);
-        if (!env.SESSIONS && path.startsWith('/api/')) return error(req, 'SESSIONS KV binding missing', 500);
+        if (!env.SESSIONS && path.startsWith('/api/'))
+          return error(req, 'SESSIONS KV binding missing', 500);
         const bindingError = validateRouteBindings(req, env, path);
         if (bindingError) return bindingError;
 
@@ -105,25 +104,32 @@ export default {
       }
 
       if (!env.ASSETS) {
-        return new Response('ASSETS binding missing. Use `npm run dev` for local UI or ensure assets are available in remote dev.', {
-          status: 503,
-          headers: { 'Content-Type': 'text/plain' },
-        });
+        return new Response(
+          'ASSETS binding missing. Use `npm run dev` for local UI or ensure assets are available in remote dev.',
+          {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain' },
+          }
+        );
       }
 
       // Check if this looks like an SPA route (not a static asset)
-      const isStaticAsset = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(path) ||
-                           path === '/' ||
-                           path === '/index.html' ||
-                           path === '/auth.html' ||
-                           path.startsWith('/auth/');
+      const isStaticAsset =
+        /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(path) ||
+        path === '/' ||
+        path === '/index.html' ||
+        path === '/auth.html' ||
+        path.startsWith('/auth/');
 
       let response;
       try {
         response = await env.ASSETS.fetch(req);
       } catch (err) {
         console.error('Asset fetch failed:', String(err?.message || err));
-        return new Response('Asset fetch failed', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+        return new Response('Asset fetch failed', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' },
+        });
       }
 
       response = await injectSriIntoHtmlResponse(response, env);
@@ -144,7 +150,10 @@ export default {
           return await fetchHtmlAsset(env, req, '/');
         } catch (err) {
           console.error('Index asset fetch failed:', String(err?.message || err));
-          return new Response('Asset fetch failed', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+          return new Response('Asset fetch failed', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain' },
+          });
         }
       }
 
@@ -153,9 +162,9 @@ export default {
       console.error('Unhandled worker error:', err);
       const message = err?.message || 'Unhandled worker error';
       if (path.startsWith('/api/') || isPublicSharePath) {
-      // CORS origin validation (defense in depth)
-      const corsReject = validateOrigin(req, env);
-      if (corsReject) return corsReject;
+        // CORS origin validation (defense in depth)
+        const corsReject = validateOrigin(req, env);
+        if (corsReject) return corsReject;
 
         return error(req, `worker_crash: ${message}`, 500);
       }

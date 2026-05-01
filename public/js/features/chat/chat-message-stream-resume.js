@@ -50,23 +50,27 @@ export async function startChatResumeStream({
   let errorMessage = null;
   let errorActive = false;
 
-  const applyAssistantText = (streaming = true) => applyStreamingAssistantText({
-    state,
-    setState,
-    streamingOverrideByChat,
-    updateMessageContentDom,
-    chatId,
-    messageId,
-    assistantText,
-    errorActive,
-    errorMessage,
-    streaming,
-  });
+  const applyAssistantText = (streaming = true) =>
+    applyStreamingAssistantText({
+      state,
+      setState,
+      streamingOverrideByChat,
+      updateMessageContentDom,
+      chatId,
+      messageId,
+      assistantText,
+      errorActive,
+      errorMessage,
+      streaming,
+    });
 
   try {
-    const res = await apiFetch(`/api/chats/${chatId}/messages/${messageId}/resume?after_seq=${lastSeq}`, {
-      signal: controller.signal,
-    });
+    const res = await apiFetch(
+      `/api/chats/${chatId}/messages/${messageId}/resume?after_seq=${lastSeq}`,
+      {
+        signal: controller.signal,
+      }
+    );
     if (!res.ok || !res.body) {
       streamSession?.stopResumeStream?.(chatId);
       streamSession?.startStreamPolling?.(chatId, messageId);

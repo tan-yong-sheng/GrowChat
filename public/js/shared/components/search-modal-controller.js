@@ -23,7 +23,6 @@ export function createSearchModalController(container, createChatFn, loadMessage
   const searchInput = modalRoot.querySelector('#modal-search-input');
   const searchList = modalRoot.querySelector('#chats-search-grouped-list');
   const resultsContainer = modalRoot.querySelector('#search-results-list');
-  const preview = modalRoot.querySelector('#search-preview');
   const previewEmpty = modalRoot.querySelector('#search-preview-empty');
   const previewContent = modalRoot.querySelector('#search-preview-content');
   const loadingIndicator = modalRoot.querySelector('#search-loading-indicator');
@@ -72,7 +71,8 @@ export function createSearchModalController(container, createChatFn, loadMessage
       return;
     }
 
-    if (state.search.previewChatId === chatId && !previewContent.classList.contains('hidden')) return;
+    if (state.search.previewChatId === chatId && !previewContent.classList.contains('hidden'))
+      return;
     setState({ search: { previewChatId: chatId } });
 
     previewEmpty.classList.add('hidden');
@@ -104,7 +104,9 @@ export function createSearchModalController(container, createChatFn, loadMessage
       previewContent.querySelector('#preview-title').textContent = data.chat.title;
       const messagesBox = previewContent.querySelector('#preview-messages');
 
-      messagesBox.innerHTML = data.messages.map((m) => `
+      messagesBox.innerHTML = data.messages
+        .map(
+          (m) => `
         <div class="flex flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}">
           <div class="flex items-center gap-2 mb-1 ${m.role === 'user' ? 'flex-row-reverse' : ''}">
             <div class="w-5 h-5 rounded-full ${m.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-[8px] font-bold">
@@ -116,12 +118,15 @@ export function createSearchModalController(container, createChatFn, loadMessage
             ${renderMessageContent(m.content, { interactive: false })}
           </div>
         </div>
-      `).join('');
+      `
+        )
+        .join('');
 
       messagesBox.scrollTop = messagesBox.scrollHeight;
     } catch (e) {
       if (e.name === 'AbortError') return;
-      previewContent.innerHTML = '<div class="flex items-center justify-center h-full text-xs text-red-400">Failed to load preview</div>';
+      previewContent.innerHTML =
+        '<div class="flex items-center justify-center h-full text-xs text-red-400">Failed to load preview</div>';
     }
   }
 
@@ -160,7 +165,12 @@ export function createSearchModalController(container, createChatFn, loadMessage
 
     try {
       const backendQuery = normalizeBackendQuery(query);
-      const data = await fetchChats({ q: backendQuery, limit: 20, offset, signal: searchAbortController.signal });
+      const data = await fetchChats({
+        q: backendQuery,
+        limit: 20,
+        offset,
+        signal: searchAbortController.signal,
+      });
       const newResults = append ? [...state.search.results, ...data.chats] : data.chats;
       setState({
         search: {
@@ -191,7 +201,10 @@ export function createSearchModalController(container, createChatFn, loadMessage
   resultsContainer.onscroll = () => {
     const { loading, hasMore, query } = state.search;
     if (loading || !hasMore) return;
-    if (resultsContainer.scrollHeight - resultsContainer.scrollTop - resultsContainer.clientHeight < 50) {
+    if (
+      resultsContainer.scrollHeight - resultsContainer.scrollTop - resultsContainer.clientHeight <
+      50
+    ) {
       runSearch(query, true);
     }
   };
@@ -238,7 +251,9 @@ export function createSearchModalController(container, createChatFn, loadMessage
         }
         document.body.style.overflow = 'hidden';
         modalRoot.classList.remove('hidden');
-        setState({ search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true } });
+        setState({
+          search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true },
+        });
         runSearch('');
       }
       setTimeout(() => searchInput.focus(), 50);

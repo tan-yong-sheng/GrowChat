@@ -1,12 +1,17 @@
 import { escapeHtml, escapeSelector } from '../utils/dom-escape.js';
 
-const DEFAULT_OUTER_CLASS = 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
+const DEFAULT_OUTER_CLASS =
+  'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
 const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-black/25 backdrop-blur-sm transition-opacity';
-const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
-const DEFAULT_HEADER_CLASS = 'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0';
+const DEFAULT_SHELL_CLASS =
+  'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
+const DEFAULT_HEADER_CLASS =
+  'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0';
 const DEFAULT_BODY_CLASS = 'p-5 sm:p-6 overflow-y-auto flex-1 min-h-0';
-const DEFAULT_FOOTER_CLASS = 'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0';
-const DEFAULT_CLOSE_CLASS = 'inline-flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white';
+const DEFAULT_FOOTER_CLASS =
+  'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0';
+const DEFAULT_CLOSE_CLASS =
+  'inline-flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
 export function buildSettingsModalShellMarkup({
   rootId = 'settings-modal-root',
@@ -63,8 +68,12 @@ export function createSettingsModalShell(options = {}) {
   mountTarget.appendChild(rendered);
   return {
     modal: rendered,
-    overlay: rendered.querySelector(`#${escapeSelector(options.overlayId || 'settings-modal-overlay')}`),
-    closeBtn: rendered.querySelector(`#${escapeSelector(options.closeId || 'settings-modal-close')}`),
+    overlay: rendered.querySelector(
+      `#${escapeSelector(options.overlayId || 'settings-modal-overlay')}`
+    ),
+    closeBtn: rendered.querySelector(
+      `#${escapeSelector(options.closeId || 'settings-modal-close')}`
+    ),
     bodyEl: rendered.querySelector('[data-settings-modal-body]'),
     footerEl: rendered.querySelector('[data-settings-modal-footer]'),
   };

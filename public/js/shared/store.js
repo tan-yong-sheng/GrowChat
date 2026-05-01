@@ -1,4 +1,9 @@
-import { readStoredJson, readStoredString, writeStoredJson, writeStoredString } from './utils/storage.js';
+import {
+  readStoredJson,
+  readStoredString,
+  writeStoredJson,
+  writeStoredString,
+} from './utils/storage.js';
 
 export const state = {
   // App Core
@@ -7,7 +12,7 @@ export const state = {
     limit: 30,
     offset: 0,
     hasMore: false,
-    loading: false
+    loading: false,
   },
   activeChatId: null,
   messagesByChat: {},
@@ -20,13 +25,13 @@ export const state = {
   toolServers: [],
   toolServersLoading: false,
   toolServersLoaded: false,
-  
+
   // UI Layout
   showSidebar: window.innerWidth >= 768,
   sidebarCollapsed: readStoredString(localStorage, 'sidebarCollapsed', 'false') === 'true',
   sidebarWidth: Number.parseInt(readStoredString(localStorage, 'sidebarWidth', ''), 10) || 260,
   isMobile: window.innerWidth < 768,
-  
+
   // Search Modal State
   showSearch: false,
   search: {
@@ -36,7 +41,7 @@ export const state = {
     previewChatId: null,
     loading: false,
     offset: 0,
-    hasMore: true
+    hasMore: true,
   },
 
   // Files Modal State
@@ -46,7 +51,7 @@ export const state = {
     loading: false,
     selectedIds: [],
     offset: 0,
-    hasMore: true
+    hasMore: true,
   },
   attachmentsByChat: {},
   newChatAttachments: [],
@@ -57,7 +62,7 @@ export const state = {
   permissions: [],
   userRoles: [],
   rbacLoading: false,
-  
+
   // Interaction State
   drafts: readStoredJson(localStorage, 'drafts', {}), // chatId -> draft text
   newChatDraft: readStoredString(localStorage, 'newChatDraft', ''),
@@ -69,7 +74,7 @@ export const state = {
     modelAvailabilityNotice: null,
     editingMessages: {}, // { messageId: content }
     pendingDeleteMessageKeys: {}, // { `${chatId}:${messageId}`: true }
-  }
+  },
 };
 
 const listeners = new Set();
@@ -77,8 +82,13 @@ const listeners = new Set();
 export function setState(updater) {
   const changes = typeof updater === 'function' ? updater(state) : updater;
   let hasChanges = false;
-  const replaceObjectKeys = new Set(['drafts', 'messagesByChat', 'attachmentsByChat', 'toolSelectionsByChat']);
-  
+  const replaceObjectKeys = new Set([
+    'drafts',
+    'messagesByChat',
+    'attachmentsByChat',
+    'toolSelectionsByChat',
+  ]);
+
   for (const key in changes) {
     if (typeof changes[key] === 'object' && changes[key] !== null && !Array.isArray(changes[key])) {
       if (replaceObjectKeys.has(key)) {
@@ -105,14 +115,17 @@ export function setState(updater) {
   if (hasChanges) {
     // Persist certain state fields
     if (changes.sidebarWidth) writeStoredString(localStorage, 'sidebarWidth', state.sidebarWidth);
-    if (changes.sidebarCollapsed !== undefined) writeStoredString(localStorage, 'sidebarCollapsed', state.sidebarCollapsed);
+    if (changes.sidebarCollapsed !== undefined)
+      writeStoredString(localStorage, 'sidebarCollapsed', state.sidebarCollapsed);
     if (changes.drafts) writeStoredJson(localStorage, 'drafts', state.drafts);
-    if (changes.newChatDraft !== undefined) writeStoredString(localStorage, 'newChatDraft', state.newChatDraft || '');
-    if (changes.toolSelectionsByChat) writeStoredJson(localStorage, 'toolSelectionsByChat', state.toolSelectionsByChat);
+    if (changes.newChatDraft !== undefined)
+      writeStoredString(localStorage, 'newChatDraft', state.newChatDraft || '');
+    if (changes.toolSelectionsByChat)
+      writeStoredJson(localStorage, 'toolSelectionsByChat', state.toolSelectionsByChat);
     if (changes.defaultModelId) {
       // defaultModelId is stored server-side; avoid persisting stale local values.
     }
-    
+
     notifyListeners();
   }
 }
@@ -134,20 +147,21 @@ export function restoreSidebarState(snapshot = null) {
   if (!snapshot || typeof snapshot !== 'object') return;
   setState({
     showSidebar: snapshot.showSidebar !== undefined ? snapshot.showSidebar : state.showSidebar,
-    sidebarCollapsed: snapshot.sidebarCollapsed !== undefined ? snapshot.sidebarCollapsed : state.sidebarCollapsed,
+    sidebarCollapsed:
+      snapshot.sidebarCollapsed !== undefined ? snapshot.sidebarCollapsed : state.sidebarCollapsed,
   });
 }
 
 function notifyListeners() {
-  listeners.forEach(listener => listener(state));
+  listeners.forEach((listener) => listener(state));
 }
 
 window.addEventListener('resize', () => {
   const isMobile = window.innerWidth < 768;
   if (state.isMobile !== isMobile) {
-    setState({ 
+    setState({
       isMobile,
-      showSidebar: !isMobile
+      showSidebar: !isMobile,
     });
   }
 });

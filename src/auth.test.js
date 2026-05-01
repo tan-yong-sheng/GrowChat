@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { signJWT, verifyJWT, hashPassword, verifyPassword } from './auth.js';
 
 describe('auth.js - JWT Token Management', () => {
@@ -178,7 +178,7 @@ describe('auth.js - JWT Token Management', () => {
     it('should reject password with wrong salt', async () => {
       const password = 'MyPassword123';
       const hash = await hashPassword(password);
-      const [algo, _oldSalt, derivedHash] = hash.split(':');
+      const [algo, , derivedHash] = hash.split(':');
       const wrongHash = `${algo}:0000000000000000000000000000000000000000:${derivedHash}`;
 
       const isValid = await verifyPassword(password, wrongHash);

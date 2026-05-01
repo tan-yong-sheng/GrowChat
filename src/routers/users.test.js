@@ -55,7 +55,11 @@ vi.mock('../llm/connections.js', () => ({
   discoverConnectionModels: (...args) => mocks.discoverConnectionModels(...args),
   getUserOpenAIConnectionConfig: (...args) => mocks.getUserOpenAIConnectionConfig(...args),
   getConnectionDefaultBaseUrl: (providerType) => {
-    switch (String(providerType || '').trim().toLowerCase()) {
+    switch (
+      String(providerType || '')
+        .trim()
+        .toLowerCase()
+    ) {
       case 'google':
       case 'gemini-compatible':
         return 'https://generativelanguage.googleapis.com/v1beta';
@@ -66,7 +70,12 @@ vi.mock('../llm/connections.js', () => ({
         return 'https://api.openai.com/v1';
     }
   },
-  isConnectionUrlRequired: (providerType) => ['openai-compatible', 'gemini-compatible', 'claude-compatible'].includes(String(providerType || '').trim().toLowerCase()),
+  isConnectionUrlRequired: (providerType) =>
+    ['openai-compatible', 'gemini-compatible', 'claude-compatible'].includes(
+      String(providerType || '')
+        .trim()
+        .toLowerCase()
+    ),
   getAllOpenAIConnectionConfigs: (...args) => mocks.getAllOpenAIConnectionConfigs(...args),
   loadUserOpenAIConnectionConfigs: (...args) => mocks.loadUserOpenAIConnectionConfigs(...args),
   createUserOpenAIConnection: (...args) => mocks.createUserOpenAIConnection(...args),
@@ -79,7 +88,6 @@ vi.mock('../admin/tool-servers.js', () => ({
   deleteUserToolServer: (...args) => mocks.deleteUserToolServer(...args),
   loadToolServers: (...args) => mocks.loadToolServers?.(...args),
   loadUserToolServers: (...args) => mocks.loadUserToolServers(...args),
-  loadToolServers: (...args) => mocks.loadToolServers?.(...args),
   testToolServerConnection: (...args) => mocks.testToolServerConnection(...args),
   updateUserToolServer: (...args) => mocks.updateUserToolServer(...args),
 }));
@@ -150,13 +158,7 @@ describe('usersRouter', () => {
       last_active_at: null,
     });
 
-    const res = await usersRouter(
-      makeReq('/api/users/me', 'GET'),
-      env,
-      {},
-      user,
-      '/api/users/me'
-    );
+    const res = await usersRouter(makeReq('/api/users/me', 'GET'), env, {}, user, '/api/users/me');
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
@@ -308,14 +310,7 @@ describe('usersRouter', () => {
     expect(res.status).toBe(200);
     expect(mocks.db.run).toHaveBeenCalledWith(
       'UPDATE users SET name = ?, avatar = ?, avatar_emoji = ?, status = ?, preferences = ?, updated_at = unixepoch() WHERE id = ?',
-      [
-        'Updated User',
-        null,
-        '🙂',
-        'offline',
-        JSON.stringify({ compact: true }),
-        'u1',
-      ]
+      ['Updated User', null, '🙂', 'offline', JSON.stringify({ compact: true }), 'u1']
     );
     await expect(res.json()).resolves.toMatchObject({
       user: {
@@ -481,7 +476,11 @@ describe('usersRouter', () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
-    expect(mocks.deleteUserOpenAIConnection).toHaveBeenCalledWith(expect.anything(), 'u1', 'conn-personal');
+    expect(mocks.deleteUserOpenAIConnection).toHaveBeenCalledWith(
+      expect.anything(),
+      'u1',
+      'conn-personal'
+    );
   });
 
   it('tests a personal connection endpoint', async () => {
@@ -550,7 +549,11 @@ describe('usersRouter', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(expect.anything(), 'u1', 'conn-personal');
+    expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      'u1',
+      'conn-personal'
+    );
     expect(mocks.discoverConnectionModels).toHaveBeenCalledWith(
       expect.objectContaining({
         providerType: 'openai-compatible',
@@ -600,7 +603,13 @@ describe('usersRouter', () => {
         enabled: true,
         source: 'user',
         tools: [
-          { name: 'exa_search', title: 'Exa Search', description: 'Search the web', parameters: { type: 'object' }, enabled: true },
+          {
+            name: 'exa_search',
+            title: 'Exa Search',
+            description: 'Search the web',
+            parameters: { type: 'object' },
+            enabled: true,
+          },
         ],
       },
     ]);
@@ -669,7 +678,9 @@ describe('usersRouter', () => {
   });
 
   it('tests a personal MCP server endpoint', async () => {
-    mocks.testToolServerConnection.mockResolvedValueOnce({ tools: [{ name: 'tool-a' }, { name: 'tool-b' }] });
+    mocks.testToolServerConnection.mockResolvedValueOnce({
+      tools: [{ name: 'tool-a' }, { name: 'tool-b' }],
+    });
 
     const res = await usersRouter(
       makeReq('/api/users/me/resources/mcp-servers/test', 'POST', {
@@ -686,8 +697,12 @@ describe('usersRouter', () => {
     );
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ tools: [{ name: 'tool-a' }, { name: 'tool-b' }] });
-    expect(mocks.testToolServerConnection).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://mcp.example.com' }));
+    await expect(res.json()).resolves.toEqual({
+      tools: [{ name: 'tool-a' }, { name: 'tool-b' }],
+    });
+    expect(mocks.testToolServerConnection).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://mcp.example.com' })
+    );
   });
 
   it('updates a personal MCP server for the current user', async () => {
@@ -733,7 +748,11 @@ describe('usersRouter', () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
-    expect(mocks.deleteUserToolServer).toHaveBeenCalledWith(expect.anything(), 'u1', 'mcp-personal');
+    expect(mocks.deleteUserToolServer).toHaveBeenCalledWith(
+      expect.anything(),
+      'u1',
+      'mcp-personal'
+    );
   });
 
   it('rejects invalid status values on profile update', async () => {
@@ -794,18 +813,43 @@ describe('usersRouter', () => {
       return null;
     });
     mocks.db.all
-      .mockResolvedValueOnce([
-        { id: 'g1', name: 'test1', description: 'Team 1', is_system: 0 },
-      ])
+      .mockResolvedValueOnce([{ id: 'g1', name: 'test1', description: 'Team 1', is_system: 0 }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
-        { id: 'r1', model_id: 'model-1', principal_type: 'group', principal_id: 'g1', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: 'r1',
+          model_id: 'model-1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'deny',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ])
       .mockResolvedValueOnce([
-        { id: 'r2', connection_id: 'conn-1', principal_type: 'user', principal_id: 'u2', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: 'r2',
+          connection_id: 'conn-1',
+          principal_type: 'user',
+          principal_id: 'u2',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ])
       .mockResolvedValueOnce([
-        { id: 'r3', tool_server_id: 'mcp-1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'manage', created_at: 1, updated_at: 1 },
+        {
+          id: 'r3',
+          tool_server_id: 'mcp-1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'manage',
+          created_at: 1,
+          updated_at: 1,
+        },
       ]);
     mocks.resolvePermissions.mockResolvedValueOnce(['admin.user.read', 'admin.audit.read']);
 
@@ -858,7 +902,7 @@ describe('usersRouter', () => {
   });
 
   it('creates users with custom roles', async () => {
-    mocks.db.first.mockImplementation(async (sql, params = []) => {
+    mocks.db.first.mockImplementation(async (sql) => {
       const query = String(sql || '');
       if (query.includes('SELECT name FROM roles WHERE LOWER(name) = LOWER(?)')) {
         return { name: 'Support' };
@@ -866,7 +910,11 @@ describe('usersRouter', () => {
       if (query.includes('SELECT id FROM users WHERE email = ?')) {
         return null;
       }
-      if (query.includes('SELECT id, email, name, account_status, settings, created_at, updated_at, last_active_at FROM users WHERE id = ?')) {
+      if (
+        query.includes(
+          'SELECT id, email, name, account_status, settings, created_at, updated_at, last_active_at FROM users WHERE id = ?'
+        )
+      ) {
         return {
           id: 'u2',
           email: 'support@example.com',
@@ -901,7 +949,12 @@ describe('usersRouter', () => {
       name: 'Support Agent',
       primary_role: 'Support',
     });
-    expect(mocks.db.run.mock.calls.some(([sql, params]) => String(sql).includes('INSERT OR IGNORE INTO user_roles') && params?.[2] === 'Support')).toBe(true);
+    expect(
+      mocks.db.run.mock.calls.some(
+        ([sql, params]) =>
+          String(sql).includes('INSERT OR IGNORE INTO user_roles') && params?.[2] === 'Support'
+      )
+    ).toBe(true);
   });
 
   it('updates users with custom roles', async () => {
@@ -921,7 +974,11 @@ describe('usersRouter', () => {
       if (query.includes('SELECT COALESCE((')) {
         return { role: 'member' };
       }
-      if (query.includes('SELECT id, email, name, account_status, settings, created_at, updated_at FROM users WHERE id = ?')) {
+      if (
+        query.includes(
+          'SELECT id, email, name, account_status, settings, created_at, updated_at FROM users WHERE id = ?'
+        )
+      ) {
         return {
           id: 'u2',
           email: 'user@example.com',
@@ -951,7 +1008,12 @@ describe('usersRouter', () => {
       id: 'u2',
       primary_role: 'Support',
     });
-    expect(mocks.db.run.mock.calls.some(([sql, params]) => String(sql).includes('INSERT OR IGNORE INTO user_roles') && params?.[2] === 'Support')).toBe(true);
+    expect(
+      mocks.db.run.mock.calls.some(
+        ([sql, params]) =>
+          String(sql).includes('INSERT OR IGNORE INTO user_roles') && params?.[2] === 'Support'
+      )
+    ).toBe(true);
   });
 
   it('deletes a user record instead of deactivating it', async () => {
@@ -970,13 +1032,19 @@ describe('usersRouter', () => {
     );
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ success: true, message: 'User deleted successfully' });
+    await expect(res.json()).resolves.toEqual({
+      success: true,
+      message: 'User deleted successfully',
+    });
     expect(mocks.db.run).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?', ['u2']);
-    expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      action: 'user_deleted',
-      resource_type: 'user',
-      resource_id: 'u2',
-    }));
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'user_deleted',
+        resource_type: 'user',
+        resource_id: 'u2',
+      })
+    );
   });
 
   it('rejects deleting your own account', async () => {

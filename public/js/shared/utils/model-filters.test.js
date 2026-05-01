@@ -41,14 +41,22 @@ describe('model filters', () => {
 
   it('filters models by provider and search', () => {
     const models = [
-      { id: 'openai/gpt-4', name: 'GPT-4', provider_family: 'openai', connection_name: 'OpenAI Main' },
+      {
+        id: 'openai/gpt-4',
+        name: 'GPT-4',
+        provider_family: 'openai',
+        connection_name: 'OpenAI Main',
+      },
       { id: 'google/gemini', name: 'Gemini', provider_family: 'google', connection_name: 'Gemini' },
     ];
     const providerFiltered = filterModelsByProvider(models, 'gemini');
     expect(providerFiltered).toHaveLength(1);
     expect(providerFiltered[0].id).toBe('google/gemini');
 
-    const searchFiltered = filterModelsBySearchAndProvider(models, { query: 'gpt', provider: 'all' });
+    const searchFiltered = filterModelsBySearchAndProvider(models, {
+      query: 'gpt',
+      provider: 'all',
+    });
     expect(searchFiltered).toHaveLength(1);
     expect(searchFiltered[0].id).toBe('openai/gpt-4');
   });

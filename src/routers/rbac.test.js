@@ -61,7 +61,7 @@ describe('rbacRouter', () => {
       { DB: {} },
       {},
       { sub: 'u1' },
-      '/api/admin/rbac/roles',
+      '/api/admin/rbac/roles'
     );
 
     expect(res.status).toBe(200);
@@ -107,7 +107,7 @@ describe('rbacRouter', () => {
       { DB: {} },
       {},
       { sub: 'u1' },
-      '/api/admin/rbac/roles',
+      '/api/admin/rbac/roles'
     );
 
     expect(res.status).toBe(201);
@@ -117,12 +117,19 @@ describe('rbacRouter', () => {
       system: false,
       permissions: ['chat.read', 'chat.write'],
     });
-    expect(mocks.db.run.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO roles'))).toBe(true);
-    expect(mocks.db.run.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO role_permissions'))).toBe(true);
-    expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      action: 'role_created',
-      resource_type: 'role',
-    }));
+    expect(mocks.db.run.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO roles'))).toBe(
+      true
+    );
+    expect(
+      mocks.db.run.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO role_permissions'))
+    ).toBe(true);
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'role_created',
+        resource_type: 'role',
+      })
+    );
   });
 
   it('replaces role permissions on update', async () => {
@@ -162,7 +169,7 @@ describe('rbacRouter', () => {
       { DB: {} },
       {},
       { sub: 'u1' },
-      '/api/admin/rbac/roles/custom-1',
+      '/api/admin/rbac/roles/custom-1'
     );
 
     expect(res.status).toBe(200);
@@ -172,8 +179,14 @@ describe('rbacRouter', () => {
       name: 'New Name',
       permissions: ['chat.write', 'model.use'],
     });
-    expect(mocks.db.run.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM role_permissions'))).toBe(true);
-    expect(mocks.db.run.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO role_permissions')).length).toBe(2);
+    expect(
+      mocks.db.run.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM role_permissions'))
+    ).toBe(true);
+    expect(
+      mocks.db.run.mock.calls.filter(([sql]) =>
+        String(sql).includes('INSERT INTO role_permissions')
+      ).length
+    ).toBe(2);
   });
 
   it('deletes custom roles and logs the audit event', async () => {
@@ -182,16 +195,24 @@ describe('rbacRouter', () => {
       { DB: {} },
       {},
       { sub: 'u1' },
-      '/api/admin/rbac/roles/custom-1',
+      '/api/admin/rbac/roles/custom-1'
     );
 
     expect(res.status).toBe(204);
-    expect(mocks.db.run.mock.calls.some(([sql, params]) => String(sql).includes('DELETE FROM roles WHERE id = ?') && params?.[0] === 'custom-1')).toBe(true);
-    expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      action: 'role_deleted',
-      resource_type: 'role',
-      resource_id: 'custom-1',
-    }));
+    expect(
+      mocks.db.run.mock.calls.some(
+        ([sql, params]) =>
+          String(sql).includes('DELETE FROM roles WHERE id = ?') && params?.[0] === 'custom-1'
+      )
+    ).toBe(true);
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'role_deleted',
+        resource_type: 'role',
+        resource_id: 'custom-1',
+      })
+    );
   });
 
   it('prevents deleting system roles', async () => {
@@ -212,7 +233,7 @@ describe('rbacRouter', () => {
       { DB: {} },
       {},
       { sub: 'u1' },
-      '/api/admin/rbac/roles/admin',
+      '/api/admin/rbac/roles/admin'
     );
 
     expect(res.status).toBe(403);

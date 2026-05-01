@@ -2,21 +2,16 @@
  * Renders an action bar with save/cancel buttons
  * Used consistently across admin and account settings pages
  */
-export function renderActionBar({
-  onSave = null,
-  onCancel = null,
-  onDelete = null,
-  isSaving = false,
-  helpText = '',
-  showDelete = false,
-} = {}) {
+export function renderActionBar({ isSaving = false, helpText = '', showDelete = false } = {}) {
   return `
     <div class="flex items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 bg-white">
       <div class="text-xs text-gray-400">
         ${helpText}
       </div>
       <div class="flex items-center gap-2">
-        ${showDelete ? `
+        ${
+          showDelete
+            ? `
           <button
             type="button"
             data-action-delete
@@ -25,7 +20,9 @@ export function renderActionBar({
           >
             Delete
           </button>
-        ` : ''}
+        `
+            : ''
+        }
         <button
           type="button"
           data-action-cancel
@@ -50,12 +47,7 @@ export function renderActionBar({
 /**
  * Renders a sticky footer action bar for settings pages
  */
-export function renderStickyActionBar({
-  onSave = null,
-  onCancel = null,
-  isSaving = false,
-  helpText = '',
-} = {}) {
+export function renderStickyActionBar({ isSaving = false, helpText = '' } = {}) {
   return `
     <div class="sticky bottom-0 left-0 right-0 flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 bg-white shadow-lg">
       <div class="text-xs text-gray-400">

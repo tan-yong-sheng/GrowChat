@@ -23,11 +23,13 @@ function escapeHtml(text) {
     '"': '&quot;',
     "'": '&#39;',
   };
-  return String(text).replace(/[&<>"']/g, char => map[char]);
+  return String(text).replace(/[&<>"']/g, (char) => map[char]);
 }
 
 function normalizeAccountStatus(value, fallback = 'active') {
-  const status = String(value || fallback).trim().toLowerCase();
+  const status = String(value || fallback)
+    .trim()
+    .toLowerCase();
   // Explicit allowlist: only 'active' is treated as active.
   // Future statuses like 'suspended' or 'banned' must be added here.
   if (status === 'active') return 'active';
@@ -56,12 +58,14 @@ async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active')
     // Use batch for atomicity: if INSERT fails, DELETE is rolled back too.
     await db.batch([
       db.prepare('DELETE FROM user_roles WHERE user_id = ?').bind(userId),
-      db.prepare(
-        `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
          SELECT ?, ?, r.id, unixepoch()
          FROM roles r
          WHERE r.name = ?`
-      ).bind(crypto.randomUUID(), userId, mappedRole),
+        )
+        .bind(crypto.randomUUID(), userId, mappedRole),
     ]);
   } catch (err) {
     // Temporary safety net: do not block auth when RBAC tables are not migrated yet.
@@ -74,7 +78,7 @@ async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active')
 }
 
 function sanitizeUser(user, primaryRole = 'member') {
-  let settings = {};
+  let settings;
   try {
     settings = user.settings ? JSON.parse(user.settings) : {};
   } catch {
@@ -101,7 +105,12 @@ function readBearerToken(req) {
 
 async function createAccessToken(secret, user, primaryRole) {
   return signJWT(
-    { sub: user.id, email: user.email, primary_role: normalizePublicRole(primaryRole), name: user.name },
+    {
+      sub: user.id,
+      email: user.email,
+      primary_role: normalizePublicRole(primaryRole),
+      name: user.name,
+    },
     secret,
     APP_TTLS.accessTokenSeconds
   );
@@ -145,9 +154,13 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     let name;
     let password;
     try {
-      email = validateEmail(requireString(body.email, 'email, name, password are required').toLowerCase());
+      email = validateEmail(
+        requireString(body.email, 'email, name, password are required').toLowerCase()
+      );
       name = requireString(body.name, 'email, name, password are required');
-      password = requireString(body.password, 'email, name, password are required', { trim: false });
+      password = requireString(body.password, 'email, name, password are required', {
+        trim: false,
+      });
     } catch (err) {
       if (err instanceof ValidationError) {
         return error(req, err.message, 400);
@@ -164,9 +177,12 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const id = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
     const registrationStatusRaw = await getConfigValue(db, 'public_registration_status', 'pending');
-    const registrationStatus = String(registrationStatusRaw || 'pending').trim().toLowerCase() === 'active'
-      ? 'active'
-      : 'pending';
+    const registrationStatus =
+      String(registrationStatusRaw || 'pending')
+        .trim()
+        .toLowerCase() === 'active'
+        ? 'active'
+        : 'pending';
     // Bootstrap the very first account as the admin owner of the fresh workspace.
     const finalRole = hasUsers ? 'member' : 'admin';
     const finalAccountStatus = finalRole === 'admin' ? 'active' : registrationStatus;
@@ -183,28 +199,40 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       await setConfigValue(db, 'public_registration', 'false');
       user = { ...user, primary_role: 'admin', account_status: 'active' };
     } else {
-      user = { ...user, primary_role: 'member', account_status: finalAccountStatus };
+      user = {
+        ...user,
+        primary_role: 'member',
+        account_status: finalAccountStatus,
+      };
     }
     await ensureUserRoleBinding(db, id, finalRole, finalAccountStatus);
     if (finalAccountStatus === 'pending') {
-      return json(req, {
-        user: sanitizeUser(user, finalRole),
-        account_status: 'pending',
-        status: 'pending',
-        message: 'Account pending approval.',
-      }, 201);
+      return json(
+        req,
+        {
+          user: sanitizeUser(user, finalRole),
+          account_status: 'pending',
+          status: 'pending',
+          message: 'Account pending approval.',
+        },
+        201
+      );
     }
 
     const accessToken = await createAccessToken(jwtSecret, user, finalRole);
     const refresh = await createRefreshToken(env, user.id);
 
-    return json(req, {
-      user: sanitizeUser(user, finalRole),
-      access_token: accessToken,
-      refresh_token: refresh.token,
-      expires_in: 900,
-      refresh_expires_at: refresh.expiresAt,
-    }, 201);
+    return json(
+      req,
+      {
+        user: sanitizeUser(user, finalRole),
+        access_token: accessToken,
+        refresh_token: refresh.token,
+        expires_in: 900,
+        refresh_expires_at: refresh.expiresAt,
+      },
+      201
+    );
   }
 
   if (req.method === 'POST' && path === '/api/auth/login') {
@@ -218,7 +246,9 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     let email;
     let password;
     try {
-      email = validateEmail(requireString(body.email, 'email and password are required').toLowerCase());
+      email = validateEmail(
+        requireString(body.email, 'email and password are required').toLowerCase()
+      );
       password = requireString(body.password, 'email and password are required', { trim: false });
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -243,13 +273,17 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
     await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
 
-      const ok = await verifyPassword(password, user.password_hash);
+    const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
     if (!isActiveAccount(user)) {
-      return json(req, {
-        error: 'pending_account',
-        message: 'Account pending approval.',
-      }, 403);
+      return json(
+        req,
+        {
+          error: 'pending_account',
+          message: 'Account pending approval.',
+        },
+        403
+      );
     }
 
     await users.touchLastActive(user.id);
@@ -257,7 +291,12 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
 
     const accessToken = await signJWT(
-      { sub: freshUser.id, email: freshUser.email, primary_role: primaryRole, name: freshUser.name },
+      {
+        sub: freshUser.id,
+        email: freshUser.email,
+        primary_role: primaryRole,
+        name: freshUser.name,
+      },
       jwtSecret,
       APP_TTLS.accessTokenSeconds
     );
@@ -282,7 +321,9 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     let refreshToken;
     try {
-      refreshToken = requireString(body.refresh_token, 'refresh_token is required', { trim: false });
+      refreshToken = requireString(body.refresh_token, 'refresh_token is required', {
+        trim: false,
+      });
     } catch (err) {
       if (err instanceof ValidationError) {
         return error(req, err.message, 400);
@@ -298,10 +339,14 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
     await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
     if (!isActiveAccount(user)) {
-      return json(req, {
-        error: 'pending_account',
-        message: 'Account pending approval.',
-      }, 403);
+      return json(
+        req,
+        {
+          error: 'pending_account',
+          message: 'Account pending approval.',
+        },
+        403
+      );
     }
 
     await users.touchLastActive(user.id);
@@ -309,7 +354,12 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
 
     const accessToken = await signJWT(
-      { sub: freshUser.id, email: freshUser.email, primary_role: primaryRole, name: freshUser.name },
+      {
+        sub: freshUser.id,
+        email: freshUser.email,
+        primary_role: primaryRole,
+        name: freshUser.name,
+      },
       jwtSecret,
       APP_TTLS.accessTokenSeconds
     );
@@ -377,13 +427,20 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
 
     const user = await users.findByEmail(email);
     if (!user) {
-      return json(req, { message: 'If an account exists with this email, a reset link has been sent.' });
+      return json(req, {
+        message: 'If an account exists with this email, a reset link has been sent.',
+      });
     }
 
     const resetToken = crypto.getRandomValues(new Uint8Array(32));
-    const resetTokenHex = [...resetToken].map(x => x.toString(16).padStart(2, '0')).join('');
-    const tokenHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(resetTokenHex));
-    const tokenHashHex = [...new Uint8Array(tokenHash)].map(x => x.toString(16).padStart(2, '0')).join('');
+    const resetTokenHex = [...resetToken].map((x) => x.toString(16).padStart(2, '0')).join('');
+    const tokenHash = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(resetTokenHex)
+    );
+    const tokenHashHex = [...new Uint8Array(tokenHash)]
+      .map((x) => x.toString(16).padStart(2, '0'))
+      .join('');
 
     const expiresAt = Math.floor(Date.now() / 1000) + PASSWORD_RESET_TTL_SECONDS;
     await db.run(
@@ -397,13 +454,13 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       const userNameEscaped = escapeHtml(user.name);
       const origin = new URL(req.url).origin;
       // SECURITY NOTE: The reset token is embedded in the URL query parameter.
-  // This is a standard pattern for password reset emails but has known risks:
-  // - Token appears in server access logs (mitigated by logging URL paths only)
-  // - Token stored in browser history (cleared on tab close in modern browsers)
-  // - Token visible in URL bar (user should close tab after use)
-  // - Token could leak via Referer header (reset page has no external links)
-  // The token is hashed in the database and is single-use (deleted on consumption).
-  const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
+      // This is a standard pattern for password reset emails but has known risks:
+      // - Token appears in server access logs (mitigated by logging URL paths only)
+      // - Token stored in browser history (cleared on tab close in modern browsers)
+      // - Token visible in URL bar (user should close tab after use)
+      // - Token could leak via Referer header (reset page has no external links)
+      // The token is hashed in the database and is single-use (deleted on consumption).
+      const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
 
       const emailHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -489,7 +546,9 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
       console.error('Failed to send password reset email:', err);
     }
 
-    return json(req, { message: 'If an account exists with this email, a reset link has been sent.' });
+    return json(req, {
+      message: 'If an account exists with this email, a reset link has been sent.',
+    });
   }
 
   if (req.method === 'POST' && path === '/api/auth/reset-password') {
@@ -503,7 +562,9 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     let token;
     let password;
     try {
-      token = requireString(body.token, 'token and password are required', { trim: false });
+      token = requireString(body.token, 'token and password are required', {
+        trim: false,
+      });
       password = requireString(body.password, 'token and password are required', { trim: false });
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -528,7 +589,9 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     }
 
     const tokenHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
-    const tokenHashHex = [...new Uint8Array(tokenHash)].map(x => x.toString(16).padStart(2, '0')).join('');
+    const tokenHashHex = [...new Uint8Array(tokenHash)]
+      .map((x) => x.toString(16).padStart(2, '0'))
+      .join('');
 
     const resetRecord = await db.first(
       `SELECT user_id FROM password_reset_tokens
@@ -541,22 +604,18 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     }
 
     const passwordHash = await hashPassword(password);
-    await db.run(
-      `UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ?`,
-      [passwordHash, resetRecord.user_id]
-    );
+    await db.run(`UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ?`, [
+      passwordHash,
+      resetRecord.user_id,
+    ]);
 
-    await db.run(
-      `DELETE FROM password_reset_tokens WHERE token_hash = ?`,
-      [tokenHashHex]
-    );
+    await db.run(`DELETE FROM password_reset_tokens WHERE token_hash = ?`, [tokenHashHex]);
 
-    await db.run(
-      `DELETE FROM refresh_tokens WHERE user_id = ?`,
-      [resetRecord.user_id]
-    );
+    await db.run(`DELETE FROM refresh_tokens WHERE user_id = ?`, [resetRecord.user_id]);
 
-    return json(req, { message: 'Password reset successful. Please log in with your new password.' });
+    return json(req, {
+      message: 'Password reset successful. Please log in with your new password.',
+    });
   }
 
   return null;

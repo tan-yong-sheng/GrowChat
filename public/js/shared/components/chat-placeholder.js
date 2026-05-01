@@ -1,19 +1,18 @@
 import { subscribe } from '../store.js';
 
 export function renderPlaceholder(container, options = {}) {
-  const opts = typeof options === 'function'
-    ? { onSuggestionClick: options, model: null }
-    : options;
+  const opts =
+    typeof options === 'function' ? { onSuggestionClick: options, model: null } : options;
   const { onSuggestionClick } = opts;
   const allSuggestions = [
-    { title: "Summarize an article", subtitle: "on recent tech news" },
-    { title: "Help me write", subtitle: "a thank you email" },
-    { title: "Suggest a recipe", subtitle: "with chicken and rice" },
-    { title: "Debug Python code", subtitle: "with a syntax error" },
-    { title: "Plan a travel itinerary", subtitle: "for a 3-day trip to Tokyo" },
-    { title: "Explain quantum physics", subtitle: "like I'm five years old" },
-    { title: "Create a workout plan", subtitle: "for a home gym" },
-    { title: "Write a short story", subtitle: "about a time-traveling cat" }
+    { title: 'Summarize an article', subtitle: 'on recent tech news' },
+    { title: 'Help me write', subtitle: 'a thank you email' },
+    { title: 'Suggest a recipe', subtitle: 'with chicken and rice' },
+    { title: 'Debug Python code', subtitle: 'with a syntax error' },
+    { title: 'Plan a travel itinerary', subtitle: 'for a 3-day trip to Tokyo' },
+    { title: 'Explain quantum physics', subtitle: "like I'm five years old" },
+    { title: 'Create a workout plan', subtitle: 'for a home gym' },
+    { title: 'Write a short story', subtitle: 'about a time-traveling cat' },
   ];
 
   let unsubscribe;
@@ -21,7 +20,9 @@ export function renderPlaceholder(container, options = {}) {
   let lastModelId = null;
 
   function render(currentState) {
-    const hasMessages = currentState.activeChatId && (currentState.messagesByChat[currentState.activeChatId] || []).length > 0;
+    const hasMessages =
+      currentState.activeChatId &&
+      (currentState.messagesByChat[currentState.activeChatId] || []).length > 0;
     if (hasMessages) {
       if (container.innerHTML !== '') {
         container.innerHTML = '';
@@ -31,12 +32,22 @@ export function renderPlaceholder(container, options = {}) {
       return;
     }
 
-    const draftKey = currentState.activeChatId ? currentState.activeChatId : 'newChatDraft';
-    const query = (currentState.activeChatId ? (currentState.drafts?.[currentState.activeChatId] || '') : (currentState.newChatDraft || '')).toLowerCase().trim();
-    const model = currentState.models.find((m) => m.id === currentState.activeModelId) || opts.model || null;
+    const query = (
+      currentState.activeChatId
+        ? currentState.drafts?.[currentState.activeChatId] || ''
+        : currentState.newChatDraft || ''
+    )
+      .toLowerCase()
+      .trim();
+    const model =
+      currentState.models.find((m) => m.id === currentState.activeModelId) || opts.model || null;
     const currentModelId = model?.id || null;
 
-    if (query === lastQuery && currentModelId === lastModelId && container.querySelector('#welcome-screen')) {
+    if (
+      query === lastQuery &&
+      currentModelId === lastModelId &&
+      container.querySelector('#welcome-screen')
+    ) {
       return; // No need to re-render
     }
 
@@ -45,13 +56,15 @@ export function renderPlaceholder(container, options = {}) {
 
     const modelName = model?.name || 'GrowChat';
     const modelDesc = model?.info?.description || 'The smarter way to chat.';
-    const displayed = (query
-      ? allSuggestions.filter((s) => s.title.toLowerCase().includes(query) || s.subtitle.toLowerCase().includes(query))
-      : allSuggestions
+    const displayed = (
+      query
+        ? allSuggestions.filter(
+            (s) => s.title.toLowerCase().includes(query) || s.subtitle.toLowerCase().includes(query)
+          )
+        : allSuggestions
     ).slice(0, 4);
 
-    let welcomeScreen = container.querySelector('#welcome-screen');
-    if (!welcomeScreen) {
+    if (!container.querySelector('#welcome-screen')) {
       container.innerHTML = `
         <div id="welcome-screen" class="flex flex-col items-center justify-center text-center min-h-[65vh] px-6">
            <div class="w-full max-w-[720px] flex flex-col items-center">
@@ -73,7 +86,6 @@ export function renderPlaceholder(container, options = {}) {
            </div>
         </div>
       `;
-      welcomeScreen = container.querySelector('#welcome-screen');
     } else {
       const nameEl = container.querySelector('#welcome-model-name');
       const descEl = container.querySelector('#welcome-model-desc');
@@ -83,13 +95,20 @@ export function renderPlaceholder(container, options = {}) {
 
     const grid = container.querySelector('#welcome-suggestions-grid');
     if (grid) {
-      grid.innerHTML = displayed.length > 0 ? displayed.map((s) => `
+      grid.innerHTML =
+        displayed.length > 0
+          ? displayed
+              .map(
+                (s) => `
         <button class="suggestion-btn group p-5 border border-gray-200 hover:border-gray-300 hover:bg-white rounded-[18px] text-left transition-all duration-200 active:scale-[0.95] bg-[#f5f5f7]">
            <div class="font-semibold text-[15px] text-gray-800 group-hover:text-black transition-colors mb-1">${s.title}</div>
            <div class="text-gray-500 text-sm transition-colors group-hover:text-gray-600 line-clamp-2">${s.subtitle}</div>
         </button>
-      `).join('') : '';
-      
+      `
+              )
+              .join('')
+          : '';
+
       grid.querySelectorAll('.suggestion-btn').forEach((btn) => {
         btn.onclick = () => {
           const text = btn.querySelector('div:first-child')?.textContent || '';

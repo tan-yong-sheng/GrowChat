@@ -28,9 +28,10 @@ export function broadcastConnectionsInvalidation(token = String(Date.now())) {
   }
 
   try {
-    const evt = typeof CustomEvent === 'function'
-      ? new CustomEvent('growchat:connections-invalidated', { detail: { token } })
-      : null;
+    const evt =
+      typeof CustomEvent === 'function'
+        ? new CustomEvent('growchat:connections-invalidated', { detail: { token } })
+        : null;
     if (evt && globalThis.dispatchEvent) {
       globalThis.dispatchEvent(evt);
     }

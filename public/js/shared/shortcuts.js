@@ -13,12 +13,7 @@ const MODIFIER_KEYS = new Set(['mod', 'ctrl', 'shift', 'alt']);
 function isTypingTarget(target) {
   if (!target || !(target instanceof HTMLElement)) return false;
   const tag = target.tagName.toLowerCase();
-  return (
-    target.isContentEditable ||
-    tag === 'input' ||
-    tag === 'textarea' ||
-    tag === 'select'
-  );
+  return target.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select';
 }
 
 function normalizeKey(key) {

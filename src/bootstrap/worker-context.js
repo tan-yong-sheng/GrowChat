@@ -42,9 +42,13 @@ export async function loadPrimaryRole(env, userId) {
 export async function loadUserAccountStatus(env, userId) {
   if (!userId) return null;
   try {
-    const row = await env.DB.prepare('SELECT account_status FROM users WHERE id = ?').bind(userId).first();
+    const row = await env.DB.prepare('SELECT account_status FROM users WHERE id = ?')
+      .bind(userId)
+      .first();
     if (!row) return null;
-    const normalized = String(row.account_status || 'active').trim().toLowerCase();
+    const normalized = String(row.account_status || 'active')
+      .trim()
+      .toLowerCase();
     // Explicit allowlist: only 'active' grants access. Future statuses
     // like 'suspended' or 'banned' must be added here explicitly.
     if (normalized === 'active') return 'active';
@@ -57,7 +61,9 @@ export async function loadUserAccountStatus(env, userId) {
 export async function touchLastActive(env, userId) {
   if (!userId || !env?.DB) return;
   try {
-    await env.DB.prepare('UPDATE users SET last_active_at = unixepoch() WHERE id = ?').bind(userId).run();
+    await env.DB.prepare('UPDATE users SET last_active_at = unixepoch() WHERE id = ?')
+      .bind(userId)
+      .run();
   } catch (err) {
     if (/no such column:\s*last_active_at/i.test(String(err?.message || ''))) {
       return;

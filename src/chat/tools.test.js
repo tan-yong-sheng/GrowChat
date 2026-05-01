@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  applyToolCallDelta,
-  buildUnknownToolPrompt,
-  normalizeToolCalls,
-} from './tools.js';
+import { applyToolCallDelta, buildUnknownToolPrompt, normalizeToolCalls } from './tools.js';
 
 describe('chat tool helpers', () => {
   it('applies tool call deltas by index and merges metadata', () => {
@@ -38,10 +34,13 @@ describe('chat tool helpers', () => {
       ['mcp__server__lookup', { serverId: 'server', toolName: 'lookup', displayName: 'Lookup' }],
     ]);
 
-    const { validCalls, unknownCalls } = normalizeToolCalls([
-      { id: '1', name: 'mcp__server__lookup', arguments: '{"q":"x"}' },
-      { id: '2', name: 'mcp__server__missing', arguments: '{}' },
-    ], toolMap);
+    const { validCalls, unknownCalls } = normalizeToolCalls(
+      [
+        { id: '1', name: 'mcp__server__lookup', arguments: '{"q":"x"}' },
+        { id: '2', name: 'mcp__server__missing', arguments: '{}' },
+      ],
+      toolMap
+    );
 
     expect(validCalls).toHaveLength(1);
     expect(validCalls[0]).toMatchObject({

@@ -11,24 +11,23 @@ export async function runAsyncSessionProcessor({
   let messagesForModel = Array.isArray(initialMessages) ? [...initialMessages] : [];
   let steps = 0;
   let followUps = 0;
-  let lastResult = null;
 
   while (steps <= maxToolSteps) {
-    lastResult = await runStep({
+    const result = await runStep({
       messagesForModel,
       steps,
       followUps,
     });
 
-    if (!lastResult || typeof lastResult !== 'object') {
+    if (!result || typeof result !== 'object') {
       throw new Error('Async session step must return an object');
     }
 
-    if (Array.isArray(lastResult.nextMessagesForModel)) {
-      messagesForModel = lastResult.nextMessagesForModel;
+    if (Array.isArray(result.nextMessagesForModel)) {
+      messagesForModel = result.nextMessagesForModel;
     }
 
-    const action = String(lastResult.action || 'final');
+    const action = String(result.action || 'final');
     if (action === 'tool_loop') {
       steps += 1;
       if (steps > maxToolSteps) {
@@ -49,7 +48,7 @@ export async function runAsyncSessionProcessor({
       messagesForModel,
       steps,
       followUps,
-      lastResult,
+      lastResult: result,
     };
   }
 

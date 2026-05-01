@@ -51,10 +51,10 @@ export async function extractDocumentText(env, db, documentId, contentType, buff
     console.error(`Document extraction failed for ${documentId}:`, err);
 
     // Mark as failed in D1
-    await db.run(
-      `UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?`,
-      [err.message, documentId]
-    );
+    await db.run(`UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?`, [
+      err.message,
+      documentId,
+    ]);
 
     throw err;
   }

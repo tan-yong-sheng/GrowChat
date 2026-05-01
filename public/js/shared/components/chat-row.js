@@ -110,22 +110,22 @@ export function createChatRow(chat, handlers) {
   // Toggle menu on button click
   menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    
+
     // Close any other open dropdowns
-    document.querySelectorAll('.chat-menu-dropdown:not(.hidden)').forEach(el => {
+    document.querySelectorAll('.chat-menu-dropdown:not(.hidden)').forEach((el) => {
       if (el !== dropdown) el.classList.add('hidden');
     });
 
     const isHidden = dropdown.classList.contains('hidden');
     if (isHidden) {
       dropdown.classList.remove('hidden');
-      
+
       // Use fixed positioning to escape overflow-hidden/auto containers
       const rect = menuBtn.getBoundingClientRect();
       dropdown.style.position = 'fixed';
       dropdown.style.top = `${rect.bottom + 4}px`;
       dropdown.style.left = `${rect.right - 180}px`; // 180 is min-w
-      
+
       // Check for bottom overflow
       requestAnimationFrame(() => {
         const dropRect = dropdown.getBoundingClientRect();
@@ -144,7 +144,7 @@ export function createChatRow(chat, handlers) {
       dropdown.classList.add('hidden');
     }
   };
-  
+
   document.addEventListener('click', closeDropdown);
   document.querySelector('#chat-list')?.parentElement?.addEventListener('scroll', () => {
     if (!dropdown.classList.contains('hidden')) {
@@ -178,17 +178,19 @@ export function createChatRow(chat, handlers) {
 
     item.addEventListener('keydown', (e) => {
       switch (e.key) {
-        case 'ArrowDown':
+        case 'ArrowDown': {
           e.preventDefault();
           const nextItem = menuItemElements[index + 1];
           if (nextItem) nextItem.focus();
           break;
+        }
 
-        case 'ArrowUp':
+        case 'ArrowUp': {
           e.preventDefault();
           const prevItem = menuItemElements[index - 1];
           if (prevItem) prevItem.focus();
           break;
+        }
 
         case 'Escape':
           e.preventDefault();

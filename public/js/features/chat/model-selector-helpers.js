@@ -1,4 +1,7 @@
-import { filterModelsBySearch, normalizeModelSearchQuery } from '../../shared/utils/model-search.js';
+import {
+  filterModelsBySearch,
+  normalizeModelSearchQuery,
+} from '../../shared/utils/model-search.js';
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 
 export function getModelDisplayLabel(model) {
@@ -6,9 +9,15 @@ export function getModelDisplayLabel(model) {
 }
 
 export function getModelScopeLabel(model) {
-  const accessVariant = String(model?.access_variant || '').trim().toLowerCase();
-  const accessLabel = String(model?.access_label || '').trim().toLowerCase();
-  const source = String(model?.source || '').trim().toLowerCase();
+  const accessVariant = String(model?.access_variant || '')
+    .trim()
+    .toLowerCase();
+  const accessLabel = String(model?.access_label || '')
+    .trim()
+    .toLowerCase();
+  const source = String(model?.source || '')
+    .trim()
+    .toLowerCase();
   if (source === 'user' || accessVariant === 'personal' || accessLabel === 'personal') {
     return 'Personal';
   }
@@ -45,8 +54,16 @@ export function getModelAvailabilityFallbackNotice({
   if (!previousId) return null;
 
   const fallbackLabel = getModelDisplayLabel(fallbackModel) || fallbackModel?.id || 'another model';
-  const disabledSet = new Set(Array.isArray(disabledModelIds) ? disabledModelIds.map((id) => String(id || '').trim()).filter(Boolean) : []);
-  const hiddenSet = new Set(Array.isArray(hiddenModelIds) ? hiddenModelIds.map((id) => String(id || '').trim()).filter(Boolean) : []);
+  const disabledSet = new Set(
+    Array.isArray(disabledModelIds)
+      ? disabledModelIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : []
+  );
+  const hiddenSet = new Set(
+    Array.isArray(hiddenModelIds)
+      ? hiddenModelIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : []
+  );
 
   if (hiddenSet.has(previousId)) {
     return {
@@ -79,7 +96,9 @@ export function getPreferredModelId(models = [], preferredIds = []) {
   const sortedModels = sortModelsByActiveThenName(models);
   if (!sortedModels.length) return null;
 
-  const modelIdSet = new Set(sortedModels.map((model) => String(model?.id || '').trim()).filter(Boolean));
+  const modelIdSet = new Set(
+    sortedModels.map((model) => String(model?.id || '').trim()).filter(Boolean)
+  );
   for (const preferredId of Array.isArray(preferredIds) ? preferredIds : []) {
     const candidateId = String(preferredId || '').trim();
     if (candidateId && modelIdSet.has(candidateId)) {
@@ -157,7 +176,9 @@ export async function persistDefaultModelSelection({
   else delete nextPreferences.defaultModelId;
   const storage = getStorage();
   const successMessage = modelId ? 'Default model set' : 'Default model cleared';
-  const fallbackMessage = modelId ? 'Default model set for this session' : 'Default model cleared for this session';
+  const fallbackMessage = modelId
+    ? 'Default model set for this session'
+    : 'Default model cleared for this session';
   try {
     const res = await apiFetch('/api/users/me', {
       method: 'PUT',
@@ -180,4 +201,3 @@ export async function persistDefaultModelSelection({
     return { ok: true, persisted: false };
   }
 }
-

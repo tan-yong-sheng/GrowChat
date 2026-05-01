@@ -47,7 +47,8 @@ class RealtimeClient {
         if (!res.ok || !res.body) {
           if (res.status === 500) {
             const errorText = await res.text().catch(() => '');
-            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isLocalhost =
+              window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             if (errorText.includes('Realtime binding missing') || isLocalhost) {
               this.disabled = true;
               this.closedManually = true;
@@ -161,9 +162,11 @@ class RealtimeClient {
   scheduleReconnect(forceDelayMs = null) {
     if (this.closedManually || this.reconnectTimer) return;
 
-    const delay = forceDelayMs ?? (this.failureCount > 0
-      ? Math.min(this.reconnectDelayMs * Math.max(this.failureCount, 1), 60000)
-      : this.reconnectDelayMs);
+    const delay =
+      forceDelayMs ??
+      (this.failureCount > 0
+        ? Math.min(this.reconnectDelayMs * Math.max(this.failureCount, 1), 60000)
+        : this.reconnectDelayMs);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, 30000);

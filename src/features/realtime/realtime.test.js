@@ -42,7 +42,9 @@ describe('features/realtime', () => {
       },
     };
 
-    await expect(publishRealtimeEvent(env, { type: 'chat.updated', user_id: 'u1' })).resolves.toBe(true);
+    await expect(publishRealtimeEvent(env, { type: 'chat.updated', user_id: 'u1' })).resolves.toBe(
+      true
+    );
     expect(fetch).toHaveBeenCalled();
   });
 

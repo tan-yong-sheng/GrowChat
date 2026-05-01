@@ -6,7 +6,10 @@ import {
   updateUserConnection,
 } from '../../shared/api/resources.js';
 import { apiFetch } from '../../shared/api.js';
-import { buildConnectionModalMarkup, buildConnectionModalModelsMarkup } from '../../shared/components/connection-modal.js';
+import {
+  buildConnectionModalMarkup,
+  buildConnectionModalModelsMarkup,
+} from '../../shared/components/connection-modal.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
 import { broadcastConnectionsInvalidation } from '../../shared/utils/connection-sync.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
@@ -15,44 +18,25 @@ import {
   normalizeConnectionModelSelectionMode,
   resolveConnectionModelSelectionMode,
 } from '../../shared/utils/connection-model-selection.js';
-import { isResourceHidden, setResourceVisibility, normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
+import {
+  isResourceHidden,
+  setResourceVisibility,
+  normalizeUserResourceOverrides,
+} from '../../shared/utils/user-resource-overrides.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 import {
-  connectionApiTypeDetails,
-  formatConnectionModelId,
-  getConnectionProviderId,
-  inflateManualConnectionModels,
   isCompatibleProviderType,
   previewConnectionModalModels,
   buildSelectedConnectionModels,
   normalizeConnectionManualModels,
   normalizeModelRecord,
   providerDisplayLabel as adminProviderDisplayLabel,
-  providerUrlPlaceholder as adminProviderUrlPlaceholder,
-  resolveKeyLabel,
   resolveUrlLabel,
   updateApiTypeDisplay,
 } from '../admin/settings/connections-helpers.js';
-
-const PROVIDER_OPTIONS = [
-  { value: 'openai-compatible', label: 'OpenAI Compatible' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Claude Compatible' },
-  { value: 'claude-compatible', label: 'Claude Compatible' },
-  { value: 'google', label: 'Gemini' },
-  { value: 'gemini-compatible', label: 'Gemini Compatible' },
-];
-
-const AUTH_TYPE_OPTIONS = [
-  { value: '', label: 'Auto' },
-  { value: 'bearer', label: 'Bearer' },
-  { value: 'x-api-key', label: 'X-API-Key' },
-  { value: 'x-goog-api-key', label: 'X-Goog-API-Key' },
-  { value: 'api-key', label: 'API Key' },
-];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -64,7 +48,11 @@ function escapeHtml(value) {
 }
 
 function normalizeProviderType(value) {
-  return String(value || '').trim().toLowerCase() || 'openai-compatible';
+  return (
+    String(value || '')
+      .trim()
+      .toLowerCase() || 'openai-compatible'
+  );
 }
 
 function providerDisplayLabel(providerType) {
@@ -97,21 +85,35 @@ function providerUrlPlaceholder(providerType) {
 }
 
 function normalizePersonalConnection(connection = {}) {
-  const headers = connection.headers && typeof connection.headers === 'object' && !Array.isArray(connection.headers)
-    ? connection.headers
-    : {};
+  const headers =
+    connection.headers &&
+    typeof connection.headers === 'object' &&
+    !Array.isArray(connection.headers)
+      ? connection.headers
+      : {};
   return {
     id: String(connection.id || '').trim(),
     name: String(connection.name || connection.id || '').trim(),
-    provider_type: normalizeProviderType(connection.provider_type || connection.providerType || 'openai-compatible'),
-    provider_family: String(connection.provider_family || connection.providerFamily || 'openai').trim().toLowerCase() || 'openai',
+    provider_type: normalizeProviderType(
+      connection.provider_type || connection.providerType || 'openai-compatible'
+    ),
+    provider_family:
+      String(connection.provider_family || connection.providerFamily || 'openai')
+        .trim()
+        .toLowerCase() || 'openai',
     base_url: String(connection.base_url || connection.baseUrl || '').trim(),
-    auth_type: String(connection.auth_type || connection.authType || '').trim().toLowerCase(),
+    auth_type: String(connection.auth_type || connection.authType || '')
+      .trim()
+      .toLowerCase(),
     enabled: connection.enabled !== false,
-    has_key: connection.has_key !== undefined
-      ? Boolean(connection.has_key)
-      : Boolean(String(connection.key || '').trim()),
-    manualModelsMode: normalizeConnectionModelSelectionMode(connection.manual_models_mode || connection.manualModelsMode) || 'all',
+    has_key:
+      connection.has_key !== undefined
+        ? Boolean(connection.has_key)
+        : Boolean(String(connection.key || '').trim()),
+    manualModelsMode:
+      normalizeConnectionModelSelectionMode(
+        connection.manual_models_mode || connection.manualModelsMode
+      ) || 'all',
     headers,
     manual_models: Array.isArray(connection.manual_models || connection.manualModels)
       ? [...(connection.manual_models || connection.manualModels)]
@@ -137,7 +139,12 @@ function clonePreferences(value = {}) {
 }
 
 function formatHeadersValue(headers) {
-  if (!headers || typeof headers !== 'object' || Array.isArray(headers) || !Object.keys(headers).length) {
+  if (
+    !headers ||
+    typeof headers !== 'object' ||
+    Array.isArray(headers) ||
+    !Object.keys(headers).length
+  ) {
     return '';
   }
   try {
@@ -156,160 +163,10 @@ function renderSummaryPill(text, tone = 'gray') {
   return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tones[tone] || tones.gray}">${escapeHtml(text)}</span>`;
 }
 
-function renderAddIconButton(label, attrName) {
-  return `
-    <button
-      type="button"
-      ${attrName}
-      class="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-      title="${escapeHtml(label)}"
-      aria-label="${escapeHtml(label)}"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-      </svg>
-    </button>
-  `;
-}
-
-function buildModalModelsListMarkup(models = [], query = '', selection = new Set(), loading = false, error = '') {
-  return buildConnectionModalModelsMarkup(models, query, selection, loading, error);
-}
-
-function buildFormBodyMarkup(connection = null, modalState = {}) {
-  const providerType = normalizeProviderType(connection?.provider_type || connection?.providerType || 'openai-compatible');
-  const baseUrl = String(connection?.base_url || connection?.baseUrl || '').trim();
-  const headersValue = formatHeadersValue(connection?.headers);
-  const apiType = connectionApiTypeDetails(providerType);
-  const query = String(modalState.query || '');
-  const models = Array.isArray(modalState.models) ? modalState.models : [];
-  const selection = modalState.selection instanceof Set ? modalState.selection : new Set();
-  const hasKey = Boolean(connection?.has_key);
-  return `
-    <form id="account-connection-form" class="space-y-4 p-5 sm:p-6">
-      <input type="hidden" name="auth_type" value="${escapeHtml(String(connection?.auth_type || connection?.authType || '').trim().toLowerCase())}">
-      <input type="hidden" name="enabled" value="${connection?.enabled === false ? 'off' : 'on'}">
-      <div class="grid gap-4 sm:grid-cols-2">
-        <label class="block">
-          <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Name</div>
-          <input
-            name="name"
-            value="${escapeHtml(connection?.name || '')}"
-            class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gray-300"
-            placeholder="Personal OpenAI"
-            autocomplete="off"
-            required
-          />
-        </label>
-        <label class="block">
-          <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Provider Type</div>
-          <select
-            name="provider_type"
-            class="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gray-300"
-          >
-            ${PROVIDER_OPTIONS.map((option) => `<option value="${escapeHtml(option.value)}" ${providerType === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
-          </select>
-        </label>
-      </div>
-
-      <div class="grid gap-4 sm:grid-cols-2">
-        <label class="block">
-          <div id="modal-conn-url-label" class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">${resolveUrlLabel(providerType)}</div>
-          <div class="flex items-center gap-2">
-            <input
-              name="base_url"
-              value="${escapeHtml(baseUrl)}"
-              class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gray-300"
-              placeholder="${escapeHtml(adminProviderUrlPlaceholder(providerType))}"
-              autocomplete="off"
-            />
-            <button
-              type="button"
-              data-account-connection-test
-              class="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Test connection"
-              aria-label="Test connection"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-              </svg>
-            </button>
-          </div>
-          <div data-account-connection-test-message class="mt-1 text-[11px] text-gray-500"></div>
-          <div id="modal-conn-url-hint" class="mt-1 text-[11px] text-gray-500">${isCompatibleProviderType(providerType) ? 'Required for compatible providers.' : 'Uses the built-in default if left blank.'}</div>
-        </label>
-        <label class="block">
-          <div id="modal-conn-key-label" class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">API Key *</div>
-          <input
-            name="key"
-            type="password"
-            value=""
-            class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gray-300"
-            placeholder="${hasKey ? 'Leave blank to keep current key' : 'Enter API key'}"
-            autocomplete="new-password"
-          />
-          <div class="mt-1 text-[11px] text-gray-500">${hasKey ? 'A key is already saved. Leave this blank to keep it.' : 'Optional for providers that do not require a key.'}</div>
-        </label>
-      </div>
-
-      <label class="block">
-        <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Headers</div>
-        <textarea
-          name="headers"
-          rows="6"
-          class="w-full rounded-xl border border-gray-200 px-4 py-2.5 font-mono text-xs outline-none focus:ring-1 focus:ring-gray-300"
-          placeholder='{"X-Custom-Header":"value"}'
-        >${escapeHtml(headersValue)}</textarea>
-        <div class="mt-1 text-[11px] text-gray-500">Leave blank to keep existing headers. Use valid JSON when editing them.</div>
-      </label>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div class="space-y-1">
-          <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">API Type</label>
-          <div id="modal-conn-api-type-label" class="text-sm text-gray-900">${apiType.label}</div>
-          <div id="modal-conn-api-type-hint" class="text-[11px] text-gray-500">${apiType.endpoint}</div>
-        </div>
-        <div class="space-y-1">
-          <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Provider</label>
-          <div id="modal-conn-provider-hint" class="text-sm text-gray-900">${adminProviderDisplayLabel(providerType)}</div>
-        </div>
-      </div>
-
-      <div class="space-y-2" id="modal-models-section">
-        <div class="flex items-center justify-between">
-          <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Models</label>
-          <div class="flex items-center gap-2 text-[11px] text-gray-500">
-            <button type="button" id="modal-models-select-all" class="px-2 py-1 rounded-md hover:bg-gray-50">All</button>
-            <button type="button" id="modal-models-select-none" class="px-2 py-1 rounded-md hover:bg-gray-50">None</button>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-400">
-            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
-          </svg>
-          <input id="modal-models-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Search models" value="${escapeHtml(query)}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-        </div>
-        <div class="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2">
-          <input id="modal-manual-model-id" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" placeholder="Add model manually" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-          <button id="modal-manual-model-add" type="button" class="shrink-0 rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white hover:bg-gray-900 transition">Add</button>
-        </div>
-        <div id="modal-models-list" class="rounded-2xl border border-gray-100 bg-white max-h-48 overflow-y-auto scrollbar-hidden text-sm">
-          ${buildModalModelsListMarkup(models, query, selection, Boolean(modalState.loadingModels), modalState.modelsError || '')}
-        </div>
-        <div id="modal-models-status" class="text-[11px] text-gray-500"></div>
-      </div>
-
-      <div data-account-connection-form-error class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
-    </form>
-  `;
-}
-
 function buildListCard(connection, canManageConnections = true) {
   const providerLabel = connection.provider_label || providerDisplayLabel(connection.provider_type);
   const baseUrl = connection.base_url || connection.note || '';
-  const readOnlyText = connection.readOnly
-    ? (connection.readOnlyLabel || 'Shared from admin')
-    : '';
+  const readOnlyText = connection.readOnly ? connection.readOnlyLabel || 'Shared from admin' : '';
   const actionButtonClass = canManageConnections
     ? 'p-1 text-gray-400 hover:text-gray-600 transition-colors'
     : 'p-1 text-gray-300 opacity-50 cursor-not-allowed';
@@ -349,7 +206,7 @@ function buildListCard(connection, canManageConnections = true) {
   `;
 }
 
-function buildAccessibleCard(connection, hiddenForUser = false, canManageConnections = true) {
+function buildAccessibleCard(connection, hiddenForUser = false) {
   const toggleClass = `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${hiddenForUser ? 'bg-gray-200' : 'bg-black'}`;
   return `
     <div data-connection-row="${escapeHtml(connection.id)}" data-id="${escapeHtml(connection.id)}" class="py-2.5 border-b border-gray-50 last:border-0 ${hiddenForUser ? 'opacity-70' : ''}">
@@ -368,26 +225,34 @@ function buildAccessibleCard(connection, hiddenForUser = false, canManageConnect
   `;
 }
 
-export function renderAccountConnectionsSection(container, state = {}, { onRefresh, footerHost, routeCache } = {}) {
-  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, { route: 'account' });
+export function renderAccountConnectionsSection(
+  container,
+  state = {},
+  { onRefresh, routeCache } = {}
+) {
+  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, {
+    route: 'account',
+  });
   const canManageConnections = capabilities.canManageConnections !== false;
   const getConnections = () => {
     const connections = state.settings?.connections || {};
     return {
       personal: Array.isArray(connections.my_connections)
         ? sortResourcesByEnabledThenVisibilityThenLabel(
-          connections.my_connections.map((connection) => normalizePersonalConnection(connection)),
-        )
+            connections.my_connections.map((connection) => normalizePersonalConnection(connection))
+          )
         : [],
       accessible: Array.isArray(connections.connections)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(connections.connections.map((connection) => ({
-          id: String(connection.id || '').trim(),
-          name: String(connection.name || connection.id || '').trim(),
-          note: String(connection.note || connection.base_url || '').trim(),
-          access_label: String(connection.access_label || 'Shared').trim(),
-          hidden_for_user: Boolean(connection.hidden_for_user),
-          visible_for_user: connection.visible_for_user !== false,
-        })))
+        ? sortResourcesByEnabledThenVisibilityThenLabel(
+            connections.connections.map((connection) => ({
+              id: String(connection.id || '').trim(),
+              name: String(connection.name || connection.id || '').trim(),
+              note: String(connection.note || connection.base_url || '').trim(),
+              access_label: String(connection.access_label || 'Shared').trim(),
+              hidden_for_user: Boolean(connection.hidden_for_user),
+              visible_for_user: connection.visible_for_user !== false,
+            }))
+          )
         : [],
     };
   };
@@ -462,19 +327,29 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       id: savedConnection?.id || existingConnection?.id || '',
       name: savedConnection?.name || payload.name || existingConnection?.name || '',
       base_url: savedConnection?.base_url || payload.base_url || existingConnection?.base_url || '',
-      provider_type: savedConnection?.provider_type || payload.provider_type || existingConnection?.provider_type || 'openai-compatible',
-      provider_family: savedConnection?.provider_family || existingConnection?.provider_family || 'openai',
-      auth_type: savedConnection?.auth_type || payload.auth_type || existingConnection?.auth_type || '',
-      enabled: typeof savedConnection?.enabled === 'boolean'
-        ? savedConnection.enabled
-        : (payload.enabled ?? existingConnection?.enabled),
-      manual_models_mode: normalizeConnectionModelSelectionMode(
-        savedConnection?.manual_models_mode
-        || savedConnection?.manualModelsMode
-        || payload.manual_models_mode
-        || payload.manualModelsMode
-        || existingConnection?.manualModelsMode
-      ) || existingConnection?.manualModelsMode || 'all',
+      provider_type:
+        savedConnection?.provider_type ||
+        payload.provider_type ||
+        existingConnection?.provider_type ||
+        'openai-compatible',
+      provider_family:
+        savedConnection?.provider_family || existingConnection?.provider_family || 'openai',
+      auth_type:
+        savedConnection?.auth_type || payload.auth_type || existingConnection?.auth_type || '',
+      enabled:
+        typeof savedConnection?.enabled === 'boolean'
+          ? savedConnection.enabled
+          : (payload.enabled ?? existingConnection?.enabled),
+      manual_models_mode:
+        normalizeConnectionModelSelectionMode(
+          savedConnection?.manual_models_mode ||
+            savedConnection?.manualModelsMode ||
+            payload.manual_models_mode ||
+            payload.manualModelsMode ||
+            existingConnection?.manualModelsMode
+        ) ||
+        existingConnection?.manualModelsMode ||
+        'all',
       headers: savedConnection?.headers || existingConnection?.headers || {},
       key: savedConnection?.key || payload.key || existingConnection?.key || '',
       manual_models: Array.isArray(savedConnection?.manual_models)
@@ -531,23 +406,22 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     }
   };
 
-  const syncFooter = () => {
-    if (!footerHost) return;
-    footerHost.innerHTML = '';
-  };
-
   const openConnectionModal = (connection = null) => {
     if (!canManageConnections) return;
     closeModal();
     const isEdit = Boolean(connection?.id);
     const title = isEdit ? 'Edit Connection' : 'Add Connection';
-    const initialModels = normalizeConnectionManualModels(connection?.manual_models || connection?.manualModels)
-      .map((model) => normalizeModelRecord({
-        id: model.modelId,
-        name: model.name || model.modelId,
-        manual: true,
-        manualModelId: model.modelId,
-      }))
+    const initialModels = normalizeConnectionManualModels(
+      connection?.manual_models || connection?.manualModels
+    )
+      .map((model) =>
+        normalizeModelRecord({
+          id: model.modelId,
+          name: model.name || model.modelId,
+          manual: true,
+          manualModelId: model.modelId,
+        })
+      )
       .filter(Boolean);
     const modalState = {
       models: initialModels,
@@ -555,22 +429,32 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       query: '',
       loadingModels: false,
       modelsError: '',
-      manualModelsMode: normalizeConnectionModelSelectionMode(connection?.manual_models_mode || connection?.manualModelsMode) || (initialModels.length > 0 ? 'some' : 'all'),
+      manualModelsMode:
+        normalizeConnectionModelSelectionMode(
+          connection?.manual_models_mode || connection?.manualModelsMode
+        ) || (initialModels.length > 0 ? 'some' : 'all'),
     };
     const modalMarkup = buildConnectionModalMarkup({
       rootId: 'account-connection-modal',
       title,
       canManage: canManageConnections,
-      connection: connection ? {
-        ...connection,
-        url: String(connection.base_url || connection.baseUrl || connection.url || '').trim(),
-        providerType: String(connection.provider_type || connection.providerType || 'openai').trim().toLowerCase() || 'openai',
-        headers: formatHeadersValue(connection.headers),
-        key: String(connection.key || connection.keyMasked || '').trim(),
-        has_key: Boolean(connection.has_key || String(connection.key || connection.keyMasked || '').trim()),
-        enabled: connection.enabled !== false,
-        manualModelsMode: modalState.manualModelsMode,
-      } : null,
+      connection: connection
+        ? {
+            ...connection,
+            url: String(connection.base_url || connection.baseUrl || connection.url || '').trim(),
+            providerType:
+              String(connection.provider_type || connection.providerType || 'openai')
+                .trim()
+                .toLowerCase() || 'openai',
+            headers: formatHeadersValue(connection.headers),
+            key: String(connection.key || connection.keyMasked || '').trim(),
+            has_key: Boolean(
+              connection.has_key || String(connection.key || connection.keyMasked || '').trim()
+            ),
+            enabled: connection.enabled !== false,
+            manualModelsMode: modalState.manualModelsMode,
+          }
+        : null,
       isVisible: true,
       showAccountHooks: true,
       isEnvConnection: Boolean(connection?.readOnly),
@@ -592,7 +476,9 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     const headersInput = bodyEl?.querySelector('#modal-conn-headers');
     const nameInput = bodyEl?.querySelector('#modal-conn-name');
     const testBtn = bodyEl?.querySelector('[data-account-connection-test], #test-connection');
-    const testMessage = bodyEl?.querySelector('[data-account-connection-test-message], #connection-test-message');
+    const testMessage = bodyEl?.querySelector(
+      '[data-account-connection-test-message], #connection-test-message'
+    );
     const modelsList = bodyEl?.querySelector('#modal-models-list');
     const modelsStatus = bodyEl?.querySelector('#modal-models-status');
     const searchInput = bodyEl?.querySelector('#modal-models-search');
@@ -601,13 +487,18 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     const selectAllBtn = bodyEl?.querySelector('#modal-models-select-all');
     const selectNoneBtn = bodyEl?.querySelector('#modal-models-select-none');
     const saveBtn = modal.querySelector('[data-account-connection-save], #save-modal');
-    const deleteBtn = modal.querySelector('[data-account-connection-delete-modal], #delete-connection');
+    const deleteBtn = modal.querySelector(
+      '[data-account-connection-delete-modal], #delete-connection'
+    );
     const closeBtn = modal.querySelector('#close-modal');
     const toggleKeyBtn = modal.querySelector('#toggle-key-visibility');
 
     const updateToggleLabel = () => {
       if (!toggleKeyBtn || !keyInput) return;
-      toggleKeyBtn.setAttribute('aria-label', keyInput.type === 'password' ? 'Show key' : 'Hide key');
+      toggleKeyBtn.setAttribute(
+        'aria-label',
+        keyInput.type === 'password' ? 'Show key' : 'Hide key'
+      );
       const label = toggleKeyBtn.querySelector('[data-password-toggle-label]');
       if (label) label.textContent = keyInput.type === 'password' ? 'Show' : 'Hide';
     };
@@ -643,14 +534,14 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     const syncProviderUi = () => {
       if (!providerSelect || !baseUrlInput) return;
       const providerType = providerSelect.value;
-      const nextDefault = adminProviderUrlPlaceholder(providerType);
+      const nextDefault = providerUrlPlaceholder(providerType);
       baseUrlInput.placeholder = nextDefault;
       if (isCompatibleProviderType(providerType)) {
         const currentValue = String(baseUrlInput.value || '').trim();
         const knownDefaults = [
-          adminProviderUrlPlaceholder('openai'),
-          adminProviderUrlPlaceholder('google'),
-          adminProviderUrlPlaceholder('anthropic'),
+          providerUrlPlaceholder('openai-compatible'),
+          providerUrlPlaceholder('gemini-compatible'),
+          providerUrlPlaceholder('claude-compatible'),
         ];
         if (!currentValue || knownDefaults.includes(currentValue)) {
           baseUrlInput.value = '';
@@ -676,20 +567,26 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
 
     const renderModels = () => {
       if (!modelsList || !modelsStatus) return;
-      if (!connection?.id && (!Array.isArray(modalState.models) || modalState.models.length === 0)) {
-        modelsList.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Click Verify to load models from this connection.</div>';
+      if (
+        !connection?.id &&
+        (!Array.isArray(modalState.models) || modalState.models.length === 0)
+      ) {
+        modelsList.innerHTML =
+          '<div class="px-4 py-3 text-xs text-gray-400">Click Verify to load models from this connection.</div>';
         modelsStatus.textContent = '';
         if (searchInput) searchInput.value = modalState.query;
         return;
       }
       if (modalState.loadingModels) {
-        modelsList.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
+        modelsList.innerHTML =
+          '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
         modelsStatus.textContent = '';
         if (searchInput) searchInput.value = modalState.query;
         return;
       }
       if (modalState.modelsError) {
-        modelsList.innerHTML = '<div class="px-4 py-3 text-xs text-red-500">Failed to load models.</div>';
+        modelsList.innerHTML =
+          '<div class="px-4 py-3 text-xs text-red-500">Failed to load models.</div>';
         modelsStatus.textContent = modalState.modelsError;
         modelsStatus.classList.add('text-red-500');
         if (searchInput) searchInput.value = modalState.query;
@@ -702,44 +599,36 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
         modalState.query,
         selected,
         false,
-        '',
+        ''
       );
       modelsStatus.classList.remove('text-red-500');
-      modelsStatus.textContent = models.length ? `Models selected in this connection: ${selected.size}` : '';
+      modelsStatus.textContent = models.length
+        ? `Models selected in this connection: ${selected.size}`
+        : '';
       if (searchInput) searchInput.value = modalState.query;
     };
 
-    const updateModalStateModels = (models = []) => {
-      const nextModels = sortModelsByActiveThenName(
-        (Array.isArray(models) ? models : [])
-          .map((model) => normalizeModelRecord(model))
-          .filter(Boolean),
-      );
-      const nextSelection = new Set();
-      nextModels.forEach((model) => {
-        nextSelection.add(model.id);
-      });
-      modalState.models = nextModels;
-      modalState.selection = nextSelection;
-      modalState.modelsError = '';
-      renderModels();
-    };
-
     const buildPayload = () => {
-      const providerType = normalizeProviderType(providerSelect?.value || connection?.provider_type || connection?.providerType || 'openai');
+      const providerType = normalizeProviderType(
+        providerSelect?.value || connection?.provider_type || connection?.providerType || 'openai'
+      );
       const baseUrl = String(baseUrlInput?.value || '').trim();
       const resolvedUrl = isCompatibleProviderType(providerType)
         ? baseUrl
-        : (baseUrl || adminProviderUrlPlaceholder(providerType));
+        : baseUrl || providerUrlPlaceholder(providerType);
       const selectedModels = buildSelectedConnectionModels(
         modalState.models,
         modalState.selection,
-        connection,
+        connection
       );
-      const existingMode = normalizeConnectionModelSelectionMode(connection?.manual_models_mode || connection?.manualModelsMode) || 'all';
-      const manualModelsMode = Array.isArray(modalState.models) && modalState.models.length > 0
-        ? resolveConnectionModelSelectionMode(modalState.models, modalState.selection)
-        : existingMode;
+      const existingMode =
+        normalizeConnectionModelSelectionMode(
+          connection?.manual_models_mode || connection?.manualModelsMode
+        ) || 'all';
+      const manualModelsMode =
+        Array.isArray(modalState.models) && modalState.models.length > 0
+          ? resolveConnectionModelSelectionMode(modalState.models, modalState.selection)
+          : existingMode;
       const payload = {
         id: isEdit ? String(connection?.id || '').trim() : undefined,
         name: String(nameInput?.value || '').trim(),
@@ -747,7 +636,9 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
         base_url: resolvedUrl,
         key: String(keyInput?.value || '').trim(),
         headers: String(headersInput?.value || '').trim(),
-        auth_type: String(connection?.auth_type || connection?.authType || '').trim().toLowerCase(),
+        auth_type: String(connection?.auth_type || connection?.authType || '')
+          .trim()
+          .toLowerCase(),
         enabled: connection?.enabled !== false,
         manual_models: selectedModels,
         manual_models_mode: manualModelsMode,
@@ -762,29 +653,37 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     const testConnection = async () => {
       const payload = buildPayload();
       if (!payload.name) throw new Error('Name is required');
-      if (isCompatibleProviderType(payload.provider_type) && !payload.base_url) throw new Error('Connection URL is required');
+      if (isCompatibleProviderType(payload.provider_type) && !payload.base_url)
+        throw new Error('Connection URL is required');
       setTestMessage('Testing connection...', 'testing');
       modalState.loadingModels = true;
       renderModels();
       try {
         const result = await testUserConnection(payload);
         const discovered = Array.isArray(result?.models)
-          ? result.models.map((model) => normalizeModelRecord({
-            id: model.id,
-            name: model.name || model.id,
-            manual: false,
-          })).filter(Boolean)
+          ? result.models
+              .map((model) =>
+                normalizeModelRecord({
+                  id: model.id,
+                  name: model.name || model.id,
+                  manual: false,
+                })
+              )
+              .filter(Boolean)
           : [];
         const preview = previewConnectionModalModels(
           modalState.models,
           modalState.selection,
           discovered,
-          { ...connection, manualModelsMode: modalState.manualModelsMode },
+          { ...connection, manualModelsMode: modalState.manualModelsMode }
         );
         modalState.models = preview.models;
         modalState.selection = preview.selection;
         modalState.modelsError = '';
-        setTestMessage(result?.message || `Connection successful. ${discovered.length} models loaded.`, 'success');
+        setTestMessage(
+          result?.message || `Connection successful. ${discovered.length} models loaded.`,
+          'success'
+        );
       } catch (err) {
         modalState.modelsError = err?.message || 'Failed to test connection';
         setTestMessage(err?.message || 'Failed to test connection', 'error');
@@ -830,9 +729,12 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       setSaving(true);
       try {
         const { payload, result } = await saveConnection();
-        const savedConnection = result?.connection || result?.saved_connection || result?.data?.connection || null;
+        const savedConnection =
+          result?.connection || result?.saved_connection || result?.data?.connection || null;
         if (savedConnection || isEdit) {
-          upsertPersonalConnection(mergeSavedConnection(payload, savedConnection, isEdit ? connection : null));
+          upsertPersonalConnection(
+            mergeSavedConnection(payload, savedConnection, isEdit ? connection : null)
+          );
         }
         broadcastConnectionsInvalidation();
         broadcastModelsInvalidation();
@@ -846,7 +748,12 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
 
     deleteBtn?.addEventListener('click', async () => {
       if (viewState.saving || !isEdit) return;
-      if (!window.confirm(`Delete connection ${connection.name || connection.id}? This cannot be undone.`)) return;
+      if (
+        !window.confirm(
+          `Delete connection ${connection.name || connection.id}? This cannot be undone.`
+        )
+      )
+        return;
       setError('');
       setSaving(true);
       try {
@@ -947,7 +854,12 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
     deleteConnection: async (connectionId) => {
       const connection = viewState.personal.find((item) => item.id === connectionId);
       if (!connection) return;
-      if (!window.confirm(`Delete connection ${connection.name || connection.id}? This cannot be undone.`)) return;
+      if (
+        !window.confirm(
+          `Delete connection ${connection.name || connection.id}? This cannot be undone.`
+        )
+      )
+        return;
       showPageError('');
       try {
         await deleteUserConnection(connection.id);
@@ -962,14 +874,30 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
   };
 
   const render = () => {
-    const hiddenConnections = new Set(normalizeUserResourceOverrides(state.settings?.preferences).connections.hidden_ids || []);
-    const sortedPersonalConnections = sortResourcesByEnabledThenVisibilityThenLabel(viewState.personal);
-    const sortedAccessibleConnections = sortResourcesByEnabledThenVisibilityThenLabel(viewState.accessible);
+    const hiddenConnections = new Set(
+      normalizeUserResourceOverrides(state.settings?.preferences).connections.hidden_ids || []
+    );
+    const sortedPersonalConnections = sortResourcesByEnabledThenVisibilityThenLabel(
+      viewState.personal
+    );
+    const sortedAccessibleConnections = sortResourcesByEnabledThenVisibilityThenLabel(
+      viewState.accessible
+    );
     const personalMarkup = sortedPersonalConnections.length
-      ? sortedPersonalConnections.map((connection) => buildListCard(connection, canManageConnections)).join('')
+      ? sortedPersonalConnections
+          .map((connection) => buildListCard(connection, canManageConnections))
+          .join('')
       : '';
     const accessibleMarkup = sortedAccessibleConnections.length
-      ? sortedAccessibleConnections.map((connection) => buildAccessibleCard(connection, hiddenConnections.has(connection.id), canManageConnections)).join('')
+      ? sortedAccessibleConnections
+          .map((connection) =>
+            buildAccessibleCard(
+              connection,
+              hiddenConnections.has(connection.id),
+              canManageConnections
+            )
+          )
+          .join('')
       : '';
 
     container.innerHTML = `
@@ -1017,15 +945,21 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
       </div>
     `;
 
-    container.querySelector('[data-action="add-connection"], #add-connection, [data-account-connection-add]')?.addEventListener('click', () => {
-      if (!canManageConnections) return;
-      openConnectionModal(null);
-    });
+    container
+      .querySelector(
+        '[data-action="add-connection"], #add-connection, [data-account-connection-add]'
+      )
+      ?.addEventListener('click', () => {
+        if (!canManageConnections) return;
+        openConnectionModal(null);
+      });
 
     container.querySelectorAll('[data-list-action="edit"]').forEach((button) => {
       button.addEventListener('click', () => {
         if (!canManageConnections) return;
-        const connectionId = button.dataset.accountConnectionEdit || button.closest('[data-connection-row]')?.dataset.id;
+        const connectionId =
+          button.dataset.accountConnectionEdit ||
+          button.closest('[data-connection-row]')?.dataset.id;
         const connection = viewState.personal.find((item) => item.id === connectionId);
         if (connection) {
           openConnectionModal(connection);
@@ -1041,15 +975,26 @@ export function renderAccountConnectionsSection(container, state = {}, { onRefre
           const connection = viewState.accessible.find((item) => item.id === id);
           if (!connection) return;
           const previousPreferences = clonePreferences(state.settings?.preferences || {});
-          const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'connections', id);
-          const nextPreferences = setResourceVisibility(state.settings?.preferences || {}, 'connections', id, currentHidden);
+          const currentHidden = isResourceHidden(
+            state.settings?.preferences || {},
+            'connections',
+            id
+          );
+          const nextPreferences = setResourceVisibility(
+            state.settings?.preferences || {},
+            'connections',
+            id,
+            currentHidden
+          );
           state.settings = {
             ...(state.settings || {}),
             preferences: nextPreferences,
           };
           viewState.error = '';
           render();
-          void persistPreferences({ rollback: { preferences: previousPreferences } });
+          void persistPreferences({
+            rollback: { preferences: previousPreferences },
+          });
           return;
         }
         if (!canManageConnections) return;

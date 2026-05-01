@@ -32,6 +32,9 @@ export function applyStreamingAssistantText({
   }
 
   if (state.activeChatId === chatId) {
-    updateMessageContentDom(messageId, assistantText, { isError: errorActive, isStreaming: streaming });
+    updateMessageContentDom(messageId, assistantText, {
+      isError: errorActive,
+      isStreaming: streaming,
+    });
   }
 }

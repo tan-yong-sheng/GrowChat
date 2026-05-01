@@ -17,15 +17,17 @@ export function renderWorkspaceVerticalTabs({
 } = {}) {
   return `
     <div id="${escapeHtml(id)}" class="${className}">
-      ${items.map((item) => {
-        const active = Boolean(item.active);
-        return `
+      ${items
+        .map((item) => {
+          const active = Boolean(item.active);
+          return `
           <a href="${escapeHtml(item.href)}" data-subnav="${escapeHtml(item.key)}" class="${itemClassName} ${active ? activeClassName : inactiveClassName}">
             ${item.icon || ''}
             <span class="whitespace-nowrap">${escapeHtml(item.label)}</span>
           </a>
         `;
-      }).join('')}
+        })
+        .join('')}
     </div>
   `;
 }

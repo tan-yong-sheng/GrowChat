@@ -97,16 +97,18 @@ describe('authRouter', () => {
     queryResponses.countUsers = [{ count: 0 }];
     queryResponses.appConfig = [null];
     queryResponses.existingUser = [null];
-    queryResponses.userById = [{
-      id: 'u1',
-      email: 'user@example.com',
-      name: 'User',
-      role: 'admin',
-      account_status: 'active',
-      settings: '{}',
-      created_at: 1,
-      updated_at: 1,
-    }];
+    queryResponses.userById = [
+      {
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        role: 'admin',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
 
     const res = await authRouter(
       makeReq('/api/auth/register', 'POST', {
@@ -129,8 +131,11 @@ describe('authRouter', () => {
     expect(body.refresh_token).toBe('refresh-token');
     expect(body.expires_in).toBe(900);
     expect(
-      mocks.db.run.mock.calls.some(([sql, params]) =>
-        String(sql).includes('INSERT INTO users') && Array.isArray(params) && params[4] === 'active'
+      mocks.db.run.mock.calls.some(
+        ([sql, params]) =>
+          String(sql).includes('INSERT INTO users') &&
+          Array.isArray(params) &&
+          params[4] === 'active'
       )
     ).toBe(true);
   });
@@ -140,16 +145,18 @@ describe('authRouter', () => {
     queryResponses.countUsers = [{ count: 1 }, { count: 2 }];
     queryResponses.appConfig = [null];
     queryResponses.existingUser = [null];
-    queryResponses.userById = [{
-      id: 'u2',
-      email: 'pending@example.com',
-      name: 'Pending User',
-      role: 'member',
-      account_status: 'pending',
-      settings: '{}',
-      created_at: 1,
-      updated_at: 1,
-    }];
+    queryResponses.userById = [
+      {
+        id: 'u2',
+        email: 'pending@example.com',
+        name: 'Pending User',
+        role: 'member',
+        account_status: 'pending',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
 
     const res = await authRouter(
       makeReq('/api/auth/register', 'POST', {
@@ -202,27 +209,31 @@ describe('authRouter', () => {
 
   it('logs in user with valid credentials', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
-    queryResponses.loginUser = [{
-      id: 'u1',
-      email: 'user@example.com',
-      name: 'User',
-      role: 'member',
-      account_status: 'active',
-      password_hash: 'stored-hash',
-      settings: '{}',
-      created_at: 1,
-      updated_at: 1,
-    }];
-    queryResponses.userById = [{
-      id: 'u1',
-      email: 'user@example.com',
-      name: 'User',
-      role: 'member',
-      password_hash: 'stored-hash',
-      settings: '{}',
-      created_at: 1,
-      updated_at: 1,
-    }];
+    queryResponses.loginUser = [
+      {
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        role: 'member',
+        account_status: 'active',
+        password_hash: 'stored-hash',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
+    queryResponses.userById = [
+      {
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        role: 'member',
+        password_hash: 'stored-hash',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
 
     const res = await authRouter(
       makeReq('/api/auth/login', 'POST', {
@@ -245,17 +256,19 @@ describe('authRouter', () => {
 
   it('rejects pending users from logging in', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
-    queryResponses.loginUser = [{
-      id: 'u1',
-      email: 'user@example.com',
-      name: 'User',
-      role: 'member',
-      account_status: 'pending',
-      password_hash: 'stored-hash',
-      settings: '{}',
-      created_at: 1,
-      updated_at: 1,
-    }];
+    queryResponses.loginUser = [
+      {
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        role: 'member',
+        account_status: 'pending',
+        password_hash: 'stored-hash',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
     mocks.verifyPassword.mockResolvedValueOnce(true);
 
     const res = await authRouter(
@@ -279,17 +292,19 @@ describe('authRouter', () => {
 
   it('returns generic 401 when login password is wrong', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
-    queryResponses.loginUser = [{
-      id: 'u1',
-      email: 'user@example.com',
-      name: 'User',
-      role: 'member',
-      account_status: 'active',
-      password_hash: 'stored-hash',
-      settings: '{}',
-      created_at: 1,
-      updated_at: 1,
-    }];
+    queryResponses.loginUser = [
+      {
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        role: 'member',
+        account_status: 'active',
+        password_hash: 'stored-hash',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
     mocks.verifyPassword.mockResolvedValueOnce(false);
 
     const res = await authRouter(
@@ -310,25 +325,28 @@ describe('authRouter', () => {
   it('refreshes tokens when refresh token is valid', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     mocks.consumeRefreshToken.mockResolvedValueOnce({ userId: 'u1', expiresAt: 1_700_000_000 });
-    queryResponses.userById = [{
-      id: 'u1',
-      email: 'user@example.com',
-      name: 'User',
-      role: 'member',
-      account_status: 'active',
-      settings: '{}',
-      created_at: 1,
-      updated_at: 1,
-    }, {
-      id: 'u1',
-      email: 'user@example.com',
-      name: 'User',
-      role: 'member',
-      account_status: 'active',
-      settings: '{}',
-      created_at: 1,
-      updated_at: 1,
-    }];
+    queryResponses.userById = [
+      {
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        role: 'member',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+      {
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        role: 'member',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
 
     const res = await authRouter(
       makeReq('/api/auth/refresh', 'POST', { refresh_token: 'valid' }),
@@ -380,15 +398,17 @@ describe('authRouter', () => {
   it('fails auth endpoints when JWT_SECRET is missing', async () => {
     const env = { DB: {}, JWT_SECRET: '' };
 
-    await expect(authRouter(
-      makeReq('/api/auth/login', 'POST', {
-        email: 'user@example.com',
-        password: 'password123',
-      }),
-      env,
-      {},
-      null,
-      '/api/auth/login'
-    )).rejects.toThrow('JWT_SECRET environment variable is required for non-localhost deployments');
+    await expect(
+      authRouter(
+        makeReq('/api/auth/login', 'POST', {
+          email: 'user@example.com',
+          password: 'password123',
+        }),
+        env,
+        {},
+        null,
+        '/api/auth/login'
+      )
+    ).rejects.toThrow('JWT_SECRET environment variable is required for non-localhost deployments');
   });
 });

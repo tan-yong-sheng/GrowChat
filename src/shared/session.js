@@ -13,7 +13,10 @@ export async function sha256Hex(input) {
 
 export function generateOpaqueToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
 }
 
 export async function createRefreshToken(env, userId) {
@@ -24,16 +27,10 @@ export async function createRefreshToken(env, userId) {
   // Two-key pattern prevents concurrent token reuse:
   // refresh:{hash} — the "gate" key, deleted on consume (prevents reuse)
   // refresh-data:{hash} — session data, read-only after gate is gone
-  await env.SESSIONS.put(
-    `refresh:${tokenHash}`,
-    '1',
-    { expirationTtl: REFRESH_TTL_SECONDS }
-  );
-  await env.SESSIONS.put(
-    `refresh-data:${tokenHash}`,
-    JSON.stringify({ userId, expiresAt }),
-    { expirationTtl: REFRESH_TTL_SECONDS }
-  );
+  await env.SESSIONS.put(`refresh:${tokenHash}`, '1', { expirationTtl: REFRESH_TTL_SECONDS });
+  await env.SESSIONS.put(`refresh-data:${tokenHash}`, JSON.stringify({ userId, expiresAt }), {
+    expirationTtl: REFRESH_TTL_SECONDS,
+  });
 
   return {
     token,

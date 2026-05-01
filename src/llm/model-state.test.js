@@ -3,11 +3,9 @@ import { countEnabledModels, sortModelsByActiveThenName } from './model-state.js
 
 describe('model-state utils', () => {
   it('counts enabled models', () => {
-    expect(countEnabledModels([
-      { id: 'a', enabled: true },
-      { id: 'b', enabled: false },
-      { id: 'c' },
-    ])).toBe(2);
+    expect(
+      countEnabledModels([{ id: 'a', enabled: true }, { id: 'b', enabled: false }, { id: 'c' }])
+    ).toBe(2);
   });
 
   it('sorts enabled models before disabled ones and alphabetically within each group', () => {

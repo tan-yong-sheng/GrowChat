@@ -26,25 +26,28 @@ export function renderStatusBadge({
  */
 export function renderDataTable({
   columns = [], // [{ key, label, width }]
-  rows = [],    // [{ id, ...data }]
-  onRowClick = null,
-  onRowAction = null,
+  rows = [], // [{ id, ...data }]
   actions = [], // [{ label, key, className }]
 } = {}) {
   const headerHtml = columns
-    .map(col => `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">${col.label}</th>`)
+    .map(
+      (col) =>
+        `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">${col.label}</th>`
+    )
     .join('');
 
   const rowsHtml = rows
-    .map(row => {
+    .map((row) => {
       const cellsHtml = columns
-        .map(col => `<td class="px-4 py-3 text-sm text-gray-900">${row[col.key] || ''}</td>`)
+        .map((col) => `<td class="px-4 py-3 text-sm text-gray-900">${row[col.key] || ''}</td>`)
         .join('');
 
       const actionsHtml = actions.length
         ? `<td class="px-4 py-3 text-right">
             <div class="flex items-center justify-end gap-2">
-              ${actions.map(action => `
+              ${actions
+                .map(
+                  (action) => `
                 <button
                   type="button"
                   data-row-action="${action.key}"
@@ -53,7 +56,9 @@ export function renderDataTable({
                 >
                   ${action.label}
                 </button>
-              `).join('')}
+              `
+                )
+                .join('')}
             </div>
           </td>`
         : '';
@@ -91,7 +96,7 @@ export function renderListItemCard({
   title = '',
   subtitle = '',
   details = [], // [{ label, value }]
-  badges = [],  // [{ text, tone }]
+  badges = [], // [{ text, tone }]
   actions = [], // [{ label, key, className }]
 } = {}) {
   return `
@@ -100,18 +105,26 @@ export function renderListItemCard({
         <div class="flex-1 min-w-0">
           <div class="flex flex-wrap items-center gap-2 mb-1">
             <div class="text-sm font-semibold text-gray-900 truncate">${title}</div>
-            ${badges.map(badge => renderStatusBadge(badge)).join('')}
+            ${badges.map((badge) => renderStatusBadge(badge)).join('')}
           </div>
           ${subtitle ? `<div class="text-xs text-gray-500 mb-2">${subtitle}</div>` : ''}
-          ${details.length ? `
+          ${
+            details.length
+              ? `
             <div class="text-xs text-gray-500 space-y-1">
-              ${details.map(d => `<div>${d.label}: <span class="text-gray-700">${d.value}</span></div>`).join('')}
+              ${details.map((d) => `<div>${d.label}: <span class="text-gray-700">${d.value}</span></div>`).join('')}
             </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
-        ${actions.length ? `
+        ${
+          actions.length
+            ? `
           <div class="flex items-center gap-2 flex-shrink-0">
-            ${actions.map(action => `
+            ${actions
+              .map(
+                (action) => `
               <button
                 type="button"
                 data-list-action="${action.key}"
@@ -119,9 +132,13 @@ export function renderListItemCard({
               >
                 ${action.label}
               </button>
-            `).join('')}
+            `
+              )
+              .join('')}
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     </div>
   `;

@@ -1,16 +1,17 @@
 import { apiFetch } from '../../../shared/api.js';
 import { setState } from '../../../shared/store.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
-import {
-  createGeneralSettingsState,
-  getGeneralSettingsToggleState,
-} from './general-helpers.js';
+import { createGeneralSettingsState, getGeneralSettingsToggleState } from './general-helpers.js';
 
 export function renderGeneralSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'general';
-  const settingsState = data.generalSettings || (data.generalSettings = createGeneralSettingsState());
+  const settingsState =
+    data.generalSettings || (data.generalSettings = createGeneralSettingsState());
 
-  if (data.modelsSettingsInvalidate && settingsState.modelsInvalidateToken !== data.modelsSettingsInvalidate) {
+  if (
+    data.modelsSettingsInvalidate &&
+    settingsState.modelsInvalidateToken !== data.modelsSettingsInvalidate
+  ) {
     settingsState.modelsInvalidateToken = data.modelsSettingsInvalidate;
     settingsState.models = [];
   }
@@ -32,7 +33,9 @@ export function renderGeneralSettings(container, data) {
   const updatePublicRegToggle = () => {
     const regToggle = container.querySelector('#public-reg-toggle');
     if (!regToggle) return;
-    const toggleState = getGeneralSettingsToggleState(settingsState.currentValues.publicRegistration);
+    const toggleState = getGeneralSettingsToggleState(
+      settingsState.currentValues.publicRegistration
+    );
     regToggle.setAttribute('aria-pressed', toggleState.ariaPressed);
     regToggle.classList.toggle('bg-black', toggleState.isOn);
     regToggle.classList.toggle('bg-gray-200', !toggleState.isOn);
@@ -64,7 +67,9 @@ export function renderGeneralSettings(container, data) {
 
   const render = () => {
     if (!isActiveTab()) return;
-    const toggleState = getGeneralSettingsToggleState(settingsState.currentValues.publicRegistration);
+    const toggleState = getGeneralSettingsToggleState(
+      settingsState.currentValues.publicRegistration
+    );
 
     container.innerHTML = `
         <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
@@ -99,10 +104,14 @@ export function renderGeneralSettings(container, data) {
 
               <div id="registration-status-wrap" class="py-2.5 ${toggleState.isOn ? '' : 'hidden'}">
                 <div class="text-xs font-medium mb-1">Registration Status</div>
-                ${renderSelectBox('registration-status', `
+                ${renderSelectBox(
+                  'registration-status',
+                  `
                   <option value="active" ${settingsState.currentValues.registrationStatus === 'active' ? 'selected' : ''}>Active</option>
                   <option value="pending" ${settingsState.currentValues.registrationStatus !== 'active' ? 'selected' : ''}>Pending</option>
-                `, { ariaLabel: 'Registration Status' })}
+                `,
+                  { ariaLabel: 'Registration Status' }
+                )}
                 <div id="registration-status-hint" class="text-[10px] text-gray-700 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
               </div>
             </section>
@@ -113,10 +122,14 @@ export function renderGeneralSettings(container, data) {
 
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">Global Default Model</div>
-                ${renderSelectBox('default-model', `
+                ${renderSelectBox(
+                  'default-model',
+                  `
                   <option value="">Select a model</option>
                   ${settingsState.models.map((m) => `<option value="${m.id}" ${settingsState.currentValues.defaultModelId === m.id ? 'selected' : ''}>${m.name || m.id}</option>`).join('')}
-                `, { ariaLabel: 'Global Default Model' })}
+                `,
+                  { ariaLabel: 'Global Default Model' }
+                )}
               </div>
             </section>
 
@@ -137,7 +150,7 @@ export function renderGeneralSettings(container, data) {
     try {
       const res = await apiFetch('/api/admin/config', {
         method: 'PUT',
-        body: JSON.stringify({ public_registration: newValue })
+        body: JSON.stringify({ public_registration: newValue }),
       });
 
       if (!res.ok) {
@@ -162,7 +175,7 @@ export function renderGeneralSettings(container, data) {
     try {
       const res = await apiFetch('/api/admin/config', {
         method: 'PUT',
-        body: JSON.stringify({ public_registration_status: newValue })
+        body: JSON.stringify({ public_registration_status: newValue }),
       });
 
       if (!res.ok) {
@@ -187,7 +200,7 @@ export function renderGeneralSettings(container, data) {
     try {
       const res = await apiFetch('/api/admin/config', {
         method: 'PUT',
-        body: JSON.stringify({ default_model_id: newValue || null })
+        body: JSON.stringify({ default_model_id: newValue || null }),
       });
 
       if (!res.ok) {
@@ -209,8 +222,11 @@ export function renderGeneralSettings(container, data) {
   const updateModelAndRegistrationHighlight = () => {
     const registrationStatusSelect = container.querySelector('#registration-status');
     const modelSelect = container.querySelector('#default-model');
-    const modelDirty = settingsState.currentValues.defaultModelId !== settingsState.initialValues.defaultModelId;
-    const registrationStatusDirty = settingsState.currentValues.registrationStatus !== settingsState.initialValues.registrationStatus;
+    const modelDirty =
+      settingsState.currentValues.defaultModelId !== settingsState.initialValues.defaultModelId;
+    const registrationStatusDirty =
+      settingsState.currentValues.registrationStatus !==
+      settingsState.initialValues.registrationStatus;
 
     if (registrationStatusSelect) {
       registrationStatusSelect.classList.toggle('bg-amber-50', registrationStatusDirty);
@@ -279,7 +295,9 @@ export function renderGeneralSettings(container, data) {
         settingsState.currentValues.publicRegistration = next;
         settingsState.initialValues.publicRegistration = next;
 
-        const registrationStatusRaw = String(payload?.public_registration_status || 'pending').trim().toLowerCase();
+        const registrationStatusRaw = String(payload?.public_registration_status || 'pending')
+          .trim()
+          .toLowerCase();
         const registrationStatus = registrationStatusRaw === 'active' ? 'active' : 'pending';
         settingsState.currentValues.registrationStatus = registrationStatus;
         settingsState.initialValues.registrationStatus = registrationStatus;

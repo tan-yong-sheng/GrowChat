@@ -1,12 +1,16 @@
 import { escapeHtml, escapeSelector } from '../utils/dom-escape.js';
 
-const DEFAULT_OUTER_CLASS = 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4 pointer-events-none';
-const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-black/25 backdrop-blur-sm transition-opacity pointer-events-none';
-const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto';
+const DEFAULT_OUTER_CLASS =
+  'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4 pointer-events-none';
+const DEFAULT_OVERLAY_CLASS =
+  'absolute inset-0 bg-black/25 backdrop-blur-sm transition-opacity pointer-events-none';
+const DEFAULT_SHELL_CLASS =
+  'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto';
 const DEFAULT_HEADER_CLASS = 'shrink-0';
 const DEFAULT_BODY_CLASS = 'overflow-y-auto flex-1 min-h-0';
 const DEFAULT_FOOTER_CLASS = 'shrink-0';
-const DEFAULT_CLOSE_CLASS = 'inline-flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white';
+const DEFAULT_CLOSE_CLASS =
+  'inline-flex h-11 w-11 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
 export function buildViewportModalShellMarkup({
   rootId = 'modal-root',
@@ -29,7 +33,9 @@ export function buildViewportModalShellMarkup({
   rootAttrs = '',
   zIndex = 100,
 } = {}) {
-  const headerMarkup = header || `
+  const headerMarkup =
+    header ||
+    `
     <div class="flex items-start justify-between gap-4 p-4 sm:p-5 border-b border-gray-100">
       <div class="flex flex-col min-w-0">
         ${title ? `<h2 class="text-xl font-bold text-gray-800 truncate" id="${escapeHtml(ariaLabelledBy)}">${escapeHtml(title)}</h2>` : ''}

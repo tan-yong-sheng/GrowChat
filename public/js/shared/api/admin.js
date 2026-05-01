@@ -45,7 +45,13 @@ export async function fetchAdminGroups() {
   return readJsonResponse(res, `Failed to fetch groups (${res.status})`);
 }
 
-export async function fetchAdminModels({ limit = 200, offset = 0, query = '', includeDisabled = true, provider = '' } = {}) {
+export async function fetchAdminModels({
+  limit = 200,
+  offset = 0,
+  query = '',
+  includeDisabled = true,
+  provider = '',
+} = {}) {
   const params = new URLSearchParams();
   params.set('limit', String(limit));
   params.set('offset', String(offset));

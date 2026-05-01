@@ -55,7 +55,9 @@ export function parseHeadersForRequest(input) {
 }
 
 export function normalizeBaseUrl(url) {
-  return String(url || '').trim().replace(/\/$/, '');
+  return String(url || '')
+    .trim()
+    .replace(/\/$/, '');
 }
 
 export function normalizeModelId(value) {
@@ -124,7 +126,9 @@ function normalizeTool(tool = {}) {
 }
 
 function applyToolVisibility(server, hiddenTools = new Set()) {
-  const hiddenToolIds = new Set(Array.isArray(hiddenTools) ? hiddenTools : hiddenTools instanceof Set ? hiddenTools : []);
+  const hiddenToolIds = new Set(
+    Array.isArray(hiddenTools) ? hiddenTools : hiddenTools instanceof Set ? hiddenTools : []
+  );
   const tools = Array.isArray(server?.tools) ? server.tools : [];
   return {
     ...server,
@@ -148,7 +152,11 @@ export function mergeToolSpecs(existingTools, incomingTools) {
       .map((tool) => [tool.name, tool])
   );
 
-  const source = Array.isArray(incomingTools) ? incomingTools : (Array.isArray(existingTools) ? existingTools : []);
+  const source = Array.isArray(incomingTools)
+    ? incomingTools
+    : Array.isArray(existingTools)
+      ? existingTools
+      : [];
   return source
     .map((tool) => {
       const normalized = normalizeTool(tool);
@@ -184,8 +192,12 @@ export async function loadToolServers(db, options = {}) {
 
     let userGroupIds = new Set();
     try {
-      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [userId]);
-      userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
+      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [
+        userId,
+      ]);
+      userGroupIds = new Set(
+        (Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean)
+      );
     } catch {
       userGroupIds = new Set();
     }
@@ -207,19 +219,21 @@ export async function loadToolServers(db, options = {}) {
           rules: aclIndex.get(server.id) || [],
         });
         const hiddenForUser = hiddenServerIds.has(String(server.id || '').trim());
-        const hiddenTools = new Set(hiddenToolIdsByServer?.[String(server.id || '').trim()]?.hidden_ids || []);
-        return applyToolVisibility({
-          ...server,
-          access_label: access.access_label,
-          access_variant: access.access_variant,
-          allowed: access.allowed,
-          visible_for_user: !hiddenForUser,
-          hidden_for_user: hiddenForUser,
-        }, hiddenTools);
+        const hiddenTools = new Set(
+          hiddenToolIdsByServer?.[String(server.id || '').trim()]?.hidden_ids || []
+        );
+        return applyToolVisibility(
+          {
+            ...server,
+            access_label: access.access_label,
+            access_variant: access.access_variant,
+            visible_for_user: !hiddenForUser,
+            hidden_for_user: hiddenForUser,
+          },
+          hiddenTools
+        );
       })
-      .filter((server) => server.allowed)
-      .filter((server) => includeHiddenForUser || server.visible_for_user)
-      .map(({ allowed, ...server }) => server);
+      .filter((server) => includeHiddenForUser || server.visible_for_user);
 
     return [...adminServers, ...userServers];
   } catch {
@@ -244,7 +258,9 @@ async function ensureUserToolServersTable(db) {
       UNIQUE(user_id, id)
     )`
   );
-  await db.run('CREATE INDEX IF NOT EXISTS idx_user_tool_servers_user_id ON user_tool_servers(user_id)');
+  await db.run(
+    'CREATE INDEX IF NOT EXISTS idx_user_tool_servers_user_id ON user_tool_servers(user_id)'
+  );
 }
 
 function parseToolServerJson(raw) {
@@ -282,11 +298,16 @@ export async function loadUserToolServers(db, userId) {
     [userId]
   );
   return (Array.isArray(rows) ? rows : [])
-    .map((row) => normalizeUserToolServerRecord({
-      ...(parseToolServerJson(row.server_json) || {}),
-      id: row.id,
-      user_id: row.user_id,
-    }, row.user_id))
+    .map((row) =>
+      normalizeUserToolServerRecord(
+        {
+          ...(parseToolServerJson(row.server_json) || {}),
+          id: row.id,
+          user_id: row.user_id,
+        },
+        row.user_id
+      )
+    )
     .filter(Boolean);
 }
 
@@ -300,11 +321,14 @@ export async function getUserToolServer(db, userId, serverId) {
     [userId, serverId]
   );
   if (!row) return null;
-  return normalizeUserToolServerRecord({
-    ...(parseToolServerJson(row.server_json) || {}),
-    id: row.id,
-    user_id: row.user_id,
-  }, row.user_id);
+  return normalizeUserToolServerRecord(
+    {
+      ...(parseToolServerJson(row.server_json) || {}),
+      id: row.id,
+      user_id: row.user_id,
+    },
+    row.user_id
+  );
 }
 
 export async function createUserToolServer(db, userId, server = {}) {
@@ -418,15 +442,19 @@ export async function testToolServerConnection(server, options = {}) {
 
   const tools = Array.isArray(toolsResult.result?.tools) ? toolsResult.result.tools : [];
   return {
-    tools: tools.map((tool) => ({
-      name: String(tool?.name || '').trim(),
-      title: String(tool?.title || '').trim(),
-      description: String(tool?.description || '').trim(),
-      parameters:
-        tool?.inputSchema && typeof tool.inputSchema === 'object'
-          ? tool.inputSchema
-          : (tool?.parameters && typeof tool.parameters === 'object' ? tool.parameters : {}),
-    })).filter((tool) => tool.name),
+    tools: tools
+      .map((tool) => ({
+        name: String(tool?.name || '').trim(),
+        title: String(tool?.title || '').trim(),
+        description: String(tool?.description || '').trim(),
+        parameters:
+          tool?.inputSchema && typeof tool.inputSchema === 'object'
+            ? tool.inputSchema
+            : tool?.parameters && typeof tool.parameters === 'object'
+              ? tool.parameters
+              : {},
+      }))
+      .filter((tool) => tool.name),
     sessionId,
   };
 }
@@ -446,7 +474,7 @@ export function normalizeTokenAuthMethod(value) {
 }
 
 export function redactToolServer(server) {
-  const { oauth_tokens, oauth_state, oauth_code_verifier, ...rest } = server || {};
+  const { oauth_tokens, ...rest } = server || {};
   return {
     ...rest,
     oauth_connected: Boolean(oauth_tokens?.access_token),
@@ -466,7 +494,9 @@ export function mergeToolServer(existing, incoming) {
         parameters:
           tool?.parameters && typeof tool.parameters === 'object'
             ? tool.parameters
-            : (tool?.inputSchema && typeof tool.inputSchema === 'object' ? tool.inputSchema : undefined),
+            : tool?.inputSchema && typeof tool.inputSchema === 'object'
+              ? tool.inputSchema
+              : undefined,
         enabled: tool?.enabled !== false,
       }))
       .filter((tool) => tool.name);
@@ -479,20 +509,40 @@ export function mergeToolServer(existing, incoming) {
     headers: String(incoming.headers || existing?.headers || '').trim(),
     enabled: incoming.enabled !== false,
     auth_type: authType,
-    auth_bearer_token: String(incoming.auth_bearer_token || existing?.auth_bearer_token || '').trim(),
-    auth_basic_username: String(incoming.auth_basic_username || existing?.auth_basic_username || '').trim(),
-    auth_basic_password: String(incoming.auth_basic_password || existing?.auth_basic_password || '').trim(),
-    oauth_client_name: String(incoming.oauth_client_name || existing?.oauth_client_name || '').trim(),
+    auth_bearer_token: String(
+      incoming.auth_bearer_token || existing?.auth_bearer_token || ''
+    ).trim(),
+    auth_basic_username: String(
+      incoming.auth_basic_username || existing?.auth_basic_username || ''
+    ).trim(),
+    auth_basic_password: String(
+      incoming.auth_basic_password || existing?.auth_basic_password || ''
+    ).trim(),
+    oauth_client_name: String(
+      incoming.oauth_client_name || existing?.oauth_client_name || ''
+    ).trim(),
     oauth_scope: String(incoming.oauth_scope || existing?.oauth_scope || '').trim(),
     oauth_client_id: String(incoming.oauth_client_id || existing?.oauth_client_id || '').trim(),
-    oauth_client_secret: String(incoming.oauth_client_secret || existing?.oauth_client_secret || '').trim(),
-    oauth_token_auth_method: normalizeTokenAuthMethod(incoming.oauth_token_auth_method || existing?.oauth_token_auth_method) || '',
-    oauth_authorization_server: String(incoming.oauth_authorization_server || existing?.oauth_authorization_server || '').trim(),
-    oauth_token_endpoint: String(incoming.oauth_token_endpoint || existing?.oauth_token_endpoint || '').trim(),
-    oauth_registration_endpoint: String(incoming.oauth_registration_endpoint || existing?.oauth_registration_endpoint || '').trim(),
-    tools: incoming.tools === undefined
-      ? mergeToolSpecs(existing?.tools, existing?.tools)
-      : normalizeTools(incoming.tools),
+    oauth_client_secret: String(
+      incoming.oauth_client_secret || existing?.oauth_client_secret || ''
+    ).trim(),
+    oauth_token_auth_method:
+      normalizeTokenAuthMethod(
+        incoming.oauth_token_auth_method || existing?.oauth_token_auth_method
+      ) || '',
+    oauth_authorization_server: String(
+      incoming.oauth_authorization_server || existing?.oauth_authorization_server || ''
+    ).trim(),
+    oauth_token_endpoint: String(
+      incoming.oauth_token_endpoint || existing?.oauth_token_endpoint || ''
+    ).trim(),
+    oauth_registration_endpoint: String(
+      incoming.oauth_registration_endpoint || existing?.oauth_registration_endpoint || ''
+    ).trim(),
+    tools:
+      incoming.tools === undefined
+        ? mergeToolSpecs(existing?.tools, existing?.tools)
+        : normalizeTools(incoming.tools),
     tools_error: incoming.tools_error || existing?.tools_error || '',
     tools_verified_at: incoming.tools_verified_at || existing?.tools_verified_at || null,
   };
@@ -532,7 +582,9 @@ export async function discoverAuthorizationMetadata(authorizationServerUrl) {
 
   for (const candidate of candidates) {
     try {
-      const res = await fetch(candidate, { headers: { 'MCP-Protocol-Version': MCP_PROTOCOL_VERSION } });
+      const res = await fetch(candidate, {
+        headers: { 'MCP-Protocol-Version': MCP_PROTOCOL_VERSION },
+      });
       if (!res.ok) continue;
       return await res.json();
     } catch {
@@ -543,7 +595,14 @@ export async function discoverAuthorizationMetadata(authorizationServerUrl) {
   return null;
 }
 
-export function buildAuthorizationUrl({ authorizationEndpoint, clientId, redirectUri, scope, state, codeChallenge }) {
+export function buildAuthorizationUrl({
+  authorizationEndpoint,
+  clientId,
+  redirectUri,
+  scope,
+  state,
+  codeChallenge,
+}) {
   const url = new URL(authorizationEndpoint);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', clientId);

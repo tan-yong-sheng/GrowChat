@@ -16,7 +16,9 @@ export function renderSectionHeader({
           <h1 class="text-xl font-medium text-gray-900">${title}</h1>
           ${subtitle ? `<div class="text-sm text-gray-500">${subtitle}</div>` : ''}
         </div>
-        ${actionButton ? `
+        ${
+          actionButton
+            ? `
           <button
             type="button"
             ${actionButton.key ? `data-action="${actionButton.key}"` : ''}
@@ -29,7 +31,9 @@ export function renderSectionHeader({
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
           </button>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     </div>
   `;
@@ -38,11 +42,7 @@ export function renderSectionHeader({
 /**
  * Renders a subsection with label and description
  */
-export function renderSubsection({
-  label = '',
-  description = '',
-  content = '',
-} = {}) {
+export function renderSubsection({ label = '', description = '', content = '' } = {}) {
   return `
     <section class="space-y-1">
       ${label ? `<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">${label}</div>` : ''}
@@ -81,14 +81,13 @@ export function renderSettingsPageLayout({
 /**
  * Renders an error message banner
  */
-export function renderErrorBanner({
-  message = '',
-  dismissible = true,
-} = {}) {
+export function renderErrorBanner({ message = '', dismissible = true } = {}) {
   return `
     <div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3">
       <span>${message}</span>
-      ${dismissible ? `
+      ${
+        dismissible
+          ? `
         <button
           type="button"
           data-dismiss-error
@@ -99,7 +98,9 @@ export function renderErrorBanner({
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
         </button>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
   `;
 }
@@ -107,14 +108,13 @@ export function renderErrorBanner({
 /**
  * Renders a success message banner
  */
-export function renderSuccessBanner({
-  message = '',
-  dismissible = true,
-} = {}) {
+export function renderSuccessBanner({ message = '', dismissible = true } = {}) {
   return `
     <div data-success-banner class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center justify-between gap-3">
       <span>${message}</span>
-      ${dismissible ? `
+      ${
+        dismissible
+          ? `
         <button
           type="button"
           data-dismiss-success
@@ -125,7 +125,9 @@ export function renderSuccessBanner({
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
         </button>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
   `;
 }

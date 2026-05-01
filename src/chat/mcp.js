@@ -1,13 +1,8 @@
-import {
-  MCP_PROTOCOL_VERSION,
-  buildMcpHeaders,
-  mcpNotify,
-  mcpRequest,
-  parseSseMessages,
-} from '../mcp/client.js';
+import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../mcp/client.js';
 
 export { loadToolServers } from '../admin/tool-servers.js';
-export { MCP_PROTOCOL_VERSION, buildMcpHeaders, mcpNotify, mcpRequest, parseSseMessages } from '../mcp/client.js';
+export { buildMcpHeaders, parseSseMessages } from '../mcp/client.js';
+export { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../mcp/client.js';
 
 export function normalizeHeadersInput(input) {
   if (!input) return {};
@@ -15,7 +10,9 @@ export function normalizeHeadersInput(input) {
   try {
     const parsed = JSON.parse(String(input));
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-  } catch { }
+  } catch {
+    // ignore invalid JSON
+  }
   return {};
 }
 

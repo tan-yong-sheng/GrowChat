@@ -179,7 +179,9 @@ export class SseLineParser {
     };
 
     const normalizeFinishReason = (raw) => {
-      const value = String(raw || '').trim().toLowerCase();
+      const value = String(raw || '')
+        .trim()
+        .toLowerCase();
       if (!value) return null;
       if (this._hasToolCalls) return 'tool_calls';
       if (value.includes('tool')) return 'tool_calls';
@@ -201,8 +203,9 @@ export class SseLineParser {
       if (Array.isArray(parts)) {
         for (const part of parts) {
           if (!part?.functionCall) continue;
-          const id = `google_tool_${this._googleToolCallIndex += 1}`;
-          const thoughtSignature = part?.thoughtSignature != null ? String(part.thoughtSignature) : undefined;
+          const id = `google_tool_${(this._googleToolCallIndex += 1)}`;
+          const thoughtSignature =
+            part?.thoughtSignature != null ? String(part.thoughtSignature) : undefined;
           googleToolCalls.push({
             index: googleToolCalls.length,
             id,
@@ -210,16 +213,19 @@ export class SseLineParser {
               name: String(part.functionCall.name || ''),
               arguments: JSON.stringify(part.functionCall.args ?? {}),
             },
-            ...(thoughtSignature ? {
-              providerMetadata: {
-                google: { thoughtSignature },
-              },
-            } : {}),
+            ...(thoughtSignature
+              ? {
+                  providerMetadata: {
+                    google: { thoughtSignature },
+                  },
+                }
+              : {}),
           });
         }
       }
       emitToolCalls(googleToolCalls);
-      const finishReason = parsed?.candidates?.[0]?.finishReason || parsed?.candidates?.[0]?.finish_reason;
+      const finishReason =
+        parsed?.candidates?.[0]?.finishReason || parsed?.candidates?.[0]?.finish_reason;
       if (finishReason) {
         this._emit({ type: 'finish_reason', reason: normalizeFinishReason(finishReason) });
       }
@@ -235,9 +241,8 @@ export class SseLineParser {
           id: String(block.id || `anthropic_tool_${index}`),
           function: {
             name: String(block.name || ''),
-            arguments: typeof block.input === 'string'
-              ? block.input
-              : JSON.stringify(block.input ?? {}),
+            arguments:
+              typeof block.input === 'string' ? block.input : JSON.stringify(block.input ?? {}),
           },
         };
         this._anthropicToolCalls.set(index, toolCall);
@@ -257,25 +262,34 @@ export class SseLineParser {
         };
         existing.function.arguments = `${existing.function.arguments || ''}${String(delta.partial_json || '')}`;
         this._anthropicToolCalls.set(index, existing);
-        emitToolCalls([{
-          index: existing.index,
-          id: existing.id,
-          function: {
-            arguments: String(delta.partial_json || ''),
+        emitToolCalls([
+          {
+            index: existing.index,
+            id: existing.id,
+            function: {
+              arguments: String(delta.partial_json || ''),
+            },
           },
-        }]);
+        ]);
         return text;
       }
     }
 
-    if (parsed?.type === 'content_block_delta' || parsed?.type === 'message_delta' || parsed?.type === 'message_stop') {
+    if (
+      parsed?.type === 'content_block_delta' ||
+      parsed?.type === 'message_delta' ||
+      parsed?.type === 'message_stop'
+    ) {
       const anthropicText = extractTextFromAnthropic(parsed);
       if (anthropicText) {
         this._emitTextDelta(anthropicText);
         text += anthropicText;
       }
       if (parsed?.type === 'message_delta' && parsed?.delta?.stop_reason) {
-        this._emit({ type: 'finish_reason', reason: normalizeFinishReason(parsed.delta.stop_reason) });
+        this._emit({
+          type: 'finish_reason',
+          reason: normalizeFinishReason(parsed.delta.stop_reason),
+        });
       }
       if (parsed?.type === 'message_stop') {
         this._emit({ type: 'finish_reason', reason: normalizeFinishReason('stop') });
@@ -286,10 +300,7 @@ export class SseLineParser {
     const delta = parsed?.choices?.[0]?.delta || {};
     const finishReason = parsed?.choices?.[0]?.finish_reason;
     const reasoningField =
-      delta.reasoning ??
-      delta.thinking ??
-      delta.reasoning_content ??
-      delta.reasoningContent;
+      delta.reasoning ?? delta.thinking ?? delta.reasoning_content ?? delta.reasoningContent;
     if (reasoningField) {
       const reasoningDelta = String(reasoningField);
       this._emitReasoningDelta(reasoningDelta);
@@ -297,10 +308,7 @@ export class SseLineParser {
 
     const contentField = parsed?.response ?? delta.content;
     const messageContent = parsed?.choices?.[0]?.message?.content;
-    let resolvedContent =
-      contentField ??
-      messageContent ??
-      parsed?.choices?.[0]?.text;
+    let resolvedContent = contentField ?? messageContent ?? parsed?.choices?.[0]?.text;
     if (
       !resolvedContent &&
       delta &&

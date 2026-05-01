@@ -6,7 +6,7 @@ export function renderWorkspaceShell({
   return `
     <div class="${shellClass}">
       ${sidebarHtml}
-      <main id="main" class="flex-1 flex flex-col min-w-0">
+      <main id="main" class="flex-1 flex flex-col min-w-0 overflow-y-auto">
         ${mainHtml}
       </main>
     </div>

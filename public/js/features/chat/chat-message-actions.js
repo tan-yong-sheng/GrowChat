@@ -43,8 +43,6 @@ export function bindChatMessageActions({
   thinkingDurationByMessageId,
   thinkingActiveByMessageId,
   toolCallsByMessageId,
-  toolExpandedByKey,
-  thinkingCollapsedByKey,
   messageBlocksById,
 }) {
   if (!messagesList) return;
@@ -157,7 +155,9 @@ export function bindChatMessageActions({
     btn.addEventListener('click', async () => {
       const originalId = btn.getAttribute('data-message-id');
       let id = originalId;
-      const textarea = messagesList.querySelector(`.edit-message-textarea[data-message-id="${originalId}"]`);
+      const textarea = messagesList.querySelector(
+        `.edit-message-textarea[data-message-id="${originalId}"]`
+      );
       const newContent = textarea?.value.trim() || '';
       if (isTempMessageId(id)) {
         const resolved = await waitForResolvedMessageId(state.activeChatId, id);
@@ -169,7 +169,9 @@ export function bindChatMessageActions({
       }
       if (!newContent) return;
 
-      const sourceMsg = getMessageById(chatId, originalId) || projectedMessages.find((msg) => String(msg.id) === String(originalId));
+      const sourceMsg =
+        getMessageById(chatId, originalId) ||
+        projectedMessages.find((msg) => String(msg.id) === String(originalId));
 
       try {
         const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/branch`, {
@@ -194,7 +196,8 @@ export function bindChatMessageActions({
           await loadMessages(chatId);
         } else {
           const err = await res.json().catch(() => ({}));
-          const message = err?.details?.message || err.error || err.message || 'Failed to copy message';
+          const message =
+            err?.details?.message || err.error || err.message || 'Failed to copy message';
           alert(message);
         }
       } catch (e) {
@@ -207,11 +210,15 @@ export function bindChatMessageActions({
   messagesList.querySelectorAll('.save-edit-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const originalId = btn.getAttribute('data-message-id');
-      const textarea = messagesList.querySelector(`.edit-message-textarea[data-message-id="${originalId}"]`);
+      const textarea = messagesList.querySelector(
+        `.edit-message-textarea[data-message-id="${originalId}"]`
+      );
       const newContent = textarea?.value.trim() || '';
       if (!newContent) return;
 
-      const sourceMsg = getMessageById(chatId, originalId) || projectedMessages.find((msg) => String(msg.id) === String(originalId));
+      const sourceMsg =
+        getMessageById(chatId, originalId) ||
+        projectedMessages.find((msg) => String(msg.id) === String(originalId));
       if (!sourceMsg) return;
 
       if (sourceMsg?.role === 'assistant') {
@@ -252,7 +259,9 @@ export function bindChatMessageActions({
 
       const branchParentId = sourceMsg?.parent_id || null;
       const sourceAttachments = Array.isArray(sourceMsg?.attachments) ? sourceMsg.attachments : [];
-      const attachmentIds = Array.from(new Set(sourceAttachments.map((item) => item?.id).filter(Boolean)));
+      const attachmentIds = Array.from(
+        new Set(sourceAttachments.map((item) => item?.id).filter(Boolean))
+      );
 
       const newEditing = { ...state.ui.editingMessages };
       delete newEditing[originalId];
@@ -314,7 +323,9 @@ export function bindChatMessageActions({
           });
 
           const currentMessages = [...(state.messagesByChat[chatId] || [])];
-          const targetIdx = currentMessages.findIndex((m) => String(m.id) === String(assistantMessageId));
+          const targetIdx = currentMessages.findIndex(
+            (m) => String(m.id) === String(assistantMessageId)
+          );
           if (targetIdx >= 0) {
             currentMessages[targetIdx] = {
               ...currentMessages[targetIdx],
@@ -327,7 +338,10 @@ export function bindChatMessageActions({
             }));
           }
           if (state.activeChatId === chatId) {
-            updateMessageContentDom(assistantMessageId, assistantText, { isError: errorActive, isStreaming: streaming });
+            updateMessageContentDom(assistantMessageId, assistantText, {
+              isError: errorActive,
+              isStreaming: streaming,
+            });
           }
         }
 
@@ -390,7 +404,10 @@ export function bindChatMessageActions({
                 thinkingActiveByMessageId.delete(String(assistantMessageId));
               }
               if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-                const targetId = resolveTempMessageId(chatId, payload?.message_id || assistantMessageId);
+                const targetId = resolveTempMessageId(
+                  chatId,
+                  payload?.message_id || assistantMessageId
+                );
                 updateToolCallState(toolCallsByMessageId, messageBlocksById, targetId, payload);
                 applyAssistantText();
               }
@@ -539,4 +556,3 @@ export function bindChatMessageActions({
     });
   });
 }
-

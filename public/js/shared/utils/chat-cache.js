@@ -1,4 +1,10 @@
-export function touchAttachmentCache(cache, key, url, maxEntries = 48, revokeFn = (value) => URL.revokeObjectURL(value)) {
+export function touchAttachmentCache(
+  cache,
+  key,
+  url,
+  maxEntries = 48,
+  revokeFn = (value) => URL.revokeObjectURL(value)
+) {
   if (!key || !cache) return;
   if (cache.has(key)) {
     cache.delete(key);
@@ -14,7 +20,11 @@ export function touchAttachmentCache(cache, key, url, maxEntries = 48, revokeFn 
   }
 }
 
-export function clearAttachmentCache(cache, promiseCache, revokeFn = (value) => URL.revokeObjectURL(value)) {
+export function clearAttachmentCache(
+  cache,
+  promiseCache,
+  revokeFn = (value) => URL.revokeObjectURL(value)
+) {
   if (cache) {
     cache.forEach((url) => {
       if (url) revokeFn(url);

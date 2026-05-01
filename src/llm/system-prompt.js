@@ -22,11 +22,19 @@ export function buildMetadataSystemPrompt({
   const safeModel = String(model || '').trim() || 'unknown';
   const safeProviderFamily = String(providerFamily || '').trim() || 'unknown';
   const resolvedTimeZone =
-    String(timeZone || (typeof Intl !== 'undefined' && Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone : '') || '')
-      .trim() || 'UTC';
+    String(
+      timeZone ||
+        (typeof Intl !== 'undefined' && Intl.DateTimeFormat
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : '') ||
+        ''
+    ).trim() || 'UTC';
   const runtimePlatform =
-    String(platform || (typeof process !== 'undefined' && process?.platform ? process.platform : '') || '').trim() ||
-    'unknown';
+    String(
+      platform ||
+        (typeof process !== 'undefined' && process?.platform ? process.platform : '') ||
+        ''
+    ).trim() || 'unknown';
 
   return [
     `You are powered by the model named ${safeModel}.`,

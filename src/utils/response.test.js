@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { json, error, preflight, sseHeaders, sseData, jsonCached, createWeakEtag } from './response.js';
+import {
+  json,
+  error,
+  preflight,
+  sseHeaders,
+  sseData,
+  jsonCached,
+  createWeakEtag,
+} from './response.js';
 import { ValidationError } from '../errors/http-errors.js';
 
 describe('response.js - HTTP Response Helpers', () => {
@@ -115,7 +123,11 @@ describe('response.js - HTTP Response Helpers', () => {
       const response = error(mockRequest, new ValidationError('Bad input', { field: 'name' }));
       const body = await response.json();
       expect(response.status).toBe(400);
-      expect(body).toMatchObject({ error: 'validation_error', message: 'Bad input', details: { field: 'name' } });
+      expect(body).toMatchObject({
+        error: 'validation_error',
+        message: 'Bad input',
+        details: { field: 'name' },
+      });
     });
 
     it('should exclude details when not provided', async () => {
@@ -169,7 +181,9 @@ describe('response.js - HTTP Response Helpers', () => {
       mockRequest.headers.set('Origin', 'https://example.com');
       const response = preflight(mockRequest);
 
-      expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET,POST,PUT,DELETE,OPTIONS');
+      expect(response.headers.get('Access-Control-Allow-Methods')).toBe(
+        'GET,POST,PUT,DELETE,OPTIONS'
+      );
       expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Content-Type');
       expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
       expect(response.headers.get('Access-Control-Max-Age')).toBe('86400');
@@ -274,10 +288,7 @@ describe('response.js - HTTP Response Helpers', () => {
 
     it('should handle JSON serialization of nested structures', () => {
       const payload = {
-        choices: [
-          { delta: { content: 'token1' } },
-          { delta: { content: 'token2' } },
-        ],
+        choices: [{ delta: { content: 'token1' } }, { delta: { content: 'token2' } }],
       };
       const result = sseData(payload);
 
@@ -287,11 +298,7 @@ describe('response.js - HTTP Response Helpers', () => {
     });
 
     it('should maintain double newline terminator', () => {
-      const results = [
-        sseData('test1'),
-        sseData({ key: 'value' }),
-        sseData(''),
-      ];
+      const results = [sseData('test1'), sseData({ key: 'value' }), sseData('')];
 
       results.forEach((result) => {
         expect(result).toMatch(/\n\n$/);
@@ -303,11 +310,15 @@ describe('response.js - HTTP Response Helpers', () => {
     it('returns cached 304 response when If-None-Match matches', async () => {
       const etag = createWeakEtag('payload');
       mockRequest.headers.set('If-None-Match', etag);
-      const response = jsonCached(mockRequest, { ok: true }, {
-        etag,
-        cacheControl: 'private, max-age=30',
-        vary: 'Authorization',
-      });
+      const response = jsonCached(
+        mockRequest,
+        { ok: true },
+        {
+          etag,
+          cacheControl: 'private, max-age=30',
+          vary: 'Authorization',
+        }
+      );
 
       expect(response.status).toBe(304);
       expect(response.headers.get('ETag')).toBe(etag);
@@ -318,10 +329,14 @@ describe('response.js - HTTP Response Helpers', () => {
 
     it('returns JSON payload when cache is stale', async () => {
       const etag = createWeakEtag('payload');
-      const response = jsonCached(mockRequest, { ok: true }, {
-        etag,
-        cacheControl: 'private, max-age=30',
-      });
+      const response = jsonCached(
+        mockRequest,
+        { ok: true },
+        {
+          etag,
+          cacheControl: 'private, max-age=30',
+        }
+      );
 
       expect(response.status).toBe(200);
       expect(response.headers.get('ETag')).toBe(etag);
@@ -332,11 +347,15 @@ describe('response.js - HTTP Response Helpers', () => {
     it('merges Vary headers with Origin', () => {
       const etag = createWeakEtag('payload');
       mockRequest.headers.set('Origin', 'https://example.com');
-      const response = jsonCached(mockRequest, { ok: true }, {
-        etag,
-        cacheControl: 'private, max-age=30',
-        vary: 'Authorization',
-      });
+      const response = jsonCached(
+        mockRequest,
+        { ok: true },
+        {
+          etag,
+          cacheControl: 'private, max-age=30',
+          vary: 'Authorization',
+        }
+      );
 
       const vary = response.headers.get('Vary');
       expect(vary).toContain('Origin');

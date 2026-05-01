@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  applyModalModelPreview,
-} from './connections-helpers.js';
+import { applyModalModelPreview } from './connections-helpers.js';
 
 function createModalState(connection) {
   return {
@@ -38,5 +36,4 @@ describe('connections modal model helpers', () => {
       'google/conn-123:gemini-2.0-flash',
     ]);
   });
-
 });

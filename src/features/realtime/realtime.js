@@ -4,9 +4,12 @@ const INTERNAL_REALTIME_ORIGIN = 'https://growchat-realtime.internal';
 const MAX_SESSION_ID_LENGTH = 200;
 
 function sanitizeSessionId(value) {
-  return String(value || '')
-    .trim()
-    .replace(/[\x00-\x1F\x7F]/g, '')
+  return Array.from(String(value || '').trim())
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code > 31 && code !== 127;
+    })
+    .join('')
     .slice(0, MAX_SESSION_ID_LENGTH);
 }
 
@@ -19,12 +22,18 @@ function getRealtimeStub(env, userId) {
 export function getOriginSessionId(req) {
   const url = new URL(req.url);
   return sanitizeSessionId(
-    req.headers.get('x-client-session-id')
-      || url.searchParams.get('client_session_id')
+    req.headers.get('x-client-session-id') || url.searchParams.get('client_session_id')
   );
 }
 
-export function createRealtimeEvent({ type, userId, chatId = null, messageId = null, originSessionId = '', data = null }) {
+export function createRealtimeEvent({
+  type,
+  userId,
+  chatId = null,
+  messageId = null,
+  originSessionId = '',
+  data = null,
+}) {
   return {
     type: String(type || '').trim(),
     user_id: String(userId || '').trim(),
@@ -32,7 +41,7 @@ export function createRealtimeEvent({ type, userId, chatId = null, messageId = n
     message_id: messageId ? String(messageId) : null,
     origin_session_id: sanitizeSessionId(originSessionId),
     ts: Date.now(),
-    data: data && typeof data === 'object' ? data : data ?? null,
+    data: data && typeof data === 'object' ? data : (data ?? null),
   };
 }
 
@@ -45,10 +54,11 @@ function normalizeRealtimeEvent(event) {
     type,
     user_id: userId,
     chat_id: input.chat_id || input.chatId ? String(input.chat_id || input.chatId) : null,
-    message_id: input.message_id || input.messageId ? String(input.message_id || input.messageId) : null,
+    message_id:
+      input.message_id || input.messageId ? String(input.message_id || input.messageId) : null,
     origin_session_id: sanitizeSessionId(input.origin_session_id || input.originSessionId),
     ts: Number(input.ts || Date.now()),
-    data: input.data && typeof input.data === 'object' ? input.data : input.data ?? null,
+    data: input.data && typeof input.data === 'object' ? input.data : (input.data ?? null),
   };
 }
 
@@ -88,7 +98,7 @@ export async function publishRealtimeEvent(env, event) {
     });
 
     return response.ok;
-  } catch (err) {
+  } catch {
     return false;
   }
 }

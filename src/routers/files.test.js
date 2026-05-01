@@ -60,7 +60,10 @@ describe('filesRouter', () => {
     mocks.authorize.mockResolvedValue({ allow: true, code: 'ok' });
     mocks.db.run.mockResolvedValue({ success: true });
     mocks.db.first.mockResolvedValue({ id: 'd1', user_id: 'u1', r2_key: 'r2-key' });
-    mocks.uploadFileToR2.mockResolvedValue({ r2Key: 'r2-key', r2Url: 'https://example.invalid/r2-key' });
+    mocks.uploadFileToR2.mockResolvedValue({
+      r2Key: 'r2-key',
+      r2Url: 'https://example.invalid/r2-key',
+    });
     mocks.storeFileMetadata.mockResolvedValue('d1');
     mocks.deleteDocument.mockResolvedValue(true);
     mocks.logAuditEvent.mockResolvedValue(undefined);
@@ -68,7 +71,10 @@ describe('filesRouter', () => {
 
   it('allows file upload when file.upload is granted', async () => {
     const formData = new FormData();
-    formData.append('file', new File([JSON.stringify({ ok: true })], 'sample.json', { type: 'application/json' }));
+    formData.append(
+      'file',
+      new File([JSON.stringify({ ok: true })], 'sample.json', { type: 'application/json' })
+    );
 
     const req = makeReq('/api/files/upload', 'POST', formData);
 
@@ -85,12 +91,23 @@ describe('filesRouter', () => {
   it('denies file delete when file.delete is missing', async () => {
     mocks.authorize.mockImplementation(async (_env, _user, options = {}) => {
       if (options.action === 'file.delete') {
-        return { allow: false, code: 'forbidden', reason: 'missing_permission', action: 'file.delete' };
+        return {
+          allow: false,
+          code: 'forbidden',
+          reason: 'missing_permission',
+          action: 'file.delete',
+        };
       }
       return { allow: true, code: 'ok', action: options.action };
     });
 
-    const res = await filesRouter(makeReq('/api/files/d1', 'DELETE'), { DB: {}, FILES: {} }, {}, user, '/api/files/d1');
+    const res = await filesRouter(
+      makeReq('/api/files/d1', 'DELETE'),
+      { DB: {}, FILES: {} },
+      {},
+      user,
+      '/api/files/d1'
+    );
 
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toMatchObject({ error: 'missing_permission' });

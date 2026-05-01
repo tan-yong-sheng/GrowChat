@@ -4,9 +4,9 @@ import { apiFetch } from '../api.js';
 export function renderChatControlsPanel(container) {
   const updateUI = () => {
     const preferences = state.userProfile?.preferences || {
-        temperature: 0.7,
-        top_p: 1.0,
-        max_tokens: 2048
+      temperature: 0.7,
+      top_p: 1.0,
+      max_tokens: 2048,
     };
 
     container.innerHTML = `
@@ -39,7 +39,7 @@ export function renderChatControlsPanel(container) {
           <div class="control-group">
             <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Default Model</label>
             <select class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" data-setting="default_model">
-              ${(state.models || []).map(m => `<option value="${m.id}" ${state.activeModelId === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
+              ${(state.models || []).map((m) => `<option value="${m.id}" ${state.activeModelId === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -50,46 +50,46 @@ export function renderChatControlsPanel(container) {
       </div>
     `;
 
-    container.querySelectorAll('input[type="range"], select').forEach(input => {
+    container.querySelectorAll('input[type="range"], select').forEach((input) => {
       input.addEventListener('change', async (e) => {
         const setting = e.target.dataset.setting;
         const value = e.target.type === 'range' ? parseFloat(e.target.value) : e.target.value;
-        
-        const updates = { 
-            preferences: { 
-                ...(state.userProfile?.preferences || {}),
-                [setting]: value 
-            } 
+
+        const updates = {
+          preferences: {
+            ...(state.userProfile?.preferences || {}),
+            [setting]: value,
+          },
         };
-        
+
         try {
-            await apiFetch('/api/users/me', {
-                method: 'PUT',
-                body: JSON.stringify(updates)
-            });
-            // Update local state
-            const newUserProfile = { ...state.userProfile, ...updates };
-            setState({ userProfile: newUserProfile });
-            updateUI();
+          await apiFetch('/api/users/me', {
+            method: 'PUT',
+            body: JSON.stringify(updates),
+          });
+          // Update local state
+          const newUserProfile = { ...state.userProfile, ...updates };
+          setState({ userProfile: newUserProfile });
+          updateUI();
         } catch (err) {
-            console.error('Failed to update preference:', err);
+          console.error('Failed to update preference:', err);
         }
       });
     });
 
     container.querySelector('.reset-defaults').addEventListener('click', async () => {
-        const defaults = {
-            preferences: {
-                temperature: 0.7,
-                top_p: 1.0,
-                max_tokens: 2048
-            }
-        };
-        await apiFetch('/api/users/me', {
-            method: 'PUT',
-            body: JSON.stringify(defaults)
-        });
-        window.location.reload();
+      const defaults = {
+        preferences: {
+          temperature: 0.7,
+          top_p: 1.0,
+          max_tokens: 2048,
+        },
+      };
+      await apiFetch('/api/users/me', {
+        method: 'PUT',
+        body: JSON.stringify(defaults),
+      });
+      window.location.reload();
     });
   };
 

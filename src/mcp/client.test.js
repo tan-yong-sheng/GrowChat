@@ -16,16 +16,18 @@ describe('mcp-client', () => {
   });
 
   it('parses JSON MCP responses', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
-      JSON.stringify({ id: 1, result: { ok: true } }),
-      {
-        status: 200,
-        headers: {
-          'content-type': 'application/json',
-          'mcp-session-id': 'sess-2',
-        },
-      }
-    )));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ id: 1, result: { ok: true } }), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'mcp-session-id': 'sess-2',
+          },
+        })
+      )
+    );
 
     const result = await mcpRequest({
       url: 'https://example.invalid',
@@ -39,12 +41,17 @@ describe('mcp-client', () => {
   });
 
   it('accepts notification responses with no content', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, {
-      status: 204,
-      headers: {
-        'mcp-session-id': 'sess-3',
-      },
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(null, {
+          status: 204,
+          headers: {
+            'mcp-session-id': 'sess-3',
+          },
+        })
+      )
+    );
 
     const result = await mcpNotify({
       url: 'https://example.invalid',

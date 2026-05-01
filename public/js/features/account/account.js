@@ -3,11 +3,12 @@ import { ensureMarkedReady } from '../../shared/utils.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
 import { renderSettingsDrawerShell } from '../../shared/components/settings-drawer-shell.js';
 import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
-import { renderWorkspaceSidebar, wireWorkspaceSidebar } from '../../shared/components/workspace-sidebar.js';
-import { buildWorkspaceTopNavConfig } from '../../shared/components/workspace-top-nav-config.js';
 import {
-  renderWorkspaceTopNav,
-} from '../../shared/components/settings-top-nav.js';
+  renderWorkspaceSidebar,
+  wireWorkspaceSidebar,
+} from '../../shared/components/workspace-sidebar.js';
+import { buildWorkspaceTopNavConfig } from '../../shared/components/workspace-top-nav-config.js';
+import { renderWorkspaceTopNav } from '../../shared/components/settings-top-nav.js';
 import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-vertical-tabs.js';
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
@@ -26,19 +27,22 @@ async function loadAccountSectionRenderer(section) {
   }
 
   if (normalized === 'connections') {
-    accountSectionRenderers.connections = import('./account-connections.js')
-      .then(({ renderAccountConnectionsSection }) => renderAccountConnectionsSection);
+    accountSectionRenderers.connections = import('./account-connections.js').then(
+      ({ renderAccountConnectionsSection }) => renderAccountConnectionsSection
+    );
     return accountSectionRenderers.connections;
   }
 
   if (normalized === 'models') {
-    accountSectionRenderers.models = import('./account-models.js')
-      .then(({ renderAccountModelsSection }) => renderAccountModelsSection);
+    accountSectionRenderers.models = import('./account-models.js').then(
+      ({ renderAccountModelsSection }) => renderAccountModelsSection
+    );
     return accountSectionRenderers.models;
   }
 
-  accountSectionRenderers.integrations = import('./account-integrations.js')
-    .then(({ renderAccountIntegrationsSection }) => renderAccountIntegrationsSection);
+  accountSectionRenderers.integrations = import('./account-integrations.js').then(
+    ({ renderAccountIntegrationsSection }) => renderAccountIntegrationsSection
+  );
   return accountSectionRenderers.integrations;
 }
 
@@ -51,7 +55,12 @@ function normalizeAccountSection(section) {
 }
 
 export function resolveAccountSectionFromPath(pathname) {
-  if (pathname === '/account' || pathname === '/account/' || pathname === '/account/profile' || pathname.startsWith('/account/profile/')) {
+  if (
+    pathname === '/account' ||
+    pathname === '/account/' ||
+    pathname === '/account/profile' ||
+    pathname.startsWith('/account/profile/')
+  ) {
     return 'connections';
   }
   if (pathname.startsWith('/account/settings/connections')) return 'connections';
@@ -80,19 +89,6 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
-}
-
-function formatSectionLabel(section) {
-  switch (section) {
-    case 'connections':
-      return 'Connections';
-    case 'models':
-      return 'Models';
-    case 'integrations':
-      return 'Integrations';
-    default:
-      return 'Overview';
-  }
 }
 
 async function loadAccountState() {
@@ -150,22 +146,6 @@ function getAccountNavItems(section) {
       active: activeSection === 'integrations',
     },
   ];
-}
-
-function renderReadOnlySection(title, items = [], emptyText = 'Nothing to show yet.') {
-  return `
-    <section class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">${escapeHtml(title)}</div>
-      <div class="mt-3 space-y-2">
-        ${items.length ? items.map((item) => `
-          <div class="rounded-xl border border-gray-100 px-3 py-2">
-            <div class="font-medium text-gray-900">${escapeHtml(item.name || item.id)}</div>
-            <div class="text-xs text-gray-500">${escapeHtml(item.note || item.url || '')}</div>
-          </div>
-        `).join('') : `<div class="text-sm text-gray-500">${escapeHtml(emptyText)}</div>`}
-      </div>
-    </section>
-  `;
 }
 
 async function renderAccountSection({
@@ -240,7 +220,9 @@ export async function renderAccountPage(container) {
   let accountState = null;
 
   const loadCurrentState = async () => {
-    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
+    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), {
+      route: 'account',
+    });
     return accountState;
   };
 
@@ -289,7 +271,10 @@ export async function renderAccountPage(container) {
     `,
   });
 
-  container.insertAdjacentHTML('beforeend', '<div id="search-modal-container"></div><div id="files-modal-container"></div>');
+  container.insertAdjacentHTML(
+    'beforeend',
+    '<div id="search-modal-container"></div><div id="files-modal-container"></div>'
+  );
 
   wireWorkspaceSidebar(container, {
     navigateHome: async () => {
@@ -358,7 +343,9 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   let footerHost = null;
 
   const loadCurrentState = async () => {
-    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
+    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), {
+      route: 'account',
+    });
     return accountState;
   };
 
@@ -405,7 +392,9 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
     footerHost = mount.querySelector('#account-drawer-footer');
 
     drawer?.querySelector('#account-settings-drawer-close')?.addEventListener('click', closeDrawer);
-    drawer?.querySelector('#account-settings-drawer-overlay')?.addEventListener('click', closeDrawer);
+    drawer
+      ?.querySelector('#account-settings-drawer-overlay')
+      ?.addEventListener('click', closeDrawer);
     drawer?.querySelectorAll('a[data-subnav]').forEach((link) => {
       link.addEventListener('click', async (event) => {
         event.preventDefault();

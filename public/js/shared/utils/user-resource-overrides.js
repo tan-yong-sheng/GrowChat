@@ -33,17 +33,26 @@ function normalizeToolOverrideMap(value) {
 }
 
 export function normalizeUserResourceOverrides(preferences = {}) {
-  const prefs = preferences && typeof preferences === 'object' && !Array.isArray(preferences)
-    ? preferences
-    : {};
-  const legacyModelSettings = prefs.model_settings && typeof prefs.model_settings === 'object' && !Array.isArray(prefs.model_settings)
-    ? prefs.model_settings
-    : {};
-  const source = prefs.resource_overrides && typeof prefs.resource_overrides === 'object' && !Array.isArray(prefs.resource_overrides)
-    ? prefs.resource_overrides
-    : {};
+  const prefs =
+    preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+      ? preferences
+      : {};
+  const legacyModelSettings =
+    prefs.model_settings &&
+    typeof prefs.model_settings === 'object' &&
+    !Array.isArray(prefs.model_settings)
+      ? prefs.model_settings
+      : {};
+  const source =
+    prefs.resource_overrides &&
+    typeof prefs.resource_overrides === 'object' &&
+    !Array.isArray(prefs.resource_overrides)
+      ? prefs.resource_overrides
+      : {};
   const modelsHidden = normalizeIdList([
-    ...(Array.isArray(legacyModelSettings.disabled_model_ids) ? legacyModelSettings.disabled_model_ids : []),
+    ...(Array.isArray(legacyModelSettings.disabled_model_ids)
+      ? legacyModelSettings.disabled_model_ids
+      : []),
     ...(Array.isArray(source.models?.hidden_ids) ? source.models.hidden_ids : []),
     ...(Array.isArray(source.models?.disabled_ids) ? source.models.disabled_ids : []),
   ]);
@@ -63,7 +72,9 @@ export function normalizeUserResourceOverrides(preferences = {}) {
 export async function loadUserResourceOverrides(db, userId) {
   if (!db || !userId) return normalizeUserResourceOverrides({});
   try {
-    const row = await db.first('SELECT preferences FROM users WHERE id = ?', [String(userId).trim()]);
+    const row = await db.first('SELECT preferences FROM users WHERE id = ?', [
+      String(userId).trim(),
+    ]);
     if (!row?.preferences) return normalizeUserResourceOverrides({});
     const parsed = JSON.parse(row.preferences);
     return normalizeUserResourceOverrides(parsed);
@@ -87,7 +98,12 @@ export function isToolHidden(preferences = {}, serverId = '', toolName = '') {
   return hiddenIds.has(tool);
 }
 
-export function setResourceVisibility(preferences = {}, kind = 'connections', resourceId = '', visible = true) {
+export function setResourceVisibility(
+  preferences = {},
+  kind = 'connections',
+  resourceId = '',
+  visible = true
+) {
   const prefs = clonePlainObject(preferences);
   const id = String(resourceId || '').trim();
   if (!id) return prefs;
@@ -101,24 +117,40 @@ export function setResourceVisibility(preferences = {}, kind = 'connections', re
   }
 
   const nextOverrides = clonePlainObject(prefs.resource_overrides);
-  nextOverrides.connections = nextOverrides.connections && typeof nextOverrides.connections === 'object' && !Array.isArray(nextOverrides.connections)
-    ? { ...nextOverrides.connections }
-    : {};
-  nextOverrides.tool_servers = nextOverrides.tool_servers && typeof nextOverrides.tool_servers === 'object' && !Array.isArray(nextOverrides.tool_servers)
-    ? { ...nextOverrides.tool_servers }
-    : {};
-  nextOverrides.models = nextOverrides.models && typeof nextOverrides.models === 'object' && !Array.isArray(nextOverrides.models)
-    ? { ...nextOverrides.models }
-    : {};
+  nextOverrides.connections =
+    nextOverrides.connections &&
+    typeof nextOverrides.connections === 'object' &&
+    !Array.isArray(nextOverrides.connections)
+      ? { ...nextOverrides.connections }
+      : {};
+  nextOverrides.tool_servers =
+    nextOverrides.tool_servers &&
+    typeof nextOverrides.tool_servers === 'object' &&
+    !Array.isArray(nextOverrides.tool_servers)
+      ? { ...nextOverrides.tool_servers }
+      : {};
+  nextOverrides.models =
+    nextOverrides.models &&
+    typeof nextOverrides.models === 'object' &&
+    !Array.isArray(nextOverrides.models)
+      ? { ...nextOverrides.models }
+      : {};
 
   if (kind === 'models') {
     nextOverrides.models.hidden_ids = Array.from(nextHiddenIds);
     prefs.model_settings = {
-      ...(prefs.model_settings && typeof prefs.model_settings === 'object' && !Array.isArray(prefs.model_settings) ? prefs.model_settings : {}),
+      ...(prefs.model_settings &&
+      typeof prefs.model_settings === 'object' &&
+      !Array.isArray(prefs.model_settings)
+        ? prefs.model_settings
+        : {}),
       disabled_model_ids: Array.from(nextHiddenIds),
-      attachment_caps: prefs.model_settings && typeof prefs.model_settings === 'object' && !Array.isArray(prefs.model_settings)
-        ? prefs.model_settings.attachment_caps || {}
-        : {},
+      attachment_caps:
+        prefs.model_settings &&
+        typeof prefs.model_settings === 'object' &&
+        !Array.isArray(prefs.model_settings)
+          ? prefs.model_settings.attachment_caps || {}
+          : {},
     };
   } else if (kind === 'tool_servers') {
     nextOverrides.tool_servers.hidden_ids = Array.from(nextHiddenIds);
@@ -145,14 +177,22 @@ export function setToolVisibility(preferences = {}, serverId = '', toolName = ''
   }
 
   const nextOverrides = clonePlainObject(prefs.resource_overrides);
-  nextOverrides.tool_servers = nextOverrides.tool_servers && typeof nextOverrides.tool_servers === 'object' && !Array.isArray(nextOverrides.tool_servers)
-    ? { ...nextOverrides.tool_servers }
-    : {};
-  nextOverrides.tool_servers.tools = nextOverrides.tool_servers.tools && typeof nextOverrides.tool_servers.tools === 'object' && !Array.isArray(nextOverrides.tool_servers.tools)
-    ? { ...nextOverrides.tool_servers.tools }
-    : {};
+  nextOverrides.tool_servers =
+    nextOverrides.tool_servers &&
+    typeof nextOverrides.tool_servers === 'object' &&
+    !Array.isArray(nextOverrides.tool_servers)
+      ? { ...nextOverrides.tool_servers }
+      : {};
+  nextOverrides.tool_servers.tools =
+    nextOverrides.tool_servers.tools &&
+    typeof nextOverrides.tool_servers.tools === 'object' &&
+    !Array.isArray(nextOverrides.tool_servers.tools)
+      ? { ...nextOverrides.tool_servers.tools }
+      : {};
   nextOverrides.tool_servers.tools[id] = {
-    ...(nextOverrides.tool_servers.tools[id] && typeof nextOverrides.tool_servers.tools[id] === 'object' && !Array.isArray(nextOverrides.tool_servers.tools[id])
+    ...(nextOverrides.tool_servers.tools[id] &&
+    typeof nextOverrides.tool_servers.tools[id] === 'object' &&
+    !Array.isArray(nextOverrides.tool_servers.tools[id])
       ? nextOverrides.tool_servers.tools[id]
       : {}),
     hidden_ids: Array.from(nextHiddenIds),
@@ -169,7 +209,12 @@ export function getVisibleResourceIds(preferences = {}, kind = 'connections', it
     .filter((id) => id && !hiddenIds.has(id));
 }
 
-export function applyResourceVisibility(items = [], preferences = {}, kind = 'connections', { sourceKey = 'source', hiddenSourceValue = 'user' } = {}) {
+export function applyResourceVisibility(
+  items = [],
+  preferences = {},
+  kind = 'connections',
+  { sourceKey = 'source', hiddenSourceValue = 'user' } = {}
+) {
   const hiddenIds = new Set(normalizeUserResourceOverrides(preferences)?.[kind]?.hidden_ids || []);
   return (Array.isArray(items) ? items : [])
     .map((item) => ({
@@ -177,5 +222,7 @@ export function applyResourceVisibility(items = [], preferences = {}, kind = 'co
       visible_for_user: !hiddenIds.has(String(item?.id || '').trim()),
       hidden_for_user: hiddenIds.has(String(item?.id || '').trim()),
     }))
-    .filter((item) => String(item?.[sourceKey] || '') === hiddenSourceValue || item.visible_for_user);
+    .filter(
+      (item) => String(item?.[sourceKey] || '') === hiddenSourceValue || item.visible_for_user
+    );
 }

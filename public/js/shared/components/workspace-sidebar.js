@@ -26,7 +26,9 @@ export function renderWorkspaceSidebar({
           </button>
         </div>
         <div class="space-y-1">
-          ${showNewChat ? `
+          ${
+            showNewChat
+              ? `
             <button id="new-chat" class="flex items-center justify-between px-3 py-2 w-full hover:bg-white rounded-xl transition text-sm font-semibold text-[#0066cc] font-primary group/new-chat">
               <div class="flex items-center gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-collapsed-scale transition-transform duration-300"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
@@ -34,13 +36,19 @@ export function renderWorkspaceSidebar({
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-full-only"><path d="M12 5v14M5 12h14"></path></svg>
             </button>
-          ` : ''}
-          ${showSearch ? `
+          `
+              : ''
+          }
+          ${
+            showSearch
+              ? `
             <button id="open-search" class="flex items-center gap-3 px-3 py-2 w-full hover:bg-white rounded-xl transition text-sm font-semibold text-gray-700 font-primary group/search">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-collapsed-scale transition-transform duration-300"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
               <span class="sidebar-full-only">Search</span>
             </button>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
       </div>
       <div class="flex-1 min-h-0"></div>
@@ -49,15 +57,18 @@ export function renderWorkspaceSidebar({
   `;
 }
 
-export function wireWorkspaceSidebar(root, {
-  guardNavigation = null,
-  navigateHome = null,
-  showSearchModal = true,
-  showFilesModal = true,
-  searchModalContainerSelector = '#search-modal-container',
-  filesModalContainerSelector = '#files-modal-container',
-  footerId = 'sidebar-footer',
-} = {}) {
+export function wireWorkspaceSidebar(
+  root,
+  {
+    guardNavigation = null,
+    navigateHome = null,
+    showSearchModal = true,
+    showFilesModal = true,
+    searchModalContainerSelector = '#search-modal-container',
+    filesModalContainerSelector = '#files-modal-container',
+    footerId = 'sidebar-footer',
+  } = {}
+) {
   const newChatBtn = root.querySelector('#new-chat');
   const homeLink = root.querySelector('#workspace-home-link');
   const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
@@ -100,7 +111,11 @@ export function wireWorkspaceSidebar(root, {
 
     searchModalInitPromise = import('./search-modal.js')
       .then(({ renderSearchModal }) => {
-        destroySearchModal = renderSearchModal(searchModalContainer, navigateToHome, navigateToHome);
+        destroySearchModal = renderSearchModal(
+          searchModalContainer,
+          navigateToHome,
+          navigateToHome
+        );
       })
       .finally(() => {
         searchModalInitPromise = null;

@@ -52,12 +52,15 @@ export function getToolCallsForMessage(toolCallsByMessageId, messageId) {
   return toolCallsByMessageId.get(key) || [];
 }
 
-export function syncToolCallsForMessage(toolCallsByMessageId, messageId, rawToolCalls, { isStreaming } = {}) {
+export function syncToolCallsForMessage(
+  toolCallsByMessageId,
+  messageId,
+  rawToolCalls,
+  { isStreaming } = {}
+) {
   const key = String(messageId || '');
   if (!key) return;
-  const normalized = normalizeToolCalls(rawToolCalls)
-    .map(normalizeToolCallRecord)
-    .filter(Boolean);
+  const normalized = normalizeToolCalls(rawToolCalls).map(normalizeToolCallRecord).filter(Boolean);
   if (!normalized.length) {
     if (!isStreaming) toolCallsByMessageId.delete(key);
     return;
@@ -65,7 +68,12 @@ export function syncToolCallsForMessage(toolCallsByMessageId, messageId, rawTool
   toolCallsByMessageId.set(key, normalized);
 }
 
-export function syncMessageBlocksForMessage(messageBlocksById, messageId, rawBlocks, { isStreaming } = {}) {
+export function syncMessageBlocksForMessage(
+  messageBlocksById,
+  messageId,
+  rawBlocks,
+  { isStreaming } = {}
+) {
   const key = String(messageId || '');
   if (!key) return;
   const normalized = normalizeMessageBlocks(rawBlocks)
@@ -76,12 +84,15 @@ export function syncMessageBlocksForMessage(messageBlocksById, messageId, rawBlo
     return;
   }
   if (isStreaming && messageBlocksById.has(key)) return;
-  messageBlocksById.set(key, normalized.map((block, index) => ({
-    id: block.id || `${block.type}-${index + 1}`,
-    type: block.type,
-    content: block.content || '',
-    toolCallId: block.toolCallId || null,
-  })));
+  messageBlocksById.set(
+    key,
+    normalized.map((block, index) => ({
+      id: block.id || `${block.type}-${index + 1}`,
+      type: block.type,
+      content: block.content || '',
+      toolCallId: block.toolCallId || null,
+    }))
+  );
 }
 
 export function updateToolCallState(toolCallsByMessageId, messageBlocksById, messageId, payload) {
@@ -103,4 +114,3 @@ export function updateToolCallState(toolCallsByMessageId, messageBlocksById, mes
 export function ensureBlocksFromContent(messageBlocksById, messageId, content) {
   return buildMessageBlocks(messageId, content, (id) => getMessageBlocks(messageBlocksById, id));
 }
-

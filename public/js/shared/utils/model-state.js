@@ -1,5 +1,7 @@
 function normalizeModelLabel(model = {}) {
-  return String(model?.name || model?.id || model?.connection_name || model?.connection_id || '').trim().toLowerCase();
+  return String(model?.name || model?.id || model?.connection_name || model?.connection_id || '')
+    .trim()
+    .toLowerCase();
 }
 
 function isModelEnabled(model = {}) {
@@ -7,7 +9,10 @@ function isModelEnabled(model = {}) {
 }
 
 export function countEnabledModels(models = []) {
-  return (Array.isArray(models) ? models : []).reduce((count, model) => count + (isModelEnabled(model) ? 1 : 0), 0);
+  return (Array.isArray(models) ? models : []).reduce(
+    (count, model) => count + (isModelEnabled(model) ? 1 : 0),
+    0
+  );
 }
 
 export function filterEnabledModels(models = []) {
@@ -18,7 +23,9 @@ export function getPreferredModelId(models = [], preferredIds = []) {
   const sortedModels = sortModelsByActiveThenName(filterEnabledModels(models));
   if (!sortedModels.length) return null;
 
-  const modelIdSet = new Set(sortedModels.map((model) => String(model?.id || '').trim()).filter(Boolean));
+  const modelIdSet = new Set(
+    sortedModels.map((model) => String(model?.id || '').trim()).filter(Boolean)
+  );
   for (const preferredId of Array.isArray(preferredIds) ? preferredIds : []) {
     const candidateId = String(preferredId || '').trim();
     if (candidateId && modelIdSet.has(candidateId)) {

@@ -9,26 +9,12 @@ import {
   installKnownErrorSuppressors,
   prefetchModels,
 } from './session-bootstrap.js';
-import {
-  renderChatSkeleton,
-  renderAdminSkeleton,
-  renderSharedChatPage,
-} from './app-shells.js';
+import { renderChatSkeleton, renderAdminSkeleton, renderSharedChatPage } from './app-shells.js';
 
 async function renderAdminRoute(container) {
-  try {
-    const { renderAdminPage } = await import('../features/admin/admin.js');
-    container.dataset.view = 'admin';
-    return renderAdminPage(container);
-  } catch (err) {
-    throw err;
-  }
-}
-
-async function renderAccountRoute(container) {
-  const { renderAccountPage } = await import('../features/account/account.js');
-  container.dataset.view = 'account';
-  return renderAccountPage(container);
+  const { renderAdminPage } = await import('../features/admin/admin.js');
+  container.dataset.view = 'admin';
+  return renderAdminPage(container);
 }
 
 let renderChatFn = null;
@@ -45,7 +31,9 @@ function installAccountSettingsDrawerListener() {
   accountSettingsDrawerListenerInstalled = true;
   window.addEventListener('growchat:open-account-settings', async (event) => {
     const { openAccountSettingsDrawer } = await import('../features/account/account.js');
-    await openAccountSettingsDrawer({ section: event?.detail?.section || 'connections' });
+    await openAccountSettingsDrawer({
+      section: event?.detail?.section || 'connections',
+    });
   });
 }
 
@@ -110,7 +98,12 @@ export async function renderCurrentRoute() {
     return renderCurrentRoute();
   }
 
-  if (path === '/account' || path === '/account/' || path === '/account/profile' || path.startsWith('/account/profile/')) {
+  if (
+    path === '/account' ||
+    path === '/account/' ||
+    path === '/account/profile' ||
+    path.startsWith('/account/profile/')
+  ) {
     window.history.replaceState({}, '', '/account/settings/connections');
     return renderCurrentRoute();
   }
@@ -138,8 +131,11 @@ export async function renderCurrentRoute() {
     renderAdminSkeleton(app);
   }
 
-  const isAdminSettingsRoute = path.startsWith('/admin/settings') || path.startsWith('/admin/system');
-  const ok = await ensureSession({ preferRefresh: path.startsWith('/admin') && !isAdminSettingsRoute });
+  const isAdminSettingsRoute =
+    path.startsWith('/admin/settings') || path.startsWith('/admin/system');
+  const ok = await ensureSession({
+    preferRefresh: path.startsWith('/admin') && !isAdminSettingsRoute,
+  });
   if (!ok) return;
 
   if (routeChatId && state.activeChatId !== routeChatId) {
@@ -153,7 +149,8 @@ export async function renderCurrentRoute() {
   }
 
   if (path.startsWith('/account')) {
-    const { openAccountSettingsDrawer, resolveAccountSectionFromPath } = await import('../features/account/account.js');
+    const { openAccountSettingsDrawer, resolveAccountSectionFromPath } =
+      await import('../features/account/account.js');
     const section = resolveAccountSectionFromPath(path);
     setSidebarRouteScope('account');
     await openAccountSettingsDrawer({ section });

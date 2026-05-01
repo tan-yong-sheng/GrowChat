@@ -77,7 +77,10 @@ export function createChatMessageIdentityTracker({ setState, messagesList, activ
       remapSelectionMaps(chatId, tempId, realId);
 
       return replaced
-        ? { messagesByChat: { ...prev.messagesByChat, [chatKey]: nextMessages }, ui: { ...prev.ui, editingMessages: nextEditing } }
+        ? {
+            messagesByChat: { ...prev.messagesByChat, [chatKey]: nextMessages },
+            ui: { ...prev.ui, editingMessages: nextEditing },
+          }
         : {};
     });
 
@@ -212,4 +215,3 @@ export function createChatMessageIdentityTracker({ setState, messagesList, activ
     setBranchSelection,
   };
 }
-

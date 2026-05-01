@@ -8,8 +8,10 @@ describe('async-session-processor', () => {
       initialMessages: [{ role: 'user', content: 'hi' }],
       runStep: async (state) => {
         steps.push(state.steps);
-        if (state.steps < 1) return { action: 'tool_loop', nextMessagesForModel: state.messagesForModel };
-        if (state.followUps < 1) return { action: 'follow_up', nextMessagesForModel: state.messagesForModel };
+        if (state.steps < 1)
+          return { action: 'tool_loop', nextMessagesForModel: state.messagesForModel };
+        if (state.followUps < 1)
+          return { action: 'follow_up', nextMessagesForModel: state.messagesForModel };
         return { action: 'final', result: 'ok' };
       },
     });

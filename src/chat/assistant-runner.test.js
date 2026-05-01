@@ -15,9 +15,12 @@ describe('assistant runner', () => {
 
     let resolveRead;
     const reader = {
-      read: vi.fn(() => new Promise((resolve) => {
-        resolveRead = resolve;
-      })),
+      read: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveRead = resolve;
+          })
+      ),
       cancel: vi.fn(() => Promise.resolve()),
     };
     const chunks = [];

@@ -19,8 +19,14 @@ function normalizeLimit(limit) {
 }
 
 export function buildRateLimitKey(action, subject) {
-  const normalizedAction = String(action || 'general').trim().toLowerCase().replace(/[^a-z0-9:_-]+/g, '-');
-  const normalizedSubject = String(subject || 'anonymous').trim().toLowerCase().replace(/[^a-z0-9:_-]+/g, '-');
+  const normalizedAction = String(action || 'general')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, '-');
+  const normalizedSubject = String(subject || 'anonymous')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, '-');
   return `${DEFAULT_KEY_PREFIX}:${normalizedAction}:${normalizedSubject}`;
 }
 
@@ -29,17 +35,28 @@ export function resolveRateLimitSubject(req, fallback = 'anonymous') {
   // All local requests will share the 'anonymous' fallback rate limit key.
   // This means rate limits apply globally across all local users during dev.
   // To test per-IP rate limiting locally, set CF-Connecting-IP header manually.
-  const ip = req?.headers?.get?.('CF-Connecting-IP') || req?.headers?.get?.('x-forwarded-for') || req?.headers?.get?.('x-real-ip');
+  const ip =
+    req?.headers?.get?.('CF-Connecting-IP') ||
+    req?.headers?.get?.('x-forwarded-for') ||
+    req?.headers?.get?.('x-real-ip');
   return String(ip || fallback).trim() || fallback;
 }
 
-export async function checkRateLimit(store, { action, subject, limit, windowSeconds, now = Date.now(), }) {
+export async function checkRateLimit(
+  store,
+  { action, subject, limit, windowSeconds, now = Date.now() }
+) {
   const maxRequests = normalizeLimit(limit);
   const windowSize = normalizeWindowSeconds(windowSeconds);
-  const resetAt = now + (windowSize * 1000);
+  const resetAt = now + windowSize * 1000;
 
   if (!store?.get || !store?.put) {
-    return { allowed: true, remaining: maxRequests, resetAt, key: buildRateLimitKey(action, subject), };
+    return {
+      allowed: true,
+      remaining: maxRequests,
+      resetAt,
+      key: buildRateLimitKey(action, subject),
+    };
   }
 
   const key = buildRateLimitKey(action, subject);
@@ -48,12 +65,12 @@ export async function checkRateLimit(store, { action, subject, limit, windowSeco
   const count = Number.isFinite(current) && current > 0 ? current : 0;
 
   if (count >= maxRequests) {
-    return { allowed: false, remaining: 0, resetAt, key, };
+    return { allowed: false, remaining: 0, resetAt, key };
   }
 
   await store.put(key, String(count + 1), { expirationTtl: windowSize });
 
-  return { allowed: true, remaining: Math.max(0, maxRequests - count - 1), resetAt, key, };
+  return { allowed: true, remaining: Math.max(0, maxRequests - count - 1), resetAt, key };
 }
 
 export const RATE_LIMITS = {

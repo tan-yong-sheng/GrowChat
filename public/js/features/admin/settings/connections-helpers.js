@@ -5,7 +5,9 @@ import {
 } from '../../../shared/utils/connection-model-selection.js';
 
 export function normalizeProviderType(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 export function normalizeProviderFamily(value) {
@@ -165,7 +167,9 @@ export function normalizeConnectionRecord(conn = {}) {
     apiType: connectionApiTypeDetails(providerType).value,
     providerId: conn.providerId || '',
     manualModels: normalizeConnectionManualModels(conn.manualModels),
-    manualModelsMode: normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all',
+    manualModelsMode:
+      normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
+      'all',
   };
 }
 
@@ -176,7 +180,9 @@ export function cloneModelSelection(value = []) {
 export function getConnectionProviderId(connection = {}) {
   const providerId = String(connection?.providerId || '').trim();
   if (providerId) return providerId;
-  const providerType = normalizeProviderType(connection?.providerType || connection?.providerFamily || 'openai');
+  const providerType = normalizeProviderType(
+    connection?.providerType || connection?.providerFamily || 'openai'
+  );
   const connectionId = String(connection?.id || '').trim();
   if (!connectionId) return providerType;
   const family = normalizeProviderFamily(providerType);
@@ -195,15 +201,17 @@ export function formatConnectionModelId(providerId, modelId) {
 
 export function inflateManualConnectionModels(connection = {}) {
   const providerId = getConnectionProviderId(connection);
-  return normalizeConnectionManualModels(connection.manualModels).map((model) => {
-    const id = formatConnectionModelId(providerId, model.modelId);
-    return normalizeModelRecord({
-      id,
-      name: model.name || model.modelId,
-      manual: true,
-      manualModelId: model.modelId,
-    });
-  }).filter(Boolean);
+  return normalizeConnectionManualModels(connection.manualModels)
+    .map((model) => {
+      const id = formatConnectionModelId(providerId, model.modelId);
+      return normalizeModelRecord({
+        id,
+        name: model.name || model.modelId,
+        manual: true,
+        manualModelId: model.modelId,
+      });
+    })
+    .filter(Boolean);
 }
 
 export function normalizeModalModelRecord(model = {}, connection = null) {
@@ -232,12 +240,23 @@ export function normalizeModalModelId(modelId = '', connection = null) {
 export function cloneModalModelSelection(value = [], connection = null) {
   const selected = cloneModelSelection(value);
   if (!connection) return selected;
-  return new Set(Array.from(selected).map((modelId) => normalizeModalModelId(modelId, connection)).filter(Boolean));
+  return new Set(
+    Array.from(selected)
+      .map((modelId) => normalizeModalModelId(modelId, connection))
+      .filter(Boolean)
+  );
 }
 
-export function mergeConnectionModalModels(existingModels = [], discoveredModels = [], connection = null) {
+export function mergeConnectionModalModels(
+  existingModels = [],
+  discoveredModels = [],
+  connection = null
+) {
   const merged = new Map();
-  [...(Array.isArray(existingModels) ? existingModels : []), ...(Array.isArray(discoveredModels) ? discoveredModels : [])]
+  [
+    ...(Array.isArray(existingModels) ? existingModels : []),
+    ...(Array.isArray(discoveredModels) ? discoveredModels : []),
+  ]
     .map((model) => normalizeModalModelRecord(model, connection))
     .filter(Boolean)
     .forEach((model) => {
@@ -247,20 +266,32 @@ export function mergeConnectionModalModels(existingModels = [], discoveredModels
       } else {
         merged.set(model.id, model);
       }
-  });
+    });
   return sortModelsByActiveThenName(Array.from(merged.values()));
 }
 
-export function previewConnectionModalModels(existingModels = [], existingSelection = new Set(), discoveredModels = [], connection = null) {
-  const connectionMode = normalizeConnectionModelSelectionMode(connection?.manual_models_mode || connection?.manualModelsMode);
-  const normalizedSelection = existingSelection instanceof Set
-    ? new Set(Array.from(existingSelection).map((modelId) => normalizeModalModelId(String(modelId || '').trim(), connection)).filter(Boolean))
-    : new Set();
+export function previewConnectionModalModels(
+  existingModels = [],
+  existingSelection = new Set(),
+  discoveredModels = [],
+  connection = null
+) {
+  const connectionMode = normalizeConnectionModelSelectionMode(
+    connection?.manual_models_mode || connection?.manualModelsMode
+  );
+  const normalizedSelection =
+    existingSelection instanceof Set
+      ? new Set(
+          Array.from(existingSelection)
+            .map((modelId) => normalizeModalModelId(String(modelId || '').trim(), connection))
+            .filter(Boolean)
+        )
+      : new Set();
   const previousStates = new Map(
     (Array.isArray(existingModels) ? existingModels : []).map((model) => {
       const modelId = normalizeModalModelId(String(model?.id || '').trim(), connection);
       return [modelId, Boolean(normalizedSelection.has(modelId))];
-    }),
+    })
   );
   const models = mergeConnectionModalModels(existingModels, discoveredModels, connection);
   const selection = new Set();
@@ -282,7 +313,9 @@ export function previewConnectionModalModels(existingModels = [], existingSelect
   models.forEach((model) => {
     const wasEnabled = previousStates.has(model.id)
       ? previousStates.get(model.id)
-      : (Array.isArray(existingModels) && existingModels.length === 0 && normalizedSelection.size === 0);
+      : Array.isArray(existingModels) &&
+        existingModels.length === 0 &&
+        normalizedSelection.size === 0;
     if (wasEnabled) selection.add(model.id);
   });
   return {
@@ -292,7 +325,11 @@ export function previewConnectionModalModels(existingModels = [], existingSelect
   };
 }
 
-export function buildSelectedConnectionModels(models = [], selection = new Set(), connection = null) {
+export function buildSelectedConnectionModels(
+  models = [],
+  selection = new Set(),
+  connection = null
+) {
   const providerId = getConnectionProviderId(connection || {});
   const selected = selection instanceof Set ? selection : new Set();
   const seen = new Set();
@@ -300,7 +337,10 @@ export function buildSelectedConnectionModels(models = [], selection = new Set()
 
   (Array.isArray(models) ? models : []).forEach((model) => {
     if (!model || !selected.has(model.id)) return;
-    const rawModelId = normalizeSavedConnectionModelId(providerId, model.manualModelId || model.id || '');
+    const rawModelId = normalizeSavedConnectionModelId(
+      providerId,
+      model.manualModelId || model.id || ''
+    );
     if (!rawModelId || seen.has(rawModelId)) return;
     seen.add(rawModelId);
     next.push({
@@ -312,19 +352,25 @@ export function buildSelectedConnectionModels(models = [], selection = new Set()
   return normalizeConnectionManualModels(next);
 }
 
-export function applyModalModelPreview(connectionsState, models, scope = null, renderModels = null) {
+export function applyModalModelPreview(
+  connectionsState,
+  models,
+  scope = null,
+  renderModels = null
+) {
   const root = scope || document;
   const connection = connectionsState.selectedConnection || null;
   const preview = previewConnectionModalModels(
     connectionsState.modalModels,
     connectionsState.modalModelsSelection || new Set(),
     models,
-    connection,
+    connection
   );
   connectionsState.modalModels = preview.models;
   connectionsState.modalModelsOriginal = preview.original;
   connectionsState.modalModelsSelection = preview.selection;
-  connectionsState.modalModelsConnectionId = connectionsState.selectedConnection?.id || '__preview__';
+  connectionsState.modalModelsConnectionId =
+    connectionsState.selectedConnection?.id || '__preview__';
   if (typeof renderModels === 'function') {
     renderModels(root);
   }

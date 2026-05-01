@@ -33,7 +33,7 @@ export async function generateCsrfToken(env, sessionId) {
     );
   } catch (err) {
     console.error('Failed to store CSRF token:', err);
-    throw new Error('Failed to generate CSRF token');
+    throw new Error('Failed to generate CSRF token', { cause: err });
   }
 
   return token;

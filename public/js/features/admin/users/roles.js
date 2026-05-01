@@ -33,12 +33,7 @@ const ROLE_PRESETS = [
     name: 'Member',
     description: 'Base app access',
     system: true,
-    defaultPermissions: [
-      'chat.read',
-      'chat.write',
-      'file.upload',
-      'model.use',
-    ],
+    defaultPermissions: ['chat.read', 'chat.write', 'file.upload', 'model.use'],
   },
 ];
 
@@ -137,7 +132,8 @@ function normalizeLoadedRole(role) {
   return {
     id: role.id,
     name: role.name,
-    description: role.description || preset?.description || (role.system ? 'System role' : 'Custom role'),
+    description:
+      role.description || preset?.description || (role.system ? 'System role' : 'Custom role'),
     system: Boolean(role.system),
     sourceRoleId: role.sourceRoleId || null,
     permissions,
@@ -158,7 +154,9 @@ function getNextCustomIndex(roles) {
 }
 
 function permissionsSignature(role) {
-  return `${role.id}:${String(role.name || '').trim()}:${Array.from(role.permissions || []).sort().join(',')}`;
+  return `${role.id}:${String(role.name || '').trim()}:${Array.from(role.permissions || [])
+    .sort()
+    .join(',')}`;
 }
 
 function rolesSignature(roles) {
@@ -166,36 +164,33 @@ function rolesSignature(roles) {
 }
 
 function countSensitivePermissions(role) {
-  return Array.from(role?.permissions || []).filter((permissionKey) => permissionKey.startsWith('admin.')).length;
-}
-
-function getFocusedRole(state) {
-  return state.roles.find((role) => role.id === state.focusedRoleId) || state.roles[0] || null;
-}
-
-function getDefaultPermissionsForRole(role) {
-  if (!role) return new Set();
-  if (role.system) {
-    const preset = ROLE_PRESETS.find((item) => item.id === role.id);
-    return clonePermissions(preset?.defaultPermissions || []);
-  }
-  return clonePermissions(role.initialPermissions || role.permissions || []);
+  return Array.from(role?.permissions || []).filter((permissionKey) =>
+    permissionKey.startsWith('admin.')
+  ).length;
 }
 
 function buildVisibleRoles(query, roles) {
-  const normalized = String(query || '').trim().toLowerCase();
+  const normalized = String(query || '')
+    .trim()
+    .toLowerCase();
   return (Array.isArray(roles) ? roles : []).filter((role) => {
     if (!normalized) return true;
-    return `${role.name} ${role.description} ${role.system ? 'system' : 'custom'} ${Array.from(role.permissions || []).join(' ')}`.toLowerCase().includes(normalized);
+    return `${role.name} ${role.description} ${role.system ? 'system' : 'custom'} ${Array.from(role.permissions || []).join(' ')}`
+      .toLowerCase()
+      .includes(normalized);
   });
 }
 
-function buildVisibleGroups(query, advanced) {
-  const normalized = String(query || '').trim().toLowerCase();
+function buildVisibleGroups(query) {
+  const normalized = String(query || '')
+    .trim()
+    .toLowerCase();
   return PERMISSION_GROUPS.map((group) => {
     const permissions = group.permissions.filter((permission) => {
       if (!normalized) return true;
-      return `${permission.key} ${permission.label} ${permission.note} ${group.label}`.toLowerCase().includes(normalized);
+      return `${permission.key} ${permission.label} ${permission.note} ${group.label}`
+        .toLowerCase()
+        .includes(normalized);
     });
     return {
       ...group,
@@ -239,9 +234,10 @@ async function ensureRolesLoaded(container, state, data) {
 
   try {
     const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    const roles = Array.isArray(payload?.roles) && payload.roles.length
-      ? payload.roles.map((role) => normalizeLoadedRole(role))
-      : createInitialRoles();
+    const roles =
+      Array.isArray(payload?.roles) && payload.roles.length
+        ? payload.roles.map((role) => normalizeLoadedRole(role))
+        : createInitialRoles();
     state.roles = roles;
     state.nextCustomIndex = getNextCustomIndex(state.roles);
   } catch (err) {
@@ -295,11 +291,16 @@ function createModalShell({ title, subtitle, showDelete = false } = {}) {
 }
 
 function renderPermissionGroup(group, draft, modalState) {
-  const collapsed = Boolean(modalState.groupCollapsed[group.key]) && !String(modalState.query || '').trim();
+  const collapsed =
+    Boolean(modalState.groupCollapsed[group.key]) && !String(modalState.query || '').trim();
   const visiblePermissions = group.permissions.filter((permission) => {
-    const normalized = String(modalState.query || '').trim().toLowerCase();
+    const normalized = String(modalState.query || '')
+      .trim()
+      .toLowerCase();
     if (!normalized) return true;
-    return `${permission.key} ${permission.label} ${permission.note} ${group.label}`.toLowerCase().includes(normalized);
+    return `${permission.key} ${permission.label} ${permission.note} ${group.label}`
+      .toLowerCase()
+      .includes(normalized);
   });
   if (!visiblePermissions.length && String(modalState.query || '').trim()) return '';
 
@@ -312,12 +313,16 @@ function renderPermissionGroup(group, draft, modalState) {
         </div>
         <div class="text-[10px] text-gray-400">${collapsed ? '▸' : '▾'}</div>
       </button>
-      ${collapsed ? '' : visiblePermissions.map((permission) => {
-        const primary = modalState.advanced ? permission.key : permission.label;
-        const secondary = modalState.advanced ? permission.label : permission.key;
-        const isSensitive = group.sensitive || permission.key.startsWith('admin.');
-        const rowTitle = `${permission.label} · ${permission.key} · ${permission.note}`;
-        return `
+      ${
+        collapsed
+          ? ''
+          : visiblePermissions
+              .map((permission) => {
+                const primary = modalState.advanced ? permission.key : permission.label;
+                const secondary = modalState.advanced ? permission.label : permission.key;
+                const isSensitive = group.sensitive || permission.key.startsWith('admin.');
+                const rowTitle = `${permission.label} · ${permission.key} · ${permission.note}`;
+                return `
           <label title="${escapeHtml(rowTitle)}" class="flex items-center justify-between gap-2 border-t border-gray-50 px-2.5 py-1 text-[9px] ${isSensitive ? 'bg-amber-50/30' : ''}">
             <div class="min-w-0 flex-1 flex items-center gap-1.5">
               <span class="font-medium text-gray-900 whitespace-nowrap">${escapeHtml(primary)}</span>
@@ -333,18 +338,26 @@ function renderPermissionGroup(group, draft, modalState) {
             >
           </label>
         `;
-      }).join('')}
+              })
+              .join('')
+      }
     </div>
   `;
 }
 
-function openRoleModal(container, state, data, { roleId = null, isNew = false, onSaveRole = null, onDeleteRole = null } = {}) {
+function openRoleModal(
+  container,
+  state,
+  data,
+  { roleId = null, isNew = false, onSaveRole = null, onDeleteRole = null } = {}
+) {
   const sourceRole = roleId ? state.roles.find((role) => role.id === roleId) || null : null;
   const baseRole = isNew
-    ? createRoleDraft(
-      ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0],
-      { isNew: true, sourceRoleId: 'member', nextCustomIndex: state.nextCustomIndex },
-    )
+    ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
+        isNew: true,
+        sourceRoleId: 'member',
+        nextCustomIndex: state.nextCustomIndex,
+      })
     : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
 
   const modalState = {
@@ -363,7 +376,7 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
     subtitle: isNew
       ? 'Start from Member and adjust the permissions you need.'
       : 'Edit one role at a time. Permissions are the source of truth.',
-    showDelete: !isNew && !Boolean(sourceRole?.system),
+    showDelete: !isNew && !sourceRole?.system,
   });
 
   const bodyEl = modal.querySelector('[data-modal-body]');
@@ -374,7 +387,8 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
   const saveBtn = modal.querySelector('[data-role-save]');
   const deleteBtn = modal.querySelector('[data-role-modal-delete]');
   const isSystemRole = Boolean(modalState.draft.system);
-  const isDirty = () => rolesSignature([modalState.draft]) !== rolesSignature([modalState.original]);
+  const isDirty = () =>
+    rolesSignature([modalState.draft]) !== rolesSignature([modalState.original]);
 
   const syncDirty = () => {
     modalState.dirty = isDirty();
@@ -382,8 +396,10 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
       enabled: modalState.dirty,
       saving: modalState.saving,
       label: 'Save',
-      enabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
-      disabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+      enabledClass:
+        'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
+      disabledClass:
+        'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
     });
   };
 
@@ -416,16 +432,23 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
     const paneEl = modal.querySelector('[data-role-permission-pane]');
     if (!paneEl) return;
     paneEl.innerHTML = `
-      ${groups.length ? groups.map((group) => renderPermissionGroup(group, modalState.draft, modalState)).join('') : `
+      ${
+        groups.length
+          ? groups
+              .map((group) => renderPermissionGroup(group, modalState.draft, modalState))
+              .join('')
+          : `
         <div class="px-3 py-6 text-center text-[10px] text-gray-500">No permissions match your search.</div>
-      `}
+      `
+      }
     `;
 
-    noteEl.textContent = modalState.draft.id === 'admin'
-      ? 'Guardrail: admin permissions are sensitive; keep at least one admin-capable role.'
-      : modalState.draft.id === 'member'
-        ? 'Member stays the lowest-privilege baseline.'
-        : 'Custom roles are cloned from a template and can be edited independently.';
+    noteEl.textContent =
+      modalState.draft.id === 'admin'
+        ? 'Guardrail: admin permissions are sensitive; keep at least one admin-capable role.'
+        : modalState.draft.id === 'member'
+          ? 'Member stays the lowest-privilege baseline.'
+          : 'Custom roles are cloned from a template and can be edited independently.';
 
     syncDirty();
 
@@ -458,9 +481,12 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
         <div class="rounded-2xl border border-gray-200 bg-gray-50 px-2 py-1">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
-              ${isSystemRole ? `
+              ${
+                isSystemRole
+                  ? `
                 <div data-role-name-preview class="truncate text-[13px] font-semibold leading-tight text-gray-900">${escapeHtml(modalState.draft.name)}</div>
-              ` : `
+              `
+                  : `
                 <input
                   id="role-name"
                   value="${escapeHtml(modalState.draft.name)}"
@@ -471,16 +497,21 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
                   class="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-[13px] font-semibold leading-tight text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-400"
                   placeholder="Role name"
                 >
-              `}
+              `
+              }
             </div>
             <div class="flex shrink-0 items-center gap-1.5">
               <div data-role-summary-preview class="rounded-full border border-gray-200 bg-white px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">${escapeHtml(formatRoleSummary(modalState.draft))} · ${isSystemRole ? 'system' : 'custom'}</div>
             </div>
           </div>
-          ${isSystemRole ? `
+          ${
+            isSystemRole
+              ? `
             <div data-role-system-note class="mt-0.5 text-[8px] leading-tight text-gray-500">System template names are fixed. Edit permissions only.</div>
-          ` : `
-            `}
+          `
+              : `
+            `
+          }
             <div class="mt-1 flex flex-wrap items-center gap-1.5">
               <div class="min-w-0 flex-[1.5]">
                 <div class="flex items-center gap-1.5 rounded-xl border border-gray-100/40 bg-gray-50/60 px-2 py-0.5">
@@ -540,7 +571,6 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
         modal.querySelector('#role-permission-search')?.focus({ preventScroll: true });
       });
     });
-
   };
 
   renderShell();
@@ -570,8 +600,10 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
         enabled: false,
         saving: true,
         label: 'Save',
-        enabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
-        disabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+        enabledClass:
+          'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
+        disabledClass:
+          'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
       });
       const payload = {
         name: trimmedName,
@@ -590,8 +622,10 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
         enabled: modalState.dirty,
         saving: false,
         label: 'Save',
-        enabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
-        disabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+        enabledClass:
+          'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
+        disabledClass:
+          'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
       });
     }
   };
@@ -605,10 +639,11 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
 
   resetBtn.addEventListener('click', () => {
     modalState.draft = modalState.isNew
-      ? createRoleDraft(
-        ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0],
-        { isNew: true, sourceRoleId: 'member', nextCustomIndex: state.nextCustomIndex },
-      )
+      ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
+          isNew: true,
+          sourceRoleId: 'member',
+          nextCustomIndex: state.nextCustomIndex,
+        })
       : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
     modalState.query = '';
     modalState.advanced = true;
@@ -639,9 +674,16 @@ function openRoleModal(container, state, data, { roleId = null, isNew = false, o
 }
 
 function renderRoleRow(role) {
-  const initials = String(role.name || '?').trim().charAt(0).toUpperCase() || '?';
-  const rowClasses = 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50';
-  const deleteButton = role.system ? '' : `
+  const initials =
+    String(role.name || '?')
+      .trim()
+      .charAt(0)
+      .toUpperCase() || '?';
+  const rowClasses =
+    'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl hover:bg-gray-50/80 transition-all group cursor-pointer border border-transparent hover:border-gray-100/50';
+  const deleteButton = role.system
+    ? ''
+    : `
         <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all btn-delete-role" data-role-delete="${escapeHtml(role.id)}" aria-label="Delete role">
           <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" class="size-5">
             <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
@@ -730,16 +772,18 @@ function renderRoleList(container, state, openRole, deleteRole) {
 }
 
 export function renderRolesPage(container, data = {}) {
-  const state = container.__rolesState || (container.__rolesState = {
-    roles: [],
-    focusedRoleId: 'admin',
-    nextCustomIndex: 1,
-    query: '',
-    modalCleanup: null,
-    rolesLoaded: false,
-    rolesLoading: false,
-    rolesError: null,
-  });
+  const state =
+    container.__rolesState ||
+    (container.__rolesState = {
+      roles: [],
+      focusedRoleId: 'admin',
+      nextCustomIndex: 1,
+      query: '',
+      modalCleanup: null,
+      rolesLoaded: false,
+      rolesLoading: false,
+      rolesError: null,
+    });
 
   if (!Array.isArray(state.roles)) {
     state.roles = [];
@@ -757,9 +801,10 @@ export function renderRolesPage(container, data = {}) {
 
   const reloadRolesFromServer = async () => {
     const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    const roles = Array.isArray(payload?.roles) && payload.roles.length
-      ? payload.roles.map((role) => normalizeLoadedRole(role))
-      : createInitialRoles();
+    const roles =
+      Array.isArray(payload?.roles) && payload.roles.length
+        ? payload.roles.map((role) => normalizeLoadedRole(role))
+        : createInitialRoles();
     state.roles = roles;
     state.nextCustomIndex = getNextCustomIndex(state.roles);
     renderRolesPage(container, data);
@@ -833,7 +878,12 @@ export function renderRolesPage(container, data = {}) {
   const deleteRole = async (roleId) => {
     const role = state.roles.find((item) => item.id === roleId) || null;
     if (!role || role.system) return false;
-    if (!window.confirm(`Delete role ${role.name}? This will permanently remove the role and its assignments.`)) return false;
+    if (
+      !window.confirm(
+        `Delete role ${role.name}? This will permanently remove the role and its assignments.`
+      )
+    )
+      return false;
     const result = await deleteAdminRbacRole(role.id);
     if (result?.error) {
       throw new Error(result.error);

@@ -20,7 +20,10 @@ export function parseSseMessages(body) {
   const blocks = String(body || '').split('\n\n');
   const messages = [];
   for (const block of blocks) {
-    const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+    const lines = block
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
     let data = '';
     for (const line of lines) {
       if (line.startsWith('data:')) {
@@ -52,9 +55,10 @@ export async function mcpFetchWithRetry({ url, headers, sessionId, body }) {
     }
 
     const retryAfter = Number(response.headers.get('retry-after') || '');
-    const baseDelay = Number.isFinite(retryAfter) && retryAfter > 0
-      ? retryAfter * 1000
-      : (500 * Math.pow(2, attempt - 1));
+    const baseDelay =
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : 500 * Math.pow(2, attempt - 1);
     const jitter = Math.floor(Math.random() * 250);
     await sleep(baseDelay + jitter);
   }

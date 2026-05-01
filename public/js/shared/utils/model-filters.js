@@ -1,36 +1,43 @@
 import { filterModelsBySearch, normalizeModelSearchQuery } from './model-search.js';
 
 export function getModelProviderKey(model = {}) {
-  const raw = model?.connection_name
-    || model?.connectionName
-    || model?.provider_id
-    || model?.providerId
-    || model?.provider_family
-    || model?.providerFamily
-    || model?.provider_type
-    || model?.providerType
-    || model?.provider
-    || '';
-  const normalized = String(raw || '').trim().toLowerCase();
+  const raw =
+    model?.connection_name ||
+    model?.connectionName ||
+    model?.provider_id ||
+    model?.providerId ||
+    model?.provider_family ||
+    model?.providerFamily ||
+    model?.provider_type ||
+    model?.providerType ||
+    model?.provider ||
+    '';
+  const normalized = String(raw || '')
+    .trim()
+    .toLowerCase();
   return normalized || 'unknown';
 }
 
 export function getModelProviderLabel(model = {}) {
-  const raw = model?.connection_name
-    || model?.connectionName
-    || model?.provider_id
-    || model?.providerId
-    || model?.provider_family
-    || model?.providerFamily
-    || model?.provider_type
-    || model?.providerType
-    || model?.provider
-    || '';
+  const raw =
+    model?.connection_name ||
+    model?.connectionName ||
+    model?.provider_id ||
+    model?.providerId ||
+    model?.provider_family ||
+    model?.providerFamily ||
+    model?.provider_type ||
+    model?.providerType ||
+    model?.provider ||
+    '';
   const trimmed = String(raw || '').trim();
   return trimmed || 'unknown';
 }
 
-export function buildProviderOptions(models = [], { includeAll = true, allLabel = 'All Providers' } = {}) {
+export function buildProviderOptions(
+  models = [],
+  { includeAll = true, allLabel = 'All Providers' } = {}
+) {
   const totals = new Map();
   const actives = new Map();
   const labels = new Map();
@@ -57,7 +64,9 @@ export function buildProviderOptions(models = [], { includeAll = true, allLabel 
 
   if (includeAll) {
     const total = Array.isArray(models) ? models.length : 0;
-    const active = (Array.isArray(models) ? models : []).filter((model) => model?.enabled !== false).length;
+    const active = (Array.isArray(models) ? models : []).filter(
+      (model) => model?.enabled !== false
+    ).length;
     options.unshift({
       value: 'all',
       label: allLabel,
@@ -70,9 +79,13 @@ export function buildProviderOptions(models = [], { includeAll = true, allLabel 
 }
 
 export function filterModelsByProvider(models = [], provider = '') {
-  const normalized = String(provider || '').trim().toLowerCase();
+  const normalized = String(provider || '')
+    .trim()
+    .toLowerCase();
   if (!normalized || normalized === 'all') return Array.isArray(models) ? models : [];
-  return (Array.isArray(models) ? models : []).filter((model) => getModelProviderKey(model) === normalized);
+  return (Array.isArray(models) ? models : []).filter(
+    (model) => getModelProviderKey(model) === normalized
+  );
 }
 
 export function filterModelsBySearchAndProvider(models = [], { query = '', provider = '' } = {}) {

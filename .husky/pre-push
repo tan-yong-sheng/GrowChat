@@ -4,10 +4,5 @@ set -euo pipefail
 # Skip in CI
 if [ -n "${CI:-}" ]; then exit 0; fi
 
-# Check if typecheck script exists before running
-if npm run -- silent typecheck 2>/dev/null; then
-  npm run typecheck || exit 1
-fi
-
 # Run tests
 npm run test

@@ -27,7 +27,11 @@ describe('chat MCP helpers', () => {
   it('builds tool names and tool specs', () => {
     expect(buildMcpToolName('server-1', 'Weather Lookup')).toBe('mcp__server-1__Weather_Lookup');
     const { tools, toolMap, serversById } = buildMcpTools([
-      { id: 'server-1', url: 'https://example.invalid', tools: [{ name: 'Weather Lookup', description: 'desc', parameters: { type: 'object' } }] },
+      {
+        id: 'server-1',
+        url: 'https://example.invalid',
+        tools: [{ name: 'Weather Lookup', description: 'desc', parameters: { type: 'object' } }],
+      },
       { id: 'disabled', enabled: false, url: 'https://example.invalid', tools: [{ name: 'x' }] },
     ]);
     expect(tools).toHaveLength(1);
@@ -36,18 +40,21 @@ describe('chat MCP helpers', () => {
   });
 
   it('filters MCP tools by selected model tool names', () => {
-    const { tools, toolMap } = buildMcpTools([
+    const { tools, toolMap } = buildMcpTools(
+      [
+        {
+          id: 'server-1',
+          url: 'https://example.invalid',
+          tools: [
+            { name: 'Weather Lookup', description: 'desc', parameters: { type: 'object' } },
+            { name: 'News Lookup', description: 'desc', parameters: { type: 'object' } },
+          ],
+        },
+      ],
       {
-        id: 'server-1',
-        url: 'https://example.invalid',
-        tools: [
-          { name: 'Weather Lookup', description: 'desc', parameters: { type: 'object' } },
-          { name: 'News Lookup', description: 'desc', parameters: { type: 'object' } },
-        ],
-      },
-    ], {
-      selectedToolNames: ['mcp__server-1__News_Lookup'],
-    });
+        selectedToolNames: ['mcp__server-1__News_Lookup'],
+      }
+    );
 
     expect(tools).toHaveLength(1);
     expect(toolMap.has('mcp__server-1__News_Lookup')).toBe(true);
@@ -55,17 +62,18 @@ describe('chat MCP helpers', () => {
   });
 
   it('returns no tools when the selected tool list is explicitly empty', () => {
-    const { tools, toolMap } = buildMcpTools([
+    const { tools, toolMap } = buildMcpTools(
+      [
+        {
+          id: 'server-1',
+          url: 'https://example.invalid',
+          tools: [{ name: 'Weather Lookup', description: 'desc', parameters: { type: 'object' } }],
+        },
+      ],
       {
-        id: 'server-1',
-        url: 'https://example.invalid',
-        tools: [
-          { name: 'Weather Lookup', description: 'desc', parameters: { type: 'object' } },
-        ],
-      },
-    ], {
-      selectedToolNames: [],
-    });
+        selectedToolNames: [],
+      }
+    );
 
     expect(tools).toHaveLength(0);
     expect(toolMap.has('mcp__server-1__Weather_Lookup')).toBe(false);

@@ -21,11 +21,7 @@ import { renderModelSelector } from './model-selector.js';
 import { renderSidebar } from '../../shared/components/sidebar.js';
 import { renderAssistantMessageBody } from './chat-message-rendering.js';
 import { createChatMessageDom } from './chat-message-dom.js';
-import {
-  appendBlock,
-  ensureThinkingBlock,
-  updateToolCallState,
-} from './chat-message-blocks.js';
+import { appendBlock, ensureThinkingBlock, updateToolCallState } from './chat-message-blocks.js';
 import {
   getAllowedAttachmentKinds,
   getAllowedNonLocalKinds,
@@ -33,12 +29,9 @@ import {
   isAttachmentAllowedByModel,
   isSupportedAttachmentType,
 } from '../../shared/utils/attachment-types.js';
-import { isTempMessageId, touchRecentChat } from '../../shared/utils/chat-cache.js';
+import { touchRecentChat } from '../../shared/utils/chat-cache.js';
 import { consumeToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
-import {
-  formatApiErrorMessage,
-  extractThinkingBlocks,
-} from './chat-message-utils.js';
+import { formatApiErrorMessage, extractThinkingBlocks } from './chat-message-utils.js';
 import { createChatCacheController } from './chat-cache-controller.js';
 import { createChatMessageIdentityTracker } from './chat-message-identity.js';
 import { createChatMessageStream } from './chat-message-stream.js';
@@ -176,8 +169,6 @@ function wireChat(root) {
   const syncChatUrl = (...args) => syncChatUrlImpl(...args);
   let startNewChatImpl = () => {};
   const startNewChat = (...args) => startNewChatImpl(...args);
-  let loadMoreChatsImpl = async () => null;
-  const loadMoreChats = (...args) => loadMoreChatsImpl(...args);
   let refreshChatListObserverImpl = () => {};
   const refreshChatListObserver = (...args) => refreshChatListObserverImpl(...args);
   let refreshShareStateImpl = async () => {};
@@ -193,7 +184,7 @@ function wireChat(root) {
 
   const MAX_CACHED_CHATS = 6;
   const recentChatIds = [];
-  const { pruneChatCaches, schedulePrune } = createChatCacheController({
+  const { schedulePrune } = createChatCacheController({
     currentState: state,
     setStateFn: setState,
     recentChatIds,
@@ -218,7 +209,8 @@ function wireChat(root) {
   };
   const streamSession = {
     getRunningMessageId(messages = []) {
-      if (streamSessionImpl?.getRunningMessageId) return streamSessionImpl.getRunningMessageId(messages);
+      if (streamSessionImpl?.getRunningMessageId)
+        return streamSessionImpl.getRunningMessageId(messages);
       for (let i = messages.length - 1; i >= 0; i -= 1) {
         const msg = messages[i];
         const status = String(msg?.status || '');
@@ -359,7 +351,6 @@ function wireChat(root) {
 
   const toggleChatsBtn = root.querySelector('#toggle-chats-btn');
   const toggleChatsIcon = root.querySelector('#toggle-chats-icon');
-  const chatListContainer = root.querySelector('#chat-list-container');
   const chatList = root.querySelector('#chat-list');
   const chatListContainerEl = root.querySelector('#chat-list-container');
   const messagesList = root.querySelector('#messages-list');
@@ -453,9 +444,7 @@ function wireChat(root) {
   const toolCallsByMessageId = new Map();
   const toolExpandedByKey = new Map();
   const messageBlocksById = new Map();
-  let updateMessageContentDom = () => false;
-  let applyAssistantErrorMessage = () => {};
-  const chatMessageDom = createChatMessageDom({
+  const { updateMessageContentDom, applyAssistantErrorMessage } = createChatMessageDom({
     messagesList,
     state,
     setState,
@@ -468,8 +457,6 @@ function wireChat(root) {
     toolExpandedByKey,
     messageBlocksById,
   });
-  updateMessageContentDom = chatMessageDom.updateMessageContentDom;
-  applyAssistantErrorMessage = chatMessageDom.applyAssistantErrorMessage;
   const clientSessionId = getClientSessionId();
   let activeStreamAbort = null;
   const setGlobalStreamAbort = (fn) => {
@@ -533,11 +520,12 @@ function wireChat(root) {
     }
     setState({ newChatToolSelection: next });
   };
-  const refreshAllowedToolServers = (options) => uiResources.refreshAllowedToolServers(options);
   const loadAllowedToolServers = () => uiResources.loadAllowedToolServers();
   const checkToolServersInvalidation = () => uiResources.checkToolServersInvalidation();
-  const bindToolServersInvalidationListener = () => uiResources.bindToolServersInvalidationListener();
-  const unbindToolServersInvalidationListener = () => uiResources.unbindToolServersInvalidationListener();
+  const bindToolServersInvalidationListener = () =>
+    uiResources.bindToolServersInvalidationListener();
+  const unbindToolServersInvalidationListener = () =>
+    uiResources.unbindToolServersInvalidationListener();
   const PINNED_COLLAPSED_KEY = 'growchat_pinned_section_collapsed';
   let pinnedSectionCollapsed = false;
   try {
@@ -572,10 +560,7 @@ function wireChat(root) {
   let streamRuntimeReadyPromise = null;
   const ensureStreamRuntime = () => {
     if (streamRuntimeReadyPromise) return streamRuntimeReadyPromise;
-    streamRuntimeReadyPromise = Promise.all([
-      ensureStreamSession(),
-      loadChatStreamStateModule(),
-    ])
+    streamRuntimeReadyPromise = Promise.all([ensureStreamSession(), loadChatStreamStateModule()])
       .then(([session, streamStateModule]) => {
         if (!session || !streamStateModule?.createChatStreamState) return null;
         const streamState = streamStateModule.createChatStreamState({
@@ -586,7 +571,9 @@ function wireChat(root) {
           streamingOverrideByChat,
           drawMessages,
           getActiveStreamAbort: () => activeStreamAbort,
-          setActiveStreamAbort: (value) => { activeStreamAbort = value; },
+          setActiveStreamAbort: (value) => {
+            activeStreamAbort = value;
+          },
           clearGlobalStreamAbort,
         });
         setStreamingStateImpl = streamState?.setStreamingState || (() => {});
@@ -647,7 +634,9 @@ function wireChat(root) {
           updateMessageContentDom,
           matchPendingTempMessage,
           getActiveStreamAbort: () => activeStreamAbort,
-          setActiveStreamAbort: (value) => { activeStreamAbort = value; },
+          setActiveStreamAbort: (value) => {
+            activeStreamAbort = value;
+          },
           clearGlobalStreamAbort,
           clientSessionId,
           processedRealtimeEvents,
@@ -656,7 +645,8 @@ function wireChat(root) {
           isTempChatId,
         });
         onRealtimeEventImpl = realtimeController?.onRealtimeEvent || null;
-        updateChatTitleLocalImpl = realtimeController?.updateChatTitleLocal || fallbackUpdateChatTitleLocal;
+        updateChatTitleLocalImpl =
+          realtimeController?.updateChatTitleLocal || fallbackUpdateChatTitleLocal;
         return realtimeController;
       })
       .catch((err) => {
@@ -745,7 +735,9 @@ function wireChat(root) {
     setBranchSelection,
     setStreamingState,
     getActiveStreamAbort: () => activeStreamAbort,
-    setActiveStreamAbort: (value) => { activeStreamAbort = value; },
+    setActiveStreamAbort: (value) => {
+      activeStreamAbort = value;
+    },
     clearGlobalStreamAbort,
     setGlobalStreamAbort,
     consumeSseTextStream,
@@ -760,7 +752,6 @@ function wireChat(root) {
     openCitation,
   });
   drawMessagesImpl = renderController.drawMessages;
-
 
   let destroyMessageListInteractions = null;
   let messageListInteractionsReadyPromise = null;
@@ -785,7 +776,7 @@ function wireChat(root) {
     return messageListInteractionsReadyPromise;
   };
 
-  const createFallbackChatHandlers = (chat = {}) => ({
+  const createFallbackChatHandlers = () => ({
     onClick: (id) => {
       if (isTempChatId(id)) {
         setState({ activeChatId: id });
@@ -839,7 +830,8 @@ function wireChat(root) {
       });
     return chatListHandlersReadyPromise;
   };
-  const pruneTempChats = (list) => (Array.isArray(list) ? list.filter((c) => !isTempChatId(c?.id)) : []);
+  const pruneTempChats = (list) =>
+    Array.isArray(list) ? list.filter((c) => !isTempChatId(c?.id)) : [];
   const buildTempChat = (id = null) => {
     const nowTs = Math.floor(Date.now() / 1000);
     const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
@@ -882,7 +874,6 @@ function wireChat(root) {
   });
   syncChatUrlImpl = shellController.syncChatUrl;
   startNewChatImpl = shellController.startNewChat;
-  loadMoreChatsImpl = shellController.loadMoreChats;
   refreshChatListObserverImpl = shellController.refreshChatListObserver;
   const destroyShellEvents = shellController.bindShellEvents();
 
@@ -926,7 +917,9 @@ function wireChat(root) {
     clearGlobalStreamAbort,
     setStreamingState,
     getActiveStreamAbort: () => activeStreamAbort,
-    setActiveStreamAbort: (value) => { activeStreamAbort = value; },
+    setActiveStreamAbort: (value) => {
+      activeStreamAbort = value;
+    },
     consumeSseTextStream,
     appendBlock,
     ensureThinkingBlock,
@@ -1060,12 +1053,6 @@ function wireChat(root) {
 
   window.addEventListener('growchat:realtime', onRealtimeEvent);
 
-  async function sendSingleMessage(text, hooks = {}, options = {}) {
-    await ensureStreamRuntime();
-    await ensureMessageSequenceTracker();
-    return chatMessageFlow?.sendSingleMessage?.(text, hooks, options);
-  }
-
   async function sendMessage(text, hooks = {}, options = {}) {
     const prompt = String(text || '').trim();
     if (!prompt) {
@@ -1077,11 +1064,15 @@ function wireChat(root) {
     return chatMessageFlow?.sendMessage?.(prompt, hooks, options);
   }
 
-  messageInputContainer.addEventListener('focusin', () => {
-    void ensureChatFileEvents();
-    warmupToolServers();
-    void ensureMessageSequenceTracker();
-  }, { once: true });
+  messageInputContainer.addEventListener(
+    'focusin',
+    () => {
+      void ensureChatFileEvents();
+      warmupToolServers();
+      void ensureMessageSequenceTracker();
+    },
+    { once: true }
+  );
   const onHeaderMenuInteraction = () => {
     void ensureChatListHandlers();
     warmupToolServers();
@@ -1150,7 +1141,11 @@ function wireChat(root) {
       document.body.style.overflow = 'hidden';
     } else {
       sidebarBackdrop.classList.add('hidden');
-      if (!currentState.showSearch && !shareModalContainer.innerHTML && !archivedModalContainer.innerHTML) {
+      if (
+        !currentState.showSearch &&
+        !shareModalContainer.innerHTML &&
+        !archivedModalContainer.innerHTML
+      ) {
         document.body.style.overflow = '';
       }
     }
@@ -1168,15 +1163,39 @@ function wireChat(root) {
     maybeRefreshChatListObserver();
   });
 
-  chatListContainerEl?.addEventListener('wheel', onChatListInteraction, { once: true, passive: true });
-  chatListContainerEl?.addEventListener('touchstart', onChatListInteraction, { once: true, passive: true });
-  chatListContainerEl?.addEventListener('scroll', onChatListInteraction, { once: true, passive: true });
-  chatListContainerEl?.addEventListener('pointerenter', onChatListInteraction, { once: true, passive: true });
-  chatListContainerEl?.addEventListener('focusin', onChatListInteraction, { once: true });
-  chatListContainerEl?.addEventListener('click', onChatListInteraction, { once: true, capture: true });
-  headerMenuBtn?.addEventListener('click', onHeaderMenuInteraction, { once: true });
-  headerMenuDropdown?.addEventListener('click', onHeaderMenuInteraction, { once: true });
-  messagesList?.addEventListener('click', onMessageListInteraction, { once: true, capture: true });
+  chatListContainerEl?.addEventListener('wheel', onChatListInteraction, {
+    once: true,
+    passive: true,
+  });
+  chatListContainerEl?.addEventListener('touchstart', onChatListInteraction, {
+    once: true,
+    passive: true,
+  });
+  chatListContainerEl?.addEventListener('scroll', onChatListInteraction, {
+    once: true,
+    passive: true,
+  });
+  chatListContainerEl?.addEventListener('pointerenter', onChatListInteraction, {
+    once: true,
+    passive: true,
+  });
+  chatListContainerEl?.addEventListener('focusin', onChatListInteraction, {
+    once: true,
+  });
+  chatListContainerEl?.addEventListener('click', onChatListInteraction, {
+    once: true,
+    capture: true,
+  });
+  headerMenuBtn?.addEventListener('click', onHeaderMenuInteraction, {
+    once: true,
+  });
+  headerMenuDropdown?.addEventListener('click', onHeaderMenuInteraction, {
+    once: true,
+  });
+  messagesList?.addEventListener('click', onMessageListInteraction, {
+    once: true,
+    capture: true,
+  });
 
   drawChats(state.chats, state.activeChatId);
   maybeRefreshChatListObserver();
@@ -1192,50 +1211,6 @@ function wireChat(root) {
       drawChats(state.chats, state.activeChatId);
       maybeRefreshChatListObserver();
     });
-  }
-
-  const getRunningMessageId = (messages = []) => streamSession.getRunningMessageId(messages);
-
-  function stopStreamPolling(chatId) {
-    streamSession.stopStreamPolling(chatId);
-  }
-
-  function startStreamPolling(chatId, messageId) {
-    if (!chatId || !messageId) return;
-    void ensureStreamRuntime();
-    streamSession.startStreamPolling(chatId, messageId, {
-      onMessage: (msg, { isRunning } = {}) => {
-        const messages = [...(state.messagesByChat[chatId] || [])];
-        const idx = messages.findIndex((m) => String(m?.id || '') === String(msg.id));
-        if (idx >= 0) {
-          messages[idx] = {
-            ...messages[idx],
-            ...msg,
-            done: !isRunning,
-          };
-        } else {
-          messages.push({ ...msg, done: !isRunning });
-        }
-        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: messages } }));
-        if (state.activeChatId === chatId) drawMessages(messages);
-
-        const hasRunning = messages.some((m) => {
-          const s = String(m?.status || '');
-          return m?.role === 'assistant' && (s === 'streaming' || s === 'tool_running');
-        });
-        setStreamingState(chatId, hasRunning);
-      },
-      onStop: () => {
-        setStreamingState(chatId, false);
-      },
-      onTimeout: () => {
-        setStreamingState(chatId, false);
-      },
-    });
-  }
-
-  function stopResumeStream(chatId) {
-    chatMessageFlow?.stopResumeStream?.(chatId);
   }
 
   async function startResumeStream(chatId, messageId) {
@@ -1274,6 +1249,3 @@ function wireChat(root) {
     root.__cleanup = null;
   };
 }
-
-
-

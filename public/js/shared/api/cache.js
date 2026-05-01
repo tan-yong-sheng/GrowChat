@@ -24,12 +24,16 @@ function getChatsCacheKey(userId) {
 }
 
 function getModelsCacheKey(scope = 'global') {
-  const safeScope = String(scope || 'global').trim().toLowerCase() || 'global';
+  const safeScope =
+    String(scope || 'global')
+      .trim()
+      .toLowerCase() || 'global';
   return `${MODEL_CACHE_KEY_PREFIX}${safeScope}`;
 }
 
 export function readModelsCache(scope = 'global', maxAgeMs = MODEL_CACHE_TTL_MS) {
-  const entry = readCache(getModelsCacheKey(scope), maxAgeMs) || readCache(LEGACY_MODEL_CACHE_KEY, maxAgeMs);
+  const entry =
+    readCache(getModelsCacheKey(scope), maxAgeMs) || readCache(LEGACY_MODEL_CACHE_KEY, maxAgeMs);
   return entry ? entry.value : null;
 }
 

@@ -22,7 +22,9 @@ describe('migration audit', () => {
     ]);
 
     expect(report.ok).toBe(false);
-    expect(report.errors.some((error) => error.includes('Duplicate migration prefix 002'))).toBe(true);
+    expect(report.errors.some((error) => error.includes('Duplicate migration prefix 002'))).toBe(
+      true
+    );
   });
 
   it('flags invalid filenames', () => {

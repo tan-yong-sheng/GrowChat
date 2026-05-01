@@ -73,14 +73,15 @@ function isFullLatexDocument(content) {
 }
 
 function matchDisplayMathDelimiter(trimmedLine) {
-  return DISPLAY_MATH_DELIMITERS.find((delimiter) => (
-    trimmedLine === delimiter.open
-    || (
-      trimmedLine.startsWith(delimiter.open)
-      && trimmedLine.endsWith(delimiter.close)
-      && trimmedLine.length > delimiter.open.length + delimiter.close.length
-    )
-  )) || null;
+  return (
+    DISPLAY_MATH_DELIMITERS.find(
+      (delimiter) =>
+        trimmedLine === delimiter.open ||
+        (trimmedLine.startsWith(delimiter.open) &&
+          trimmedLine.endsWith(delimiter.close) &&
+          trimmedLine.length > delimiter.open.length + delimiter.close.length)
+    ) || null
+  );
 }
 
 function convertDisplayMathBlocks(content) {
@@ -131,7 +132,9 @@ function convertDisplayMathBlocks(content) {
 }
 
 function getSpecialBlockKind(lang) {
-  const value = String(lang || '').trim().toLowerCase();
+  const value = String(lang || '')
+    .trim()
+    .toLowerCase();
   if (!value) return null;
   if (value === 'katex' || value === 'math' || value === 'latex') return 'katex';
   if (value === 'mermaid') return 'mermaid';
@@ -175,11 +178,12 @@ function getSpecialPreviewPlaceholder(kind) {
   }
 }
 
-function renderPlainCodeBlock(token, { interactive = true, streaming = false, langLabel = 'text', sourceLanguage = langLabel } = {}) {
+function renderPlainCodeBlock(
+  token,
+  { interactive = true, langLabel = 'text', sourceLanguage = langLabel } = {}
+) {
   const code = escapeHtml(token?.text ?? '');
   const languageClass = sourceLanguage ? `language-${escapeHtml(sourceLanguage)}` : '';
-  const isStreaming = Boolean(streaming);
-
   if (!interactive) {
     return `<pre class="gc-markdown-code-block" data-markdown-code-body><code class="${languageClass}">${code}</code></pre>`;
   }
@@ -187,14 +191,11 @@ function renderPlainCodeBlock(token, { interactive = true, streaming = false, la
   return `<div class="gc-markdown-code-shell" data-markdown-code-block data-code-lang="${escapeHtml(langLabel)}"><div class="gc-markdown-code-toolbar"><div class="gc-markdown-code-lang">${escapeHtml(langLabel)}</div><div class="gc-markdown-code-actions"><button type="button" class="gc-markdown-code-action" data-markdown-code-copy title="Copy code" aria-label="Copy code"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><span>Copy</span></button><button type="button" class="gc-markdown-code-action" data-markdown-code-toggle title="Collapse code" aria-label="Collapse code" aria-expanded="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m6 15 6-6 6 6"></path></svg><span>Collapse</span></button></div></div><pre class="gc-markdown-code-block" data-markdown-code-body><code class="${languageClass}">${code}</code></pre></div>`;
 }
 
-function escapeAttribute(value) {
-  return escapeHtml(value).replace(/`/g, '&#96;');
-}
-
 function showSpecialCopyToast(message, duration = 1800) {
   if (typeof document === 'undefined') return null;
   const toast = document.createElement('div');
-  toast.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
+  toast.className =
+    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
   toast.textContent = message;
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.remove('opacity-0'));
@@ -271,7 +272,9 @@ function ensureSpecialBlockErrorElement(block) {
 function setSpecialBlockError(block, message) {
   if (!block) return;
   const hasError = Boolean(message);
-  const errorEl = hasError ? ensureSpecialBlockErrorElement(block) : block.querySelector('[data-markdown-special-error]');
+  const errorEl = hasError
+    ? ensureSpecialBlockErrorElement(block)
+    : block.querySelector('[data-markdown-special-error]');
   const errorBody = errorEl?.querySelector('[data-markdown-special-error-body]');
   block.dataset.markdownSpecialHasError = hasError ? '1' : '0';
   block.dataset.markdownSpecialErrorMessage = hasError ? String(message) : '';
@@ -303,9 +306,13 @@ function applySpecialBlockMode(block, mode) {
     block.dataset.markdownSpecialCollapsed = '0';
   }
   updateSpecialBlockVisibility(block);
-  if (previewBtn) previewBtn.setAttribute('aria-pressed', nextMode === 'preview' ? 'true' : 'false');
+  if (previewBtn)
+    previewBtn.setAttribute('aria-pressed', nextMode === 'preview' ? 'true' : 'false');
   if (codeBtn) codeBtn.setAttribute('aria-pressed', nextMode === 'code' ? 'true' : 'false');
-  if (previewBtn) previewBtn.disabled = block.dataset.markdownSpecialHasError === '1' || block.dataset.markdownSpecialStreaming === '1';
+  if (previewBtn)
+    previewBtn.disabled =
+      block.dataset.markdownSpecialHasError === '1' ||
+      block.dataset.markdownSpecialStreaming === '1';
 }
 
 function applySpecialBlockModeToScope(scope, mode) {
@@ -394,7 +401,9 @@ function loadExternalScript(src) {
     return externalScriptPromises.get(absoluteSrc);
   }
 
-  const existingScript = Array.from(document.querySelectorAll('script[src]')).find((script) => script.src === absoluteSrc);
+  const existingScript = Array.from(document.querySelectorAll('script[src]')).find(
+    (script) => script.src === absoluteSrc
+  );
   const script = existingScript || document.createElement('script');
 
   if (!existingScript) {
@@ -443,7 +452,9 @@ function loadExternalStylesheet(href) {
     return externalStylesheetPromises.get(absoluteHref);
   }
 
-  const existingLink = Array.from(document.querySelectorAll('link[rel="stylesheet"][href]')).find((link) => link.href === absoluteHref);
+  const existingLink = Array.from(document.querySelectorAll('link[rel="stylesheet"][href]')).find(
+    (link) => link.href === absoluteHref
+  );
   const link = existingLink || document.createElement('link');
 
   if (!existingLink) {
@@ -483,14 +494,16 @@ function loadExternalStylesheet(href) {
 }
 
 function getGlobalGraphviz() {
-  return globalThis?.window?.Graphviz
-    || globalThis?.Graphviz
-    || globalThis?.window?.graphviz
-    || globalThis?.graphviz
-    || globalThis?.window?.['@hpcc-js/wasm']?.Graphviz
-    || globalThis?.['@hpcc-js/wasm']?.Graphviz
-    || globalThis?.window?.['@hpcc-js/wasm']?.graphviz
-    || globalThis?.['@hpcc-js/wasm']?.graphviz;
+  return (
+    globalThis?.window?.Graphviz ||
+    globalThis?.Graphviz ||
+    globalThis?.window?.graphviz ||
+    globalThis?.graphviz ||
+    globalThis?.window?.['@hpcc-js/wasm']?.Graphviz ||
+    globalThis?.['@hpcc-js/wasm']?.Graphviz ||
+    globalThis?.window?.['@hpcc-js/wasm']?.graphviz ||
+    globalThis?.['@hpcc-js/wasm']?.graphviz
+  );
 }
 
 async function ensureKatexRuntime() {
@@ -520,13 +533,19 @@ async function ensureKatexRuntime() {
 
 async function ensureMermaidRuntime() {
   const existing = globalThis?.window?.mermaid || globalThis?.mermaid;
-  if (existing && (typeof existing.run === 'function' || typeof existing.render === 'function')) return true;
+  if (existing && (typeof existing.run === 'function' || typeof existing.render === 'function'))
+    return true;
 
   if (!mermaidRuntimePromise) {
-    mermaidRuntimePromise = loadExternalScript('https://cdn.jsdelivr.net/npm/mermaid@11.0.2/dist/mermaid.min.js')
+    mermaidRuntimePromise = loadExternalScript(
+      'https://cdn.jsdelivr.net/npm/mermaid@11.0.2/dist/mermaid.min.js'
+    )
       .then(() => {
         const mermaid = globalThis?.window?.mermaid || globalThis?.mermaid;
-        if (!mermaid || (typeof mermaid.run !== 'function' && typeof mermaid.render !== 'function')) {
+        if (
+          !mermaid ||
+          (typeof mermaid.run !== 'function' && typeof mermaid.render !== 'function')
+        ) {
           throw new Error('Mermaid unavailable');
         }
         return true;
@@ -544,7 +563,9 @@ async function ensureGraphvizRuntime() {
   if (getGlobalGraphviz()) return true;
 
   if (!graphvizRuntimePromise) {
-    graphvizRuntimePromise = loadExternalScript('https://cdn.jsdelivr.net/npm/@hpcc-js/wasm@1.12.8/dist/index.js')
+    graphvizRuntimePromise = loadExternalScript(
+      'https://cdn.jsdelivr.net/npm/@hpcc-js/wasm@1.12.8/dist/index.js'
+    )
       .then(() => {
         if (!getGlobalGraphviz()) {
           throw new Error('Graphviz renderer unavailable');
@@ -596,7 +617,8 @@ async function renderSpecialPreview(kind, source, previewEl, block) {
     if (kind === 'katex') {
       await ensureKatexRuntime();
       const katex = globalThis?.window?.katex || globalThis?.katex;
-      if (!katex || typeof katex.renderToString !== 'function') throw new Error('KaTeX unavailable');
+      if (!katex || typeof katex.renderToString !== 'function')
+        throw new Error('KaTeX unavailable');
       previewEl.innerHTML = katex.renderToString(text, {
         displayMode: true,
         throwOnError: true,
@@ -609,7 +631,8 @@ async function renderSpecialPreview(kind, source, previewEl, block) {
     if (kind === 'mermaid') {
       await ensureMermaidRuntime();
       const mermaid = globalThis?.window?.mermaid || globalThis?.mermaid;
-      if (!mermaid || (typeof mermaid.run !== 'function' && typeof mermaid.render !== 'function')) throw new Error('Mermaid unavailable');
+      if (!mermaid || (typeof mermaid.run !== 'function' && typeof mermaid.render !== 'function'))
+        throw new Error('Mermaid unavailable');
       if (!mermaidInitialized && typeof mermaid.initialize === 'function') {
         mermaid.initialize({
           startOnLoad: false,
@@ -654,7 +677,8 @@ async function renderSpecialPreview(kind, source, previewEl, block) {
   } catch (err) {
     previewEl.innerHTML = '';
     if (block) applySpecialBlockMode(block, 'code');
-    if (block) setSpecialBlockError(block, err?.message || String(err) || 'Unable to render preview.');
+    if (block)
+      setSpecialBlockError(block, err?.message || String(err) || 'Unable to render preview.');
     return false;
   }
 
@@ -680,7 +704,10 @@ export async function enhanceMarkdownSpecialBlocks(root = document) {
       block.dataset.markdownSpecialState = 'preview';
       block.dataset.markdownSpecialCollapsed = '0';
       setSpecialBlockError(block, '');
-      applySpecialBlockMode(block, block.dataset.markdownSpecialMode === 'code' ? 'code' : specialBlockMode);
+      applySpecialBlockMode(
+        block,
+        block.dataset.markdownSpecialMode === 'code' ? 'code' : specialBlockMode
+      );
       enhanced += 1;
       continue;
     }
@@ -699,17 +726,25 @@ function scheduleMarkdownEnhancement(root = document) {
     await enhanceMarkdownSpecialBlocks(root);
   };
   if (typeof window.requestAnimationFrame === 'function') {
-    window.requestAnimationFrame(() => { void run(); });
+    window.requestAnimationFrame(() => {
+      void run();
+    });
   } else {
-    setTimeout(() => { void run(); }, 0);
+    setTimeout(() => {
+      void run();
+    }, 0);
   }
 }
 
 if (typeof window !== 'undefined' && !window.__growchatMarkdownSpecialBootstrap) {
   window.__growchatMarkdownSpecialBootstrap = true;
-  window.addEventListener('load', () => {
-    scheduleMarkdownEnhancement(document);
-  }, { once: true });
+  window.addEventListener(
+    'load',
+    () => {
+      scheduleMarkdownEnhancement(document);
+    },
+    { once: true }
+  );
 }
 
 function touchMarkdownCache(key, value) {
@@ -771,11 +806,14 @@ function renderInlineToken(token) {
   }
 }
 
-function renderCodeBlock(token, { interactive = true, streaming = false, specialBlockScope = '' } = {}) {
+function renderCodeBlock(
+  token,
+  { interactive = true, streaming = false, specialBlockScope = '' } = {}
+) {
+  const isStreaming = Boolean(streaming);
   const lang = String(token?.lang || '').trim();
   const kind = getSpecialBlockKind(lang);
-  const langLabel = kind ? getSpecialBlockLabel(kind) : (lang || 'text');
-  const isStreaming = Boolean(streaming);
+  const langLabel = kind ? getSpecialBlockLabel(kind) : lang || 'text';
   const sourceText = String(token?.text ?? '');
   const specialSession = resolveSpecialBlockSession(specialBlockScope);
   const specialMode = isStreaming ? 'code' : specialSession.mode;
@@ -793,7 +831,9 @@ function renderCodeBlock(token, { interactive = true, streaming = false, special
     const code = escapeHtml(sourceText);
     const sourceLanguage = getSpecialCodeLanguage(kind);
     const languageClass = sourceLanguage ? `language-${escapeHtml(sourceLanguage)}` : '';
-    const scopeAttr = specialSession.scope ? ` data-markdown-special-scope="${escapeHtml(specialSession.scope)}"` : '';
+    const scopeAttr = specialSession.scope
+      ? ` data-markdown-special-scope="${escapeHtml(specialSession.scope)}"`
+      : '';
     const codeHtml = `
       <div class="gc-markdown-special-code-shell ${specialMode === 'code' ? '' : 'hidden'}" data-markdown-special-code-shell>
         <pre class="gc-markdown-code-block" data-markdown-special-code><code class="${languageClass}">${code}</code></pre>
@@ -832,7 +872,7 @@ function renderCodeBlock(token, { interactive = true, streaming = false, special
           <div class="gc-markdown-special-placeholder">${escapeHtml(getSpecialPreviewPlaceholder(kind))}</div>
         </div>
       </div>
-    `; 
+    `;
   }
 
   return renderPlainCodeBlock(token, {
@@ -843,18 +883,24 @@ function renderCodeBlock(token, { interactive = true, streaming = false, special
   });
 }
 
-function renderTable(token, options = {}) {
-  const header = (token.header || []).map((cell, idx) => {
-    const align = token.align?.[idx] ? ` style="text-align:${token.align[idx]}"` : '';
-    return `<th${align}>${renderInlineTokens(cell.tokens || [])}</th>`;
-  }).join('');
-  const rows = (token.rows || []).map((row) => {
-    const cells = (row || []).map((cell, idx) => {
+function renderTable(token) {
+  const header = (token.header || [])
+    .map((cell, idx) => {
       const align = token.align?.[idx] ? ` style="text-align:${token.align[idx]}"` : '';
-      return `<td${align}>${renderInlineTokens(cell.tokens || [])}</td>`;
-    }).join('');
-    return `<tr>${cells}</tr>`;
-  }).join('');
+      return `<th${align}>${renderInlineTokens(cell.tokens || [])}</th>`;
+    })
+    .join('');
+  const rows = (token.rows || [])
+    .map((row) => {
+      const cells = (row || [])
+        .map((cell, idx) => {
+          const align = token.align?.[idx] ? ` style="text-align:${token.align[idx]}"` : '';
+          return `<td${align}>${renderInlineTokens(cell.tokens || [])}</td>`;
+        })
+        .join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
 
   return `
     <div class="gc-markdown-table-wrap">
@@ -868,7 +914,9 @@ function renderTable(token, options = {}) {
 
 function renderListItem(item, options = {}) {
   const content = renderMarkdownTokens(item.tokens || [], options);
-  const task = item.task ? `<input type="checkbox" disabled ${item.checked ? 'checked' : ''} />` : '';
+  const task = item.task
+    ? `<input type="checkbox" disabled ${item.checked ? 'checked' : ''} />`
+    : '';
   return `<li>${task}${content}</li>`;
 }
 
@@ -890,7 +938,9 @@ function renderMarkdownToken(token, options = {}) {
     case 'paragraph':
       return `<p dir="auto">${renderInlineTokens(token.tokens || [])}</p>`;
     case 'text':
-      return token.tokens ? renderInlineTokens(token.tokens) : `<p dir="auto">${escapeHtml(token.text ?? token.raw ?? '').replace(/\n/g, ' ')}</p>`;
+      return token.tokens
+        ? renderInlineTokens(token.tokens)
+        : `<p dir="auto">${escapeHtml(token.text ?? token.raw ?? '').replace(/\n/g, ' ')}</p>`;
     case 'code':
       return renderCodeBlock(token, options);
     case 'blockquote':
@@ -914,7 +964,9 @@ function renderMarkdownToken(token, options = {}) {
 }
 
 export function renderMarkdownTokens(tokens = [], options = {}) {
-  return (Array.isArray(tokens) ? tokens : []).map((token) => renderMarkdownToken(token, options)).join('');
+  return (Array.isArray(tokens) ? tokens : [])
+    .map((token) => renderMarkdownToken(token, options))
+    .join('');
 }
 
 function fallbackMarkdown(content) {
@@ -944,20 +996,82 @@ function fallbackMarkdown(content) {
 function sanitizeHtml(html) {
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
-      'b', 'i', 'em', 'strong', 'a', 'code', 'pre', 'p', 'br',
-      'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'blockquote', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-      'img', 'div', 'span', 'section', 'article', 'button',
+      'b',
+      'i',
+      'em',
+      'strong',
+      'a',
+      'code',
+      'pre',
+      'p',
+      'br',
+      'ul',
+      'ol',
+      'li',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'blockquote',
+      'hr',
+      'table',
+      'thead',
+      'tbody',
+      'tr',
+      'th',
+      'td',
+      'img',
+      'div',
+      'span',
+      'section',
+      'article',
+      'button',
       // Special blocks for markdown rendering
       'input', // for task checkboxes
       // Mermaid diagram support
-      'svg', 'g', 'text', 'path', 'rect', 'circle', 'line', 'polyline', 'polygon',
+      'svg',
+      'g',
+      'text',
+      'path',
+      'rect',
+      'circle',
+      'line',
+      'polyline',
+      'polygon',
     ],
     ALLOWED_ATTR: [
-      'href', 'target', 'rel', 'title', 'alt', 'src', 'width', 'height',
-      'class', 'id', 'data-*', 'disabled', 'checked', 'type',
+      'href',
+      'target',
+      'rel',
+      'title',
+      'alt',
+      'src',
+      'width',
+      'height',
+      'class',
+      'id',
+      'data-*',
+      'disabled',
+      'checked',
+      'type',
       // SVG attributes
-      'viewBox', 'xmlns', 'fill', 'stroke', 'stroke-width', 'd', 'x', 'y', 'cx', 'cy', 'r', 'x1', 'y1', 'x2', 'y2',
+      'viewBox',
+      'xmlns',
+      'fill',
+      'stroke',
+      'stroke-width',
+      'd',
+      'x',
+      'y',
+      'cx',
+      'cy',
+      'r',
+      'x1',
+      'y1',
+      'x2',
+      'y2',
     ],
     KEEP_CONTENT: true,
   });
@@ -1005,7 +1119,9 @@ export function ensureMarkedReady({ timeoutMs = 1200, pollMs = 25 } = {}) {
 
 export function renderMarkdownContent(content, options = {}) {
   const normalized = normalizeMessageContent(content);
-  const specialSession = resolveSpecialBlockSession(options.specialBlockScope || options.chatId || options.threadId || '');
+  const specialSession = resolveSpecialBlockSession(
+    options.specialBlockScope || options.chatId || options.threadId || ''
+  );
   const marked = globalThis?.window?.marked || globalThis?.marked;
   if (marked && typeof marked.lexer === 'function') {
     configureMarked();
@@ -1013,16 +1129,19 @@ export function renderMarkdownContent(content, options = {}) {
     const cached = markdownCache.get(cacheKey);
     if (cached) {
       touchMarkdownCache(cacheKey, cached);
-      if (!options.streaming && cached.includes('data-markdown-special-block')) scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
+      if (!options.streaming && cached.includes('data-markdown-special-block'))
+        scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
       return cached;
     }
     const html = renderWithMarked(marked, normalized, options);
     touchMarkdownCache(cacheKey, html);
-    if (!options.streaming && html.includes('data-markdown-special-block')) scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
+    if (!options.streaming && html.includes('data-markdown-special-block'))
+      scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
     return html;
   }
   const fallback = fallbackMarkdown(normalized);
-  if (!options.streaming && fallback.includes('data-markdown-special-block')) scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
+  if (!options.streaming && fallback.includes('data-markdown-special-block'))
+    scheduleMarkdownEnhancement(typeof document !== 'undefined' ? document : null);
   return fallback;
 }
 
@@ -1031,8 +1150,4 @@ export function resetMarkdownSpecialBlockState() {
   specialBlockMode = 'preview';
 }
 
-export {
-  convertDisplayMathBlocks,
-  isFullLatexDocument,
-  applySpecialBlockModeToScope,
-};
+export { convertDisplayMathBlocks, isFullLatexDocument, applySpecialBlockModeToScope };

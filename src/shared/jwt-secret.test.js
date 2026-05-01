@@ -4,7 +4,10 @@ import { getJwtSecret } from './jwt-secret.js';
 describe('shared/jwt-secret', () => {
   it('prefers configured JWT secret', () => {
     const configured = 'configured-jwt-secret-123456789012345';
-    const secret = getJwtSecret({ JWT_SECRET: configured }, new Request('https://example.com/api/auth/login'));
+    const secret = getJwtSecret(
+      { JWT_SECRET: configured },
+      new Request('https://example.com/api/auth/login')
+    );
     expect(secret).toBe(configured);
   });
 

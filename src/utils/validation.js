@@ -25,7 +25,11 @@ export const ValidationSchemas = {
 
   // Profile updates
   profileUpdate: z.object({
-    name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters').optional(),
+    name: z
+      .string()
+      .min(1, 'Name is required')
+      .max(100, 'Name must be less than 100 characters')
+      .optional(),
     email: z.string().email('Invalid email address').optional(),
   }),
 
@@ -85,7 +89,7 @@ export async function validateRequestBody(req, schema) {
   try {
     const body = await req.json();
     return validateInput(schema, body);
-  } catch (error) {
+  } catch {
     return {
       valid: false,
       errors: [{ field: 'body', message: 'Invalid JSON' }],

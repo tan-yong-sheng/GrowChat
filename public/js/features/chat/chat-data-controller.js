@@ -62,7 +62,13 @@ export function createChatDataController({
   const STREAM_STALE_MS = 5 * 60 * 1000;
 
   async function loadMessages(chatId, options = {}) {
-    const { draw = true, updateActiveModel = draw, modelMode = 'keep', preferredLeafId = null, fallbackMessage = null } = options;
+    const {
+      draw = true,
+      updateActiveModel = draw,
+      modelMode = 'keep',
+      preferredLeafId = null,
+      fallbackMessage = null,
+    } = options;
     if (!chatId) {
       if (draw) drawMessages([]);
       return;
@@ -94,7 +100,8 @@ export function createChatDataController({
     const now = Date.now();
     const isMessageLive = (message) => {
       const status = String(message?.status || '');
-      const isRunning = message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+      const isRunning =
+        message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
       if (!isRunning) return false;
       const createdAtMs = Number(message?.created_at || 0) * 1000;
       if (!createdAtMs) return false;
@@ -112,10 +119,13 @@ export function createChatDataController({
       const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
       const fallbackParent = resolvedFallback.parent_id ? String(resolvedFallback.parent_id) : '';
       const hasSibling = fallbackParent
-        ? messages.some((msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent)
+        ? messages.some(
+            (msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent
+          )
         : false;
       if (!hasExact && !hasSibling) {
-        const parentExists = fallbackParent && messages.some((msg) => String(msg.id) === fallbackParent);
+        const parentExists =
+          fallbackParent && messages.some((msg) => String(msg.id) === fallbackParent);
         if (!parentExists) {
           const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
           resolvedFallback = { ...resolvedFallback, parent_id: lastUser ? lastUser.id : null };

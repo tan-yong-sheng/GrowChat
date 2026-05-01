@@ -56,13 +56,13 @@ describe('worker spa routing', () => {
     await worker.fetch(
       new Request('https://example.com/.well-known/appspecific/com.chrome.devtools.json'),
       { ASSETS: { fetch: assetFetch } },
-      { waitUntil: vi.fn() },
+      { waitUntil: vi.fn() }
     );
 
     expect(logSpy).not.toHaveBeenCalledWith(
       '[Worker] Incoming request:',
       '/.well-known/appspecific/com.chrome.devtools.json',
-      'GET',
+      'GET'
     );
 
     logSpy.mockRestore();
@@ -72,17 +72,21 @@ describe('worker spa routing', () => {
     const response = await worker.fetch(
       new Request('https://example.com/admin/users/overview'),
       { ASSETS: { fetch: assetFetch } },
-      { waitUntil: vi.fn() },
+      { waitUntil: vi.fn() }
     );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/html');
     await expect(response.text()).resolves.toContain('root');
-    expect(assetFetch).toHaveBeenCalledWith(expect.objectContaining({
-      url: 'https://example.com/admin/users/overview',
-    }));
-    expect(assetFetch).toHaveBeenCalledWith(expect.objectContaining({
-      url: 'https://example.com/',
-    }));
+    expect(assetFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://example.com/admin/users/overview',
+      })
+    );
+    expect(assetFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://example.com/',
+      })
+    );
   });
 });

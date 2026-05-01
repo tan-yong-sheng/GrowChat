@@ -122,7 +122,12 @@ describe('chatRouter', () => {
         url: 'https://example.invalid',
         enabled: true,
         tools: [
-          { name: 'weather_lookup', title: 'Weather Lookup', description: 'Lookup weather', enabled: true },
+          {
+            name: 'weather_lookup',
+            title: 'Weather Lookup',
+            description: 'Lookup weather',
+            enabled: true,
+          },
           { name: 'news_lookup', title: 'News Lookup', description: 'Lookup news', enabled: false },
         ],
       },
@@ -180,7 +185,10 @@ describe('chatRouter', () => {
     expect(etag).toBeTruthy();
 
     const res2 = await chatRouter(
-      new Request('https://example.com/api/chats?limit=10&offset=0', { method: 'GET', headers: { 'If-None-Match': etag } }),
+      new Request('https://example.com/api/chats?limit=10&offset=0', {
+        method: 'GET',
+        headers: { 'If-None-Match': etag },
+      }),
       { DB: {} },
       {},
       user,
@@ -191,7 +199,12 @@ describe('chatRouter', () => {
   });
 
   it('returns 304 for cached chat detail when ETag matches', async () => {
-    mocks.db.first.mockResolvedValue({ id: 'c1', user_id: 'u1', updated_at: 20, current_message_id: 'm1' });
+    mocks.db.first.mockResolvedValue({
+      id: 'c1',
+      user_id: 'u1',
+      updated_at: 20,
+      current_message_id: 'm1',
+    });
     mocks.db.all.mockImplementation((sql) => {
       if (String(sql).includes('FROM messages')) {
         return Promise.resolve([{ id: 'm1', role: 'user', content: 'Hello', created_at: 5 }]);
@@ -213,7 +226,10 @@ describe('chatRouter', () => {
     expect(etag).toBeTruthy();
 
     const res2 = await chatRouter(
-      new Request('https://example.com/api/chats/c1', { method: 'GET', headers: { 'If-None-Match': etag } }),
+      new Request('https://example.com/api/chats/c1', {
+        method: 'GET',
+        headers: { 'If-None-Match': etag },
+      }),
       { DB: {} },
       {},
       user,
@@ -300,7 +316,13 @@ describe('chatRouter', () => {
   });
 
   it('branches an assistant message without calling the LLM when no_reply is true', async () => {
-    const branchChat = { id: 'c1', user_id: 'u1', title: 'Chat 1', model: 'gpt-4', current_message_id: 'm0' };
+    const branchChat = {
+      id: 'c1',
+      user_id: 'u1',
+      title: 'Chat 1',
+      model: 'gpt-4',
+      current_message_id: 'm0',
+    };
     const sourceMessage = {
       role: 'assistant',
       parent_id: 'm-parent',
@@ -380,7 +402,9 @@ describe('chatRouter', () => {
       .mockResolvedValueOnce([]);
 
     const res = await chatRouter(
-      new Request('https://example.com/api/chats/c1/messages/m1/resume?after_seq=0', { method: 'GET' }),
+      new Request('https://example.com/api/chats/c1/messages/m1/resume?after_seq=0', {
+        method: 'GET',
+      }),
       { DB: {} },
       {},
       user,
@@ -416,14 +440,24 @@ describe('chatRouter', () => {
         return { allow: true, code: 'ok', action: 'chat.write' };
       }
       if (options.action === 'model.use') {
-        return { allow: false, code: 'forbidden', reason: 'missing_permission', action: 'model.use' };
+        return {
+          allow: false,
+          code: 'forbidden',
+          reason: 'missing_permission',
+          action: 'model.use',
+        };
       }
       return { allow: true, code: 'ok', action: options.action };
     });
     mocks.db.first
       .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', model: 'gpt-4', current_message_id: null })
       .mockResolvedValueOnce({ id: 'm-user', role: 'user', content: 'hello' })
-      .mockResolvedValueOnce({ id: 'c1', user_id: 'u1', model: 'gpt-4', current_message_id: 'm-user' });
+      .mockResolvedValueOnce({
+        id: 'c1',
+        user_id: 'u1',
+        model: 'gpt-4',
+        current_message_id: 'm-user',
+      });
     mocks.db.all.mockImplementation(async (sql) => {
       const query = String(sql || '');
       if (query.includes('FROM group_members')) {

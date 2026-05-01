@@ -15,4 +15,3 @@ export function buildChatRows(list, activeId, models, getChatHandlers) {
   });
   return fragment;
 }
-

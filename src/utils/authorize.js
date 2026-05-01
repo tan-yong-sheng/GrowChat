@@ -228,7 +228,9 @@ export async function getRoleUserCount(env, roleName, excludeUserId) {
       bindings.push(excludeUserId);
     }
 
-    const result = await env.DB.prepare(query).bind(...bindings).first();
+    const result = await env.DB.prepare(query)
+      .bind(...bindings)
+      .first();
     return result?.count || 0;
   } catch (err) {
     console.error('Failed to get role user count:', err);
@@ -264,14 +266,7 @@ export async function isLastOwnerOfRole(env, userId, roleName) {
  * @returns {Promise<Object>} { entries, total, limit, offset }
  */
 export async function getAuditLog(env, options = {}) {
-  const {
-    actor_id,
-    action,
-    resource_type,
-    resource_id,
-    limit = 100,
-    offset = 0,
-  } = options;
+  const { actor_id, action, resource_type, resource_id, limit = 100, offset = 0 } = options;
 
   // Validate and cap limit
   const safeLimit = Math.min(Math.max(parseInt(limit) || 100, 1), 500);
@@ -306,7 +301,9 @@ export async function getAuditLog(env, options = {}) {
 
     // Get total count
     const countQuery = `SELECT COUNT(*) as count FROM audit_log${whereClause}`;
-    const countResult = await env.DB.prepare(countQuery).bind(...bindings).first();
+    const countResult = await env.DB.prepare(countQuery)
+      .bind(...bindings)
+      .first();
     const total = countResult?.count || 0;
 
     // Get entries
@@ -319,7 +316,9 @@ export async function getAuditLog(env, options = {}) {
     `;
 
     const allBindings = [...bindings, safeLimit, safeOffset];
-    const entriesResult = await env.DB.prepare(entriesQuery).bind(...allBindings).all();
+    const entriesResult = await env.DB.prepare(entriesQuery)
+      .bind(...allBindings)
+      .all();
 
     // Parse metadata JSON
     const entries = (entriesResult.results || []).map((entry) => ({

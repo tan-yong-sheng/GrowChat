@@ -2,10 +2,7 @@ import { projectConversation } from '../../shared/utils/conversation.js';
 import { buildChatMessageListHtml } from './chat-message-list-html.js';
 import { bindChatMessageActions } from './chat-message-actions.js';
 import { renderAttachmentPills, renderAssistantMessageBody } from './chat-message-rendering.js';
-import {
-  syncMessageBlocksForMessage,
-  syncToolCallsForMessage,
-} from './chat-message-blocks.js';
+import { syncMessageBlocksForMessage, syncToolCallsForMessage } from './chat-message-blocks.js';
 import { setupEditTextarea } from './edit-textarea.js';
 
 export function createChatRenderController({
@@ -57,7 +54,7 @@ export function createChatRenderController({
     const welcomeScreen = welcomeScreenContainer.firstElementChild;
     const chatId = state.activeChatId;
     const rawMessages = Array.isArray(messages) ? messages : [];
-    const branchSelectionMap = chatId ? (branchSelectionByChat.get(chatId) || new Map()) : new Map();
+    const branchSelectionMap = chatId ? branchSelectionByChat.get(chatId) || new Map() : new Map();
     const preferredLeafId = chatId ? currentLeafByChatId.get(chatId) : null;
     const isLoading = !!chatId && state.ui?.loadingChatId === chatId;
 
@@ -107,7 +104,9 @@ export function createChatRenderController({
     if (welcomeScreen) welcomeScreen.classList.add('hidden');
     messagesList.classList.remove('hidden');
 
-    const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 40;
+    const isAtBottom =
+      messagesContainer.scrollHeight - messagesContainer.scrollTop <=
+      messagesContainer.clientHeight + 40;
 
     const messagesHtml = buildChatMessageListHtml({
       projectedMessages,

@@ -1,7 +1,7 @@
 import { state, setState, subscribe } from '../store.js';
 import { deriveSidebarLayout } from './sidebar-helpers.js';
 
-export function renderSidebar(aside, container) {
+export function renderSidebar(aside) {
   let isResizing = false;
   let unsubscribe;
   let cleanupFn;
@@ -10,7 +10,8 @@ export function renderSidebar(aside, container) {
     // Create resize handle
     const handle = document.createElement('div');
     handle.id = 'sidebar-resize-handle';
-    handle.className = 'absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-300 transition-colors z-50 hidden md:block';
+    handle.className =
+      'absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-300 transition-colors z-50 hidden md:block';
     aside.appendChild(handle);
 
     cleanupFn = wire(handle);
@@ -61,7 +62,7 @@ export function renderSidebar(aside, container) {
       const fullOnly = aside.querySelectorAll('.sidebar-full-only');
       const slimOnly = aside.querySelectorAll('.sidebar-collapsed-only');
       const footer = aside.querySelector('.user-profile-footer');
-      
+
       const isSlim = layout.slim;
 
       if (footer) {
@@ -76,19 +77,19 @@ export function renderSidebar(aside, container) {
         }
       }
 
-      fullOnly.forEach(el => {
+      fullOnly.forEach((el) => {
         if (isSlim) el.classList.add('hidden');
         else el.classList.remove('hidden');
       });
 
-      slimOnly.forEach(el => {
+      slimOnly.forEach((el) => {
         if (isSlim) el.classList.remove('hidden');
         else el.classList.add('hidden');
       });
 
       // Scale icons in slim mode
       const icons = aside.querySelectorAll('.sidebar-collapsed-scale');
-      icons.forEach(icon => {
+      icons.forEach((icon) => {
         if (isSlim) icon.classList.add('scale-110');
         else icon.classList.remove('scale-110');
       });
@@ -114,5 +115,3 @@ export function renderSidebar(aside, container) {
     if (cleanupFn) cleanupFn();
   };
 }
-
-

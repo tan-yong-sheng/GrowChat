@@ -1,4 +1,3 @@
-import { createDB } from '../db.js';
 import { error, json, sseHeaders, sseData } from '../utils/response.js';
 import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
@@ -7,7 +6,6 @@ import { buildMetadataSystemPrompt } from '../llm/system-prompt.js';
 import { trimTrailingAssistantMessages } from './chat-history.js';
 import { authorize } from '../utils/authorize.js';
 import {
-  getOwnedChat,
   requireOwnedChat,
   getMessageSnapshot,
   normalizeErrorMessage,
@@ -30,7 +28,11 @@ import {
   normalizeAttachmentIds,
   isSupportedAttachmentType,
 } from '../chat/attachments.js';
-import { buildModelAclIndex, evaluateModelAclAccess, loadModelAclRules } from '../utils/model-acl.js';
+import {
+  buildModelAclIndex,
+  evaluateModelAclAccess,
+  loadModelAclRules,
+} from '../utils/model-acl.js';
 
 async function ensureModelAllowed(req, env, db, user, model) {
   const useDecision = await authorize(env, user, {
@@ -53,14 +55,19 @@ async function ensureModelAllowed(req, env, db, user, model) {
   const groupRows = user?.sub
     ? await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [user.sub])
     : [];
-  const userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
+  const userGroupIds = new Set(
+    (Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean)
+  );
   const aclRules = await loadModelAclRules(db, model);
   const aclIndex = buildModelAclIndex(aclRules);
-  const access = evaluateModelAclAccess({ connection_source: providerInfo?.connection?.source }, {
-    user,
-    userGroupIds,
-    rules: aclIndex.get(model) || [],
-  });
+  const access = evaluateModelAclAccess(
+    { connection_source: providerInfo?.connection?.source },
+    {
+      user,
+      userGroupIds,
+      rules: aclIndex.get(model) || [],
+    }
+  );
   if (!access.allowed) {
     return { error: error(req, 'Model not allowed', 403) };
   }
@@ -101,7 +108,16 @@ async function requireChatPermission(req, env, user, action, chatId) {
   return null;
 }
 
-export async function chatMessageRouter({ req, env, ctx, db, user, path, originSessionId, assistantStreamRunner }) {
+export async function chatMessageRouter({
+  req,
+  env,
+  ctx,
+  db,
+  user,
+  path,
+  originSessionId,
+  assistantStreamRunner,
+}) {
   const sendMatch = path.match(/^\/api\/chats\/([^/]+)\/messages$/);
   if (sendMatch && req.method === 'POST') {
     const chatId = sendMatch[1];
@@ -111,7 +127,6 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
     if (owned.error) return owned.error;
     const chat = owned.chat;
-
     const sendLimit = await checkRateLimit(env.CACHE, {
       action: 'chat-send',
       subject: user.sub,
@@ -182,9 +197,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       const caps = await loadModelAttachmentCaps(db);
       const modelCaps = getModelAttachmentCapsEntry(caps, model);
       const unsupported = nonLocalKinds.length
-        ? (STRICT_ATTACHMENT_CAPS
+        ? STRICT_ATTACHMENT_CAPS
           ? getUnsupportedAttachmentKindsStrict(modelCaps, nonLocalKinds)
-          : getUnsupportedAttachmentKinds(modelCaps, nonLocalKinds))
+          : getUnsupportedAttachmentKinds(modelCaps, nonLocalKinds)
         : [];
       if (attachmentKinds.includes('text') && modelCaps?.text !== true) {
         unsupported.push('text');
@@ -204,27 +219,31 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     const userMsgId = crypto.randomUUID();
     const parentId = chat.current_message_id || null;
     await db.batch([
-      db.prepare(
-        'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
-      ).bind(userMsgId, chatId, 'user', content, model, parentId),
-      db.prepare(
-        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
-      ).bind(userMsgId, chatId, user.sub),
+      db
+        .prepare(
+          'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
+        )
+        .bind(userMsgId, chatId, 'user', content, model, parentId),
+      db
+        .prepare(
+          'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
+        )
+        .bind(userMsgId, chatId, user.sub),
     ]);
 
     const createdUserMessage = await getMessageSnapshot(db, userMsgId);
-    const updatedChatAfterUserMessage = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
+    const updatedChatAfterUserMessage =
+      (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
 
     if (attachmentDocs.length > 0) {
       try {
-        const statements = attachmentDocs.map((doc) => db.prepare(
-          'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
-        ).bind(
-          crypto.randomUUID(),
-          userMsgId,
-          doc.id,
-          'attachment'
-        ));
+        const statements = attachmentDocs.map((doc) =>
+          db
+            .prepare(
+              'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
+            )
+            .bind(crypto.randomUUID(), userMsgId, doc.id, 'attachment')
+        );
         await db.batch(statements);
       } catch (err) {
         console.warn('Failed to persist message attachments:', String(err?.message || err));
@@ -240,14 +259,22 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       }));
     }
 
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'message.created',
-      userId: user.sub,
-      chatId,
-      messageId: userMsgId,
-      originSessionId,
-      data: { role: 'user', model, message: createdUserMessage, chat: updatedChatAfterUserMessage },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'message.created',
+        userId: user.sub,
+        chatId,
+        messageId: userMsgId,
+        originSessionId,
+        data: {
+          role: 'user',
+          model,
+          message: createdUserMessage,
+          chat: updatedChatAfterUserMessage,
+        },
+      })
+    );
 
     const history = await db.all(
       'SELECT role, content FROM messages WHERE chat_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 30',
@@ -276,10 +303,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
         if (hasNonText) {
           enhancedHistory[lastIdx] = {
             role: 'user',
-            content: [
-              { type: 'text', text: content },
-              ...attachmentParts,
-            ],
+            content: [{ type: 'text', text: content }, ...attachmentParts],
           };
         } else {
           enhancedHistory[lastIdx] = {
@@ -365,7 +389,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       body.selected_tool_names || body.tool_names || body.tools
     );
 
-    const role = String(body.role || 'user').trim().toLowerCase();
+    const role = String(body.role || 'user')
+      .trim()
+      .toLowerCase();
     if (role !== 'user' && role !== 'assistant') {
       return error(req, "role must be 'user' or 'assistant'", 400);
     }
@@ -373,10 +399,10 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     const noReply = body.no_reply === true;
 
     if (role === 'user' && noReply) {
-      return error(req, "User message branching does not support no_reply=true", 400);
+      return error(req, 'User message branching does not support no_reply=true', 400);
     }
     if (role === 'assistant' && !noReply) {
-      return error(req, "Assistant message branching requires no_reply=true", 400);
+      return error(req, 'Assistant message branching requires no_reply=true', 400);
     }
 
     if (sourceMsg.role !== role) {
@@ -411,14 +437,22 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       );
       const updatedChat = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
 
-      await publishRealtimeNow(env, createRealtimeEvent({
-        type: 'message.completed',
-        userId: user.sub,
-        chatId,
-        messageId: newAssistantMsgId,
-        originSessionId,
-        data: { role: 'assistant', model: sourceMsg.model, message: newMsg, chat: updatedChat },
-      }));
+      await publishRealtimeNow(
+        env,
+        createRealtimeEvent({
+          type: 'message.completed',
+          userId: user.sub,
+          chatId,
+          messageId: newAssistantMsgId,
+          originSessionId,
+          data: {
+            role: 'assistant',
+            model: sourceMsg.model,
+            message: newMsg,
+            chat: updatedChat,
+          },
+        })
+      );
 
       return json(req, { message: newMsg }, 200);
     }
@@ -435,7 +469,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     let attachmentParts = [];
     let attachmentDocs = [];
     let attachmentKinds = [];
-    let attachmentIds = normalizeAttachmentIds(Array.isArray(body.attachments) ? body.attachments : []);
+    let attachmentIds = normalizeAttachmentIds(
+      Array.isArray(body.attachments) ? body.attachments : []
+    );
     if (attachmentIds.length === 0) {
       try {
         const inherited = await db.all(
@@ -483,9 +519,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       const caps = await loadModelAttachmentCaps(db);
       const modelCaps = getModelAttachmentCapsEntry(caps, model);
       const unsupported = nonLocalKinds.length
-        ? (STRICT_ATTACHMENT_CAPS
+        ? STRICT_ATTACHMENT_CAPS
           ? getUnsupportedAttachmentKindsStrict(modelCaps, nonLocalKinds)
-          : getUnsupportedAttachmentKinds(modelCaps, nonLocalKinds))
+          : getUnsupportedAttachmentKinds(modelCaps, nonLocalKinds)
         : [];
       if (attachmentKinds.includes('text') && modelCaps?.text !== true) {
         unsupported.push('text');
@@ -504,12 +540,16 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
 
     const newUserMsgId = crypto.randomUUID();
     await db.batch([
-      db.prepare(
-        'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
-      ).bind(newUserMsgId, chatId, 'user', content, model, sourceMsg.parent_id),
-      db.prepare(
-        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
-      ).bind(newUserMsgId, chatId, user.sub),
+      db
+        .prepare(
+          'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
+        )
+        .bind(newUserMsgId, chatId, 'user', content, model, sourceMsg.parent_id),
+      db
+        .prepare(
+          'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
+        )
+        .bind(newUserMsgId, chatId, user.sub),
     ]);
 
     const createdBranchUserMessage = await getMessageSnapshot(db, newUserMsgId);
@@ -517,14 +557,13 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
 
     if (attachmentDocs.length > 0) {
       try {
-        const statements = attachmentDocs.map((doc) => db.prepare(
-          'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
-        ).bind(
-          crypto.randomUUID(),
-          newUserMsgId,
-          doc.id,
-          'attachment'
-        ));
+        const statements = attachmentDocs.map((doc) =>
+          db
+            .prepare(
+              'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
+            )
+            .bind(crypto.randomUUID(), newUserMsgId, doc.id, 'attachment')
+        );
         await db.batch(statements);
       } catch (err) {
         console.warn('Failed to persist branch attachments:', String(err?.message || err));
@@ -540,14 +579,22 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       }));
     }
 
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'message.created',
-      userId: user.sub,
-      chatId,
-      messageId: newUserMsgId,
-      originSessionId,
-      data: { role: 'user', model, message: createdBranchUserMessage, chat: updatedBranchChat },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'message.created',
+        userId: user.sub,
+        chatId,
+        messageId: newUserMsgId,
+        originSessionId,
+        data: {
+          role: 'user',
+          model,
+          message: createdBranchUserMessage,
+          chat: updatedBranchChat,
+        },
+      })
+    );
 
     const history = await getBranchHistory(newUserMsgId);
     if (attachmentParts.length > 0) {
@@ -557,10 +604,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
         if (hasNonText) {
           history[lastIdx] = {
             role: 'user',
-            content: [
-              { type: 'text', text: content },
-              ...attachmentParts,
-            ],
+            content: [{ type: 'text', text: content }, ...attachmentParts],
           };
         } else {
           history[lastIdx] = {
@@ -600,13 +644,13 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
     if (owned.error) return owned.error;
     const chat = owned.chat;
-
     const sourceMsg = await db.first(
       'SELECT role, parent_id FROM messages WHERE id = ? AND chat_id = ?',
       [msgId, chatId]
     );
     if (!sourceMsg) return error(req, 'Message not found', 404);
-    if (sourceMsg.role !== 'assistant') return error(req, 'Can only regenerate assistant messages', 400);
+    if (sourceMsg.role !== 'assistant')
+      return error(req, 'Can only regenerate assistant messages', 400);
 
     let model = String(chat.model || '').trim();
     if (!model) {
@@ -617,7 +661,7 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     if (modelDecision?.error) return modelDecision.error;
     const providerInfo = modelDecision.providerInfo;
 
-    let body = {};
+    let body;
     try {
       body = await req.json();
     } catch {
@@ -627,8 +671,9 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       body.selected_tool_names || body.tool_names || body.tools
     );
 
-    const history = trimTrailingAssistantMessages(await db.all(
-      `SELECT role, content
+    const history = trimTrailingAssistantMessages(
+      await db.all(
+        `SELECT role, content
        FROM messages
        WHERE chat_id = ?
          AND (
@@ -640,8 +685,14 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
          )
        ORDER BY created_at ASC, rowid ASC
        LIMIT 30`,
-      [chatId, sourceMsg.parent_id || msgId, sourceMsg.parent_id || msgId, sourceMsg.parent_id || msgId]
-    ));
+        [
+          chatId,
+          sourceMsg.parent_id || msgId,
+          sourceMsg.parent_id || msgId,
+          sourceMsg.parent_id || msgId,
+        ]
+      )
+    );
 
     const { response } = await assistantStreamRunner({
       req,
@@ -672,13 +723,13 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
     if (owned.error) return owned.error;
     const chat = owned.chat;
-
     const msg = await db.first(
       'SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?',
       [msgId, chatId]
     );
     if (!msg) return error(req, 'Message not found', 404);
-    if (msg.role !== 'assistant') return error(req, 'Only assistant messages can be cancelled', 400);
+    if (msg.role !== 'assistant')
+      return error(req, 'Only assistant messages can be cancelled', 400);
 
     const status = String(msg.status || '');
     if (!['streaming', 'tool_running'].includes(status)) {
@@ -691,19 +742,22 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     );
 
     const cancelledMessage = await getMessageSnapshot(db, msgId);
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'message.cancelled',
-      userId: user.sub,
-      chatId,
-      messageId: msgId,
-      originSessionId,
-      data: {
-        role: 'assistant',
-        model: cancelledMessage?.model || null,
-        message: cancelledMessage,
-        chat,
-      },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'message.cancelled',
+        userId: user.sub,
+        chatId,
+        messageId: msgId,
+        originSessionId,
+        data: {
+          role: 'assistant',
+          model: cancelledMessage?.model || null,
+          message: cancelledMessage,
+          chat,
+        },
+      })
+    );
 
     return json(req, { ok: true, cancelled: true });
   }
@@ -720,9 +774,10 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
 
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
     if (owned.error) return owned.error;
-    const chat = owned.chat;
-
-    const msg = await db.first('SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?', [msgId, chatId]);
+    const msg = await db.first(
+      'SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?',
+      [msgId, chatId]
+    );
     if (!msg) return error(req, 'Message not found', 404);
     if (msg.role !== 'assistant') return error(req, 'Only assistant messages can be resumed', 400);
 
@@ -747,7 +802,10 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
             idleRounds += 1;
           }
 
-          const statusRow = await db.first('SELECT status FROM messages WHERE id = ? AND chat_id = ?', [msgId, chatId]);
+          const statusRow = await db.first(
+            'SELECT status FROM messages WHERE id = ? AND chat_id = ?',
+            [msgId, chatId]
+          );
           const status = String(statusRow?.status || '');
           const isRunning = status === 'streaming' || status === 'tool_running';
           if (!isRunning) break;
@@ -777,7 +835,6 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
     if (owned.error) return owned.error;
     const chat = owned.chat;
-
     const msg = await db.first(
       'SELECT id, role, content, model, citations, parent_id, status, error_code, error_message, tool_calls, message_blocks, created_at FROM messages WHERE id = ? AND chat_id = ?',
       [msgId, chatId]
@@ -796,8 +853,6 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
 
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
     if (owned.error) return owned.error;
-    const chat = owned.chat;
-
     const message = await db.first(
       'SELECT id, chat_id, role, content, model, citations, parent_id, created_at FROM messages WHERE id = ? AND chat_id = ?',
       [msgId, chatId]
@@ -818,14 +873,15 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
     if (!content) return error(req, 'content is required', 400);
 
     await db.batch([
-      db.prepare(
-        'UPDATE messages SET content = ? WHERE id = ? AND chat_id = ?',
-        [content, msgId, chatId]
-      ),
-      db.prepare(
-        'UPDATE chats SET updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-        [chatId, user.sub]
-      ),
+      db.prepare('UPDATE messages SET content = ? WHERE id = ? AND chat_id = ?', [
+        content,
+        msgId,
+        chatId,
+      ]),
+      db.prepare('UPDATE chats SET updated_at = unixepoch() WHERE id = ? AND user_id = ?', [
+        chatId,
+        user.sub,
+      ]),
     ]);
 
     const updatedMessage = await db.first(
@@ -833,13 +889,16 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       [msgId, chatId]
     );
 
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'chat.updated',
-      userId: user.sub,
-      chatId,
-      originSessionId,
-      data: { message_id: msgId },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'chat.updated',
+        userId: user.sub,
+        chatId,
+        originSessionId,
+        data: { message_id: msgId },
+      })
+    );
 
     return json(req, { message: updatedMessage }, 200);
   }
@@ -853,16 +912,17 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
 
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
     if (owned.error) return owned.error;
-    const chat = owned.chat;
-
-    const msg = await db.first('SELECT id FROM messages WHERE id = ? AND chat_id = ?', [msgId, chatId]);
+    const msg = await db.first('SELECT id FROM messages WHERE id = ? AND chat_id = ?', [
+      msgId,
+      chatId,
+    ]);
     if (!msg) return error(req, 'Message not found', 404);
 
     async function deleteMessageSubtree(nodeId) {
-      const children = await db.all(
-        'SELECT id FROM messages WHERE parent_id = ? AND chat_id = ?',
-        [nodeId, chatId]
-      );
+      const children = await db.all('SELECT id FROM messages WHERE parent_id = ? AND chat_id = ?', [
+        nodeId,
+        chatId,
+      ]);
       for (const child of children) {
         await deleteMessageSubtree(child.id);
       }
@@ -888,13 +948,16 @@ export async function chatMessageRouter({ req, env, ctx, db, user, path, originS
       );
     }
 
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'chat.updated',
-      userId: user.sub,
-      chatId,
-      originSessionId,
-      data: { deleted_message_id: msgId },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'chat.updated',
+        userId: user.sub,
+        chatId,
+        originSessionId,
+        data: { deleted_message_id: msgId },
+      })
+    );
 
     return json(req, { ok: true, deleted: msgId });
   }

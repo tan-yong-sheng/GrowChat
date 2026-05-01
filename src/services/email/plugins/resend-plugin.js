@@ -29,7 +29,7 @@ export class ResendPlugin extends BaseEmailPlugin {
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
@@ -42,7 +42,7 @@ export class ResendPlugin extends BaseEmailPlugin {
           const error = await response.json();
           errorMessage = error.message || response.statusText;
         } catch {
-          errorMessage = await response.text() || response.statusText;
+          errorMessage = (await response.text()) || response.statusText;
         }
         throw new Error(`Resend API error: ${errorMessage}`);
       }

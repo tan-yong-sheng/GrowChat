@@ -18,9 +18,12 @@ export class UserRepository {
 
   async create(user) {
     const id = user.id || crypto.randomUUID();
-    const accountStatus = String(user.accountStatus || user.account_status || 'active').trim().toLowerCase() === 'pending'
-      ? 'pending'
-      : 'active';
+    const accountStatus =
+      String(user.accountStatus || user.account_status || 'active')
+        .trim()
+        .toLowerCase() === 'pending'
+        ? 'pending'
+        : 'active';
     try {
       await this.db.run(
         `INSERT INTO users (

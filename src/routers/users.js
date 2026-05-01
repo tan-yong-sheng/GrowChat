@@ -1,6 +1,12 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
-import { authorize, logAuditEvent, isLastOwnerOfRole, resolvePermissions, getUserRoles } from '../utils/authorize.js';
+import {
+  authorize,
+  logAuditEvent,
+  isLastOwnerOfRole,
+  resolvePermissions,
+  getUserRoles,
+} from '../utils/authorize.js';
 import { getConfigValue } from '../utils/app-config.js';
 import { hashPassword } from '../shared/auth.js';
 import {
@@ -10,7 +16,6 @@ import {
   getAllOpenAIConnectionConfigs,
   buildConnectionHeaders,
   getUserOpenAIConnectionConfig,
-  loadUserOpenAIConnectionConfigs,
   getConnectionDefaultBaseUrl,
   isConnectionUrlRequired,
   updateUserOpenAIConnection,
@@ -25,7 +30,6 @@ import {
   deleteUserToolServer,
   loadToolServers,
   loadUserToolServers,
-  normalizeAuthType,
   normalizeTokenAuthMethod,
   randomString,
   selectTokenAuthMethod,
@@ -33,7 +37,12 @@ import {
   testToolServerConnection,
   updateUserToolServer,
 } from '../admin/tool-servers.js';
-import { parsePagination, requirePlainObject, requireString, validateEmail } from '../validation/request.js';
+import {
+  parsePagination,
+  requirePlainObject,
+  requireString,
+  validateEmail,
+} from '../validation/request.js';
 import { isValidEmail } from '../utils/rbac.js';
 import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 import { ValidationError } from '../errors/http-errors.js';
@@ -47,7 +56,9 @@ import {
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 
 function normalizeAccountStatus(value, fallback = 'active') {
-  const status = String(value || fallback).trim().toLowerCase();
+  const status = String(value || fallback)
+    .trim()
+    .toLowerCase();
   return status === 'pending' ? 'pending' : 'active';
 }
 
@@ -60,10 +71,7 @@ async function resolveRequestedRole(db, requestedRole) {
   if (!roleName) return null;
 
   try {
-    const role = await db.first(
-      'SELECT name FROM roles WHERE LOWER(name) = LOWER(?)',
-      [roleName]
-    );
+    const role = await db.first('SELECT name FROM roles WHERE LOWER(name) = LOWER(?)', [roleName]);
     if (role?.name) return String(role.name).trim();
   } catch (err) {
     if (/no such table:\s*roles/i.test(String(err?.message || ''))) {
@@ -110,7 +118,12 @@ async function loadModelEnabledMap(db) {
       )`
     );
     const rows = await db.all('SELECT model_id, is_enabled FROM model_access');
-    return new Map((Array.isArray(rows) ? rows : []).map((row) => [String(row.model_id || ''), row.is_enabled === 1]));
+    return new Map(
+      (Array.isArray(rows) ? rows : []).map((row) => [
+        String(row.model_id || ''),
+        row.is_enabled === 1,
+      ])
+    );
   } catch (err) {
     console.warn('Failed to read model access map:', err?.message || err);
     return new Map();
@@ -181,20 +194,28 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return new Response(`Authorization failed: ${errParam}`, { status: 400 });
     }
     if (!code || !state) {
-      return new Response('Missing authorization code or state', { status: 400 });
+      return new Response('Missing authorization code or state', {
+        status: 400,
+      });
     }
 
     const server = await findUserToolServerByOauthState(db, state);
     if (!server) {
-      return new Response('OAuth session not found or expired', { status: 400 });
+      return new Response('OAuth session not found or expired', {
+        status: 400,
+      });
     }
 
-    const tokenEndpoint = server.oauth_token_endpoint || new URL('/token', server.oauth_authorization_server || server.url).toString();
+    const tokenEndpoint =
+      server.oauth_token_endpoint ||
+      new URL('/token', server.oauth_authorization_server || server.url).toString();
     const clientId = String(server.oauth_client_id || '').trim();
     const clientSecret = String(server.oauth_client_secret || '').trim();
     const codeVerifier = String(server.oauth_code_verifier || '').trim();
-    const tokenAuthMethod = normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
-    const redirectUri = new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+    const tokenAuthMethod =
+      normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
+    const redirectUri =
+      new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -282,7 +303,9 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
   }
 
-  const personalConnectionMatch = path.match(/^\/api\/users\/me\/resources\/connections\/(?!test$)([^/]+)$/);
+  const personalConnectionMatch = path.match(
+    /^\/api\/users\/me\/resources\/connections\/(?!test$)([^/]+)$/
+  );
   if (personalConnectionMatch) {
     const connectionId = personalConnectionMatch[1];
 
@@ -377,8 +400,18 @@ export async function usersRouter(req, env, _ctx, user, path) {
       existingConnection = await getUserOpenAIConnectionConfig(db, user.sub, connectionId);
     }
 
-    const providerType = String(body.provider_type || body.providerType || existingConnection?.providerType || 'openai-compatible').trim().toLowerCase() || 'openai-compatible';
-    const baseUrlRaw = String(body.base_url || body.baseUrl || existingConnection?.baseUrl || '').trim();
+    const providerType =
+      String(
+        body.provider_type ||
+          body.providerType ||
+          existingConnection?.providerType ||
+          'openai-compatible'
+      )
+        .trim()
+        .toLowerCase() || 'openai-compatible';
+    const baseUrlRaw = String(
+      body.base_url || body.baseUrl || existingConnection?.baseUrl || ''
+    ).trim();
     const baseUrl = baseUrlRaw || getConnectionDefaultBaseUrl(providerType);
     if (isConnectionUrlRequired(providerType) && !baseUrlRaw) {
       return error(req, 'Connection URL is required for compatible providers', 400);
@@ -407,32 +440,48 @@ export async function usersRouter(req, env, _ctx, user, path) {
       providerFamily: providerType,
       baseUrl,
       key: String(body.key || existingConnection?.key || '').trim(),
-      headers: Object.keys(headers).length ? headers : (existingConnection?.headers || {}),
-      authType: String(body.auth_type || body.authType || existingConnection?.authType || '').trim().toLowerCase(),
+      headers: Object.keys(headers).length ? headers : existingConnection?.headers || {},
+      authType: String(body.auth_type || body.authType || existingConnection?.authType || '')
+        .trim()
+        .toLowerCase(),
     };
 
     try {
-      const discovery = await discoverConnectionModels(connection, { headers: buildConnectionHeaders(connection) });
+      const discovery = await discoverConnectionModels(connection, {
+        headers: buildConnectionHeaders(connection),
+      });
       if (!discovery.items.length) {
         const message = discovery.error?.message || 'No models discovered';
-        return error(req, 'Connection failed', 502, { message: String(message).slice(0, 200) });
+        return error(req, 'Connection failed', 502, {
+          message: String(message).slice(0, 200),
+        });
       }
 
       return json(req, {
         ok: true,
         message: 'Connection successful',
         discovery_url: discovery.url,
-        models: discovery.items.map((item) => {
-          const rawId = String(item?.id || item?.modelId || item?.model_id || item?.name || '').trim();
-          const displayName = String(item?.displayName || item?.display_name || item?.name || rawId || '').trim();
-          return {
-            id: rawId.startsWith('models/') ? rawId.slice('models/'.length) : rawId,
-            name: displayName.startsWith('models/') ? displayName.slice('models/'.length) : displayName,
-          };
-        }).filter((item) => Boolean(item.id)),
+        models: discovery.items
+          .map((item) => {
+            const rawId = String(
+              item?.id || item?.modelId || item?.model_id || item?.name || ''
+            ).trim();
+            const displayName = String(
+              item?.displayName || item?.display_name || item?.name || rawId || ''
+            ).trim();
+            return {
+              id: rawId.startsWith('models/') ? rawId.slice('models/'.length) : rawId,
+              name: displayName.startsWith('models/')
+                ? displayName.slice('models/'.length)
+                : displayName,
+            };
+          })
+          .filter((item) => Boolean(item.id)),
       });
     } catch (err) {
-      return error(req, 'Connection failed', 502, { message: err?.message || String(err) });
+      return error(req, 'Connection failed', 502, {
+        message: err?.message || String(err),
+      });
     }
   }
 
@@ -529,11 +578,15 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'Server URL must start with http:// or https://', 400);
     }
 
-    const oauthClientName = String(body.oauth_client_name || existingServer.oauth_client_name || 'GrowChat MCP Client').trim();
+    const oauthClientName = String(
+      body.oauth_client_name || existingServer.oauth_client_name || 'GrowChat MCP Client'
+    ).trim();
     const oauthScope = String(body.oauth_scope || existingServer.oauth_scope || '').trim();
-    const authServerUrl = String(body.oauth_authorization_server || existingServer.oauth_authorization_server || serverUrl).trim();
+    const authServerUrl = String(
+      body.oauth_authorization_server || existingServer.oauth_authorization_server || serverUrl
+    ).trim();
 
-    let metadata = null;
+    let metadata;
     try {
       metadata = await discoverAuthorizationMetadata(authServerUrl);
     } catch {
@@ -541,9 +594,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     let clientId = String(body.oauth_client_id || existingServer.oauth_client_id || '').trim();
-    let clientSecret = String(body.oauth_client_secret || existingServer.oauth_client_secret || '').trim();
-    const registrationEndpoint = metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
-    const redirectUri = new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+    let clientSecret = String(
+      body.oauth_client_secret || existingServer.oauth_client_secret || ''
+    ).trim();
+    const registrationEndpoint =
+      metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
+    const redirectUri =
+      new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
     if (!clientId) {
       if (!registrationEndpoint) {
@@ -563,13 +620,17 @@ export async function usersRouter(req, env, _ctx, user, path) {
         });
         if (!registrationRes.ok) {
           const text = await registrationRes.text().catch(() => '');
-          return error(req, 'Client registration failed', 502, { message: text });
+          return error(req, 'Client registration failed', 502, {
+            message: text,
+          });
         }
         const registrationData = await registrationRes.json();
         clientId = String(registrationData.client_id || '').trim();
         clientSecret = String(registrationData.client_secret || '').trim();
       } catch (err) {
-        return error(req, 'Client registration failed', 502, { message: err?.message || String(err) });
+        return error(req, 'Client registration failed', 502, {
+          message: err?.message || String(err),
+        });
       }
     }
 
@@ -577,14 +638,20 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'OAuth client ID is required', 400);
     }
 
-    const tokenAuthMethod = normalizeTokenAuthMethod(
-      body.oauth_token_auth_method || existingServer.oauth_token_auth_method
-    ) || selectTokenAuthMethod(metadata?.token_endpoint_auth_methods_supported || [], Boolean(clientSecret));
+    const tokenAuthMethod =
+      normalizeTokenAuthMethod(
+        body.oauth_token_auth_method || existingServer.oauth_token_auth_method
+      ) ||
+      selectTokenAuthMethod(
+        metadata?.token_endpoint_auth_methods_supported || [],
+        Boolean(clientSecret)
+      );
 
     const codeVerifier = randomString(64);
     const codeChallenge = await sha256Base64Url(codeVerifier);
     const state = randomString(32);
-    const authorizationEndpoint = metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
+    const authorizationEndpoint =
+      metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
     const tokenEndpoint = metadata?.token_endpoint || new URL('/token', authServerUrl).toString();
 
     const authorizationUrl = buildAuthorizationUrl({
@@ -613,7 +680,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     await saveUserToolServerJson(db, user.sub, serverId, persistedServer);
 
-    return json(req, { ok: true, authorization_url: authorizationUrl.toString() });
+    return json(req, {
+      ok: true,
+      authorization_url: authorizationUrl.toString(),
+    });
   }
 
   const personalMcpMatch = path.match(/^\/api\/users\/me\/resources\/mcp-servers\/([^/]+)$/);
@@ -670,7 +740,12 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const db = createDB(env.DB);
     const url = new URL(req.url);
     const includeParam = url.searchParams.get('include') || '';
-    const include = new Set(includeParam.split(',').map((val) => val.trim()).filter(Boolean));
+    const include = new Set(
+      includeParam
+        .split(',')
+        .map((val) => val.trim())
+        .filter(Boolean)
+    );
     const includePermissions = include.has('permissions') || include.has('all');
     const includeRoles = include.has('roles') || include.has('all');
 
@@ -688,7 +763,9 @@ export async function usersRouter(req, env, _ctx, user, path) {
       .then((rawDefault) => (rawDefault ? String(rawDefault).trim() : null))
       .catch(() => null);
     const rolesPromise = includeRoles ? getUserRoles(db, user.sub) : Promise.resolve([]);
-    const permissionsPromise = includePermissions ? resolvePermissions(db, user) : Promise.resolve([]);
+    const permissionsPromise = includePermissions
+      ? resolvePermissions(db, user)
+      : Promise.resolve([]);
 
     const [primaryRoleRaw, globalDefaultModelId, roles, permissions] = await Promise.all([
       primaryRolePromise,
@@ -698,7 +775,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
     ]);
     const primaryRole = normalizePublicRole(primaryRoleRaw || fallbackPrimaryRole);
 
-    const payload = buildUserProfileResponse(row, { defaultModelId: globalDefaultModelId, primaryRole });
+    const payload = buildUserProfileResponse(row, {
+      defaultModelId: globalDefaultModelId,
+      primaryRole,
+    });
 
     if (includePermissions) {
       payload.permissions = permissions;
@@ -727,10 +807,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       updates.push('updated_at = unixepoch()');
       values.push(user.sub);
 
-      await db.run(
-        `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-        values
-      );
+      await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
 
       const row = await db.first(
         'SELECT id, email, name, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
@@ -765,10 +842,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       updates.push('updated_at = unixepoch()');
       values.push(user.sub);
 
-      await db.run(
-        `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-        values
-      );
+      await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
 
       const row = await db.first(
         'SELECT id, email, name, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
@@ -791,7 +865,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     // Check authorization
     const authDecision = await authorize(env, user, {
       action: 'admin.user.read',
-      resource: 'users'
+      resource: 'users',
     });
 
     if (!authDecision.allow) {
@@ -800,7 +874,11 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
     const db = createDB(env.DB);
     const url = new URL(req.url);
-    const { limit, offset } = parsePagination(url, { defaultLimit: 20, maxLimit: 100, defaultOffset: 0 });
+    const { limit, offset } = parsePagination(url, {
+      defaultLimit: 20,
+      maxLimit: 100,
+      defaultOffset: 0,
+    });
     const query = (url.searchParams.get('q') || '').trim();
 
     try {
@@ -858,7 +936,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
            LOWER(COALESCE(name, '')) ASC,
            LOWER(email) ASC
          LIMIT ? OFFSET ?`;
-      
+
       params.push(limit, offset);
 
       const totalRow = await db.first(countSql, countParams);
@@ -883,7 +961,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         action: 'user_list_accessed',
         resource_type: 'users',
         resource_id: null,
-        metadata: { limit, offset, count: parsedUsers.length }
+        metadata: { limit, offset, count: parsedUsers.length },
       });
 
       return json(req, {
@@ -930,66 +1008,102 @@ export async function usersRouter(req, env, _ctx, user, path) {
          ORDER BY g.is_system DESC, g.name ASC`,
         [userId]
       );
-      const groupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((group) => group.id).filter(Boolean));
-      const groupMap = new Map((Array.isArray(groupRows) ? groupRows : []).map((group) => [group.id, group.name]));
-      const userPermissions = await resolvePermissions(db, { sub: userId, role: primaryRole });
+      const groupIds = new Set(
+        (Array.isArray(groupRows) ? groupRows : []).map((group) => group.id).filter(Boolean)
+      );
+      const groupMap = new Map(
+        (Array.isArray(groupRows) ? groupRows : []).map((group) => [group.id, group.name])
+      );
+      const userPermissions = await resolvePermissions(db, {
+        sub: userId,
+        role: primaryRole,
+      });
       const modelEnabledMap = await loadModelEnabledMap(db);
       const connectionEnabledMap = new Map(
-        (await getAllOpenAIConnectionConfigs(env, { includeDisabled: true, includeHiddenForUser: true }))
-          .map((connection) => [String(connection.id || ''), connection.enabled !== false])
+        (
+          await getAllOpenAIConnectionConfigs(env, {
+            includeDisabled: true,
+            includeHiddenForUser: true,
+          })
+        ).map((connection) => [String(connection.id || ''), connection.enabled !== false])
       );
       const toolServerEnabledMap = new Map(
-        (await loadToolServers(db, { includeHiddenForUser: true }))
-          .map((server) => [String(server.id || ''), server.enabled !== false])
+        (await loadToolServers(db, { includeHiddenForUser: true })).map((server) => [
+          String(server.id || ''),
+          server.enabled !== false,
+        ])
       );
       const userResourceOverrides = await loadUserResourceOverrides(db, userId);
       const hiddenConnectionIds = new Set(userResourceOverrides?.connections?.hidden_ids || []);
       const hiddenModelIds = new Set(userResourceOverrides?.models?.hidden_ids || []);
       const hiddenToolServerIds = new Set(userResourceOverrides?.tool_servers?.hidden_ids || []);
 
-      const decorateRules = (rules = [], familyLabel, enabledMap = new Map(), hiddenIds = new Set()) => (Array.isArray(rules) ? rules : [])
-        .filter((rule) => {
-          if (rule?.principal_type === 'user') {
-            return String(rule.principal_id || '') === String(userId || '');
-          }
-          return groupIds.has(String(rule.principal_id || ''));
-        })
-        .map((rule) => {
-          const resourceId = rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '';
-          const resourceEnabled = enabledMap.has(resourceId)
-            ? enabledMap.get(resourceId)
-            : true;
-          const hiddenForUser = hiddenIds.has(resourceId);
-          const effect = String(rule.effect || 'allow').trim().toLowerCase();
-          const accessState = !resourceEnabled
-            ? 'disabled'
-            : hiddenForUser
-              ? 'hidden_for_user'
-              : effect === 'deny'
-                ? 'revoked'
-                : rule.principal_type === 'group'
-                  ? 'shared'
-                  : 'personal';
-          return {
-            family: familyLabel,
-            resource_id: resourceId,
-            resource_enabled: resourceEnabled,
-            visible_for_user: !hiddenForUser && resourceEnabled,
-            hidden_for_user: hiddenForUser,
-            access_state: accessState,
-            principal_type: rule.principal_type,
-            principal_id: rule.principal_id,
-            principal_label: rule.principal_type === 'group'
-              ? `Group: ${groupMap.get(rule.principal_id) || rule.principal_id}`
-              : 'Direct user',
-            effect,
-            action: rule.action,
-          };
-        });
+      const decorateRules = (
+        rules = [],
+        familyLabel,
+        enabledMap = new Map(),
+        hiddenIds = new Set()
+      ) =>
+        (Array.isArray(rules) ? rules : [])
+          .filter((rule) => {
+            if (rule?.principal_type === 'user') {
+              return String(rule.principal_id || '') === String(userId || '');
+            }
+            return groupIds.has(String(rule.principal_id || ''));
+          })
+          .map((rule) => {
+            const resourceId =
+              rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '';
+            const resourceEnabled = enabledMap.has(resourceId) ? enabledMap.get(resourceId) : true;
+            const hiddenForUser = hiddenIds.has(resourceId);
+            const effect = String(rule.effect || 'allow')
+              .trim()
+              .toLowerCase();
+            const accessState = !resourceEnabled
+              ? 'disabled'
+              : hiddenForUser
+                ? 'hidden_for_user'
+                : effect === 'deny'
+                  ? 'revoked'
+                  : rule.principal_type === 'group'
+                    ? 'shared'
+                    : 'personal';
+            return {
+              family: familyLabel,
+              resource_id: resourceId,
+              resource_enabled: resourceEnabled,
+              visible_for_user: !hiddenForUser && resourceEnabled,
+              hidden_for_user: hiddenForUser,
+              access_state: accessState,
+              principal_type: rule.principal_type,
+              principal_id: rule.principal_id,
+              principal_label:
+                rule.principal_type === 'group'
+                  ? `Group: ${groupMap.get(rule.principal_id) || rule.principal_id}`
+                  : 'Direct user',
+              effect,
+              action: rule.action,
+            };
+          });
 
-      const modelRules = decorateRules(await loadModelAclRules(db), 'model', modelEnabledMap, hiddenModelIds);
-      const connectionRules = decorateRules(await loadConnectionAclRules(db), 'connection', connectionEnabledMap, hiddenConnectionIds);
-      const toolServerRules = decorateRules(await loadToolServerAclRules(db), 'mcp_server', toolServerEnabledMap, hiddenToolServerIds);
+      const modelRules = decorateRules(
+        await loadModelAclRules(db),
+        'model',
+        modelEnabledMap,
+        hiddenModelIds
+      );
+      const connectionRules = decorateRules(
+        await loadConnectionAclRules(db),
+        'connection',
+        connectionEnabledMap,
+        hiddenConnectionIds
+      );
+      const toolServerRules = decorateRules(
+        await loadToolServerAclRules(db),
+        'mcp_server',
+        toolServerEnabledMap,
+        hiddenToolServerIds
+      );
 
       return json(req, {
         user: {
@@ -999,7 +1113,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
           account_status: normalizeAccountStatus(targetUser.account_status),
           primary_role: primaryRole,
         },
-        groups: Array.from(groupMap.entries()).map(([id, name]) => ({ id, name })),
+        groups: Array.from(groupMap.entries()).map(([id, name]) => ({
+          id,
+          name,
+        })),
         role_permissions: userPermissions,
         access: {
           models: modelRules,
@@ -1017,7 +1134,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
   if (req.method === 'POST' && path === '/api/admin/users') {
     const authDecision = await authorize(env, user, {
       action: 'admin.user.write',
-      resource: 'users'
+      resource: 'users',
     });
 
     if (!authDecision.allow) {
@@ -1037,9 +1154,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
     let name;
     let password;
     try {
-      email = validateEmail(requireString(body.email, 'email, name, and password are required').toLowerCase());
+      email = validateEmail(
+        requireString(body.email, 'email, name, and password are required').toLowerCase()
+      );
       name = requireString(body.name, 'email, name, and password are required');
-      password = requireString(body.password, 'email, name, and password are required', { trim: false });
+      password = requireString(body.password, 'email, name, and password are required', {
+        trim: false,
+      });
     } catch (err) {
       if (err instanceof ValidationError) {
         return error(req, err.message, 400);
@@ -1086,29 +1207,33 @@ export async function usersRouter(req, env, _ctx, user, path) {
       action: 'user_created',
       resource_type: 'user',
       resource_id: id,
-      metadata: { email, primary_role: role }
+      metadata: { email, primary_role: role },
     });
 
-    return json(req, {
-      user: {
-        id: createdUser.id,
-        email: createdUser.email,
-        name: createdUser.name,
-        primary_role: role,
-        account_status: normalizeAccountStatus(createdUser.account_status, accountStatus),
-        settings: parseSettings(createdUser.settings),
-        created_at: createdUser.created_at,
-        updated_at: createdUser.updated_at,
-        last_active_at: createdUser.last_active_at || null,
+    return json(
+      req,
+      {
+        user: {
+          id: createdUser.id,
+          email: createdUser.email,
+          name: createdUser.name,
+          primary_role: role,
+          account_status: normalizeAccountStatus(createdUser.account_status, accountStatus),
+          settings: parseSettings(createdUser.settings),
+          created_at: createdUser.created_at,
+          updated_at: createdUser.updated_at,
+          last_active_at: createdUser.last_active_at || null,
+        },
       },
-    }, 201);
+      201
+    );
   }
 
   // POST /api/admin/users/import - Bulk import users from CSV (admin only)
   if (req.method === 'POST' && path === '/api/admin/users/import') {
     const authDecision = await authorize(env, user, {
       action: 'admin.user.write',
-      resource: 'users'
+      resource: 'users',
     });
 
     if (!authDecision.allow) {
@@ -1157,28 +1282,48 @@ export async function usersRouter(req, env, _ctx, user, path) {
       const accountStatus = normalizeAccountStatus(accountStatusRaw, 'active');
 
       if (!name || !email || !password || !requestedRole) {
-        results.push({ row: rowNumber, ok: false, error: 'Each row must include name, email, password, primary_role' });
+        results.push({
+          row: rowNumber,
+          ok: false,
+          error: 'Each row must include name, email, password, primary_role',
+        });
         continue;
       }
 
       if (!isValidEmail(email)) {
-        results.push({ row: rowNumber, ok: false, error: 'Invalid email format' });
+        results.push({
+          row: rowNumber,
+          ok: false,
+          error: 'Invalid email format',
+        });
         continue;
       }
 
       if (!role) {
-        results.push({ row: rowNumber, ok: false, error: 'primary_role must match an existing role' });
+        results.push({
+          row: rowNumber,
+          ok: false,
+          error: 'primary_role must match an existing role',
+        });
         continue;
       }
 
       if (password.length < 8) {
-        results.push({ row: rowNumber, ok: false, error: 'Password must be at least 8 characters' });
+        results.push({
+          row: rowNumber,
+          ok: false,
+          error: 'Password must be at least 8 characters',
+        });
         continue;
       }
 
       const existing = await db.first('SELECT id FROM users WHERE email = ?', [email]);
       if (existing) {
-        results.push({ row: rowNumber, ok: false, error: 'Email already registered' });
+        results.push({
+          row: rowNumber,
+          ok: false,
+          error: 'Email already registered',
+        });
         continue;
       }
 
@@ -1192,7 +1337,13 @@ export async function usersRouter(req, env, _ctx, user, path) {
         [id, email, passwordHash, name, accountStatus]
       );
       await syncGlobalRoleBinding(db, id, role, accountStatus);
-      results.push({ row: rowNumber, ok: true, email, primary_role: role, account_status: accountStatus });
+      results.push({
+        row: rowNumber,
+        ok: true,
+        email,
+        primary_role: role,
+        account_status: accountStatus,
+      });
       created += 1;
     }
 
@@ -1201,14 +1352,18 @@ export async function usersRouter(req, env, _ctx, user, path) {
       action: 'user_imported',
       resource_type: 'users',
       resource_id: null,
-      metadata: { created, attempted: results.length }
+      metadata: { created, attempted: results.length },
     });
 
-    return json(req, {
-      ok: true,
-      created,
-      results,
-    }, 201);
+    return json(
+      req,
+      {
+        ok: true,
+        created,
+        results,
+      },
+      201
+    );
   }
 
   // GET /api/admin/users/:id - Get specific user (admin only)
@@ -1218,7 +1373,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const authDecision = await authorize(env, user, {
       action: 'admin.user.read',
       resource: 'user',
-      resourceId: userId
+      resourceId: userId,
     });
 
     if (!authDecision.allow) {
@@ -1242,7 +1397,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         actor_id: user.sub,
         action: 'user_read',
         resource_type: 'user',
-        resource_id: userId
+        resource_id: userId,
       });
 
       return json(req, {
@@ -1271,7 +1426,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const authDecision = await authorize(env, user, {
       action: 'admin.user.write',
       resource: 'user',
-      resourceId: userId
+      resourceId: userId,
     });
 
     if (!authDecision.allow) {
@@ -1288,7 +1443,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     // Verify user exists
-    const existing = await db.first('SELECT id, account_status, email, name FROM users WHERE id = ?', [userId]);
+    const existing = await db.first(
+      'SELECT id, account_status, email, name FROM users WHERE id = ?',
+      [userId]
+    );
     if (!existing) {
       return error(req, 'User not found', 404);
     }
@@ -1357,7 +1515,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
         throw err;
       }
 
-      const duplicate = await db.first('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
+      const duplicate = await db.first('SELECT id FROM users WHERE email = ? AND id != ?', [
+        email,
+        userId,
+      ]);
       if (duplicate) {
         return error(req, 'Email already in use', 409);
       }
@@ -1419,17 +1580,17 @@ export async function usersRouter(req, env, _ctx, user, path) {
             new_primary_role: newRole,
             old_account_status: oldAccountStatus,
             new_account_status: newAccountStatus,
-          }
+          },
         });
       }
 
       // Log generic user update
       await logAuditEvent(env, {
-          actor_id: user.sub,
-          action: 'user_updated',
-          resource_type: 'user',
-          resource_id: userId,
-        metadata: { fields_updated: updatedFields }
+        actor_id: user.sub,
+        action: 'user_updated',
+        resource_type: 'user',
+        resource_id: userId,
+        metadata: { fields_updated: updatedFields },
       });
 
       // Return updated user
@@ -1464,7 +1625,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const authDecision = await authorize(env, user, {
       action: 'admin.user.write',
       resource: 'user',
-      resourceId: userId
+      resourceId: userId,
     });
 
     if (!authDecision.allow) {
@@ -1480,7 +1641,9 @@ export async function usersRouter(req, env, _ctx, user, path) {
       }
 
       // Verify user exists
-      const existing = await db.first('SELECT id, account_status FROM users WHERE id = ?', [userId]);
+      const existing = await db.first('SELECT id, account_status FROM users WHERE id = ?', [
+        userId,
+      ]);
       if (!existing) {
         return error(req, 'User not found', 404);
       }
@@ -1501,7 +1664,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
         action: 'user_deleted',
         resource_type: 'user',
         resource_id: userId,
-        metadata: { previous_primary_role: oldRole, previous_account_status: oldAccountStatus }
+        metadata: {
+          previous_primary_role: oldRole,
+          previous_account_status: oldAccountStatus,
+        },
       });
 
       return json(req, { success: true, message: 'User deleted successfully' });

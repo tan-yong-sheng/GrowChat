@@ -28,9 +28,10 @@ export function broadcastToolServersInvalidation(token = String(Date.now())) {
   }
 
   try {
-    const evt = typeof CustomEvent === 'function'
-      ? new CustomEvent('growchat:tool-servers-invalidated', { detail: { token } })
-      : null;
+    const evt =
+      typeof CustomEvent === 'function'
+        ? new CustomEvent('growchat:tool-servers-invalidated', { detail: { token } })
+        : null;
     if (evt && globalThis.dispatchEvent) {
       globalThis.dispatchEvent(evt);
     }

@@ -111,9 +111,7 @@ export function convertJsonSchemaToOpenApiSchema(jsonSchema, isRoot = true) {
           Object.assign(result, converted);
         }
       } else {
-        result.anyOf = nonNullSchemas.map((item) =>
-          convertJsonSchemaToOpenApiSchema(item, false)
-        );
+        result.anyOf = nonNullSchemas.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
         result.nullable = true;
       }
     } else {
@@ -401,11 +399,16 @@ export function buildGooglePayload(messages, options = {}) {
         const name = String(fn.name || '').trim();
         if (!name) continue;
         const rawArgs = fn.arguments;
-        const args = typeof rawArgs === 'string'
-          ? (() => {
-              try { return JSON.parse(rawArgs); } catch { return rawArgs; }
-            })()
-          : rawArgs ?? {};
+        const args =
+          typeof rawArgs === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(rawArgs);
+                } catch {
+                  return rawArgs;
+                }
+              })()
+            : (rawArgs ?? {});
         const thoughtSignature = getThoughtSignature(call);
         parts.push({
           functionCall: {
@@ -423,7 +426,9 @@ export function buildGooglePayload(messages, options = {}) {
       continue;
     }
     if (role === 'tool') {
-      const toolName = String(message?.name || toolCallNameMap.get(String(message?.tool_call_id || '')) || 'tool').trim();
+      const toolName = String(
+        message?.name || toolCallNameMap.get(String(message?.tool_call_id || '')) || 'tool'
+      ).trim();
       const outputText = contentToText(message.content);
       contents.push({
         role: 'user',
@@ -489,7 +494,6 @@ export function buildAnthropicPayload(messages, options = {}) {
     messages: [],
   };
   const systemTexts = [];
-  const toolCallNameMap = buildToolCallNameMap(messages);
   for (const message of messages || []) {
     const role = String(message?.role || '').toLowerCase();
     if (role === 'system') {
@@ -504,11 +508,16 @@ export function buildAnthropicPayload(messages, options = {}) {
         const name = String(fn.name || '').trim();
         if (!name) continue;
         const rawArgs = fn.arguments;
-        const input = typeof rawArgs === 'string'
-          ? (() => {
-              try { return JSON.parse(rawArgs); } catch { return rawArgs; }
-            })()
-          : rawArgs ?? {};
+        const input =
+          typeof rawArgs === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(rawArgs);
+                } catch {
+                  return rawArgs;
+                }
+              })()
+            : (rawArgs ?? {});
         blocks.push({
           type: 'tool_use',
           id: String(call?.id || crypto.randomUUID()),
@@ -524,7 +533,6 @@ export function buildAnthropicPayload(messages, options = {}) {
       continue;
     }
     if (role === 'tool') {
-      const toolName = String(message?.name || toolCallNameMap.get(String(message?.tool_call_id || '')) || 'tool').trim();
       const outputText = contentToText(message.content);
       payload.messages.push({
         role: 'user',
@@ -564,15 +572,17 @@ export function buildAnthropicPayload(messages, options = {}) {
     payload.system = systemTexts.join('\n\n');
   }
   const normalizedToolChoice = normalizeToolChoice(options.toolChoice);
-  const anthropicTools = normalizedToolChoice?.type === 'none'
-    ? undefined
-    : buildAnthropicTools(options.tools, normalize);
+  const anthropicTools =
+    normalizedToolChoice?.type === 'none'
+      ? undefined
+      : buildAnthropicTools(options.tools, normalize);
   if (anthropicTools) {
     payload.tools = anthropicTools;
   }
-  const anthropicToolChoice = normalizedToolChoice?.type === 'none'
-    ? undefined
-    : buildAnthropicToolChoice(normalizedToolChoice);
+  const anthropicToolChoice =
+    normalizedToolChoice?.type === 'none'
+      ? undefined
+      : buildAnthropicToolChoice(normalizedToolChoice);
   if (anthropicToolChoice) {
     payload.tool_choice = anthropicToolChoice;
   }
@@ -630,7 +640,9 @@ export function buildProviderRequest({
       model: modelId,
       messages,
       stream: stream !== false,
-      ...(Array.isArray(options.tools) && options.tools.length ? { tools: options.tools, tool_choice: options.toolChoice } : {}),
+      ...(Array.isArray(options.tools) && options.tools.length
+        ? { tools: options.tools, tool_choice: options.toolChoice }
+        : {}),
       ...(options.toolChoice ? { tool_choice: options.toolChoice } : {}),
     },
     headers: {},

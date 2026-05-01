@@ -83,7 +83,7 @@ export function renderFormSelect({
         ${required ? 'required' : ''}
         ${disabled ? 'disabled' : ''}
       >
-        ${options.map(opt => `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+        ${options.map((opt) => `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
       </select>
     </label>
   `;

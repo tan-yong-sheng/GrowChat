@@ -34,7 +34,9 @@ export async function groupsRouter(req, env, _ctx, user, path) {
   const isReadOnly = req.method === 'GET';
   const requiredPermission = isReadOnly ? 'admin.user.read' : 'admin.user.write';
 
-  const authDecision = await authorize(env, user, { action: requiredPermission });
+  const authDecision = await authorize(env, user, {
+    action: requiredPermission,
+  });
   if (!authDecision.allow) {
     return error(req, authDecision.reason || 'Forbidden', 403);
   }
@@ -72,7 +74,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
 
   // POST /api/admin/groups - Create group
   if (req.method === 'POST' && path === '/api/admin/groups') {
-    let body = {};
+    let body;
     try {
       body = await req.json();
     } catch {
@@ -101,11 +103,13 @@ export async function groupsRouter(req, env, _ctx, user, path) {
            VALUES (?, ?, ?, 0, unixepoch(), unixepoch())`,
           [groupId, name, description]
         ),
-        ...memberIds.map((userId) => db.prepare(
-          `INSERT INTO group_members (id, group_id, user_id, created_at)
+        ...memberIds.map((userId) =>
+          db.prepare(
+            `INSERT INTO group_members (id, group_id, user_id, created_at)
            VALUES (?, ?, ?, unixepoch())`,
-          [crypto.randomUUID(), groupId, userId]
-        )),
+            [crypto.randomUUID(), groupId, userId]
+          )
+        ),
       ];
       await db.batch(statements);
 
@@ -171,7 +175,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
   // PUT /api/admin/groups/:id
   if (groupMatch && req.method === 'PUT') {
     const groupId = groupMatch[1];
-    let body = {};
+    let body;
     try {
       body = await req.json();
     } catch {
@@ -188,9 +192,8 @@ export async function groupsRouter(req, env, _ctx, user, path) {
         return error(req, 'Name required (1-100 chars)', 400);
       }
 
-      const description = body.description !== undefined
-        ? String(body.description).trim()
-        : group.description;
+      const description =
+        body.description !== undefined ? String(body.description).trim() : group.description;
       if (description && description.length > 500) {
         return error(req, 'Description too long (max 500 chars)', 400);
       }
@@ -208,11 +211,13 @@ export async function groupsRouter(req, env, _ctx, user, path) {
       if (hasMemberIds) {
         statements.push(
           db.prepare('DELETE FROM group_members WHERE group_id = ?', [groupId]),
-          ...memberIds.map((userId) => db.prepare(
-            `INSERT INTO group_members (id, group_id, user_id, created_at)
+          ...memberIds.map((userId) =>
+            db.prepare(
+              `INSERT INTO group_members (id, group_id, user_id, created_at)
              VALUES (?, ?, ?, unixepoch())`,
-            [crypto.randomUUID(), groupId, userId]
-          ))
+              [crypto.randomUUID(), groupId, userId]
+            )
+          )
         );
       }
 
@@ -273,7 +278,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
   const groupUsersMatch = path.match(/^\/api\/admin\/groups\/([^/]+)\/users$/);
   if (groupUsersMatch && req.method === 'POST') {
     const groupId = groupUsersMatch[1];
-    let body = {};
+    let body;
     try {
       body = await req.json();
     } catch {
@@ -317,7 +322,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
   // DELETE /api/admin/groups/:id/users
   if (groupUsersMatch && req.method === 'DELETE') {
     const groupId = groupUsersMatch[1];
-    let body = {};
+    let body;
     try {
       body = await req.json();
     } catch {
@@ -332,10 +337,10 @@ export async function groupsRouter(req, env, _ctx, user, path) {
       if (!group) return error(req, 'Group not found', 404);
 
       for (const userId of userIds) {
-        await db.run(
-          'DELETE FROM group_members WHERE group_id = ? AND user_id = ?',
-          [groupId, userId]
-        );
+        await db.run('DELETE FROM group_members WHERE group_id = ? AND user_id = ?', [
+          groupId,
+          userId,
+        ]);
       }
 
       await logAuditEvent(env, {

@@ -2,7 +2,6 @@ import { apiFetch, fetchModels } from '../../shared/api.js';
 import { buildProviderOptions } from '../../shared/utils/model-filters.js';
 import { normalizeModelSearchQuery } from '../../shared/utils/model-search.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
-import { renderErrorBanner } from '../../shared/components/section-header.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
 import {
   renderModelsHeaderHtml,
@@ -12,7 +11,6 @@ import {
   syncModelsPaginationState,
   syncModelsTableState,
 } from '../../shared/components/models-section.js';
-import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
 import { ATTACHMENT_CAP_TYPES } from '../admin/settings/models-helpers.js';
 
@@ -44,17 +42,31 @@ function cloneAttachmentCaps(caps = {}) {
 
 function normalizePersonalModelSettings(value = {}) {
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  const source = raw.model_settings && typeof raw.model_settings === 'object' && !Array.isArray(raw.model_settings)
-    ? raw.model_settings
-    : raw;
-  const resourceOverrides = normalizeUserResourceOverrides(raw.resource_overrides ? raw : { model_settings: source });
-  const disabledModelIds = Array.from(new Set([
-    ...(Array.isArray(source.disabled_model_ids) ? source.disabled_model_ids : []),
-    ...(resourceOverrides.models.hidden_ids || []),
-  ].map((id) => String(id || '').trim()).filter(Boolean)));
-  const attachmentCaps = source.attachment_caps && typeof source.attachment_caps === 'object' && !Array.isArray(source.attachment_caps)
-    ? source.attachment_caps
-    : {};
+  const source =
+    raw.model_settings &&
+    typeof raw.model_settings === 'object' &&
+    !Array.isArray(raw.model_settings)
+      ? raw.model_settings
+      : raw;
+  const resourceOverrides = normalizeUserResourceOverrides(
+    raw.resource_overrides ? raw : { model_settings: source }
+  );
+  const disabledModelIds = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(source.disabled_model_ids) ? source.disabled_model_ids : []),
+        ...(resourceOverrides.models.hidden_ids || []),
+      ]
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    )
+  );
+  const attachmentCaps =
+    source.attachment_caps &&
+    typeof source.attachment_caps === 'object' &&
+    !Array.isArray(source.attachment_caps)
+      ? source.attachment_caps
+      : {};
   return {
     disabled_model_ids: disabledModelIds,
     attachment_caps: cloneAttachmentCaps(attachmentCaps),
@@ -73,18 +85,13 @@ function normalizeModelRecord(model = {}) {
   };
 }
 
-function cloneModelRecord(model = {}) {
-  const next = normalizeModelRecord(model);
-  if (!next) return null;
-  return {
-    ...next,
-    attachments: cloneAttachmentCaps({ [next.id]: next.attachments })[next.id] || normalizeAttachmentCaps(next.attachments),
-  };
-}
-
 function getModelAccessPresentation(model = {}) {
-  const accessVariant = String(model?.access_variant || '').trim().toLowerCase();
-  const accessLabel = String(model?.access_label || '').trim().toLowerCase();
+  const accessVariant = String(model?.access_variant || '')
+    .trim()
+    .toLowerCase();
+  const accessLabel = String(model?.access_label || '')
+    .trim()
+    .toLowerCase();
 
   if (accessVariant === 'personal' || accessLabel === 'personal') {
     return {
@@ -94,10 +101,10 @@ function getModelAccessPresentation(model = {}) {
   }
 
   if (
-    accessVariant === 'admin'
-    || accessLabel === 'admin'
-    || accessVariant === 'shared'
-    || accessLabel === 'shared'
+    accessVariant === 'admin' ||
+    accessLabel === 'admin' ||
+    accessVariant === 'shared' ||
+    accessLabel === 'shared'
   ) {
     return {
       label: 'Admin',
@@ -111,15 +118,10 @@ function getModelAccessPresentation(model = {}) {
   };
 }
 
-function isRecoverableHiddenModel(model = {}) {
-  if (model?.hidden_for_user !== true) return false;
-  const accessVariant = String(model?.access_variant || '').trim().toLowerCase();
-  const accessLabel = String(model?.access_label || '').trim().toLowerCase();
-  return accessVariant !== 'personal' && accessLabel !== 'personal';
-}
-
 function renderLoadingRows() {
-  return Array.from({ length: 5 }).map(() => `
+  return Array.from({ length: 5 })
+    .map(
+      () => `
     <tr class="bg-white text-xs animate-pulse">
       <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
       <td class="px-4 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
@@ -130,10 +132,12 @@ function renderLoadingRows() {
         <div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div>
       </td>
     </tr>
-  `).join('');
+  `
+    )
+    .join('');
 }
 
-function renderModelRow(model, canManageModels = true) {
+function renderModelRow(model) {
   const enabled = model.enabled !== false;
   const access = getModelAccessPresentation(model);
   const toggleClass = `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enabled ? 'bg-black' : 'bg-gray-200'}`;
@@ -168,11 +172,10 @@ function renderModelRow(model, canManageModels = true) {
   `;
 }
 
-export function renderAccountModelsSection(container, state = {}, { onRefresh, footerHost, routeCache } = {}) {
-  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, { route: 'account' });
-  const canManageModels = capabilities.canManageModels !== false;
-  const canManageAcls = capabilities.canManageAcls === true;
-  const savedModelSettings = normalizePersonalModelSettings(state.settings?.preferences?.model_settings);
+export function renderAccountModelsSection(container, state = {}, { onRefresh, routeCache } = {}) {
+  const savedModelSettings = normalizePersonalModelSettings(
+    state.settings?.preferences?.model_settings
+  );
   const sectionState = {
     loading: true,
     error: '',
@@ -194,7 +197,9 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
   };
   let saveRequestVersion = 0;
 
-  const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
+  const ensureMounted = () =>
+    container.dataset.modelsMounted === '1' &&
+    Boolean(container.querySelector('[data-models-scroll]'));
 
   const persistModelSettings = async ({ rollback = null } = {}) => {
     const requestVersion = ++saveRequestVersion;
@@ -236,12 +241,19 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
       if (requestVersion !== saveRequestVersion) return;
       if (rollback) {
         sectionState.disabledModelIds = new Set(rollback.disabledModelIds || []);
-        sectionState.models = Array.isArray(rollback.models) ? rollback.models.map((item) => ({ ...item, attachments: cloneAttachmentCaps(item.attachments) })) : sectionState.models;
+        sectionState.models = Array.isArray(rollback.models)
+          ? rollback.models.map((item) => ({
+              ...item,
+              attachments: cloneAttachmentCaps(item.attachments),
+            }))
+          : sectionState.models;
         sectionState.attachmentCaps = cloneAttachmentCaps(rollback.attachmentCaps || {});
         sectionState.providerOptions = Array.isArray(rollback.providerOptions)
           ? rollback.providerOptions.map((option) => ({ ...option }))
           : buildProviderOptions(sectionState.models, { includeAll: true });
-        sectionState.activeTotal = Number.isFinite(rollback.activeTotal) ? rollback.activeTotal : sectionState.activeTotal;
+        sectionState.activeTotal = Number.isFinite(rollback.activeTotal)
+          ? rollback.activeTotal
+          : sectionState.activeTotal;
         sectionState.total = Number.isFinite(rollback.total) ? rollback.total : sectionState.total;
       }
       sectionState.error = err?.message || 'Failed to save model settings';
@@ -262,26 +274,37 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
       clearHidden: !sectionState.query,
       providerId: 'account-model-provider-select',
       providerOptionsMarkup: sectionState.providerOptions.length
-        ? sectionState.providerOptions.map((option) => `
+        ? sectionState.providerOptions
+            .map(
+              (option) => `
             <option value="${escapeHtml(option.value)}" ${option.value === sectionState.provider ? 'selected' : ''}>
               ${escapeHtml(option.label)}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
             </option>
-          `).join('')
-        : buildProviderOptions(sectionState.models, { includeAll: true }).map((option) => `
+          `
+            )
+            .join('')
+        : buildProviderOptions(sectionState.models, { includeAll: true })
+            .map(
+              (option) => `
             <option value="${escapeHtml(option.value)}" ${option.value === sectionState.provider ? 'selected' : ''}>
               ${escapeHtml(option.label)}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
             </option>
-          `).join(''),
+          `
+            )
+            .join(''),
     });
 
     syncModelsTableState(container, {
       loading: sectionState.loading,
       rowsHtml: sectionState.loading
         ? renderLoadingRows()
-        : `${visibleModels.length ? visibleModels.map((model) => renderModelRow(model, canManageModels)).join('') : ''}`,
-      emptyMessage: sectionState.total === 0 && !Boolean(normalizeModelSearchQuery(sectionState.query)) && sectionState.provider === 'all'
-        ? 'No models are available to you.'
-        : `No models found${Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all' ? ` matching "${escapeHtml(sectionState.query)}"` : ''}.`,
+        : `${visibleModels.length ? visibleModels.map((model) => renderModelRow(model)).join('') : ''}`,
+      emptyMessage:
+        sectionState.total === 0 &&
+        !normalizeModelSearchQuery(sectionState.query) &&
+        sectionState.provider === 'all'
+          ? 'No models are available to you.'
+          : `No models found${Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all' ? ` matching "${escapeHtml(sectionState.query)}"` : ''}.`,
       tbodyId: 'account-models-table-body',
     });
 
@@ -289,17 +312,32 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
       pageSizeId: 'page-size-select',
       limit: sectionState.limit,
       pageStart: sectionState.total === 0 ? 0 : sectionState.offset + 1,
-      pageEnd: Math.min(sectionState.offset + sectionState.limit, sectionState.total || sectionState.models.length),
-      pageTotal: Number.isFinite(sectionState.total) ? sectionState.total : sectionState.models.length,
-      currentPage: Math.max(1, Math.floor(sectionState.offset / Math.max(1, sectionState.limit)) + 1),
-      totalPages: Math.max(1, Math.ceil((Number.isFinite(sectionState.total) ? sectionState.total : sectionState.models.length) / Math.max(1, sectionState.limit))),
+      pageEnd: Math.min(
+        sectionState.offset + sectionState.limit,
+        sectionState.total || sectionState.models.length
+      ),
+      pageTotal: Number.isFinite(sectionState.total)
+        ? sectionState.total
+        : sectionState.models.length,
+      currentPage: Math.max(
+        1,
+        Math.floor(sectionState.offset / Math.max(1, sectionState.limit)) + 1
+      ),
+      totalPages: Math.max(
+        1,
+        Math.ceil(
+          (Number.isFinite(sectionState.total) ? sectionState.total : sectionState.models.length) /
+            Math.max(1, sectionState.limit)
+        )
+      ),
       loading: sectionState.loading,
-      usingFilter: Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all',
+      usingFilter:
+        Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all',
     });
 
     const errorSlot = container.querySelector('#account-models-error-container');
     if (errorSlot) {
-      errorSlot.innerHTML = sectionState.error ? renderErrorBanner({ message: sectionState.error }) : '';
+      errorSlot.textContent = sectionState.error ? sectionState.error : '';
     }
   };
 
@@ -356,22 +394,33 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
         const model = sectionState.models[visibleIndex];
         const previousActiveTotal = sectionState.activeTotal;
         const previousTotal = sectionState.total;
-        const previousModels = sectionState.models.map((item) => ({ ...item, attachments: cloneAttachmentCaps(item.attachments) }));
+        const previousModels = sectionState.models.map((item) => ({
+          ...item,
+          attachments: cloneAttachmentCaps(item.attachments),
+        }));
         const previousDisabledModelIds = Array.from(sectionState.disabledModelIds);
         const previousAttachmentCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
-        const previousProviderOptions = Array.isArray(sectionState.providerOptions) ? sectionState.providerOptions.map((option) => ({ ...option })) : [];
+        const previousProviderOptions = Array.isArray(sectionState.providerOptions)
+          ? sectionState.providerOptions.map((option) => ({ ...option }))
+          : [];
         const shouldEnable = model.enabled === false;
-        sectionState.models = sectionState.models.map((item, index) => (index === visibleIndex ? {
-          ...item,
-          enabled: shouldEnable,
-          hidden_for_user: !shouldEnable,
-          visible_for_user: shouldEnable,
-        } : item));
+        sectionState.models = sectionState.models.map((item, index) =>
+          index === visibleIndex
+            ? {
+                ...item,
+                enabled: shouldEnable,
+                hidden_for_user: !shouldEnable,
+                visible_for_user: shouldEnable,
+              }
+            : item
+        );
         sectionState.activeTotal = Math.max(0, sectionState.activeTotal + (shouldEnable ? 1 : -1));
         sectionState.total = Math.max(0, sectionState.total);
         if (shouldEnable) sectionState.disabledModelIds.delete(modelId);
         else sectionState.disabledModelIds.add(modelId);
-        sectionState.providerOptions = buildProviderOptions(sectionState.models, { includeAll: true });
+        sectionState.providerOptions = buildProviderOptions(sectionState.models, {
+          includeAll: true,
+        });
         const rollback = {
           modelId,
           models: previousModels,
@@ -405,31 +454,32 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
     });
   };
 
-  const syncFooter = () => {
-    if (!footerHost) return;
-    footerHost.innerHTML = '';
-  };
-
   const render = () => {
     const providerOptions = sectionState.providerOptions.length
       ? sectionState.providerOptions
       : buildProviderOptions(sectionState.models, { includeAll: true });
     const activeTotal = Number.isFinite(sectionState.activeTotal) ? sectionState.activeTotal : 0;
-    const pageTotal = Number.isFinite(sectionState.total) ? sectionState.total : sectionState.models.length;
+    const pageTotal = Number.isFinite(sectionState.total)
+      ? sectionState.total
+      : sectionState.models.length;
     const totalPages = Math.max(1, Math.ceil((pageTotal || 0) / Math.max(1, sectionState.limit)));
-    const currentPage = Math.max(1, Math.floor(sectionState.offset / Math.max(1, sectionState.limit)) + 1);
+    const currentPage = Math.max(
+      1,
+      Math.floor(sectionState.offset / Math.max(1, sectionState.limit)) + 1
+    );
     const pageStart = pageTotal === 0 ? 0 : sectionState.offset + 1;
     const pageEnd = Math.min(sectionState.offset + sectionState.limit, pageTotal);
-    const usingFilter = Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all';
+    const usingFilter =
+      Boolean(normalizeModelSearchQuery(sectionState.query)) || sectionState.provider !== 'all';
     const visibleModels = Array.isArray(sectionState.models) ? sectionState.models : [];
     const rowsHtml = sectionState.loading
       ? renderLoadingRows()
-      : `${visibleModels.length ? visibleModels.map((model) => renderModelRow(model, canManageModels)).join('') : ''}`;
+      : `${visibleModels.length ? visibleModels.map((model) => renderModelRow(model)).join('') : ''}`;
 
     if (!ensureMounted()) {
-      container.innerHTML = `
+      const fragment = document.createRange().createContextualFragment(`
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
-        <div id="account-models-error-container">${sectionState.error ? renderErrorBanner({ message: sectionState.error }) : ''}</div>
+        <div id="account-models-error-container"></div>
         ${renderModelsHeaderHtml({
           countTitle: 'Available to you',
           countLabel: 'Available to you',
@@ -440,11 +490,15 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
           clearButtonId: 'model-clear-search-btn',
           clearHidden: !sectionState.query,
           providerId: 'account-model-provider-select',
-          providerOptionsMarkup: providerOptions.map((option) => `
+          providerOptionsMarkup: providerOptions
+            .map(
+              (option) => `
             <option value="${escapeHtml(option.value)}" ${option.value === sectionState.provider ? 'selected' : ''}>
               ${escapeHtml(option.label)}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
             </option>
-          `).join(''),
+          `
+            )
+            .join(''),
         })}
         ${renderModelsTableShellHtml({
           loading: sectionState.loading,
@@ -464,7 +518,8 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
           usingFilter,
         })} 
       </div>
-    `;
+    `);
+      container.replaceChildren(fragment);
       container.dataset.modelsMounted = '1';
       bindDelegatedEvents();
     } else {
@@ -495,14 +550,25 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
       const responseHiddenModels = Array.isArray(payload?.hidden_models)
         ? payload.hidden_models.map(normalizeModelRecord).filter(Boolean)
         : [];
-      const disabledModelIds = new Set(Array.isArray(payload?.visibility?.disabled_model_ids)
-        ? payload.visibility.disabled_model_ids.map((id) => String(id || '').trim()).filter(Boolean)
-        : []);
-      const fallbackHiddenModels = responseVisibleModels.filter((model) => model.hidden_for_user === true);
-      const visibleModels = responseVisibleModels.filter((model) => model.hidden_for_user !== true && !disabledModelIds.has(model.id));
-      const hiddenModels = [...responseHiddenModels, ...fallbackHiddenModels]
-        .filter((model) => model.hidden_for_user === true && !disabledModelIds.has(model.id));
-      const savedSettings = normalizePersonalModelSettings(state.settings?.preferences?.model_settings);
+      const disabledModelIds = new Set(
+        Array.isArray(payload?.visibility?.disabled_model_ids)
+          ? payload.visibility.disabled_model_ids
+              .map((id) => String(id || '').trim())
+              .filter(Boolean)
+          : []
+      );
+      const fallbackHiddenModels = responseVisibleModels.filter(
+        (model) => model.hidden_for_user === true
+      );
+      const visibleModels = responseVisibleModels.filter(
+        (model) => model.hidden_for_user !== true && !disabledModelIds.has(model.id)
+      );
+      const hiddenModels = [...responseHiddenModels, ...fallbackHiddenModels].filter(
+        (model) => model.hidden_for_user === true && !disabledModelIds.has(model.id)
+      );
+      const savedSettings = normalizePersonalModelSettings(
+        state.settings?.preferences?.model_settings
+      );
       const mergedCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
       [...visibleModels, ...hiddenModels].forEach((model) => {
         mergedCaps[model.id] = {
@@ -535,13 +601,18 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, f
         })),
       ];
       sectionState.models = sortModelsByActiveThenName(combinedModels);
-      sectionState.total = Number.isFinite(payload?.total) ? payload.total : sectionState.models.length;
-      sectionState.activeTotal = Number.isFinite(payload?.active_total) ? payload.active_total : countEnabledModels(sectionState.models);
+      sectionState.total = Number.isFinite(payload?.total)
+        ? payload.total
+        : sectionState.models.length;
+      sectionState.activeTotal = Number.isFinite(payload?.active_total)
+        ? payload.active_total
+        : countEnabledModels(sectionState.models);
       sectionState.limit = Number.isFinite(payload?.limit) ? payload.limit : sectionState.limit;
       sectionState.offset = Number.isFinite(payload?.offset) ? payload.offset : sectionState.offset;
-      sectionState.providerOptions = Array.isArray(payload?.providers) && payload.providers.length > 0
-        ? payload.providers
-        : buildProviderOptions(sectionState.models, { includeAll: true });
+      sectionState.providerOptions =
+        Array.isArray(payload?.providers) && payload.providers.length > 0
+          ? payload.providers
+          : buildProviderOptions(sectionState.models, { includeAll: true });
       sectionState.disabledModelIds = new Set(disabledSet);
       sectionState.originalDisabledModelIds = new Set(disabledSet);
       sectionState.attachmentCaps = cloneAttachmentCaps(mergedCaps);

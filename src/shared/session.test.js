@@ -21,15 +21,24 @@ describe('shared/session', () => {
   });
 
   it('generates opaque tokens', () => {
-    const token = generateOpaqueToken();
-    expect(token).toMatch(/^[A-Za-z0-9\-_]+$/);
+    expect(generateOpaqueToken()).toMatch(/^[A-Za-z0-9\-_]+$/);
   });
 
   it('creates refresh tokens with two-key pattern', async () => {
-    const { token } = await createRefreshToken(env, 'u1');
+    expect((await createRefreshToken(env, 'u1')).token).toBeTruthy();
     expect(env.SESSIONS.put).toHaveBeenCalledTimes(2);
-    expect(env.SESSIONS.put).toHaveBeenNthCalledWith(1, expect.stringMatching(/^refresh:/), '1', expect.any(Object));
-    expect(env.SESSIONS.put).toHaveBeenNthCalledWith(2, expect.stringMatching(/^refresh-data:/), expect.stringMatching(/"u1"/), expect.any(Object));
+    expect(env.SESSIONS.put).toHaveBeenNthCalledWith(
+      1,
+      expect.stringMatching(/^refresh:/),
+      '1',
+      expect.any(Object)
+    );
+    expect(env.SESSIONS.put).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/^refresh-data:/),
+      expect.stringMatching(/"u1"/),
+      expect.any(Object)
+    );
   });
 
   it('consumeRefreshToken deletes gate first then reads data', async () => {

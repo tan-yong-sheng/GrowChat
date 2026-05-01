@@ -85,7 +85,13 @@ export class MessageQueueDO {
 
   getClientSessionId(req) {
     const raw = String(req.headers.get('x-client-session-id') || '').trim();
-    const cleaned = raw.replace(/[\x00-\x1F\x7F]/g, '').slice(0, 200);
+    const cleaned = Array.from(raw)
+      .filter((char) => {
+        const code = char.charCodeAt(0);
+        return code > 31 && code !== 127;
+      })
+      .join('')
+      .slice(0, 200);
     return cleaned || crypto.randomUUID();
   }
 
@@ -116,6 +122,7 @@ export class MessageQueueDO {
     try {
       controller.close();
     } catch {
+      // ignore
     }
     this.removeSession(sessionId);
   }

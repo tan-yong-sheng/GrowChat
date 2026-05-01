@@ -12,7 +12,11 @@ export function resolveAdminRouteState(pathname) {
   }
 
   if (pathname === '/admin/settings' || pathname === '/admin/settings/') {
-    return { mainTab: 'settings', subTab: 'connections', canonicalPath: '/admin/settings/connections' };
+    return {
+      mainTab: 'settings',
+      subTab: 'connections',
+      canonicalPath: '/admin/settings/connections',
+    };
   }
 
   if (pathname === '/admin/system' || pathname === '/admin/system/') {

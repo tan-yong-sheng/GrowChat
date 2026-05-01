@@ -5,8 +5,7 @@ import { loadWorkspaceSettingsPayload } from '../services/workspace-settings.js'
 
 export async function userSettingsRouter(req, env, _ctx, user, path) {
   const isUserSettingsPath =
-    path === '/api/users/me/settings' ||
-    path === '/api/users/me/settings/';
+    path === '/api/users/me/settings' || path === '/api/users/me/settings/';
 
   if (!isUserSettingsPath) return null;
   if (!user) return error(req, 'Unauthorized', 401);

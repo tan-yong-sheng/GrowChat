@@ -299,7 +299,7 @@ describe('session.js - Refresh Token Management', () => {
   describe('Integration scenarios', () => {
     it('should create and consume token successfully', async () => {
       const userId = 'user-integration';
-      const { token, expiresAt } = await createRefreshToken(mockEnv, userId);
+      const { token } = await createRefreshToken(mockEnv, userId);
 
       // Data is stored in the second put call (refresh-data key)
       const dataCall = mockEnv.SESSIONS.put.mock.calls[1];

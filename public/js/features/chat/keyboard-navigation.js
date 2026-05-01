@@ -41,7 +41,8 @@ export function initializeChatKeyboardNavigation(chatListElement) {
 function handleChatRowKeydown(event, currentRow, allRows, currentIndex) {
   switch (event.key) {
     case 'Enter':
-    case ' ': // Space
+    case ' ': {
+      // Space
       event.preventDefault();
       // Trigger click handler
       const clickEvent = new MouseEvent('click', {
@@ -51,8 +52,9 @@ function handleChatRowKeydown(event, currentRow, allRows, currentIndex) {
       });
       currentRow.dispatchEvent(clickEvent);
       break;
+    }
 
-    case 'ArrowUp':
+    case 'ArrowUp': {
       event.preventDefault();
       // Focus previous chat item
       if (currentIndex > 0) {
@@ -60,8 +62,9 @@ function handleChatRowKeydown(event, currentRow, allRows, currentIndex) {
         prevRow.focus();
       }
       break;
+    }
 
-    case 'ArrowDown':
+    case 'ArrowDown': {
       event.preventDefault();
       // Focus next chat item
       if (currentIndex < allRows.length - 1) {
@@ -69,6 +72,7 @@ function handleChatRowKeydown(event, currentRow, allRows, currentIndex) {
         nextRow.focus();
       }
       break;
+    }
 
     case 'Escape':
       event.preventDefault();
@@ -160,17 +164,19 @@ export function initializeChatMenuKeyboardItems(dropdown) {
 
     item.addEventListener('keydown', (e) => {
       switch (e.key) {
-        case 'ArrowDown':
+        case 'ArrowDown': {
           e.preventDefault();
           const nextItem = item.nextElementSibling?.closest('[data-action]');
           if (nextItem) nextItem.focus();
           break;
+        }
 
-        case 'ArrowUp':
+        case 'ArrowUp': {
           e.preventDefault();
           const prevItem = item.previousElementSibling?.closest('[data-action]');
           if (prevItem) prevItem.focus();
           break;
+        }
 
         case 'Escape':
           e.preventDefault();

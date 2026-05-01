@@ -12,10 +12,7 @@ function cloneTabs(tabs) {
   return tabs.map((tab) => ({ ...tab }));
 }
 
-export function buildWorkspaceTopNavConfig({
-  variant = 'admin',
-  currentKey = '',
-} = {}) {
+export function buildWorkspaceTopNavConfig({ variant = 'admin', currentKey = '' } = {}) {
   if (variant === 'account') {
     return {
       tabs: cloneTabs(ACCOUNT_TOP_NAV_TABS),

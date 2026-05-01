@@ -20,7 +20,12 @@ export function extractAttachmentCapsFromModels(models = []) {
     const attachments = model?.attachments;
     const filtered = {};
     ATTACHMENT_CAP_TYPES.forEach(({ key }) => {
-      if (attachments && typeof attachments === 'object' && !Array.isArray(attachments) && typeof attachments[key] === 'boolean') {
+      if (
+        attachments &&
+        typeof attachments === 'object' &&
+        !Array.isArray(attachments) &&
+        typeof attachments[key] === 'boolean'
+      ) {
         filtered[key] = attachments[key];
       } else {
         filtered[key] = false;

@@ -1,7 +1,15 @@
 import { createDB } from '../db.js';
 import { getConfigValue } from '../utils/app-config.js';
-import { buildConnectionAclIndex, evaluateConnectionAclAccess, loadConnectionAclRules } from '../utils/connection-acl.js';
-import { buildProviderId, getConnectionProviderFamily, normalizeConnectionModelId, normalizeProviderFamily } from './provider-registry.js';
+import {
+  buildConnectionAclIndex,
+  evaluateConnectionAclAccess,
+  loadConnectionAclRules,
+} from '../utils/connection-acl.js';
+import {
+  buildProviderId,
+  getConnectionProviderFamily,
+  normalizeProviderFamily,
+} from './provider-registry.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 
@@ -15,7 +23,12 @@ function normalizeBaseUrl(url) {
 }
 
 export function getConnectionApiType(providerType) {
-  switch (normalizeProviderFamily(providerType) || String(providerType || '').trim().toLowerCase()) {
+  switch (
+    normalizeProviderFamily(providerType) ||
+    String(providerType || '')
+      .trim()
+      .toLowerCase()
+  ) {
     case 'google':
       return 'stream-generate-content';
     case 'anthropic':
@@ -26,7 +39,12 @@ export function getConnectionApiType(providerType) {
 }
 
 export function getConnectionApiTypeLabel(providerType) {
-  switch (normalizeProviderFamily(providerType) || String(providerType || '').trim().toLowerCase()) {
+  switch (
+    normalizeProviderFamily(providerType) ||
+    String(providerType || '')
+      .trim()
+      .toLowerCase()
+  ) {
     case 'google':
       return 'Gemini Stream Generate Content';
     case 'anthropic':
@@ -37,7 +55,12 @@ export function getConnectionApiTypeLabel(providerType) {
 }
 
 export function getConnectionDefaultBaseUrl(providerType) {
-  switch (normalizeProviderFamily(providerType) || String(providerType || '').trim().toLowerCase()) {
+  switch (
+    normalizeProviderFamily(providerType) ||
+    String(providerType || '')
+      .trim()
+      .toLowerCase()
+  ) {
     case 'google':
       return 'https://generativelanguage.googleapis.com/v1beta';
     case 'anthropic':
@@ -48,17 +71,10 @@ export function getConnectionDefaultBaseUrl(providerType) {
 }
 
 export function isConnectionUrlRequired(providerType) {
-  const raw = String(providerType || '').trim().toLowerCase();
+  const raw = String(providerType || '')
+    .trim()
+    .toLowerCase();
   return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible';
-}
-
-function labelFromUrl(url) {
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname;
-  } catch {
-    return url || 'OpenAI';
-  }
 }
 
 function labelFromFamily(family) {
@@ -76,8 +92,12 @@ export function dedupeConnectionConfigs(connections = []) {
   const deduped = [];
   const indexBySignature = new Map();
   for (const conn of Array.isArray(connections) ? connections : []) {
-    const providerType = String(conn?.providerType || conn?.providerFamily || '').trim().toLowerCase();
-    const apiType = String(conn?.apiType || getConnectionApiType(providerType) || '').trim().toLowerCase();
+    const providerType = String(conn?.providerType || conn?.providerFamily || '')
+      .trim()
+      .toLowerCase();
+    const apiType = String(conn?.apiType || getConnectionApiType(providerType) || '')
+      .trim()
+      .toLowerCase();
     const baseUrl = normalizeBaseUrl(conn?.baseUrl || conn?.url || '');
     const signature = `${providerType}::${apiType}::${baseUrl}`;
     const existingIndex = indexBySignature.get(signature);
@@ -92,8 +112,8 @@ export function dedupeConnectionConfigs(connections = []) {
     const incomingIsConfig = conn?.source === 'config';
     const existingIsUser = existing?.source === 'user';
     const incomingIsUser = conn?.source === 'user';
-    const existingPriority = existingIsUser ? 2 : (existingIsConfig ? 1 : 0);
-    const incomingPriority = incomingIsUser ? 2 : (incomingIsConfig ? 1 : 0);
+    const existingPriority = existingIsUser ? 2 : existingIsConfig ? 1 : 0;
+    const incomingPriority = incomingIsUser ? 2 : incomingIsConfig ? 1 : 0;
     if (incomingPriority > existingPriority) {
       deduped[existingIndex] = conn;
     }
@@ -102,7 +122,9 @@ export function dedupeConnectionConfigs(connections = []) {
 }
 
 function normalizeAuthType(value) {
-  const raw = String(value || '').trim().toLowerCase();
+  const raw = String(value || '')
+    .trim()
+    .toLowerCase();
   if (['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(raw)) {
     return raw;
   }
@@ -113,7 +135,7 @@ function hashString(value) {
   let hash = 5381;
   const str = String(value || '');
   for (let i = 0; i < str.length; i += 1) {
-    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+    hash = (hash << 5) + hash + str.charCodeAt(i);
   }
   return (hash >>> 0).toString(36);
 }
@@ -190,7 +212,12 @@ export function buildConnectionHeaders(connection = {}) {
       headers.Authorization = `Bearer ${key}`;
     }
     const explicitAuthType = normalizeAuthType(connection?.authType);
-    const hasXApiKey = Object.keys(headers).some((name) => String(name || '').trim().toLowerCase() === 'x-api-key');
+    const hasXApiKey = Object.keys(headers).some(
+      (name) =>
+        String(name || '')
+          .trim()
+          .toLowerCase() === 'x-api-key'
+    );
     if (!explicitAuthType && getConnectionProviderFamily(connection) === 'openai' && !hasXApiKey) {
       headers['x-api-key'] = key;
     }
@@ -213,12 +240,7 @@ function normalizeConnectionModelItems(payload) {
 
 export function extractConnectionModelId(item) {
   const raw = String(
-    item?.id ||
-      item?.modelId ||
-      item?.model_id ||
-      item?.name ||
-      item?.model ||
-      '',
+    item?.id || item?.modelId || item?.model_id || item?.name || item?.model || ''
   ).trim();
   if (!raw) return '';
   return raw.startsWith('models/') ? raw.slice('models/'.length) : raw;
@@ -254,11 +276,11 @@ export function getConnectionModelDiscoveryUrls(connection = {}) {
   const family = getConnectionProviderFamily(connection);
   const urls = [];
   const upgradedBaseUrl = maybeUpgradeDiscoveryBaseUrl(baseUrl);
-  const baseCandidates = upgradedBaseUrl && upgradedBaseUrl !== baseUrl
-    ? [upgradedBaseUrl, baseUrl]
-    : [baseUrl];
+  const baseCandidates =
+    upgradedBaseUrl && upgradedBaseUrl !== baseUrl ? [upgradedBaseUrl, baseUrl] : [baseUrl];
 
-  const add = (candidateBaseUrl, path) => appendDiscoveryCandidate(urls, `${candidateBaseUrl}${path}`);
+  const add = (candidateBaseUrl, path) =>
+    appendDiscoveryCandidate(urls, `${candidateBaseUrl}${path}`);
 
   for (const candidateBaseUrl of baseCandidates) {
     switch (family) {
@@ -358,23 +380,37 @@ export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
         if (!url) return null;
         const headers = safeParseHeaders(conn.headers);
         const enabled = conn?.enabled !== false;
-        const providerFamily = normalizeProviderFamily(conn.providerType || conn.providerFamily) || 'openai';
-      return {
-        id: ensureConnectionId({ ...conn, url, baseUrl: url, headers: conn.headers, providerFamily }, index),
-        name: String(conn.name || `${labelFromFamily(providerFamily)} Compatible`).slice(0, 120),
-        baseUrl: url,
-        key: String(conn.key || '').trim(),
-        headers,
-        source: 'config',
-        enabled,
-        providerType: String(conn.providerType || providerFamily).toLowerCase(),
-        providerFamily,
-        providerId: buildProviderId({ id: ensureConnectionId({ ...conn, url, baseUrl: url, headers: conn.headers, providerFamily }, index), providerType: String(conn.providerType || providerFamily).toLowerCase(), providerFamily }),
-        authType: normalizeAuthType(conn.authType),
-        apiType: getConnectionApiType(conn.providerType || providerFamily),
-        manualModels: normalizeConnectionManualModels(conn.manualModels),
-        manualModelsMode: normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) || 'all',
-      };
+        const providerFamily =
+          normalizeProviderFamily(conn.providerType || conn.providerFamily) || 'openai';
+        return {
+          id: ensureConnectionId(
+            { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
+            index
+          ),
+          name: String(conn.name || `${labelFromFamily(providerFamily)} Compatible`).slice(0, 120),
+          baseUrl: url,
+          key: String(conn.key || '').trim(),
+          headers,
+          source: 'config',
+          enabled,
+          providerType: String(conn.providerType || providerFamily).toLowerCase(),
+          providerFamily,
+          providerId: buildProviderId({
+            id: ensureConnectionId(
+              { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
+              index
+            ),
+            providerType: String(conn.providerType || providerFamily).toLowerCase(),
+            providerFamily,
+          }),
+          authType: normalizeAuthType(conn.authType),
+          apiType: getConnectionApiType(conn.providerType || providerFamily),
+          manualModels: normalizeConnectionManualModels(conn.manualModels),
+          manualModelsMode:
+            normalizeConnectionModelSelectionMode(
+              conn.manualModelsMode || conn.manual_models_mode
+            ) || 'all',
+        };
       })
       .filter(Boolean);
     if (includeDisabled) return normalized;
@@ -405,13 +441,21 @@ async function ensureUserConnectionsTable(db) {
       UNIQUE(user_id, id)
     )`
   );
-  await db.run('CREATE INDEX IF NOT EXISTS idx_user_connections_user_id ON user_connections(user_id)');
-  await db.run('CREATE INDEX IF NOT EXISTS idx_user_connections_enabled ON user_connections(enabled)');
+  await db.run(
+    'CREATE INDEX IF NOT EXISTS idx_user_connections_user_id ON user_connections(user_id)'
+  );
+  await db.run(
+    'CREATE INDEX IF NOT EXISTS idx_user_connections_enabled ON user_connections(enabled)'
+  );
   try {
     const columns = await db.all('PRAGMA table_info(user_connections)');
-    const hasModeColumn = Array.isArray(columns) && columns.some((column) => String(column.name || '') === 'manual_models_mode');
+    const hasModeColumn =
+      Array.isArray(columns) &&
+      columns.some((column) => String(column.name || '') === 'manual_models_mode');
     if (!hasModeColumn) {
-      await db.run("ALTER TABLE user_connections ADD COLUMN manual_models_mode TEXT NOT NULL DEFAULT 'all'");
+      await db.run(
+        "ALTER TABLE user_connections ADD COLUMN manual_models_mode TEXT NOT NULL DEFAULT 'all'"
+      );
     }
   } catch (err) {
     if (!/duplicate column name/i.test(String(err?.message || ''))) {
@@ -439,16 +483,23 @@ function normalizeUserConnectionRow(row, index = 0) {
   if (!row) return null;
   const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
   if (!baseUrl) return null;
-  const providerType = String(row.provider_type || row.providerType || 'openai-compatible').trim().toLowerCase() || 'openai-compatible';
-  const providerFamily = normalizeProviderFamily(row.provider_family || row.providerFamily || providerType) || 'openai';
-  const id = ensureConnectionId({
-    id: row.id,
-    providerType,
-    providerFamily,
-    baseUrl,
-    key: row.key || '',
-    headers: row.headers || '{}',
-  }, index);
+  const providerType =
+    String(row.provider_type || row.providerType || 'openai-compatible')
+      .trim()
+      .toLowerCase() || 'openai-compatible';
+  const providerFamily =
+    normalizeProviderFamily(row.provider_family || row.providerFamily || providerType) || 'openai';
+  const id = ensureConnectionId(
+    {
+      id: row.id,
+      providerType,
+      providerFamily,
+      baseUrl,
+      key: row.key || '',
+      headers: row.headers || '{}',
+    },
+    index
+  );
   return {
     id,
     name: String(row.name || `${labelFromFamily(providerFamily)} Personal`).slice(0, 120),
@@ -464,7 +515,9 @@ function normalizeUserConnectionRow(row, index = 0) {
     authType: normalizeAuthType(row.auth_type || row.authType),
     apiType: getConnectionApiType(providerType),
     manualModels: parseUserConnectionManualModels(row.manual_models || row.manualModels),
-    manualModelsMode: normalizeConnectionModelSelectionMode(row.manual_models_mode || row.manualModelsMode) || 'all',
+    manualModelsMode:
+      normalizeConnectionModelSelectionMode(row.manual_models_mode || row.manualModelsMode) ||
+      'all',
     ownerUserId: row.user_id || row.userId || null,
     personal: true,
   };
@@ -513,27 +566,44 @@ export async function getUserOpenAIConnectionConfig(db, userId, connectionId) {
 
 function normalizeUserConnectionInput(input = {}, existing = null) {
   const name = String(input.name || existing?.name || '').trim();
-  const providerType = String(input.provider_type || input.providerType || existing?.providerType || 'openai-compatible').trim().toLowerCase() || 'openai-compatible';
-  const providerFamily = normalizeProviderFamily(input.provider_family || input.providerFamily || existing?.providerFamily || providerType) || 'openai';
+  const providerType =
+    String(
+      input.provider_type || input.providerType || existing?.providerType || 'openai-compatible'
+    )
+      .trim()
+      .toLowerCase() || 'openai-compatible';
+  const providerFamily =
+    normalizeProviderFamily(
+      input.provider_family || input.providerFamily || existing?.providerFamily || providerType
+    ) || 'openai';
   const baseUrlRaw = input.base_url !== undefined ? input.base_url : input.baseUrl;
-  const resolvedBaseUrl = normalizeBaseUrl(baseUrlRaw || existing?.baseUrl || getConnectionDefaultBaseUrl(providerType));
+  const resolvedBaseUrl = normalizeBaseUrl(
+    baseUrlRaw || existing?.baseUrl || getConnectionDefaultBaseUrl(providerType)
+  );
   const keyRaw = input.key;
   const headersRaw = input.headers !== undefined ? input.headers : existing?.headers;
   const authType = normalizeAuthType(input.auth_type || input.authType || existing?.authType || '');
-  const enabled = input.enabled !== undefined ? input.enabled !== false : existing?.enabled !== false;
+  const enabled =
+    input.enabled !== undefined ? input.enabled !== false : existing?.enabled !== false;
   const manualModels = normalizeConnectionManualModels(
-    Array.isArray(input.manual_models) ? input.manual_models : (Array.isArray(input.manualModels) ? input.manualModels : (existing?.manualModels || []))
+    Array.isArray(input.manual_models)
+      ? input.manual_models
+      : Array.isArray(input.manualModels)
+        ? input.manualModels
+        : existing?.manualModels || []
   );
-  const manualModelsMode = normalizeConnectionModelSelectionMode(
-    input.manual_models_mode || input.manualModelsMode || existing?.manualModelsMode
-  ) || 'all';
+  const manualModelsMode =
+    normalizeConnectionModelSelectionMode(
+      input.manual_models_mode || input.manualModelsMode || existing?.manualModelsMode
+    ) || 'all';
   return {
     name,
     providerType,
     providerFamily,
     baseUrl: resolvedBaseUrl,
     key: keyRaw !== undefined ? String(keyRaw || '').trim() : String(existing?.key || '').trim(),
-    headers: headersRaw !== undefined ? safeParseHeaders(headersRaw) : safeParseHeaders(existing?.headers),
+    headers:
+      headersRaw !== undefined ? safeParseHeaders(headersRaw) : safeParseHeaders(existing?.headers),
     authType,
     enabled,
     manualModels,
@@ -611,13 +681,22 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
   const includeDisabled = options.includeDisabled === true;
   const includeHiddenForUser = options.includeHiddenForUser === true;
   const userId = options.userId ? String(options.userId).trim() : '';
-  const userRole = String(options.userRole || 'member').trim().toLowerCase() || 'member';
+  const userRole =
+    String(options.userRole || 'member')
+      .trim()
+      .toLowerCase() || 'member';
   const providedUserGroupIds = (() => {
     if (options.userGroupIds instanceof Set) {
-      return new Set(Array.from(options.userGroupIds).map((value) => String(value || '').trim()).filter(Boolean));
+      return new Set(
+        Array.from(options.userGroupIds)
+          .map((value) => String(value || '').trim())
+          .filter(Boolean)
+      );
     }
     if (Array.isArray(options.userGroupIds)) {
-      return new Set(options.userGroupIds.map((value) => String(value || '').trim()).filter(Boolean));
+      return new Set(
+        options.userGroupIds.map((value) => String(value || '').trim()).filter(Boolean)
+      );
     }
     return null;
   })();
@@ -645,8 +724,12 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     const hiddenConnectionIds = new Set(userOverrides.connections.hidden_ids || []);
     let userGroupIds = providedUserGroupIds;
     if (!userGroupIds) {
-      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [userId]);
-      userGroupIds = new Set((Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean));
+      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [
+        userId,
+      ]);
+      userGroupIds = new Set(
+        (Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean)
+      );
     }
     const aclRules = await loadConnectionAclRules(db);
     const aclIndex = buildConnectionAclIndex(aclRules);
@@ -658,7 +741,9 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
           userGroupIds,
           rules: aclIndex.get(connection.id) || [],
         });
-        const hiddenForUser = connection.source !== 'user' && hiddenConnectionIds.has(String(connection.id || '').trim());
+        const hiddenForUser =
+          connection.source !== 'user' &&
+          hiddenConnectionIds.has(String(connection.id || '').trim());
         return {
           ...connection,
           access_label: access.access_label,
@@ -669,8 +754,15 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
         };
       })
       .filter((connection) => connection.source === 'user' || connection.allowed)
-      .filter((connection) => includeHiddenForUser || connection.source === 'user' || connection.visible_for_user)
-      .map(({ allowed, ...connection }) => connection);
+      .filter(
+        (connection) =>
+          includeHiddenForUser || connection.source === 'user' || connection.visible_for_user
+      )
+      .map((connection) => {
+        const rest = { ...connection };
+        delete rest.allowed;
+        return rest;
+      });
 
     if (includeDisabled) return filtered;
     return filtered.filter((conn) => conn.enabled !== false);

@@ -34,8 +34,12 @@ export function buildChatSidebarListFragment({
   if (pinnedChats.length > 0) {
     const pinnedHeader = document.createElement('button');
     pinnedHeader.type = 'button';
-    pinnedHeader.className = 'chat-group-header sidebar-full-only pinned flex items-center gap-1.5 cursor-pointer select-none hover:text-gray-600 transition-colors';
-    pinnedHeader.innerHTML = '<svg class="w-3.5 h-3.5 transition-transform ' + (isPinnedSectionCollapsed ? '-rotate-90' : '') + '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.1 1.02l-4.25 4.5a.75.75 0 0 1-1.1 0l-4.25-4.5a.75.75 0 0 1 .02-1.04Z" clip-rule="evenodd" /></svg><span>Pinned</span>';
+    pinnedHeader.className =
+      'chat-group-header sidebar-full-only pinned flex items-center gap-1.5 cursor-pointer select-none hover:text-gray-600 transition-colors';
+    pinnedHeader.innerHTML =
+      '<svg class="w-3.5 h-3.5 transition-transform ' +
+      (isPinnedSectionCollapsed ? '-rotate-90' : '') +
+      '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.1 1.02l-4.25 4.5a.75.75 0 0 1-1.1 0l-4.25-4.5a.75.75 0 0 1 .02-1.04Z" clip-rule="evenodd" /></svg><span>Pinned</span>';
     pinnedHeader.addEventListener('click', onPinnedToggle);
     fragment.appendChild(pinnedHeader);
 

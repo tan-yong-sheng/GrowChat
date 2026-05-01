@@ -7,7 +7,9 @@ export function renderAssistantContent(content, options = {}) {
 }
 
 export function isImageAttachment(file) {
-  return String(file?.content_type || '').toLowerCase().startsWith('image/');
+  return String(file?.content_type || '')
+    .toLowerCase()
+    .startsWith('image/');
 }
 
 export function renderAttachmentPills(attachments = [], align = 'end') {
@@ -17,20 +19,23 @@ export function renderAttachmentPills(attachments = [], align = 'end') {
   const alignItems = align === 'start' ? 'items-start' : 'items-end';
   const justify = align === 'start' ? 'justify-start' : 'justify-end';
 
-  const imageHtml = images.map((file) => {
-    const label = String(file?.filename || 'Image');
-    const fileId = String(file?.id || '');
-    if (!fileId) return '';
-    return `
+  const imageHtml = images
+    .map((file) => {
+      const label = String(file?.filename || 'Image');
+      const fileId = String(file?.id || '');
+      if (!fileId) return '';
+      return `
       <div class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden" style="max-width:120px; max-height:120px;">
         <img data-attachment-image="${escapeHtml(fileId)}" alt="${escapeHtml(label)}" title="${escapeHtml(label)}" class="block h-auto w-auto object-contain bg-gray-100 transition-opacity duration-200" style="max-width:120px; max-height:120px;" loading="lazy" />
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 
-  const pillHtml = others.map((file) => {
-    const label = String(file?.filename || 'Attachment');
-    return `
+  const pillHtml = others
+    .map((file) => {
+      const label = String(file?.filename || 'Attachment');
+      return `
       <div class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] text-gray-600 shadow-sm">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
@@ -39,9 +44,12 @@ export function renderAttachmentPills(attachments = [], align = 'end') {
         <span class="max-w-[200px] truncate">${escapeHtml(label)}</span>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 
-  const imageRow = imageHtml ? `<div class="flex flex-wrap gap-2 ${justify}">${imageHtml}</div>` : '';
+  const imageRow = imageHtml
+    ? `<div class="flex flex-wrap gap-2 ${justify}">${imageHtml}</div>`
+    : '';
   const pillRow = pillHtml ? `<div class="flex flex-wrap gap-2 ${justify}">${pillHtml}</div>` : '';
   return `
     <div class="flex flex-col gap-2 ${alignItems}">
@@ -51,7 +59,13 @@ export function renderAttachmentPills(attachments = [], align = 'end') {
   `;
 }
 
-export function renderThinkingBlock({ label, thinking, collapsed, toggleKey, specialBlockScope = '' }) {
+export function renderThinkingBlock({
+  label,
+  thinking,
+  collapsed,
+  toggleKey,
+  specialBlockScope = '',
+}) {
   if (!label) return '';
   const hasContent = Boolean(thinking);
   const contentHtml = hasContent
@@ -83,14 +97,20 @@ export function renderToolCallItem(messageId, call, toolExpandedByKey) {
   const isError = status === 'error';
   const label = isRunning
     ? `Executing ${call.name}...`
-    : (isError ? `Tool error from ${call.name}` : `View Result from ${call.name}`);
-  const dotClass = isError ? 'bg-red-500' : (isRunning ? 'bg-gray-400' : 'bg-green-500');
+    : isError
+      ? `Tool error from ${call.name}`
+      : `View Result from ${call.name}`;
+  const dotClass = isError ? 'bg-red-500' : isRunning ? 'bg-gray-400' : 'bg-green-500';
   const chevronClass = collapsed ? '-rotate-90' : 'rotate-0';
   const bodyClass = collapsed ? 'hidden' : '';
-  const inputValue = call.input ? escapeHtml(call.input) : '<span class="text-gray-400">No input.</span>';
+  const inputValue = call.input
+    ? escapeHtml(call.input)
+    : '<span class="text-gray-400">No input.</span>';
   const outputValue = call.output
     ? escapeHtml(call.output)
-    : (isRunning ? '<span class="text-gray-400">Waiting for result...</span>' : '<span class="text-gray-400">No output.</span>');
+    : isRunning
+      ? '<span class="text-gray-400">Waiting for result...</span>'
+      : '<span class="text-gray-400">No output.</span>';
   const statusIcon = isRunning
     ? `<svg class="h-3.5 w-3.5 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity="0.25"></circle>
@@ -145,15 +165,22 @@ export function renderAssistantMessageBody({
   const isThinkingActive = thinkingActiveByMessageId?.get(key) === true;
   const duration = thinkingDurationByMessageId?.get(key);
   const toolCalls = toolCallsByMessageId?.get(key) || [];
-  const blocks = isError ? [] : (messageBlocksById ? ensureBlocksFromContent(messageBlocksById, key, content) : []);
+  const blocks = isError
+    ? []
+    : messageBlocksById
+      ? ensureBlocksFromContent(messageBlocksById, key, content)
+      : [];
   const text = String(content || '');
   const hasThinking = isThinkingActive || blocks.some((block) => block?.type === 'thinking');
-  const hasRunningTools = toolCalls.some((call) => String(call?.status || '').toLowerCase() === 'running');
-  const asyncNotice = !isStreaming && hasRunningTools
-    ? `<div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+  const hasRunningTools = toolCalls.some(
+    (call) => String(call?.status || '').toLowerCase() === 'running'
+  );
+  const asyncNotice =
+    !isStreaming && hasRunningTools
+      ? `<div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
         Tools are still running in the background. Results will appear when ready.
       </div>`
-    : '';
+      : '';
 
   if (!isError) {
     const renderBlocks = [...blocks];
@@ -170,31 +197,53 @@ export function renderAssistantMessageBody({
       });
     }
     const toolMap = new Map(toolCalls.map((call) => [String(call.id), call]));
-    const blocksHtml = renderBlocks.map((block) => {
-      if (!block) return '';
-      if (block.type === 'tool') {
-        return renderToolCallItem(key, toolMap.get(block.toolCallId || String(block.id || '').slice(5)), toolExpandedByKey);
-      }
-      if (block.type === 'thinking') {
-        const label = isStreaming
-          ? (hasThinking || isThinkingActive ? 'Thinking…' : '')
-          : (hasThinking ? formatDuration(duration) : '');
-        const toggleKey = `${key}:${block.id}`;
-        const collapsed = thinkingCollapsedByKey?.get(toggleKey) ?? false;
-        return label ? renderThinkingBlock({ label, thinking: block.content, collapsed, toggleKey, specialBlockScope: chatId }) : '';
-      }
-      if (block.type === 'text') {
-        if (!block.content) return '';
-        return renderAssistantContent(block.content, {
-          streaming: isStreaming,
-          specialBlockScope: chatId,
-        });
-      }
-      return '';
-    }).join('');
+    const blocksHtml = renderBlocks
+      .map((block) => {
+        if (!block) return '';
+        if (block.type === 'tool') {
+          return renderToolCallItem(
+            key,
+            toolMap.get(block.toolCallId || String(block.id || '').slice(5)),
+            toolExpandedByKey
+          );
+        }
+        if (block.type === 'thinking') {
+          const label = isStreaming
+            ? hasThinking || isThinkingActive
+              ? 'Thinking…'
+              : ''
+            : hasThinking
+              ? formatDuration(duration)
+              : '';
+          const toggleKey = `${key}:${block.id}`;
+          const collapsed = thinkingCollapsedByKey?.get(toggleKey) ?? false;
+          return label
+            ? renderThinkingBlock({
+                label,
+                thinking: block.content,
+                collapsed,
+                toggleKey,
+                specialBlockScope: chatId,
+              })
+            : '';
+        }
+        if (block.type === 'text') {
+          if (!block.content) return '';
+          return renderAssistantContent(block.content, {
+            streaming: isStreaming,
+            specialBlockScope: chatId,
+          });
+        }
+        return '';
+      })
+      .join('');
     const textBlocks = renderBlocks.filter((block) => block?.type === 'text');
     const hasTextBlocks = textBlocks.length > 0;
-    const renderedAnswer = hasTextBlocks ? '' : (text ? renderAssistantContent(text, { streaming: isStreaming }) : '');
+    const renderedAnswer = hasTextBlocks
+      ? ''
+      : text
+        ? renderAssistantContent(text, { streaming: isStreaming })
+        : '';
     return `${asyncNotice}${blocksHtml}${renderedAnswer}`;
   }
 
@@ -218,4 +267,3 @@ export function renderAssistantMessageBody({
     </div>
   `;
 }
-

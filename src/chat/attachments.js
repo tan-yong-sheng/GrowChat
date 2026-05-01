@@ -46,9 +46,7 @@ export function isSupportedAttachmentType(contentType) {
 
 export function normalizeAttachmentIds(input) {
   if (!Array.isArray(input)) return [];
-  const cleaned = input
-    .map((id) => String(id || '').trim())
-    .filter(Boolean);
+  const cleaned = input.map((id) => String(id || '').trim()).filter(Boolean);
   const seen = new Set();
   const unique = [];
   for (const id of cleaned) {

@@ -1,5 +1,5 @@
 import { createDB } from '../db.js';
-import { error, json, preflight, sseData, sseHeaders } from '../utils/response.js';
+import { json, sseData, sseHeaders } from '../utils/response.js';
 import { createRealtimeEvent, getOriginSessionId } from '../features/realtime/realtime.js';
 import { runAsyncSessionProcessor } from '../features/chat/async-session-processor.js';
 import { resolveTurnContinuation } from '../llm/turn-policy.js';
@@ -13,11 +13,7 @@ import {
   parseToolArguments,
   stringifyToolPayload,
 } from '../chat/mcp.js';
-import {
-  applyToolCallDelta,
-  buildUnknownToolPrompt,
-  normalizeToolCalls,
-} from '../chat/tools.js';
+import { applyToolCallDelta, buildUnknownToolPrompt, normalizeToolCalls } from '../chat/tools.js';
 import { recordAttachmentCapabilityFailure } from '../chat/attachments.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { SseLineParser, streamLLM } from '../llm.js';
@@ -46,7 +42,12 @@ function serializeAllowedToolServers(servers = []) {
     .filter((server) => server?.enabled !== false && server?.id && server?.url)
     .map((server) => {
       const tools = (Array.isArray(server.tools) ? server.tools : [])
-        .filter((tool) => tool?.enabled !== false && tool?.visible_for_user !== false && String(tool?.name || '').trim())
+        .filter(
+          (tool) =>
+            tool?.enabled !== false &&
+            tool?.visible_for_user !== false &&
+            String(tool?.name || '').trim()
+        )
         .map((tool) => ({
           name: String(tool.name || '').trim(),
           title: String(tool.title || '').trim(),
@@ -96,11 +97,14 @@ const assistantStreamRunner = createAssistantRunner({
 });
 
 export async function chatRouter(req, env, ctx, user, path) {
-  const isChatPath = path === '/api/chats'
-    || path === '/api/tool-servers'
-    || path === '/api/chats/shared'
-    || path === '/api/chats/archived'
-    || /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate|cancel|status|resume))?)?|\/(?:share|archive|pin|clone))?$/.test(path);
+  const isChatPath =
+    path === '/api/chats' ||
+    path === '/api/tool-servers' ||
+    path === '/api/chats/shared' ||
+    path === '/api/chats/archived' ||
+    /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate|cancel|status|resume))?)?|\/(?:share|archive|pin|clone))?$/.test(
+      path
+    );
   if (!isChatPath) return null;
 
   const unauthorized = requireAuth(req, user);

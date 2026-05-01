@@ -6,7 +6,7 @@ function originHeaders(req) {
 
   return {
     'Access-Control-Allow-Origin': origin,
-    'Vary': 'Origin',
+    Vary: 'Origin',
   };
 }
 
@@ -18,7 +18,8 @@ function securityHeaders() {
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=()',
-    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'",
+    'Content-Security-Policy':
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'",
   };
 }
 
@@ -55,7 +56,7 @@ export function createWeakEtag(value) {
     hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
   }
   const hex = (hash >>> 0).toString(16);
-  return `W/\"${hex}\"`;
+  return `W/"${hex}"`;
 }
 
 export function json(req, data, status = 200, headers = {}) {
@@ -93,11 +94,16 @@ export function jsonCached(req, data, options = {}) {
 
   const ifNoneMatch = etag ? req.headers.get('If-None-Match') : null;
   if (etag && matchesIfNoneMatch(ifNoneMatch, etag)) {
-    const { ['Content-Type']: _ignored, ...rest } = responseHeaders;
+    const rest = Object.fromEntries(
+      Object.entries(responseHeaders).filter(([key]) => key !== 'Content-Type')
+    );
     return new Response(null, { status: 304, headers: rest });
   }
 
-  return new Response(JSON.stringify(data), { status, headers: responseHeaders });
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: responseHeaders,
+  });
 }
 
 function sanitizeErrorMessage(message, status) {
@@ -114,7 +120,9 @@ function sanitizeErrorMessage(message, status) {
     // Catches all source file extensions: .js, .ts, .mjs, .cjs, .jsx, .tsx, .map files
     return message
       .split('\n')
-      .filter(line => !line.trim().startsWith('at ') && !/\.(js|ts|mjs|cjs|jsx|tsx|map):\d+/.test(line))
+      .filter(
+        (line) => !line.trim().startsWith('at ') && !/\.(js|ts|mjs|cjs|jsx|tsx|map):\d+/.test(line)
+      )
       .join('\n')
       .trim();
   }
@@ -138,7 +146,8 @@ export function preflight(req) {
     headers: {
       ...originHeaders(req),
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-CSRF-Token, x-client-session-id',
+      'Access-Control-Allow-Headers':
+        'Content-Type, Authorization, X-CSRF-Token, x-client-session-id',
       'Access-Control-Max-Age': '86400',
       ...securityHeaders(),
     },
@@ -150,7 +159,7 @@ export function sseHeaders(req, extra = {}) {
     ...originHeaders(req),
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
     ...extra,
   };
 }

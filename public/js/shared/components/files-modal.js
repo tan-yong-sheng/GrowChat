@@ -10,7 +10,8 @@ export function renderFilesModal(container) {
     zIndex: 100,
     title: '',
     overlayClass: 'absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity',
-    shellClass: 'relative z-10 w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh] md:h-[600px]',
+    shellClass:
+      'relative z-10 w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh] md:h-[600px]',
     header: `
       <div class="p-6 border-b border-gray-100 flex items-center justify-between gap-4">
         <div class="flex flex-col min-w-0">
@@ -53,5 +54,3 @@ export function renderFilesModal(container) {
 
   return createFilesModalController(container);
 }
-
-

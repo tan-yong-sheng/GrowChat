@@ -1,6 +1,10 @@
 import { state, setState, subscribe } from '../../shared/store.js';
-import { showToast, showToastProgress } from '../../shared/utils.js';
-import { filterEnabledModels, getPreferredModelId, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
+import { showToastProgress } from '../../shared/utils.js';
+import {
+  filterEnabledModels,
+  getPreferredModelId,
+  sortModelsByActiveThenName,
+} from '../../shared/utils/model-state.js';
 import {
   getModelDisplayLabel,
   getModelAvailabilityFallbackNotice,
@@ -41,9 +45,10 @@ export function createModelSelectorController(container) {
   let searchDebounce = null;
   let noticeClearTimer = null;
 
-  const getSelectableModelCount = (models = []) => filterEnabledModels(Array.isArray(models) ? models : [])
-    .filter((model) => model?.hidden_for_user !== true)
-    .length;
+  const getSelectableModelCount = (models = []) =>
+    filterEnabledModels(Array.isArray(models) ? models : []).filter(
+      (model) => model?.hidden_for_user !== true
+    ).length;
 
   const syncScopeSummary = (currentState) => {
     if (!summaryEl) return;
@@ -64,11 +69,13 @@ export function createModelSelectorController(container) {
     clearModelAvailabilityNotice();
     setState({
       ui: {
-        modelAvailabilityNotice: message ? {
-          key,
-          message,
-          tone: 'warning',
-        } : null,
+        modelAvailabilityNotice: message
+          ? {
+              key,
+              message,
+              tone: 'warning',
+            }
+          : null,
       },
     });
     if (message) {
@@ -96,7 +103,8 @@ export function createModelSelectorController(container) {
 
     noticeEl.classList.remove('hidden');
     noticeEl.textContent = notice.message;
-    noticeEl.className = 'mx-2 mt-1 rounded-xl border px-3 py-2 text-xs border-amber-200 bg-amber-50 text-amber-800';
+    noticeEl.className =
+      'mx-2 mt-1 rounded-xl border px-3 py-2 text-xs border-amber-200 bg-amber-50 text-amber-800';
   };
 
   const ensureModelsLoaded = async () => {
@@ -119,14 +127,28 @@ export function createModelSelectorController(container) {
     const buttons = listContainer.querySelectorAll('button[data-model-id]');
     if (!buttons.length) return;
     buttons.forEach((el) => {
-      el.classList.remove('ring-2', 'ring-black/40', 'bg-gray-100', 'text-gray-900', 'font-semibold', 'shadow-sm');
+      el.classList.remove(
+        'ring-2',
+        'ring-black/40',
+        'bg-gray-100',
+        'text-gray-900',
+        'font-semibold',
+        'shadow-sm'
+      );
       el.removeAttribute('data-active');
     });
     const activeModel = visibleModels[activeIndex];
     if (!activeModel) return;
     const activeEl = listContainer.querySelector(`button[data-model-id="${activeModel.id}"]`);
     if (!activeEl) return;
-    activeEl.classList.add('ring-2', 'ring-black/40', 'bg-gray-100', 'text-gray-900', 'font-semibold', 'shadow-sm');
+    activeEl.classList.add(
+      'ring-2',
+      'ring-black/40',
+      'bg-gray-100',
+      'text-gray-900',
+      'font-semibold',
+      'shadow-sm'
+    );
     activeEl.setAttribute('data-active', 'true');
     if (scroll) activeEl.scrollIntoView({ block: 'nearest' });
   };
@@ -136,7 +158,15 @@ export function createModelSelectorController(container) {
     if (previousId) {
       const oldEl = listContainer.querySelector(`button[data-model-id="${previousId}"]`);
       if (oldEl) {
-        oldEl.classList.remove('bg-gray-100', 'text-gray-900', 'font-bold', 'font-semibold', 'ring-1', 'ring-gray-200', 'shadow-sm');
+        oldEl.classList.remove(
+          'bg-gray-100',
+          'text-gray-900',
+          'font-bold',
+          'font-semibold',
+          'ring-1',
+          'ring-gray-200',
+          'shadow-sm'
+        );
         oldEl.classList.add('hover:bg-gray-50', 'text-gray-700');
         const icon = oldEl.querySelector('svg');
         if (icon) icon.remove();
@@ -146,17 +176,28 @@ export function createModelSelectorController(container) {
     if (!nextId) return;
     const newEl = listContainer.querySelector(`button[data-model-id="${nextId}"]`);
     if (newEl) {
-      newEl.classList.add('bg-gray-100', 'text-gray-900', 'font-semibold', 'ring-1', 'ring-gray-200', 'shadow-sm');
+      newEl.classList.add(
+        'bg-gray-100',
+        'text-gray-900',
+        'font-semibold',
+        'ring-1',
+        'ring-gray-200',
+        'shadow-sm'
+      );
       newEl.classList.remove('hover:bg-gray-50', 'text-gray-700');
       if (!newEl.querySelector('svg')) {
-        newEl.insertAdjacentHTML('beforeend', '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>');
+        newEl.insertAdjacentHTML(
+          'beforeend',
+          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>'
+        );
       }
     }
   };
 
   const renderList = (currentState, { reset = false, rebuild = false } = {}) => {
     if (currentState.modelsLoading) {
-      listContainer.innerHTML = '<div class="px-3 py-6 text-center text-sm text-gray-600 italic">Loading models...</div>';
+      listContainer.innerHTML =
+        '<div class="px-3 py-6 text-center text-sm text-gray-600 italic">Loading models...</div>';
       renderedCount = 0;
       syncScopeSummary(currentState);
       return;
@@ -230,10 +271,14 @@ export function createModelSelectorController(container) {
 
   const handleSetDefault = async (e) => {
     e.stopPropagation();
-    const modelId = state.activeModelId || getPreferredModelId(state.models || [], [state.defaultModelId, state.globalDefaultModelId]);
+    const modelId =
+      state.activeModelId ||
+      getPreferredModelId(state.models || [], [state.defaultModelId, state.globalDefaultModelId]);
     if (!modelId) return;
     const isDefault = state.defaultModelId === modelId;
-    const progressToast = showToastProgress(isDefault ? 'Unsetting default model...' : 'Setting default model...');
+    const progressToast = showToastProgress(
+      isDefault ? 'Unsetting default model...' : 'Setting default model...'
+    );
     const { apiFetch } = await import('../../shared/api.js');
     const result = await persistDefaultModelSelection({
       apiFetch,
@@ -336,7 +381,8 @@ export function createModelSelectorController(container) {
 
   listContainer.addEventListener('scroll', () => {
     if (!isOpen || !allFilteredModels.length) return;
-    const nearBottom = listContainer.scrollTop + listContainer.clientHeight >= listContainer.scrollHeight - 40;
+    const nearBottom =
+      listContainer.scrollTop + listContainer.clientHeight >= listContainer.scrollHeight - 40;
     if (!nearBottom) return;
     if (visibleCount >= allFilteredModels.length) return;
     visibleCount = Math.min(visibleCount + PAGE_SIZE, allFilteredModels.length);
@@ -344,15 +390,23 @@ export function createModelSelectorController(container) {
   });
 
   unsubscribe = subscribe((currentState) => {
-    const models = filterEnabledModels(Array.isArray(currentState.models) ? currentState.models : []);
+    const models = filterEnabledModels(
+      Array.isArray(currentState.models) ? currentState.models : []
+    );
     const hasModels = models.length > 0;
-    const preferredModelId = hasModels ? getPreferredModelId(models, [
-      currentState.activeModelId,
-      currentState.defaultModelId,
-      currentState.globalDefaultModelId,
-    ]) : null;
-    const preferredModel = preferredModelId ? (models.find((m) => m.id === preferredModelId) || null) : null;
-    const activeModelExists = Boolean(currentState.activeModelId && models.some((model) => model.id === currentState.activeModelId));
+    const preferredModelId = hasModels
+      ? getPreferredModelId(models, [
+          currentState.activeModelId,
+          currentState.defaultModelId,
+          currentState.globalDefaultModelId,
+        ])
+      : null;
+    const preferredModel = preferredModelId
+      ? models.find((m) => m.id === preferredModelId) || null
+      : null;
+    const activeModelExists = Boolean(
+      currentState.activeModelId && models.some((model) => model.id === currentState.activeModelId)
+    );
 
     if (!hasModels) {
       nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'No selectable models';
@@ -362,7 +416,9 @@ export function createModelSelectorController(container) {
       nameSpan.textContent = 'Select a Model';
     }
 
-    const isDefaultModel = Boolean(preferredModelId && currentState.defaultModelId === preferredModelId);
+    const isDefaultModel = Boolean(
+      preferredModelId && currentState.defaultModelId === preferredModelId
+    );
     headerSetDefaultBtn.textContent = isDefaultModel ? 'Unset default' : 'Set as default';
     headerSetDefaultBtn.className = hasModels
       ? 'text-gray-400 font-primary hover:text-gray-500 transition-colors'
@@ -370,7 +426,8 @@ export function createModelSelectorController(container) {
     headerSetDefaultBtn.disabled = !hasModels;
     headerSetDefaultBtn.style.cursor = hasModels ? 'pointer' : 'not-allowed';
 
-    const modelsChanged = currentState.models !== lastModelsRef || currentState.modelsLoading !== lastModelsLoading;
+    const modelsChanged =
+      currentState.models !== lastModelsRef || currentState.modelsLoading !== lastModelsLoading;
     if (modelsChanged) {
       sortedModels = sortModelsByActiveThenName(models);
       lastModelsRef = currentState.models;
@@ -394,12 +451,20 @@ export function createModelSelectorController(container) {
     syncScopeSummary(currentState);
     syncAvailabilityNotice(currentState);
 
-    if (hasModels && currentState.activeModelId && !activeModelExists && preferredModelId && currentState.activeModelId !== preferredModelId) {
-      const fallbackLabel = getModelDisplayLabel(preferredModel) || preferredModel?.id || 'a different model';
+    if (
+      hasModels &&
+      currentState.activeModelId &&
+      !activeModelExists &&
+      preferredModelId &&
+      currentState.activeModelId !== preferredModelId
+    ) {
+      const fallbackLabel =
+        getModelDisplayLabel(preferredModel) || preferredModel?.id || 'a different model';
       const noticeKey = `${currentState.activeModelId}:${preferredModelId}`;
       const currentNoticeKey = currentState.ui?.modelAvailabilityNotice?.key || null;
       if (currentNoticeKey !== noticeKey) {
-        const chatModelId = currentState.chats?.find((chat) => chat?.id === currentState.activeChatId)?.model || null;
+        const chatModelId =
+          currentState.chats?.find((chat) => chat?.id === currentState.activeChatId)?.model || null;
         const visibilityMeta = currentState.modelCatalogMeta || {};
         const fallbackNotice = getModelAvailabilityFallbackNotice({
           previousModelId: currentState.activeModelId,
@@ -409,7 +474,8 @@ export function createModelSelectorController(container) {
           hiddenModelIds: visibilityMeta.hidden_model_ids || [],
         });
         setModelAvailabilityNotice(
-          fallbackNotice?.message || `Your current model is no longer available. Switched to ${fallbackLabel}.`,
+          fallbackNotice?.message ||
+            `Your current model is no longer available. Switched to ${fallbackLabel}.`,
           noticeKey
         );
       }
@@ -437,4 +503,3 @@ export function createModelSelectorController(container) {
     clearModelAvailabilityNotice();
   };
 }
-

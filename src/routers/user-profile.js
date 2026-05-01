@@ -30,7 +30,10 @@ export function serializeUserProfile(row) {
   };
 }
 
-export function buildUserProfileResponse(row, { defaultModelId = null, primaryRole = 'member' } = {}) {
+export function buildUserProfileResponse(
+  row,
+  { defaultModelId = null, primaryRole = 'member' } = {}
+) {
   return {
     user: {
       ...serializeUserProfile(row),

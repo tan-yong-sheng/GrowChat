@@ -44,7 +44,8 @@ vi.mock('../llm/connections.js', () => ({
   }),
   getConnectionDefaultBaseUrl: vi.fn((providerType) => {
     const raw = String(providerType || '').toLowerCase();
-    if (raw === 'google' || raw === 'gemini-compatible') return 'https://generativelanguage.googleapis.com/v1beta';
+    if (raw === 'google' || raw === 'gemini-compatible')
+      return 'https://generativelanguage.googleapis.com/v1beta';
     if (raw === 'anthropic' || raw === 'claude-compatible') return 'https://api.anthropic.com/v1';
     return 'https://api.openai.com/v1';
   }),
@@ -126,13 +127,19 @@ describe('adminRouter openai connections', () => {
     const payload = await res.json();
 
     expect(res.status).toBe(200);
-    expect(payload.connections.some((conn) => conn.id === 'config-gemini' && conn.source === 'config')).toBe(true);
+    expect(
+      payload.connections.some((conn) => conn.id === 'config-gemini' && conn.source === 'config')
+    ).toBe(true);
     expect(payload.connections.find((conn) => conn.id === 'config-gemini')).toMatchObject({
       hasKey: true,
       keyMasked: '••••cret',
     });
     expect(payload.connections.find((conn) => conn.id === 'config-gemini')?.key).toBeUndefined();
-    expect(mocks.getConfigValue).toHaveBeenCalledWith(expect.anything(), 'openai_connections', '[]');
+    expect(mocks.getConfigValue).toHaveBeenCalledWith(
+      expect.anything(),
+      'openai_connections',
+      '[]'
+    );
     expect(mocks.getConfigValue).toHaveBeenCalledWith(expect.anything(), 'openai_enabled', 'true');
   });
 
@@ -176,10 +183,15 @@ describe('adminRouter openai connections', () => {
 
     expect(res.status).toBe(200);
     expect(payload.ok).toBe(true);
-    expect(mocks.getAllOpenAIConnectionConfigs).toHaveBeenCalledWith({ DB: {} }, { includeDisabled: true });
-    expect(mocks.buildConnectionHeaders).toHaveBeenCalledWith(expect.objectContaining({
-      key: 'typed-key',
-    }));
+    expect(mocks.getAllOpenAIConnectionConfigs).toHaveBeenCalledWith(
+      { DB: {} },
+      { includeDisabled: true }
+    );
+    expect(mocks.buildConnectionHeaders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'typed-key',
+      })
+    );
   });
 
   it('falls back to stored key and auth type when modal key is blank', async () => {
@@ -222,17 +234,33 @@ describe('adminRouter openai connections', () => {
 
     expect(res.status).toBe(200);
     expect(payload.ok).toBe(true);
-    expect(mocks.buildConnectionHeaders).toHaveBeenCalledWith(expect.objectContaining({
-      key: 'stored-key',
-    }));
+    expect(mocks.buildConnectionHeaders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'stored-key',
+      })
+    );
   });
 
   it('returns connection access groups for a connection', async () => {
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
-          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
-          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+          {
+            id: 'g1',
+            name: 'Core',
+            description: 'Core team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'g2',
+            name: 'Ops',
+            description: 'Ops team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
         ];
       }
       if (String(sql).includes('FROM connection_acl_rules')) {
@@ -284,13 +312,33 @@ describe('adminRouter openai connections', () => {
         source: 'config',
       },
     ]);
-    const run = vi.fn().mockResolvedValue(undefined);
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
-          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
-          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
-          { id: 'g3', name: 'QA', description: 'QA team', is_system: 0, created_at: 1, updated_at: 1 },
+          {
+            id: 'g1',
+            name: 'Core',
+            description: 'Core team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'g2',
+            name: 'Ops',
+            description: 'Ops team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'g3',
+            name: 'QA',
+            description: 'QA team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
         ];
       }
       if (String(sql).includes('FROM connection_acl_rules')) {
@@ -320,8 +368,17 @@ describe('adminRouter openai connections', () => {
       return [];
     });
     const batch = vi.fn().mockResolvedValue(undefined);
-    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
-    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
+    const prepare = vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...bindArgs) => ({ sql, params: bindArgs }),
+    }));
+    mocks.createDB.mockReturnValue({
+      all,
+      batch,
+      prepare,
+      run: vi.fn().mockResolvedValue(undefined),
+    });
 
     const res = await adminRouter(
       new Request('https://example.com/api/admin/openai/connections/conn-1/access', {
@@ -357,7 +414,10 @@ describe('adminRouter openai connections', () => {
       }),
     ]);
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM connection_acl_rules'), expect.arrayContaining(['conn-1']));
+    expect(prepare).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM connection_acl_rules'),
+      expect.arrayContaining(['conn-1'])
+    );
   });
 
   it('rejects connection ACL updates when the branch-level admin ACL check fails', async () => {
@@ -373,12 +433,23 @@ describe('adminRouter openai connections', () => {
       },
     ]);
     const batch = vi.fn().mockResolvedValue(undefined);
-    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
+    const prepare = vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...bindArgs) => ({ sql, params: bindArgs }),
+    }));
     mocks.createDB.mockReturnValue({
       all: vi.fn(async (sql) => {
         if (String(sql).includes('FROM groups')) {
           return [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+            {
+              id: 'g1',
+              name: 'Core',
+              description: 'Core team',
+              is_system: 0,
+              created_at: 1,
+              updated_at: 1,
+            },
           ];
         }
         return [];
@@ -426,15 +497,38 @@ describe('adminRouter openai connections', () => {
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
-          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
-          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+          {
+            id: 'g1',
+            name: 'Core',
+            description: 'Core team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'g2',
+            name: 'Ops',
+            description: 'Ops team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
         ];
       }
       return [];
     });
     const batch = vi.fn().mockResolvedValue(undefined);
-    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
-    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
+    const prepare = vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...bindArgs) => ({ sql, params: bindArgs }),
+    }));
+    mocks.createDB.mockReturnValue({
+      all,
+      batch,
+      prepare,
+      run: vi.fn().mockResolvedValue(undefined),
+    });
 
     const res = await adminRouter(
       new Request('https://example.com/api/admin/openai/connections/access', {
@@ -444,11 +538,15 @@ describe('adminRouter openai connections', () => {
           updates: [
             {
               connection_id: 'conn-1',
-              rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
+              rules: [
+                { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+              ],
             },
             {
               connection_id: 'conn-2',
-              rules: [{ principal_type: 'group', principal_id: 'g2', effect: 'deny', action: 'use' }],
+              rules: [
+                { principal_type: 'group', principal_id: 'g2', effect: 'deny', action: 'use' },
+              ],
             },
           ],
         }),
@@ -463,20 +561,35 @@ describe('adminRouter openai connections', () => {
     expect(res.status).toBe(200);
     expect(payload.updates).toHaveLength(2);
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM connection_acl_rules'), expect.arrayContaining(['conn-1']));
+    expect(prepare).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM connection_acl_rules'),
+      expect.arrayContaining(['conn-1'])
+    );
   });
 
   it('updates openai connections, model access, and access rules in one request', async () => {
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
-          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          {
+            id: 'g1',
+            name: 'Core',
+            description: 'Core team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
         ];
       }
       return [];
     });
     const batch = vi.fn().mockResolvedValue(undefined);
-    mocks.createDB.mockReturnValue({ all, run: vi.fn(), batch, prepare: vi.fn((sql) => ({ sql })) });
+    mocks.createDB.mockReturnValue({
+      all,
+      run: vi.fn(),
+      batch,
+      prepare: vi.fn((sql) => ({ sql })),
+    });
     mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([
       {
         id: 'conn-1',
@@ -490,25 +603,27 @@ describe('adminRouter openai connections', () => {
       new Request('https://example.com/api/admin/openai/connections', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        enabled: true,
-        connections: [
-          {
-            id: 'conn-1',
-            name: 'Connection One',
-            url: 'https://example.com/v1',
-            key: '',
-            headers: '',
-            providerType: 'openai',
-            source: 'config',
-            enabled: true,
-          },
+        body: JSON.stringify({
+          enabled: true,
+          connections: [
+            {
+              id: 'conn-1',
+              name: 'Connection One',
+              url: 'https://example.com/v1',
+              key: '',
+              headers: '',
+              providerType: 'openai',
+              source: 'config',
+              enabled: true,
+            },
           ],
           model_updates: [{ id: 'gpt-5-mini', enabled: false }],
           access_updates: [
             {
               connection_id: 'conn-1',
-              rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
+              rules: [
+                { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+              ],
             },
           ],
         }),
@@ -556,8 +671,22 @@ describe('adminRouter openai connections', () => {
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
-          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
-          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+          {
+            id: 'g1',
+            name: 'Core',
+            description: 'Core team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'g2',
+            name: 'Ops',
+            description: 'Ops team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
         ];
       }
       if (String(sql).includes('FROM tool_server_acl_rules')) {
@@ -647,13 +776,38 @@ describe('adminRouter openai connections', () => {
 
   it('updates MCP server access groups for a server', async () => {
     const batch = vi.fn().mockResolvedValue(undefined);
-    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
+    const prepare = vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...bindArgs) => ({ sql, params: bindArgs }),
+    }));
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
-          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
-          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
-          { id: 'g3', name: 'QA', description: 'QA team', is_system: 0, created_at: 1, updated_at: 1 },
+          {
+            id: 'g1',
+            name: 'Core',
+            description: 'Core team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'g2',
+            name: 'Ops',
+            description: 'Ops team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'g3',
+            name: 'QA',
+            description: 'QA team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
         ];
       }
       if (String(sql).includes('FROM tool_server_acl_rules')) {
@@ -682,7 +836,12 @@ describe('adminRouter openai connections', () => {
       }
       return [];
     });
-    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
+    mocks.createDB.mockReturnValue({
+      all,
+      batch,
+      prepare,
+      run: vi.fn().mockResolvedValue(undefined),
+    });
     mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
       if (key === 'tool_servers') {
         return JSON.stringify([
@@ -731,7 +890,10 @@ describe('adminRouter openai connections', () => {
       }),
     ]);
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM tool_server_acl_rules'), expect.arrayContaining(['mcp-1']));
+    expect(prepare).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM tool_server_acl_rules'),
+      expect.arrayContaining(['mcp-1'])
+    );
   });
 
   it('rejects MCP server ACL updates when the branch-level admin ACL check fails', async () => {
@@ -739,16 +901,32 @@ describe('adminRouter openai connections', () => {
       .mockResolvedValueOnce({ allow: true })
       .mockResolvedValueOnce({ allow: false, reason: 'missing_permission', code: 'forbidden' });
     const batch = vi.fn().mockResolvedValue(undefined);
-    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
+    const prepare = vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...bindArgs) => ({ sql, params: bindArgs }),
+    }));
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
-          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+          {
+            id: 'g1',
+            name: 'Core',
+            description: 'Core team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
         ];
       }
       return [];
     });
-    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
+    mocks.createDB.mockReturnValue({
+      all,
+      batch,
+      prepare,
+      run: vi.fn().mockResolvedValue(undefined),
+    });
     mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
       if (key === 'tool_servers') {
         return JSON.stringify([
@@ -782,15 +960,38 @@ describe('adminRouter openai connections', () => {
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
-          { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
-          { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0, created_at: 1, updated_at: 1 },
+          {
+            id: 'g1',
+            name: 'Core',
+            description: 'Core team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
+          {
+            id: 'g2',
+            name: 'Ops',
+            description: 'Ops team',
+            is_system: 0,
+            created_at: 1,
+            updated_at: 1,
+          },
         ];
       }
       return [];
     });
     const batch = vi.fn().mockResolvedValue(undefined);
-    const prepare = vi.fn((sql, params = []) => ({ sql, params, bind: (...bindArgs) => ({ sql, params: bindArgs }) }));
-    mocks.createDB.mockReturnValue({ all, batch, prepare, run: vi.fn().mockResolvedValue(undefined) });
+    const prepare = vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...bindArgs) => ({ sql, params: bindArgs }),
+    }));
+    mocks.createDB.mockReturnValue({
+      all,
+      batch,
+      prepare,
+      run: vi.fn().mockResolvedValue(undefined),
+    });
     mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
       if (key === 'tool_servers') {
         return JSON.stringify([
@@ -809,11 +1010,15 @@ describe('adminRouter openai connections', () => {
           updates: [
             {
               tool_server_id: 'mcp-1',
-              rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
+              rules: [
+                { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+              ],
             },
             {
               tool_server_id: 'mcp-2',
-              rules: [{ principal_type: 'group', principal_id: 'g2', effect: 'deny', action: 'use' }],
+              rules: [
+                { principal_type: 'group', principal_id: 'g2', effect: 'deny', action: 'use' },
+              ],
             },
           ],
         }),
@@ -828,7 +1033,10 @@ describe('adminRouter openai connections', () => {
     expect(res.status).toBe(200);
     expect(payload.updates).toHaveLength(2);
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(prepare).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM tool_server_acl_rules'), expect.arrayContaining(['mcp-1']));
+    expect(prepare).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM tool_server_acl_rules'),
+      expect.arrayContaining(['mcp-1'])
+    );
   });
 
   it('updates admin config settings', async () => {
@@ -855,13 +1063,28 @@ describe('adminRouter openai connections', () => {
       public_registration_status: 'active',
       default_model_id: 'gpt-5-mini',
     });
-    expect(mocks.setConfigValue).toHaveBeenCalledWith(expect.anything(), 'public_registration', 'false');
-    expect(mocks.setConfigValue).toHaveBeenCalledWith(expect.anything(), 'public_registration_status', 'active');
-    expect(mocks.setConfigValue).toHaveBeenCalledWith(expect.anything(), 'default_model_id', 'gpt-5-mini');
-    expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      action: 'admin_config_updated',
-      resource_id: 'config',
-    }));
+    expect(mocks.setConfigValue).toHaveBeenCalledWith(
+      expect.anything(),
+      'public_registration',
+      'false'
+    );
+    expect(mocks.setConfigValue).toHaveBeenCalledWith(
+      expect.anything(),
+      'public_registration_status',
+      'active'
+    );
+    expect(mocks.setConfigValue).toHaveBeenCalledWith(
+      expect.anything(),
+      'default_model_id',
+      'gpt-5-mini'
+    );
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'admin_config_updated',
+        resource_id: 'config',
+      })
+    );
   });
 
   it('returns pending registration status when the config value is unset', async () => {
@@ -942,16 +1165,24 @@ describe('adminRouter openai connections', () => {
       MODEL_ATTACHMENT_CAPS_KEY,
       expect.stringContaining('"qwen3.5-plus"')
     );
-    expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      action: 'attachment_caps_updated',
-      resource_id: 'model-attachment-caps',
-    }));
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'attachment_caps_updated',
+        resource_id: 'model-attachment-caps',
+      })
+    );
   });
 
   it('updates openai connections', async () => {
     const all = vi.fn(async () => []);
     const batch = vi.fn().mockResolvedValue(undefined);
-    mocks.createDB.mockReturnValue({ all, run: vi.fn(), batch, prepare: vi.fn((sql) => ({ sql })) });
+    mocks.createDB.mockReturnValue({
+      all,
+      run: vi.fn(),
+      batch,
+      prepare: vi.fn((sql) => ({ sql })),
+    });
     const res = await adminRouter(
       new Request('https://example.com/api/admin/openai/connections', {
         method: 'PUT',
@@ -959,14 +1190,14 @@ describe('adminRouter openai connections', () => {
         body: JSON.stringify({
           enabled: true,
           connections: [
-          {
-            id: 'conn-1',
-            name: 'OpenAI',
-            url: 'https://api.example.com/v1',
-            key: 'secret',
-            providerType: 'openai',
-            manualModels: [],
-          },
+            {
+              id: 'conn-1',
+              name: 'OpenAI',
+              url: 'https://api.example.com/v1',
+              key: 'secret',
+              providerType: 'openai',
+              manualModels: [],
+            },
           ],
         }),
       }),
@@ -981,10 +1212,13 @@ describe('adminRouter openai connections', () => {
     expect(payload).toEqual({ ok: true, model_updates: 0, access_updates: [] });
     expect(batch).toHaveBeenCalledTimes(1);
     expect(mocks.setConfigValue).not.toHaveBeenCalled();
-    expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      action: 'openai_connections_updated',
-      resource_id: 'openai-connections',
-    }));
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'openai_connections_updated',
+        resource_id: 'openai-connections',
+      })
+    );
   });
 
   it('verifies a tool server and persists discovered tools', async () => {
@@ -1001,9 +1235,18 @@ describe('adminRouter openai connections', () => {
       }
       return fallback;
     });
-    mocks.mcpRequest
-      .mockResolvedValueOnce({ sessionId: 'session-1' })
-      .mockResolvedValueOnce({ result: { tools: [{ name: 'tool-a', title: 'Tool A', description: 'Desc A', inputSchema: { type: 'object' } }] } });
+    mocks.mcpRequest.mockResolvedValueOnce({ sessionId: 'session-1' }).mockResolvedValueOnce({
+      result: {
+        tools: [
+          {
+            name: 'tool-a',
+            title: 'Tool A',
+            description: 'Desc A',
+            inputSchema: { type: 'object' },
+          },
+        ],
+      },
+    });
     mocks.mcpNotify.mockResolvedValueOnce({ sessionId: 'session-1' });
 
     const res = await adminRouter(
@@ -1027,22 +1270,36 @@ describe('adminRouter openai connections', () => {
     expect(payload).toMatchObject({
       ok: true,
       message: 'Connection successful',
-      tools: [{ name: 'tool-a', title: 'Tool A', description: 'Desc A', parameters: { type: 'object' } }],
+      tools: [
+        { name: 'tool-a', title: 'Tool A', description: 'Desc A', parameters: { type: 'object' } },
+      ],
     });
-    expect(mocks.mcpRequest).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      url: 'https://mcp.example.com',
-      method: 'initialize',
-      id: 0,
-    }));
-    expect(mocks.mcpNotify).toHaveBeenCalledWith(expect.objectContaining({
-      url: 'https://mcp.example.com',
-      method: 'notifications/initialized',
-    }));
-    expect(mocks.mcpRequest).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      method: 'tools/list',
-      id: 2,
-    }));
-    expect(mocks.setConfigValue).toHaveBeenCalledWith(expect.anything(), 'tool_servers', expect.stringContaining('tools_verified_at'));
+    expect(mocks.mcpRequest).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        url: 'https://mcp.example.com',
+        method: 'initialize',
+        id: 0,
+      })
+    );
+    expect(mocks.mcpNotify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://mcp.example.com',
+        method: 'notifications/initialized',
+      })
+    );
+    expect(mocks.mcpRequest).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        method: 'tools/list',
+        id: 2,
+      })
+    );
+    expect(mocks.setConfigValue).toHaveBeenCalledWith(
+      expect.anything(),
+      'tool_servers',
+      expect.stringContaining('tools_verified_at')
+    );
   });
 
   it('preserves existing tool enabled flags when verifying a tool server', async () => {
@@ -1063,12 +1320,24 @@ describe('adminRouter openai connections', () => {
       }
       return fallback;
     });
-    mocks.mcpRequest
-      .mockResolvedValueOnce({ sessionId: 'session-1' })
-      .mockResolvedValueOnce({ result: { tools: [
-        { name: 'tool-a', title: 'Tool A', description: 'Desc A', inputSchema: { type: 'object' } },
-        { name: 'tool-b', title: 'Tool B', description: 'Desc B', inputSchema: { type: 'object' } },
-      ] } });
+    mocks.mcpRequest.mockResolvedValueOnce({ sessionId: 'session-1' }).mockResolvedValueOnce({
+      result: {
+        tools: [
+          {
+            name: 'tool-a',
+            title: 'Tool A',
+            description: 'Desc A',
+            inputSchema: { type: 'object' },
+          },
+          {
+            name: 'tool-b',
+            title: 'Tool B',
+            description: 'Desc B',
+            inputSchema: { type: 'object' },
+          },
+        ],
+      },
+    });
     mocks.mcpNotify.mockResolvedValueOnce({ sessionId: 'session-1' });
 
     const res = await adminRouter(
@@ -1090,15 +1359,39 @@ describe('adminRouter openai connections', () => {
 
     expect(res.status).toBe(200);
     expect(payload.tools).toEqual([
-      { name: 'tool-a', title: 'Tool A', description: 'Desc A', parameters: { type: 'object' }, enabled: false },
-      { name: 'tool-b', title: 'Tool B', description: 'Desc B', parameters: { type: 'object' }, enabled: true },
+      {
+        name: 'tool-a',
+        title: 'Tool A',
+        description: 'Desc A',
+        parameters: { type: 'object' },
+        enabled: false,
+      },
+      {
+        name: 'tool-b',
+        title: 'Tool B',
+        description: 'Desc B',
+        parameters: { type: 'object' },
+        enabled: true,
+      },
     ]);
     const savedCall = mocks.setConfigValue.mock.calls.find(([, key]) => key === 'tool_servers');
     expect(savedCall).toBeTruthy();
     const savedServers = JSON.parse(savedCall[2]);
     expect(savedServers[0].tools).toEqual([
-      { name: 'tool-a', title: 'Tool A', description: 'Desc A', parameters: { type: 'object' }, enabled: false },
-      { name: 'tool-b', title: 'Tool B', description: 'Desc B', parameters: { type: 'object' }, enabled: true },
+      {
+        name: 'tool-a',
+        title: 'Tool A',
+        description: 'Desc A',
+        parameters: { type: 'object' },
+        enabled: false,
+      },
+      {
+        name: 'tool-b',
+        title: 'Tool B',
+        description: 'Desc B',
+        parameters: { type: 'object' },
+        enabled: true,
+      },
     ]);
   });
 });
@@ -1127,7 +1420,10 @@ describe('adminRouter tool server oauth', () => {
   });
 
   it('requires an existing server before starting oauth', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('not found', { status: 404 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('not found', { status: 404 }))
+    );
 
     const res = await adminRouter(
       new Request('https://example.com/api/admin/tool-servers/oauth/start', {

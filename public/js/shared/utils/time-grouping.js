@@ -21,16 +21,16 @@ export function groupChatsByTime(chats) {
   weekAgo.setDate(weekAgo.getDate() - 7);
 
   return {
-    today: chats.filter(c => toDate(c.updated_at) >= today),
-    yesterday: chats.filter(c => {
+    today: chats.filter((c) => toDate(c.updated_at) >= today),
+    yesterday: chats.filter((c) => {
       const d = toDate(c.updated_at);
       return d >= yesterday && d < today;
     }),
-    lastWeek: chats.filter(c => {
+    lastWeek: chats.filter((c) => {
       const d = toDate(c.updated_at);
       return d >= weekAgo && d < yesterday;
     }),
-    older: chats.filter(c => toDate(c.updated_at) < weekAgo)
+    older: chats.filter((c) => toDate(c.updated_at) < weekAgo),
   };
 }
 

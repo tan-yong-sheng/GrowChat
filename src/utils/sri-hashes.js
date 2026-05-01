@@ -5,19 +5,19 @@ const SRI_RESOURCES = {
   'katex-css': {
     url: 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css',
   },
-  'marked': {
+  marked: {
     url: 'https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js',
   },
   'katex-js': {
     url: 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js',
   },
-  'mermaid': {
+  mermaid: {
     url: 'https://cdn.jsdelivr.net/npm/mermaid@11.0.2/dist/mermaid.min.js',
   },
-  'graphviz': {
+  graphviz: {
     url: 'https://cdn.jsdelivr.net/npm/@hpcc-js/wasm@1.12.8/dist/index.js',
   },
-  'dompurify': {
+  dompurify: {
     url: 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs',
     type: 'module',
   },
@@ -191,7 +191,10 @@ function injectSriHashes(html, hashes) {
     if (!pattern) continue;
 
     const extraAttrs = key === 'dompurify' ? ' type="module"' : '';
-    modified = modified.replace(pattern, `${extraAttrs} integrity="${hashValue}" crossorigin="anonymous"`);
+    modified = modified.replace(
+      pattern,
+      `${extraAttrs} integrity="${hashValue}" crossorigin="anonymous"`
+    );
   }
 
   return modified;

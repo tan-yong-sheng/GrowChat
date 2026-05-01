@@ -1,4 +1,8 @@
-import { buildPersistedAssistantContent, isStreamCancelledRow, shouldPersistAssistantContent } from './stream-utils.js';
+import {
+  buildPersistedAssistantContent,
+  isStreamCancelledRow,
+  shouldPersistAssistantContent,
+} from './stream-utils.js';
 
 export function createAssistantStreamLifecycle({
   db,
@@ -28,7 +32,9 @@ export function createAssistantStreamLifecycle({
         "UPDATE messages SET status = NULL WHERE id = ? AND status IN ('streaming', 'tool_running')",
         [assistantMsgId]
       );
-    } catch { }
+    } catch {
+      // ignore
+    }
   };
 
   const ensureAssistantRow = async () => {
@@ -47,7 +53,9 @@ export function createAssistantStreamLifecycle({
           [assistantMsgId, chatId, 'assistant', '', model, citationsJson, userMsgId]
         );
         inserted = true;
-      } catch { }
+      } catch {
+        // ignore
+      }
     }
     if (!inserted) return false;
     try {
@@ -55,17 +63,25 @@ export function createAssistantStreamLifecycle({
         'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
         [assistantMsgId, model, chatId, user.sub]
       );
-    } catch { }
+    } catch {
+      // ignore
+    }
     return true;
   };
 
   const persistToolCalls = async (toolCallRecords) => {
     try {
-      const toolCallsJson = Array.isArray(toolCallRecords) && toolCallRecords.length
-        ? JSON.stringify(toolCallRecords)
-        : null;
-      await db.run('UPDATE messages SET tool_calls = ? WHERE id = ?', [toolCallsJson, assistantMsgId]);
-    } catch { }
+      const toolCallsJson =
+        Array.isArray(toolCallRecords) && toolCallRecords.length
+          ? JSON.stringify(toolCallRecords)
+          : null;
+      await db.run('UPDATE messages SET tool_calls = ? WHERE id = ?', [
+        toolCallsJson,
+        assistantMsgId,
+      ]);
+    } catch {
+      // ignore
+    }
   };
 
   const persistAssistantContent = async ({
@@ -75,24 +91,30 @@ export function createAssistantStreamLifecycle({
     force = false,
   } = {}) => {
     const now = Date.now();
-    if (!shouldPersistAssistantContent({
-      now,
-      lastPersistAt,
-      lastPersistSize,
-      fullText,
-      fullReasoning,
-      force,
-    })) return false;
+    if (
+      !shouldPersistAssistantContent({
+        now,
+        lastPersistAt,
+        lastPersistSize,
+        fullText,
+        fullReasoning,
+        force,
+      })
+    )
+      return false;
     lastPersistAt = now;
     lastPersistSize = String(fullText || '').length + String(fullReasoning || '').length;
     const content = buildPersistedAssistantContent(fullText, fullReasoning);
-    const blocksJson = Array.isArray(messageBlocks) && messageBlocks.length ? JSON.stringify(messageBlocks) : null;
+    const blocksJson =
+      Array.isArray(messageBlocks) && messageBlocks.length ? JSON.stringify(messageBlocks) : null;
     try {
       await db.run(
         'UPDATE messages SET content = ?, citations = ?, message_blocks = ? WHERE id = ?',
         [content, citationsJson, blocksJson, assistantMsgId]
       );
-    } catch { }
+    } catch {
+      // ignore
+    }
     return true;
   };
 
@@ -101,7 +123,9 @@ export function createAssistantStreamLifecycle({
     if (now - lastCancelCheckAt < 900) return false;
     lastCancelCheckAt = now;
     try {
-      const row = await db.first('SELECT status, error_code FROM messages WHERE id = ?', [assistantMsgId]);
+      const row = await db.first('SELECT status, error_code FROM messages WHERE id = ?', [
+        assistantMsgId,
+      ]);
       return isStreamCancelledRow(row);
     } catch {
       return false;
@@ -114,22 +138,27 @@ export function createAssistantStreamLifecycle({
         "UPDATE messages SET status = 'cancelled', error_code = 'cancelled', error_message = ? WHERE id = ?",
         ['Cancelled by user', assistantMsgId]
       );
-    } catch { }
+    } catch {
+      // ignore
+    }
     const cancelledMessage = await getMessageSnapshot(db, assistantMsgId);
     const updatedChat = await getOwnedChat(db, chatId, user.sub);
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'message.cancelled',
-      userId: user.sub,
-      chatId,
-      messageId: assistantMsgId,
-      originSessionId: getOriginSessionId(req),
-      data: {
-        role: 'assistant',
-        model,
-        message: cancelledMessage,
-        chat: updatedChat,
-      },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'message.cancelled',
+        userId: user.sub,
+        chatId,
+        messageId: assistantMsgId,
+        originSessionId: getOriginSessionId(req),
+        data: {
+          role: 'assistant',
+          model,
+          message: cancelledMessage,
+          chat: updatedChat,
+        },
+      })
+    );
     controller.enqueue(encoder.encode('data: [DONE]\n\n'));
     controller.close();
   };
@@ -154,11 +183,13 @@ export function createAssistantStreamLifecycle({
         [
           errorDetails,
           model,
-          Array.isArray(citations) ? JSON.stringify(citations) : (citations || null),
+          Array.isArray(citations) ? JSON.stringify(citations) : citations || null,
           parentId,
           errorCode,
           errorMessage,
-          Array.isArray(toolCallRecords) && toolCallRecords.length ? JSON.stringify(toolCallRecords) : null,
+          Array.isArray(toolCallRecords) && toolCallRecords.length
+            ? JSON.stringify(toolCallRecords)
+            : null,
           assistantMsgId,
         ]
       );
@@ -172,34 +203,46 @@ export function createAssistantStreamLifecycle({
             'assistant',
             errorDetails,
             model,
-            Array.isArray(citations) ? JSON.stringify(citations) : (citations || null),
+            Array.isArray(citations) ? JSON.stringify(citations) : citations || null,
             parentId,
             'error',
             errorCode,
             errorMessage,
-            Array.isArray(toolCallRecords) && toolCallRecords.length ? JSON.stringify(toolCallRecords) : null,
+            Array.isArray(toolCallRecords) && toolCallRecords.length
+              ? JSON.stringify(toolCallRecords)
+              : null,
           ]
         );
-      } catch { }
+      } catch {
+        // ignore
+      }
     }
 
     const assistantError = await getMessageSnapshot(db, assistantMsgId);
-    await publishRealtimeNow(env, createRealtimeEvent({
-      type: 'message.completed',
-      userId: user.sub,
-      chatId,
-      messageId: assistantMsgId,
-      originSessionId: getOriginSessionId(req),
-      data: {
-        role: 'assistant',
-        model,
-        error: true,
-        message: assistantError,
-        chat: await getOwnedChat(db, chatId, user.sub),
-      },
-    }));
+    await publishRealtimeNow(
+      env,
+      createRealtimeEvent({
+        type: 'message.completed',
+        userId: user.sub,
+        chatId,
+        messageId: assistantMsgId,
+        originSessionId: getOriginSessionId(req),
+        data: {
+          role: 'assistant',
+          model,
+          error: true,
+          message: assistantError,
+          chat: await getOwnedChat(db, chatId, user.sub),
+        },
+      })
+    );
     if (typeof emitSse === 'function') {
-      await emitSse({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId });
+      await emitSse({
+        event: 'start',
+        chat_id: chatId,
+        message_id: assistantMsgId,
+        user_message_id: userMsgId,
+      });
       await emitSse({ error: errorCode, message: errorMessage }, { persist: true });
     }
     await emitDone(controller, encoder);

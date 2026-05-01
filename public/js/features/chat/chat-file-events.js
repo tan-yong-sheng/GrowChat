@@ -13,7 +13,9 @@ export function bindChatFileEvents({
   const handleFilesSelected = async (event) => {
     const files = Array.isArray(event?.detail?.files) ? event.detail.files : [];
     if (!files.length) return;
-    const toast = showToastProgress(`Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`);
+    const toast = showToastProgress(
+      `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`
+    );
     try {
       const allowedNonLocalKinds = getAllowedNonLocalKinds(state);
       const chatId = state.activeChatId;
@@ -120,4 +122,3 @@ export function bindChatFileEvents({
     window.removeEventListener('attach-files', handleAttachFiles);
   };
 }
-

@@ -1,11 +1,15 @@
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 
-const DEFAULT_OUTER_CLASS = 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
+const DEFAULT_OUTER_CLASS =
+  'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
 const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0';
-const DEFAULT_SHELL_CLASS = 'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
-const DEFAULT_HEADER_CLASS = 'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0';
+const DEFAULT_SHELL_CLASS =
+  'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
+const DEFAULT_HEADER_CLASS =
+  'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0';
 const DEFAULT_BODY_CLASS = 'p-5 sm:p-6 overflow-y-auto flex-1 min-h-0';
-const DEFAULT_FOOTER_CLASS = 'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0';
+const DEFAULT_FOOTER_CLASS =
+  'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0';
 const DEFAULT_CLOSE_CLASS = 'p-2 rounded-full hover:bg-gray-100 transition';
 
 const ADMIN_MODAL_PRESETS = {
@@ -23,35 +27,43 @@ const ADMIN_MODAL_PRESETS = {
   },
   compact: {
     outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
-    shellClass: 'relative z-10 w-full max-w-lg rounded-[1.5rem] bg-white shadow-2xl border border-gray-100 overflow-hidden flex flex-col',
+    shellClass:
+      'relative z-10 w-full max-w-lg rounded-[1.5rem] bg-white shadow-2xl border border-gray-100 overflow-hidden flex flex-col',
     headerClass: 'flex items-center justify-between px-5 pt-5 pb-3 shrink-0',
     bodyClass: 'p-0 overflow-y-auto flex-1 min-h-0',
-    footerClass: 'flex items-center justify-end gap-2 border-t border-gray-100 px-5 py-4 bg-white sticky bottom-0 z-10',
+    footerClass:
+      'flex items-center justify-end gap-2 border-t border-gray-100 px-5 py-4 bg-white sticky bottom-0 z-10',
     zIndex: 140,
     widthClass: '',
   },
   userEditor: {
     outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
     overlayClass: DEFAULT_OVERLAY_CLASS,
-    shellClass: 'relative z-10 w-full max-w-lg rounded-[1.5rem] bg-white shadow-2xl border border-gray-200 overflow-hidden flex flex-col',
+    shellClass:
+      'relative z-10 w-full max-w-lg rounded-[1.5rem] bg-white shadow-2xl border border-gray-200 overflow-hidden flex flex-col',
     headerClass: 'flex items-center justify-between px-5 pt-5 pb-3 shrink-0 bg-white',
     bodyClass: 'p-5 sm:p-6 overflow-y-auto flex-1 min-h-0 bg-white',
-    footerClass: 'flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4 bg-white sticky bottom-0 z-10',
+    footerClass:
+      'flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4 bg-white sticky bottom-0 z-10',
     zIndex: 140,
     widthClass: '',
   },
   access: {
-    shellClass: 'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
-    headerClass: 'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0',
+    shellClass:
+      'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
+    headerClass:
+      'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0',
     bodyClass: 'p-5 sm:p-6 overflow-y-auto flex-1 min-h-0',
-    footerClass: 'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
+    footerClass:
+      'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
     zIndex: 150,
     widthClass: 'max-w-3xl',
   },
   aclEditor: {
     outerClass: DEFAULT_OUTER_CLASS,
     overlayClass: DEFAULT_OVERLAY_CLASS,
-    shellClass: 'relative z-10 w-full max-w-4xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
+    shellClass:
+      'relative z-10 w-full max-w-4xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
     headerClass: DEFAULT_HEADER_CLASS,
     bodyClass: DEFAULT_BODY_CLASS,
     footerClass: DEFAULT_FOOTER_CLASS,
@@ -59,28 +71,37 @@ const ADMIN_MODAL_PRESETS = {
     widthClass: '',
   },
   wide: {
-    shellClass: 'relative z-10 w-full max-w-6xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
-    headerClass: 'flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 shrink-0',
+    shellClass:
+      'relative z-10 w-full max-w-6xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
+    headerClass:
+      'flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 shrink-0',
     bodyClass: 'p-0 overflow-y-auto flex-1 min-h-0',
-    footerClass: 'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
+    footerClass:
+      'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
     zIndex: 140,
     widthClass: '',
   },
   roleEditor: {
     outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
     overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
-    shellClass: 'relative z-10 w-full max-w-5xl max-h-[84vh] overflow-hidden bg-white text-gray-900 shadow-2xl flex flex-col rounded-[2rem] border border-gray-200',
-    headerClass: 'flex items-center justify-between gap-3 border-b border-gray-100 px-3 sm:px-4 py-1.5 shrink-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 sticky top-0 z-10',
+    shellClass:
+      'relative z-10 w-full max-w-5xl max-h-[84vh] overflow-hidden bg-white text-gray-900 shadow-2xl flex flex-col rounded-[2rem] border border-gray-200',
+    headerClass:
+      'flex items-center justify-between gap-3 border-b border-gray-100 px-3 sm:px-4 py-1.5 shrink-0 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 sticky top-0 z-10',
     bodyClass: 'min-h-0 flex-1 overflow-y-auto p-0',
-    footerClass: 'flex items-center justify-between gap-2 border-t border-gray-200 bg-white px-3 sm:px-4 py-1.5 shrink-0 sticky bottom-0 z-10',
+    footerClass:
+      'flex items-center justify-between gap-2 border-t border-gray-200 bg-white px-3 sm:px-4 py-1.5 shrink-0 sticky bottom-0 z-10',
     zIndex: 140,
     widthClass: '',
   },
   groupEditor: {
-    shellClass: 'relative z-10 w-full max-w-6xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
-    headerClass: 'flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 shrink-0',
+    shellClass:
+      'relative z-10 w-full max-w-6xl bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
+    headerClass:
+      'flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 shrink-0',
     bodyClass: 'p-0 overflow-y-auto flex-1 min-h-0',
-    footerClass: 'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
+    footerClass:
+      'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
     zIndex: 140,
     widthClass: '',
   },
@@ -237,7 +258,8 @@ export function buildAdminModalShellMarkup({
     closeAttr,
     rootAttrs,
   });
-  const zIndexStyle = typeof config.zIndex === 'number' ? ` style="z-index: ${config.zIndex};"` : '';
+  const zIndexStyle =
+    typeof config.zIndex === 'number' ? ` style="z-index: ${config.zIndex};"` : '';
   return `
     <div class="${config.outerClass}"${zIndexStyle} ${config.rootAttrs}>
       <div class="${config.overlayClass}"></div>

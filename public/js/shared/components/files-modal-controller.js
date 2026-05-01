@@ -2,10 +2,7 @@ import { state, setState, subscribe } from '../store.js';
 import { fetchFiles, searchFiles, uploadFile, deleteFile } from '../api.js';
 import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
 import { suspendSidebarVisibility, restoreSidebarVisibility } from '../utils/sidebar-visibility.js';
-import {
-  renderFilesEmptyStateMarkup,
-  renderFilesListMarkup,
-} from './files-modal-helpers.js';
+import { renderFilesEmptyStateMarkup, renderFilesListMarkup } from './files-modal-helpers.js';
 
 export function createFilesModalController(container) {
   let unsubscribe;
@@ -166,5 +163,3 @@ export function createFilesModalController(container) {
     if (cleanup) cleanup();
   };
 }
-
-

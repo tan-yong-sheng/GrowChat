@@ -32,9 +32,10 @@ export function broadcastModelsInvalidation(token = String(Date.now())) {
   }
 
   try {
-    const evt = typeof CustomEvent === 'function'
-      ? new CustomEvent('growchat:models-invalidated', { detail: { token } })
-      : null;
+    const evt =
+      typeof CustomEvent === 'function'
+        ? new CustomEvent('growchat:models-invalidated', { detail: { token } })
+        : null;
     if (evt && globalThis.dispatchEvent) {
       globalThis.dispatchEvent(evt);
     }

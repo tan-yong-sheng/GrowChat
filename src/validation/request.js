@@ -7,7 +7,11 @@ export function parseJsonBody(req) {
   });
 }
 
-export function requireString(value, message, { trim = true, minLength = 1, maxLength = null, allowEmpty = false } = {}) {
+export function requireString(
+  value,
+  message,
+  { trim = true, minLength = 1, maxLength = null, allowEmpty = false } = {}
+) {
   if (typeof value !== 'string') {
     throw new ValidationError(message);
   }
@@ -46,7 +50,11 @@ export function requirePlainObject(value, message) {
   return value;
 }
 
-export function parsePositiveInt(value, message, { min = 1, max = Number.MAX_SAFE_INTEGER, allowZero = false } = {}) {
+export function parsePositiveInt(
+  value,
+  message,
+  { min = 1, max = Number.MAX_SAFE_INTEGER, allowZero = false } = {}
+) {
   const raw = String(value ?? '').trim();
   if (!/^\d+$/.test(raw)) {
     throw new ValidationError(message);
@@ -58,21 +66,30 @@ export function parsePositiveInt(value, message, { min = 1, max = Number.MAX_SAF
   return parsed;
 }
 
-export function parsePagination(url, { defaultLimit = 20, maxLimit = 100, defaultOffset = 0 } = {}) {
+export function parsePagination(
+  url,
+  { defaultLimit = 20, maxLimit = 100, defaultOffset = 0 } = {}
+) {
   const limitParam = url.searchParams.get('limit');
   const offsetParam = url.searchParams.get('offset');
-  const limit = limitParam == null
-    ? defaultLimit
-    : parsePositiveInt(limitParam, `Query parameter "limit" must be a positive integer between 1 and ${maxLimit}`, {
-      min: 1,
-      max: maxLimit,
-    });
-  const offset = offsetParam == null
-    ? defaultOffset
-    : parsePositiveInt(offsetParam, 'Query parameter "offset" must be a non-negative integer', {
-      min: 0,
-      allowZero: true,
-    });
+  const limit =
+    limitParam == null
+      ? defaultLimit
+      : parsePositiveInt(
+          limitParam,
+          `Query parameter "limit" must be a positive integer between 1 and ${maxLimit}`,
+          {
+            min: 1,
+            max: maxLimit,
+          }
+        );
+  const offset =
+    offsetParam == null
+      ? defaultOffset
+      : parsePositiveInt(offsetParam, 'Query parameter "offset" must be a non-negative integer', {
+          min: 0,
+          allowZero: true,
+        });
   return { limit, offset };
 }
 

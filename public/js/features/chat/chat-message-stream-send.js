@@ -59,8 +59,8 @@ export async function startChatSendMessage({
   });
   let chatId = optimistic.chatId;
   let tempChatId = optimistic.tempChatId;
-  let autoTitle = optimistic.autoTitle;
   const hadMessagesBefore = optimistic.hadMessagesBefore;
+  const optimisticAutoTitle = optimistic.autoTitle || null;
 
   const branchParentId = currentLeafByChatId.get(chatId) || null;
   const tempUserId = `temp-user-${Date.now()}`;
@@ -99,7 +99,9 @@ export async function startChatSendMessage({
   });
 
   currentLeafByChatId.set(chatId, tempAssistantId);
-  setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
+  setState((prev) => ({
+    messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages },
+  }));
   if (state.activeChatId === chatId) drawMessages(localMessages);
 
   if (tempChatId) {
@@ -131,20 +133,19 @@ export async function startChatSendMessage({
     });
     chatId = realChatId;
 
-    if (autoTitle) {
+    if (optimisticAutoTitle) {
       apiFetch(`/api/chats/${realChatId}`, {
         method: 'PUT',
-        body: JSON.stringify({ title: autoTitle }),
+        body: JSON.stringify({ title: optimisticAutoTitle }),
       }).catch(() => {});
     }
   }
 
-  if (!autoTitle) {
+  if (!optimisticAutoTitle) {
     const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
     if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
       const snippet = String(text).trim().replace(/\s+/g, ' ').slice(0, 60);
       if (snippet) {
-        autoTitle = snippet;
         updateChatTitleLocal(chatId, snippet);
         if (!String(chatId).startsWith('temp-')) {
           apiFetch(`/api/chats/${chatId}`, {
@@ -165,12 +166,12 @@ export async function startChatSendMessage({
   let res;
   setStreamingState(chatId, true);
   try {
-    const attachmentIds = (draftAttachments || [])
-      .map((item) => item?.id)
-      .filter(Boolean);
+    const attachmentIds = (draftAttachments || []).map((item) => item?.id).filter(Boolean);
     const selectedToolNames = Array.isArray(options.selectedToolNames)
       ? options.selectedToolNames.filter(Boolean)
-      : (Array.isArray(getDraftToolNames(chatId)) ? getDraftToolNames(chatId).filter(Boolean) : null);
+      : Array.isArray(getDraftToolNames(chatId))
+        ? getDraftToolNames(chatId).filter(Boolean)
+        : null;
     const payload = {
       message: text,
       model: state.activeModelId || undefined,
@@ -189,7 +190,9 @@ export async function startChatSendMessage({
       if (localMessages.length > 0) {
         localMessages[localMessages.length - 1].done = true;
         localMessages[localMessages.length - 1].content = 'Stopped.';
-        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
+        setState((prev) => ({
+          messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages },
+        }));
         if (state.activeChatId === chatId) drawMessages(localMessages);
       }
     } else {
@@ -204,7 +207,9 @@ export async function startChatSendMessage({
     try {
       const errPayload = await res.json();
       errorText = formatApiErrorMessage(errPayload, errorText);
-    } catch {}
+    } catch {
+      // ignore response parse failure
+    }
     applyAssistantErrorMessage(chatId, tempAssistantId, errorText);
     return;
   }

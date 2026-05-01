@@ -1,4 +1,9 @@
-import { readStoredJson, readStoredString, removeStoredValue, writeStoredJson } from '../utils/storage.js';
+import {
+  readStoredJson,
+  readStoredString,
+  removeStoredValue,
+  writeStoredJson,
+} from '../utils/storage.js';
 
 const STORAGE_KEY = 'growchat_auth';
 const CLIENT_SESSION_KEY = 'growchat_client_session_id';

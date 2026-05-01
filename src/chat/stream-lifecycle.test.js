@@ -13,7 +13,9 @@ describe('chat stream lifecycle', () => {
     const createRealtimeEvent = vi.fn((event) => event);
     const getMessageSnapshot = vi.fn().mockResolvedValue({ id: 'a1' });
     const getOwnedChat = vi.fn().mockResolvedValue({ id: 'c1' });
-    const normalizeErrorMessage = vi.fn((value, fallback) => String(value?.message || value || fallback));
+    const normalizeErrorMessage = vi.fn((value, fallback) =>
+      String(value?.message || value || fallback)
+    );
 
     const lifecycle = createAssistantStreamLifecycle({
       db,
@@ -40,7 +42,13 @@ describe('chat stream lifecycle', () => {
     const { lifecycle, db } = makeLifecycle();
     await expect(lifecycle.ensureAssistantRow()).resolves.toBe(true);
     await expect(lifecycle.persistToolCalls([{ id: 't1' }])).resolves.toBeUndefined();
-    await expect(lifecycle.persistAssistantContent({ fullText: 'hello', fullReasoning: 'why', messageBlocks: [{ type: 'text' }] })).resolves.toBe(true);
+    await expect(
+      lifecycle.persistAssistantContent({
+        fullText: 'hello',
+        fullReasoning: 'why',
+        messageBlocks: [{ type: 'text' }],
+      })
+    ).resolves.toBe(true);
     expect(db.run).toHaveBeenCalled();
   });
 

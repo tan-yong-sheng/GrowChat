@@ -18,9 +18,11 @@ import { error, json } from '../utils/response.js';
 import { authorize, getAuditLog, logAuditEvent } from '../utils/authorize.js';
 
 function normalizeStringList(value) {
-  return Array.from(new Set((Array.isArray(value) ? value : [])
-    .map((item) => String(item || '').trim())
-    .filter(Boolean)));
+  return Array.from(
+    new Set(
+      (Array.isArray(value) ? value : []).map((item) => String(item || '').trim()).filter(Boolean)
+    )
+  );
 }
 
 function serializeRoleWithPermissions(role, permissionKeys = []) {
@@ -100,10 +102,10 @@ export async function rbacRouter(req, env, _ctx, user, path) {
   const isRbacPath = path.startsWith('/api/admin/rbac/') || path === '/api/admin/audit';
   if (!isRbacPath) return null;
 
-  const requiredPermission = path === '/api/admin/audit'
-    ? 'admin.audit.read'
-    : 'admin.rbac.admin';
-  const authDecision = await authorize(env, user, { action: requiredPermission });
+  const requiredPermission = path === '/api/admin/audit' ? 'admin.audit.read' : 'admin.rbac.admin';
+  const authDecision = await authorize(env, user, {
+    action: requiredPermission,
+  });
 
   if (!authDecision.allow) {
     return error(req, authDecision.reason || 'Forbidden', 403);
@@ -125,7 +127,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
 
   // POST /api/admin/rbac/roles - Create new role (custom roles only)
   if (req.method === 'POST' && path === '/api/admin/rbac/roles') {
-    let body = {};
+    let body;
     try {
       body = await req.json();
     } catch {
@@ -165,11 +167,16 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         action: 'role_created',
         resource_type: 'role',
         resource_id: roleId,
-        metadata: { name, system: 0, permissions: desiredPermissions }
+        metadata: { name, system: 0, permissions: desiredPermissions },
       });
 
       const role = serializeRoleWithPermissions(
-        { id: roleId, name, system: 0, created_at: Math.floor(Date.now() / 1000) },
+        {
+          id: roleId,
+          name,
+          system: 0,
+          created_at: Math.floor(Date.now() / 1000),
+        },
         desiredPermissions
       );
       return json(req, { role }, 201);
@@ -183,7 +190,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
   const roleUpdateMatch = path.match(/^\/api\/admin\/rbac\/roles\/([^/]+)$/);
   if (roleUpdateMatch && req.method === 'PUT') {
     const roleId = roleUpdateMatch[1];
-    let body = {};
+    let body;
     try {
       body = await req.json();
     } catch {
@@ -211,7 +218,11 @@ export async function rbacRouter(req, env, _ctx, user, path) {
       if (permissionsProvided) {
         resolvedPermissionRows = await resolvePermissionsByKeys(db, desiredPermissions);
         if (resolvedPermissionRows.missingKeys.length) {
-          return error(req, `Unknown permissions: ${resolvedPermissionRows.missingKeys.join(', ')}`, 400);
+          return error(
+            req,
+            `Unknown permissions: ${resolvedPermissionRows.missingKeys.join(', ')}`,
+            400
+          );
         }
       }
 
@@ -240,7 +251,11 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         action: 'role_updated',
         resource_type: 'role',
         resource_id: roleId,
-        metadata: { name, old_name: role.name, permissions: resolvedPermissionKeys }
+        metadata: {
+          name,
+          old_name: role.name,
+          permissions: resolvedPermissionKeys,
+        },
       });
 
       const updated = serializeRoleWithPermissions(
@@ -278,7 +293,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         action: 'role_deleted',
         resource_type: 'role',
         resource_id: roleId,
-        metadata: { name: role.name, system: 0 }
+        metadata: { name: role.name, system: 0 },
       });
 
       return new Response(null, { status: 204 });
@@ -316,7 +331,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
 
   // POST /api/admin/rbac/bindings - Create role-permission binding
   if (req.method === 'POST' && path === '/api/admin/rbac/bindings') {
-    let body = {};
+    let body;
     try {
       body = await req.json();
     } catch {
@@ -361,17 +376,24 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         action: 'role_permission_added',
         resource_type: 'role',
         resource_id: roleId,
-        metadata: { permission_id: permissionId, permission_key: permission.key }
+        metadata: {
+          permission_id: permissionId,
+          permission_key: permission.key,
+        },
       });
 
-      return json(req, {
-        binding: {
-          role_id: roleId,
-          permission_id: permissionId,
-          role_name: role.name,
-          permission_key: permission.key
-        }
-      }, 201);
+      return json(
+        req,
+        {
+          binding: {
+            role_id: roleId,
+            permission_id: permissionId,
+            role_name: role.name,
+            permission_key: permission.key,
+          },
+        },
+        201
+      );
     } catch (err) {
       console.error('Create binding failed:', err);
       return error(req, 'Failed to create role-permission binding', 500);
@@ -401,7 +423,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         total: result.total,
         limit: result.limit,
         offset: result.offset,
-        filters: { actor_id: actorId, resource_type: resourceType, action }
+        filters: { actor_id: actorId, resource_type: resourceType, action },
       });
     } catch (err) {
       console.error('Audit log query failed:', err);

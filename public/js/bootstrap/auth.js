@@ -96,7 +96,7 @@ async function submit(e) {
 
     setAuthState(data);
     window.location.href = '/';
-  } catch (error) {
+  } catch {
     err.textContent = 'Network error. Please try again.';
     err.classList.remove('hidden');
   } finally {
@@ -158,7 +158,7 @@ async function handleForgotPasswordSubmit(e) {
     modalSuccess.classList.remove('hidden');
     forgotEmailInput.value = '';
     setTimeout(() => closeForgotPasswordModal(), 2000);
-  } catch (error) {
+  } catch {
     modalError.textContent = 'Network error. Please try again.';
     modalError.classList.remove('hidden');
   } finally {
@@ -244,7 +244,7 @@ async function handleResetPasswordSubmit(e) {
     setTimeout(() => {
       window.location.href = '/auth.html';
     }, 2000);
-  } catch (error) {
+  } catch {
     resetError.textContent = 'Network error. Please try again.';
     resetError.classList.remove('hidden');
   } finally {
@@ -289,12 +289,20 @@ resetPasswordModal.addEventListener('click', (e) => {
 });
 
 // Form validation listeners
-emailInput.addEventListener('input', () => { err.classList.add('hidden'); updateButtonState(form, authSubmit, isSubmitting); });
-passwordInput.addEventListener('input', () => { err.classList.add('hidden'); updateButtonState(form, authSubmit, isSubmitting); });
-nameInput.addEventListener('input', () => { err.classList.add('hidden'); updateButtonState(form, authSubmit, isSubmitting); });
+emailInput.addEventListener('input', () => {
+  err.classList.add('hidden');
+  updateButtonState(form, authSubmit, isSubmitting);
+});
+passwordInput.addEventListener('input', () => {
+  err.classList.add('hidden');
+  updateButtonState(form, authSubmit, isSubmitting);
+});
+nameInput.addEventListener('input', () => {
+  err.classList.add('hidden');
+  updateButtonState(form, authSubmit, isSubmitting);
+});
 
 form.addEventListener('submit', submit);
 setMode('login');
 updateButtonState(form, authSubmit, isSubmitting);
 checkForResetToken();
-

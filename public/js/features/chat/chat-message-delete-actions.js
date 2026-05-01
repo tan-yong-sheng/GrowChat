@@ -24,7 +24,8 @@ export function bindChatMessageDeleteActions({
     btn.addEventListener('click', async () => {
       const originalId = btn.getAttribute('data-delete-message');
       const getDeleteKey = (messageId) => `${chatId}:${String(messageId)}`;
-      const isDeletePending = (messageId) => Boolean((state.ui?.pendingDeleteMessageKeys || {})[getDeleteKey(messageId)]);
+      const isDeletePending = (messageId) =>
+        Boolean((state.ui?.pendingDeleteMessageKeys || {})[getDeleteKey(messageId)]);
       const setDeletePending = (messageIds, pending) => {
         const ids = Array.isArray(messageIds) ? messageIds : [messageIds];
         setState((prev) => {
@@ -46,8 +47,10 @@ export function bindChatMessageDeleteActions({
         btn.classList.toggle('pointer-events-none', locked);
       };
 
-      if (!confirm('Are you sure you want to delete this message and all subsequent messages?')) return;
-      if (isDeletePending(originalId) || isDeletePending(resolveTempMessageId(chatId, originalId))) return;
+      if (!confirm('Are you sure you want to delete this message and all subsequent messages?'))
+        return;
+      if (isDeletePending(originalId) || isDeletePending(resolveTempMessageId(chatId, originalId)))
+        return;
 
       let id = originalId;
       const pendingIds = new Set([String(originalId)]);
@@ -78,7 +81,9 @@ export function bindChatMessageDeleteActions({
 
       const rollbackDelete = () => {
         if (!prevMessages.length) return;
-        setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: prevMessages } }));
+        setState((prev) => ({
+          messagesByChat: { ...prev.messagesByChat, [chatId]: prevMessages },
+        }));
         if (prevLeaf) currentLeafByChatId.set(chatId, String(prevLeaf));
         else currentLeafByChatId.delete(chatId);
         if (prevBranchMap) branchSelectionByChat.set(chatId, prevBranchMap);
@@ -88,7 +93,9 @@ export function bindChatMessageDeleteActions({
       const applyOptimisticDelete = () => {
         if (idsToDelete.size > 0) {
           const streamingTarget = streamingOverrideByChat.get(chatId)?.targetMsgId;
-          const streamingId = streamingTarget ? resolveTempMessageId(chatId, streamingTarget) : null;
+          const streamingId = streamingTarget
+            ? resolveTempMessageId(chatId, streamingTarget)
+            : null;
           if (streamingId && idsToDelete.has(String(streamingId))) {
             const activeAbort = getActiveStreamAbort();
             activeAbort?.();

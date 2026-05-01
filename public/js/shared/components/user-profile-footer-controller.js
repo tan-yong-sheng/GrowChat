@@ -62,7 +62,8 @@ async function showPreferencesModal(user) {
   suspendSidebarVisibility();
   sidebarSuspended = true;
   const modal = document.createElement('div');
-  modal.className = 'modal-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4';
+  modal.className =
+    'modal-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4';
   modal.innerHTML = `
     <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
       <div class="modal-header flex items-center justify-between mb-6">
@@ -142,9 +143,7 @@ async function showPreferencesModal(user) {
   });
 }
 
-export async function createUserProfileFooter({
-  guardNavigation = null,
-} = {}) {
+export async function createUserProfileFooter({ guardNavigation = null } = {}) {
   const storedUser = getStoredAuthUser();
   let user = {
     name: storedUser?.name || 'User',
@@ -153,9 +152,8 @@ export async function createUserProfileFooter({
   };
   let lastActiveAt = Date.now();
   let presenceTimer = null;
-  let manualStatus = user.status && user.status !== 'online' && user.status !== 'away'
-    ? user.status
-    : null;
+  let manualStatus =
+    user.status && user.status !== 'online' && user.status !== 'away' ? user.status : null;
 
   const element = document.createElement('div');
   element.className = 'user-profile-footer border-t border-gray-100 p-4 bg-[#f9f9f9] z-20';
@@ -224,17 +222,21 @@ export async function createUserProfileFooter({
         const allowed = await guardNavigation();
         if (!allowed) return;
       }
-      window.dispatchEvent(new CustomEvent('growchat:open-account-settings', {
-        detail: { section: 'connections' },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('growchat:open-account-settings', {
+          detail: { section: 'connections' },
+        })
+      );
     } else if (action === 'preferences') {
       if (typeof guardNavigation === 'function') {
         const allowed = await guardNavigation();
         if (!allowed) return;
       }
-      window.dispatchEvent(new CustomEvent('growchat:open-account-settings', {
-        detail: { section: 'connections' },
-      }));
+      window.dispatchEvent(
+        new CustomEvent('growchat:open-account-settings', {
+          detail: { section: 'connections' },
+        })
+      );
     } else if (action === 'archived') {
       window.dispatchEvent(new CustomEvent('growchat:open-archived'));
     } else if (action === 'logout') {
@@ -283,5 +285,3 @@ export async function createUserProfileFooter({
 
   return element;
 }
-
-

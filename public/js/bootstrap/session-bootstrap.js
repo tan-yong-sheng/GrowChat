@@ -17,36 +17,67 @@ import { initShortcuts } from '../shared/shortcuts.js';
 import { startRealtimeSync, stopRealtimeSync } from '../shared/realtime.js';
 import { consumeModelsInvalidation } from '../shared/utils/model-sync.js';
 import { filterEnabledModels, getPreferredModelId } from '../shared/utils/model-state.js';
-import { getChatIdFromPath, injectTempChat, resolveActiveChatId, shouldStartRealtime } from './app-route-utils.js';
+import {
+  getChatIdFromPath,
+  injectTempChat,
+  resolveActiveChatId,
+  shouldStartRealtime,
+} from './app-route-utils.js';
 
 export const INITIAL_CHAT_LIMIT = 30;
 
 const FALLBACK_PERMISSIONS = {
   admin: [
-    'chat.read', 'chat.write', 'chat.delete', 'chat.share',
-    'user.settings.profile.write', 'user.settings.preferences.write',
-    'user.settings.connections.write', 'user.settings.integrations.write',
+    'chat.read',
+    'chat.write',
+    'chat.delete',
+    'chat.share',
+    'user.settings.profile.write',
+    'user.settings.preferences.write',
+    'user.settings.connections.write',
+    'user.settings.integrations.write',
     'user.settings.tool-servers.write',
-    'admin.settings.read', 'admin.settings.write',
-    'admin.settings.general.write', 'admin.settings.connections.write',
-    'admin.settings.integrations.write', 'admin.settings.policies.write',
+    'admin.settings.read',
+    'admin.settings.write',
+    'admin.settings.general.write',
+    'admin.settings.connections.write',
+    'admin.settings.integrations.write',
+    'admin.settings.policies.write',
     'admin.settings.models.write',
-    'connection.use', 'connection.manage', 'connection.admin',
-    'model.use', 'model.admin',
-    'file.upload', 'file.delete', 'admin.user.read', 'admin.user.write',
-    'admin.audit.read', 'admin.rbac.admin',
-    'tool-server.use', 'tool-server.manage', 'tool-server.admin',
-    'integration.use', 'integration.manage', 'integration.admin',
+    'connection.use',
+    'connection.manage',
+    'connection.admin',
+    'model.use',
+    'model.admin',
+    'file.upload',
+    'file.delete',
+    'admin.user.read',
+    'admin.user.write',
+    'admin.audit.read',
+    'admin.rbac.admin',
+    'tool-server.use',
+    'tool-server.manage',
+    'tool-server.admin',
+    'integration.use',
+    'integration.manage',
+    'integration.admin',
   ],
   member: [
-    'chat.read', 'chat.write',
-    'user.settings.profile.write', 'user.settings.preferences.write',
-    'user.settings.connections.write', 'user.settings.integrations.write',
+    'chat.read',
+    'chat.write',
+    'user.settings.profile.write',
+    'user.settings.preferences.write',
+    'user.settings.connections.write',
+    'user.settings.integrations.write',
     'user.settings.tool-servers.write',
-    'connection.use', 'connection.manage',
-    'model.use', 'model.manage',
-    'tool-server.use', 'tool-server.manage',
-    'integration.use', 'integration.manage',
+    'connection.use',
+    'connection.manage',
+    'model.use',
+    'model.manage',
+    'tool-server.use',
+    'tool-server.manage',
+    'integration.use',
+    'integration.manage',
     'file.upload',
   ],
 };
@@ -76,14 +107,18 @@ function scheduleModelsPrefetch(options = {}) {
 }
 
 function normalizePublicRole(role) {
-  const value = String(role || '').trim().toLowerCase();
+  const value = String(role || '')
+    .trim()
+    .toLowerCase();
   return value === 'admin' ? 'admin' : 'member';
 }
 
 function isKnownAutofillOverlayError(error) {
   const message = String(error?.message || error?.reason?.message || error?.reason || '');
   const source = String(error?.filename || error?.sourceURL || error?.stack || '');
-  return message.includes(AUTOFILL_OVERLAY_ERROR_MESSAGE) || source.includes(AUTOFILL_OVERLAY_SOURCE);
+  return (
+    message.includes(AUTOFILL_OVERLAY_ERROR_MESSAGE) || source.includes(AUTOFILL_OVERLAY_SOURCE)
+  );
 }
 
 export function installKnownErrorSuppressors() {
@@ -118,7 +153,11 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
   }
 
   const requestGeneration = modelsCacheGeneration;
-  const requestPromise = fetchModels({ cache: 'no-store', cacheBust, scope: 'effective' })
+  const requestPromise = fetchModels({
+    cache: 'no-store',
+    cacheBust,
+    scope: 'effective',
+  })
     .then((data) => {
       if (requestGeneration !== modelsCacheGeneration) return data;
       const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
@@ -258,16 +297,27 @@ async function initRBAC(user, preloaded = null) {
       return;
     }
 
-    const permissionsRequest = typeof fetchMyPermissions === 'function'
-      ? Promise.resolve(fetchMyPermissions())
-        .then((value) => value || { permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member })
-        .catch(() => ({ permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member }))
-      : Promise.resolve({ permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member });
-    const rolesRequest = typeof fetchMyRoles === 'function'
-      ? Promise.resolve(fetchMyRoles())
-        .then((value) => value || { roles: [{ role_name: roleName }] })
-        .catch(() => ({ roles: [{ role_name: roleName }] }))
-      : Promise.resolve({ roles: [{ role_name: roleName }] });
+    const permissionsRequest =
+      typeof fetchMyPermissions === 'function'
+        ? Promise.resolve(fetchMyPermissions())
+            .then(
+              (value) =>
+                value || {
+                  permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
+                }
+            )
+            .catch(() => ({
+              permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
+            }))
+        : Promise.resolve({
+            permissions: FALLBACK_PERMISSIONS[roleName] || FALLBACK_PERMISSIONS.member,
+          });
+    const rolesRequest =
+      typeof fetchMyRoles === 'function'
+        ? Promise.resolve(fetchMyRoles())
+            .then((value) => value || { roles: [{ role_name: roleName }] })
+            .catch(() => ({ roles: [{ role_name: roleName }] }))
+        : Promise.resolve({ roles: [{ role_name: roleName }] });
 
     const [permData, roleData] = await Promise.all([permissionsRequest, rolesRequest]);
 
@@ -303,14 +353,12 @@ export async function ensureSession({ preferRefresh = false } = {}) {
     return false;
   }
 
-  let currentAuth = auth;
+  const refreshTokenValue = auth?.refresh_token || null;
   const shouldRefreshBeforeBootstrap =
-    Boolean(auth?.refresh_token) && (preferRefresh || isAccessTokenNearExpiry(auth.access_token));
+    Boolean(refreshTokenValue) && (preferRefresh || isAccessTokenNearExpiry(auth.access_token));
   if (shouldRefreshBeforeBootstrap) {
-    const refreshed = await refreshToken(auth.refresh_token);
-    if (refreshed?.access_token) {
-      currentAuth = refreshed;
-    } else {
+    const refreshed = await refreshToken(refreshTokenValue);
+    if (!refreshed?.access_token) {
       clearAuthState();
       window.location.href = '/auth.html';
       return false;
@@ -318,10 +366,9 @@ export async function ensureSession({ preferRefresh = false } = {}) {
   }
 
   let meRes = await apiFetch('/api/users/me');
-  if (meRes.status === 401 && currentAuth?.refresh_token) {
-    const refreshed = await refreshToken(currentAuth.refresh_token);
+  if (meRes.status === 401 && refreshTokenValue) {
+    const refreshed = await refreshToken(refreshTokenValue);
     if (refreshed?.access_token) {
-      currentAuth = refreshed;
       meRes = await apiFetch('/api/users/me');
     }
   }
@@ -350,13 +397,17 @@ export async function ensureSession({ preferRefresh = false } = {}) {
 
   const cachedChats = readChatsCache(user.id);
   const invalidateToken = checkModelsInvalidation();
-  const isSettingsFirstRoute = path.startsWith('/admin/settings') || path.startsWith('/admin/system');
+  const isSettingsFirstRoute =
+    path.startsWith('/admin/settings') || path.startsWith('/admin/system');
   const shouldBootstrapChats = !isSettingsFirstRoute;
 
   const cachedDefaultModelId = localStorage.getItem('defaultModelId');
   const serverDefaultModelId = user.preferences?.defaultModelId || null;
   const globalDefaultModelId = meData?.app_config?.default_model_id || null;
-  const initialModelId = getPreferredModelId([], [modelParam, serverDefaultModelId, globalDefaultModelId, cachedDefaultModelId]);
+  const initialModelId = getPreferredModelId(
+    [],
+    [modelParam, serverDefaultModelId, globalDefaultModelId, cachedDefaultModelId]
+  );
 
   if (shouldBootstrapChats) {
     const applyChatsState = (chatsData, { resetConversationState = false } = {}) => {
@@ -371,14 +422,16 @@ export async function ensureSession({ preferRefresh = false } = {}) {
           loading: false,
         },
         activeChatId: resolveActiveChatId(routeChatId, chatsData.chats, isHomeRoute),
-        ...(resetConversationState ? {
-          messagesByChat: {},
-          models: state.models || [],
-          modelCatalogMeta: state.modelCatalogMeta || null,
-          activeModelId: initialModelId,
-          defaultModelId: serverDefaultModelId || null,
-          globalDefaultModelId: globalDefaultModelId || null,
-        } : {}),
+        ...(resetConversationState
+          ? {
+              messagesByChat: {},
+              models: state.models || [],
+              modelCatalogMeta: state.modelCatalogMeta || null,
+              activeModelId: initialModelId,
+              defaultModelId: serverDefaultModelId || null,
+              globalDefaultModelId: globalDefaultModelId || null,
+            }
+          : {}),
       });
     };
 
@@ -397,12 +450,15 @@ export async function ensureSession({ preferRefresh = false } = {}) {
       };
       setTimeout(refreshChats, 25000);
     } else {
-      applyChatsState({
-        chats: [],
-        limit: INITIAL_CHAT_LIMIT,
-        offset: 0,
-        has_more: false,
-      }, { resetConversationState: true });
+      applyChatsState(
+        {
+          chats: [],
+          limit: INITIAL_CHAT_LIMIT,
+          offset: 0,
+          has_more: false,
+        },
+        { resetConversationState: true }
+      );
       fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
         .then((fresh) => {
           writeChatsCache(user.id, fresh);
@@ -435,7 +491,11 @@ export async function ensureSession({ preferRefresh = false } = {}) {
     localStorage.setItem('defaultModelId', serverDefaultModelId);
   }
   if (shouldBootstrapChats) {
-    scheduleModelsPrefetch({ allowCache: true, cacheBust: invalidateToken, force: true });
+    scheduleModelsPrefetch({
+      allowCache: true,
+      cacheBust: invalidateToken,
+      force: true,
+    });
   }
 
   bootstrapped = true;

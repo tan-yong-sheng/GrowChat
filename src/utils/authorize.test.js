@@ -54,11 +54,7 @@ describe('authorize.js - Authorization Core', () => {
       const user = { sub: 'user-123', role: 'admin' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({
-          results: [
-            { key: 'chat.read' },
-            { key: 'chat.write' },
-            { key: 'admin.rbac.admin' },
-          ],
+          results: [{ key: 'chat.read' }, { key: 'chat.write' }, { key: 'admin.rbac.admin' }],
         }),
       });
       mockDB.prepare.mockReturnValue(mockStatement);
@@ -116,10 +112,7 @@ describe('authorize.js - Authorization Core', () => {
       const user = { sub: 'user-123', role: 'user' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({
-          results: [
-            { key: 'chat.read' },
-            { key: 'chat.write' },
-          ],
+          results: [{ key: 'chat.read' }, { key: 'chat.write' }],
         }),
       });
       mockDB.prepare.mockReturnValue(mockStatement);
@@ -292,10 +285,7 @@ describe('authorize.js - Authorization Core', () => {
       const user = { sub: 'user-123' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({
-          results: [
-            { key: 'chat.read' },
-            { key: 'chat.write' },
-          ],
+          results: [{ key: 'chat.read' }, { key: 'chat.write' }],
         }),
       });
       mockDB.prepare.mockReturnValue(mockStatement);
@@ -314,9 +304,11 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare
         .mockImplementationOnce(() => roleStatement)
-        .mockImplementationOnce(() => createMockStatement({
-          first: vi.fn().mockResolvedValue({ role: null }),
-        }));
+        .mockImplementationOnce(() =>
+          createMockStatement({
+            first: vi.fn().mockResolvedValue({ role: null }),
+          })
+        );
 
       const perms = await resolvePermissions(mockDB, user);
 
@@ -380,11 +372,7 @@ describe('authorize.js - Authorization Core', () => {
       const user = { sub: 'user-123' };
       const mockStatement = createMockStatement({
         all: vi.fn().mockResolvedValue({
-          results: [
-            { key: 'chat.read' },
-            { key: 'chat.read' },
-            { key: 'chat.write' },
-          ],
+          results: [{ key: 'chat.read' }, { key: 'chat.read' }, { key: 'chat.write' }],
         }),
       });
       mockDB.prepare.mockReturnValue(mockStatement);
@@ -433,7 +421,10 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const result = await hasPermission(mockEnv, user, 'chat.read', { resource: 'chat', resourceId: 'chat-123' });
+      const result = await hasPermission(mockEnv, user, 'chat.read', {
+        resource: 'chat',
+        resourceId: 'chat-123',
+      });
 
       expect(result).toBe(true);
     });

@@ -26,12 +26,13 @@ export function renderSettingsNavPane({
 }) {
   return `
     <div id="${escapeHtml(id)}" class="${className}">
-      ${groups.map((group) => {
-        if (group?.compact) {
-          return `<div class="grid gap-1">${(group.items || []).map((item) => renderNavItem(item, activeKey)).join('')}</div>`;
-        }
+      ${groups
+        .map((group) => {
+          if (group?.compact) {
+            return `<div class="grid gap-1">${(group.items || []).map((item) => renderNavItem(item, activeKey)).join('')}</div>`;
+          }
 
-        return `
+          return `
           <div class="space-y-1.5">
             ${group?.title ? `<div class="px-3 pt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">${escapeHtml(group.title)}</div>` : ''}
             <div class="grid gap-1">
@@ -39,7 +40,8 @@ export function renderSettingsNavPane({
             </div>
           </div>
         `;
-      }).join('')}
+        })
+        .join('')}
     </div>
   `;
 }

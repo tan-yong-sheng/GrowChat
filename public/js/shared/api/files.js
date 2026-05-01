@@ -19,13 +19,13 @@ export async function uploadFile(file, chatId = null, options = {}) {
     if (externalSignal.aborted) {
       controller.abort();
     } else {
-      externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+      externalSignal.addEventListener('abort', () => controller.abort(), {
+        once: true,
+      });
     }
   }
 
-  const timeoutId = timeoutMs > 0
-    ? setTimeout(() => controller.abort(), timeoutMs)
-    : null;
+  const timeoutId = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
 
   const formData = new FormData();
   formData.append('file', file);
@@ -41,7 +41,7 @@ export async function uploadFile(file, chatId = null, options = {}) {
   } catch (err) {
     if (timeoutId) clearTimeout(timeoutId);
     if (err?.name === 'AbortError') {
-      throw new Error('Upload timed out');
+      throw new Error('Upload timed out', { cause: err });
     }
     throw err;
   } finally {
@@ -56,7 +56,7 @@ export async function uploadFile(file, chatId = null, options = {}) {
     } catch {
       // ignore
     }
-    const err = new Error(message);
+    const err = new Error(message, { cause: null });
     err.status = res.status;
     throw err;
   }
@@ -80,7 +80,9 @@ export async function searchFiles({ q = '', limit = 20, offset = 0, signal } = {
   params.set('limit', String(limit));
   params.set('offset', String(offset));
 
-  const res = await apiFetch(`/api/files/search?${params.toString()}`, { signal });
+  const res = await apiFetch(`/api/files/search?${params.toString()}`, {
+    signal,
+  });
   return readJsonResponse(res, `Failed to search files (${res.status})`);
 }
 

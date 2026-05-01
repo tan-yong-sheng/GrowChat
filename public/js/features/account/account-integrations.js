@@ -1,3 +1,4 @@
+/* global openToolServerAccessModal, aclDraftRegistry */
 import {
   createUserMcpServer,
   deleteUserMcpServer,
@@ -33,9 +34,11 @@ function normalizeTool(tool = {}) {
     parameters:
       tool.parameters && typeof tool.parameters === 'object' && !Array.isArray(tool.parameters)
         ? tool.parameters
-      : (tool.inputSchema && typeof tool.inputSchema === 'object' && !Array.isArray(tool.inputSchema)
+        : tool.inputSchema &&
+            typeof tool.inputSchema === 'object' &&
+            !Array.isArray(tool.inputSchema)
           ? tool.inputSchema
-          : undefined),
+          : undefined,
     enabled: tool.enabled !== false,
     visible_for_user: tool.visible_for_user !== false,
     hidden_for_user: tool.hidden_for_user === true,
@@ -44,9 +47,7 @@ function normalizeTool(tool = {}) {
 }
 
 function normalizeToolList(tools = []) {
-  return (Array.isArray(tools) ? tools : [])
-    .map(normalizeTool)
-    .filter(Boolean);
+  return (Array.isArray(tools) ? tools : []).map(normalizeTool).filter(Boolean);
 }
 
 function clonePreferences(value = {}) {
@@ -66,9 +67,10 @@ function clonePreferences(value = {}) {
 }
 
 function normalizeServer(server = {}) {
-  const headers = server.headers && typeof server.headers === 'object' && !Array.isArray(server.headers)
-    ? server.headers
-    : server.headers || '';
+  const headers =
+    server.headers && typeof server.headers === 'object' && !Array.isArray(server.headers)
+      ? server.headers
+      : server.headers || '';
   return {
     id: String(server.id || '').trim(),
     name: String(server.name || server.id || '').trim(),
@@ -95,36 +97,16 @@ function normalizeServer(server = {}) {
   };
 }
 
-function providerHint(authType) {
-  switch (String(authType || 'none').toLowerCase()) {
-    case 'bearer':
-      return 'Bearer token';
-    case 'basic':
-      return 'Username and password';
-    case 'oauth':
-      return 'OAuth client details';
-    default:
-      return 'No auth';
-  }
-}
-
 function shouldShowAuthField(authType, fieldType) {
   return String(authType || 'none').toLowerCase() === fieldType;
-}
-
-function renderSummaryPill(text, tone = 'gray') {
-  const tones = {
-    gray: 'border-gray-200 bg-gray-50 text-gray-500',
-    green: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    amber: 'border-amber-100 bg-amber-50 text-amber-700',
-  };
-  return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tones[tone] || tones.gray}">${escapeHtml(text)}</span>`;
 }
 
 function renderLoadingSkeleton() {
   return `
     <div class="space-y-2">
-      ${Array.from({ length: 4 }).map(() => `
+      ${Array.from({ length: 4 })
+        .map(
+          () => `
         <div class="border-b border-gray-50 last:border-0">
           <div class="py-2.5 flex items-center justify-between pr-2 animate-pulse">
             <div class="flex flex-col min-w-0 flex-1 space-y-2">
@@ -139,7 +121,9 @@ function renderLoadingSkeleton() {
             </div>
           </div>
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
   `;
 }
@@ -163,7 +147,11 @@ function updateToolToggle(btn, enabled, serverEnabled) {
   btn.classList.toggle('cursor-not-allowed', !serverEnabled);
   btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
   btn.setAttribute('aria-disabled', serverEnabled ? 'false' : 'true');
-  btn.title = serverEnabled ? (enabled ? 'Disable tool' : 'Enable tool') : 'Enable the server to edit tools';
+  btn.title = serverEnabled
+    ? enabled
+      ? 'Disable tool'
+      : 'Enable tool'
+    : 'Enable the server to edit tools';
   const knob = btn.querySelector('span');
   if (knob) {
     knob.classList.toggle('translate-x-4', enabled);
@@ -171,30 +159,43 @@ function updateToolToggle(btn, enabled, serverEnabled) {
   }
 }
 
-function buildListCard(server, canManageToolServers = true, { scope = 'personal', hiddenForUser = false } = {}) {
+function buildListCard(
+  server,
+  canManageToolServers = true,
+  { scope = 'personal', hiddenForUser = false } = {}
+) {
   const serverEnabled = server.enabled !== false;
   const tools = Array.isArray(server.tools) ? server.tools : [];
-  const visibleTools = tools.filter((tool) => tool.enabled !== false && tool.visible_for_user !== false);
+  const visibleTools = tools.filter(
+    (tool) => tool.enabled !== false && tool.visible_for_user !== false
+  );
   const totalCount = tools.filter((tool) => tool.enabled !== false).length;
   const enabledCount = visibleTools.length;
   const actionButtonClass = canManageToolServers
     ? 'p-1 text-gray-600 hover:text-gray-700 transition-colors'
     : 'p-1 text-gray-300 opacity-50 cursor-not-allowed';
   const isShared = scope === 'shared';
-  const sharedToggleClass = 'relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none';
-  const toggleClass = canManageToolServers || isShared
-    ? `relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-black' : 'bg-gray-200'}`
-    : 'relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
+  const sharedToggleClass =
+    'relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none';
+  const toggleClass =
+    canManageToolServers || isShared
+      ? `relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-black' : 'bg-gray-200'}`
+      : 'relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
   const toggleOn = isShared ? !hiddenForUser : serverEnabled;
-  const toggleLabel = isShared ? (hiddenForUser ? 'Show for me' : 'Hide for me') : (serverEnabled ? 'Disable server' : 'Enable server');
+  const toggleLabel = isShared
+    ? hiddenForUser
+      ? 'Show for me'
+      : 'Hide for me'
+    : serverEnabled
+      ? 'Disable server'
+      : 'Enable server';
   const toolRows = tools.map((tool) => {
     const description = String(tool.description || '');
     const maxLen = 160;
     const isExpanded = Boolean(tool._expanded);
     const hasMore = description.length > maxLen;
-    const preview = hasMore && !isExpanded
-      ? `${description.slice(0, maxLen).trimEnd()}…`
-      : description;
+    const preview =
+      hasMore && !isExpanded ? `${description.slice(0, maxLen).trimEnd()}…` : description;
     const toolEnabled = tool.enabled !== false;
     if (isShared) {
       const toolVisible = tool.visible_for_user !== false;
@@ -243,10 +244,14 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
             <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toolEnabled ? 'translate-x-4' : 'translate-x-0'}"></span>
           </button>
         </div>
-        ${description ? `
+        ${
+          description
+            ? `
           <div class="text-[11px] text-gray-700 mt-1">${escapeHtml(preview)}</div>
           ${hasMore ? `<button data-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name || '')}" class="tool-desc-toggle text-[10px] text-gray-600 hover:text-gray-700 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
   });
@@ -266,7 +271,9 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
           </div>
         </div>
         <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
-          ${!isShared ? `
+          ${
+            !isShared
+              ? `
             <button
               type="button"
               data-list-action="edit"
@@ -279,34 +286,51 @@ function buildListCard(server, canManageToolServers = true, { scope = 'personal'
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
             </svg>
           </button>
-          ` : ''}
+          `
+              : ''
+          }
           <button data-id="${escapeHtml(server.id)}" data-toggle-scope="${scope}" class="server-toggle ${isShared ? `${sharedToggleClass} ${toggleOn ? 'bg-black' : 'bg-gray-200'}` : toggleClass}" ${isShared || canManageToolServers ? '' : 'disabled aria-disabled="true"'} aria-pressed="${toggleOn ? 'true' : 'false'}" aria-label="${escapeHtml(toggleLabel)}">
             <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toggleOn ? 'translate-x-4' : 'translate-x-0'}"></span>
           </button>
-          ${tools.length ? `
+          ${
+            tools.length
+              ? `
             <button data-id="${escapeHtml(server.id)}" class="tools-toggle p-1 text-gray-600 hover:text-gray-700 transition-colors ml-1" title="Toggle tools">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 ${server.toolsExpanded ? 'rotate-180' : ''}">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>
             </button>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
       </div>
-      ${tools.length ? `
+      ${
+        tools.length
+          ? `
         <div class="px-2 pb-3 ${server.toolsExpanded ? '' : 'hidden'}">
           ${server.toolsError ? `<div class="text-[11px] text-red-500 mb-2">${escapeHtml(server.toolsError)}</div>` : ''}
           <div class="space-y-2">
             ${toolRows.join('')}
           </div>
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
   `;
 }
 
-export function renderAccountIntegrationsSection(container, state = {}, { onRefresh, footerHost, routeCache } = {}) {
-  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, { route: 'account' });
+export function renderAccountIntegrationsSection(
+  container,
+  state = {},
+  { onRefresh, footerHost, routeCache } = {}
+) {
+  const capabilities = normalizeWorkspaceCapabilities(state.capabilities, {
+    route: 'account',
+  });
   const canManageToolServers = capabilities.canManageToolServers !== false;
+  const canManageAcls = capabilities.canManageAcls !== false;
   const sectionState = {
     loading: false,
     saving: false,
@@ -315,7 +339,9 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
       ? state.settings.integrations.servers.map(normalizeServer).filter(Boolean)
       : [],
     sharedServers: Array.isArray(state.settings?.integrations?.accessible_servers)
-      ? state.settings.integrations.accessible_servers.map(normalizeServer).filter((server) => Boolean(server) && server.enabled !== false)
+      ? state.settings.integrations.accessible_servers
+          .map(normalizeServer)
+          .filter((server) => Boolean(server) && server.enabled !== false)
       : [],
   };
   let preferencesSaveVersion = 0;
@@ -330,7 +356,9 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to update shared integration visibility');
+        throw new Error(
+          err.error || err.message || 'Failed to update shared integration visibility'
+        );
       }
       const payload = await res.json().catch(() => ({}));
       if (requestVersion !== preferencesSaveVersion) return;
@@ -358,7 +386,9 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
   let activeModal = null;
   let activeModalHash = '';
-  const ensureMounted = () => container.dataset.integrationsMounted === '1' && Boolean(container.querySelector('#tool-servers-list'));
+  const ensureMounted = () =>
+    container.dataset.integrationsMounted === '1' &&
+    Boolean(container.querySelector('#tool-servers-list'));
 
   const syncFeedback = () => {
     const feedback = container.querySelector('#integrations-feedback');
@@ -366,7 +396,8 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     feedback.classList.toggle('hidden', !sectionState.error);
     feedback.textContent = sectionState.error || '';
     if (sectionState.error) {
-      feedback.className = 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
+      feedback.className =
+        'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
     }
   };
 
@@ -383,16 +414,22 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
   const syncListState = (serverId) => {
     const row = container.querySelector(`[data-tool-server-row="${escapeSelector(serverId)}"]`);
-    const server = sectionState.servers.find((entry) => entry.id === serverId)
-      || sectionState.sharedServers.find((entry) => entry.id === serverId);
+    const server =
+      sectionState.servers.find((entry) => entry.id === serverId) ||
+      sectionState.sharedServers.find((entry) => entry.id === serverId);
     if (!row || !server) return;
     const serverEnabled = server.enabled !== false;
     const isShared = row.querySelector('[data-toggle-scope="shared"]') !== null;
-    row.classList.toggle('opacity-70', !serverEnabled || (isShared && isResourceHidden(state.settings?.preferences || {}, 'tool_servers', serverId)));
+    row.classList.toggle(
+      'opacity-70',
+      !serverEnabled ||
+        (isShared && isResourceHidden(state.settings?.preferences || {}, 'tool_servers', serverId))
+    );
     const badge = row.querySelector('[data-server-disabled-badge]');
     if (badge) badge.classList.toggle('hidden', serverEnabled);
     const accessBtn = row.querySelector('.tool-access-btn');
-    if (accessBtn) accessBtn.classList.toggle('hidden', !serverEnabled || !canManageAcls || isShared);
+    if (accessBtn)
+      accessBtn.classList.toggle('hidden', !serverEnabled || !canManageAcls || isShared);
     const serverToggle = row.querySelector('.server-toggle');
     if (serverToggle) {
       const toggleOn = isShared
@@ -409,7 +446,9 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     }
     row.querySelectorAll('.tool-toggle').forEach((toggle) => {
       const toolName = toggle.dataset.toolName;
-      const tool = Array.isArray(server.tools) ? server.tools.find((entry) => entry.name === toolName) : null;
+      const tool = Array.isArray(server.tools)
+        ? server.tools.find((entry) => entry.name === toolName)
+        : null;
       const toolEnabled = tool ? tool.enabled !== false : false;
       updateToolToggle(toggle, toolEnabled, serverEnabled);
     });
@@ -425,29 +464,43 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     const normalizedOverrides = normalizeUserResourceOverrides(state.settings?.preferences);
     const hiddenSharedIds = new Set(normalizedOverrides.tool_servers.hidden_ids || []);
     const hiddenSharedToolIdsByServer = normalizedOverrides.tool_servers.tools || {};
-    const sortedPersonalServers = sortResourcesByEnabledThenVisibilityThenLabel(sectionState.servers);
-    const sortedSharedServers = sortResourcesByEnabledThenVisibilityThenLabel(sectionState.sharedServers);
+    const sortedPersonalServers = sortResourcesByEnabledThenVisibilityThenLabel(
+      sectionState.servers
+    );
+    const sortedSharedServers = sortResourcesByEnabledThenVisibilityThenLabel(
+      sectionState.sharedServers
+    );
     const personalMarkup = sectionState.loading
       ? renderLoadingSkeleton()
       : sortedPersonalServers.length
-        ? sortedPersonalServers.map((server) => buildListCard(server, canManageToolServers)).join('')
+        ? sortedPersonalServers
+            .map((server) => buildListCard(server, canManageToolServers))
+            .join('')
         : '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
     const sharedMarkup = sortedSharedServers.length
-      ? sortedSharedServers.map((server) => {
-        const serverId = String(server.id || '').trim();
-        const hiddenToolIds = new Set(hiddenSharedToolIdsByServer?.[serverId]?.hidden_ids || []);
-        return buildListCard({
-          ...server,
-          tools: (Array.isArray(server.tools) ? server.tools : []).map((tool) => ({
-            ...tool,
-            visible_for_user: !hiddenToolIds.has(String(tool?.name || '').trim()),
-            hidden_for_user: hiddenToolIds.has(String(tool?.name || '').trim()),
-          })),
-        }, canManageToolServers, {
-          scope: 'shared',
-          hiddenForUser: hiddenSharedIds.has(server.id),
-        });
-      }).join('')
+      ? sortedSharedServers
+          .map((server) => {
+            const serverId = String(server.id || '').trim();
+            const hiddenToolIds = new Set(
+              hiddenSharedToolIdsByServer?.[serverId]?.hidden_ids || []
+            );
+            return buildListCard(
+              {
+                ...server,
+                tools: (Array.isArray(server.tools) ? server.tools : []).map((tool) => ({
+                  ...tool,
+                  visible_for_user: !hiddenToolIds.has(String(tool?.name || '').trim()),
+                  hidden_for_user: hiddenToolIds.has(String(tool?.name || '').trim()),
+                })),
+              },
+              canManageToolServers,
+              {
+                scope: 'shared',
+                hiddenForUser: hiddenSharedIds.has(server.id),
+              }
+            );
+          })
+          .join('')
       : '';
     list.innerHTML = `${personalMarkup}${sharedMarkup ? `<div class="mt-3 space-y-2">${sharedMarkup}</div>` : ''}`;
   };
@@ -468,21 +521,30 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
       const toolToggle = target.closest('.tool-toggle, [data-tool-toggle-scope]');
       if (toolToggle) {
-        const id = toolToggle.dataset.serverId || toolToggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
+        const id =
+          toolToggle.dataset.serverId ||
+          toolToggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
         const toolName = toolToggle.dataset.toolName;
         const scope = toolToggle.dataset.toolToggleScope || 'personal';
         if (scope === 'shared') {
           const previousPreferences = clonePreferences(state.settings?.preferences || {});
           const currentHidden = isToolHidden(state.settings?.preferences || {}, id, toolName);
           const nextVisible = currentHidden;
-          const nextPreferences = setToolVisibility(state.settings?.preferences || {}, id, toolName, nextVisible);
+          const nextPreferences = setToolVisibility(
+            state.settings?.preferences || {},
+            id,
+            toolName,
+            nextVisible
+          );
           state.settings = {
             ...(state.settings || {}),
             preferences: nextPreferences,
           };
           sectionState.error = '';
           syncListShell();
-          void persistPreferences({ rollback: { preferences: previousPreferences } });
+          void persistPreferences({
+            rollback: { preferences: previousPreferences },
+          });
           return;
         }
         const server = sectionState.servers.find((entry) => entry.id === id);
@@ -499,9 +561,9 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
                 await updateUserMcpServer(server.id, {
                   tools: Array.isArray(server.tools)
                     ? server.tools.map((entry) => ({
-                      ...entry,
-                      enabled: entry.name === toolName ? nextEnabled : entry.enabled !== false,
-                    }))
+                        ...entry,
+                        enabled: entry.name === toolName ? nextEnabled : entry.enabled !== false,
+                      }))
                     : [],
                 });
                 broadcastToolServersInvalidation();
@@ -521,20 +583,32 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
       const toggle = target.closest('.server-toggle');
       if (toggle) {
-        const id = toggle.dataset.id || toggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
+        const id =
+          toggle.dataset.id || toggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
         const scope = toggle.dataset.toggleScope || 'personal';
         if (scope === 'shared') {
           const previousPreferences = clonePreferences(state.settings?.preferences || {});
-          const currentHidden = isResourceHidden(state.settings?.preferences || {}, 'tool_servers', id);
+          const currentHidden = isResourceHidden(
+            state.settings?.preferences || {},
+            'tool_servers',
+            id
+          );
           const nextVisible = currentHidden;
-          const nextPreferences = setResourceVisibility(state.settings?.preferences || {}, 'tool_servers', id, nextVisible);
+          const nextPreferences = setResourceVisibility(
+            state.settings?.preferences || {},
+            'tool_servers',
+            id,
+            nextVisible
+          );
           state.settings = {
             ...(state.settings || {}),
             preferences: nextPreferences,
           };
           sectionState.error = '';
           syncListShell();
-          void persistPreferences({ rollback: { preferences: previousPreferences } });
+          void persistPreferences({
+            rollback: { preferences: previousPreferences },
+          });
           return;
         }
         if (!canManageToolServers) return;
@@ -563,9 +637,12 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
       const toolsToggle = target.closest('.tools-toggle');
       if (toolsToggle) {
-        const id = toolsToggle.dataset.id || toolsToggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
-        const server = sectionState.servers.find((entry) => entry.id === id)
-          || sectionState.sharedServers.find((entry) => entry.id === id);
+        const id =
+          toolsToggle.dataset.id ||
+          toolsToggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
+        const server =
+          sectionState.servers.find((entry) => entry.id === id) ||
+          sectionState.sharedServers.find((entry) => entry.id === id);
         if (server) {
           server.toolsExpanded = !server.toolsExpanded;
           syncListShell();
@@ -575,10 +652,13 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
       const descToggle = target.closest('.tool-desc-toggle');
       if (descToggle) {
-        const serverId = descToggle.dataset.serverId || descToggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
+        const serverId =
+          descToggle.dataset.serverId ||
+          descToggle.closest('[data-tool-server-row]')?.dataset.toolServerRow;
         const toolName = descToggle.dataset.toolName;
-        const server = sectionState.servers.find((entry) => entry.id === serverId)
-          || sectionState.sharedServers.find((entry) => entry.id === serverId);
+        const server =
+          sectionState.servers.find((entry) => entry.id === serverId) ||
+          sectionState.sharedServers.find((entry) => entry.id === serverId);
         if (server && Array.isArray(server.tools)) {
           const tool = server.tools.find((entry) => entry.name === toolName);
           if (tool) {
@@ -591,7 +671,10 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
       const editBtn = target.closest('[data-account-integration-edit], .edit-server-btn');
       if (editBtn) {
-        const id = editBtn.dataset.accountIntegrationEdit || editBtn.dataset.id || editBtn.closest('[data-tool-server-row]')?.dataset.id;
+        const id =
+          editBtn.dataset.accountIntegrationEdit ||
+          editBtn.dataset.id ||
+          editBtn.closest('[data-tool-server-row]')?.dataset.id;
         const server = sectionState.servers.find((entry) => entry.id === id);
         openModal(server || null);
         return;
@@ -626,12 +709,16 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     try {
       const payload = await fetchUserMcpServers({ cache: 'no-store' });
       sectionState.servers = Array.isArray(payload?.servers)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(payload.servers.map(normalizeServer).filter(Boolean))
+        ? sortResourcesByEnabledThenVisibilityThenLabel(
+            payload.servers.map(normalizeServer).filter(Boolean)
+          )
         : [];
       sectionState.sharedServers = Array.isArray(payload?.accessible_servers)
         ? sortResourcesByEnabledThenVisibilityThenLabel(
-          payload.accessible_servers.map(normalizeServer).filter((server) => Boolean(server) && server.enabled !== false),
-        )
+            payload.accessible_servers
+              .map(normalizeServer)
+              .filter((server) => Boolean(server) && server.enabled !== false)
+          )
         : [];
     } catch (err) {
       sectionState.error = err?.message || 'Failed to load integrations';
@@ -703,24 +790,32 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     try {
       const payload = await fetchUserMcpServers({ cache: 'no-store' });
       sectionState.servers = Array.isArray(payload?.servers)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(payload.servers.map(normalizeServer).filter(Boolean))
+        ? sortResourcesByEnabledThenVisibilityThenLabel(
+            payload.servers.map(normalizeServer).filter(Boolean)
+          )
         : [];
       sectionState.sharedServers = Array.isArray(payload?.accessible_servers)
         ? sortResourcesByEnabledThenVisibilityThenLabel(
-          payload.accessible_servers.map(normalizeServer).filter((server) => Boolean(server) && server.enabled !== false),
-        )
+            payload.accessible_servers
+              .map(normalizeServer)
+              .filter((server) => Boolean(server) && server.enabled !== false)
+          )
         : [];
     } catch (err) {
       if (typeof onRefresh === 'function') {
         const nextState = await onRefresh();
         if (nextState?.settings?.integrations?.servers) {
           sectionState.servers = sortResourcesByEnabledThenVisibilityThenLabel(
-            nextState.settings.integrations.servers.map(normalizeServer).filter(Boolean),
+            nextState.settings.integrations.servers.map(normalizeServer).filter(Boolean)
           );
-          sectionState.sharedServers = Array.isArray(nextState.settings?.integrations?.accessible_servers)
+          sectionState.sharedServers = Array.isArray(
+            nextState.settings?.integrations?.accessible_servers
+          )
             ? sortResourcesByEnabledThenVisibilityThenLabel(
-              nextState.settings.integrations.accessible_servers.map(normalizeServer).filter((server) => Boolean(server) && server.enabled !== false),
-            )
+                nextState.settings.integrations.accessible_servers
+                  .map(normalizeServer)
+                  .filter((server) => Boolean(server) && server.enabled !== false)
+              )
             : sectionState.sharedServers;
         } else {
           throw err;
@@ -753,25 +848,55 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
       name: savedServer?.name || payload.name || existingServer?.name || '',
       url: savedServer?.url || payload.url || existingServer?.url || '',
       headers: savedServer?.headers || existingServer?.headers || payload.headers || '',
-      enabled: typeof savedServer?.enabled === 'boolean'
-        ? savedServer.enabled
-        : (payload.enabled ?? existingServer?.enabled),
+      enabled:
+        typeof savedServer?.enabled === 'boolean'
+          ? savedServer.enabled
+          : (payload.enabled ?? existingServer?.enabled),
       auth_type: savedServer?.auth_type || payload.auth_type || existingServer?.auth_type || 'none',
-      auth_bearer_token: savedServer?.auth_bearer_token || payload.auth_bearer_token || existingServer?.auth_bearer_token || '',
-      auth_basic_username: savedServer?.auth_basic_username || payload.auth_basic_username || existingServer?.auth_basic_username || '',
-      auth_basic_password: savedServer?.auth_basic_password || payload.auth_basic_password || existingServer?.auth_basic_password || '',
-      oauth_client_name: savedServer?.oauth_client_name || payload.oauth_client_name || existingServer?.oauth_client_name || '',
-      oauth_scope: savedServer?.oauth_scope || payload.oauth_scope || existingServer?.oauth_scope || '',
-      oauth_client_id: savedServer?.oauth_client_id || payload.oauth_client_id || existingServer?.oauth_client_id || '',
-      oauth_client_secret: savedServer?.oauth_client_secret || payload.oauth_client_secret || existingServer?.oauth_client_secret || '',
-      oauth_token_auth_method: savedServer?.oauth_token_auth_method || payload.oauth_token_auth_method || existingServer?.oauth_token_auth_method || '',
+      auth_bearer_token:
+        savedServer?.auth_bearer_token ||
+        payload.auth_bearer_token ||
+        existingServer?.auth_bearer_token ||
+        '',
+      auth_basic_username:
+        savedServer?.auth_basic_username ||
+        payload.auth_basic_username ||
+        existingServer?.auth_basic_username ||
+        '',
+      auth_basic_password:
+        savedServer?.auth_basic_password ||
+        payload.auth_basic_password ||
+        existingServer?.auth_basic_password ||
+        '',
+      oauth_client_name:
+        savedServer?.oauth_client_name ||
+        payload.oauth_client_name ||
+        existingServer?.oauth_client_name ||
+        '',
+      oauth_scope:
+        savedServer?.oauth_scope || payload.oauth_scope || existingServer?.oauth_scope || '',
+      oauth_client_id:
+        savedServer?.oauth_client_id ||
+        payload.oauth_client_id ||
+        existingServer?.oauth_client_id ||
+        '',
+      oauth_client_secret:
+        savedServer?.oauth_client_secret ||
+        payload.oauth_client_secret ||
+        existingServer?.oauth_client_secret ||
+        '',
+      oauth_token_auth_method:
+        savedServer?.oauth_token_auth_method ||
+        payload.oauth_token_auth_method ||
+        existingServer?.oauth_token_auth_method ||
+        '',
       tools: Array.isArray(savedServer?.tools)
         ? savedServer.tools
         : Array.isArray(payload?.tools)
           ? payload.tools
-        : Array.isArray(existingServer?.tools)
-          ? existingServer.tools
-          : [],
+          : Array.isArray(existingServer?.tools)
+            ? existingServer.tools
+            : [],
       toolsExpanded: Boolean(savedServer?.toolsExpanded ?? existingServer?.toolsExpanded),
       toolsError: String(savedServer?.toolsError || existingServer?.toolsError || '').trim(),
     });
@@ -820,8 +945,14 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
     modal.setAttribute('data-trace-family', 'mcp-servers');
     modal.setAttribute('data-trace-owner', 'account effective truth');
     modal.setAttribute('data-trace-action', isEdit ? 'edit server' : 'add server');
-    modal.setAttribute('data-trace-read', '/api/users/me/settings | /api/users/me/resources/mcp-servers');
-    modal.setAttribute('data-trace-write', '/api/users/me/resources/mcp-servers/:id | /api/users/me');
+    modal.setAttribute(
+      'data-trace-read',
+      '/api/users/me/settings | /api/users/me/resources/mcp-servers'
+    );
+    modal.setAttribute(
+      'data-trace-write',
+      '/api/users/me/resources/mcp-servers/:id | /api/users/me'
+    );
     modal.setAttribute('data-trace-invalidation', 'account settings only');
 
     activeModal = modal;
@@ -850,7 +981,10 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
     const updateToggleLabel = (button, input) => {
       if (!button || !input) return;
-      button.setAttribute('aria-label', input.type === 'password' ? 'Show password' : 'Hide password');
+      button.setAttribute(
+        'aria-label',
+        input.type === 'password' ? 'Show password' : 'Hide password'
+      );
       const label = button.querySelector('[data-password-toggle-label]');
       if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
     };
@@ -888,7 +1022,9 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
         url: String(urlInput?.value || '').trim(),
         headers: String(headersInput?.value || '').trim(),
         enabled: true,
-        auth_type: String(authTypeSelect?.value || 'none').trim().toLowerCase(),
+        auth_type: String(authTypeSelect?.value || 'none')
+          .trim()
+          .toLowerCase(),
         auth_bearer_token: String(bearerInput?.value || '').trim(),
         auth_basic_username: String(basicUserInput?.value || '').trim(),
         auth_basic_password: String(basicPassInput?.value || ''),
@@ -918,9 +1054,7 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
         throw new Error('URL must start with http:// or https://');
       }
       const verifiedTools = normalizeToolList((await testUserMcpServer(payload))?.tools);
-      payload.tools = verifiedTools.length
-        ? verifiedTools
-        : normalizeToolList(server?.tools);
+      payload.tools = verifiedTools.length ? verifiedTools : normalizeToolList(server?.tools);
       if (isEdit) {
         return {
           payload,
@@ -983,7 +1117,8 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
 
     deleteBtn?.addEventListener('click', async () => {
       if (sectionState.saving || !isEdit) return;
-      if (!window.confirm(`Delete integration ${server.name || server.id}? This cannot be undone.`)) return;
+      if (!window.confirm(`Delete integration ${server.name || server.id}? This cannot be undone.`))
+        return;
       setTestStatus('idle', '');
       setSaving(true, saveBtn, deleteBtn);
       try {
@@ -1063,4 +1198,3 @@ export function renderAccountIntegrationsSection(container, state = {}, { onRefr
   render();
   loadServers();
 }
-

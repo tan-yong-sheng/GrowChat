@@ -1,23 +1,31 @@
 const MISSING_TABLE_REGEX = /no such table:\s*tool_server_acl_rules/i;
 
 export function normalizeToolServerAclEffect(value) {
-  const effect = String(value || 'allow').trim().toLowerCase();
+  const effect = String(value || 'allow')
+    .trim()
+    .toLowerCase();
   return effect === 'deny' ? 'deny' : 'allow';
 }
 
 export function normalizeToolServerAclPrincipalType(value) {
-  const principalType = String(value || 'group').trim().toLowerCase();
+  const principalType = String(value || 'group')
+    .trim()
+    .toLowerCase();
   return principalType === 'user' ? 'user' : 'group';
 }
 
 export function normalizeToolServerAclAction(value) {
-  const action = String(value || 'use').trim().toLowerCase();
+  const action = String(value || 'use')
+    .trim()
+    .toLowerCase();
   return action || 'use';
 }
 
 export function normalizeToolServerAclRule(rule = {}) {
   const toolServerId = String(rule.tool_server_id || rule.toolServerId || '').trim();
-  const principalType = normalizeToolServerAclPrincipalType(rule.principal_type || rule.principalType);
+  const principalType = normalizeToolServerAclPrincipalType(
+    rule.principal_type || rule.principalType
+  );
   const principalId = String(rule.principal_id || rule.principalId || '').trim();
   const effect = normalizeToolServerAclEffect(rule.effect);
   const action = normalizeToolServerAclAction(rule.action);
@@ -53,22 +61,39 @@ function ruleMatchesPrincipal(rule, userId, userGroupIds) {
 }
 
 function isToolServerAclActionRelevant(action) {
-  const normalized = String(action || 'use').trim().toLowerCase();
+  const normalized = String(action || 'use')
+    .trim()
+    .toLowerCase();
   return ['use', 'manage', 'admin', 'read'].includes(normalized);
 }
 
-export function evaluateToolServerAclAccess(toolServer, { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}) {
+export function evaluateToolServerAclAccess(
+  toolServer,
+  { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
+) {
   if (toolServer?.source === 'user') {
     return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
   }
 
-  const normalizedRules = Array.isArray(rules) ? rules.map(normalizeToolServerAclRule).filter(Boolean) : [];
-  const denyMatched = normalizedRules.some((rule) => rule.effect === 'deny' && isToolServerAclActionRelevant(rule.action) && ruleMatchesPrincipal(rule, user?.sub, userGroupIds));
+  const normalizedRules = Array.isArray(rules)
+    ? rules.map(normalizeToolServerAclRule).filter(Boolean)
+    : [];
+  const denyMatched = normalizedRules.some(
+    (rule) =>
+      rule.effect === 'deny' &&
+      isToolServerAclActionRelevant(rule.action) &&
+      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
+  );
   if (denyMatched) {
     return { allowed: false, access_label: 'No access', access_variant: 'none' };
   }
 
-  const allowMatched = normalizedRules.some((rule) => rule.effect === 'allow' && isToolServerAclActionRelevant(rule.action) && ruleMatchesPrincipal(rule, user?.sub, userGroupIds));
+  const allowMatched = normalizedRules.some(
+    (rule) =>
+      rule.effect === 'allow' &&
+      isToolServerAclActionRelevant(rule.action) &&
+      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
+  );
   if (allowMatched) {
     return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
   }
@@ -96,14 +121,23 @@ export async function ensureToolServerAclRulesTable(db) {
         UNIQUE(tool_server_id, principal_type, principal_id, effect, action)
       )`
     );
-    await db.run('CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_tool_server_id ON tool_server_acl_rules(tool_server_id)');
-    await db.run('CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_principal ON tool_server_acl_rules(principal_type, principal_id)');
+    await db.run(
+      'CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_tool_server_id ON tool_server_acl_rules(tool_server_id)'
+    );
+    await db.run(
+      'CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_principal ON tool_server_acl_rules(principal_type, principal_id)'
+    );
   } catch (err) {
     console.warn('Failed to ensure tool_server_acl_rules table:', err?.message || err);
   }
 }
 
-export function buildToolServerAclRuleSaveStatements(db, toolServerId, rules = [], { includeSchemaStatements = true } = {}) {
+export function buildToolServerAclRuleSaveStatements(
+  db,
+  toolServerId,
+  rules = [],
+  { includeSchemaStatements = true } = {}
+) {
   if (!db || !toolServerId) throw new Error('Tool server id is required');
   const normalized = (Array.isArray(rules) ? rules : [])
     .map((rule) => normalizeToolServerAclRule({ ...rule, tool_server_id: toolServerId }))
@@ -124,8 +158,12 @@ export function buildToolServerAclRuleSaveStatements(db, toolServerId, rules = [
           UNIQUE(tool_server_id, principal_type, principal_id, effect, action)
         )`
       ),
-      db.prepare('CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_tool_server_id ON tool_server_acl_rules(tool_server_id)'),
-      db.prepare('CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_principal ON tool_server_acl_rules(principal_type, principal_id)')
+      db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_tool_server_id ON tool_server_acl_rules(tool_server_id)'
+      ),
+      db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_principal ON tool_server_acl_rules(principal_type, principal_id)'
+      )
     );
   }
   statements.push(
@@ -163,8 +201,11 @@ export async function loadToolServerAclRules(db, toolServerId = null, toolServer
   if (!db) return [];
   try {
     await ensureToolServerAclRulesTable(db);
-    const idFilter = toolServerIds && !toolServerId ? buildIdFilterClause('tool_server_id', toolServerIds) : null;
-    const singleFilter = toolServerId ? { clause: 'tool_server_id = ?', values: [toolServerId] } : null;
+    const idFilter =
+      toolServerIds && !toolServerId ? buildIdFilterClause('tool_server_id', toolServerIds) : null;
+    const singleFilter = toolServerId
+      ? { clause: 'tool_server_id = ?', values: [toolServerId] }
+      : null;
     const filter = singleFilter || idFilter;
     const rows = filter
       ? await db.all(
@@ -179,16 +220,18 @@ export async function loadToolServerAclRules(db, toolServerId = null, toolServer
            FROM tool_server_acl_rules
            ORDER BY tool_server_id ASC, effect DESC, principal_type ASC, principal_id ASC, action ASC`
         );
-    return (Array.isArray(rows) ? rows : []).map((row) => ({
-      id: row.id,
-      tool_server_id: row.tool_server_id,
-      principal_type: normalizeToolServerAclPrincipalType(row.principal_type),
-      principal_id: String(row.principal_id || '').trim(),
-      effect: normalizeToolServerAclEffect(row.effect),
-      action: normalizeToolServerAclAction(row.action),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    })).filter((row) => row.tool_server_id && row.principal_id);
+    return (Array.isArray(rows) ? rows : [])
+      .map((row) => ({
+        id: row.id,
+        tool_server_id: row.tool_server_id,
+        principal_type: normalizeToolServerAclPrincipalType(row.principal_type),
+        principal_id: String(row.principal_id || '').trim(),
+        effect: normalizeToolServerAclEffect(row.effect),
+        action: normalizeToolServerAclAction(row.action),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }))
+      .filter((row) => row.tool_server_id && row.principal_id);
   } catch (err) {
     if (MISSING_TABLE_REGEX.test(String(err?.message || ''))) return [];
     throw err;
@@ -196,7 +239,7 @@ export async function loadToolServerAclRules(db, toolServerId = null, toolServer
 }
 
 export async function saveToolServerAclRulesForToolServer(db, toolServerId, rules = []) {
-  const { normalized, statements } = buildToolServerAclRuleSaveStatements(db, toolServerId, rules);
+  const { statements } = buildToolServerAclRuleSaveStatements(db, toolServerId, rules);
   await db.batch(statements);
   return loadToolServerAclRules(db, toolServerId);
 }

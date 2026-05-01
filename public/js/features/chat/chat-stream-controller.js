@@ -62,7 +62,8 @@ export function createChatStreamController({
         const msg = data?.message;
         if (!msg) return;
         const status = String(msg?.status || '');
-        const isRunning = msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+        const isRunning =
+          msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
         if (typeof onMessage === 'function') {
           onMessage(msg, { isRunning, failures, startedAt });
         }
@@ -110,7 +111,9 @@ export function createChatStreamController({
     if (!existing) return;
     try {
       existing.controller.abort();
-    } catch { }
+    } catch {
+      // ignore abort race
+    }
     resumeStreamsByChat.delete(key);
   }
 
@@ -120,7 +123,9 @@ export function createChatStreamController({
     resumeStreamsByChat.forEach((entry) => {
       try {
         entry.controller.abort();
-      } catch { }
+      } catch {
+        // ignore abort race
+      }
     });
     resumeStreamsByChat.clear();
   }
@@ -137,4 +142,3 @@ export function createChatStreamController({
     dispose,
   };
 }
-

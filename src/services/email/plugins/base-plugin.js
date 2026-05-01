@@ -4,6 +4,7 @@ export class BaseEmailPlugin {
   }
 
   async send(options) {
+    this.validateOptions(options);
     throw new Error('send() method must be implemented by subclass');
   }
 

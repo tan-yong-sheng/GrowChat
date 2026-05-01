@@ -17,7 +17,9 @@ export function createChatStreamState({
         streaming,
         streamingChatId: streaming
           ? String(chatId)
-          : (prev.ui.streamingChatId === String(chatId) ? null : prev.ui.streamingChatId),
+          : prev.ui.streamingChatId === String(chatId)
+            ? null
+            : prev.ui.streamingChatId,
       },
     }));
     if (!streaming) {
@@ -67,4 +69,3 @@ export function createChatStreamState({
     requestCancelStream,
   };
 }
-

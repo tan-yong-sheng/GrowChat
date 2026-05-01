@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parseJsonBody, parsePagination, parsePositiveInt, requirePlainObject, requireString, validateEmail } from './request.js';
+import {
+  parseJsonBody,
+  parsePagination,
+  parsePositiveInt,
+  requirePlainObject,
+  requireString,
+  validateEmail,
+} from './request.js';
 
 describe('request validation', () => {
   it('validates primitive fields', () => {

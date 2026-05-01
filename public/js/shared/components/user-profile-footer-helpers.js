@@ -13,15 +13,20 @@ export function getAvatarLabel(user) {
 
 export function getStatusColor(status) {
   switch (status) {
-    case 'online': return 'bg-green-500';
-    case 'away': return 'bg-yellow-500';
-    case 'offline': return 'bg-gray-400';
-    default: return 'bg-green-500';
+    case 'online':
+      return 'bg-green-500';
+    case 'away':
+      return 'bg-yellow-500';
+    case 'offline':
+      return 'bg-gray-400';
+    default:
+      return 'bg-green-500';
   }
 }
 
 export function computePresence(lastActiveAt, { isHidden = false } = {}) {
-  const hidden = isHidden || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+  const hidden =
+    isHidden || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
   if (hidden) return 'away';
   const idleMs = 5 * 60 * 1000;
   return Date.now() - lastActiveAt <= idleMs ? 'online' : 'away';
@@ -82,14 +87,18 @@ export function buildFooterMarkup(user, hasAdminPerm) {
             <span>Archived Chats</span>
           </button>
 
-          ${hasAdminPerm ? `
+          ${
+            hasAdminPerm
+              ? `
             <button data-action="admin" class="menu-item flex items-center gap-3 w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors text-gray-700 group">
               <div class="text-gray-400 group-hover:text-gray-600 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               </div>
               <span>Admin Settings</span>
             </button>
-          ` : ''}
+          `
+              : ''
+          }
 
           <hr class="border-gray-50 my-1">
 
@@ -104,5 +113,3 @@ export function buildFooterMarkup(user, hasAdminPerm) {
     </div>
   `;
 }
-
-

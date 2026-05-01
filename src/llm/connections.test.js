@@ -24,7 +24,9 @@ describe('openai connection helpers', () => {
 
   it('returns default base urls by provider family', () => {
     expect(getConnectionDefaultBaseUrl('openai')).toBe('https://api.openai.com/v1');
-    expect(getConnectionDefaultBaseUrl('google')).toBe('https://generativelanguage.googleapis.com/v1beta');
+    expect(getConnectionDefaultBaseUrl('google')).toBe(
+      'https://generativelanguage.googleapis.com/v1beta'
+    );
     expect(getConnectionDefaultBaseUrl('anthropic')).toBe('https://api.anthropic.com/v1');
   });
 
@@ -39,10 +41,32 @@ describe('openai connection helpers', () => {
 
   it('dedupes identical endpoints for the same provider type', () => {
     const connections = dedupeConnectionConfigs([
-      { id: 'legacy-a', source: 'legacy', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
-      { id: 'config-a', source: 'config', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
-      { id: 'gemini-a', providerType: 'google', providerFamily: 'google', baseUrl: 'https://api.example.com/v1' },
-      { id: 'google-a', providerType: 'google', providerFamily: 'google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+      {
+        id: 'legacy-a',
+        source: 'legacy',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'https://api.example.com/v1',
+      },
+      {
+        id: 'config-a',
+        source: 'config',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'https://api.example.com/v1',
+      },
+      {
+        id: 'gemini-a',
+        providerType: 'google',
+        providerFamily: 'google',
+        baseUrl: 'https://api.example.com/v1',
+      },
+      {
+        id: 'google-a',
+        providerType: 'google',
+        providerFamily: 'google',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      },
     ]);
 
     expect(connections).toHaveLength(3);
@@ -51,9 +75,24 @@ describe('openai connection helpers', () => {
 
   it('keeps distinct provider types even when base url matches', () => {
     const connections = dedupeConnectionConfigs([
-      { id: 'openai-a', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
-      { id: 'gemini-a', providerType: 'google', providerFamily: 'google', baseUrl: 'https://api.example.com/v1' },
-      { id: 'claude-a', providerType: 'anthropic', providerFamily: 'anthropic', baseUrl: 'https://api.example.com/v1' },
+      {
+        id: 'openai-a',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'https://api.example.com/v1',
+      },
+      {
+        id: 'gemini-a',
+        providerType: 'google',
+        providerFamily: 'google',
+        baseUrl: 'https://api.example.com/v1',
+      },
+      {
+        id: 'claude-a',
+        providerType: 'anthropic',
+        providerFamily: 'anthropic',
+        baseUrl: 'https://api.example.com/v1',
+      },
     ]);
 
     expect(connections).toHaveLength(3);
@@ -61,8 +100,18 @@ describe('openai connection helpers', () => {
 
   it('keeps distinct api types for the same provider type and base url', () => {
     const connections = dedupeConnectionConfigs([
-      { id: 'openai-chat', providerType: 'openai-compatible', apiType: 'chat-completions', baseUrl: 'https://api.example.com/v1' },
-      { id: 'openai-responses', providerType: 'openai-compatible', apiType: 'responses', baseUrl: 'https://api.example.com/v1' },
+      {
+        id: 'openai-chat',
+        providerType: 'openai-compatible',
+        apiType: 'chat-completions',
+        baseUrl: 'https://api.example.com/v1',
+      },
+      {
+        id: 'openai-responses',
+        providerType: 'openai-compatible',
+        apiType: 'responses',
+        baseUrl: 'https://api.example.com/v1',
+      },
     ]);
 
     expect(connections).toHaveLength(2);
@@ -70,8 +119,20 @@ describe('openai connection helpers', () => {
 
   it('prefers user-owned connections over config connections for matching signatures', () => {
     const connections = dedupeConnectionConfigs([
-      { id: 'config-a', source: 'config', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
-      { id: 'user-a', source: 'user', providerType: 'openai-compatible', providerFamily: 'openai', baseUrl: 'https://api.example.com/v1' },
+      {
+        id: 'config-a',
+        source: 'config',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'https://api.example.com/v1',
+      },
+      {
+        id: 'user-a',
+        source: 'user',
+        providerType: 'openai-compatible',
+        providerFamily: 'openai',
+        baseUrl: 'https://api.example.com/v1',
+      },
     ]);
 
     expect(connections).toHaveLength(1);
@@ -79,12 +140,14 @@ describe('openai connection helpers', () => {
   });
 
   it('normalizes manual models for a connection', () => {
-    expect(normalizeConnectionManualModels([
-      'gpt-oss-20b',
-      { id: 'models/gemini-2.5-pro', name: 'Gemini Pro' },
-      { modelId: 'claude-sonnet-4-5', name: 'Claude Sonnet' },
-      { modelId: 'gpt-oss-20b', name: 'Duplicate' },
-    ])).toEqual([
+    expect(
+      normalizeConnectionManualModels([
+        'gpt-oss-20b',
+        { id: 'models/gemini-2.5-pro', name: 'Gemini Pro' },
+        { modelId: 'claude-sonnet-4-5', name: 'Claude Sonnet' },
+        { modelId: 'gpt-oss-20b', name: 'Duplicate' },
+      ])
+    ).toEqual([
       { modelId: 'gpt-oss-20b', name: 'gpt-oss-20b' },
       { modelId: 'gemini-2.5-pro', name: 'Gemini Pro' },
       { modelId: 'claude-sonnet-4-5', name: 'Claude Sonnet' },
@@ -118,22 +181,28 @@ describe('openai connection helpers', () => {
   });
 
   it('builds provider-specific discovery urls', () => {
-    expect(getConnectionModelDiscoveryUrls({
-      providerType: 'google',
-      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    })).toEqual(['https://generativelanguage.googleapis.com/v1beta/models']);
+    expect(
+      getConnectionModelDiscoveryUrls({
+        providerType: 'google',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      })
+    ).toEqual(['https://generativelanguage.googleapis.com/v1beta/models']);
 
-    expect(getConnectionModelDiscoveryUrls({
-      providerType: 'anthropic',
-      baseUrl: 'https://api.anthropic.com',
-    })).toEqual(['https://api.anthropic.com/v1/models', 'https://api.anthropic.com/models']);
+    expect(
+      getConnectionModelDiscoveryUrls({
+        providerType: 'anthropic',
+        baseUrl: 'https://api.anthropic.com',
+      })
+    ).toEqual(['https://api.anthropic.com/v1/models', 'https://api.anthropic.com/models']);
   });
 
   it('prefers https discovery urls when configured base url is http', () => {
-    expect(getConnectionModelDiscoveryUrls({
-      providerType: 'openai',
-      baseUrl: 'http://proxy.tanyongsheng.site/v1',
-    })).toEqual([
+    expect(
+      getConnectionModelDiscoveryUrls({
+        providerType: 'openai',
+        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+      })
+    ).toEqual([
       'https://proxy.tanyongsheng.site/v1/models',
       'http://proxy.tanyongsheng.site/v1/models',
     ]);
@@ -178,10 +247,7 @@ describe('openai connection helpers', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        models: [
-          { name: 'models/gemini-2.5-pro' },
-          { name: 'models/gemini-2.0-flash' },
-        ],
+        models: [{ name: 'models/gemini-2.5-pro' }, { name: 'models/gemini-2.0-flash' }],
       }),
       text: async () => '',
     }));
@@ -192,7 +258,7 @@ describe('openai connection helpers', () => {
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
         key: 'google-key',
       },
-      { fetch: fetchMock },
+      { fetch: fetchMock }
     );
 
     expect(result.url).toBe('https://generativelanguage.googleapis.com/v1beta/models');
@@ -218,9 +284,7 @@ describe('openai connection helpers', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          data: [
-            { id: 'claude-sonnet-4-5' },
-          ],
+          data: [{ id: 'claude-sonnet-4-5' }],
         }),
         text: async () => '',
       };
@@ -232,7 +296,7 @@ describe('openai connection helpers', () => {
         baseUrl: 'https://proxy.example.com',
         key: 'anthropic-key',
       },
-      { fetch: fetchMock },
+      { fetch: fetchMock }
     );
 
     expect(result.url).toBe('https://proxy.example.com/models');

@@ -115,7 +115,10 @@ export function extractThinkingBlocks(raw) {
 
   return {
     cleaned: text.trim(),
-    thinking: collected.map((part) => part.trim()).filter(Boolean).join('\n\n'),
+    thinking: collected
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join('\n\n'),
     hasTag: /<thinking\b|<thoughts?\b/i.test(source) || collected.length > 0,
   };
 }
@@ -179,7 +182,7 @@ export function normalizeToolCallRecord(raw) {
   const input = raw.input ?? raw.arguments ?? raw.args ?? '';
   const output = raw.output ?? raw.result ?? '';
   const error = raw.error ?? null;
-  const status = raw.status || raw.state || (error ? 'error' : (output ? 'completed' : 'running'));
+  const status = raw.status || raw.state || (error ? 'error' : output ? 'completed' : 'running');
   return {
     id: String(id),
     name,
@@ -193,4 +196,3 @@ export function normalizeToolCallRecord(raw) {
 export function buildToolToggleKey(messageId, toolCallId) {
   return `${messageId}:${toolCallId}`;
 }
-

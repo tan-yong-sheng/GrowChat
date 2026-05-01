@@ -1,5 +1,8 @@
 function normalizeChatTitleSnippet(text) {
-  return String(text || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+  return String(text || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 60);
 }
 
 export function prepareOptimisticConversation({
@@ -35,7 +38,8 @@ export function prepareOptimisticConversation({
     setState((prev) => ({
       chats: [tempChat, ...pruneTempChats(prev.chats)],
       activeChatId: tempChatId,
-      activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
+      activeModelId:
+        prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
     }));
 
     chatId = tempChatId;
@@ -48,7 +52,8 @@ export function prepareOptimisticConversation({
       setState((prev) => ({
         chats: [tempChat, ...pruneTempChats(prev.chats)],
         activeChatId: chatId,
-        activeModelId: prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
+        activeModelId:
+          prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
       }));
     }
     syncChatUrl(chatId);
@@ -83,16 +88,12 @@ export function prepareOptimisticConversation({
   };
 }
 
-export function rollbackOptimisticConversation({
-  state,
-  setState,
-  tempChatId,
-  isTempChatId = () => false,
-} = {}) {
+export function rollbackOptimisticConversation({ setState, tempChatId } = {}) {
   if (!tempChatId) return;
   setState((prev) => {
     const nextChats = prev.chats.filter((c) => String(c.id) !== String(tempChatId));
-    const nextActiveChatId = prev.activeChatId === tempChatId ? (nextChats[0]?.id || null) : prev.activeChatId;
+    const nextActiveChatId =
+      prev.activeChatId === tempChatId ? nextChats[0]?.id || null : prev.activeChatId;
     const nextMessagesByChat = { ...prev.messagesByChat };
     delete nextMessagesByChat[tempChatId];
     const nextAttachmentsByChat = { ...(prev.attachmentsByChat || {}) };
@@ -110,7 +111,6 @@ export function rollbackOptimisticConversation({
 }
 
 export function promoteOptimisticConversation({
-  state,
   setState,
   tempChatId,
   realChat,
@@ -164,7 +164,8 @@ export function promoteOptimisticConversation({
     return {
       chats: deduped,
       activeChatId: realChatId,
-      activeModelId: prev.activeModelId || realChat.model || prev.defaultModelId || prev.globalDefaultModelId,
+      activeModelId:
+        prev.activeModelId || realChat.model || prev.defaultModelId || prev.globalDefaultModelId,
       messagesByChat: nextMessagesByChat,
       attachmentsByChat: nextAttachmentsByChat,
       toolSelectionsByChat: nextToolSelectionsByChat,

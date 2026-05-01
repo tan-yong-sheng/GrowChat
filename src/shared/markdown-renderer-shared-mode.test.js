@@ -27,16 +27,20 @@ describe('markdown-renderer shared mode', () => {
         const text = String(content ?? '');
         const codeFenceMatch = text.match(/^```([^\n]*)\n([\s\S]*?)\n```$/);
         if (codeFenceMatch) {
-          return [{
-            type: 'code',
-            lang: codeFenceMatch[1].trim(),
-            text: codeFenceMatch[2],
-          }];
+          return [
+            {
+              type: 'code',
+              lang: codeFenceMatch[1].trim(),
+              text: codeFenceMatch[2],
+            },
+          ];
         }
-        return [{
-          type: 'paragraph',
-          tokens: [{ type: 'text', text }],
-        }];
+        return [
+          {
+            type: 'paragraph',
+            tokens: [{ type: 'text', text }],
+          },
+        ];
       },
     };
     globalThis.katex = {
@@ -63,7 +67,9 @@ describe('markdown-renderer shared mode', () => {
 
     expect(blocks.every((block) => block.dataset.markdownSpecialMode === 'code')).toBe(true);
 
-    const secondPreviewButton = blocks[1].querySelector('[data-markdown-special-mode-btn="preview"]');
+    const secondPreviewButton = blocks[1].querySelector(
+      '[data-markdown-special-mode-btn="preview"]'
+    );
     secondPreviewButton.click();
 
     expect(blocks.every((block) => block.dataset.markdownSpecialMode === 'preview')).toBe(true);

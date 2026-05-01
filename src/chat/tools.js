@@ -57,7 +57,8 @@ export function buildUnknownToolPrompt(unknownCalls, toolMap) {
   const names = unknownCalls.map((call) => call.name).filter(Boolean);
   const known = Array.from(toolMap.keys());
   const preview = known.slice(0, 30);
-  const suffix = known.length > preview.length ? ` (and ${known.length - preview.length} more)` : '';
+  const suffix =
+    known.length > preview.length ? ` (and ${known.length - preview.length} more)` : '';
   return [
     `The model requested unknown tool name(s): ${names.join(', ') || 'unknown'}.`,
     `Use only these tool names: ${preview.join(', ')}${suffix}.`,

@@ -1,17 +1,21 @@
 const MAX_TOOL_STEPS = 100;
 const MAX_FOLLOW_UPS = 20;
-const FOLLOW_UP_PROMPT = 'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
+const FOLLOW_UP_PROMPT =
+  'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
 const STREAM_KEEPALIVE_INTERVAL_MS = 15000;
 const STREAM_HARD_TIMEOUT_MS = 10 * 60 * 1000;
 const STREAM_KEEPALIVE_PAYLOAD = ':\n\n';
 
-export async function readStreamChunkWithHeartbeat(reader, {
-  controller = null,
-  encoder = new TextEncoder(),
-  keepAliveIntervalMs = STREAM_KEEPALIVE_INTERVAL_MS,
-  hardTimeoutMs = STREAM_HARD_TIMEOUT_MS,
-  heartbeatPayload = STREAM_KEEPALIVE_PAYLOAD,
-} = {}) {
+export async function readStreamChunkWithHeartbeat(
+  reader,
+  {
+    controller = null,
+    encoder = new TextEncoder(),
+    keepAliveIntervalMs = STREAM_KEEPALIVE_INTERVAL_MS,
+    hardTimeoutMs = STREAM_HARD_TIMEOUT_MS,
+    heartbeatPayload = STREAM_KEEPALIVE_PAYLOAD,
+  } = {}
+) {
   let heartbeatTimer = null;
   let timeoutId = null;
   let timedOut = false;
@@ -21,18 +25,21 @@ export async function readStreamChunkWithHeartbeat(reader, {
       try {
         controller.enqueue(encoder.encode(heartbeatPayload));
       } catch {
+        // ignore heartbeat enqueue failure
       }
     }, keepAliveIntervalMs);
   }
 
   const pendingReads = [reader.read()];
   if (hardTimeoutMs > 0) {
-    pendingReads.push(new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        timedOut = true;
-        reject(new Error('LLM stream timed out'));
-      }, hardTimeoutMs);
-    }));
+    pendingReads.push(
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          reject(new Error('LLM stream timed out'));
+        }, hardTimeoutMs);
+      })
+    );
   }
 
   try {
@@ -85,7 +92,7 @@ export function createAssistantRunner(deps) {
     user,
     chatId,
     userMsgId,
-    parentId,
+
     model,
     history,
     citations,
@@ -98,10 +105,11 @@ export function createAssistantRunner(deps) {
     const selectedToolNameList = Array.isArray(selectedToolNames)
       ? selectedToolNames.map((name) => String(name || '').trim()).filter(Boolean)
       : null;
-    const toolChoice = Array.isArray(selectedToolNames) && selectedToolNames.length === 0
-      ? 'none'
-      : undefined;
-    const { tools, toolMap, serversById } = buildMcpTools(servers, { selectedToolNames: selectedToolNameList });
+    const toolChoice =
+      Array.isArray(selectedToolNames) && selectedToolNames.length === 0 ? 'none' : undefined;
+    const { tools, toolMap, serversById } = buildMcpTools(servers, {
+      selectedToolNames: selectedToolNameList,
+    });
     const providerSupportsTools = ['openai', 'google', 'anthropic'].includes(
       normalizeProviderFamily(providerFamily) || ''
     );
@@ -126,7 +134,9 @@ export function createAssistantRunner(deps) {
           'INSERT INTO message_deltas (message_id, seq, payload, created_at) VALUES (?, ?, ?, unixepoch())',
           [assistantMsgId, deltaSeq, JSON.stringify(payloadWithSeq)]
         );
-      } catch { }
+      } catch {
+        // ignore delta persistence failure
+      }
       return payloadWithSeq;
     };
 
@@ -141,7 +151,9 @@ export function createAssistantRunner(deps) {
       if (!type) return;
       const last = messageBlocks.length ? messageBlocks[messageBlocks.length - 1] : null;
       if (type === 'tool') {
-        const existing = messageBlocks.find((block) => block.type === 'tool' && block.tool_call_id === toolCallId);
+        const existing = messageBlocks.find(
+          (block) => block.type === 'tool' && block.tool_call_id === toolCallId
+        );
         if (existing) return;
         messageBlocks.push({
           type: 'tool',
@@ -156,36 +168,43 @@ export function createAssistantRunner(deps) {
       messageBlocks.push({ type, content: String(content || '') });
     };
 
+    const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : citations || null;
+    const lifecycle = createAssistantStreamLifecycle({
+      db,
+      env,
+      req,
+      user,
+      chatId,
+      model,
+      userMsgId,
+      citationsJson,
+      getMessageSnapshot,
+      getOwnedChat,
+      publishRealtimeNow,
+      createRealtimeEvent,
+      getOriginSessionId,
+      normalizeErrorMessage,
+      emitSse,
+    });
+
     const readable = new ReadableStream({
       async start(controller) {
         streamController = controller;
-        const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : (citations || null);
-        const lifecycle = createAssistantStreamLifecycle({
-          db,
-          env,
-          req,
-          user,
-          chatId,
-          model,
-          userMsgId,
-          assistantMsgId,
-          citationsJson,
-          getMessageSnapshot,
-          getOwnedChat,
-          publishRealtimeNow,
-          createRealtimeEvent,
-          getOriginSessionId,
-          normalizeErrorMessage,
-          emitSse,
-        });
         await lifecycle.ensureAssistantRow();
         if (ctx?.waitUntil) {
-          ctx.waitUntil((async () => {
-            await sleep(STREAM_STATUS_STALE_MS);
-            await lifecycle.clearStreamingStatus();
-          })());
+          ctx.waitUntil(
+            (async () => {
+              await sleep(STREAM_STATUS_STALE_MS);
+              await lifecycle.clearStreamingStatus();
+            })()
+          );
         }
-        await emitSse({ event: 'start', chat_id: chatId, message_id: assistantMsgId, user_message_id: userMsgId });
+        await emitSse({
+          event: 'start',
+          chat_id: chatId,
+          message_id: assistantMsgId,
+          user_message_id: userMsgId,
+        });
 
         try {
           const sessionOutcome = await runAsyncSessionProcessor({
@@ -214,7 +233,11 @@ export function createAssistantRunner(deps) {
                   toolCallRecords,
                   citations,
                 });
-                return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+                return {
+                  action: 'final',
+                  terminate: true,
+                  nextMessagesForModel: messagesForModel,
+                };
               }
 
               const reader = stream.getReader();
@@ -222,7 +245,7 @@ export function createAssistantRunner(deps) {
               const stepToolCalls = [];
               let finishReason = null;
 
-              let emitEvent = () => { };
+              let emitEvent = () => {};
               const parser = new SseLineParser({
                 onEvent: (event) => emitEvent(event),
               });
@@ -250,7 +273,10 @@ export function createAssistantRunner(deps) {
                 }
                 if (event.type === 'reasoning_end') {
                   const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
-                  void emitSse({ event: 'reasoning_end', duration_ms: duration }, { persist: true });
+                  void emitSse(
+                    { event: 'reasoning_end', duration_ms: duration },
+                    { persist: true }
+                  );
                   void lifecycle.persistAssistantContent({
                     fullText,
                     fullReasoning,
@@ -285,18 +311,25 @@ export function createAssistantRunner(deps) {
                     messageBlocks,
                   });
                   const persisted = await emitSse({ response: delta }, { persist: true });
-                  await publishRealtimeNow(env, createRealtimeEvent({
-                    type: 'message.delta',
-                    userId: user.sub,
-                    chatId,
-                    messageId: assistantMsgId,
-                    originSessionId: getOriginSessionId(req),
-                    data: { delta, model, seq: persisted?.seq },
-                  }));
+                  await publishRealtimeNow(
+                    env,
+                    createRealtimeEvent({
+                      type: 'message.delta',
+                      userId: user.sub,
+                      chatId,
+                      messageId: assistantMsgId,
+                      originSessionId: getOriginSessionId(req),
+                      data: { delta, model, seq: persisted?.seq },
+                    })
+                  );
                 }
                 if (await lifecycle.isCancelled()) {
                   await lifecycle.sendCancelAndClose({ controller, encoder });
-                  return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+                  return {
+                    action: 'final',
+                    terminate: true,
+                    nextMessagesForModel: messagesForModel,
+                  };
                 }
               }
 
@@ -311,21 +344,28 @@ export function createAssistantRunner(deps) {
                   messageBlocks,
                 });
                 const persisted = await emitSse({ response: finalDelta }, { persist: true });
-                await publishRealtimeNow(env, createRealtimeEvent({
-                  type: 'message.delta',
-                  userId: user.sub,
-                  chatId,
-                  messageId: assistantMsgId,
-                  originSessionId: getOriginSessionId(req),
-                  data: { delta: finalDelta, model, seq: persisted?.seq },
-                }));
+                await publishRealtimeNow(
+                  env,
+                  createRealtimeEvent({
+                    type: 'message.delta',
+                    userId: user.sub,
+                    chatId,
+                    messageId: assistantMsgId,
+                    originSessionId: getOriginSessionId(req),
+                    data: { delta: finalDelta, model, seq: persisted?.seq },
+                  })
+                );
               }
               parser.finalize();
               reader.releaseLock();
 
               if (await lifecycle.isCancelled()) {
                 await lifecycle.sendCancelAndClose({ controller, encoder });
-                return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+                return {
+                  action: 'final',
+                  terminate: true,
+                  nextMessagesForModel: messagesForModel,
+                };
               }
 
               const hasToolCalls = stepToolCalls.some((call) => call && call.name);
@@ -371,34 +411,44 @@ export function createAssistantRunner(deps) {
                     fullReasoning,
                     messageBlocks,
                   });
-                  await emitSse({
-                    event: 'tool_result',
-                    message_id: assistantMsgId,
-                    tool_call_id: call.toolCallId,
-                    tool_name: record.name,
-                    input: call.arguments,
-                    output: errorText,
-                    error: errorText,
-                    status: 'error',
-                  }, { persist: true });
+                  await emitSse(
+                    {
+                      event: 'tool_result',
+                      message_id: assistantMsgId,
+                      tool_call_id: call.toolCallId,
+                      tool_name: record.name,
+                      input: call.arguments,
+                      output: errorText,
+                      error: errorText,
+                      status: 'error',
+                    },
+                    { persist: true }
+                  );
                 }
 
                 for (const call of validCalls) {
                   if (await lifecycle.isCancelled()) {
                     await lifecycle.sendCancelAndClose({ controller, encoder });
-                    return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+                    return {
+                      action: 'final',
+                      terminate: true,
+                      nextMessagesForModel: messagesForModel,
+                    };
                   }
-                  await emitSse({
-                    event: 'tool_status',
-                    message_id: assistantMsgId,
-                    tool_call_id: call.toolCallId,
-                    tool_name: call.displayName,
-                    state: 'running',
-                    input: call.arguments,
-                  }, { persist: true });
+                  await emitSse(
+                    {
+                      event: 'tool_status',
+                      message_id: assistantMsgId,
+                      tool_call_id: call.toolCallId,
+                      tool_name: call.displayName,
+                      state: 'running',
+                      input: call.arguments,
+                    },
+                    { persist: true }
+                  );
 
                   const server = serversById.get(call.serverId);
-                  let outputText = '';
+                  let outputText;
                   let errorText = '';
                   let status = 'completed';
                   const record = {
@@ -438,16 +488,19 @@ export function createAssistantRunner(deps) {
                     messageBlocks,
                   });
 
-                  await emitSse({
-                    event: 'tool_result',
-                    message_id: assistantMsgId,
-                    tool_call_id: call.toolCallId,
-                    tool_name: call.displayName,
-                    input: call.arguments,
-                    output: outputText,
-                    error: errorText || null,
-                    status,
-                  }, { persist: true });
+                  await emitSse(
+                    {
+                      event: 'tool_result',
+                      message_id: assistantMsgId,
+                      tool_call_id: call.toolCallId,
+                      tool_name: call.displayName,
+                      input: call.arguments,
+                      output: outputText,
+                      error: errorText || null,
+                      status,
+                    },
+                    { persist: true }
+                  );
 
                   toolResultMessages.push({
                     role: 'tool',
@@ -457,7 +510,11 @@ export function createAssistantRunner(deps) {
 
                   if (await lifecycle.isCancelled()) {
                     await lifecycle.sendCancelAndClose({ controller, encoder });
-                    return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+                    return {
+                      action: 'final',
+                      terminate: true,
+                      nextMessagesForModel: messagesForModel,
+                    };
                   }
                 }
 
@@ -465,14 +522,21 @@ export function createAssistantRunner(deps) {
                 if (toolCallsForModel.length) {
                   nextMessagesForModel = [
                     ...nextMessagesForModel,
-                    { role: 'assistant', content: '', tool_calls: toolCallsForModel },
+                    {
+                      role: 'assistant',
+                      content: '',
+                      tool_calls: toolCallsForModel,
+                    },
                     ...toolResultMessages,
                   ];
                 }
                 if (unknownCalls.length) {
                   nextMessagesForModel = [
                     ...nextMessagesForModel,
-                    { role: 'system', content: buildUnknownToolPrompt(unknownCalls, toolMap) },
+                    {
+                      role: 'system',
+                      content: buildUnknownToolPrompt(unknownCalls, toolMap),
+                    },
                   ];
                 }
 
@@ -543,6 +607,9 @@ export function createAssistantRunner(deps) {
       },
     });
 
-    return { response: new Response(readable, { headers: sseHeaders(req) }), assistantMsgId };
+    return {
+      response: new Response(readable, { headers: sseHeaders(req) }),
+      assistantMsgId,
+    };
   };
 }

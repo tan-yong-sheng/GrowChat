@@ -98,9 +98,15 @@ export function createMessageInputController({
   }
 
   function getToolServerScopeLabel(server) {
-    const source = String(server?.source || '').trim().toLowerCase();
-    const accessVariant = String(server?.access_variant || '').trim().toLowerCase();
-    const accessLabel = String(server?.access_label || '').trim().toLowerCase();
+    const source = String(server?.source || '')
+      .trim()
+      .toLowerCase();
+    const accessVariant = String(server?.access_variant || '')
+      .trim()
+      .toLowerCase();
+    const accessLabel = String(server?.access_label || '')
+      .trim()
+      .toLowerCase();
     if (source === 'user' || accessVariant === 'personal' || accessLabel === 'personal') {
       return 'Personal';
     }
@@ -116,11 +122,21 @@ export function createMessageInputController({
 
   function getAllowedToolServers(currentState = state) {
     return (Array.isArray(currentState.toolServers) ? currentState.toolServers : [])
-      .filter((server) => server?.enabled !== false && String(server?.id || '').trim() && String(server?.name || '').trim())
+      .filter(
+        (server) =>
+          server?.enabled !== false &&
+          String(server?.id || '').trim() &&
+          String(server?.name || '').trim()
+      )
       .map((server) => ({
         ...server,
         tools: (Array.isArray(server.tools) ? server.tools : [])
-          .filter((tool) => tool?.enabled !== false && tool?.visible_for_user !== false && String(tool?.name || '').trim())
+          .filter(
+            (tool) =>
+              tool?.enabled !== false &&
+              tool?.visible_for_user !== false &&
+              String(tool?.name || '').trim()
+          )
           .map((tool) => ({
             ...tool,
             name: String(tool.name || '').trim(),
@@ -132,9 +148,9 @@ export function createMessageInputController({
   }
 
   function getAllowedToolKeys(currentState = state) {
-    return getAllowedToolServers(currentState).flatMap((server) => (
+    return getAllowedToolServers(currentState).flatMap((server) =>
       server.tools.map((tool) => buildToolKey(server.id, tool.name))
-    ));
+    );
   }
 
   function getServerToolKeys(server) {
@@ -176,30 +192,6 @@ export function createMessageInputController({
     setState({ newChatToolSelection: normalized });
   }
 
-  function setCurrentToolSelectionForChat(chatId, nextSelection) {
-    if (!chatId) {
-      setCurrentToolSelection(nextSelection);
-      return;
-    }
-    const normalized = Array.isArray(nextSelection) ? nextSelection.filter(Boolean) : null;
-    setState((prev) => {
-      const nextMap = { ...(prev.toolSelectionsByChat || {}) };
-      if (normalized === null) {
-        delete nextMap[chatId];
-      } else {
-        nextMap[chatId] = normalized;
-      }
-      return { toolSelectionsByChat: nextMap };
-    });
-  }
-
-  function getSelectedToolState(serverId, toolName, currentState = state) {
-    const selection = getCurrentToolSelection(currentState);
-    if (selection === null) return true;
-    const key = buildToolKey(serverId, toolName);
-    return selection.includes(key);
-  }
-
   function setToolSelectionForCurrentChat(serverId, toolName) {
     const currentState = state;
     const allowedKeys = getAllowedToolKeys(currentState);
@@ -217,9 +209,10 @@ export function createMessageInputController({
         nextSet.add(key);
       }
       const deduped = [...nextSet];
-      nextSelection = allowedKeys.length > 0 && allowedKeys.every((allowed) => nextSet.has(allowed))
-        ? null
-        : deduped;
+      nextSelection =
+        allowedKeys.length > 0 && allowedKeys.every((allowed) => nextSet.has(allowed))
+          ? null
+          : deduped;
     }
 
     if (Array.isArray(nextSelection) && nextSelection.length === 0) {
@@ -246,14 +239,17 @@ export function createMessageInputController({
       } else {
         const nextSet = new Set(Array.isArray(selection) ? selection : []);
         for (const key of serverKeys) nextSet.add(key);
-        nextSelection = allowedKeys.length > 0 && allowedKeys.every((allowed) => nextSet.has(allowed))
-          ? null
-          : [...nextSet];
+        nextSelection =
+          allowedKeys.length > 0 && allowedKeys.every((allowed) => nextSet.has(allowed))
+            ? null
+            : [...nextSet];
       }
     } else if (selection === null) {
       nextSelection = allowedKeys.filter((key) => !serverKeys.includes(key));
     } else {
-      nextSelection = (Array.isArray(selection) ? selection : []).filter((key) => !serverKeys.includes(key));
+      nextSelection = (Array.isArray(selection) ? selection : []).filter(
+        (key) => !serverKeys.includes(key)
+      );
     }
 
     if (Array.isArray(nextSelection) && nextSelection.length === 0) {
@@ -293,7 +289,11 @@ export function createMessageInputController({
   const dispatchSelectedFiles = (files) => {
     const selected = Array.isArray(files) ? files.filter(Boolean) : [];
     if (!selected.length) return;
-    window.dispatchEvent(new CustomEvent('growchat:files-selected', { detail: { files: selected } }));
+    window.dispatchEvent(
+      new CustomEvent('growchat:files-selected', {
+        detail: { files: selected },
+      })
+    );
   };
 
   const captureScreen = async () => {
@@ -352,7 +352,9 @@ export function createMessageInputController({
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error('Unable to capture screen');
 
-      const file = new File([blob], `screen-capture-${Date.now()}.png`, { type: 'image/png' });
+      const file = new File([blob], `screen-capture-${Date.now()}.png`, {
+        type: 'image/png',
+      });
       dispatchSelectedFiles([file]);
     } catch (error) {
       const name = String(error?.name || '');
@@ -393,7 +395,9 @@ export function createMessageInputController({
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-attachment-remove');
         if (!id) return;
-        const next = getCurrentAttachments().filter((item) => String(item?.id || '') !== String(id));
+        const next = getCurrentAttachments().filter(
+          (item) => String(item?.id || '') !== String(id)
+        );
         setCurrentAttachments(next);
       });
     });
@@ -426,12 +430,14 @@ export function createMessageInputController({
     const hasAny = servers.length > 0 && hasSelectableModels(currentState);
     const loading = currentState.toolServersLoading === true;
     const selection = getCurrentToolSelection(currentState);
-    const allowedKeys = servers.flatMap((server) => server.tools.map((tool) => buildToolKey(server.id, tool.name)));
-    const allEnabled = selection === null || (
-      Array.isArray(selection) &&
-      allowedKeys.length > 0 &&
-      allowedKeys.every((key) => selection.includes(key))
+    const allowedKeys = servers.flatMap((server) =>
+      server.tools.map((tool) => buildToolKey(server.id, tool.name))
     );
+    const allEnabled =
+      selection === null ||
+      (Array.isArray(selection) &&
+        allowedKeys.length > 0 &&
+        allowedKeys.every((key) => selection.includes(key)));
     const allDisabled = Array.isArray(selection) && selection.length === 0;
     openToolsBtn.disabled = loading || !hasAny;
     openToolsBtn.classList.toggle('opacity-40', loading || !hasAny);
@@ -526,25 +532,33 @@ export function createMessageInputController({
     if (!toolsMenu || !toolsMenuList) return;
     const servers = getAllowedToolServers(currentState);
     const selection = getCurrentToolSelection(currentState);
-    const allowedKeys = servers.flatMap((server) => server.tools.map((tool) => buildToolKey(server.id, tool.name)));
+    const allowedKeys = servers.flatMap((server) =>
+      server.tools.map((tool) => buildToolKey(server.id, tool.name))
+    );
 
     if (!servers.length) {
-      toolsMenuList.innerHTML = '<div class="px-3 py-4 text-sm text-gray-400">No tools are enabled for this workspace.</div>';
+      toolsMenuList.innerHTML =
+        '<div class="px-3 py-4 text-sm text-gray-400">No tools are enabled for this workspace.</div>';
       return;
     }
-    toolsMenuList.innerHTML = servers.map((server) => {
-      const serverId = String(server.id || '');
-      const serverExpanded = expandedToolServerIds.has(serverId);
-      const selectionState = getServerSelectionState(server, selection);
-      const anyEnabled = selectionState.enabled || selectionState.partial;
-      const selectedSet = selection === null ? new Set(allowedKeys) : new Set(Array.isArray(selection) ? selection : []);
-      const enabledToolCount = server.tools.length;
-      const scopeLabel = getToolServerScopeLabel(server);
-      const scopeBadgeClass = getToolServerScopeBadgeClass(server);
-      const toolRows = server.tools.map((tool) => {
-        const key = buildToolKey(server.id, tool.name);
-        const enabled = selectedSet.has(key);
-        return `
+    toolsMenuList.innerHTML = servers
+      .map((server) => {
+        const serverId = String(server.id || '');
+        const serverExpanded = expandedToolServerIds.has(serverId);
+        const selectionState = getServerSelectionState(server, selection);
+        const anyEnabled = selectionState.enabled || selectionState.partial;
+        const selectedSet =
+          selection === null
+            ? new Set(allowedKeys)
+            : new Set(Array.isArray(selection) ? selection : []);
+        const enabledToolCount = server.tools.length;
+        const scopeLabel = getToolServerScopeLabel(server);
+        const scopeBadgeClass = getToolServerScopeBadgeClass(server);
+        const toolRows = server.tools
+          .map((tool) => {
+            const key = buildToolKey(server.id, tool.name);
+            const enabled = selectedSet.has(key);
+            return `
           <button type="button" data-tool-toggle data-tool-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name)}" aria-pressed="${enabled ? 'true' : 'false'}" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50">
             <span class="min-w-0 flex-1 truncate">${escapeHtml(tool.title || tool.name)}</span>
             <span class="ml-3 inline-flex h-5 w-9 items-center rounded-full px-0.5 transition ${enabled ? 'bg-emerald-500' : 'bg-gray-200'}" aria-hidden="true">
@@ -552,8 +566,9 @@ export function createMessageInputController({
             </span>
           </button>
         `;
-      }).join('');
-      return `
+          })
+          .join('');
+        return `
         <section class="rounded-2xl border border-gray-100 bg-white overflow-hidden" data-tool-server-card data-tool-server-id="${escapeHtml(server.id)}">
           <div class="flex items-center gap-2 px-2 py-1.5">
             <button type="button" data-tool-server-toggle data-tool-server-id="${escapeHtml(server.id)}" aria-pressed="${anyEnabled ? 'true' : 'false'}" aria-label="${anyEnabled ? 'Disable' : 'Enable'} ${escapeHtml(server.name)}" title="${anyEnabled ? 'Disable' : 'Enable'} ${escapeHtml(server.name)}" class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition ${anyEnabled ? 'bg-emerald-500' : 'bg-gray-200'}">
@@ -577,7 +592,8 @@ export function createMessageInputController({
           </div>
         </section>
       `;
-    }).join('');
+      })
+      .join('');
   }
 
   const closeToolsMenu = () => {
@@ -649,13 +665,17 @@ export function createMessageInputController({
     if (!next?.text) return false;
     isSubmitting = true;
     toggleSendMicBtn();
-    onSend(next.text, {
-      onAbortable: (fn) => {
-        abortFn = fn;
-        toggleSendMicBtn();
+    onSend(
+      next.text,
+      {
+        onAbortable: (fn) => {
+          abortFn = fn;
+          toggleSendMicBtn();
+        },
+        onFinished: () => finishSubmission(),
       },
-      onFinished: () => finishSubmission(),
-    }, getCurrentToolSelection() === null ? {} : { selectedToolNames: getCurrentToolSelection() });
+      getCurrentToolSelection() === null ? {} : { selectedToolNames: getCurrentToolSelection() }
+    );
     return true;
   }
 
@@ -688,13 +708,17 @@ export function createMessageInputController({
 
     isSubmitting = true;
     toggleSendMicBtn();
-    onSend(text, {
-      onAbortable: (fn) => {
-        abortFn = fn;
-        toggleSendMicBtn();
+    onSend(
+      text,
+      {
+        onAbortable: (fn) => {
+          abortFn = fn;
+          toggleSendMicBtn();
+        },
+        onFinished: () => finishSubmission(),
       },
-      onFinished: () => finishSubmission(),
-    }, getCurrentToolSelection() === null ? {} : { selectedToolNames: getCurrentToolSelection() });
+      getCurrentToolSelection() === null ? {} : { selectedToolNames: getCurrentToolSelection() }
+    );
   }
 
   stopBtn.onclick = async (e) => {
@@ -712,7 +736,9 @@ export function createMessageInputController({
       if (typeof cancelFn === 'function' && chatId && messageId) {
         await cancelFn(chatId, messageId);
       }
-    } catch {}
+    } catch {
+      // ignore cancel race
+    }
     finishSubmission();
   };
 
@@ -811,7 +837,9 @@ export function createMessageInputController({
     const serverToggleBtn = e.target.closest?.('[data-tool-server-toggle]');
     if (serverToggleBtn) {
       const serverId = serverToggleBtn.getAttribute('data-tool-server-id');
-      const server = getAllowedToolServers(state).find((entry) => String(entry.id) === String(serverId));
+      const server = getAllowedToolServers(state).find(
+        (entry) => String(entry.id) === String(serverId)
+      );
       if (serverId && server) {
         const selectionState = getServerSelectionState(server);
         const anyEnabled = selectionState.enabled || selectionState.partial;
@@ -886,7 +914,9 @@ export function createMessageInputController({
       String(currentState.ui.streamingChatId) === String(currentState.activeChatId || '')
     );
     latestRunningMessageId = findRunningMessageId(currentState);
-    canRequestCancel = Boolean(latestRunningMessageId && typeof window.__growchatRequestCancel === 'function');
+    canRequestCancel = Boolean(
+      latestRunningMessageId && typeof window.__growchatRequestCancel === 'function'
+    );
     if (nextStreamBlocked !== isStreamBlocked) {
       isStreamBlocked = nextStreamBlocked;
       if (!nextStreamBlocked && isSubmitting) {
@@ -900,8 +930,8 @@ export function createMessageInputController({
     updateComposerAvailability(currentState);
     if (!isSubmitting && (chatChanged || (input !== document.activeElement && !input.value))) {
       const draft = currentState.activeChatId
-        ? (currentState.drafts[currentState.activeChatId] || '')
-        : (currentState.newChatDraft || '');
+        ? currentState.drafts[currentState.activeChatId] || ''
+        : currentState.newChatDraft || '';
       if (input.value !== draft) {
         input.value = draft;
         input.dispatchEvent(new Event('input'));
