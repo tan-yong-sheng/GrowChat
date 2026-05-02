@@ -87,11 +87,10 @@ describe('account models section', () => {
   });
 
   it('renders an admin-style model table without the ACL lock button', async () => {
-    mocks.apiFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => makeAccountState('m2'),
-      });
+    mocks.apiFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeAccountState('m2'),
+    });
 
     mocks.fetchModels.mockResolvedValue({
       total: 42,
@@ -103,20 +102,34 @@ describe('account models section', () => {
         { value: 'cli-proxy-api', label: 'cli-proxy-api', active: 42, total: 42 },
       ],
       models: [
-        { id: 'm2', name: 'Model Two', access_label: 'Admin', access_variant: 'admin', enabled: true },
-        { id: 'm1', name: 'Model One', access_label: 'Personal', access_variant: 'personal', enabled: true },
+        {
+          id: 'm2',
+          name: 'Model Two',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          enabled: true,
+        },
+        {
+          id: 'm1',
+          name: 'Model One',
+          access_label: 'Personal',
+          access_variant: 'personal',
+          enabled: true,
+        },
       ],
     });
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
-    await flush();
+    await vi.waitFor(() => expect(document.querySelector('[data-model-row]')).not.toBeNull());
 
-    expect(mocks.fetchModels).toHaveBeenCalledWith(expect.objectContaining({
-      limit: 20,
-      offset: 0,
-      scope: 'effective',
-    }));
+    expect(mocks.fetchModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 20,
+        offset: 0,
+        scope: 'effective',
+      })
+    );
     expect(document.querySelector('#account-main-footer #save-models')).toBeNull();
     expect(document.querySelector('[data-account-model-form]')).toBeNull();
     expect(document.querySelector('#account-model-search-input')).not.toBeNull();
@@ -133,18 +146,17 @@ describe('account models section', () => {
     expect(document.querySelector('[data-model-access="m2"]')?.textContent).toContain('Admin');
     expect(document.querySelector('[data-model-access="m1"]')?.textContent).toContain('Personal');
     expect(document.querySelector('[data-model-row]')).not.toBeNull();
-    expect(document.querySelector('[data-model-acl]')).toBeNull();
+    expect(document.querySelector('#account-main-content [data-model-acl]')).toBeNull();
     expect(document.querySelector('.model-toggle')).not.toBeNull();
     expect(document.querySelector('#prev-page')).not.toBeNull();
     expect(document.querySelector('#next-page')).not.toBeNull();
   }, 10000);
 
   it('renders hidden rows inline without a hidden-for-you badge so they can be restored later', async () => {
-    mocks.apiFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => makeAccountState('m2'),
-      });
+    mocks.apiFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeAccountState('m2'),
+    });
 
     mocks.fetchModels.mockResolvedValue({
       total: 2,
@@ -156,16 +168,33 @@ describe('account models section', () => {
         { value: 'cli-proxy-api', label: 'cli-proxy-api', active: 1, total: 2 },
       ],
       models: [
-        { id: 'm2', name: 'Model Two', access_label: 'Admin', access_variant: 'admin', enabled: true },
+        {
+          id: 'm2',
+          name: 'Model Two',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          enabled: true,
+        },
       ],
       hidden_models: [
-        { id: 'm1', name: 'Model One', access_label: 'Admin', access_variant: 'admin', enabled: false, hidden_for_user: true },
+        {
+          id: 'm1',
+          name: 'Model One',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          enabled: false,
+          hidden_for_user: true,
+        },
       ],
     });
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
-    await flush();
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector('#account-models-table-body [data-model-row="m1"]')
+      ).not.toBeNull()
+    );
 
     const disabledRow = document.querySelector('#account-models-table-body [data-model-row="m1"]');
     expect(disabledRow).not.toBeNull();
@@ -209,20 +238,35 @@ describe('account models section', () => {
       active_total: 1,
       limit: 20,
       offset: 0,
-      providers: [
-        { value: 'all', label: 'All Providers', active: 1, total: 2 },
-      ],
+      providers: [{ value: 'all', label: 'All Providers', active: 1, total: 2 }],
       models: [
-        { id: 'm2', name: 'Model Two', access_label: 'Admin', access_variant: 'admin', enabled: true },
+        {
+          id: 'm2',
+          name: 'Model Two',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          enabled: true,
+        },
       ],
       hidden_models: [
-        { id: 'm1', name: 'Model One', access_label: 'Admin', access_variant: 'admin', enabled: false, hidden_for_user: true },
+        {
+          id: 'm1',
+          name: 'Model One',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          enabled: false,
+          hidden_for_user: true,
+        },
       ],
     });
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
-    await flush();
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector('#account-models-table-body [data-model-row="m1"]')
+      ).not.toBeNull()
+    );
 
     const disabledRow = document.querySelector('#account-models-table-body [data-model-row="m1"]');
     expect(disabledRow).not.toBeNull();
@@ -231,15 +275,17 @@ describe('account models section', () => {
     expect(toggle?.hasAttribute('disabled')).toBe(false);
     toggle?.click();
     await flush(10);
-    expect(mocks.apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({ method: 'PUT' }));
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/api/users/me',
+      expect.objectContaining({ method: 'PUT' })
+    );
   });
 
   it('omits admin-disabled models from the account table', async () => {
-    mocks.apiFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => makeAccountState('m2'),
-      });
+    mocks.apiFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeAccountState('m2'),
+    });
 
     mocks.fetchModels.mockResolvedValue({
       total: 3,
@@ -247,15 +293,27 @@ describe('account models section', () => {
       limit: 20,
       offset: 0,
       models: [
-        { id: 'm2', name: 'Model Two', access_label: 'Admin', access_variant: 'admin', enabled: true },
-        { id: 'm1', name: 'Model One', access_label: 'Personal', access_variant: 'personal', enabled: true },
+        {
+          id: 'm2',
+          name: 'Model Two',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          enabled: true,
+        },
+        {
+          id: 'm1',
+          name: 'Model One',
+          access_label: 'Personal',
+          access_variant: 'personal',
+          enabled: true,
+        },
       ],
       hidden_models: [],
     });
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
-    await flush();
+    await vi.waitFor(() => expect(document.querySelector('[data-model-row]')).not.toBeNull());
 
     expect(document.querySelector('[data-model-row="m3"]')).toBeNull();
     expect(document.body.textContent).not.toContain('Model Three');
@@ -264,11 +322,10 @@ describe('account models section', () => {
   }, 10000);
 
   it('ignores admin-disabled models even if the effective payload includes them', async () => {
-    mocks.apiFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => makeAccountState('m2'),
-      });
+    mocks.apiFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeAccountState('m2'),
+    });
 
     mocks.fetchModels.mockResolvedValue({
       total: 3,
@@ -280,15 +337,27 @@ describe('account models section', () => {
         hidden_model_ids: [],
       },
       models: [
-        { id: 'm2', name: 'Model Two', access_label: 'Admin', access_variant: 'admin', enabled: true },
-        { id: 'm3', name: 'Model Three', access_label: 'Admin', access_variant: 'admin', enabled: false },
+        {
+          id: 'm2',
+          name: 'Model Two',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          enabled: true,
+        },
+        {
+          id: 'm3',
+          name: 'Model Three',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          enabled: false,
+        },
       ],
       hidden_models: [],
     });
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
-    await flush();
+    await vi.waitFor(() => expect(document.querySelector('[data-model-row]')).not.toBeNull());
 
     expect(document.querySelector('[data-model-row="m3"]')).toBeNull();
     expect(document.body.textContent).not.toContain('Model Three');
@@ -330,23 +399,40 @@ describe('account models section', () => {
       limit: 20,
       offset: 0,
       models: [
-        { id: 'm2', name: 'Model Two', access_label: 'Admin', access_variant: 'admin', attachments: { image: true, pdf: false } },
-        { id: 'm1', name: 'Model One', access_label: 'Personal', access_variant: 'personal', attachments: { image: false, pdf: false } },
+        {
+          id: 'm2',
+          name: 'Model Two',
+          access_label: 'Admin',
+          access_variant: 'admin',
+          attachments: { image: true, pdf: false },
+        },
+        {
+          id: 'm1',
+          name: 'Model One',
+          access_label: 'Personal',
+          access_variant: 'personal',
+          attachments: { image: false, pdf: false },
+        },
       ],
     });
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
-    await flush();
+    await vi.waitFor(() => expect(document.querySelector('[data-model-row="m1"]')).not.toBeNull());
 
     document.querySelector('[data-model-id="m1"]')?.click();
     await flush(10);
 
-    expect(mocks.apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({
-      method: 'PUT',
-      body: expect.any(String),
-    }));
-    const saveCall = mocks.apiFetch.mock.calls.filter(([url, options]) => String(url) === '/api/users/me' && options?.method === 'PUT').pop();
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/api/users/me',
+      expect.objectContaining({
+        method: 'PUT',
+        body: expect.any(String),
+      })
+    );
+    const saveCall = mocks.apiFetch.mock.calls
+      .filter(([url, options]) => String(url) === '/api/users/me' && options?.method === 'PUT')
+      .pop();
     expect(saveCall).toBeTruthy();
     const saveBody = JSON.parse(saveCall[1].body);
     expect(saveBody.preferences.model_settings.disabled_model_ids).toContain('m1');
@@ -407,11 +493,16 @@ describe('account models section', () => {
           { value: 'all', label: 'All Providers', active: 1, total: 2 },
           { value: 'cli-proxy-api', label: 'cli-proxy-api', active: 1, total: 2 },
         ],
-        models: [
-          { id: 'm2', name: 'Model Two', enabled: true },
-        ],
+        models: [{ id: 'm2', name: 'Model Two', enabled: true }],
         hidden_models: [
-          { id: 'm1', name: 'Model One', enabled: false, hidden_for_user: true, access_label: 'Admin', access_variant: 'admin' },
+          {
+            id: 'm1',
+            name: 'Model One',
+            enabled: false,
+            hidden_for_user: true,
+            access_label: 'Admin',
+            access_variant: 'admin',
+          },
         ],
       })
       .mockResolvedValue({
@@ -423,17 +514,22 @@ describe('account models section', () => {
           { value: 'all', label: 'All Providers', active: 1, total: 2 },
           { value: 'cli-proxy-api', label: 'cli-proxy-api', active: 1, total: 2 },
         ],
-        models: [
-          { id: 'm2', name: 'Model Two', enabled: true },
-        ],
+        models: [{ id: 'm2', name: 'Model Two', enabled: true }],
         hidden_models: [
-          { id: 'm1', name: 'Model One', enabled: false, hidden_for_user: true, access_label: 'Admin', access_variant: 'admin' },
+          {
+            id: 'm1',
+            name: 'Model One',
+            enabled: false,
+            hidden_for_user: true,
+            access_label: 'Admin',
+            access_variant: 'admin',
+          },
         ],
       });
 
     const { renderAccountPage } = await loadModule();
     await renderAccountPage(document.getElementById('app'));
-    await flush();
+    await vi.waitFor(() => expect(document.querySelector('[data-model-row="m1"]')).not.toBeNull());
 
     document.querySelector('[data-model-id="m1"]')?.click();
     await flush(2);
@@ -457,7 +553,9 @@ describe('account models section', () => {
 
     await flush(8);
 
-    const putCalls = mocks.apiFetch.mock.calls.filter(([url, options]) => String(url) === '/api/users/me' && options?.method === 'PUT');
+    const putCalls = mocks.apiFetch.mock.calls.filter(
+      ([url, options]) => String(url) === '/api/users/me' && options?.method === 'PUT'
+    );
     expect(putCalls).toHaveLength(1);
     const finalSaveBody = JSON.parse(putCalls[0][1].body);
     expect(finalSaveBody.preferences.model_settings.disabled_model_ids).toEqual(['m1']);
@@ -465,11 +563,10 @@ describe('account models section', () => {
   }, 10000);
 
   it('paginates the model list like admin settings', async () => {
-    mocks.apiFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => makeAccountState('m2'),
-      });
+    mocks.apiFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => makeAccountState('m2'),
+    });
 
     mocks.fetchModels
       .mockResolvedValueOnce({
@@ -496,9 +593,7 @@ describe('account models section', () => {
           { value: 'all', label: 'All Providers', active: 42, total: 42 },
           { value: 'cli-proxy-api', label: 'cli-proxy-api', active: 42, total: 42 },
         ],
-        models: [
-          { id: 'm3', name: 'Model Three' },
-        ],
+        models: [{ id: 'm3', name: 'Model Three' }],
         hidden_models: [],
       });
 
@@ -514,11 +609,13 @@ describe('account models section', () => {
     document.querySelector('#next-page')?.click();
     await flush(10);
 
-    expect(mocks.fetchModels).toHaveBeenCalledWith(expect.objectContaining({
-      cache: 'no-store',
-      limit: 20,
-      offset: 20,
-    }));
+    expect(mocks.fetchModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cache: 'no-store',
+        limit: 20,
+        offset: 20,
+      })
+    );
     expect(document.body.textContent).toContain('Page 2 / 3');
     expect(document.body.textContent).toContain('21-40 of 42');
     expect(document.body.textContent).toContain('Model Three');

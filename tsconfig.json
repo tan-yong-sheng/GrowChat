@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2024",
+    "checkJs": true,
+    "allowJs": true,
+    "strict": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "skipLibCheck": true,
+    "lib": ["ES2024", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    "src/index.js",
+    "src/bootstrap/**/*.js",
+    "public/js/bootstrap/**/*.js",
+    "public/js/shared/**/*.js",
+    "public/js/features/account/**/*.js",
+    "public/js/features/admin/**/*.js",
+    "public/js/features/chat/**/*.js",
+    "tests/shared/**/*.js",
+    "playwright.config.ts",
+    "tests/e2e/frontend/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.js",
+    "src/utils/**/*.js",
+    "src/routers/**/*.js",
+    "src/llm/**/*.js",
+    "src/chat/**/*.js",
+    "src/services/**/*.js",
+    "tests/unit/**/*.js"
+  ]
+}

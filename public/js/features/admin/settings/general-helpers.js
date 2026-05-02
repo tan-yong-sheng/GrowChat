@@ -18,6 +18,9 @@ export function createGeneralSettingsState() {
   };
 }
 
+/**
+ * @param {boolean} publicRegistration
+ */
 export function getGeneralSettingsToggleState(publicRegistration) {
   const isOn = Boolean(publicRegistration);
   return {
@@ -25,6 +28,6 @@ export function getGeneralSettingsToggleState(publicRegistration) {
     ariaPressed: String(isOn),
     statusText: isOn ? 'On' : 'Off',
     toggleClass: isOn ? 'bg-black' : 'bg-gray-200',
-    knobTransform: isOn ? 'translateX(16px)' : 'translateX(0px)',
+    knobClass: isOn ? 'translate-x-4' : 'translate-x-0',
   };
 }

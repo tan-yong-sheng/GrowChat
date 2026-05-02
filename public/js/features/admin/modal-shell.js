@@ -258,10 +258,9 @@ export function buildAdminModalShellMarkup({
     closeAttr,
     rootAttrs,
   });
-  const zIndexStyle =
-    typeof config.zIndex === 'number' ? ` style="z-index: ${config.zIndex};"` : '';
+  const zIndexClass = typeof config.zIndex === 'number' ? `z-[${config.zIndex}]` : '';
   return `
-    <div class="${config.outerClass}"${zIndexStyle} ${config.rootAttrs}>
+    <div class="${config.outerClass} ${zIndexClass}" ${config.rootAttrs}>
       <div class="${config.overlayClass}"></div>
       <div class="${config.shellClass} ${config.widthClass}">
         <div class="${config.headerClass}" data-admin-modal-header>

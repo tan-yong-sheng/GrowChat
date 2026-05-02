@@ -100,7 +100,7 @@ export function renderChat(container) {
           </div>
         </div>
 
-        <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9]" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));"></div>
+        <div id="sidebar-footer" class="mt-auto w-full bg-[#f9f9f9] pb-[calc(1rem+env(safe-area-inset-bottom))]"></div>
       </aside>
 
       <main id="main" class="flex-grow flex flex-col relative min-w-0 bg-white h-full">

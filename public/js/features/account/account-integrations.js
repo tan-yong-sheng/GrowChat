@@ -763,7 +763,7 @@ export function renderAccountIntegrationsSection(
               </div>
               <hr class="border-gray-100/30 my-2" />
 
-              <div id="tool-servers-list" class="space-y-2 overflow-y-auto overflow-x-hidden pr-1" style="max-height: calc(100dvh - 20rem); scrollbar-gutter: stable;">
+              <div id="tool-servers-list" class="space-y-2 overflow-y-auto overflow-x-hidden pr-1 max-h-[calc(100dvh-20rem)] [scrollbar-gutter:stable]">
                 ${sectionState.loading ? renderLoadingSkeleton() : ''}
               </div>
             </section>

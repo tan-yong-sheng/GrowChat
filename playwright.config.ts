@@ -33,6 +33,11 @@ export default defineConfig({
       },
       testMatch: [/chat\.spec\.ts/, /admin-settings\.spec\.ts/],
     },
+    {
+      name: 'chromium-visual',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: [/button-responsive\.spec\.ts/],
+    },
   ],
   webServer: {
     command: 'python3 -m http.server 3007 --bind 127.0.0.1 --directory public',

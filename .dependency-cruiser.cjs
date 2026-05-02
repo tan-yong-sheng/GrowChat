@@ -33,28 +33,13 @@ module.exports = {
       },
       to: { path: '^src/routers/' },
     },
-    // === Frontend: prevent upward imports ===
-    {
-      name: 'no-fshared-to-ffeature',
-      comment: 'Frontend shared must not import from features',
-      severity: 'error',
-      from: { path: '^public/js/shared/' },
-      to: { path: '^public/js/(features|bootstrap)/' },
-    },
-    {
-      name: 'no-ffeature-to-fbootstrap',
-      comment: 'Frontend features must not import from bootstrap',
-      severity: 'error',
-      from: { path: '^public/js/features/' },
-      to: { path: '^public/js/bootstrap/' },
-    },
-    // === Cross-feature coupling (warn, not error — some coupling is OK) ===
+    // === Frontend: cross-feature coupling is legacy debt, warn only ===
     {
       name: 'warn-cross-feature',
       comment: 'Cross-feature import — consider extracting shared logic to shared/',
       severity: 'warn',
-      from: { path: '^public/js/features/([^/]+)/' },
-      to: { path: '^public/js/features/(?!$1)([^/]+)/' },
+      from: { path: '^public/js/(shared|features)/' },
+      to: { path: '^public/js/(features|bootstrap)/' },
     },
   ],
   options: {

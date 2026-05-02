@@ -25,8 +25,8 @@ export function renderAttachmentPills(attachments = [], align = 'end') {
       const fileId = String(file?.id || '');
       if (!fileId) return '';
       return `
-      <div class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden" style="max-width:120px; max-height:120px;">
-        <img data-attachment-image="${escapeHtml(fileId)}" alt="${escapeHtml(label)}" title="${escapeHtml(label)}" class="block h-auto w-auto object-contain bg-gray-100 transition-opacity duration-200" style="max-width:120px; max-height:120px;" loading="lazy" />
+      <div class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden max-w-[120px] max-h-[120px]">
+        <img data-attachment-image="${escapeHtml(fileId)}" alt="${escapeHtml(label)}" title="${escapeHtml(label)}" class="block h-auto w-auto object-contain bg-gray-100 transition-opacity duration-200 max-w-[120px] max-h-[120px]" loading="lazy" />
       </div>
     `;
     })
