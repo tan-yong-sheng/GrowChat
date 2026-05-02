@@ -9,6 +9,7 @@
     "noEmit": true,
     "noUnusedLocals": true,
     "skipLibCheck": true,
+    "types": ["node"],
     "lib": ["ES2024", "DOM", "DOM.Iterable"]
   },
   "include": ["playwright.config.ts", "tests/shared/**/*.js", "tests/e2e/frontend/visual/**/*.ts"]

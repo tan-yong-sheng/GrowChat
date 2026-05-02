@@ -30,7 +30,7 @@
     "setup:semgrep": "uv tool install semgrep",
     "lint:logic": "semgrep scan --config .semgrep/rules.yml",
     "lint:logic:scoped": "node scripts/run-scoped-guardrails.js --semgrep",
-    "lint:hygiene": "knip --include files,dependencies,binaries"
+    "lint:hygiene": "npx knip --include files,dependencies,binaries"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^20.5.0",
