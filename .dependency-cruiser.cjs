@@ -33,6 +33,14 @@ module.exports = {
       },
       to: { path: '^src/routers/' },
     },
+    // === Frontend: block browser code from depending on server code ===
+    {
+      name: 'no-frontend-to-src',
+      comment: 'Browser code must not depend on server modules',
+      severity: 'error',
+      from: { path: '^public/js/' },
+      to: { path: '^src/' },
+    },
     // === Frontend: cross-feature coupling is legacy debt, warn only ===
     {
       name: 'warn-cross-feature',

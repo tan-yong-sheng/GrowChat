@@ -19,3 +19,13 @@ rules:
     severity: ERROR
     languages:
       - javascript
+
+  - id: no-frontend-worker-env-access
+    pattern-regex: 'env\.(DB|CACHE|SESSIONS|CHAT_SESSIONS)'
+    paths:
+      include:
+        - '**/public/js/**/*'
+    message: 'Browser code must not touch worker env bindings. Keep D1/KV access server-side.'
+    severity: ERROR
+    languages:
+      - javascript

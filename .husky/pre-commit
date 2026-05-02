@@ -4,8 +4,4 @@ set -euo pipefail
 # Skip in CI
 if [ -n "${CI:-}" ]; then exit 0; fi
 
-# Run secret scan
-node scripts/secret-scan.cjs
-
-# Run lint-staged
-npx lint-staged
+npm run precommit
