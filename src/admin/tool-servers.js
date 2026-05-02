@@ -222,18 +222,24 @@ export async function loadToolServers(db, options = {}) {
         const hiddenTools = new Set(
           hiddenToolIdsByServer?.[String(server.id || '').trim()]?.hidden_ids || []
         );
-        return applyToolVisibility(
-          {
-            ...server,
-            access_label: access.access_label,
-            access_variant: access.access_variant,
-            visible_for_user: !hiddenForUser,
-            hidden_for_user: hiddenForUser,
-          },
-          hiddenTools
-        );
+        return {
+          ...applyToolVisibility(
+            {
+              ...server,
+              access_label: access.access_label,
+              access_variant: access.access_variant,
+              visible_for_user: !hiddenForUser,
+              hidden_for_user: hiddenForUser,
+            },
+            hiddenTools
+          ),
+          access_allowed: access.allowed,
+        };
       })
-      .filter((server) => includeHiddenForUser || server.visible_for_user);
+      .filter(
+        (server) => includeHiddenForUser || (server.access_allowed && server.visible_for_user)
+      )
+      .map(({ access_allowed, ...server }) => server);
 
     return [...adminServers, ...userServers];
   } catch {

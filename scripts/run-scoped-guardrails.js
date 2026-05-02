@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    stdio: 'inherit',
+    shell: false,
+    ...options,
+  });
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
+function getBaseRef() {
+  const candidates = ['main', 'origin/main', 'master'];
+  for (const ref of candidates) {
+    const result = spawnSync('git', ['merge-base', 'HEAD', ref], {
+      encoding: 'utf8',
+      shell: false,
+    });
+    if (result.status === 0) {
+      return result.stdout.trim();
+    }
+  }
+  const fallback = spawnSync('git', ['rev-parse', 'HEAD~1'], {
+    encoding: 'utf8',
+    shell: false,
+  });
+  if (fallback.status === 0) {
+    return fallback.stdout.trim();
+  }
+  throw new Error('Unable to resolve merge base for scoped guardrails');
+}
+
+function getChangedFiles(baseRef) {
+  const result = spawnSync(
+    'git',
+    ['diff', '--name-only', '--diff-filter=ACMR', `${baseRef}...HEAD`],
+    { encoding: 'utf8', shell: false }
+  );
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+  return result.stdout
+    .split(/\r?\n/)
+    .map((file) => file.trim())
+    .filter(Boolean)
+    .filter((file) => /\.(?:js|mjs|cjs|ts|tsx)$/.test(file));
+}
+
+const baseRef = getBaseRef();
+const files = getChangedFiles(baseRef);
+
+if (files.length === 0) {
+  process.exit(0);
+}
+
+if (process.argv.includes('--prettier')) {
+  run('npx', ['prettier', '--check', ...files]);
+}
+
+if (process.argv.includes('--depcruise')) {
+  const jsFiles = files.filter((file) => /\.(?:js|mjs|cjs)$/.test(file));
+  if (jsFiles.length > 0) {
+    run('npx', ['depcruise', ...jsFiles, '--config', '.dependency-cruiser.cjs']);
+  }
+}
+
+if (process.argv.includes('--semgrep')) {
+  const semgrepFiles = files.filter((file) => /\.(?:js|mjs|cjs)$/.test(file));
+  if (semgrepFiles.length > 0) {
+    run('semgrep', ['scan', '--config', '.semgrep/rules.yml', '--error', ...semgrepFiles]);
+  }
+}

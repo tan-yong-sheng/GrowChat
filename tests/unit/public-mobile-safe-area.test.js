@@ -16,7 +16,7 @@ describe('mobile safe-area shell', () => {
     const chat = readText('../../public/js/features/chat/chat.js');
 
     expect(chat).toContain('h-[100dvh] md:h-[100dvh]');
-    expect(chat).toContain('padding-bottom: calc(1rem + env(safe-area-inset-bottom));');
+    expect(chat).toContain('pb-[calc(1rem+env(safe-area-inset-bottom))]');
   });
 
   it('uses the dynamic viewport and safe-area footer padding in the admin shell', () => {

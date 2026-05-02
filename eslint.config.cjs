@@ -2,6 +2,7 @@
 const js = require('@eslint/js');
 const globals = require('globals');
 const boundariesPlugin = require('eslint-plugin-boundaries');
+const tailwindcssPlugin = require('eslint-plugin-tailwindcss');
 
 module.exports = [
   js.configs.recommended,
@@ -9,6 +10,7 @@ module.exports = [
   {
     plugins: {
       boundaries: boundariesPlugin,
+      tailwindcss: tailwindcssPlugin,
     },
     settings: {
       // Only analyze static deps (skip dynamic import())
@@ -38,6 +40,9 @@ module.exports = [
       ],
     },
     rules: {
+      'tailwindcss/classnames-order': 'warn',
+      'tailwindcss/enforces-shorthand': 'warn',
+      'tailwindcss/no-contradicting-classname': 'error',
       // Prevent upward imports — permissive: allow everything, disallow only known-bad
       'boundaries/dependencies': [
         2,

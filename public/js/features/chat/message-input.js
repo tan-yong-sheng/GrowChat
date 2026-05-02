@@ -49,7 +49,7 @@ export function renderMessageInput(container, onSend) {
          <input type="file" id="attachment-input" class="hidden" multiple accept="image/*,application/pdf,text/*" />
          <input type="file" id="camera-input" class="hidden" accept="image/*" capture="environment" />
        </div>
-       <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[16px] px-2 py-2.5 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800" style="height: 44px;" aria-label="Message text. Press Ctrl+Enter or Cmd+Enter to send, or Shift+Enter for new line"></textarea>
+       <textarea id="message-input" rows="1" placeholder="Message GrowChat" class="flex-grow bg-transparent border-none focus:ring-0 text-[16px] px-2 py-2.5 h-11 max-h-[200px] resize-none overflow-y-auto no-scrollbar text-gray-800" aria-label="Message text. Press Ctrl+Enter or Cmd+Enter to send, or Shift+Enter for new line"></textarea>
        <div class="flex-shrink-0 flex items-center mb-1 mr-1 gap-1 relative">
          <div id="loading-spinner" class="hidden absolute inset-0 bg-[#f4f4f4] items-center justify-center rounded-full transition-all z-10" aria-live="polite">
             <div class="w-4 h-4 border-2 border-gray-400 border-t-black rounded-full animate-spin"></div>

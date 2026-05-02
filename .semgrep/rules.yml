@@ -1,0 +1,21 @@
+rules:
+  - id: no-inline-style-attributes-in-feature-code
+    pattern-regex: 'style\s*=\s*["\x27`]'
+    paths:
+      include:
+        - '**/public/js/features/**/*'
+    message: 'Inline style attributes bypass Tailwind guardrails. Use utility classes instead.'
+    severity: ERROR
+    languages:
+      - javascript
+
+  - id: no-ad-hoc-media-queries-in-feature-code
+    pattern-regex: '@media\s*\('
+    paths:
+      include:
+        - '**/public/js/features/**/*'
+        - '**/src/features/**/*'
+    message: 'Custom media queries in feature code bypass Tailwind responsive prefixes.'
+    severity: ERROR
+    languages:
+      - javascript

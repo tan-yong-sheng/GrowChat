@@ -41,7 +41,8 @@ export function renderGeneralSettings(container, data) {
     regToggle.classList.toggle('bg-gray-200', !toggleState.isOn);
     const knob = regToggle.querySelector('span');
     if (knob) {
-      knob.style.transform = toggleState.knobTransform;
+      knob.classList.toggle('translate-x-4', toggleState.isOn);
+      knob.classList.toggle('translate-x-0', !toggleState.isOn);
     }
     const status = container.querySelector('#public-reg-status');
     if (status) status.textContent = toggleState.statusText;
@@ -98,7 +99,7 @@ export function renderGeneralSettings(container, data) {
                   <div id="public-reg-status" class="text-[10px] text-gray-700">${toggleState.statusText}</div>
                 </div>
                 <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${toggleState.toggleClass}">
-                  <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${toggleState.knobTransform};"></span>
+                  <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toggleState.knobClass}"></span>
                 </button>
               </div>
 

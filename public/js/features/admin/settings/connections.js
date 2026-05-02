@@ -504,7 +504,7 @@ export function renderConnectionsSettings(container, data) {
       </div>
 
       <!-- Edit Connection Modal -->
-      <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} ${connectionsState.showModal ? '' : 'hidden'}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};">
+      <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} ${connectionsState.showModal ? '' : 'hidden'} z-[${STANDARD_MODAL_PRESET.zIndex}]">
         <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-gray-50">

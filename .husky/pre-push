@@ -4,5 +4,11 @@ set -euo pipefail
 # Skip in CI
 if [ -n "${CI:-}" ]; then exit 0; fi
 
-# Run tests
+echo "Running scoped vibe guardrails..."
+
 npm run test
+npm run typecheck
+npm run lint:logic:scoped
+npm run arch:check:scoped
+npm run format:check:scoped
+npm run lint:hygiene

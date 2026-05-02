@@ -200,8 +200,7 @@ export function syncModelsTableState(
         </td>
       </tr>
     `;
-  const fragment = document.createRange().createContextualFragment(body);
-  tbody.replaceChildren(fragment);
+  tbody.innerHTML = body;
 }
 
 export function syncModelsPaginationState(

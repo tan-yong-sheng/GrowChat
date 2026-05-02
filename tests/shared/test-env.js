@@ -4,6 +4,17 @@ import path from "node:path";
 const DEFAULT_TEST_URL = "http://127.0.0.1:8787";
 const PLAYWRIGHT_AUTH_STATE_PATH = path.join(".playwright", "auth-state.json");
 
+/**
+ * @typedef {{
+ * 	origin?: string,
+ * 	authState?: unknown,
+ * 	includeDefaultModelId?: boolean,
+ * }} TestStorageStateOptions
+ */
+
+/**
+ * @param {string | null | undefined} value
+ */
 function normalizeTestUrl(value) {
 	const raw = String(value ?? "").trim();
 	if (!raw) return DEFAULT_TEST_URL;
@@ -25,11 +36,13 @@ export function resolveTestOrigin() {
 export const TEST_JWT =
 	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsInN1YiI6IjEiLCJuYW1lIjoiVGVzdCJ9.signature";
 
-export function createTestStorageState({
-	origin = resolveTestOrigin(),
-	authState,
-	includeDefaultModelId = true,
-} = {}) {
+export function createTestStorageState(options = {}) {
+	const typedOptions = /** @type {TestStorageStateOptions} */ (options);
+	const {
+		origin = resolveTestOrigin(),
+		authState,
+		includeDefaultModelId = true,
+	} = typedOptions;
 	if (!authState) {
 		throw new Error("authState is required to create Playwright storageState");
 	}
