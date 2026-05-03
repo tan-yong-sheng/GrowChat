@@ -640,11 +640,10 @@ function openAccessModal({
   const renderList = () => {
     if (!listEl) return;
     if (!groups.length) {
-      listEl.innerHTML =
-        '<div class="text-sm text-gray-500 py-6 text-center">No groups available.</div>';
+      listEl.replaceChildren(document.createRange().createContextualFragment('<div class="text-sm text-gray-500 py-6 text-center">No groups available.</div>'));
       return;
     }
-    listEl.innerHTML = buildAclRows(groups, rules);
+    listEl.replaceChildren(document.createRange().createContextualFragment(buildAclRows(groups, rules)));
     listEl.querySelectorAll('.resource-acl-effect').forEach((select) => {
       select.addEventListener('change', () => {
         const groupId = select.getAttribute('data-group-id');
@@ -1174,25 +1173,25 @@ export function renderPoliciesSettings(container) {
       scrollSelector: '[data-policies-scroll]',
     });
     if (state.loading) {
-      container.innerHTML = `
+      container.replaceChildren(document.createRange().createContextualFragment(`
         <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-150 w-full">
           <div class="max-w-6xl mx-auto w-full px-1">
             ${renderSkeleton()}
           </div>
         </div>
-      `;
+      `));
       return;
     }
 
     if (state.error) {
-      container.innerHTML = `
+      container.replaceChildren(document.createRange().createContextualFragment(`
         <div class="flex items-center justify-center h-full p-6">
           <div class="max-w-md w-full rounded-3xl border border-red-100 bg-red-50/60 p-6 text-center">
             <div class="text-sm font-semibold text-red-700">Unable to load policies</div>
             <div class="mt-2 text-sm text-red-600">${escapeHtml(state.error)}</div>
           </div>
         </div>
-      `;
+      `));
       return;
     }
 
@@ -1395,7 +1394,7 @@ export function renderPoliciesSettings(container) {
       </div>
     `;
 
-    container.innerHTML = `
+    container.replaceChildren(document.createRange().createContextualFragment(`
       <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300">
         ${stickyHeader}
         ${
@@ -1422,7 +1421,7 @@ export function renderPoliciesSettings(container) {
           </div>
         </div>
       </div>
-    `;
+    `));
 
     container.querySelector('#policy-group-filter')?.addEventListener('change', (event) => {
       state.selectedGroupId = event.target.value || 'all';

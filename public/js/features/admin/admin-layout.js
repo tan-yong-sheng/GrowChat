@@ -42,12 +42,21 @@ export function renderSettingsSkeleton() {
   `;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function renderErrorState(message) {
   return `
     <div class="flex items-center justify-center h-full ${ADMIN_SHELL_BODY_PADDING_CLASS} p-6">
       <div class="max-w-md w-full rounded-3xl border border-red-100 bg-red-50/60 p-6 text-center">
         <div class="text-sm font-semibold text-red-700">Unable to load admin content</div>
-        <div class="mt-2 text-sm text-red-600">${message}</div>
+        <div class="mt-2 text-sm text-red-600">${escapeHtml(message)}</div>
       </div>
     </div>
   `;

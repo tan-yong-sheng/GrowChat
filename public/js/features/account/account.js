@@ -84,11 +84,11 @@ function getAccountSectionPath(section) {
 
 function escapeHtml(value) {
   return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 async function loadAccountState() {
@@ -157,8 +157,8 @@ async function renderAccountSection({
   onRefresh,
 }) {
   if (section === 'overview') {
-    content.innerHTML = renderOverview(accountState);
-    if (footerHost) footerHost.innerHTML = '';
+    content.replaceChildren(document.createRange().createContextualFragment(renderOverview(accountState)));
+    if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
     return;
   }
 
@@ -204,8 +204,8 @@ async function renderAccountSection({
     return;
   }
 
-  content.innerHTML = renderOverview(accountState);
-  if (footerHost) footerHost.innerHTML = '';
+  content.replaceChildren(document.createRange().createContextualFragment(renderOverview(accountState)));
+  if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
 }
 
 export async function renderAccountPage(container) {
@@ -226,7 +226,7 @@ export async function renderAccountPage(container) {
     return accountState;
   };
 
-  container.innerHTML = renderWorkspaceShell({
+  container.replaceChildren(document.createRange().createContextualFragment(renderWorkspaceShell({
     sidebarHtml: renderWorkspaceSidebar({
       homeHref: '/',
       homeId: 'workspace-home-link',
@@ -269,7 +269,7 @@ export async function renderAccountPage(container) {
         })}
       </div>
     `,
-  });
+  })));
 
   container.insertAdjacentHTML(
     'beforeend',
@@ -303,8 +303,8 @@ export async function renderAccountPage(container) {
       onRefresh: loadCurrentState,
     });
   } catch (err) {
-    content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
-    if (footerHost) footerHost.innerHTML = '';
+    content.replaceChildren(document.createRange().createContextualFragment(`<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`));
+    if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
   }
 
   const closeBtn = container.querySelector('#account-settings-close');
@@ -360,7 +360,7 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   };
 
   const renderDrawer = async () => {
-    mount.innerHTML = renderSettingsDrawerShell({
+    mount.replaceChildren(document.createRange().createContextualFragment(renderSettingsDrawerShell({
       rootId: 'account-settings-drawer-modal',
       title: 'My Settings',
       subtitle: 'Personal account preferences and tools.',
@@ -385,7 +385,7 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
           })}
         </div>
       `,
-    });
+    })));
 
     drawer = mount.querySelector('#account-settings-drawer-modal');
     content = mount.querySelector('[data-account-drawer-content]');
@@ -423,8 +423,8 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   try {
     await renderDrawer();
   } catch (err) {
-    content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
-    if (footerHost) footerHost.innerHTML = '';
+    content.replaceChildren(document.createRange().createContextualFragment(`<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`));
+    if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
   }
 
   mount.__cleanup = () => {

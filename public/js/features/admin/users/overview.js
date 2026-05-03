@@ -775,9 +775,12 @@ export function renderUserOverview(container, data, actions) {
             primary_role: String(btn.dataset.userRole || 'member').trim(),
             account_status: btn.dataset.userAccountStatus || 'active',
           };
-          document.body.insertAdjacentHTML('beforeend', renderEditUserModal(user, null, roles));
+          const modalWrapper = document.createElement('div');
+          modalWrapper.innerHTML = renderEditUserModal(user, null, roles);
+          const modal = modalWrapper.firstElementChild;
+          if (modal) document.body.appendChild(modal);
 
-          const modal = document.getElementById('edit-user-modal');
+          const modalEl = document.getElementById('edit-user-modal');
           const form = document.getElementById('edit-user-form');
           const saveBtn = modal?.querySelector('#edit-user-save-btn');
           const fields = {

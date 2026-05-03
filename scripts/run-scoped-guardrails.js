@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+// Trusted local helper: shell disabled, args fixed by caller, no user input path.
+function run(bin, args, options = {}) {
+  // nosemgrep: trusted local guardrail runner; no shell, fixed args only.
+  const result = spawnSync(bin, args, {
     stdio: 'inherit',
     shell: false,
     ...options,

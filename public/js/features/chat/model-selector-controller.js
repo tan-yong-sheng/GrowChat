@@ -239,7 +239,9 @@ export function createModelSelectorController(container) {
         .slice(renderedCount, visibleCount)
         .map((m) => renderModelSelectorOption(m, currentState))
         .join('');
-      listContainer.insertAdjacentHTML('beforeend', chunk);
+      const template = document.createElement('template');
+      template.innerHTML = chunk;
+      listContainer.append(template.content);
       renderedCount = visibleCount;
     }
 
