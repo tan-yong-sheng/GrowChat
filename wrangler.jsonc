@@ -67,6 +67,6 @@
     "APP_NAME": "GrowChat",
     "ENVIRONMENT": "dev",
     "EMAIL_PROVIDER": "resend",
-    "ALLOWED_ORIGINS": "http://localhost:8787,http://127.0.0.1:8787,https://growchat.tanyongsheng-net.workers.dev,https://chat.tanyongsheng.qzz.io",
+    "ALLOWED_ORIGINS": "http://localhost:8787,http://127.0.0.1:8787,http://localhost:8788,http://127.0.0.1:8788,https://growchat.tanyongsheng-net.workers.dev,https://chat.tanyongsheng.qzz.io",
   },
 }
