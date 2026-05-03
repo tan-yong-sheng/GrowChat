@@ -1,4 +1,4 @@
-name: Guardrails
+name: Main branch gate
 
 on:
   pull_request:
@@ -24,11 +24,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Format check
-        run: npm run format:check
-
-      - name: Test
-        run: npm run test
+      - name: Pre-push gate
+        run: npm run prepush
