@@ -58,3 +58,33 @@ rules:
     severity: ERROR
     languages:
       - javascript
+
+  - id: no-raw-model-access-badge-markup-in-model-settings-features
+    pattern-regex: '<span[^>]*data-model-access\s*=\s*["\x27`][^"\x27`]+["\x27`][^>]*class\s*=\s*["\x27`][^"\x27`]*inline-flex items-center rounded-full border px-2 py-0\.5 text-\[10px\] font-semibold uppercase tracking-wide[^"\x27`]*["\x27`]'
+    paths:
+      include:
+        - '**/public/js/features/account/account-models.js'
+        - '**/public/js/features/admin/settings/models.js'
+      exclude:
+        - '**/public/js/shared/components/model-access-badge.js'
+        - '**/*.test.js'
+        - '**/*.spec.js'
+    message: 'Raw model access badge markup bypasses renderModelAccessBadgeForModel(). Use shared model access badge component.'
+    severity: ERROR
+    languages:
+      - javascript
+
+  - id: no-direct-model-access-presentation-in-model-settings-features
+    pattern-regex: 'getModelAccessPresentation\s*\('
+    paths:
+      include:
+        - '**/public/js/features/account/account-models.js'
+        - '**/public/js/features/admin/settings/models.js'
+      exclude:
+        - '**/public/js/shared/components/model-access-badge.js'
+        - '**/*.test.js'
+        - '**/*.spec.js'
+    message: 'Do not call getModelAccessPresentation() directly in model settings feature pages. Use renderModelAccessBadgeForModel() component helper.'
+    severity: ERROR
+    languages:
+      - javascript

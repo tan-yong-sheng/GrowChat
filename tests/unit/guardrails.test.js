@@ -145,4 +145,49 @@ describe('guardrail fixtures', () => {
 
     expect(goodResult.status).toBe(0);
   }, 20000);
+
+  it('rejects raw model access badge markup in account/admin model settings pages', () => {
+    const fixtureRoot = makeFixtureRoot();
+    writeFixture(
+      fixtureRoot,
+      'public/js/features/account/account-models.js',
+      [
+        'export const row = `<span data-model-access="gpt-4" class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border-gray-200 bg-gray-50 text-gray-600">Shared</span>`;',
+      ].join('\n') + '\n'
+    );
+
+    const result = run(
+      'semgrep',
+      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/account/account-models.js'],
+      fixtureRoot
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+      'no-raw-model-access-badge-markup-in-model-settings-features'
+    );
+  }, 20000);
+
+  it('rejects direct getModelAccessPresentation usage in model settings pages', () => {
+    const fixtureRoot = makeFixtureRoot();
+    writeFixture(
+      fixtureRoot,
+      'public/js/features/admin/settings/models.js',
+      [
+        "import { getModelAccessPresentation } from '../../../shared/utils/model-access-presentation.js';",
+        'export const render = (model) => getModelAccessPresentation(model);',
+      ].join('\n') + '\n'
+    );
+
+    const result = run(
+      'semgrep',
+      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/admin/settings/models.js'],
+      fixtureRoot
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+      'no-direct-model-access-presentation-in-model-settings-features'
+    );
+  }, 20000);
 });
