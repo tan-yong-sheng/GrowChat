@@ -2,8 +2,8 @@ import { apiFetch, fetchModels } from '../../shared/api.js';
 import { buildProviderOptions } from '../../shared/utils/model-filters.js';
 import { normalizeModelSearchQuery } from '../../shared/utils/model-search.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
-import { getModelAccessPresentation } from '../../shared/utils/model-access-presentation.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
+import { renderModelAccessBadgeForModel } from '../../shared/components/model-access-badge.js';
 import {
   renderModelsHeaderHtml,
   renderModelsPaginationHtml,
@@ -107,10 +107,6 @@ function renderLoadingRows() {
 
 function renderModelRow(model) {
   const enabled = model.enabled !== false;
-  const access = getModelAccessPresentation(model, {
-    sharedLabel: 'Admin',
-    sharedClassName: 'border-sky-100 bg-sky-50 text-sky-700',
-  });
   const toggleClass = `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enabled ? 'bg-black' : 'bg-gray-200'}`;
   return `
     <tr data-model-row="${escapeHtml(model.id)}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${enabled ? '' : 'bg-gray-50/80 opacity-70'}">
@@ -118,12 +114,10 @@ function renderModelRow(model) {
       <td class="px-4 py-4 text-gray-500 font-mono truncate ${enabled ? '' : 'text-gray-400'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
       <td class="px-4 py-4">
         <div class="flex items-center gap-2">
-          <span
-            data-model-access="${escapeHtml(model.id)}"
-            class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${access.className}"
-          >
-            ${escapeHtml(access.label)}
-          </span>
+          ${renderModelAccessBadgeForModel(model, {
+            sharedLabel: 'Admin',
+            sharedClassName: 'border-sky-100 bg-sky-50 text-sky-700',
+          }).trim()}
         </div>
       </td>
       <td class="px-4 py-4 text-right">

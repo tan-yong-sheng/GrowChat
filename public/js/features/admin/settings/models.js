@@ -7,8 +7,8 @@ import {
   filterModelsBySearchAndProvider,
 } from '../../../shared/utils/model-filters.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
-import { getModelAccessPresentation } from '../../../shared/utils/model-access-presentation.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
+import { renderModelAccessBadgeForModel } from '../../../shared/components/model-access-badge.js';
 import {
   renderModelsHeaderHtml,
   renderModelsPaginationHtml,
@@ -253,19 +253,13 @@ export function renderModelsSettings(container, data) {
           ? ''
           : filteredModels
               .map((model) => {
-                const access = getModelAccessPresentation(model);
                 return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
                       <td class="px-4 py-4 text-gray-400 font-mono truncate" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
-                          <span
-                            data-model-access="${escapeHtml(model.id)}"
-                            class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${access.className}"
-                          >
-                            ${escapeHtml(access.label)}
-                          </span>
+                          ${renderModelAccessBadgeForModel(model).trim()}
                         </div>
                       </td>
                       <td class="px-4 py-4 text-right">
@@ -671,7 +665,6 @@ export function renderModelsSettings(container, data) {
         ? ''
         : filteredModels
             .map((model) => {
-              const access = getModelAccessPresentation(model);
               const isDisabled = modelsState.disabledModels.has(model.id);
               return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
@@ -679,12 +672,7 @@ export function renderModelsSettings(container, data) {
                       <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
-                          <span
-                            data-model-access="${escapeHtml(model.id)}"
-                            class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${access.className}"
-                          >
-                            ${escapeHtml(access.label)}
-                          </span>
+                          ${renderModelAccessBadgeForModel(model).trim()}
                         </div>
                       </td>
                       <td class="px-4 py-4 text-right">
