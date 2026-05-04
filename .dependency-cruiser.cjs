@@ -33,13 +33,27 @@ module.exports = {
       },
       to: { path: '^src/routers/' },
     },
+    {
+      name: 'no-router-to-legacy-role-helpers',
+      comment: 'Routers must depend on role-policy or authorize, not legacy role helper shims',
+      severity: 'error',
+      from: { path: '^src/routers/' },
+      to: { path: '^src/utils/(admin|rbac)\\.js$' },
+    },
+    {
+      name: 'no-validation-to-legacy-email-helper',
+      comment: 'Validation helpers must not depend on the legacy email helper shim',
+      severity: 'error',
+      from: { path: '^src/validation/' },
+      to: { path: '^src/utils/rbac\\.js$' },
+    },
     // === Frontend: block browser code from depending on server code ===
     {
       name: 'no-frontend-to-src',
       comment: 'Browser code must not depend on server modules',
       severity: 'error',
-      from: { path: '^public/js/' },
-      to: { path: '^src/' },
+      from: { path: '(^|[\\/])public[\\/]js[\\/]' },
+      to: { path: '(^|[\\/])src[\\/]' },
     },
     // === Frontend: cross-feature coupling is legacy debt, warn only ===
     {

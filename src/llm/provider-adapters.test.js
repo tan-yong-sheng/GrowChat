@@ -166,7 +166,7 @@ describe('llm-provider-adapters', () => {
   it('normalizes Anthropic proxy base URLs without /v1', () => {
     const result = buildProviderRequest({
       providerFamily: 'anthropic',
-      baseUrl: 'https://proxy.tanyongsheng.site',
+      baseUrl: 'https://localhost:11434',
       modelId: 'deepseek-v3.2',
       messages: [{ role: 'user', content: 'Hello' }],
       options: {},
@@ -174,6 +174,6 @@ describe('llm-provider-adapters', () => {
       normalizeToolParameters,
     });
 
-    expect(result.url).toBe('https://proxy.tanyongsheng.site/v1/messages');
+    expect(result.url).toBe('https://localhost:11434/v1/messages');
   });
 });

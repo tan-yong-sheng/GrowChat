@@ -148,7 +148,7 @@ describe('adminRouter openai connections', () => {
       {
         id: 'conn-1',
         name: 'Proxy',
-        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        baseUrl: 'http://localhost:11434/v1',
         key: 'stored-key',
         authType: 'x-api-key',
         providerType: 'openai',
@@ -159,7 +159,7 @@ describe('adminRouter openai connections', () => {
     mocks.buildConnectionHeaders.mockReturnValueOnce({ 'x-api-key': 'typed-key' });
     mocks.discoverConnectionModels.mockResolvedValueOnce({
       items: [{ id: 'deepseek-v3.1' }],
-      url: 'http://proxy.tanyongsheng.site/v1/models',
+      url: 'http://localhost:11434/v1/models',
     });
 
     const res = await adminRouter(
@@ -169,7 +169,7 @@ describe('adminRouter openai connections', () => {
         body: JSON.stringify({
           id: 'conn-1',
           providerType: 'openai',
-          url: 'http://proxy.tanyongsheng.site/v1',
+          url: 'http://localhost:11434/v1',
           key: 'typed-key',
           headers: '{}',
         }),
@@ -199,7 +199,7 @@ describe('adminRouter openai connections', () => {
       {
         id: 'conn-1',
         name: 'Proxy',
-        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        baseUrl: 'http://localhost:11434/v1',
         key: 'stored-key',
         authType: 'x-api-key',
         providerType: 'openai',
@@ -210,7 +210,7 @@ describe('adminRouter openai connections', () => {
     mocks.buildConnectionHeaders.mockReturnValueOnce({ 'x-api-key': 'stored-key' });
     mocks.discoverConnectionModels.mockResolvedValueOnce({
       items: [{ id: 'deepseek-v3.1' }],
-      url: 'http://proxy.tanyongsheng.site/v1/models',
+      url: 'http://localhost:11434/v1/models',
     });
 
     const res = await adminRouter(
@@ -220,7 +220,7 @@ describe('adminRouter openai connections', () => {
         body: JSON.stringify({
           id: 'conn-1',
           providerType: 'openai',
-          url: 'http://proxy.tanyongsheng.site/v1',
+          url: 'http://localhost:11434/v1',
           key: '',
           headers: '{}',
         }),

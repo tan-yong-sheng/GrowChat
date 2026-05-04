@@ -35,6 +35,19 @@ export function createChatMessageDom({
     if (forceError) {
       el.dataset.messageError = '1';
     }
+
+    if (isStreaming) {
+      const selection = document.getSelection?.();
+      const anchorNode = selection?.anchorNode || null;
+      const focusNode = selection?.focusNode || null;
+      const hasActiveSelection =
+        Boolean(selection && !selection.isCollapsed) &&
+        ((anchorNode && el.contains(anchorNode)) || (focusNode && el.contains(focusNode)));
+      if (hasActiveSelection) {
+        return true;
+      }
+    }
+
     el.innerHTML = renderAssistantMessageBody({
       messageId,
       content,

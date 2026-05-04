@@ -1,6 +1,5 @@
 import { state, setState, subscribe } from '../store.js';
 import { renderSidebar } from './sidebar.js';
-import { createUserProfileFooter } from './user-profile-footer.js';
 
 export function renderWorkspaceSidebar({
   homeHref = '/',
@@ -66,7 +65,6 @@ export function wireWorkspaceSidebar(
     showFilesModal = true,
     searchModalContainerSelector = '#search-modal-container',
     filesModalContainerSelector = '#files-modal-container',
-    footerId = 'sidebar-footer',
   } = {}
 ) {
   const newChatBtn = root.querySelector('#new-chat');
@@ -78,17 +76,8 @@ export function wireWorkspaceSidebar(
   const openSearchBtn = root.querySelector('#open-search');
   const searchModalContainer = root.querySelector(searchModalContainerSelector);
   const filesModalContainer = root.querySelector(filesModalContainerSelector);
-  const footerMount = root.querySelector(`#${footerId}`);
 
   const destroySidebar = renderSidebar(sidebar, root);
-
-  createUserProfileFooter({ guardNavigation }).then((footer) => {
-    if (footerMount) {
-      footerMount.replaceChildren(footer);
-    } else {
-      sidebar.appendChild(footer);
-    }
-  });
 
   const navigateToHome = async () => {
     if (typeof navigateHome === 'function') {

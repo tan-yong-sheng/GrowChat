@@ -1,3 +1,5 @@
+import { renderButton } from './button.js';
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -32,11 +34,14 @@ export function renderSearchBarHtml({
         value="${escapeHtml(value)}"
       >
       <div id="${escapeHtml(clearId)}" class="${clearHidden ? 'hidden' : ''} ml-1.5">
-        <button type="button" id="${escapeHtml(clearButtonId || `${clearId}-btn`)}" class="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-gray-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white" aria-label="Clear search">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-3">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        ${renderButton({
+          label: '×',
+          type: 'button',
+          variant: 'ghost',
+          className:
+            'inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-gray-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+          ariaLabel: 'Clear search',
+        })}
       </div>
     </div>
   `;

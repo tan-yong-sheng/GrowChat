@@ -268,7 +268,7 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
       if (!discovery.items.length) {
         const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
         if (!shouldSuppressDiscoveryWarning(conn, discovery)) {
-          console.warn(`Model discovery failed for ${conn.baseUrl}: ${errorLabel}`);
+          console.warn('Model discovery failed', { baseUrl: conn.baseUrl, errorLabel });
         }
         continue;
       }
@@ -302,7 +302,7 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         });
       }
     } catch (err) {
-      console.warn(`Model discovery error for ${conn.baseUrl}:`, err?.message || err);
+      console.warn('Model discovery error', { baseUrl: conn.baseUrl, error: err?.message || err });
     }
   }
 

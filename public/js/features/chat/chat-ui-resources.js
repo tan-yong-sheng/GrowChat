@@ -2,6 +2,7 @@ import {
   clearAttachmentCache as clearAttachmentCacheHelper,
   touchAttachmentCache as touchAttachmentCacheHelper,
 } from '../../shared/utils/chat-cache.js';
+import { mountSidebarFooter } from '../../shared/components/sidebar-footer-mount.js';
 
 export function createChatUiResources({
   state,
@@ -37,16 +38,7 @@ export function createChatUiResources({
     const run = () => {
       loadUserProfileFooterModule()
         .then(({ createUserProfileFooter }) => createUserProfileFooter())
-        .then((footer) => {
-          if (!footer) return;
-          const footerMount = root.querySelector('#sidebar-footer');
-          if (footerMount) {
-            footerMount.replaceChildren(footer);
-          } else {
-            const sidebar = root.querySelector('#sidebar');
-            if (sidebar) sidebar.appendChild(footer);
-          }
-        })
+        .then((footer) => mountSidebarFooter(root, footer))
         .catch(() => {});
     };
 

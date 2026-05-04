@@ -1,5 +1,4 @@
 import { ValidationError } from '../errors/http-errors.js';
-import { isValidEmail } from '../utils/rbac.js';
 
 export function parseJsonBody(req) {
   return req.json().catch(() => {
@@ -91,6 +90,12 @@ export function parsePagination(
           allowZero: true,
         });
   return { limit, offset };
+}
+
+export function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 }
 
 export function validateEmail(value, message = 'Invalid email format') {

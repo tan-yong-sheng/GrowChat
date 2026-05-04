@@ -1,5 +1,5 @@
-REFACTOR_*.md
-
+ssemgrep-runtime.json
+reports/
 .pi-lens/
 ai/
 open-webui/

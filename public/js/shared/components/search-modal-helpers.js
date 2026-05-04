@@ -10,14 +10,33 @@ function escapeHtml(text) {
 }
 
 export function highlightText(text, query) {
-  if (!query) return escapeHtml(text);
+  const escapedText = escapeHtml(text);
+  if (!query) return escapedText;
+
   const pureQuery = query.replace(/(pinned|shared|archived):\S*/gi, '').trim();
-  if (!pureQuery) return escapeHtml(text);
-  const regex = new RegExp(`(${pureQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  return escapeHtml(text).replace(
-    regex,
-    '<span class="bg-yellow-200 text-yellow-900 rounded-sm">$1</span>'
-  );
+  if (!pureQuery) return escapedText;
+
+  const needle = pureQuery.toLowerCase();
+  const haystack = escapedText.toLowerCase();
+  let result = '';
+  let start = 0;
+
+  while (true) {
+    const matchIndex = haystack.indexOf(needle, start);
+    if (matchIndex === -1) {
+      result += escapedText.slice(start);
+      break;
+    }
+
+    result += escapedText.slice(start, matchIndex);
+    result += `<span class="bg-yellow-200 text-yellow-900 rounded-sm">${escapedText.slice(
+      matchIndex,
+      matchIndex + needle.length
+    )}</span>`;
+    start = matchIndex + needle.length;
+  }
+
+  return result;
 }
 
 export function normalizeBackendQuery(query) {

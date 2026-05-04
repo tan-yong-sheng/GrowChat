@@ -88,3 +88,23 @@ rules:
     severity: ERROR
     languages:
       - javascript
+
+  - id: no-inline-role-checks-in-routers
+    pattern-either:
+      - pattern: if ($USER.primary_role === 'admin') { $$$BODY }
+      - pattern: if ($USER.primary_role === "admin") { $$$BODY }
+      - pattern: if ($ROLES.includes($USER.primary_role)) { $$$BODY }
+      - pattern: if ($ROLES.includes($USER?.primary_role)) { $$$BODY }
+    paths:
+      include:
+        - 'src/routers/**/*.js'
+      exclude:
+        - 'src/utils/role-policy.js'
+        - 'src/utils/admin.js'
+        - 'src/utils/rbac.js'
+        - '**/*.test.js'
+        - '**/*.spec.js'
+    message: 'Routers must not embed role checks. Use role-policy helpers or authorize().'
+    severity: ERROR
+    languages:
+      - javascript

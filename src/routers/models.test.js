@@ -119,7 +119,7 @@ describe('modelsRouter', () => {
         name: 'Public Proxy',
         providerType: 'openai-compatible',
         providerFamily: 'openai',
-        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        baseUrl: 'http://localhost:11434/v1',
         key: '',
         headers: {},
         manualModels: [],
@@ -152,7 +152,7 @@ describe('modelsRouter', () => {
     expect(res.status).toBe(200);
     expect(payload.models.map((model) => model.id)).toContain('openai/conn-auth:gpt-4o-mini');
     expect(warnSpy).not.toHaveBeenCalledWith(
-      expect.stringContaining('Model discovery failed for http://proxy.tanyongsheng.site/v1: 401')
+      expect.stringContaining('Model discovery failed for your provider: 401')
     );
 
     warnSpy.mockRestore();
@@ -167,7 +167,7 @@ describe('modelsRouter', () => {
         name: 'Primary',
         providerType: 'openai-compatible',
         providerFamily: 'openai',
-        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        baseUrl: 'http://localhost:11434/v1',
         key: 'invalid-key',
         headers: {},
         manualModels: [],
@@ -182,9 +182,10 @@ describe('modelsRouter', () => {
     const res = await modelsRouter(makeReq('/api/models', 'GET'), env, {}, null, '/api/models');
 
     expect(res.status).toBe(200);
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Model discovery failed for http://proxy.tanyongsheng.site/v1: 401'
-    );
+    expect(warnSpy).toHaveBeenCalledWith('Model discovery failed', {
+      baseUrl: 'http://localhost:11434/v1',
+      errorLabel: '401',
+    });
 
     warnSpy.mockRestore();
   });

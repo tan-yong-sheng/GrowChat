@@ -1,4 +1,6 @@
-function escapeHtml(value) {
+import { renderButton } from './button.js';
+
+function escapeHtml(value = '') {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -13,8 +15,8 @@ export function renderSettingsDrawerShell({
   subtitle = 'Personal account preferences.',
   scopeLabel = 'Personal',
   body = '',
-  closeId = 'settings-drawer-close',
   overlayId = 'settings-drawer-overlay',
+  closeId = 'settings-drawer-close',
 } = {}) {
   return `
     <div id="${escapeHtml(rootId)}" class="fixed inset-0 z-[220]" role="dialog" aria-modal="true" aria-labelledby="${escapeHtml(`${rootId}-title`)}">
@@ -32,16 +34,14 @@ export function renderSettingsDrawerShell({
                 </div>
                 <p class="mt-1 text-xs text-gray-500">${escapeHtml(subtitle)}</p>
               </div>
-              <button
-                type="button"
-                id="${escapeHtml(closeId)}"
-                class="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-                aria-label="Close settings"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              ${renderButton({
+                label: '×',
+                type: 'button',
+                variant: 'ghost',
+                className:
+                  'rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700',
+                ariaLabel: 'Close settings',
+              }).replace('<button ', `<button id="${escapeHtml(closeId)}" `)}
             </div>
           </div>
           <div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 py-2 sm:px-3 sm:py-3">

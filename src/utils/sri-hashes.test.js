@@ -14,8 +14,11 @@ describe('sri-hashes utils', () => {
     injectSriHashes(html, { marked: null });
     injectSriHashes(html, { marked: null });
 
-    const matchingWarnings = warnSpy.mock.calls.filter((call) =>
-      String(call?.[0] || '').includes('SRI hash missing for marked')
+    const matchingWarnings = warnSpy.mock.calls.filter(
+      (call) =>
+        String(call?.[0] || '').includes(
+          'SRI hash missing; resource will load without integrity check'
+        ) && call?.[1]?.key === 'marked'
     );
 
     expect(matchingWarnings).toHaveLength(1);

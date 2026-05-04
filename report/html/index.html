@@ -1,0 +1,930 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Copy/Paste Detector Report</title><link href="styles/tailwind.css" rel="stylesheet"><link href="styles/prism.css" rel="stylesheet"></head><body class="bg-gray-100"><header class="bg-white shadow py-4"><div class="container mx-auto px-4"><h1 class="text-3xl font-semibold text-gray-800">jscpd - copy/paste report</h1></div></header><main class="container mx-auto my-8 p-4 bg-white shadow rounded"><section class="mb-8" id="dashboard"><h2 class="text-2xl font-semibold text-gray-700 mb-4">Dashboard</h2><div class="grid grid-cols-4 gap-4"><div class="bg-blue-200 p-4 rounded text-center"><h3 class="text-lg font-semibold text-blue-800 mb-2">Total Files</h3><span class="text-4xl font-bold text-blue-800">140</span></div><div class="bg-green-200 p-4 rounded text-center"><h3 class="text-lg font-semibold text-green-800 mb-2">Total Lines of Code</h3><span class="text-4xl font-bold text-green-800">21531</span></div><div class="bg-yellow-200 p-4 rounded text-center"><h3 class="text-lg font-semibold text-yellow-800 mb-2">Number of Clones</h3><span class="text-4xl font-bold text-yellow-800">70</span></div><div class="bg-red-200 p-4 rounded text-center"><h3 class="text-lg font-semibold text-red-800 mb-2">Duplicated Lines</h3><span class="text-4xl font-bold text-red-800">921 (4.28%)</span></div></div></section><section class="mb-8" id="formats"><h2 class="text-2xl font-semibold text-gray-700 mb-4">Formats with Duplications</h2><table class="w-full table-auto"><thead><tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal"><th class="py-3 px-6 text-left">Format</th><th class="py-3 px-6 text-left">Files</th><th class="py-3 px-6 text-left">Lines</th><th class="py-3 px-6 text-left">Clones</th><th class="py-3 px-6 text-left">Duplicated Lines</th><th class="py-3 px-6 text-left">Duplicated Tokens</th></tr></thead><tbody><tr class="bg-white border-b border-gray-200 text-gray-800 text-sm"><td class="py-3 px-6"><a class="text-blue-600 hover:underline" href="#javascript-clones">javascript</a></td><td class="py-3 px-6">140</td><td class="py-3 px-6">21531</td><td class="py-3 px-6">70</td><td class="py-3 px-6">921</td><td class="py-3 px-6">8661</td></tr></tbody></table></section><section class="mb-8" id="txt-clones"><a name="javascript-clones"></a><h2 class="text-2xl font-semibold text-gray-700 mb-4">javascript</h2><div class="divide-y divide-gray-200 border-b-2"><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/roles.js (Line 641:2 - Line 648:11), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/roles.js (Line 355:2 - Line 363:6)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn0" onclick="toggleCodeBlock('cloneGroup0', 'expandBtn0', 'collapseBtn0')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn0" onclick="toggleCodeBlock('cloneGroup0', 'expandBtn0', 'collapseBtn0')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup0"><code class="language-javascript text-sm text-gray-800">isNew
+      ? createRoleDraft(ROLE_PRESETS.find((role) =&gt; role.id === 'member') || ROLE_PRESETS[0], {
+          isNew: true,
+          sourceRoleId: 'member',
+          nextCustomIndex: state.nextCustomIndex,
+        })
+      : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+    modalState</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/roles.js (Line 802:2 - Line 810:16), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/roles.js (Line 235:2 - Line 243:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn1" onclick="toggleCodeBlock('cloneGroup1', 'expandBtn1', 'collapseBtn1')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn1" onclick="toggleCodeBlock('cloneGroup1', 'expandBtn1', 'collapseBtn1')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup1"><code class="language-javascript text-sm text-gray-800">{
+    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
+    const roles =
+      Array.isArray(payload?.roles) &amp;&amp; payload.roles.length
+        ? payload.roles.map((role) =&gt; normalizeLoadedRole(role))
+        : createInitialRoles();
+    state.roles = roles;
+    state.nextCustomIndex = getNextCustomIndex(state.roles);
+    renderRolesPage</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/groups.js (Line 12:27 - Line 23:7), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/roles.js (Line 85:2 - Line 96:9)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn2" onclick="toggleCodeBlock('cloneGroup2', 'expandBtn2', 'collapseBtn2')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn2" onclick="toggleCodeBlock('cloneGroup2', 'expandBtn2', 'collapseBtn2')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup2"><code class="language-javascript text-sm text-gray-800">;
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&amp;amp;')
+    .replace(/&lt;/g, '&amp;lt;')
+    .replace(/&gt;/g, '&amp;gt;')
+    .replace(/&quot;/g, '&amp;quot;')
+    .replace(/'/g, '&amp;#39;');
+}
+
+export</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/groups.js (Line 363:3 - Line 374:7), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/groups.js (Line 322:3 - Line 334:9)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn3" onclick="toggleCodeBlock('cloneGroup3', 'expandBtn3', 'collapseBtn3')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn3" onclick="toggleCodeBlock('cloneGroup3', 'expandBtn3', 'collapseBtn3')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup3"><code class="language-javascript text-sm text-gray-800">let users = [];
+  let usersTotal = 0;
+  let usersError = null;
+  try {
+    const payload = await fetchAdminUsers({ limit: clampUserLimit(100), offset: 0 });
+    users = payload.users || [];
+    usersTotal = payload.total || users.length;
+  } catch (err) {
+    usersError = err.message || 'Unable to load users.';
+  }
+  renderGroupModal({
+    mode: 'edit'</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/models.js (Line 655:5 - Line 677:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/models.js (Line 212:2 - Line 235:22)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn4" onclick="toggleCodeBlock('cloneGroup4', 'expandBtn4', 'collapseBtn4')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn4" onclick="toggleCodeBlock('cloneGroup4', 'expandBtn4', 'collapseBtn4')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup4"><code class="language-javascript text-sm text-gray-800">});
+    const enabledProviders = providerOptions.filter((option) =&gt; Number(option.active || 0) &gt; 0);
+    const allOption = {
+      value: 'all',
+      label: 'All Providers',
+      active: getActiveModelCount(),
+      total: modelsState.total ?? visibleModels.length,
+    };
+    const mergedProviders = [
+      allOption,
+      ...enabledProviders.filter((option) =&gt; option.value !== 'all'),
+    ];
+    const filteredModels = filterModelsBySearchAndProvider(modelsState.models, {
+      query,
+      provider: modelsState.provider,
+    });
+    const pageTotal = modelsState.total;
+    const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
+    const currentPage = Math.floor(modelsState.offset / modelsState.limit) + 1;
+    const pageStart = pageTotal === 0 ? 0 : modelsState.offset + 1;
+    const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
+
+    const</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/models.js (Line 677:2 - Line 697:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/models.js (Line 259:2 - Line 279:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn5" onclick="toggleCodeBlock('cloneGroup5', 'expandBtn5', 'collapseBtn5')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn5" onclick="toggleCodeBlock('cloneGroup5', 'expandBtn5', 'collapseBtn5')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup5"><code class="language-javascript text-sm text-gray-800">modelsState.loading
+      ? `
+                    ${Array.from({ length: 5 })
+                      .map(
+                        () =&gt; `
+                      &lt;tr class=&quot;bg-white text-xs animate-pulse&quot;&gt;
+                        &lt;td class=&quot;px-4 py-4&quot;&gt;&lt;div class=&quot;h-4 w-32 rounded bg-gray-100&quot;&gt;&lt;/div&gt;&lt;/td&gt;
+                        &lt;td class=&quot;px-4 py-4&quot;&gt;&lt;div class=&quot;h-4 w-40 rounded bg-gray-100&quot;&gt;&lt;/div&gt;&lt;/td&gt;
+                        &lt;td class=&quot;px-4 py-4&quot;&gt;&lt;div class=&quot;h-6 w-20 rounded-full bg-gray-100&quot;&gt;&lt;/div&gt;&lt;/td&gt;
+                        &lt;td class=&quot;px-4 py-4 text-right&quot;&gt;&lt;div class=&quot;ml-auto h-5 w-9 rounded-full bg-gray-100&quot;&gt;&lt;/div&gt;&lt;/td&gt;
+                      &lt;/tr&gt;
+                    `
+                      )
+                      .join('')}
+                  `
+      : filteredModels.length === 0
+        ? ''
+        : filteredModels
+            .map((model) =&gt; {
+              const access = getModelAccessPresentation(model);
+              const</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/general.js (Line 154:20 - Line 159:39), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/security.js (Line 142:15 - Line 147:34)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn6" onclick="toggleCodeBlock('cloneGroup6', 'expandBtn6', 'collapseBtn6')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn6" onclick="toggleCodeBlock('cloneGroup6', 'expandBtn6', 'collapseBtn6')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup6"><code class="language-javascript text-sm text-gray-800">: newValue }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() =&gt; ({}));
+        throw new Error(err?.error || err?.message || 'Failed to update public registration'</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/general.js (Line 179:27 - Line 184:39), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/security.js (Line 142:15 - Line 147:34)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn7" onclick="toggleCodeBlock('cloneGroup7', 'expandBtn7', 'collapseBtn7')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn7" onclick="toggleCodeBlock('cloneGroup7', 'expandBtn7', 'collapseBtn7')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup7"><code class="language-javascript text-sm text-gray-800">: newValue }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() =&gt; ({}));
+        throw new Error(err?.error || err?.message || 'Failed to update registration status'</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/resource-sort.js (Line 26:5 - Line 35:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/resource-sort.js (Line 9:5 - Line 18:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn8" onclick="toggleCodeBlock('cloneGroup8', 'expandBtn8', 'collapseBtn8')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn8" onclick="toggleCodeBlock('cloneGroup8', 'expandBtn8', 'collapseBtn8')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup8"><code class="language-javascript text-sm text-gray-800">const aLabel = normalizeLabel(a);
+    const bLabel = normalizeLabel(b);
+    const labelCompare = aLabel.localeCompare(bLabel);
+    if (labelCompare !== 0) return labelCompare;
+
+    return String(a?.id || '')
+      .toLowerCase()
+      .localeCompare(String(b?.id || '').toLowerCase());
+  });
+}</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/model-filters.js (Line 21:22 - Line 33:8), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/model-filters.js (Line 3:20 - Line 15:11)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn9" onclick="toggleCodeBlock('cloneGroup9', 'expandBtn9', 'collapseBtn9')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn9" onclick="toggleCodeBlock('cloneGroup9', 'expandBtn9', 'collapseBtn9')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup9"><code class="language-javascript text-sm text-gray-800">(model = {}) {
+  const raw =
+    model?.connection_name ||
+    model?.connectionName ||
+    model?.provider_id ||
+    model?.providerId ||
+    model?.provider_family ||
+    model?.providerFamily ||
+    model?.provider_type ||
+    model?.providerType ||
+    model?.provider ||
+    '';
+  const trimmed</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/workspace-vertical-tabs.js (Line 1:1 - Line 8:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/dom-escape.js (Line 27:2 - Line 34:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn10" onclick="toggleCodeBlock('cloneGroup10', 'expandBtn10', 'collapseBtn10')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn10" onclick="toggleCodeBlock('cloneGroup10', 'expandBtn10', 'collapseBtn10')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup10"><code class="language-javascript text-sm text-gray-800">function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/workspace-top-tabs.js (Line 1:1 - Line 10:23), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/dom-escape.js (Line 27:2 - Line 10:28)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn11" onclick="toggleCodeBlock('cloneGroup11', 'expandBtn11', 'collapseBtn11')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn11" onclick="toggleCodeBlock('cloneGroup11', 'expandBtn11', 'collapseBtn11')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup11"><code class="language-javascript text-sm text-gray-800">function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+export function renderWorkspaceTopTabs</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/user-profile-footer-helpers.js (Line 1:1 - Line 10:15), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/dom-escape.js (Line 27:2 - Line 10:28)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn12" onclick="toggleCodeBlock('cloneGroup12', 'expandBtn12', 'collapseBtn12')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn12" onclick="toggleCodeBlock('cloneGroup12', 'expandBtn12', 'collapseBtn12')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup12"><code class="language-javascript text-sm text-gray-800">function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+export function getAvatarLabel</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/user-profile-footer-controller.js (Line 238:14 - Line 248:11), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/user-profile-footer-controller.js (Line 228:10 - Line 238:14)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn13" onclick="toggleCodeBlock('cloneGroup13', 'expandBtn13', 'collapseBtn13')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn13" onclick="toggleCodeBlock('cloneGroup13', 'expandBtn13', 'collapseBtn13')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup13"><code class="language-javascript text-sm text-gray-800">) {
+      if (typeof guardNavigation === 'function') {
+        const allowed = await guardNavigation();
+        if (!allowed) return;
+      }
+      window.dispatchEvent(
+        new CustomEvent('growchat:open-account-settings', {
+          detail: { section: 'connections' },
+        })
+      );
+    } else if (action === 'archived'</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-viewport.js (Line 1:1 - Line 10:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/dom-escape.js (Line 27:2 - Line 10:9)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn14" onclick="toggleCodeBlock('cloneGroup14', 'expandBtn14', 'collapseBtn14')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn14" onclick="toggleCodeBlock('cloneGroup14', 'expandBtn14', 'collapseBtn14')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup14"><code class="language-javascript text-sm text-gray-800">function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+export const</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-top-nav.js (Line 3:1 - Line 12:35), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/dom-escape.js (Line 27:2 - Line 10:28)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn15" onclick="toggleCodeBlock('cloneGroup15', 'expandBtn15', 'collapseBtn15')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn15" onclick="toggleCodeBlock('cloneGroup15', 'expandBtn15', 'collapseBtn15')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup15"><code class="language-javascript text-sm text-gray-800">function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+export function renderWorkspaceTopNavSidebarToggle</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-nav.js (Line 1:1 - Line 10:9), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/dom-escape.js (Line 27:2 - Line 10:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn16" onclick="toggleCodeBlock('cloneGroup16', 'expandBtn16', 'collapseBtn16')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn16" onclick="toggleCodeBlock('cloneGroup16', 'expandBtn16', 'collapseBtn16')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup16"><code class="language-javascript text-sm text-gray-800">function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+function</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/server-modal.js (Line 12:2 - Line 23:19), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-top-nav.js (Line 1:26 - Line 10:14)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn17" onclick="toggleCodeBlock('cloneGroup17', 'expandBtn17', 'collapseBtn17')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn17" onclick="toggleCodeBlock('cloneGroup17', 'expandBtn17', 'collapseBtn17')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup17"><code class="language-javascript text-sm text-gray-800">;
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+function formatHeadersValue</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/section-header.js (Line 1:1 - Line 15:4), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-drawer-shell.js (Line 1:1 - Line 12:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn18" onclick="toggleCodeBlock('cloneGroup18', 'expandBtn18', 'collapseBtn18')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn18" onclick="toggleCodeBlock('cloneGroup18', 'expandBtn18', 'collapseBtn18')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup18"><code class="language-javascript text-sm text-gray-800">import { renderButton } from './button.js';
+
+function escapeHtml(value = '') {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+/**
+ * Renders a section header with title, subtitle, and optional action button
+ * Used consistently across admin and account settings pages
+ */</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/section-header.js (Line 131:11 - Line 142:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/section-header.js (Line 104:11 - Line 115:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn19" onclick="toggleCodeBlock('cloneGroup19', 'expandBtn19', 'collapseBtn19')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn19" onclick="toggleCodeBlock('cloneGroup19', 'expandBtn19', 'collapseBtn19')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup19"><code class="language-javascript text-sm text-gray-800">aria-label=&quot;Dismiss&quot;
+        &gt;
+          &lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; fill=&quot;none&quot; viewBox=&quot;0 0 24 24&quot; stroke-width=&quot;1.5&quot; stroke=&quot;currentColor&quot; class=&quot;size-4&quot;&gt;
+            &lt;path stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; d=&quot;M6 18 18 6M6 6l12 12&quot; /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      `
+          : ''
+      }
+    &lt;/div&gt;
+  `;
+}</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/search-bar.js (Line 1:14 - Line 12:20), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-top-nav.js (Line 1:26 - Line 10:28)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn20" onclick="toggleCodeBlock('cloneGroup20', 'expandBtn20', 'collapseBtn20')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn20" onclick="toggleCodeBlock('cloneGroup20', 'expandBtn20', 'collapseBtn20')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup20"><code class="language-javascript text-sm text-gray-800">;
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+export function renderSearchBarHtml</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/search-bar.js (Line 136:2 - Line 153:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/search-bar.js (Line 63:8 - Line 80:3)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn21" onclick="toggleCodeBlock('cloneGroup21', 'expandBtn21', 'collapseBtn21')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn21" onclick="toggleCodeBlock('cloneGroup21', 'expandBtn21', 'collapseBtn21')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup21"><code class="language-javascript text-sm text-gray-800">}`);
+    if (!input) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      input.focus();
+    }
+    const len = input.value.length;
+    const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
+    const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
+    try {
+      input.setSelectionRange(start, end);
+    } catch {
+      // Ignore selection restore errors for browsers that do not support it.
+    }
+  };
+
+  const</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/files-modal-helpers.js (Line 1:14 - Line 12:14), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-top-nav.js (Line 1:26 - Line 10:28)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn22" onclick="toggleCodeBlock('cloneGroup22', 'expandBtn22', 'collapseBtn22')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn22" onclick="toggleCodeBlock('cloneGroup22', 'expandBtn22', 'collapseBtn22')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup22"><code class="language-javascript text-sm text-gray-800">;
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+export function getFileStatus</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/connection-modal.js (Line 61:1 - Line 86:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/connections-helpers.js (Line 105:2 - Line 130:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn23" onclick="toggleCodeBlock('cloneGroup23', 'expandBtn23', 'collapseBtn23')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn23" onclick="toggleCodeBlock('cloneGroup23', 'expandBtn23', 'collapseBtn23')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup23"><code class="language-javascript text-sm text-gray-800">function connectionApiTypeDetails(providerType) {
+  switch (normalizeProviderType(providerType)) {
+    case 'google':
+    case 'gemini-compatible':
+      return {
+        value: 'stream-generate-content',
+        label: 'Gemini Stream Generate Content',
+        endpoint: 'Uses /v1beta/models/:model:streamGenerateContent?alt=sse',
+      };
+    case 'anthropic':
+    case 'claude-compatible':
+      return {
+        value: 'messages',
+        label: 'Messages',
+        endpoint: 'Uses /v1/messages',
+      };
+    default:
+      return {
+        value: 'chat-completions',
+        label: 'Chat Completions',
+        endpoint: 'Uses /v1/chat/completions',
+      };
+  }
+}
+
+const</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/connection-modal.js (Line 90:2 - Line 103:3), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-top-nav.js (Line 1:26 - Line 24:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn24" onclick="toggleCodeBlock('cloneGroup24', 'expandBtn24', 'collapseBtn24')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn24" onclick="toggleCodeBlock('cloneGroup24', 'expandBtn24', 'collapseBtn24')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup24"><code class="language-javascript text-sm text-gray-800">;
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+function formatHeadersValue(headers) {
+  if (
+    !headers ||</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/button.js (Line 1:17 - Line 12:13), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-drawer-shell.js (Line 1:14 - Line 12:26)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn25" onclick="toggleCodeBlock('cloneGroup25', 'expandBtn25', 'collapseBtn25')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn25" onclick="toggleCodeBlock('cloneGroup25', 'expandBtn25', 'collapseBtn25')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup25"><code class="language-javascript text-sm text-gray-800">;
+
+function escapeHtml(value = '') {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+export function renderButton</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/action-bar.js (Line 52:9 - Line 67:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/action-bar.js (Line 25:9 - Line 40:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn26" onclick="toggleCodeBlock('cloneGroup26', 'expandBtn26', 'collapseBtn26')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn26" onclick="toggleCodeBlock('cloneGroup26', 'expandBtn26', 'collapseBtn26')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup26"><code class="language-javascript text-sm text-gray-800">${renderButton({
+          label: 'Cancel',
+          variant: 'secondary',
+          disabled: isSaving,
+          ariaLabel: 'Cancel',
+        })}
+        ${renderButton({
+          label: isSaving ? 'Saving...' : 'Save',
+          variant: 'primary',
+          disabled: isSaving,
+          ariaLabel: 'Save',
+        })}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  `;
+}</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/api/request.js (Line 39:2 - Line 47:7), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/api/request.js (Line 31:2 - Line 39:3)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn27" onclick="toggleCodeBlock('cloneGroup27', 'expandBtn27', 'collapseBtn27')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn27" onclick="toggleCodeBlock('cloneGroup27', 'expandBtn27', 'collapseBtn27')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup27"><code class="language-javascript text-sm text-gray-800">&amp;&amp; auth?.refresh_token) {
+    const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
+    if (refreshed) {
+      headers.set('Authorization', `Bearer ${refreshed.access_token}`);
+      return fetch(path, { ...options, headers });
+    }
+  }
+
+  return</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/model-selector-helpers.js (Line 105:7 - Line 121:29), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/model-state.js (Line 23:2 - Line 39:27)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn28" onclick="toggleCodeBlock('cloneGroup28', 'expandBtn28', 'collapseBtn28')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn28" onclick="toggleCodeBlock('cloneGroup28', 'expandBtn28', 'collapseBtn28')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup28"><code class="language-javascript text-sm text-gray-800">);
+  if (!sortedModels.length) return null;
+
+  const modelIdSet = new Set(
+    sortedModels.map((model) =&gt; String(model?.id || '').trim()).filter(Boolean)
+  );
+  for (const preferredId of Array.isArray(preferredIds) ? preferredIds : []) {
+    const candidateId = String(preferredId || '').trim();
+    if (candidateId &amp;&amp; modelIdSet.has(candidateId)) {
+      return candidateId;
+    }
+  }
+
+  return sortedModels[0]?.id || null;
+}
+
+export function getModelSelectorDerivedState</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/keyboard-navigation.js (Line 161:5 - Line 169:5), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/chat-row.js (Line 175:6 - Line 183:17)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn29" onclick="toggleCodeBlock('cloneGroup29', 'expandBtn29', 'collapseBtn29')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn29" onclick="toggleCodeBlock('cloneGroup29', 'expandBtn29', 'collapseBtn29')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup29"><code class="language-javascript text-sm text-gray-800">) =&gt; {
+    item.setAttribute('role', 'menuitem');
+    item.setAttribute('tabindex', '-1');
+
+    item.addEventListener('keydown', (e) =&gt; {
+      switch (e.key) {
+        case 'ArrowDown': {
+          e.preventDefault();
+          const nextItem = item</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/keyboard-navigation.js (Line 176:2 - Line 193:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/chat-row.js (Line 190:2 - Line 208:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn30" onclick="toggleCodeBlock('cloneGroup30', 'expandBtn30', 'collapseBtn30')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn30" onclick="toggleCodeBlock('cloneGroup30', 'expandBtn30', 'collapseBtn30')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup30"><code class="language-javascript text-sm text-gray-800">;
+          if (prevItem) prevItem.focus();
+          break;
+        }
+
+        case 'Escape':
+          e.preventDefault();
+          dropdown.classList.add('hidden');
+          break;
+
+        case 'Tab':
+          e.preventDefault();
+          dropdown.classList.add('hidden');
+          break;
+      }
+    });
+  });
+}</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-stream-controller.js (Line 10:5 - Line 17:7), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/message-input-controller.js (Line 59:5 - Line 66:4)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn31" onclick="toggleCodeBlock('cloneGroup31', 'expandBtn31', 'collapseBtn31')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn31" onclick="toggleCodeBlock('cloneGroup31', 'expandBtn31', 'collapseBtn31')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup31"><code class="language-javascript text-sm text-gray-800">for (let i = messages.length - 1; i &gt;= 0; i -= 1) {
+      const msg = messages[i];
+      const status = String(msg?.status || '');
+      if (msg?.role === 'assistant' &amp;&amp; (status === 'streaming' || status === 'tool_running')) {
+        return msg.id;
+      }
+    }
+    return</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-shell-controller.js (Line 130:3 - Line 145:10), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/workspace-sidebar.js (Line 143:3 - Line 156:10)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn32" onclick="toggleCodeBlock('cloneGroup32', 'expandBtn32', 'collapseBtn32')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn32" onclick="toggleCodeBlock('cloneGroup32', 'expandBtn32', 'collapseBtn32')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup32"><code class="language-javascript text-sm text-gray-800">const onToggleSidebar = () =&gt; {
+    if (state.isMobile) {
+      setState({ showSidebar: !state.showSidebar });
+    } else if (!state.showSidebar) {
+      setState({ showSidebar: true });
+    } else {
+      setState({ sidebarCollapsed: !state.sidebarCollapsed });
+    }
+  };
+
+  const onOpenSearch = async () =&gt; {
+    await ensureSearchModal();
+    setState({ showSearch: true });
+  };
+
+  const onNewChat</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-utils.js (Line 149:23 - Line 163:28), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-utils.js (Line 135:19 - Line 149:23)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn33" onclick="toggleCodeBlock('cloneGroup33', 'expandBtn33', 'collapseBtn33')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn33" onclick="toggleCodeBlock('cloneGroup33', 'expandBtn33', 'collapseBtn33')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup33"><code class="language-javascript text-sm text-gray-800">(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+export function normalizeMessageBlockRecord</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream.js (Line 25:2 - Line 35:15), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-render-controller.js (Line 39:2 - Line 49:13)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn34" onclick="toggleCodeBlock('cloneGroup34', 'expandBtn34', 'collapseBtn34')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn34" onclick="toggleCodeBlock('cloneGroup34', 'expandBtn34', 'collapseBtn34')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup34"><code class="language-javascript text-sm text-gray-800">= () =&gt; {},
+  consumeSseTextStream,
+  appendBlock = () =&gt; {},
+  ensureThinkingBlock = () =&gt; {},
+  updateToolCallState = () =&gt; {},
+  notePayloadSeq = () =&gt; {},
+  buildFallbackAssistantMessage = () =&gt; null,
+  formatApiErrorMessage = (_, fallback) =&gt; fallback || 'Request failed.',
+  updateMessageContentDom = () =&gt; {},
+  applyAssistantErrorMessage = () =&gt; {},
+  getMessageById</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 12:3 - Line 30:21), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream.js (Line 6:3 - Line 24:21)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn35" onclick="toggleCodeBlock('cloneGroup35', 'expandBtn35', 'collapseBtn35')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn35" onclick="toggleCodeBlock('cloneGroup35', 'expandBtn35', 'collapseBtn35')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup35"><code class="language-javascript text-sm text-gray-800">state,
+  setState = () =&gt; {},
+  apiFetch,
+  syncChatUrl = () =&gt; {},
+  drawMessages = () =&gt; {},
+  buildTempChat = () =&gt; null,
+  pruneTempChats = (list) =&gt; list,
+  getDraftAttachments = () =&gt; [],
+  getDraftToolNames = () =&gt; null,
+  setDraftAttachments = () =&gt; {},
+  updateChatTitleLocal = () =&gt; {},
+  currentLeafByChatId = new Map(),
+  registerPendingTempMessage = () =&gt; {},
+  setBranchSelection = () =&gt; {},
+  streamingOverrideByChat = new Map(),
+  setGlobalStreamAbort = () =&gt; {},
+  clearGlobalStreamAbort = () =&gt; {},
+  setStreamingState = () =&gt; {},
+  setActiveStreamAbort</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 29:2 - Line 40:13), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream.js (Line 24:5 - Line 49:13)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn36" onclick="toggleCodeBlock('cloneGroup36', 'expandBtn36', 'collapseBtn36')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn36" onclick="toggleCodeBlock('cloneGroup36', 'expandBtn36', 'collapseBtn36')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup36"><code class="language-javascript text-sm text-gray-800">,
+  setActiveStreamAbort = () =&gt; {},
+  consumeSseTextStream,
+  appendBlock = () =&gt; {},
+  ensureThinkingBlock = () =&gt; {},
+  updateToolCallState = () =&gt; {},
+  notePayloadSeq = () =&gt; {},
+  buildFallbackAssistantMessage = () =&gt; null,
+  formatApiErrorMessage = (_, fallback) =&gt; fallback || 'Request failed.',
+  updateMessageContentDom = () =&gt; {},
+  applyAssistantErrorMessage = () =&gt; {},
+  loadMessages</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 334:7 - Line 347:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 313:5 - Line 325:6)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn37" onclick="toggleCodeBlock('cloneGroup37', 'expandBtn37', 'collapseBtn37')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn37" onclick="toggleCodeBlock('cloneGroup37', 'expandBtn37', 'collapseBtn37')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup37"><code class="language-javascript text-sm text-gray-800">const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+        content: assistantText,
+        errorActive,
+        errorMessage,
+        model: state.activeModelId,
+        parentId: resolveTempMessageId(chatId, tempUserId),
+      });
+      await loadMessages(chatId, {
+        draw: state.activeChatId === chatId,
+        updateActiveModel: state.activeChatId === chatId,
+        fallbackMessage: fallback,
+      });
+    }
+  }</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-resume.js (Line 95:10 - Line 102:10), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 272:19 - Line 279:19)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn38" onclick="toggleCodeBlock('cloneGroup38', 'expandBtn38', 'collapseBtn38')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn38" onclick="toggleCodeBlock('cloneGroup38', 'expandBtn38', 'collapseBtn38')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup38"><code class="language-javascript text-sm text-gray-800">), true);
+            applyAssistantText(true);
+          }
+        }
+        if (payload?.event === 'reasoning_end') {
+          const duration = Number(payload.duration_ms);
+          if (Number.isFinite(duration) &amp;&amp; duration &gt; 0) {
+            thinkingDurationByMessageId.set(String(messageId</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 19:2 - Line 31:24), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-render-controller.js (Line 34:2 - Line 46:22)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn39" onclick="toggleCodeBlock('cloneGroup39', 'expandBtn39', 'collapseBtn39')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn39" onclick="toggleCodeBlock('cloneGroup39', 'expandBtn39', 'collapseBtn39')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup39"><code class="language-javascript text-sm text-gray-800">,
+  setStreamingState = () =&gt; {},
+  getActiveStreamAbort = () =&gt; null,
+  setActiveStreamAbort = () =&gt; {},
+  clearGlobalStreamAbort = () =&gt; {},
+  setGlobalStreamAbort = () =&gt; {},
+  consumeSseTextStream,
+  appendBlock = () =&gt; {},
+  ensureThinkingBlock = () =&gt; {},
+  updateToolCallState = () =&gt; {},
+  notePayloadSeq = () =&gt; {},
+  buildFallbackAssistantMessage = () =&gt; null,
+  updateMessageContentDom</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 96:19 - Line 108:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-assistant.js (Line 21:10 - Line 30:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn40" onclick="toggleCodeBlock('cloneGroup40', 'expandBtn40', 'collapseBtn40')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn40" onclick="toggleCodeBlock('cloneGroup40', 'expandBtn40', 'collapseBtn40')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup40"><code class="language-javascript text-sm text-gray-800">)
+        );
+        if (targetIdx &gt;= 0) {
+          currentMessages[targetIdx] = {
+            ...currentMessages[targetIdx],
+            content: assistantText,
+            status: errorActive ? 'error' : currentMessages[targetIdx].status,
+            error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
+          };
+          setState((prev) =&gt; ({
+            messagesByChat: {
+              ...prev.messagesByChat,
+              [chatId]: currentMessages,</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 138:16 - Line 153:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 251:7 - Line 266:5)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn41" onclick="toggleCodeBlock('cloneGroup41', 'expandBtn41', 'collapseBtn41')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn41" onclick="toggleCodeBlock('cloneGroup41', 'expandBtn41', 'collapseBtn41')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup41"><code class="language-javascript text-sm text-gray-800">, assistantMessageId);
+              if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
+                thinkingActiveByMessageId.set(String(assistantMessageId), true);
+              }
+              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+              }
+              applyAssistantText(true);
+            }
+            if (payload?.event === 'reasoning_start') {
+              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+              }
+              thinkingActiveByMessageId.set(String(assistantMessageId), true);
+              ensureThinkingBlock(messageBlocksById, assistantMessageId);
+              applyAssistantText()</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 153:2 - Line 160:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 266:5 - Line 273:5)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn42" onclick="toggleCodeBlock('cloneGroup42', 'expandBtn42', 'collapseBtn42')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn42" onclick="toggleCodeBlock('cloneGroup42', 'expandBtn42', 'collapseBtn42')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup42"><code class="language-javascript text-sm text-gray-800">);
+            }
+            if (payload?.event === 'reasoning_delta') {
+              const delta = String(payload.delta || '');
+              if (delta) {
+                appendBlock(messageBlocksById, assistantMessageId, 'thinking', delta);
+                thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                applyAssistantText()</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 160:2 - Line 171:21), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 273:5 - Line 284:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn43" onclick="toggleCodeBlock('cloneGroup43', 'expandBtn43', 'collapseBtn43')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn43" onclick="toggleCodeBlock('cloneGroup43', 'expandBtn43', 'collapseBtn43')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup43"><code class="language-javascript text-sm text-gray-800">);
+              }
+            }
+            if (payload?.event === 'reasoning_end') {
+              const duration = Number(payload.duration_ms);
+              if (Number.isFinite(duration) &amp;&amp; duration &gt; 0) {
+                thinkingDurationByMessageId.set(String(assistantMessageId), duration);
+              }
+              thinkingActiveByMessageId.delete(String(assistantMessageId));
+            }
+            if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
+              const targetId = resolveTempMessageId</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 181:3 - Line 194:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 292:6 - Line 305:4)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn44" onclick="toggleCodeBlock('cloneGroup44', 'expandBtn44', 'collapseBtn44')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn44" onclick="toggleCodeBlock('cloneGroup44', 'expandBtn44', 'collapseBtn44')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup44"><code class="language-javascript text-sm text-gray-800">;
+              applyAssistantText();
+            }
+            notePayloadSeq(payload, assistantMessageId);
+          },
+          onDelta: (delta) =&gt; {
+            if (!delta) return;
+            assistantText += delta;
+            appendBlock(messageBlocksById, assistantMessageId, 'text', delta);
+            applyAssistantText();
+          },
+        });
+
+        const</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 194:9 - Line 206:15), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 306:5 - Line 318:21)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn45" onclick="toggleCodeBlock('cloneGroup45', 'expandBtn45', 'collapseBtn45')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn45" onclick="toggleCodeBlock('cloneGroup45', 'expandBtn45', 'collapseBtn45')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup45"><code class="language-javascript text-sm text-gray-800">const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
+        if (startedAt &amp;&amp; !thinkingDurationByMessageId.has(String(assistantMessageId))) {
+          thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
+        }
+        thinkingActiveByMessageId.delete(String(assistantMessageId));
+        applyAssistantText(false);
+        streamingOverrideByChat.delete(chatId);
+        const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+          content: assistantText,
+          errorActive,
+          errorMessage,
+          model: state.activeModelId,
+          parentId: branchParentId</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 223:11 - Line 237:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 201:9 - Line 214:6)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn46" onclick="toggleCodeBlock('cloneGroup46', 'expandBtn46', 'collapseBtn46')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn46" onclick="toggleCodeBlock('cloneGroup46', 'expandBtn46', 'collapseBtn46')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup46"><code class="language-javascript text-sm text-gray-800">const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+            content: assistantText,
+            errorActive,
+            errorMessage,
+            model: state.activeModelId,
+            parentId: branchParentId,
+          });
+          await loadMessages(chatId, {
+            draw: state.activeChatId === chatId,
+            updateActiveModel: state.activeChatId === chatId,
+            preferredLeafId: assistantMessageId,
+            fallbackMessage: fallback,
+          });
+        }
+      }</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-list-html.js (Line 120:2 - Line 128:8), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/files-modal-helpers.js (Line 83:2 - Line 88:53)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn47" onclick="toggleCodeBlock('cloneGroup47', 'expandBtn47', 'collapseBtn47')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn47" onclick="toggleCodeBlock('cloneGroup47', 'expandBtn47', 'collapseBtn47')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup47"><code class="language-javascript text-sm text-gray-800">viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;path d=&quot;M3 6h18&quot;/&gt;&lt;path d=&quot;M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6&quot;/&gt;&lt;path d=&quot;M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2&quot;/&gt;&lt;line x1=&quot;10&quot; y1=&quot;11&quot; x2=&quot;10&quot; y2=&quot;17&quot;/&gt;&lt;line x1=&quot;14&quot; y1=&quot;11&quot; x2=&quot;14&quot; y2=&quot;17&quot;/&gt;&lt;/svg&gt;
+              &lt;/button&gt;
+              `
+                  : ''
+              }
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      `</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-list-html.js (Line 181:2 - Line 191:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-list-html.js (Line 119:2 - Line 88:53)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn48" onclick="toggleCodeBlock('cloneGroup48', 'expandBtn48', 'collapseBtn48')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn48" onclick="toggleCodeBlock('cloneGroup48', 'expandBtn48', 'collapseBtn48')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup48"><code class="language-javascript text-sm text-gray-800">${deletePending ? 'disabled aria-disabled=&quot;true&quot;' : ''}&gt;
+                  &lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;path d=&quot;M3 6h18&quot;/&gt;&lt;path d=&quot;M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6&quot;/&gt;&lt;path d=&quot;M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2&quot;/&gt;&lt;line x1=&quot;10&quot; y1=&quot;11&quot; x2=&quot;10&quot; y2=&quot;17&quot;/&gt;&lt;line x1=&quot;14&quot; y1=&quot;11&quot; x2=&quot;14&quot; y2=&quot;17&quot;/&gt;&lt;/svg&gt;
+                &lt;/button&gt;
+                `
+                    : ''
+                }
+              &lt;/div&gt;
+           &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    `</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 5:2 - Line 46:18), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-render-controller.js (Line 138:5 - Line 179:18)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn49" onclick="toggleCodeBlock('cloneGroup49', 'expandBtn49', 'collapseBtn49')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn49" onclick="toggleCodeBlock('cloneGroup49', 'expandBtn49', 'collapseBtn49')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup49"><code class="language-javascript text-sm text-gray-800">bindChatMessageActions({
+  messagesList,
+  messages,
+  projectedMessages,
+  roundsByMessageId,
+  state,
+  setState,
+  drawMessages,
+  chatId,
+  errorExpandedByMessageId,
+  showToast,
+  apiFetch,
+  loadMessages,
+  waitForResolvedMessageId,
+  getMessageById,
+  resolveTempMessageId,
+  replaceTempMessageId,
+  registerPendingTempMessage,
+  setBranchSelection,
+  currentLeafByChatId,
+  branchSelectionByChat,
+  streamingOverrideByChat,
+  setStreamingState,
+  getActiveStreamAbort,
+  setActiveStreamAbort,
+  clearGlobalStreamAbort,
+  setGlobalStreamAbort,
+  consumeSseTextStream,
+  appendBlock,
+  ensureThinkingBlock,
+  updateToolCallState,
+  notePayloadSeq,
+  buildFallbackAssistantMessage,
+  formatApiErrorMessage,
+  updateMessageContentDom,
+  applyAssistantErrorMessage,
+  openCitation,
+  thinkingStartByMessageId,
+  thinkingDurationByMessageId,
+  thinkingActiveByMessageId,
+  toolCallsByMessageId,
+  messageBlocksById</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 268:2 - Line 275:16), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 65:5 - Line 70:17)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn50" onclick="toggleCodeBlock('cloneGroup50', 'expandBtn50', 'collapseBtn50')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn50" onclick="toggleCodeBlock('cloneGroup50', 'expandBtn50', 'collapseBtn50')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup50"><code class="language-javascript text-sm text-gray-800">;
+
+      const tempUserId = `temp-user-${Date.now()}`;
+      const tempAssistantId = `temp-assistant-${Date.now()}`;
+      const nowTs = Math.floor(Date.now() / 1000);
+
+      let localMessages = [...(state.messagesByChat[chatId] || [])];
+      const tempUserMessage</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 280:18 - Line 306:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 76:17 - Line 103:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn51" onclick="toggleCodeBlock('cloneGroup51', 'expandBtn51', 'collapseBtn51')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn51" onclick="toggleCodeBlock('cloneGroup51', 'expandBtn51', 'collapseBtn51')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup51"><code class="language-javascript text-sm text-gray-800">,
+        parent_id: branchParentId,
+        created_at: nowTs,
+        done: true,
+      };
+      localMessages.push(tempUserMessage);
+      registerPendingTempMessage(chatId, tempUserMessage);
+      setBranchSelection(chatId, branchParentId, tempUserId);
+      localMessages.push({
+        id: tempAssistantId,
+        role: 'assistant',
+        content: '',
+        model: state.activeModelId,
+        parent_id: tempUserId,
+        created_at: nowTs + 1,
+        done: false,
+      });
+      registerPendingTempMessage(chatId, {
+        id: tempAssistantId,
+        role: 'assistant',
+        content: '',
+        parent_id: tempUserId,
+        created_at: nowTs + 1,
+      });
+
+      currentLeafByChatId.set(chatId, tempAssistantId);
+      setState((prev) =&gt; ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 314:9 - Line 341:19), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 83:7 - Line 35:10)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn52" onclick="toggleCodeBlock('cloneGroup52', 'expandBtn52', 'collapseBtn52')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn52" onclick="toggleCodeBlock('cloneGroup52', 'expandBtn52', 'collapseBtn52')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup52"><code class="language-javascript text-sm text-gray-800">let assistantMessageId = tempAssistantId;
+        let errorMessage = null;
+        let errorActive = false;
+        let assistantText = '';
+
+        function applyAssistantText(streaming = true) {
+          streamingOverrideByChat.set(chatId, {
+            targetMsgId: assistantMessageId,
+            content: assistantText,
+          });
+
+          const currentMessages = [...(state.messagesByChat[chatId] || [])];
+          const targetIdx = currentMessages.findIndex(
+            (m) =&gt; String(m.id) === String(assistantMessageId)
+          );
+          if (targetIdx &gt;= 0) {
+            currentMessages[targetIdx] = {
+              ...currentMessages[targetIdx],
+              content: assistantText,
+              status: errorActive ? 'error' : currentMessages[targetIdx].status,
+              error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
+            };
+            setState((prev) =&gt; ({
+              messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
+            }));
+          }
+          if (state.activeChatId === chatId) {
+            updateMessageContentDom(assistantMessageId</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 337:2 - Line 350:9), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 109:13 - Line 122:3)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn53" onclick="toggleCodeBlock('cloneGroup53', 'expandBtn53', 'collapseBtn53')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn53" onclick="toggleCodeBlock('cloneGroup53', 'expandBtn53', 'collapseBtn53')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup53"><code class="language-javascript text-sm text-gray-800">},
+            }));
+          }
+          if (state.activeChatId === chatId) {
+            updateMessageContentDom(assistantMessageId, assistantText, {
+              isError: errorActive,
+              isStreaming: streaming,
+            });
+          }
+        }
+
+        try {
+          setStreamingState(chatId, true);
+          const res = await apiFetch(`/api/chats/${chatId}/messages/${sourceId</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 372:15 - Line 447:16), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 136:13 - Line 323:16)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn54" onclick="toggleCodeBlock('cloneGroup54', 'expandBtn54', 'collapseBtn54')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn54" onclick="toggleCodeBlock('cloneGroup54', 'expandBtn54', 'collapseBtn54')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup54"><code class="language-javascript text-sm text-gray-800">if (payload?.event === 'start' &amp;&amp; payload?.message_id) {
+                assistantMessageId = String(payload.message_id);
+                replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
+                if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
+                  thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                }
+                if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                  thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+                }
+                applyAssistantText(true);
+              }
+              if (payload?.event === 'reasoning_start') {
+                if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
+                  thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
+                }
+                thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                ensureThinkingBlock(messageBlocksById, assistantMessageId);
+                applyAssistantText();
+              }
+              if (payload?.event === 'reasoning_delta') {
+                const delta = String(payload.delta || '');
+                if (delta) {
+                  appendBlock(messageBlocksById, assistantMessageId, 'thinking', delta);
+                  thinkingActiveByMessageId.set(String(assistantMessageId), true);
+                  applyAssistantText();
+                }
+              }
+              if (payload?.event === 'reasoning_end') {
+                const duration = Number(payload.duration_ms);
+                if (Number.isFinite(duration) &amp;&amp; duration &gt; 0) {
+                  thinkingDurationByMessageId.set(String(assistantMessageId), duration);
+                }
+                thinkingActiveByMessageId.delete(String(assistantMessageId));
+              }
+              if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
+                const targetId = resolveTempMessageId(
+                  chatId,
+                  payload?.message_id || assistantMessageId
+                );
+                updateToolCallState(toolCallsByMessageId, messageBlocksById, targetId, payload);
+                applyAssistantText();
+              }
+              if (payload?.error) {
+                errorMessage = payload.message || payload.error || 'LLM request failed';
+                errorActive = true;
+                assistantText = '';
+                applyAssistantText();
+              }
+              notePayloadSeq(payload, assistantMessageId);
+            },
+            onDelta: (delta) =&gt; {
+              if (!delta) return;
+              assistantText += delta;
+              appendBlock(messageBlocksById, assistantMessageId, 'text', delta);
+              applyAssistantText();
+            },
+          });
+
+          const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
+          if (startedAt &amp;&amp; !thinkingDurationByMessageId.has(String(assistantMessageId))) {
+            thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
+          }
+          thinkingActiveByMessageId.delete(String(assistantMessageId));
+          applyAssistantText(false);
+          streamingOverrideByChat.delete(chatId);
+          const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+            content: assistantText,
+            errorActive,
+            errorMessage,
+            model: state.activeModelId,
+            parentId: resolveTempMessageId(chatId, tempUserId),
+          });
+          await loadMessages(chatId, {
+            draw: state.activeChatId === chatId,
+            updateActiveModel: state.activeChatId === chatId,
+            preferredLeafId</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 442:2 - Line 452:19), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 206:15 - Line 216:22)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn55" onclick="toggleCodeBlock('cloneGroup55', 'expandBtn55', 'collapseBtn55')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn55" onclick="toggleCodeBlock('cloneGroup55', 'expandBtn55', 'collapseBtn55')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup55"><code class="language-javascript text-sm text-gray-800">,
+          });
+          await loadMessages(chatId, {
+            draw: state.activeChatId === chatId,
+            updateActiveModel: state.activeChatId === chatId,
+            preferredLeafId: assistantMessageId,
+            fallbackMessage: fallback,
+          });
+        } catch (e) {
+          if (e?.name !== 'AbortError') {
+            console.error('Branching failed'</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 452:19 - Line 464:21), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 216:22 - Line 228:15)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn56" onclick="toggleCodeBlock('cloneGroup56', 'expandBtn56', 'collapseBtn56')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn56" onclick="toggleCodeBlock('cloneGroup56', 'expandBtn56', 'collapseBtn56')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup56"><code class="language-javascript text-sm text-gray-800">, e);
+            if (!errorActive) {
+              errorMessage = String(e?.message || 'LLM request failed');
+              errorActive = true;
+              assistantText = '';
+              applyAssistantText(false);
+            }
+            const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+              content: assistantText,
+              errorActive,
+              errorMessage,
+              model: state.activeModelId,
+              parentId: resolveTempMessageId</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 454:2 - Line 473:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-stream-send.js (Line 329:4 - Line 450:6)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn57" onclick="toggleCodeBlock('cloneGroup57', 'expandBtn57', 'collapseBtn57')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn57" onclick="toggleCodeBlock('cloneGroup57', 'expandBtn57', 'collapseBtn57')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup57"><code class="language-javascript text-sm text-gray-800">?.message || 'LLM request failed');
+              errorActive = true;
+              assistantText = '';
+              applyAssistantText(false);
+            }
+            const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+              content: assistantText,
+              errorActive,
+              errorMessage,
+              model: state.activeModelId,
+              parentId: resolveTempMessageId(chatId, tempUserId),
+            });
+            await loadMessages(chatId, {
+              draw: state.activeChatId === chatId,
+              updateActiveModel: state.activeChatId === chatId,
+              preferredLeafId: assistantMessageId,
+              fallbackMessage: fallback,
+            });
+          }
+        }</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-actions.js (Line 464:2 - Line 479:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-message-retry-actions.js (Line 228:15 - Line 243:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn58" onclick="toggleCodeBlock('cloneGroup58', 'expandBtn58', 'collapseBtn58')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn58" onclick="toggleCodeBlock('cloneGroup58', 'expandBtn58', 'collapseBtn58')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup58"><code class="language-javascript text-sm text-gray-800">,
+            });
+            await loadMessages(chatId, {
+              draw: state.activeChatId === chatId,
+              updateActiveModel: state.activeChatId === chatId,
+              preferredLeafId: assistantMessageId,
+              fallbackMessage: fallback,
+            });
+          }
+        } finally {
+          streamingOverrideByChat.delete(chatId);
+          clearGlobalStreamAbort(getActiveStreamAbort());
+          setActiveStreamAbort(null);
+          setStreamingState(chatId, false);
+        }
+      };</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-list-actions.js (Line 144:5 - Line 149:5), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-list-actions.js (Line 109:2 - Line 116:6)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn59" onclick="toggleCodeBlock('cloneGroup59', 'expandBtn59', 'collapseBtn59')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn59" onclick="toggleCodeBlock('cloneGroup59', 'expandBtn59', 'collapseBtn59')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup59"><code class="language-javascript text-sm text-gray-800">;
+      const nextChatsSnapshot = prevChats.filter((chatItem) =&gt; String(chatItem.id) !== String(id));
+      const nextId = wasActive ? nextChatsSnapshot[0]?.id || null : state.activeChatId;
+
+      setState((prev) =&gt; {
+        const nextChats = prev</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-list-actions.js (Line 151:2 - Line 170:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/chat-list-actions.js (Line 120:2 - Line 138:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn60" onclick="toggleCodeBlock('cloneGroup60', 'expandBtn60', 'collapseBtn60')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn60" onclick="toggleCodeBlock('cloneGroup60', 'expandBtn60', 'collapseBtn60')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup60"><code class="language-javascript text-sm text-gray-800">};
+        delete nextMessagesByChat[id];
+        return {
+          chats: nextChats,
+          activeChatId: nextActiveChatId,
+          messagesByChat: nextMessagesByChat,
+        };
+      });
+
+      currentLeafByChatId.delete(id);
+      streamingOverrideByChatId.delete(id);
+
+      syncChatUrl(nextId, { replace: true });
+      if (nextId) {
+        await loadMessages(nextId, { modelMode: 'default' });
+      } else {
+        drawMessages([]);
+      }
+
+      const</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/modal-shell.js (Line 123:1 - Line 132:25), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/users/roles.js (Line 87:1 - Line 96:17)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn61" onclick="toggleCodeBlock('cloneGroup61', 'expandBtn61', 'collapseBtn61')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn61" onclick="toggleCodeBlock('cloneGroup61', 'expandBtn61', 'collapseBtn61')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup61"><code class="language-javascript text-sm text-gray-800">function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&amp;amp;')
+    .replace(/&lt;/g, '&amp;lt;')
+    .replace(/&gt;/g, '&amp;gt;')
+    .replace(/&quot;/g, '&amp;quot;')
+    .replace(/'/g, '&amp;#39;');
+}
+
+function normalizeModalHashSource</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/modal-shell.js (Line 132:25 - Line 142:17), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/utils/modal-hash.js (Line 1:19 - Line 11:12)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn62" onclick="toggleCodeBlock('cloneGroup62', 'expandBtn62', 'collapseBtn62')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn62" onclick="toggleCodeBlock('cloneGroup62', 'expandBtn62', 'collapseBtn62')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup62"><code class="language-javascript text-sm text-gray-800">(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^#+/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+}
+
+function resolveModalHash</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/admin-layout.js (Line 45:1 - Line 54:17), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/chat/model-selector-helpers.js (Line 7:1 - Line 16:21)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn63" onclick="toggleCodeBlock('cloneGroup63', 'expandBtn63', 'collapseBtn63')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn63" onclick="toggleCodeBlock('cloneGroup63', 'expandBtn63', 'collapseBtn63')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup63"><code class="language-javascript text-sm text-gray-800">function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&amp;/g, '&amp;amp;')
+    .replace(/&lt;/g, '&amp;lt;')
+    .replace(/&gt;/g, '&amp;gt;')
+    .replace(/&quot;/g, '&amp;quot;')
+    .replace(/'/g, '&amp;#39;');
+}
+
+export function renderErrorState</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/account/account.js (Line 83:1 - Line 94:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/admin-layout.js (Line 43:1 - Line 16:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn64" onclick="toggleCodeBlock('cloneGroup64', 'expandBtn64', 'collapseBtn64')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn64" onclick="toggleCodeBlock('cloneGroup64', 'expandBtn64', 'collapseBtn64')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup64"><code class="language-javascript text-sm text-gray-800">}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&amp;/g, '&amp;amp;')
+    .replace(/&lt;/g, '&amp;lt;')
+    .replace(/&gt;/g, '&amp;gt;')
+    .replace(/&quot;/g, '&amp;quot;')
+    .replace(/'/g, '&amp;#39;');
+}
+
+async</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/account/account.js (Line 424:2 - Line 430:6), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/account/account.js (Line 304:2 - Line 310:6)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn65" onclick="toggleCodeBlock('cloneGroup65', 'expandBtn65', 'collapseBtn65')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn65" onclick="toggleCodeBlock('cloneGroup65', 'expandBtn65', 'collapseBtn65')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup65"><code class="language-javascript text-sm text-gray-800">);
+  } catch (err) {
+    content.replaceChildren(document.createRange().createContextualFragment(`&lt;div class=&quot;text-sm text-red-600&quot;&gt;${escapeHtml(err.message || 'Failed to load account settings')}&lt;/div&gt;`));
+    if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
+  }
+
+  mount</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/account/account-models.js (Line 15:38 - Line 26:24), C:/Users/tys/Documents/Coding/GrowChat/public/js/shared/components/settings-top-nav.js (Line 1:26 - Line 10:14)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn66" onclick="toggleCodeBlock('cloneGroup66', 'expandBtn66', 'collapseBtn66')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn66" onclick="toggleCodeBlock('cloneGroup66', 'expandBtn66', 'collapseBtn66')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup66"><code class="language-javascript text-sm text-gray-800">;
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&amp;', '&amp;amp;')
+    .replaceAll('&lt;', '&amp;lt;')
+    .replaceAll('&gt;', '&amp;gt;')
+    .replaceAll('&quot;', '&amp;quot;')
+    .replaceAll(&quot;'&quot;, '&amp;#39;');
+}
+
+function normalizeAttachmentCaps</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/account/account-models.js (Line 34:1 - Line 43:9), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/models-helpers.js (Line 39:2 - Line 48:7)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn67" onclick="toggleCodeBlock('cloneGroup67', 'expandBtn67', 'collapseBtn67')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn67" onclick="toggleCodeBlock('cloneGroup67', 'expandBtn67', 'collapseBtn67')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup67"><code class="language-javascript text-sm text-gray-800">function cloneAttachmentCaps(caps = {}) {
+  const next = {};
+  Object.entries(caps || {}).forEach(([modelId, values]) =&gt; {
+    if (!values || typeof values !== 'object') return;
+    next[modelId] = { ...values };
+  });
+  return next;
+}
+
+function</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/account/account-models.js (Line 287:13 - Line 294:2), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/account/account-models.js (Line 278:13 - Line 286:2)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn68" onclick="toggleCodeBlock('cloneGroup68', 'expandBtn68', 'collapseBtn68')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn68" onclick="toggleCodeBlock('cloneGroup68', 'expandBtn68', 'collapseBtn68')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup68"><code class="language-javascript text-sm text-gray-800">.map(
+              (option) =&gt; `
+            &lt;option value=&quot;${escapeHtml(option.value)}&quot; ${option.value === sectionState.provider ? 'selected' : ''}&gt;
+              ${escapeHtml(option.label)}${Number.isFinite(option.active) &amp;&amp; Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
+            &lt;/option&gt;
+          `
+            )
+            .join(''),</code></pre></div><div class="py-4"><p class="text-gray-600">C:/Users/tys/Documents/Coding/GrowChat/public/js/features/account/account-models.js (Line 342:3 - Line 353:29), C:/Users/tys/Documents/Coding/GrowChat/public/js/features/admin/settings/models.js (Line 341:3 - Line 351:21)</p><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2" id="expandBtn69" onclick="toggleCodeBlock('cloneGroup69', 'expandBtn69', 'collapseBtn69')">Show code</button><button class="bg-gray-500 text-white px-1 py-0.5 text-xs rounded focus:outline-none ml-2 hidden" id="collapseBtn69" onclick="toggleCodeBlock('cloneGroup69', 'expandBtn69', 'collapseBtn69')">Hide code</button><pre class="bg-gray-100 border border-gray-200 p-4 rounded mt-2 hidden" id="cloneGroup69"><code class="language-javascript text-sm text-gray-800">};
+
+  const bindDelegatedEvents = () =&gt; {
+    if (container.dataset.modelsEventsBound === '1') return;
+    container.dataset.modelsEventsBound = '1';
+
+    let searchDebounce = null;
+
+    container.addEventListener('input', (event) =&gt; {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.id !== 'account-model-search-input'</code></pre></div><!-- Add more clone groups for .txt format as needed         // Add more clone groups for .txt format as needed--></div></section><!-- Add more sections for other formats and clone groups as needed--></main><footer class="bg-white shadow mt-8 py-4"><div class="container mx-auto px-4 text-center"><p class="text-sm text-gray-600">This report is generated by jscpd, an open-source copy/paste detector.</p><p class="text-sm text-gray-600">jscpd is licensed under the MIT License.</p><a class="text-blue-500 text-sm" href="https://github.com/kucherenko/jscpd" target="_blank" rel="noopener noreferrer">View jscpd on GitHub</a></div></footer><script src="js/prism.js"></script><script>function toggleCodeBlock(codeBlockId, expandBtnId, collapseBtnId) {
+  const codeBlock = document.getElementById(codeBlockId);
+  const expandBtn = document.getElementById(expandBtnId);
+  const collapseBtn = document.getElementById(collapseBtnId);
+
+  codeBlock.classList.toggle('hidden');
+  expandBtn.classList.toggle('hidden');
+  collapseBtn.classList.toggle('hidden');
+}</script></body></html>

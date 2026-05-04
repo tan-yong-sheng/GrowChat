@@ -151,19 +151,20 @@ export async function filesRouter(req, env, ctx, user, path) {
           extractDocumentText(env, db, documentId, contentType, buffer)
             .then(async (extractResult) => {
               if (extractResult?.skipped) {
-                console.log(
-                  `Document ${documentId} extraction skipped: ${extractResult.reason || 'unsupported type'}`
-                );
+                console.log('Document extraction skipped', {
+                  documentId,
+                  reason: extractResult.reason || 'unsupported type',
+                });
                 return;
               }
-              console.log(`Document ${documentId} extraction complete`);
+              console.log('Document extraction complete', { documentId });
             })
             .catch((err) => {
-              console.error(`Failed to process document ${documentId}:`, err);
+              console.error('Failed to process document extraction', { documentId, err });
             })
         );
       } else {
-        console.log(`Document ${documentId} (JSON) skipped extraction to avoid memory overhead`);
+        console.log('Document extraction skipped for JSON file', { documentId });
       }
 
       return json(
@@ -183,7 +184,7 @@ export async function filesRouter(req, env, ctx, user, path) {
     } catch (err) {
       const message = err?.message || 'File upload failed';
       const status = String(message).includes('R2 upload timed out') ? 504 : 500;
-      console.error('File upload failed:', err);
+      console.error('File upload failed', err);
       return error(req, `File upload failed: ${message}`, status);
     }
   }

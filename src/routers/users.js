@@ -41,9 +41,9 @@ import {
   parsePagination,
   requirePlainObject,
   requireString,
+  isValidEmail,
   validateEmail,
 } from '../validation/request.js';
-import { isValidEmail } from '../utils/rbac.js';
 import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 import { ValidationError } from '../errors/http-errors.js';
 import { buildSelfProfileUpdate, buildUserProfileResponse } from './user-profile.js';

@@ -158,7 +158,13 @@ describe('guardrail fixtures', () => {
 
     const result = run(
       'semgrep',
-      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/account/account-models.js'],
+      [
+        'scan',
+        '--config',
+        semgrepConfig,
+        '--error',
+        'public/js/features/account/account-models.js',
+      ],
       fixtureRoot
     );
 

@@ -1,3 +1,14 @@
+import { renderButton } from './button.js';
+
+function escapeHtml(value = '') {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 /**
  * Renders a section header with title, subtitle, and optional action button
  * Used consistently across admin and account settings pages
@@ -8,6 +19,8 @@ export function renderSectionHeader({
   label = '', // e.g., "LLM PROVIDERS"
   actionButton = null, // { label, key, className, attrs }
 } = {}) {
+  const button = /** @type {any} */ (actionButton || {});
+
   return `
     <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
       <div class="w-full flex items-center justify-between gap-3">
@@ -18,20 +31,16 @@ export function renderSectionHeader({
         </div>
         ${
           actionButton
-            ? `
-          <button
-            type="button"
-            ${actionButton.key ? `data-action="${actionButton.key}"` : ''}
-            ${actionButton.attrs || ''}
-            class="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 ${actionButton.className || ''}"
-            title="${actionButton.label}"
-            aria-label="${actionButton.label}"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-        `
+            ? renderButton({
+                label: '+',
+                type: 'button',
+                variant: 'ghost',
+                className: `inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 ${button.className || ''}`,
+                ariaLabel: button.label,
+              }).replace(
+                '<button ',
+                `<button ${button.key ? `data-action="${escapeHtml(button.key)}"` : ''} ${button.attrs || ''} `
+              )
             : ''
         }
       </div>

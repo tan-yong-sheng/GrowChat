@@ -7,13 +7,9 @@ import {
   computePresence,
   getStatusColor,
 } from './user-profile-footer-helpers.js';
+import { renderButton } from './button.js';
 
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'focus', 'visibilitychange'];
-
-async function renderAdminRoute() {
-  const { renderAdminPage } = await import('../../features/admin/admin.js');
-  return renderAdminPage(document.getElementById('app'));
-}
 
 function getStoredAuthUser() {
   try {
@@ -24,37 +20,6 @@ function getStoredAuthUser() {
   } catch {
     return null;
   }
-}
-
-function renderAdminSkeleton() {
-  const app = document.getElementById('app');
-  if (!app) return;
-  app.innerHTML = `
-    <div class="min-h-screen bg-[#fafafa] text-gray-900">
-      <div class="max-w-6xl mx-auto px-4 py-6">
-        <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
-          <div class="bg-white border border-gray-100 rounded-2xl p-4 animate-pulse">
-            <div class="h-4 w-28 bg-gray-200 rounded mb-4"></div>
-            <div class="space-y-3">
-              <div class="h-3 w-32 bg-gray-200 rounded"></div>
-              <div class="h-3 w-36 bg-gray-200 rounded"></div>
-              <div class="h-3 w-24 bg-gray-200 rounded"></div>
-            </div>
-            <div class="mt-6 h-3 w-20 bg-gray-200 rounded"></div>
-          </div>
-          <div class="bg-white border border-gray-100 rounded-2xl p-6 animate-pulse">
-            <div class="h-5 w-44 bg-gray-200 rounded mb-4"></div>
-            <div class="space-y-3">
-              <div class="h-3 w-full bg-gray-200 rounded"></div>
-              <div class="h-3 w-11/12 bg-gray-200 rounded"></div>
-              <div class="h-3 w-10/12 bg-gray-200 rounded"></div>
-            </div>
-            <div class="mt-6 h-3 w-32 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 async function showPreferencesModal(user) {
@@ -68,7 +33,14 @@ async function showPreferencesModal(user) {
     <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
       <div class="modal-header flex items-center justify-between mb-6">
         <h3 class="text-xl font-bold text-gray-900 dark:text-white">Preferences</h3>
-        <button class="modal-close p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500">✕</button>
+        ${renderButton({
+          label: '×',
+          type: 'button',
+          variant: 'ghost',
+          className:
+            'modal-close p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500',
+          ariaLabel: 'Close preferences',
+        })}
       </div>
       <div class="space-y-5">
         <div class="form-group">
@@ -213,8 +185,7 @@ export async function createUserProfileFooter({ guardNavigation = null } = {}) {
         if (!allowed) return;
       }
       window.history.pushState({}, '', '/admin/users/overview');
-      renderAdminSkeleton();
-      await renderAdminRoute();
+      window.dispatchEvent(new PopStateEvent('popstate'));
     } else if (action === 'status') {
       await showPreferencesModal({ ...user, status: computePresence(lastActiveAt) });
     } else if (action === 'profile') {

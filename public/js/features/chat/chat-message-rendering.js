@@ -3,6 +3,9 @@ import { ensureBlocksFromContent } from './chat-message-blocks.js';
 import { formatThoughtDuration, buildToolToggleKey } from './chat-message-utils.js';
 
 export function renderAssistantContent(content, options = {}) {
+  if (options.streaming) {
+    return `<div class="whitespace-pre-wrap break-words">${escapeHtml(String(content ?? '')).replace(/\n/g, '<br/>')}</div>`;
+  }
   return renderMessageContent(content, options);
 }
 
@@ -70,7 +73,7 @@ export function renderThinkingBlock({
   const hasContent = Boolean(thinking);
   const contentHtml = hasContent
     ? `<div data-thinking-body="${toggleKey}" class="${collapsed ? 'hidden' : ''} mt-2 border-l-2 border-gray-200 pl-3 text-[13px] leading-[1.6] text-gray-500 italic">
-        ${renderMessageContent(thinking, specialBlockScope ? { specialBlockScope } : {})}
+        ${renderMessageContent(thinking, specialBlockScope ? { specialBlockScope, streaming: true } : { streaming: true })}
       </div>`
     : '';
   const chevronClass = collapsed ? '-rotate-90' : 'rotate-0';

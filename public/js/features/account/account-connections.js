@@ -26,6 +26,7 @@ import {
 } from '../../shared/utils/user-resource-overrides.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 import {
@@ -38,15 +39,6 @@ import {
   resolveUrlLabel,
   updateApiTypeDisplay,
 } from '../admin/settings/connections-helpers.js';
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 function normalizeProviderType(value) {
   return (

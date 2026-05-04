@@ -13,30 +13,14 @@ import {
   syncModelsTableState,
 } from '../../shared/components/models-section.js';
 import { normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
+import { cloneAttachmentCaps } from '../../shared/utils/attachment-caps.js';
 import { ATTACHMENT_CAP_TYPES } from '../admin/settings/models-helpers.js';
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 function normalizeAttachmentCaps(attachments = {}) {
   const next = {};
   ATTACHMENT_CAP_TYPES.forEach(({ key }) => {
     next[key] = Boolean(attachments?.[key]);
-  });
-  return next;
-}
-
-function cloneAttachmentCaps(caps = {}) {
-  const next = {};
-  Object.entries(caps || {}).forEach(([modelId, values]) => {
-    if (!values || typeof values !== 'object') return;
-    next[modelId] = { ...values };
   });
   return next;
 }

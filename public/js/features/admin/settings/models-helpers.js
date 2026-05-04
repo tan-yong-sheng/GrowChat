@@ -36,14 +36,7 @@ export function extractAttachmentCapsFromModels(models = []) {
   return caps;
 }
 
-export function cloneAttachmentCaps(caps = {}) {
-  const next = {};
-  Object.entries(caps || {}).forEach(([modelId, values]) => {
-    if (!values || typeof values !== 'object') return;
-    next[modelId] = { ...values };
-  });
-  return next;
-}
+export { cloneAttachmentCaps } from '../../../shared/utils/attachment-caps.js';
 
 export function getAttachmentCapValue(capsMap, modelId, kind) {
   return Boolean(capsMap?.[modelId]?.[kind]);

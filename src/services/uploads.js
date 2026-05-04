@@ -228,7 +228,7 @@ export async function deleteFileFromR2(env, r2Key) {
   try {
     await env.FILES.delete(r2Key);
   } catch (err) {
-    console.error(`Failed to delete R2 object ${r2Key}:`, err);
+    console.error('Failed to delete R2 object', { r2Key, err });
     // Non-fatal error
   }
 }

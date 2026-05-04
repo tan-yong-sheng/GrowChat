@@ -75,3 +75,7 @@ if (process.argv.includes('--semgrep')) {
     run('semgrep', ['scan', '--config', '.semgrep/rules.yml', '--error', ...semgrepFiles]);
   }
 }
+
+if (process.argv.includes('--jscpd')) {
+  run('npx', ['jscpd', 'public/js']);
+}

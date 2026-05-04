@@ -93,10 +93,11 @@ describe('account shell tabs', () => {
     expect(document.querySelector('#account-settings-drawer')).not.toBeNull();
     expect(document.querySelector('#account-settings-overlay')).not.toBeNull();
     expect(document.querySelector('#account-settings-close')).not.toBeNull();
-    expect(document.body.textContent).toContain('Settings');
     expect(document.querySelector('#account-main-footer')).not.toBeNull();
 
-    const innerTabs = Array.from(document.querySelectorAll('#account-tabs-container [data-subnav]'));
+    const innerTabs = Array.from(
+      document.querySelectorAll('#account-tabs-container [data-subnav]')
+    );
     expect(innerTabs.map((tab) => tab.textContent?.trim())).toEqual([
       'Connections',
       'Models',
@@ -122,10 +123,14 @@ describe('account shell tabs', () => {
     expect(document.querySelector('#account-settings-drawer')).not.toBeNull();
     expect(document.querySelector('h1')).toBeNull();
     expect(document.body.textContent).toContain('Settings');
-    expect(document.querySelector('[data-subnav="connections"]')?.className).toContain('bg-gray-100');
+    expect(document.querySelector('[data-subnav="connections"]')?.className).toContain(
+      'bg-gray-100'
+    );
     expect(document.querySelector('#account-main-footer')).not.toBeNull();
 
-    const innerTabs = Array.from(document.querySelectorAll('#account-tabs-container [data-subnav]'));
+    const innerTabs = Array.from(
+      document.querySelectorAll('#account-tabs-container [data-subnav]')
+    );
     expect(innerTabs.map((tab) => tab.textContent?.trim())).toEqual([
       'Connections',
       'Models',

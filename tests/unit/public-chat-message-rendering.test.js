@@ -18,6 +18,7 @@ import { enhanceMarkdownSpecialBlocks } from '../../public/js/shared/markdown-re
 describe('chat message rendering helpers', () => {
   it('renders assistant content and attachment pills', () => {
     expect(renderAssistantContent('Hello')).toContain('Hello');
+    expect(renderAssistantContent('**bold**', { streaming: true })).not.toContain('<strong>');
     const html = renderAttachmentPills([
       { id: 'img1', filename: 'photo.png', content_type: 'image/png' },
       { id: 'doc1', filename: '<doc>.pdf', content_type: 'application/pdf' },
@@ -29,12 +30,14 @@ describe('chat message rendering helpers', () => {
   it('keeps graphviz preview and code buttons after sanitization', () => {
     const originalMarked = globalThis.window.marked;
     globalThis.window.marked = {
-      lexer: vi.fn(() => [{
-        type: 'code',
-        lang: 'dot',
-        text: 'digraph G { A -> B; }',
-        raw: '```dot\ndigraph G { A -> B; }\n```',
-      }]),
+      lexer: vi.fn(() => [
+        {
+          type: 'code',
+          lang: 'dot',
+          text: 'digraph G { A -> B; }',
+          raw: '```dot\ndigraph G { A -> B; }\n```',
+        },
+      ]),
       setOptions: vi.fn(),
     };
 
@@ -51,29 +54,44 @@ describe('chat message rendering helpers', () => {
   });
 
   it('renders thinking and tool call blocks', () => {
-    expect(renderThinkingBlock({ label: 'Thinking…', thinking: 'step 1', collapsed: false, toggleKey: 'm1:thinking' }))
-      .toContain('data-thinking-toggle="m1:thinking"');
+    expect(
+      renderThinkingBlock({
+        label: 'Thinking…',
+        thinking: 'step 1',
+        collapsed: false,
+        toggleKey: 'm1:thinking',
+      })
+    ).toContain('data-thinking-toggle="m1:thinking"');
 
-    const tools = new Map([['tool-1', { id: 'tool-1', name: 'Search', status: 'running', input: '{}', output: '' }]]);
-    expect(renderToolCallItem('m1', tools.get('tool-1'), new Map([['m1:tool-1', true]]))).toContain('Executing Search...');
+    const tools = new Map([
+      ['tool-1', { id: 'tool-1', name: 'Search', status: 'running', input: '{}', output: '' }],
+    ]);
+    expect(renderToolCallItem('m1', tools.get('tool-1'), new Map([['m1:tool-1', true]]))).toContain(
+      'Executing Search...'
+    );
   });
 
   it('renders assistant message body from shared block state', () => {
     const messageBlocksById = new Map([
-      ['m1', [
-        { id: 'text-1', type: 'text', content: 'Hello' },
-        { id: 'thinking-1', type: 'thinking', content: 'step 1' },
-      ]],
+      [
+        'm1',
+        [
+          { id: 'text-1', type: 'text', content: 'Hello' },
+          { id: 'thinking-1', type: 'thinking', content: 'step 1' },
+        ],
+      ],
     ]);
     const toolCallsByMessageId = new Map([
       ['m1', [{ id: 'tool-1', name: 'Search', status: 'running', input: '{}', output: '' }]],
     ]);
     const originalMarked = globalThis.window.marked;
     globalThis.window.marked = {
-      lexer: vi.fn(() => [{
-        type: 'paragraph',
-        tokens: [{ type: 'text', text: 'Hello' }],
-      }]),
+      lexer: vi.fn(() => [
+        {
+          type: 'paragraph',
+          tokens: [{ type: 'text', text: 'Hello' }],
+        },
+      ]),
       setOptions: vi.fn(),
     };
     const html = renderAssistantMessageBody({
@@ -98,5 +116,3 @@ describe('chat message rendering helpers', () => {
     expect(html).toContain('Executing Search...');
   });
 });
-
-

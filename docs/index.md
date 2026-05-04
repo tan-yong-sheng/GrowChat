@@ -36,6 +36,10 @@ The `backend` directory maps APIs, background jobs, database schemas, and data f
     *   [Model Discovery & Merging](backend/flows/model-discovery.flow.md)
     *   [User Login & Auth](backend/flows/user-login.flow.md)
     *   [RBAC Authorization Engine](backend/flows/rbac-authorization.flow.md)
+*   **[Authentication System](backend/AUTH_FLOW.md)**: Complete auth flow documentation.
+    *   [Full Auth Flow](backend/AUTH_FLOW.md) — Registration, login, token refresh, password reset
+    *   [Sequence Diagrams](backend/AUTH_FLOW_SEQUENCES.md) — Visual flows for all auth scenarios
+    *   [Quick Reference](backend/AUTH_QUICK_REFERENCE.md) — API endpoints, examples, debugging
 *   **[Data Models](backend/data-models/)**: Database schemas and their implicit relationships.
     *   [Users & Sessions](backend/data-models/user.md)
     *   [Chats & Messages](backend/data-models/chat.md)

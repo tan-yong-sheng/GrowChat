@@ -108,7 +108,7 @@ async function refreshMissingSriHashesInBackground(env, missingEntries = [], bas
       } catch (err) {
         if (!sriWarningState.fetchFailures.has(key)) {
           sriWarningState.fetchFailures.add(key);
-          console.warn(`Failed to fetch SRI hash for ${key}:`, err?.message || err);
+          console.warn('Failed to fetch SRI hash', { key, error: err?.message || err });
         }
         return [key, null];
       }
@@ -182,7 +182,7 @@ function injectSriHashes(html, hashes) {
     if (!hashValue) {
       if (!sriWarningState.missingHashes.has(key)) {
         sriWarningState.missingHashes.add(key);
-        console.warn(`SRI hash missing for ${key} — resource will load without integrity check`);
+        console.warn('SRI hash missing; resource will load without integrity check', { key });
       }
       continue;
     }

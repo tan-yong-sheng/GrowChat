@@ -48,7 +48,7 @@ export async function extractDocumentText(env, db, documentId, contentType, buff
       excerptLength: excerpt.length,
     };
   } catch (err) {
-    console.error(`Document extraction failed for ${documentId}:`, err);
+    console.error('Document extraction failed', { documentId, err });
 
     // Mark as failed in D1
     await db.run(`UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?`, [

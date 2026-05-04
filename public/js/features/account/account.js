@@ -1,5 +1,8 @@
 import { apiFetch } from '../../shared/api.js';
 import { ensureMarkedReady } from '../../shared/utils.js';
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
+import { createUserProfileFooter } from '../../shared/components/user-profile-footer.js';
+import { mountSidebarFooter } from '../../shared/components/sidebar-footer-mount.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
 import { renderSettingsDrawerShell } from '../../shared/components/settings-drawer-shell.js';
 import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
@@ -82,15 +85,6 @@ function getAccountSectionPath(section) {
   }
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 async function loadAccountState() {
   const res = await apiFetch('/api/users/me/settings');
   if (!res.ok) {
@@ -157,7 +151,9 @@ async function renderAccountSection({
   onRefresh,
 }) {
   if (section === 'overview') {
-    content.replaceChildren(document.createRange().createContextualFragment(renderOverview(accountState)));
+    content.replaceChildren(
+      document.createRange().createContextualFragment(renderOverview(accountState))
+    );
     if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
     return;
   }
@@ -204,7 +200,9 @@ async function renderAccountSection({
     return;
   }
 
-  content.replaceChildren(document.createRange().createContextualFragment(renderOverview(accountState)));
+  content.replaceChildren(
+    document.createRange().createContextualFragment(renderOverview(accountState))
+  );
   if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
 }
 
@@ -226,14 +224,16 @@ export async function renderAccountPage(container) {
     return accountState;
   };
 
-  container.replaceChildren(document.createRange().createContextualFragment(renderWorkspaceShell({
-    sidebarHtml: renderWorkspaceSidebar({
-      homeHref: '/',
-      homeId: 'workspace-home-link',
-      homeLabel: 'GrowChat',
-      footerId: 'sidebar-footer',
-    }),
-    mainHtml: `
+  container.replaceChildren(
+    document.createRange().createContextualFragment(
+      renderWorkspaceShell({
+        sidebarHtml: renderWorkspaceSidebar({
+          homeHref: '/',
+          homeId: 'workspace-home-link',
+          homeLabel: 'GrowChat',
+          footerId: 'sidebar-footer',
+        }),
+        mainHtml: `
       <div class="relative flex-1 min-h-0 overflow-hidden bg-[#fafafa] text-gray-900">
         ${renderSettingsDrawerShell({
           rootId: 'account-settings-drawer',
@@ -269,7 +269,9 @@ export async function renderAccountPage(container) {
         })}
       </div>
     `,
-  })));
+      })
+    )
+  );
 
   container.insertAdjacentHTML(
     'beforeend',
@@ -282,8 +284,8 @@ export async function renderAccountPage(container) {
     },
     searchModalContainerSelector: '#search-modal-container',
     filesModalContainerSelector: '#files-modal-container',
-    footerId: 'sidebar-footer',
   });
+  void mountSidebarFooter(container, createUserProfileFooter());
 
   const content = container.querySelector('[data-account-content]');
   const footerHost = container.querySelector('#account-main-footer');
@@ -303,7 +305,13 @@ export async function renderAccountPage(container) {
       onRefresh: loadCurrentState,
     });
   } catch (err) {
-    content.replaceChildren(document.createRange().createContextualFragment(`<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`));
+    content.replaceChildren(
+      document
+        .createRange()
+        .createContextualFragment(
+          `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`
+        )
+    );
     if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
   }
 
@@ -360,14 +368,16 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   };
 
   const renderDrawer = async () => {
-    mount.replaceChildren(document.createRange().createContextualFragment(renderSettingsDrawerShell({
-      rootId: 'account-settings-drawer-modal',
-      title: 'My Settings',
-      subtitle: 'Personal account preferences and tools.',
-      scopeLabel: 'Personal',
-      closeId: 'account-settings-drawer-close',
-      overlayId: 'account-settings-drawer-overlay',
-      body: `
+    mount.replaceChildren(
+      document.createRange().createContextualFragment(
+        renderSettingsDrawerShell({
+          rootId: 'account-settings-drawer-modal',
+          title: 'My Settings',
+          subtitle: 'Personal account preferences and tools.',
+          scopeLabel: 'Personal',
+          closeId: 'account-settings-drawer-close',
+          overlayId: 'account-settings-drawer-overlay',
+          body: `
         <div class="flex h-full min-h-0 flex-col overflow-hidden">
           ${renderSettingsShell({
             navPaneHtml: renderWorkspaceVerticalTabs({
@@ -385,7 +395,9 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
           })}
         </div>
       `,
-    })));
+        })
+      )
+    );
 
     drawer = mount.querySelector('#account-settings-drawer-modal');
     content = mount.querySelector('[data-account-drawer-content]');
@@ -423,7 +435,13 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   try {
     await renderDrawer();
   } catch (err) {
-    content.replaceChildren(document.createRange().createContextualFragment(`<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`));
+    content.replaceChildren(
+      document
+        .createRange()
+        .createContextualFragment(
+          `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`
+        )
+    );
     if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
   }
 

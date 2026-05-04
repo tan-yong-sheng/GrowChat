@@ -5,6 +5,8 @@ import {
   renderWorkspaceSidebar,
   wireWorkspaceSidebar,
 } from '../../shared/components/workspace-sidebar.js';
+import { createUserProfileFooter } from '../../shared/components/user-profile-footer.js';
+import { mountSidebarFooter } from '../../shared/components/sidebar-footer-mount.js';
 import { buildWorkspaceTopNavConfig } from '../../shared/components/workspace-top-nav-config.js';
 import {
   renderWorkspaceTopNav,
@@ -281,17 +283,24 @@ export async function renderAdminPage(container) {
 
     if (!tabsContainer) {
       if (mainTab === 'users') {
-        mainContentEl.replaceChildren(document.createRange().createContextualFragment(renderUsersLayout(subTab)));
+        mainContentEl.replaceChildren(
+          document.createRange().createContextualFragment(renderUsersLayout(subTab))
+        );
       } else if (mainTab === 'system') {
-        mainContentEl.replaceChildren(document.createRange().createContextualFragment(renderSystemLayout(subTab)));
+        mainContentEl.replaceChildren(
+          document.createRange().createContextualFragment(renderSystemLayout(subTab))
+        );
       } else {
-        mainContentEl.replaceChildren(document.createRange().createContextualFragment(renderSettingsLayout(subTab)));
+        mainContentEl.replaceChildren(
+          document.createRange().createContextualFragment(renderSettingsLayout(subTab))
+        );
       }
       bindSubnav();
     } else {
       if (mainTab === 'users') {
         tabsContainer.id = 'users-tabs-container';
-        tabsContainer.replaceChildren(document.createRange().createContextualFragment(`
+        tabsContainer.replaceChildren(
+          document.createRange().createContextualFragment(`
           <a href="/admin/users/overview" data-subnav="overview" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'overview' ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:text-gray-900'}">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5">
               <path d="M8.5 4.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10.9 12.006c.11.542-.348.994-.9.994H2c-.553 0-1.01-.452-.902-.994a5.002 5.002 0 0 1 9.803 0ZM14.002 12h-1.59a2.556 2.556 0 0 0-.04-.29 6.476 6.476 0 0 0-1.167-2.603 3.002 3.002 0 0 1 3.633 1.911c.18.522-.283.982-.836.982ZM12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>
@@ -317,10 +326,12 @@ export async function renderAdminPage(container) {
             </svg>
             <span>Policies</span>
           </a>
-        `));
+        `)
+        );
       } else if (mainTab === 'system') {
         tabsContainer.id = 'system-tabs-container';
-        tabsContainer.replaceChildren(document.createRange().createContextualFragment(`
+        tabsContainer.replaceChildren(
+          document.createRange().createContextualFragment(`
           <a href="/admin/system/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5">
               <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
@@ -331,10 +342,12 @@ export async function renderAdminPage(container) {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5"><path d="M8 1a.75.75 0 0 1 .75.75v1.258a5.25 5.25 0 1 1-1.5 0V1.75A.75.75 0 0 1 8 1ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Z"/></svg>
             <span>Security</span>
           </a>
-        `));
+        `)
+        );
       } else {
         tabsContainer.id = 'settings-tabs-container';
-        tabsContainer.replaceChildren(document.createRange().createContextualFragment(`
+        tabsContainer.replaceChildren(
+          document.createRange().createContextualFragment(`
           <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5">
               <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
@@ -355,7 +368,8 @@ export async function renderAdminPage(container) {
               </svg>
               <span>Integrations</span>
             </a>
-        `));
+        `)
+        );
       }
       bindSubnav();
     }
@@ -369,13 +383,25 @@ export async function renderAdminPage(container) {
       (mainTab === 'system' && !systemModules.renderGeneralSettings) ||
       (mainTab === 'settings' && !settingsModules.renderConnectionsSettings);
     if (needsModuleLoad) {
-      subContentEl.replaceChildren(document.createRange().createContextualFragment(mainTab === 'users' ? renderLoadingState() : renderSettingsSkeleton()));
+      subContentEl.replaceChildren(
+        document
+          .createRange()
+          .createContextualFragment(
+            mainTab === 'users' ? renderLoadingState() : renderSettingsSkeleton()
+          )
+      );
       renderMainActionFooter();
       updateMainActionFooter();
       try {
         await ensureMainTabModules(mainTab);
       } catch (err) {
-        subContentEl.replaceChildren(document.createRange().createContextualFragment(renderErrorState(err?.message || 'Failed to load admin section.')));
+        subContentEl.replaceChildren(
+          document
+            .createRange()
+            .createContextualFragment(
+              renderErrorState(err?.message || 'Failed to load admin section.')
+            )
+        );
         renderMainActionFooter();
         updateMainActionFooter();
         return;
@@ -394,7 +420,8 @@ export async function renderAdminPage(container) {
       } else if (subTab === 'integrations') {
         settingsModules.renderIntegrationsSettings?.(subContentEl, data);
       } else {
-        subContentEl.replaceChildren(document.createRange().createContextualFragment(`
+        subContentEl.replaceChildren(
+          document.createRange().createContextualFragment(`
           <div class="flex flex-col items-center justify-center h-full text-center p-10">
             <div class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
@@ -404,7 +431,8 @@ export async function renderAdminPage(container) {
             <h3 class="text-lg font-medium text-gray-900 mb-1">${getAdminSubTabLabel(subTab)} Settings</h3>
             <p class="text-sm text-gray-700 max-w-xs">This section is currently under development.</p>
           </div>
-        `));
+        `)
+        );
       }
       renderMainActionFooter();
       updateMainActionFooter();
@@ -417,7 +445,8 @@ export async function renderAdminPage(container) {
       } else if (subTab === 'security') {
         systemModules.renderSecuritySettings?.(subContentEl, data);
       } else {
-        subContentEl.replaceChildren(document.createRange().createContextualFragment(`
+        subContentEl.replaceChildren(
+          document.createRange().createContextualFragment(`
           <div class="flex flex-col items-center justify-center h-full text-center p-10">
             <div class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
@@ -427,7 +456,8 @@ export async function renderAdminPage(container) {
             <h3 class="text-lg font-medium text-gray-900 mb-1">${getAdminSubTabLabel(subTab)} System</h3>
             <p class="text-sm text-gray-700 max-w-xs">This section is currently under development.</p>
           </div>
-        `));
+        `)
+        );
       }
       renderMainActionFooter();
       updateMainActionFooter();
@@ -449,7 +479,9 @@ export async function renderAdminPage(container) {
     }
 
     if (data.error) {
-      subContentEl.replaceChildren(document.createRange().createContextualFragment(renderErrorState(data.error)));
+      subContentEl.replaceChildren(
+        document.createRange().createContextualFragment(renderErrorState(data.error))
+      );
     } else if (subTab === 'overview') {
       usersModules.renderUserOverview?.(subContentEl, data, {
         reload: loadUsers,
@@ -482,7 +514,9 @@ export async function renderAdminPage(container) {
         },
       });
     } else if (data.loading && data.loadingMode === 'initial') {
-      subContentEl.replaceChildren(document.createRange().createContextualFragment(renderLoadingState()));
+      subContentEl.replaceChildren(
+        document.createRange().createContextualFragment(renderLoadingState())
+      );
     } else {
       usersModules.renderGroupsOverview?.(subContentEl, data, {
         reload: loadGroups,
@@ -622,7 +656,9 @@ export async function renderAdminPage(container) {
         updateRouteInfo();
         const subContentEl = container.querySelector('#admin-sub-content');
         if (subContentEl && (mainTab === 'settings' || mainTab === 'system')) {
-          subContentEl.replaceChildren(document.createRange().createContextualFragment(renderSettingsSkeleton()));
+          subContentEl.replaceChildren(
+            document.createRange().createContextualFragment(renderSettingsSkeleton())
+          );
           renderMainActionFooter();
           updateMainActionFooter();
           requestAnimationFrame(() => renderSubContent());
@@ -649,14 +685,16 @@ export async function renderAdminPage(container) {
       container.__cleanup();
     }
 
-    container.replaceChildren(document.createRange().createContextualFragment(renderWorkspaceShell({
-      sidebarHtml: renderWorkspaceSidebar({
-        homeHref: '/',
-        homeId: 'workspace-home-link',
-        homeLabel: 'GrowChat',
-        footerId: 'sidebar-footer',
-      }),
-      mainHtml: `
+    container.replaceChildren(
+      document.createRange().createContextualFragment(
+        renderWorkspaceShell({
+          sidebarHtml: renderWorkspaceSidebar({
+            homeHref: '/',
+            homeId: 'workspace-home-link',
+            homeLabel: 'GrowChat',
+            footerId: 'sidebar-footer',
+          }),
+          mainHtml: `
           ${renderWorkspaceTopNav({
             ...buildWorkspaceTopNavConfig({
               variant: 'admin',
@@ -670,7 +708,9 @@ export async function renderAdminPage(container) {
           })}
           <div class="flex-1 flex overflow-hidden" id="admin-main-content"></div>
         `,
-    })));
+        })
+      )
+    );
     container.insertAdjacentHTML(
       'beforeend',
       '<div id="search-modal-container"></div><div id="files-modal-container"></div>'
@@ -686,6 +726,7 @@ export async function renderAdminPage(container) {
       filesModalContainerSelector: '#files-modal-container',
       footerId: 'sidebar-footer',
     });
+    void mountSidebarFooter(container, createUserProfileFooter({ guardNavigation }));
     bindTopNav();
     if (!container.__sharedFooterClickBound) {
       container.__sharedFooterClickBound = true;

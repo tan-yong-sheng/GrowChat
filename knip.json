@@ -21,7 +21,7 @@
     "public/js/shared/utils/model-filters.test.js"
   ],
   "ignoreDependencies": ["dompurify", "ecc-universal", "zod"],
-  "ignoreBinaries": ["dot", "uv", "semgrep", "knip"],
+  "ignoreBinaries": ["dot", "uv", "semgrep"],
   "ignoreIssues": {
     "package.json": ["devDependencies"],
     ".husky/pre-commit": ["binaries"]

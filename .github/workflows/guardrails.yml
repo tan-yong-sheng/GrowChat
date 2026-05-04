@@ -27,7 +27,9 @@ jobs:
         run: npm ci
 
       - name: Setup Semgrep
-        run: python3 -m pip install semgrep
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          npm run setup:semgrep
 
       - name: Pre-push gate
         run: npm run prepush

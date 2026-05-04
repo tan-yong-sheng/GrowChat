@@ -196,16 +196,13 @@ describe('openai connection helpers', () => {
     ).toEqual(['https://api.anthropic.com/v1/models', 'https://api.anthropic.com/models']);
   });
 
-  it('prefers https discovery urls when configured base url is http', () => {
+  it('keeps http discovery urls on loopback bases', () => {
     expect(
       getConnectionModelDiscoveryUrls({
         providerType: 'openai',
-        baseUrl: 'http://proxy.tanyongsheng.site/v1',
+        baseUrl: 'http://localhost:11434/v1',
       })
-    ).toEqual([
-      'https://proxy.tanyongsheng.site/v1/models',
-      'http://proxy.tanyongsheng.site/v1/models',
-    ]);
+    ).toEqual(['http://localhost:11434/v1/models']);
   });
 
   it('loads personal connection configs from D1 rows', async () => {
