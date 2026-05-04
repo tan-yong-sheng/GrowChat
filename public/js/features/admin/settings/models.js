@@ -7,6 +7,7 @@ import {
   filterModelsBySearchAndProvider,
 } from '../../../shared/utils/model-filters.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
+import { getModelAccessPresentation } from '../../../shared/utils/model-access-presentation.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import {
   renderModelsHeaderHtml,
@@ -58,29 +59,6 @@ const escapeHtml = (value) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-
-function getModelAccessPresentation(model = {}) {
-  const accessVariant = String(model?.access_variant || '')
-    .trim()
-    .toLowerCase();
-  const accessLabel = String(model?.access_label || '').trim();
-  if (accessVariant === 'shared' || accessLabel.toLowerCase() === 'shared') {
-    return {
-      label: 'Shared',
-      className: 'border-gray-200 bg-gray-50 text-gray-600',
-    };
-  }
-  if (accessVariant === 'personal' || accessLabel.toLowerCase() === 'personal') {
-    return {
-      label: 'Personal',
-      className: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    };
-  }
-  return {
-    label: accessLabel || 'Admin',
-    className: 'border-sky-100 bg-sky-50 text-sky-700',
-  };
-}
 
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';

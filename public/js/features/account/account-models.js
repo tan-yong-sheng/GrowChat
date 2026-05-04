@@ -2,6 +2,7 @@ import { apiFetch, fetchModels } from '../../shared/api.js';
 import { buildProviderOptions } from '../../shared/utils/model-filters.js';
 import { normalizeModelSearchQuery } from '../../shared/utils/model-search.js';
 import { countEnabledModels, sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
+import { getModelAccessPresentation } from '../../shared/utils/model-access-presentation.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
 import {
   renderModelsHeaderHtml,
@@ -85,39 +86,6 @@ function normalizeModelRecord(model = {}) {
   };
 }
 
-function getModelAccessPresentation(model = {}) {
-  const accessVariant = String(model?.access_variant || '')
-    .trim()
-    .toLowerCase();
-  const accessLabel = String(model?.access_label || '')
-    .trim()
-    .toLowerCase();
-
-  if (accessVariant === 'personal' || accessLabel === 'personal') {
-    return {
-      label: 'Personal',
-      className: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    };
-  }
-
-  if (
-    accessVariant === 'admin' ||
-    accessLabel === 'admin' ||
-    accessVariant === 'shared' ||
-    accessLabel === 'shared'
-  ) {
-    return {
-      label: 'Admin',
-      className: 'border-sky-100 bg-sky-50 text-sky-700',
-    };
-  }
-
-  return {
-    label: model?.access_label || 'Admin',
-    className: 'border-sky-100 bg-sky-50 text-sky-700',
-  };
-}
-
 function renderLoadingRows() {
   return Array.from({ length: 5 })
     .map(
@@ -139,7 +107,10 @@ function renderLoadingRows() {
 
 function renderModelRow(model) {
   const enabled = model.enabled !== false;
-  const access = getModelAccessPresentation(model);
+  const access = getModelAccessPresentation(model, {
+    sharedLabel: 'Admin',
+    sharedClassName: 'border-sky-100 bg-sky-50 text-sky-700',
+  });
   const toggleClass = `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enabled ? 'bg-black' : 'bg-gray-200'}`;
   return `
     <tr data-model-row="${escapeHtml(model.id)}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${enabled ? '' : 'bg-gray-50/80 opacity-70'}">
