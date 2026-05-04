@@ -9,6 +9,7 @@ import {
 import { apiFetch } from '../../shared/api.js';
 import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
+import { renderStatusBadge } from '../../shared/components/status-badge.js';
 import { broadcastToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
 import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
 import {
@@ -261,7 +262,7 @@ function buildListCard(
         <div class="flex flex-col min-w-0">
           <div class="flex items-center gap-2">
             <div class="text-xs font-medium text-gray-900">${escapeHtml(server.name || server.id || 'Integration')}</div>
-            <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${isShared ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}">${isShared ? 'Shared' : 'Personal'}</span>
+            ${renderStatusBadge({ text: isShared ? 'Shared' : 'Personal', tone: isShared ? 'gray' : 'green' }).trim()}
             <span data-server-disabled-badge class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${serverEnabled ? 'hidden' : ''} border-gray-200 bg-gray-100 text-gray-700">Disabled</span>
           </div>
           <div class="text-[10px] text-gray-600 font-mono">${escapeHtml(server.url || '')}</div>

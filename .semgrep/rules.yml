@@ -29,3 +29,32 @@ rules:
     severity: ERROR
     languages:
       - javascript
+
+  - id: no-raw-pill-button-markup-in-feature-code
+    pattern-regex: '<button[^>]*class\s*=\s*["\x27`](?=[^"\x27`]*rounded-full)(?=[^"\x27`]*\bpx-[^\s"\x27`]+)(?=[^"\x27`]*\bpy-[^\s"\x27`]+)[^"\x27`]*["\x27`]'
+    paths:
+      include:
+        - '**/public/js/**/*'
+      exclude:
+        - '**/public/js/shared/components/button.js'
+        - '**/*.test.js'
+        - '**/*.spec.js'
+    message: 'Raw pill button markup bypasses canonical button primitive. Use renderButton() instead.'
+    severity: ERROR
+    languages:
+      - javascript
+
+  - id: no-raw-status-badge-markup-in-account-features
+    pattern-regex: '<span[^>]*class\s*=\s*["\x27`][^"\x27`]*inline-flex items-center rounded-full border px-2 py-0\.5 text-\[10px\] font-semibold uppercase tracking-wide[^"\x27`]*["\x27`]'
+    paths:
+      include:
+        - '**/public/js/features/account/account-connections.js'
+        - '**/public/js/features/account/account-integrations.js'
+      exclude:
+        - '**/public/js/shared/components/status-badge.js'
+        - '**/*.test.js'
+        - '**/*.spec.js'
+    message: 'Raw status badge markup in account feature code bypasses renderStatusBadge(). Use shared status badge component.'
+    severity: ERROR
+    languages:
+      - javascript

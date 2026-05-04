@@ -11,6 +11,7 @@ import {
   buildConnectionModalModelsMarkup,
 } from '../../shared/components/connection-modal.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
+import { renderStatusBadge } from '../../shared/components/status-badge.js';
 import { broadcastConnectionsInvalidation } from '../../shared/utils/connection-sync.js';
 import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
 import { removeItemById, upsertItemById } from '../../shared/utils/list-state.js';
@@ -155,12 +156,7 @@ function formatHeadersValue(headers) {
 }
 
 function renderSummaryPill(text, tone = 'gray') {
-  const tones = {
-    gray: 'border-gray-200 bg-gray-50 text-gray-500',
-    green: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    amber: 'border-amber-100 bg-amber-50 text-amber-700',
-  };
-  return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tones[tone] || tones.gray}">${escapeHtml(text)}</span>`;
+  return renderStatusBadge({ text: escapeHtml(text), tone }).trim();
 }
 
 function buildListCard(connection, canManageConnections = true) {

@@ -82,4 +82,67 @@ describe('guardrail fixtures', () => {
       'no-frontend-worker-env-access'
     );
   }, 20000);
+
+  it('rejects raw status badge markup in account feature slice via semgrep', () => {
+    const fixtureRoot = makeFixtureRoot();
+    writeFixture(
+      fixtureRoot,
+      'public/js/features/account/account-connections.js',
+      'export const view = `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border-gray-200 bg-gray-50 text-gray-500">Shared</span>`;\n'
+    );
+
+    const result = run(
+      'semgrep',
+      [
+        'scan',
+        '--config',
+        semgrepConfig,
+        '--error',
+        'public/js/features/account/account-connections.js',
+      ],
+      fixtureRoot
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+      'no-raw-status-badge-markup-in-account-features'
+    );
+  }, 20000);
+
+  it('rejects rounded pill action buttons but allows compact toggle switches', () => {
+    const fixtureRoot = makeFixtureRoot();
+    writeFixture(
+      fixtureRoot,
+      'public/js/features/demo.js',
+      [
+        'export const bad = `<button class="inline-flex rounded-full px-4 py-2 text-sm">Run</button>`;',
+        'export const good = `<button class="inline-flex h-6 w-11 rounded-full">Toggle</button>`;',
+      ].join('\n') + '\n'
+    );
+
+    const badResult = run(
+      'semgrep',
+      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/demo.js'],
+      fixtureRoot
+    );
+
+    expect(badResult.status).not.toBe(0);
+    expect(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`).toContain(
+      'no-raw-pill-button-markup-in-feature-code'
+    );
+
+    writeFixture(
+      fixtureRoot,
+      'public/js/features/demo.js',
+      'export const good = `<button class="inline-flex h-6 w-11 rounded-full">Toggle</button>`;\n'
+    );
+
+    const goodResult = run(
+      'semgrep',
+      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/demo.js'],
+      fixtureRoot
+    );
+
+    expect(goodResult.status).toBe(0);
+  }, 20000);
 });
