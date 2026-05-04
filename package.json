@@ -30,9 +30,12 @@
     "setup:semgrep": "uv tool install semgrep",
     "lint:logic": "semgrep scan --config .semgrep/rules.yml",
     "lint:logic:scoped": "node scripts/run-scoped-guardrails.js --semgrep",
+    "lint:dupes": "jscpd public/js",
+    "lint:dupes:budget": "node scripts/check-jscpd-budgets.js",
+    "lint:dupes:scoped": "node scripts/run-scoped-guardrails.js --jscpd",
     "lint:hygiene": "npx knip --include files,dependencies,binaries",
     "precommit": "node scripts/secret-scan.cjs && npx lint-staged",
-    "prepush": "npm run test && npm run typecheck && npm run lint:logic:scoped && npm run arch:check:scoped && npm run format:check:scoped && npm run lint:hygiene"
+    "prepush": "npm run test && npm run typecheck && npm run lint:logic:scoped && npm run lint:dupes:scoped && npm run lint:dupes:budget && npm run arch:check:scoped && npm run format:check:scoped && npm run lint:hygiene"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^20.5.0",
@@ -49,6 +52,7 @@
     "eslint-plugin-tailwindcss": "^3.18.0",
     "globals": "^17.5.0",
     "husky": "^9.1.7",
+    "jscpd": "^4.0.9",
     "jsdom": "^29.0.1",
     "knip": "^5.68.0",
     "lint-staged": "^16.4.0",

@@ -108,6 +108,11 @@ module.exports = [
     rules: {
       'no-unused-vars': 'warn',
       'no-console': 'off',
+      'no-duplicate-imports': 'warn',
+      complexity: ['warn', { max: 15 }],
+      'max-lines-per-function': ['warn', { max: 120, skipBlankLines: true, skipComments: true }],
+      'max-depth': ['warn', 4],
+      'max-nested-callbacks': ['warn', 3],
     },
   },
 ];
