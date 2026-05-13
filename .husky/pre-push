@@ -1,7 +1,1 @@
-#!/usr/bin/env sh
-set -euo pipefail
-
-# Skip in CI
-if [ -n "${CI:-}" ]; then exit 0; fi
-
 npm run prepush
