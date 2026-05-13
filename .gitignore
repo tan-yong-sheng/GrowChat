@@ -1,5 +1,4 @@
 ssemgrep-runtime.json
-reports/
 .pi-lens/
 ai/
 open-webui/
@@ -15,6 +14,7 @@ opencode/
 generative-ui-demo/
 ClawRouter/
 
+report/
 artifacts/
 .gstack/
 .ralph/
