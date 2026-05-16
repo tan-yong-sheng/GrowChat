@@ -21,7 +21,7 @@ export function createModelSelectorController(container) {
   const btn = container.querySelector('#model-selector-btn');
   const chevron = container.querySelector('#model-selector-chevron');
   const dropdown = container.querySelector('#model-selector-dropdown');
-  const nameSpan = container.querySelector('#active-model-name');
+  // active-model-name removed - button now just says 'Model'
   const summaryEl = container.querySelector('#model-selector-summary');
   const noticeEl = container.querySelector('#model-selector-notice');
   const searchInput = container.querySelector('#model-search-input');
@@ -377,13 +377,7 @@ export function createModelSelectorController(container) {
       currentState.activeModelId && models.some((model) => model.id === currentState.activeModelId)
     );
 
-    if (!hasModels) {
-      nameSpan.textContent = currentState.modelsLoading ? 'Loading...' : 'No selectable models';
-    } else if (preferredModel) {
-      nameSpan.textContent = getModelDisplayLabel(preferredModel) || preferredModel.id;
-    } else {
-      nameSpan.textContent = 'Select a Model';
-    }
+    // Model name no longer shown in button - just "Model" text
 
     const isDefaultModel = Boolean(
       preferredModelId && currentState.defaultModelId === preferredModelId

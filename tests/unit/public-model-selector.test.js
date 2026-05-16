@@ -38,7 +38,7 @@ describe('model selector', () => {
     });
 
     const destroy = renderModelSelector(container);
-    expect(container.textContent).toContain('GPT Mini');
+    expect(container.textContent).toContain('Model');
     expect(container.textContent).toContain('Selectable in chat');
     expect(container.querySelector('#model-selector-btn').getAttribute('aria-label')).toBe(
       'Select model'
@@ -83,7 +83,7 @@ describe('model selector', () => {
     const destroy = renderModelSelector(container);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(store.state.activeModelId).toBe('m1');
-    expect(container.textContent).toContain('Alpha');
+    expect(container.textContent).toContain('Model');
     expect(container.textContent).not.toContain('Unknown model');
     destroy();
   });

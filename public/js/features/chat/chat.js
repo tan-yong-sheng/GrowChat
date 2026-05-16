@@ -96,7 +96,7 @@ export function renderChat(container) {
             <svg id="toggle-chats-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-200"><polyline points="18 15 12 9 6 15"></polyline></svg>
           </button>
           <div class="flex-grow overflow-y-auto no-scrollbar sidebar-full-only" id="chat-list-container">
-            <ul id="chat-list" class="space-y-0.5"></ul>
+            <ul id="chat-list" class="space-y-0"></ul>
           </div>
         </div>
 

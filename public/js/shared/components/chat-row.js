@@ -52,7 +52,7 @@ export function createChatRow(chat, handlers) {
 
   const htmlTemplate = `
     <div class="chat-row relative group px-2 w-full ${isActive ? 'active' : ''}" data-chat-id="${chat.id}" tabindex="0" role="listitem">
-      <div class="chat-row-content relative flex items-center justify-between rounded-xl px-3 py-2 transition-colors cursor-pointer focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none ${isActive ? 'bg-gray-100/90 shadow-sm ring-1 ring-gray-200' : 'group-hover:bg-gray-100/80'}">
+      <div class="chat-row-content relative flex items-center justify-between rounded-xl px-3 py-1.5 transition-colors cursor-pointer focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none ${isActive ? 'bg-gray-100/90 shadow-sm ring-1 ring-gray-200' : 'group-hover:bg-gray-100/80'}">
         <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="sidebar-full-only flex-1 min-w-0 pr-2">
             <span class="chat-title flex items-center gap-1.5 text-sm truncate font-primary ${isActive ? 'text-gray-900 font-semibold' : 'text-gray-700'}">

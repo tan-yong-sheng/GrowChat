@@ -3,8 +3,8 @@ import { createModelSelectorController } from './model-selector-controller.js';
 export function renderModelSelector(container) {
   container.innerHTML = `
   <div class="relative" id="model-selector-wrapper">
-    <button id="model-selector-btn" class="flex items-center gap-0.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md px-1.5 py-1 transition cursor-pointer" aria-label="Select model" aria-haspopup="listbox" aria-expanded="false" aria-controls="model-selector-dropdown">
-      <span id="active-model-name">Loading...</span>
+    <button id="model-selector-btn" class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full px-2.5 py-1 transition cursor-pointer" aria-label="Select model" aria-haspopup="listbox" aria-expanded="false" aria-controls="model-selector-dropdown">
+      Model
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 text-gray-400 transition-transform duration-200" id="model-selector-chevron"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /></svg>
     </button>
     <div id="model-selector-dropdown" class="absolute bottom-full right-0 mb-2 w-72 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 hidden flex-col p-2 font-primary" role="listbox">
