@@ -65,7 +65,7 @@ export function renderMessageInput(container, onSend) {
          </button>
        </div>
     </form>
-    <div class="mt-2 text-xs text-gray-400 text-center font-medium">GrowChat can make mistakes. Check important info.</div>
+    <div class="mt-2 text-xs text-gray-400 text-center font-medium flex items-center justify-center gap-2"><span id="disclaimer-text">GrowChat can make mistakes. Check important info.</span><span class="text-gray-300">·</span><div id="model-selector-container"></div></div>
   `;
 
   return createMessageInputController({

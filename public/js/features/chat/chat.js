@@ -109,7 +109,7 @@ export function renderChat(container) {
              <button id="toggle-sidebar-mobile" class="p-2 mr-2 hover:bg-gray-100 rounded-lg transition text-gray-500 md:hidden" title="Open Sidebar">
                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
              </button>
-             <div id="model-selector-container"></div>
+             
            </div>
 
            <div class="flex items-center gap-1 text-gray-500">
@@ -371,7 +371,7 @@ function wireChat(root) {
   const shareModalContainer = root.querySelector('#share-modal-container');
   const archivedModalContainer = root.querySelector('#archived-modal-container');
   const citationModalContainer = root.querySelector('#citation-modal-container');
-  const modelSelectorContainer = root.querySelector('#model-selector-container');
+  // model-selector-container is now inside message-input, queried lazily after render
   let chatListObserverArmed = false;
   let buildChatSidebarListFragmentImpl = null;
   let sidebarHydrationWarmupTimer = null;
@@ -534,7 +534,6 @@ function wireChat(root) {
     pinnedSectionCollapsed = false;
   }
 
-  const destroyModelSelector = renderModelSelector(modelSelectorContainer);
   const destroySidebar = renderSidebar(sidebar, root);
   const messageIdentityTracker = createChatMessageIdentityTracker({
     setState,
@@ -967,6 +966,8 @@ function wireChat(root) {
   });
   bindToolServersInvalidationListener();
   checkToolServersInvalidation();
+  const modelSelectorContainer = root.querySelector('#model-selector-container');
+  const destroyModelSelector = modelSelectorContainer ? renderModelSelector(modelSelectorContainer) : null;
   let toolServersWarmupTriggered = false;
   const warmupToolServers = () => {
     if (toolServersWarmupTriggered) return;

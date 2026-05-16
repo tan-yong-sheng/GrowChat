@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../public/js/shared/utils.js', () => ({
@@ -37,11 +38,9 @@ describe('model selector', () => {
     });
 
     const destroy = renderModelSelector(container);
-
     expect(container.textContent).toContain('GPT Mini');
     expect(container.textContent).toContain('Selectable in chat');
     expect(container.querySelector('#model-selector-btn').getAttribute('aria-label')).toBe('Select model');
-
     destroy();
   });
 
@@ -58,10 +57,8 @@ describe('model selector', () => {
 
     const destroy = renderModelSelector(container);
     await new Promise((resolve) => setTimeout(resolve, 0));
-
     expect(container.textContent).toContain('Selectable in chat');
     expect(container.textContent).toContain('No selectable models are currently available for this chat.');
-
     destroy();
   });
 
@@ -81,11 +78,9 @@ describe('model selector', () => {
 
     const destroy = renderModelSelector(container);
     await new Promise((resolve) => setTimeout(resolve, 0));
-
     expect(store.state.activeModelId).toBe('m1');
     expect(container.textContent).toContain('Alpha');
     expect(container.textContent).not.toContain('Unknown model');
-
     destroy();
   });
 
@@ -106,9 +101,7 @@ describe('model selector', () => {
     expect(container.textContent).toContain('Personal');
     expect(container.textContent).toContain('Shared');
     container.querySelector('button[data-model-id="m2"]').click();
-
     expect(store.state.activeModelId).toBe('m2');
-
     destroy();
   });
 
@@ -133,82 +126,9 @@ describe('model selector', () => {
 
     const destroy = renderModelSelector(container);
     await new Promise((resolve) => setTimeout(resolve, 0));
-
     expect(store.state.activeModelId).toBe('m2');
     expect(container.textContent).toContain('Your previous model was disabled by an admin. Switched to Claude.');
     expect(container.querySelector('#model-selector-notice').className).not.toContain('hidden');
-
-    destroy();
-  });
-
-  it('shows unset default when the current model is already the default', async () => {
-    const { store, renderModelSelector } = await loadModules();
-    const container = document.getElementById('root');
-    const { apiFetch } = await import('../../public/js/shared/api.js');
-    apiFetch.mockResolvedValue(new Response('{}', {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }));
-
-    store.setState({
-      user: { preferences: { defaultModelId: 'm2' } },
-      models: [
-        { id: 'm1', name: 'GPT Mini' },
-        { id: 'm2', name: 'Claude' },
-      ],
-      activeModelId: 'm2',
-      defaultModelId: 'm2',
-    });
-
-    const destroy = renderModelSelector(container);
-
-    expect(container.querySelector('#header-set-default-btn').textContent).toBe('Unset default');
-
-    container.querySelector('#header-set-default-btn').click();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({
-      method: 'PUT',
-      body: JSON.stringify({ preferences: {} }),
-    }));
-    expect(store.state.defaultModelId).toBeNull();
-    expect(localStorage.getItem('defaultModelId')).toBeNull();
-
-    destroy();
-  });
-
-  it('persists the active model as the default model when requested', async () => {
-    const { store, renderModelSelector } = await loadModules();
-    const container = document.getElementById('root');
-    const { apiFetch } = await import('../../public/js/shared/api.js');
-    apiFetch.mockResolvedValue(new Response('{}', {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }));
-
-    store.setState({
-      user: { preferences: {} },
-      models: [
-        { id: 'm1', name: 'GPT Mini' },
-        { id: 'm2', name: 'Claude' },
-      ],
-      activeModelId: 'm2',
-      defaultModelId: null,
-    });
-
-    const destroy = renderModelSelector(container);
-    container.querySelector('#header-set-default-btn').click();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({
-      method: 'PUT',
-      body: JSON.stringify({ preferences: { defaultModelId: 'm2' } }),
-    }));
-    expect(store.state.defaultModelId).toBe('m2');
-    expect(localStorage.getItem('defaultModelId')).toBe('m2');
-
     destroy();
   });
 });
-
-

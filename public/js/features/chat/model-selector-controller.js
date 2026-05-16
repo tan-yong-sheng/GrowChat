@@ -26,7 +26,7 @@ export function createModelSelectorController(container) {
   const noticeEl = container.querySelector('#model-selector-notice');
   const searchInput = container.querySelector('#model-search-input');
   const listContainer = container.querySelector('#model-list-container');
-  const headerSetDefaultBtn = container.querySelector('#header-set-default-btn');
+
 
   let isOpen = false;
   let searchQuery = '';
@@ -271,38 +271,7 @@ export function createModelSelectorController(container) {
     }
   };
 
-  const handleSetDefault = async (e) => {
-    e.stopPropagation();
-    const modelId =
-      state.activeModelId ||
-      getPreferredModelId(state.models || [], [state.defaultModelId, state.globalDefaultModelId]);
-    if (!modelId) return;
-    const isDefault = state.defaultModelId === modelId;
-    const progressToast = showToastProgress(
-      isDefault ? 'Unsetting default model...' : 'Setting default model...'
-    );
-    const { apiFetch } = await import('../../shared/api.js');
-    const result = await persistDefaultModelSelection({
-      apiFetch,
-      modelId: isDefault ? null : modelId,
-      currentPreferences: state.user?.preferences || {},
-      onSuccess: (message) => progressToast.update(message),
-      onFallback: (message) => progressToast.update(message),
-    });
-    if (result.ok) {
-      const nextDefaultModelId = isDefault ? null : modelId;
-      const nextPreferences = { ...(state.user?.preferences || {}) };
-      if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
-      else delete nextPreferences.defaultModelId;
-      setState({
-        defaultModelId: nextDefaultModelId,
-        user: state.user ? { ...state.user, preferences: nextPreferences } : state.user,
-      });
-      if (isOpen) toggle();
-    }
-  };
 
-  headerSetDefaultBtn.onclick = handleSetDefault;
   btn.onclick = (e) => {
     e.stopPropagation();
     toggle();
@@ -421,12 +390,6 @@ export function createModelSelectorController(container) {
     const isDefaultModel = Boolean(
       preferredModelId && currentState.defaultModelId === preferredModelId
     );
-    headerSetDefaultBtn.textContent = isDefaultModel ? 'Unset default' : 'Set as default';
-    headerSetDefaultBtn.className = hasModels
-      ? 'text-gray-400 font-primary hover:text-gray-500 transition-colors'
-      : 'text-gray-400 font-primary transition-colors opacity-50 cursor-not-allowed pointer-events-none';
-    headerSetDefaultBtn.disabled = !hasModels;
-    headerSetDefaultBtn.style.cursor = hasModels ? 'pointer' : 'not-allowed';
 
     const modelsChanged =
       currentState.models !== lastModelsRef || currentState.modelsLoading !== lastModelsLoading;

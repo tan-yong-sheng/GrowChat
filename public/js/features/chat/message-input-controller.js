@@ -895,9 +895,9 @@ export function createMessageInputController({
     input.placeholder = noSelectableModels
       ? 'No selectable models are available'
       : `Message ${modelName}`;
-    const footer = container.querySelector('.mt-2.text-xs.text-gray-400');
-    if (footer) {
-      footer.textContent = noSelectableModels
+    const disclaimerText = container.querySelector('#disclaimer-text');
+    if (disclaimerText) {
+      disclaimerText.textContent = noSelectableModels
         ? 'No selectable models are available. Ask an admin to restore access or hide fewer models.'
         : `${modelName} can make mistakes. Check important info.`;
     }
