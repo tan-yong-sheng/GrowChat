@@ -1,5 +1,6 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
+import { escapeHtml, stripHtml } from '../utils/sanitize.js';
 import {
   authorize,
   logAuditEvent,
@@ -1493,11 +1494,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     // Can update name
-    if (body.name !== undefined) {
-      const name = String(body.name).trim();
-      if (!name) {
-        return error(req, 'Name cannot be empty', 400);
-      }
+    if (body.name !== undefined) { const name = stripHtml(body.name); if (!name) { return error(req, 'Name cannot be empty after removing invalid characters', 400); }
       updates.push('name = ?');
       values.push(name);
       updatedFields.push('name');
@@ -1603,7 +1600,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         user: {
           id: updated.id,
           email: updated.email,
-          name: updated.name,
+          name: escapeHtml(String(updated.name || '')),
           primary_role: newRole,
           account_status: normalizeAccountStatus(updated.account_status),
           settings: parseSettings(updated.settings),

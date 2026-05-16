@@ -1,4 +1,4 @@
-import { renderMessageContent } from '../shared/utils.js';
+import { escapeHtml, renderMessageContent } from '../shared/utils.js';
 
 export function renderSharedChatPage(container, data) {
   const chat = data?.chat || {};
@@ -10,7 +10,7 @@ export function renderSharedChatPage(container, data) {
           <a href="/" class="text-sm text-gray-600 hover:text-gray-800">← GrowChat</a>
           <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">Shared Chat</span>
         </div>
-        <h1 class="text-2xl font-semibold mb-1">${chat.title || 'Shared Chat'}</h1>
+        <h1 class="text-2xl font-semibold mb-1">${escapeHtml(chat.title || 'Shared Chat')}</h1>
         <p class="text-sm text-gray-500 mb-6">Read-only view</p>
         <div class="space-y-5">
           ${messages
@@ -18,7 +18,7 @@ export function renderSharedChatPage(container, data) {
               (m) => `
             <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
               <div class="${m.role === 'user' ? 'bg-[#f0f0f0]' : 'bg-white border border-gray-200'} rounded-2xl px-4 py-3 max-w-[85%]">
-                <p class="text-xs uppercase text-gray-400 mb-1">${m.role}</p>
+                <p class="text-xs uppercase text-gray-400 mb-1">${escapeHtml(m.role)}</p>
                 <div class="prose prose-sm max-w-none break-words">${renderMessageContent(m.content, { interactive: false })}</div>
               </div>
             </div>

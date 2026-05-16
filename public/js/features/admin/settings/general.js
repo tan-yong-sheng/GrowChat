@@ -1,4 +1,5 @@
 import { apiFetch } from '../../../shared/api.js';
+import { escapeHtml } from '../../../shared/utils.js';
 import { setState } from '../../../shared/store.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import { createGeneralSettingsState, getGeneralSettingsToggleState } from './general-helpers.js';
@@ -127,7 +128,7 @@ export function renderGeneralSettings(container, data) {
                   'default-model',
                   `
                   <option value="">Select a model</option>
-                  ${settingsState.models.map((m) => `<option value="${m.id}" ${settingsState.currentValues.defaultModelId === m.id ? 'selected' : ''}>${m.name || m.id}</option>`).join('')}
+                  ${settingsState.models.map((m) => `<option value="${m.id}" ${settingsState.currentValues.defaultModelId === m.id ? 'selected' : ''}>${escapeHtml(m.name || m.id)}</option>`).join('')}
                 `,
                   { ariaLabel: 'Global Default Model' }
                 )}

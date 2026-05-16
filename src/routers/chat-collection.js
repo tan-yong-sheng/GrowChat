@@ -1,5 +1,6 @@
 import { createDB } from '../db.js';
 import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
+import { stripHtml } from '../utils/sanitize.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { authorize } from '../utils/authorize.js';
@@ -125,7 +126,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     }
 
     const id = crypto.randomUUID();
-    const title = String(body.title || 'New Chat').trim() || 'New Chat';
+    const title = stripHtml(String(body.title || 'New Chat').trim()) || 'New Chat';
     const fallbackModel = await resolveDefaultModel(env, db, user.sub);
     const model = String(body.model || fallbackModel).trim() || fallbackModel;
 
@@ -240,7 +241,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         return error(req, 'Invalid JSON body', 400);
       }
 
-      const title = body.title !== undefined ? String(body.title).trim() : chat.title;
+      const title = body.title !== undefined ? stripHtml(String(body.title).trim()) : chat.title;
       const pinned = body.pinned !== undefined ? (body.pinned ? 1 : 0) : chat.pinned;
 
       await db.run(
@@ -361,7 +362,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     );
 
     const newChatId = crypto.randomUUID();
-    const newTitle = `${String(sourceChat.title || 'New Chat').trim() || 'New Chat'} (Copy)`;
+    const newTitle = `${stripHtml(String(sourceChat.title || 'New Chat').trim()) || 'New Chat'} (Copy)`;
     const cloneModel = sourceChat.model || (await resolveDefaultModel(env, db, user.sub));
 
     const statements = [

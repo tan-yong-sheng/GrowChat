@@ -8,6 +8,16 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
 }));
+vi.mock('../../public/js/shared/utils.js', () => ({
+  escapeHtml: (str) =>
+    String(str ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;'),
+  renderMessageContent: (content) => String(content ?? ''),
+}));
 
 async function loadModule() {
   vi.resetModules();

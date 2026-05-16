@@ -1,6 +1,6 @@
 import { state, setState, subscribe } from '../store.js';
 import { apiFetch, fetchChats } from '../api.js';
-import { renderMessageContent } from '../utils.js';
+import { escapeHtml, renderMessageContent } from '../utils.js';
 import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
 import { suspendSidebarVisibility, restoreSidebarVisibility } from '../utils/sidebar-visibility.js';
 import { renderSearchInput } from './search-input.js';
@@ -112,7 +112,7 @@ export function createSearchModalController(container, createChatFn, loadMessage
             <div class="w-5 h-5 rounded-full ${m.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-[8px] font-bold">
               ${m.role === 'user' ? 'U' : 'AI'}
             </div>
-            <span class="text-[10px] font-bold uppercase text-gray-400">${m.role}</span>
+            <span class="text-[10px] font-bold uppercase text-gray-400">${escapeHtml(m.role)}</span>
           </div>
           <div class="max-w-[90%] ${m.role === 'user' ? 'bg-gray-100 rounded-[18px]' : 'bg-white border border-gray-100 rounded-[18px]'} px-4 py-2.5 text-xs text-gray-800 shadow-sm prose prose-p:my-1 prose-pre:my-2 prose-sm max-w-none break-words">
             ${renderMessageContent(m.content, { interactive: false })}

@@ -11,20 +11,10 @@ import { APP_TTLS } from '../config/app.js';
 import { ValidationError } from '../errors/http-errors.js';
 import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 import { createEmailService } from '../services/email/email-service.js';
+import { escapeHtml, stripHtml } from '../utils/sanitize.js';
 
 const PASSWORD_RESET_TTL_SECONDS = 3600;
 const PASSWORD_RESET_TTL_DISPLAY = '1 hour';
-
-function escapeHtml(text) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-  return String(text).replace(/[&<>"']/g, (char) => map[char]);
-}
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback)
@@ -87,7 +77,7 @@ function sanitizeUser(user, primaryRole = 'member') {
   return {
     id: user.id,
     email: user.email,
-    name: user.name,
+    name: escapeHtml(String(user.name || '')),
     account_status: normalizeAccountStatus(user.account_status),
     primary_role: normalizePublicRole(primaryRole),
     settings,
@@ -109,7 +99,7 @@ async function createAccessToken(secret, user, primaryRole) {
       sub: user.id,
       email: user.email,
       primary_role: normalizePublicRole(primaryRole),
-      name: user.name,
+      name: escapeHtml(String(user.name || '')),
     },
     secret,
     APP_TTLS.accessTokenSeconds
@@ -158,6 +148,11 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
         requireString(body.email, 'email, name, password are required').toLowerCase()
       );
       name = requireString(body.name, 'email, name, password are required');
+    // Strip HTML tags from name to prevent stored XSS
+    name = stripHtml(name);
+    if (!name) {
+      return error(req, 'Name cannot be empty after removing invalid characters', 400);
+    }
       password = requireString(body.password, 'email, name, password are required', {
         trim: false,
       });

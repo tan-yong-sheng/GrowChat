@@ -1,5 +1,6 @@
 import { ValidationError } from '../errors/http-errors.js';
 import { optionalString, requirePlainObject } from '../validation/request.js';
+import { escapeHtml, stripHtml } from '../utils/sanitize.js';
 
 function parseJsonObject(raw) {
   if (!raw) return {};
@@ -17,7 +18,7 @@ export function serializeUserProfile(row) {
   return {
     id: row.id,
     email: row.email,
-    name: row.name,
+    name: escapeHtml(String(row.name || '')),
     account_status: row.account_status === 'pending' ? 'pending' : 'active',
     settings: parseJsonObject(row.settings),
     avatar: row.avatar || null,
@@ -51,9 +52,9 @@ export function buildSelfProfileUpdate(body, { allowSettings = false } = {}) {
   const updatedFields = [];
 
   if (body.name !== undefined) {
-    const name = optionalString(body.name);
+    let name = stripHtml(String(body.name || '').trim());
     if (!name) {
-      throw new ValidationError('name cannot be empty');
+      throw new ValidationError('name cannot be empty after removing invalid characters');
     }
     updates.push('name = ?');
     values.push(name);

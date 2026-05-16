@@ -412,3 +412,182 @@ describe('authRouter', () => {
     ).rejects.toThrow('JWT_SECRET environment variable is required for non-localhost deployments');
   });
 });
+
+describe('XSS prevention in user name', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryResponses = {
+      countUsers: [],
+      appConfig: [],
+      existingUser: [],
+      userById: [],
+      loginUser: [],
+      refreshUser: [],
+    };
+
+    mocks.db.first.mockImplementation(async (sql) => {
+      const query = String(sql || '');
+      if (query.includes('SELECT COUNT(*) as count FROM users')) {
+        return queryResponses.countUsers.shift() ?? null;
+      }
+      if (query.includes('SELECT value FROM app_config WHERE key = ?')) {
+        return queryResponses.appConfig.shift() ?? null;
+      }
+      if (query.includes('SELECT id FROM users WHERE email = ?')) {
+        return queryResponses.existingUser.shift() ?? null;
+      }
+      if (query.includes('SELECT * FROM users WHERE email = ?')) {
+        return queryResponses.loginUser.shift() ?? null;
+      }
+      if (query.includes('SELECT * FROM users WHERE id = ?')) {
+        return queryResponses.userById.shift() ?? null;
+      }
+      return null;
+    });
+
+    mocks.hashPassword.mockResolvedValue('pbkdf2:hash');
+    mocks.verifyPassword.mockResolvedValue(true);
+    mocks.signJWT.mockResolvedValue('jwt-token');
+    mocks.createRefreshToken.mockResolvedValue({
+      token: 'refresh-token',
+      expiresAt: 1_700_000_000,
+    });
+    mocks.consumeRefreshToken.mockResolvedValue(null);
+    mocks.revokeRefreshToken.mockResolvedValue(undefined);
+    mocks.db.run.mockResolvedValue({ success: true });
+  });
+
+  it('sanitizes XSS payload in user name on registration', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    queryResponses.countUsers = [{ count: 0 }];
+    queryResponses.appConfig = [null];
+    queryResponses.existingUser = [null];
+    // stripHtml on input removes <script> tags, leaving '">alert(1)'
+    // escapeHtml on output encodes remaining chars: &quot;&gt;alert(1)
+    queryResponses.userById = [
+      {
+        id: 'u1',
+        email: 'xss@example.com',
+        name: '">alert(1)',
+        role: 'admin',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
+
+    const res = await authRouter(
+      makeReq('/api/auth/register', 'POST', {
+        email: 'xss@example.com',
+        name: '"><script>alert(1)</script>',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/register'
+    );
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    // The name must NOT contain raw HTML/script tags
+    expect(body.user.name).not.toContain('<script');
+    expect(body.user.name).not.toContain('<');
+    // Script tags are stripped on input; remaining special chars are escaped on output
+    expect(body.user.name).toContain('&quot;');
+    expect(body.user.name).toContain('&gt;');
+  });
+
+  it('sanitizes XSS payload in user name on login response', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    // Simulate a legacy DB row that still contains unsanitized HTML in the name
+    queryResponses.loginUser = [
+      {
+        id: 'u1',
+        email: 'xss@example.com',
+        name: '"><script>alert(1)</script>',
+        password_hash: 'hash',
+        primary_role: 'admin',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
+    queryResponses.userById = [
+      {
+        id: 'u1',
+        email: 'xss@example.com',
+        name: '"><script>alert(1)</script>',
+        primary_role: 'admin',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'xss@example.com',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // The name in the response must NOT contain raw HTML/script tags
+    // escapeHtml on output encodes all special chars from legacy unsanitized data
+    expect(body.user.name).not.toContain('<script');
+    expect(body.user.name).not.toContain('<');
+    expect(body.user.name).toContain('&lt;');
+    expect(body.user.name).toContain('&gt;');
+    expect(body.user.name).toContain('&quot;');
+  });
+
+  it('sanitizes event-handler based XSS payloads in user name', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    queryResponses.countUsers = [{ count: 0 }];
+    queryResponses.appConfig = [null];
+    queryResponses.existingUser = [null];
+    // '" onmouseover="alert(1)' has no HTML tags so stripHtml leaves it as-is
+    // escapeHtml on output then encodes the double quotes: &quot; onmouseover=&quot;alert(1)
+    queryResponses.userById = [
+      {
+        id: 'u2',
+        email: 'handler@example.com',
+        name: '" onmouseover="alert(1)',
+        role: 'admin',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
+
+    const res = await authRouter(
+      makeReq('/api/auth/register', 'POST', {
+        email: 'handler@example.com',
+        name: '" onmouseover="alert(1)',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/register'
+    );
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    // Must not contain raw double quotes that could break out of HTML attributes
+    expect(body.user.name).not.toContain('"');
+    expect(body.user.name).toContain('&quot;');
+    // The 'onmouseover' must NOT appear as a raw event handler attribute
+    expect(body.user.name).not.toMatch(/on\w+"/);
+  });
+});
