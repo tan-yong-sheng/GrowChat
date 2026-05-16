@@ -57,16 +57,18 @@ export function renderMessageInput(container, onSend) {
          <button type="button" id="stop-btn" class="hidden p-2 text-red-500 hover:bg-red-50 rounded-full transition" title="Stop generating" aria-label="Stop generating">
            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="5" y="5" rx="2" ry="2"/></svg>
          </button>
-         <button type="button" id="mic-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition" title="Voice input" aria-label="Voice input">
+         <div id="model-selector-container" class="flex items-center justify-center"></div>
+        <button type="button" id="mic-btn" class="p-2 text-gray-500 hover:text-black hover:bg-gray-200 rounded-full transition" title="Voice input" aria-label="Voice input">
            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
          </button>
          <button id="send-btn" class="hidden p-2 bg-[#0066cc] text-white rounded-full hover:bg-[#0071e3] active:scale-95 transition disabled:opacity-50" title="Send message (Ctrl+Enter / Cmd+Enter)" aria-label="Send message">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
          </button>
        </div>
-    <div id="model-selector-container" class="flex-shrink-0 flex items-center mr-1"></div>
-</form>
-    <div class="mt-2 text-xs text-gray-400 text-center font-medium"><span id="disclaimer-text">GrowChat can make mistakes. Check important info.</span></div>
+    </form>
+    <div class="mt-1.5 flex flex-col items-center gap-1.5">
+      <span id="disclaimer-text" class="text-xs text-gray-400 font-medium">GrowChat can make mistakes. Check important info.</span>
+    </div>
   `;
 
   return createMessageInputController({
