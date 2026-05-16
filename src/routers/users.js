@@ -452,9 +452,23 @@ export async function usersRouter(req, env, _ctx, user, path) {
         headers: buildConnectionHeaders(connection),
       });
       if (!discovery.items.length) {
-        const message = discovery.error?.message || 'No models discovered';
+        const upstreamMessage = discovery.error?.message || 'No models discovered';
+        const upstreamStatus = discovery.error?.status;
+        console.warn(
+          'Connection test failed:',
+          JSON.stringify({ status: upstreamStatus, url: discovery.error?.url, message: upstreamMessage }),
+        );
+        const safeReason = upstreamStatus === 401
+          ? 'Authentication failed \u2014 check your API key'
+          : upstreamStatus === 403
+            ? 'Access denied \u2014 check your permissions'
+            : upstreamStatus === 404
+              ? 'Endpoint not found \u2014 check your connection URL'
+              : upstreamStatus != null && upstreamStatus >= 500
+                ? 'Upstream server error \u2014 try again later'
+                : 'Connection failed \u2014 check your settings and try again';
         return error(req, 'Connection failed', 502, {
-          message: String(message).slice(0, 200),
+          message: safeReason,
         });
       }
 
