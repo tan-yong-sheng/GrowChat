@@ -27,7 +27,6 @@ export function createModelSelectorController(container) {
   const searchInput = container.querySelector('#model-search-input');
   const listContainer = container.querySelector('#model-list-container');
 
-
   let isOpen = false;
   let searchQuery = '';
   let activeIndex = -1;
@@ -270,7 +269,6 @@ export function createModelSelectorController(container) {
       activeIndex = -1;
     }
   };
-
 
   btn.onclick = (e) => {
     e.stopPropagation();

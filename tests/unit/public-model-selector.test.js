@@ -40,7 +40,9 @@ describe('model selector', () => {
     const destroy = renderModelSelector(container);
     expect(container.textContent).toContain('GPT Mini');
     expect(container.textContent).toContain('Selectable in chat');
-    expect(container.querySelector('#model-selector-btn').getAttribute('aria-label')).toBe('Select model');
+    expect(container.querySelector('#model-selector-btn').getAttribute('aria-label')).toBe(
+      'Select model'
+    );
     destroy();
   });
 
@@ -58,7 +60,9 @@ describe('model selector', () => {
     const destroy = renderModelSelector(container);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(container.textContent).toContain('Selectable in chat');
-    expect(container.textContent).toContain('No selectable models are currently available for this chat.');
+    expect(container.textContent).toContain(
+      'No selectable models are currently available for this chat.'
+    );
     destroy();
   });
 
@@ -127,7 +131,9 @@ describe('model selector', () => {
     const destroy = renderModelSelector(container);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(store.state.activeModelId).toBe('m2');
-    expect(container.textContent).toContain('Your previous model was disabled by an admin. Switched to Claude.');
+    expect(container.textContent).toContain(
+      'Your previous model was disabled by an admin. Switched to Claude.'
+    );
     expect(container.querySelector('#model-selector-notice').className).not.toContain('hidden');
     destroy();
   });

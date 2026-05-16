@@ -64,8 +64,9 @@ export function renderMessageInput(container, onSend) {
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
          </button>
        </div>
-    </form>
-    <div class="mt-2 text-xs text-gray-400 text-center font-medium flex items-center justify-center gap-2"><span id="disclaimer-text">GrowChat can make mistakes. Check important info.</span><span class="text-gray-300">·</span><div id="model-selector-container"></div></div>
+    <div id="model-selector-container" class="flex-shrink-0 flex items-center mr-1"></div>
+</form>
+    <div class="mt-2 text-xs text-gray-400 text-center font-medium"><span id="disclaimer-text">GrowChat can make mistakes. Check important info.</span></div>
   `;
 
   return createMessageInputController({
