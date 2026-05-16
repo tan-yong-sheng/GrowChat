@@ -10,7 +10,7 @@
 
 set -e
 
-BASE_URL="${BASE_URL:-https://growchat.tanyongsheng-net.workers.dev}"
+BASE_URL="${BASE_URL:-http://localhost:8787}"
 TESTS_PASSED=0
 TESTS_FAILED=0
 TESTS_SKIPPED=0

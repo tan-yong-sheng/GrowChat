@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Admin Workspace (`/admin`) User Flow
 
 This document maps the user flows, states, and edge cases for the full-page administrative workspace.
@@ -80,3 +81,87 @@ Based on the newly established `DESIGN.md` guidelines, the Admin Workspace requi
 4. **Search Input**:
    - *Current*: Uses standard generic rounding.
    - *Expected*: Must be a full pill `{rounded.pill}` to match the "search" grammar defined in the design system.
+=======
+# Admin Workspace (`/admin`) User Flow
+
+This document maps the user flows, states, and edge cases for the full-page administrative workspace.
+
+## Flow Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> AdminAuthCheck
+    
+    state AdminAuthCheck {
+        Checking --> Unauthorized : User lacks Admin Role
+        Checking --> AdminOverview : User has Admin Role
+    }
+    
+    Unauthorized --> ChatInterface : Redirect to Home
+    
+    state WorkspaceNav {
+        AdminOverview --> UsersTable : Click "Users"
+        AdminOverview --> SettingsPanel : Click "Settings"
+    }
+
+    state UsersTable {
+        Idle --> Filtering : Type in Search Box
+        Filtering --> LoadingResults : API request debounce
+        LoadingResults --> ShowResults : Success
+        ShowResults --> Pagination : Click Next Page
+    }
+    
+    state SettingsPanel {
+        ViewingList --> EditingConnection : Click "Manage LLM Providers"
+        EditingConnection --> Saving : Submit Form
+        Saving --> ViewingList : Success Toast
+    }
+```
+
+## State & Interaction Details
+
+### 1. Scope Transition & Navigation
+- **Trigger**: User navigates to `/admin`.
+- **UI State**:
+  - The interface fundamentally shifts from the chat "drawer/modal" paradigm to a dense, full-page data-management view.
+  - The primary sidebar vanishes (or collapses), replaced by a new top-level horizontal navigation: "Users", "Settings", "System".
+- **Edge Cases / Bug Discovery**:
+  - **Role Downgrade Mid-Session**: If an admin's role is revoked by another admin while they are viewing this page, does the next API action return a 403, and does the UI gracefully kick them back to the home screen?
+
+### 2. Users Management Table
+- **Trigger**: Viewing `/admin/users/overview`.
+- **UI State**:
+  - Displays a clean data grid.
+  - Uses pill-shaped badges for Roles (`ADMIN` in blue, `MEMBER` in green) and Status (`ACTIVE`).
+  - Search input at the top right.
+  - Pagination controls at the bottom ("Show X per page", "Prev / Next").
+- **Edge Cases**:
+  - **Search Debouncing**: Rapidly typing in the search box should not fire 10 API requests. It must debounce.
+  - **Pagination Overflow**: If a user is on Page 5, and performs a search that yields only 1 page of results, does the UI break, or gracefully reset to Page 1?
+  - **Empty States**: If a search yields zero results, is there a clear "No users found" empty state, or just a broken blank table?
+
+### 3. Workspace Settings (Connections)
+- **Trigger**: Viewing `/admin/settings/connections`.
+- **UI State**:
+  - Empty State: Displays "No connections configured" when empty.
+  - Action: An inline `+` button to add new providers.
+- **Edge Cases**:
+  - **Unsaved Changes**: If a user is half-way through filling out a new connection form and clicks a link to navigate away, does the UI warn them about unsaved changes?
+
+---
+
+## Design System Deviations (Needs Fixing)
+
+Based on the newly established `DESIGN.md` guidelines, the Admin Workspace requires visual alignment:
+
+1. **Top Navigation Colors**: 
+   - *Expected*: The global nav bar should be `{colors.surface-black}` (Pure Black) with white text, adhering to Apple's strict global nav pattern.
+2. **Table Borders and Radii**:
+   - *Expected*: If the table is contained within a utility card, it must use a 1px `{colors.hairline}` border and `{rounded.lg}` (18px) corners. No drop shadows.
+3. **Pill Badges**:
+   - *Current*: The `ADMIN` and `MEMBER` role badges use generic green/blue tints.
+   - *Expected*: The UI should rely strictly on the defined color palette (e.g., if a badge needs to be blue, it should derive from the Action Blue family or rely purely on typography to denote status, minimizing the use of unapproved secondary colors).
+4. **Search Input**:
+   - *Current*: Uses standard generic rounding.
+   - *Expected*: Must be a full pill `{rounded.pill}` to match the "search" grammar defined in the design system.
+>>>>>>> feature/short-term-tasks

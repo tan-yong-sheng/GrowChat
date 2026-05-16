@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "growchat",
@@ -70,3 +71,126 @@
     "ALLOWED_ORIGINS": "http://localhost:8787,http://127.0.0.1:8787,http://localhost:8788,http://127.0.0.1:8788,https://growchat.tanyongsheng-net.workers.dev,https://chat.tanyongsheng.qzz.io",
   },
 }
+=======
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "growchat",
+  "main": "src/index.js",
+  "compatibility_date": "2025-12-23",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "observability": {
+    "enabled": true,
+  },
+  // Static Assets - serves the embeddable widget
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+  },
+  // Cloudflare AI/Vectorize bindings removed (OpenAI-compatible only)
+  // D1 database for users/chats/messages
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "growchat",
+      "database_id": "f85fe809-20c2-40e2-88e1-313d6f04b95f",
+      "preview_database_id": "f85fe809-20c2-40e2-88e1-313d6f04b95f",
+    },
+  ],
+  // R2 bucket (used in Phase 2 - requires R2:Edit token permission to deploy)
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "growchat-files",
+      "preview_bucket_name": "growchat-files",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MESSAGE_QUEUE",
+        "class_name": "MessageQueueDO",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "message-queue-v1",
+      "new_sqlite_classes": [
+        "MessageQueueDO"
+      ],
+    },
+  ],
+  // KV namespaces
+  "kv_namespaces": [
+    {
+      "binding": "CHAT_SESSIONS",
+      "id": "64b2e11c184449369e159d050bd5afcd",
+      "preview_id": "64b2e11c184449369e159d050bd5afcd",
+    },
+    {
+      "binding": "SESSIONS",
+      "id": "4abdd9ccb19d4a0da66c9767629f973b",
+      "preview_id": "4abdd9ccb19d4a0da66c9767629f973b",
+    },
+    {
+      "binding": "CACHE",
+      "id": "5f57cacd947e4fa9954e1c600f8a8170",
+      "preview_id": "5f57cacd947e4fa9954e1c600f8a8170",
+    },
+  ],
+  "vars": {
+    "APP_NAME": "GrowChat",
+    "ENVIRONMENT": "dev",
+    "EMAIL_PROVIDER": "resend",
+    "ALLOWED_ORIGINS": "*",
+  },
+  "env": {
+    "production": {
+      "vars": {
+        "APP_NAME": "GrowChat",
+        "ENVIRONMENT": "production",
+        "EMAIL_PROVIDER": "resend",
+        "ALLOWED_ORIGINS": "*",
+        "RESEND_API_KEY": "re_xxxxx",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "growchat",
+          "database_id": "f85fe809-20c2-40e2-88e1-313d6f04b95f",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "FILES",
+          "bucket_name": "growchat-files",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "MESSAGE_QUEUE",
+            "class_name": "MessageQueueDO",
+          },
+        ],
+      },
+      "kv_namespaces": [
+        {
+          "binding": "CHAT_SESSIONS",
+          "id": "64b2e11c184449369e159d050bd5afcd",
+        },
+        {
+          "binding": "SESSIONS",
+          "id": "4abdd9ccb19d4a0da66c9767629f973b",
+        },
+        {
+          "binding": "CACHE",
+          "id": "5f57cacd947e4fa9954e1c600f8a8170",
+        },
+      ],
+    },
+  },
+}
+>>>>>>> feature/short-term-tasks

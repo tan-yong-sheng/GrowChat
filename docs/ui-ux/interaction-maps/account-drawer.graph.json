@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "context": "Personal Account Settings Drawer",
   "nodes": [
@@ -28,4 +29,36 @@
       "description": "Shows error toast and reverts toggle state"
     }
   ]
+=======
+{
+  "context": "Personal Account Settings Drawer",
+  "nodes": [
+    { "id": "btn_profile_menu", "type": "button", "page": "/" },
+    { "id": "drawer_account", "type": "drawer", "page": "/account/*" },
+    { "id": "toggle_connection", "type": "switch", "page": "/account/settings/connections" },
+    { "id": "api_update_connection", "type": "api_endpoint", "path": "/api/user/connections" },
+    { "id": "toast_notification", "type": "toast", "page": "global" }
+  ],
+  "edges": [
+    {
+      "from": "btn_profile_menu",
+      "to": "drawer_account",
+      "type": "opens",
+      "description": "Slides drawer in and pushes history state"
+    },
+    {
+      "from": "toggle_connection",
+      "to": "api_update_connection",
+      "type": "triggers_api",
+      "description": "Fires immediately on change (optimistic UI)"
+    },
+    {
+      "from": "api_update_connection",
+      "to": "toast_notification",
+      "type": "triggers_ui",
+      "condition": "Error (e.g. 500/Network)",
+      "description": "Shows error toast and reverts toggle state"
+    }
+  ]
+>>>>>>> feature/short-term-tasks
 }

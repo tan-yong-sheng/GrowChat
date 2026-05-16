@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "context": "Authentication Flow",
   "nodes": [
@@ -47,4 +48,55 @@
       "condition": "200 OK && token_issued"
     }
   ]
+=======
+{
+  "context": "Authentication Flow",
+  "nodes": [
+    { "id": "btn_toggle_mode", "type": "button", "page": "/auth.html" },
+    { "id": "btn_forgot_password", "type": "button", "page": "/auth.html" },
+    { "id": "modal_forgot_password", "type": "modal", "page": "/auth.html" },
+    { "id": "btn_auth_submit", "type": "button", "page": "/auth.html" },
+    { "id": "api_login", "type": "api_endpoint", "path": "/api/auth/login" },
+    { "id": "api_register", "type": "api_endpoint", "path": "/api/auth/register" },
+    { "id": "page_dashboard", "type": "page", "path": "/" }
+  ],
+  "edges": [
+    {
+      "from": "btn_toggle_mode",
+      "to": "btn_auth_submit",
+      "type": "mutates_state",
+      "description": "Changes submit button text and target API endpoint"
+    },
+    {
+      "from": "btn_forgot_password",
+      "to": "modal_forgot_password",
+      "type": "opens",
+      "description": "Triggers focus-trapped overlay"
+    },
+    {
+      "from": "btn_auth_submit",
+      "to": "api_login",
+      "type": "triggers_api",
+      "condition": "mode === 'login'"
+    },
+    {
+      "from": "btn_auth_submit",
+      "to": "api_register",
+      "type": "triggers_api",
+      "condition": "mode === 'register'"
+    },
+    {
+      "from": "api_login",
+      "to": "page_dashboard",
+      "type": "redirects",
+      "condition": "200 OK"
+    },
+    {
+      "from": "api_register",
+      "to": "page_dashboard",
+      "type": "redirects",
+      "condition": "200 OK && token_issued"
+    }
+  ]
+>>>>>>> feature/short-term-tasks
 }

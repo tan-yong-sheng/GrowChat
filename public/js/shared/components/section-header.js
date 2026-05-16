@@ -22,7 +22,7 @@ export function renderSectionHeader({
   const button = /** @type {any} */ (actionButton || {});
 
   return `
-    <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
+    <div class="pt-0.5 pb-6 bg-white">
       <div class="w-full flex items-center justify-between gap-3">
         <div>
           ${label ? `<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">${label}</div>` : ''}

@@ -1,0 +1,14 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:8788",
+      "localStorage": [
+        {
+          "name": "growchat_auth",
+          "value": "{\"user\":{\"id\":\"6f4865af-e7b8-4018-ab16-80f41f447613\",\"email\":\"tys203831@gmail.com\",\"name\":\"Test User\",\"account_status\":\"active\",\"primary_role\":\"admin\",\"settings\":{},\"created_at\":1776189463,\"last_active_at\":1777472508,\"updated_at\":1776189463},\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZjQ4NjVhZi1lN2I4LTQwMTgtYWIxNi04MGY0MWY0NDc2MTMiLCJlbWFpbCI6InR5czIwMzgzMUBnbWFpbC5jb20iLCJwcmltYXJ5X3JvbGUiOiJhZG1pbiIsIm5hbWUiOiJUZXN0IFVzZXIiLCJpYXQiOjE3Nzc0NzI1MDksImV4cCI6MTc3NzQ3MzQwOX0._URfULnG3jp79OF3FDQ-NglwbSxLl8nmhL_fcpidRY4\",\"refresh_token\":\"fWM-PDBGtRKNvmd_jUiA3syoNH4JWqMPNjdcDXzEuLA\",\"expires_in\":900,\"refresh_expires_at\":1778077309}"
+        }
+      ]
+    }
+  ]
+}

@@ -16,6 +16,8 @@ import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-v
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
+import { showToast } from '../../shared/utils.js';
+import { renderSessionsSection } from './sessions.js';
 
 const accountSectionRenderers = {
   connections: null,
@@ -51,7 +53,7 @@ async function loadAccountSectionRenderer(section) {
 
 function normalizeAccountSection(section) {
   const value = String(section || '').trim();
-  if (value === 'connections' || value === 'models' || value === 'integrations') {
+  if (value === 'connections' || value === 'models' || value === 'integrations' || value === 'sessions') {
     return value;
   }
   return 'connections';
@@ -69,6 +71,8 @@ export function resolveAccountSectionFromPath(pathname) {
   if (pathname.startsWith('/account/settings/connections')) return 'connections';
   if (pathname.startsWith('/account/settings/models')) return 'models';
   if (pathname.startsWith('/account/settings/integrations')) return 'integrations';
+  if (pathname.startsWith('/account/settings/sessions')) return 'sessions';
+  if (pathname.startsWith('/account/settings/security')) return 'sessions';
   return 'connections';
 }
 
@@ -80,6 +84,8 @@ function getAccountSectionPath(section) {
       return '/account/settings/models';
     case 'integrations':
       return '/account/settings/integrations';
+    case 'sessions':
+      return '/account/settings/sessions';
     default:
       return '/account/settings/connections';
   }
@@ -138,6 +144,12 @@ function getAccountNavItems(section) {
       key: 'integrations',
       label: 'Integrations',
       active: activeSection === 'integrations',
+    },
+    {
+      href: '#sessions',
+      key: 'sessions',
+      label: 'Sessions',
+      active: activeSection === 'sessions',
     },
   ];
 }
@@ -200,10 +212,25 @@ async function renderAccountSection({
     return;
   }
 
+<<<<<<< HEAD
   content.replaceChildren(
     document.createRange().createContextualFragment(renderOverview(accountState))
   );
   if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
+=======
+  if (section === 'sessions') {
+    const sessionsEl = await renderSessionsSection({
+      apiFetch,
+      showToast: (message) => showToast(message),
+    });
+    content.replaceChildren(sessionsEl);
+    if (footerHost) footerHost.innerHTML = '';
+    return;
+  }
+
+  content.innerHTML = renderOverview(accountState);
+  if (footerHost) footerHost.innerHTML = '';
+>>>>>>> feature/short-term-tasks
 }
 
 export async function renderAccountPage(container) {

@@ -743,7 +743,7 @@ export function renderAccountIntegrationsSection(
       container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full"${traceAttrs}>
         ${sectionState.error ? renderErrorBanner({ message: sectionState.error }) : '<div id="integrations-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>'}
-        <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
+        <div class="pt-0.5 pb-6 bg-white">
           <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">
               <div class="flex-shrink-0 text-gray-900">Integrations</div>

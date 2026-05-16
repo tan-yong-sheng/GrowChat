@@ -613,5 +613,45 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     });
   }
 
+  // Email verification endpoints
+  if (req.method === 'GET' && path === '/api/auth/verify-email') {
+    const url = new URL(req.url);
+    const token = url.searchParams.get('token');
+    if (!token) {
+      return error(req, 'Token is required', 400);
+    }
+    
+    const { verifyEmail } = await import('./email-verification.js');
+    return verifyEmail({ token });
+  }
+
+  if (req.method === 'POST' && path === '/api/auth/resend-verification') {
+    const resendLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-resend-verification',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authResendVerification,
+    });
+    if (!resendLimit.allowed) {
+      return error(req, 'Too many resend attempts', 429, {
+        retry_after: Math.ceil((resendLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return error(req, 'Invalid JSON body', 400);
+    }
+    
+    const email = body?.email;
+    if (!email) {
+      return error(req, 'Email is required', 400);
+    }
+    
+    const { resendVerification } = await import('./email-verification.js');
+    return resendVerification({ email, env });
+  }
+
   return null;
 }

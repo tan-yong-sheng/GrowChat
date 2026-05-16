@@ -12,8 +12,8 @@ export const DEFAULT_SETTINGS_FOOTER_PADDING_CLASS = 'px-2 md:px-0';
 
 export function renderSettingsViewport({
   contentHtml = '',
-  viewportClass = 'w-full px-4 py-6 flex-1 min-h-0 overflow-hidden',
-  innerClass = 'flex h-full min-h-0 flex-col overflow-hidden',
+  viewportClass = 'w-full px-4 py-6 flex-1 min-h-0 flex flex-col',
+  innerClass = 'flex-1 min-h-0 flex flex-col',
 } = {}) {
   return `
     <div class="${escapeHtml(viewportClass)}">

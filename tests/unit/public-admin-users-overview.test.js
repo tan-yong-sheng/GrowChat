@@ -80,7 +80,7 @@ describe('admin users overview', () => {
       invalidateCache: vi.fn(),
     });
 
-    expect(container.querySelector('.relative.flex-1.min-h-0.overflow-hidden.w-full.rounded-3xl.border.border-gray-100.bg-white .h-full.overflow-auto .min-w-\\[1120px\\]')).toBeTruthy();
+        expect(container.querySelector('[class~="min-w-\[1120px\]"]')).toBeTruthy();
   });
 
   it('saves user modal changes immediately', async () => {

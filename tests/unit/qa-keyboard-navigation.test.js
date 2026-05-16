@@ -7,10 +7,25 @@ import { resolveTestUrl } from "../shared/test-env.js";
 
 const testUrl = resolveTestUrl();
 
+<<<<<<< HEAD
 describe("Keyboard Navigation - Chat Interface", () => {
 	let dom;
 	let window;
 	let document;
+=======
+  beforeEach(() => {
+    const indexHtml = fs.readFileSync(
+      path.join(process.cwd(), 'public/index.html'),
+      'utf-8'
+    );
+    dom = new JSDOM(indexHtml, {
+      url: process.env.TEST_URL || 'http://localhost:8787/',
+      pretendToBeVisual: true,
+    });
+    window = dom.window;
+    document = window.document;
+  });
+>>>>>>> feature/short-term-tasks
 
 	beforeEach(() => {
 		const indexHtml = fs.readFileSync(

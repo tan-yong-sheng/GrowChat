@@ -1,4 +1,5 @@
 import { fetchPublicSharedChat } from '../shared/api.js';
+console.log('[APP.JS] Top-level executing');
 import { ensureMarkedReady } from '../shared/utils.js';
 import { state, setState } from '../shared/store.js';
 import { setSidebarRouteScope } from '../shared/utils/sidebar-visibility.js';
@@ -66,6 +67,7 @@ function cleanupRouteArtifacts() {
 }
 
 export async function renderCurrentRoute() {
+  console.log('[APP.JS] renderCurrentRoute starting, path:', window.location.pathname);
   ensureMarkedReady();
   cleanupRouteArtifacts();
   const path = window.location.pathname;
@@ -83,10 +85,6 @@ export async function renderCurrentRoute() {
     return renderCurrentRoute();
   }
 
-  if (path === '/admin/settings/general' || path.startsWith('/admin/settings/general/')) {
-    window.history.replaceState({}, '', '/admin/system/general');
-    return renderCurrentRoute();
-  }
 
   if (path === '/admin' || path === '/admin/') {
     window.history.replaceState({}, '', '/admin/users/overview');
@@ -111,6 +109,31 @@ export async function renderCurrentRoute() {
   if (path === '/user/settings/resources' || path.startsWith('/user/settings/resources/')) {
     window.history.replaceState({}, '', '/');
     return renderCurrentRoute();
+  }
+
+// Handle email verification route (no auth required - must be before ensureSession)
+  if (path === '/verify' || path.startsWith('/verify/')) {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const email = params.get('email') || '';
+    if (token) {
+      const { renderVerificationPage } = await import('../features/auth/verification-success.js');
+      const { apiFetch } = await import('../shared/api.js');
+      await renderVerificationPage(token, { apiFetch }, app);
+    } else {
+      const { renderVerificationPendingWithApi } = await import('../features/auth/verification-pending.js');
+      const { apiFetch } = await import('../shared/api.js');
+      const pendingEl = renderVerificationPendingWithApi(email, {
+        apiFetch,
+        showToast: (msg, type) => {
+          console.log(`[Toast] ${type}: ${msg}`);
+          alert(`${type.toUpperCase()}: ${msg}`);
+        }
+      });
+      app.innerHTML = '';
+      app.appendChild(pendingEl);
+    }
+    return;
   }
 
   if (sharedMatch) {
@@ -189,8 +212,15 @@ async function bootstrap() {
   ensureMarkedReady();
   installAccountSettingsDrawerListener();
   installRouteChangeListener();
+  const { prefetchModels } = await import('./session-bootstrap.js');
+  setState({
+    models: [{ id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', enabled: true, hidden_for_user: false }],
+    modelsLoading: false
+  });
+  prefetchModels({ allowCache: true });
   window.renderCurrentRoute = renderCurrentRoute;
   await renderCurrentRoute();
 }
 
 bootstrap();
+

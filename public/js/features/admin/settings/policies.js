@@ -1173,8 +1173,13 @@ export function renderPoliciesSettings(container) {
       scrollSelector: '[data-policies-scroll]',
     });
     if (state.loading) {
+<<<<<<< HEAD
       container.replaceChildren(document.createRange().createContextualFragment(`
         <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-150 w-full">
+=======
+      container.innerHTML = `
+        <div class="flex flex-col min-h-0 animate-in fade-in duration-150 w-full">
+>>>>>>> feature/short-term-tasks
           <div class="max-w-6xl mx-auto w-full px-1">
             ${renderSkeleton()}
           </div>
@@ -1394,8 +1399,13 @@ export function renderPoliciesSettings(container) {
       </div>
     `;
 
+<<<<<<< HEAD
     container.replaceChildren(document.createRange().createContextualFragment(`
       <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300">
+=======
+    container.innerHTML = `
+      <div class="flex flex-col min-h-0 animate-in fade-in duration-300">
+>>>>>>> feature/short-term-tasks
         ${stickyHeader}
         ${
           activeFamilyStatus === 'loaded'
@@ -1405,10 +1415,15 @@ export function renderPoliciesSettings(container) {
               ${activeFamilyToolbar}
             </div>
           </div>
+<<<<<<< HEAD
         `
             : ''
         }
         <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden" data-policies-scroll="1">
+=======
+        ` : ''}
+        <div class="flex-1 min-h-0" data-policies-scroll="1">
+>>>>>>> feature/short-term-tasks
           <div class="max-w-6xl mx-auto w-full space-y-4 pb-6 pt-4">
             <section class="space-y-4">
               ${activeFamilyPanel}

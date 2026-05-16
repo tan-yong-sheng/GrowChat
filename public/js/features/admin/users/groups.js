@@ -442,7 +442,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
   const error = data.groupsError;
 
   container.innerHTML = `
-    <div class="flex flex-col flex-1 min-h-0 h-full animate-in fade-in duration-300">
+    <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300">
       <div class="flex flex-col gap-1 px-1 mt-1.5 mb-3">
         <div class="flex items-center justify-between gap-2">
           <div class="flex items-center md:self-center text-xl font-medium px-0.5 gap-2 shrink-0">
@@ -458,7 +458,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
         </div>
       </div>
 
-      <div class="flex-1 min-h-0 py-2.5 bg-white rounded-[2rem] border border-gray-100/50 shadow-sm overflow-hidden flex flex-col">
+      <div class="flex-1 min-h-0 py-2.5 bg-white rounded-[2rem] border border-gray-100/50 shadow-sm flex flex-col">
         <div class="flex flex-col sm:flex-row sm:items-center w-full gap-2 py-1 px-4 mb-1">
           <div class="flex flex-1 items-center bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30">
             <div class="text-gray-700 mr-2.5">
@@ -486,10 +486,15 @@ export function renderGroupsOverview(container, data, actions = {}) {
             : error
               ? `
           <div class="p-10 text-center text-sm text-red-500">${error}</div>
+<<<<<<< HEAD
         `
               : groups.length
                 ? `
           <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-2 pr-5">
+=======
+        ` : groups.length ? `
+          <div class="px-4 pb-2 pr-5">
+>>>>>>> feature/short-term-tasks
             <div class="grid grid-cols-1 gap-1">
               ${groups
                 .map((group) => {

@@ -1,10 +1,17 @@
-import { apiFetch, fetchAdminRbacRoles } from '../../../shared/api.js';
-import { fetchAdminUserAccess } from '../../../shared/admin-access.js';
-import { setModalSaveButtonState } from '../modal-save-helpers.js';
-import { buildAdminModalShellMarkup, createAdminModalShell } from '../modal-shell.js';
-import { displayFieldErrors, clearFormErrors } from '../../../shared/form-validation.js';
+import { apiFetch, fetchAdminRbacRoles } from "../../../shared/api.js";
+import { fetchAdminUserAccess } from "../../../shared/admin-access.js";
+import { setModalSaveButtonState } from "../modal-save-helpers.js";
+import {
+	buildAdminModalShellMarkup,
+	createAdminModalShell,
+} from "../modal-shell.js";
+import {
+	displayFieldErrors,
+	clearFormErrors,
+} from "../../../shared/form-validation.js";
 
 const escapeHtml = (value) =>
+<<<<<<< HEAD
   String(value || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -19,42 +26,65 @@ function roleBadgeClass(role) {
   if (value === 'admin') return 'bg-blue-100 text-blue-700';
   if (value === 'member') return 'bg-green-100 text-green-700';
   return 'bg-gray-100 text-gray-700';
+=======
+	String(value || "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+
+function roleBadgeClass(role) {
+	const value = String(role || "")
+		.trim()
+		.toLowerCase();
+	if (value === "admin") return "bg-neutral-900 text-white";
+	if (value === "member") return "bg-neutral-100 text-neutral-900";
+	return "bg-gray-100 text-gray-700";
+>>>>>>> feature/short-term-tasks
 }
 
 function roleDisplayName(role) {
-  const value = String(role || '').trim();
-  if (!value) return 'Member';
-  const normalized = value.toLowerCase();
-  if (normalized === 'admin') return 'Admin';
-  if (normalized === 'member') return 'Member';
-  return value;
+	const value = String(role || "").trim();
+	if (!value) return "Member";
+	const normalized = value.toLowerCase();
+	if (normalized === "admin") return "Admin";
+	if (normalized === "member") return "Member";
+	return value;
 }
 
 function normalizeRole(role) {
+<<<<<<< HEAD
   return String(role || '')
     .trim()
     .toLowerCase();
+=======
+	return String(role || "")
+		.trim()
+		.toLowerCase();
+>>>>>>> feature/short-term-tasks
 }
 
-function buildRoleSelectOptions(roles, selectedRole = 'member') {
-  const selected = normalizeRole(selectedRole);
-  const orderedRoles = [];
-  const seen = new Set();
+function buildRoleSelectOptions(roles, selectedRole = "member") {
+	const selected = normalizeRole(selectedRole);
+	const orderedRoles = [];
+	const seen = new Set();
 
-  const pushRole = (roleName) => {
-    const value = String(roleName || '').trim();
-    if (!value) return;
-    const key = value.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    orderedRoles.push(value);
-  };
+	const pushRole = (roleName) => {
+		const value = String(roleName || "").trim();
+		if (!value) return;
+		const key = value.toLowerCase();
+		if (seen.has(key)) return;
+		seen.add(key);
+		orderedRoles.push(value);
+	};
 
-  pushRole('member');
-  pushRole('admin');
-  (Array.isArray(roles) ? roles : []).forEach((role) => pushRole(role?.name));
-  pushRole(selectedRole);
+	pushRole("member");
+	pushRole("admin");
+	(Array.isArray(roles) ? roles : []).forEach((role) => pushRole(role?.name));
+	pushRole(selectedRole);
 
+<<<<<<< HEAD
   return orderedRoles
     .map(
       (roleName) => `
@@ -62,113 +92,141 @@ function buildRoleSelectOptions(roles, selectedRole = 'member') {
   `
     )
     .join('');
+=======
+	return orderedRoles
+		.map(
+			(roleName) => `
+    <option value="${escapeHtml(roleName)}" ${normalizeRole(roleName) === selected ? "selected" : ""}>${escapeHtml(roleDisplayName(roleName))}</option>
+  `,
+		)
+		.join("");
+>>>>>>> feature/short-term-tasks
 }
 
 async function loadAdminRoles() {
-  try {
-    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    return Array.isArray(payload?.roles) ? payload.roles : [];
-  } catch {
-    return [];
-  }
+	try {
+		const payload = await fetchAdminRbacRoles({ cache: "no-store" });
+		return Array.isArray(payload?.roles) ? payload.roles : [];
+	} catch {
+		return [];
+	}
 }
 
 function accountStatusBadgeClass(status) {
-  if (status === 'active') return 'bg-emerald-100 text-emerald-700';
-  if (status === 'pending') return 'bg-amber-100 text-amber-700';
-  return 'bg-gray-200 text-gray-600';
+	if (status === "active") return "bg-emerald-100 text-emerald-700";
+	if (status === "pending") return "bg-amber-100 text-amber-700";
+	return "bg-gray-200 text-gray-600";
 }
 
 function accountStatusDisplayName(status) {
-  return status === 'pending' ? 'pending' : 'active';
+	return status === "pending" ? "pending" : "active";
 }
 
 function timeSince(timestampMs) {
-  if (!timestampMs) return 'N/A';
-  const seconds = Math.floor((Date.now() - timestampMs) / 1000);
-  const buckets = [
-    [31536000, 'year'],
-    [2592000, 'month'],
-    [86400, 'day'],
-    [3600, 'hour'],
-    [60, 'minute'],
-  ];
-  for (const [size, label] of buckets) {
-    const value = Math.floor(seconds / size);
-    if (value >= 1) return `${value} ${label}${value > 1 ? 's' : ''} ago`;
-  }
-  return `${Math.max(seconds, 0)} seconds ago`;
+	if (!timestampMs) return "N/A";
+	const seconds = Math.floor((Date.now() - timestampMs) / 1000);
+	const buckets = [
+		[31536000, "year"],
+		[2592000, "month"],
+		[86400, "day"],
+		[3600, "hour"],
+		[60, "minute"],
+	];
+	for (const [size, label] of buckets) {
+		const value = Math.floor(seconds / size);
+		if (value >= 1) return `${value} ${label}${value > 1 ? "s" : ""} ago`;
+	}
+	return `${Math.max(seconds, 0)} seconds ago`;
 }
 
 function getActionError(payload, fallback) {
-  return payload?.error || payload?.message || fallback;
+	return payload?.error || payload?.message || fallback;
 }
 
 function accessBadgeClass(value) {
-  if (value === 'allow') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-  if (value === 'deny') return 'bg-rose-100 text-rose-700 border-rose-200';
-  if (value === 'danger') return 'bg-rose-100 text-rose-700 border-rose-200';
-  if (value === 'warning') return 'bg-amber-100 text-amber-700 border-amber-200';
-  if (value === 'admin') return 'bg-blue-100 text-blue-700 border-blue-200';
-  if (value === 'member') return 'bg-green-100 text-green-700 border-green-200';
-  if (value === 'shared') return 'bg-amber-100 text-amber-700 border-amber-200';
-  if (value === 'personal') return 'bg-gray-100 text-gray-700 border-gray-200';
-  return 'bg-gray-100 text-gray-700 border-gray-200';
+	if (value === "allow") return "bg-neutral-900 text-white border-neutral-900";
+	if (value === "deny")
+		return "bg-neutral-100 text-neutral-600 border-neutral-200 line-through";
+	if (value === "danger")
+		return "bg-neutral-100 text-neutral-900 border-neutral-900";
+	if (value === "warning")
+		return "bg-neutral-100 text-neutral-900 border-neutral-300";
+	if (value === "admin") return "bg-neutral-900 text-white border-neutral-900";
+	if (value === "member")
+		return "bg-neutral-100 text-neutral-900 border-neutral-200";
+	if (value === "shared")
+		return "bg-neutral-100 text-neutral-900 border-neutral-300";
+	if (value === "personal")
+		return "bg-neutral-50 text-neutral-500 border-neutral-200";
+	return "bg-neutral-50 text-neutral-500 border-neutral-200";
 }
 
-function renderChip(label, kind = 'neutral') {
-  return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${accessBadgeClass(kind)}">${escapeHtml(label)}</span>`;
+function renderChip(label, kind = "neutral") {
+	return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${accessBadgeClass(kind)}">${escapeHtml(label)}</span>`;
 }
 
 function getRuleAccessState(rule = {}) {
-  if (rule?.resource_enabled === false) {
-    return { label: 'Disabled', kind: 'danger' };
-  }
-  if (rule?.hidden_for_user) {
-    return { label: 'Hidden for user', kind: 'warning' };
-  }
-  if (String(rule?.effect || '').toLowerCase() === 'deny') {
-    return { label: 'Revoked', kind: 'danger' };
-  }
-  if (String(rule?.principal_type || '').toLowerCase() === 'group') {
-    return { label: 'Shared', kind: 'shared' };
-  }
-  return { label: 'Personal', kind: 'personal' };
+	if (rule?.resource_enabled === false) {
+		return { label: "Disabled", kind: "danger" };
+	}
+	if (rule?.hidden_for_user) {
+		return { label: "Hidden for user", kind: "warning" };
+	}
+	if (String(rule?.effect || "").toLowerCase() === "deny") {
+		return { label: "Revoked", kind: "danger" };
+	}
+	if (String(rule?.principal_type || "").toLowerCase() === "group") {
+		return { label: "Shared", kind: "shared" };
+	}
+	return { label: "Personal", kind: "personal" };
 }
 
 function renderRuleList(rules = [], { showDisabled = false } = {}) {
-  const visibleRules = Array.isArray(rules)
-    ? rules.filter((rule) => showDisabled || rule?.resource_enabled !== false)
-    : [];
+	const visibleRules = Array.isArray(rules)
+		? rules.filter((rule) => showDisabled || rule?.resource_enabled !== false)
+		: [];
 
-  if (!visibleRules.length) {
-    return '<div class="rounded-2xl border border-gray-100 bg-gray-50/70 px-3 py-3 text-xs text-gray-400">No matching ACL rules</div>';
-  }
+	if (!visibleRules.length) {
+		return '<div class="rounded-2xl border border-gray-100 bg-gray-50/70 px-3 py-3 text-xs text-gray-400">No matching ACL rules</div>';
+	}
 
-  return `
+	return `
     <div class="space-y-2">
       ${visibleRules
+<<<<<<< HEAD
         .map((rule) => {
           const state = getRuleAccessState(rule);
           return `
         <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white px-3 py-2 text-xs text-gray-700 ${rule?.resource_enabled === false ? 'opacity-60' : ''}">
+=======
+				.map((rule) => {
+					const state = getRuleAccessState(rule);
+					return `
+        <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white px-3 py-2 text-xs text-gray-700 ${rule?.resource_enabled === false ? "opacity-60" : ""}">
+>>>>>>> feature/short-term-tasks
           ${renderChip(state.label, state.kind)}
-          ${renderChip(rule.effect || 'allow', rule.effect)}
-          ${renderChip(rule.principal_label || rule.principal_type, 'neutral')}
-          <span class="font-semibold text-gray-900">${escapeHtml(rule.resource_id || 'All resources')}</span>
+          ${renderChip(rule.effect || "allow", rule.effect)}
+          ${renderChip(rule.principal_label || rule.principal_type, "neutral")}
+          <span class="font-semibold text-gray-900">${escapeHtml(rule.resource_id || "All resources")}</span>
           <span class="text-gray-400">·</span>
-          <span class="text-gray-500">${escapeHtml(rule.action || 'use')}</span>
-          ${rule?.hidden_for_user ? '<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Hidden for user</span>' : ''}
-          ${rule?.resource_enabled === false ? '<span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Disabled</span>' : ''}
+          <span class="text-gray-500">${escapeHtml(rule.action || "use")}</span>
+          ${rule?.hidden_for_user ? '<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Hidden for user</span>' : ""}
+          ${rule?.resource_enabled === false ? '<span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Disabled</span>' : ""}
         </div>
       `;
+<<<<<<< HEAD
         })
         .join('')}
+=======
+				})
+				.join("")}
+>>>>>>> feature/short-term-tasks
     </div>
   `;
 }
 
 function renderAccessInspectorContent(payload, showDisabled = false) {
+<<<<<<< HEAD
   const user = payload?.user || {};
   const groups = Array.isArray(payload?.groups) ? payload.groups : [];
   const rolePermissions = Array.isArray(payload?.role_permissions) ? payload.role_permissions : [];
@@ -185,22 +243,44 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
     ['Connections', access.connections || []],
     ['MCP Servers', access.mcp_servers || []],
   ];
+=======
+	const user = payload?.user || {};
+	const groups = Array.isArray(payload?.groups) ? payload.groups : [];
+	const rolePermissions = Array.isArray(payload?.role_permissions)
+		? payload.role_permissions
+		: [];
+	const access = payload?.access || {};
+	const allRules = [
+		...(access.models || []),
+		...(access.connections || []),
+		...(access.mcp_servers || []),
+	];
+	const disabledRuleCount = allRules.filter(
+		(rule) => rule?.resource_enabled === false,
+	).length;
+	const primaryRole = String(user.primary_role || "member").trim();
+	const families = [
+		["Models", access.models || []],
+		["Connections", access.connections || []],
+		["MCP Servers", access.mcp_servers || []],
+	];
+>>>>>>> feature/short-term-tasks
 
-  return `
+	return `
     <div class="space-y-4">
       <div class="rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-3">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="space-y-1">
             <div class="flex flex-wrap items-center gap-2">
-              <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
+              <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || "User")}</div>
               ${renderChip(roleDisplayName(primaryRole), normalizeRole(primaryRole))}
-              ${renderChip(user.account_status || 'active', user.account_status === 'pending' ? 'shared' : 'admin')}
+              ${renderChip(user.account_status || "active", user.account_status === "pending" ? "shared" : "admin")}
             </div>
-            <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
-            ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
+            <div class="text-xs text-gray-500">${escapeHtml(user.email || "")}</div>
+            ${user.account_status === "pending" ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ""}
           </div>
-          <button type="button" data-toggle-disabled-rules class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}">
-            ${showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`}
+          <button type="button" data-toggle-disabled-rules class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ${disabledRuleCount ? "" : "opacity-40 pointer-events-none"}">
+            ${showDisabled ? "Hide disabled" : `Show disabled (${disabledRuleCount})`}
           </button>
         </div>
       </div>
@@ -208,52 +288,70 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
       <section class="space-y-2">
         <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Groups</div>
         <div class="flex flex-wrap gap-2">
-          ${groups.length ? groups.map((group) => renderChip(group.name || group.id, 'neutral')).join('') : '<span class="text-xs text-gray-400">No group memberships</span>'}
+          ${groups.length ? groups.map((group) => renderChip(group.name || group.id, "neutral")).join("") : '<span class="text-xs text-gray-400">No group memberships</span>'}
         </div>
       </section>
 
       <section class="space-y-2">
         <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Role Permissions</div>
         <div class="flex flex-wrap gap-2">
-          ${rolePermissions.length ? rolePermissions.map((permission) => renderChip(permission, 'admin')).join('') : '<span class="text-xs text-gray-400">No resolved permissions</span>'}
+          ${rolePermissions.length ? rolePermissions.map((permission) => renderChip(permission, "admin")).join("") : '<span class="text-xs text-gray-400">No resolved permissions</span>'}
         </div>
       </section>
 
       ${families
+<<<<<<< HEAD
         .map(
           ([label, rules]) => `
+=======
+				.map(
+					([label, rules]) => `
+>>>>>>> feature/short-term-tasks
         <section class="space-y-2">
           <div class="flex items-center justify-between gap-3">
             <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">${escapeHtml(label)}</div>
-            <div class="text-[11px] text-gray-500">${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length} rule${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length === 1 ? '' : 's'}</div>
+            <div class="text-[11px] text-gray-500">${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length} rule${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length === 1 ? "" : "s"}</div>
           </div>
           ${renderRuleList(rules, { showDisabled })}
         </section>
+<<<<<<< HEAD
       `
         )
         .join('')}
+=======
+      `,
+				)
+				.join("")}
+>>>>>>> feature/short-term-tasks
     </div>
   `;
 }
 
 function renderAclInspectorModal(
+<<<<<<< HEAD
   user,
   body = '<div class="text-sm text-gray-400">Loading ACL inspector...</div>',
   onClose = null
+=======
+	user,
+	body = '<div class="text-sm text-gray-400">Loading ACL inspector...</div>',
+	onClose = null,
+>>>>>>> feature/short-term-tasks
 ) {
-  return createAdminModalShell({
-    preset: 'aclEditor',
-    title: 'ACL Inspector',
-    subtitle: `Read-only effective access for ${escapeHtml(user?.name || user?.email || 'user')}`,
-    body,
-    closeAttr: 'data-close-access-user',
-    rootAttrs: 'id="user-access-modal"',
-    modalHash: 'user-access-modal',
-    onClose,
-  });
+	return createAdminModalShell({
+		preset: "aclEditor",
+		title: "ACL Inspector",
+		subtitle: `Read-only effective access for ${escapeHtml(user?.name || user?.email || "user")}`,
+		body,
+		closeAttr: "data-close-access-user",
+		rootAttrs: 'id="user-access-modal"',
+		modalHash: "user-access-modal",
+		onClose,
+	});
 }
 
 function renderUserRows(users) {
+<<<<<<< HEAD
   return users
     .map((u) => {
       const role = String(u.primary_role || 'member').trim();
@@ -262,6 +360,16 @@ function renderUserRows(users) {
       const name = String(u.name || '');
       const email = String(u.email || '');
       return `
+=======
+	return users
+		.map((u) => {
+			const role = String(u.primary_role || "member").trim();
+			const normalizedRole = normalizeRole(role);
+			const accountStatus = String(u.account_status || "active");
+			const name = String(u.name || "");
+			const email = String(u.email || "");
+			return `
+>>>>>>> feature/short-term-tasks
     <tr data-user-row="${u.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
       <td class="px-3 py-4 whitespace-nowrap">
         <button class="btn-change-role focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition" data-user-id="${u.id}" data-user-role="${escapeHtml(role)}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-account-status="${escapeHtml(accountStatus)}">
@@ -272,6 +380,7 @@ function renderUserRows(users) {
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-600 overflow-hidden shrink-0">
             ${
+<<<<<<< HEAD
               u.avatar
                 ? `<img class="w-full h-full object-cover" src="${u.avatar}" alt="">`
                 : name
@@ -283,6 +392,19 @@ function renderUserRows(users) {
                       .substring(0, 2)
                   : '??'
             }
+=======
+							u.avatar
+								? `<img class="w-full h-full object-cover" src="${u.avatar}" alt="">`
+								: name
+									? name
+											.split(" ")
+											.map((n) => n[0])
+											.join("")
+											.toUpperCase()
+											.substring(0, 2)
+									: "??"
+						}
+>>>>>>> feature/short-term-tasks
           </div>
           <div class="truncate">${name}</div>
         </div>
@@ -291,8 +413,8 @@ function renderUserRows(users) {
         <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${accountStatusBadgeClass(accountStatus)} uppercase">${accountStatusDisplayName(accountStatus)}</span>
       </td>
       <td class="px-3 py-4 text-gray-500 truncate" title="${email}">${email}</td>
-      <td class="px-3 py-4 text-gray-400 font-normal uppercase text-[10px] whitespace-nowrap">${u.last_active_at ? timeSince(u.last_active_at * 1000) : 'N/A'}</td>
-      <td class="px-3 py-4 text-gray-400 font-normal text-[10px] whitespace-nowrap">${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : 'N/A'}</td>
+      <td class="px-3 py-4 text-gray-400 font-normal uppercase text-[10px] whitespace-nowrap">${u.last_active_at ? timeSince(u.last_active_at * 1000) : "N/A"}</td>
+      <td class="px-3 py-4 text-gray-400 font-normal text-[10px] whitespace-nowrap">${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : "N/A"}</td>
       <td class="px-3 py-4 text-right whitespace-nowrap">
         <div class="flex justify-end items-center gap-1">
           <button class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 btn-inspect-user-access" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-role="${escapeHtml(role)}" data-user-account-status="${escapeHtml(accountStatus)}" title="Inspect ACL">
@@ -307,15 +429,22 @@ function renderUserRows(users) {
             </svg>
           </button>
           ${
+<<<<<<< HEAD
             normalizedRole === 'admin'
               ? ''
               : `
+=======
+						normalizedRole === "admin"
+							? ""
+							: `
+>>>>>>> feature/short-term-tasks
           <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-user" data-user-id="${u.id}" data-user-name="${name}" title="Delete record">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
             </svg>
           </button>
           `
+<<<<<<< HEAD
           }
         </div>
       </td>
@@ -328,6 +457,20 @@ function renderLoadingRows(count = 10) {
   return Array.from(
     { length: count },
     () => `
+=======
+					}
+        </div>
+      </td>
+    </tr>`;
+		})
+		.join("");
+}
+
+function renderLoadingRows(count = 10) {
+	return Array.from(
+		{ length: count },
+		() => `
+>>>>>>> feature/short-term-tasks
     <tr class="bg-white text-xs animate-pulse">
       <td class="px-3 py-4"><div class="h-5 w-14 rounded bg-gray-100"></div></td>
       <td class="px-3 py-4"><div class="flex items-center gap-2.5"><div class="w-7 h-7 rounded-full bg-gray-100"></div><div class="h-4 w-28 rounded bg-gray-100"></div></div></td>
@@ -337,48 +480,53 @@ function renderLoadingRows(count = 10) {
       <td class="px-3 py-4"><div class="h-4 w-14 rounded bg-gray-100"></div></td>
       <td class="px-3 py-4"><div class="ml-auto h-8 w-20 rounded bg-gray-100"></div></td>
     </tr>
+<<<<<<< HEAD
   `
   ).join('');
+=======
+  `,
+	).join("");
+>>>>>>> feature/short-term-tasks
 }
 
 function renderAddUserModal(draft = null, roles = []) {
-  const primaryRole = String(draft?.primary_role || 'member').trim();
-  const accountStatus = String(draft?.account_status || 'active');
-  const csvValue = String(draft?.csv || '');
-  return buildAdminModalShellMarkup({
-    preset: 'userEditor',
-    title: 'Add User',
-    body: `
+	const primaryRole = String(draft?.primary_role || "member").trim();
+	const accountStatus = String(draft?.account_status || "active");
+	const csvValue = String(draft?.csv || "");
+	return buildAdminModalShellMarkup({
+		preset: "userEditor",
+		title: "Add User",
+		body: `
       <div class="space-y-4">
         <div class="flex items-center gap-5 border-b border-gray-100 -mx-5 px-5 -mt-1">
           <button type="button" data-add-user-tab="form" class="pb-3 text-base font-medium text-gray-900 border-b-2 border-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition">Form</button>
           <button type="button" data-add-user-tab="csv" class="pb-3 text-base font-medium text-gray-400 border-b-2 border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition">CSV Import</button>
         </div>
-        <form id="add-user-form" class="space-y-3.5">
+        <form id="add-user-form" class="space-y-4">
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Role</span>
-            <select name="primary_role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+            <select name="primary_role" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
               ${buildRoleSelectOptions(roles, primaryRole)}
             </select>
           </label>
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Account Status</span>
-            <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-              <option value="active" ${accountStatus === 'active' ? 'selected' : ''}>Active</option>
-              <option value="pending" ${accountStatus === 'pending' ? 'selected' : ''}>Pending</option>
+            <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+              <option value="active" ${accountStatus === "active" ? "selected" : ""}>Active</option>
+              <option value="pending" ${accountStatus === "pending" ? "selected" : ""}>Pending</option>
             </select>
           </label>
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Name</span>
-            <input name="name" type="text" value="${escapeHtml(draft?.name || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Full Name" required>
+            <input name="name" type="text" value="${escapeHtml(draft?.name || "")}" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Full Name" required>
           </label>
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Email</span>
-            <input name="email" type="email" value="${escapeHtml(draft?.email || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Email" required>
+            <input name="email" type="email" value="${escapeHtml(draft?.email || "")}" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Email" required>
           </label>
           <label class="block">
             <span class="block text-sm text-gray-400 mb-2">Password</span>
-            <input name="password" type="password" value="${escapeHtml(draft?.password || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Password" minlength="8" required>
+            <input name="password" type="password" value="${escapeHtml(draft?.password || "")}" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" placeholder="Enter Your Password" minlength="8" required>
           </label>
           <div id="add-user-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
         </form>
@@ -395,7 +543,7 @@ function renderAddUserModal(draft = null, roles = []) {
         </form>
       </div>
     `,
-    footer: `
+		footer: `
       <div class="text-sm text-red-600"></div>
       <div class="flex items-center justify-end gap-2">
         <button type="button" data-close-add-user class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:scale-95 transition">
@@ -406,49 +554,53 @@ function renderAddUserModal(draft = null, roles = []) {
         </button>
       </div>
     `,
-    closeAttr: 'data-close-add-user',
-    rootAttrs: 'id="add-user-modal"',
-    modalHash: 'add-user-modal',
-  });
+		closeAttr: "data-close-add-user",
+		rootAttrs: 'id="add-user-modal"',
+		modalHash: "add-user-modal",
+	});
 }
 
 function renderEditUserModal(user, draft = null, roles = []) {
-  const primaryRole = String(draft?.primary_role || user.primary_role || 'member').trim();
-  const accountStatus = String(draft?.account_status || user.account_status || 'active');
-  return buildAdminModalShellMarkup({
-    preset: 'userEditor',
-    title: 'Edit User',
-    body: `
-      <form id="edit-user-form" class="px-5 pb-5 space-y-3.5">
+	const primaryRole = String(
+		draft?.primary_role || user.primary_role || "member",
+	).trim();
+	const accountStatus = String(
+		draft?.account_status || user.account_status || "active",
+	);
+	return buildAdminModalShellMarkup({
+		preset: "userEditor",
+		title: "Edit User",
+		body: `
+      <form id="edit-user-form" class="px-5 pb-5 space-y-4">
         <label class="block">
           <span class="block text-sm text-gray-400 mb-2">Role</span>
-          <select name="primary_role" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+          <select name="primary_role" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
             ${buildRoleSelectOptions(roles, primaryRole)}
           </select>
         </label>
         <label class="block">
           <span class="block text-sm text-gray-400 mb-2">Account Status</span>
-          <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-            <option value="active" ${accountStatus !== 'pending' ? 'selected' : ''}>Active</option>
-            <option value="pending" ${accountStatus === 'pending' ? 'selected' : ''}>Pending</option>
+          <select name="account_status" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+            <option value="active" ${accountStatus !== "pending" ? "selected" : ""}>Active</option>
+            <option value="pending" ${accountStatus === "pending" ? "selected" : ""}>Pending</option>
           </select>
         </label>
         <label class="block">
           <span class="block text-sm text-gray-400 mb-2">Name</span>
-          <input name="name" type="text" value="${escapeHtml(draft?.name || user.name || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" required>
+          <input name="name" type="text" value="${escapeHtml(draft?.name || user.name || "")}" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" required>
         </label>
         <label class="block">
           <span class="block text-sm text-gray-400 mb-2">Email</span>
-          <input name="email" type="email" value="${escapeHtml(draft?.email || user.email || '')}" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" required>
+          <input name="email" type="email" value="${escapeHtml(draft?.email || user.email || "")}" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" required>
         </label>
         <label class="block">
           <span class="block text-sm text-gray-400 mb-2">New Password</span>
-          <input name="password" type="password" class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" minlength="8" placeholder="Leave blank to keep current password">
+          <input name="password" type="password" class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-gray-300" minlength="8" placeholder="Leave blank to keep current password">
         </label>
         <div id="edit-user-error" class="hidden rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"></div>
       </form>
     `,
-    footer: `
+		footer: `
       <div class="text-sm text-red-600"></div>
       <div class="flex items-center justify-end gap-2">
         <button type="button" data-close-edit-user class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:scale-95 transition">
@@ -459,13 +611,14 @@ function renderEditUserModal(user, draft = null, roles = []) {
         </button>
       </div>
     `,
-    closeAttr: 'data-close-edit-user',
-    rootAttrs: 'id="edit-user-modal"',
-    modalHash: 'edit-user-modal',
-  });
+		closeAttr: "data-close-edit-user",
+		rootAttrs: 'id="edit-user-modal"',
+		modalHash: "edit-user-modal",
+	});
 }
 
 export function renderUserOverview(container, data, actions) {
+<<<<<<< HEAD
   const uiState =
     data.userOverviewUi ||
     (data.userOverviewUi = {
@@ -480,10 +633,26 @@ export function renderUserOverview(container, data, actions) {
         bodyEl: null,
       },
     });
+=======
+	const uiState =
+		data.userOverviewUi ||
+		(data.userOverviewUi = {
+			query: "",
+			pending: {},
+			accessInspector: {
+				userId: null,
+				refreshToken: null,
+				payload: null,
+				showDisabled: false,
+				modalEl: null,
+				bodyEl: null,
+			},
+		});
+>>>>>>> feature/short-term-tasks
 
-  container.innerHTML = `
-    <div class="flex flex-col h-full min-h-0 animate-in fade-in duration-300">
-      <div class="pt-0.5 pb-2.5 flex justify-between items-center sticky top-0 z-10 bg-white">
+	container.innerHTML = `
+    <div class="flex flex-col min-h-0 animate-in fade-in duration-300">
+      <div class="pt-0.5 pb-2.5 flex justify-between items-center bg-white">
         <div class="flex items-center text-xl font-medium px-0.5 gap-2">
           <div class="flex-shrink-0 text-gray-900">Users</div>
           <div class="text-gray-500 font-normal ml-0.5" id="users-total-count"></div>
@@ -509,8 +678,7 @@ export function renderUserOverview(container, data, actions) {
           </button>
         </div>
       </div>
-      <div class="relative flex-1 min-h-0 overflow-hidden w-full rounded-3xl border border-gray-100 bg-white">
-        <div class="h-full overflow-auto">
+      <div class="relative w-full rounded-3xl border border-gray-100 bg-white">
           <div class="min-w-[1120px]">
             <table class="w-full text-sm text-left text-gray-500 table-fixed">
               <thead class="text-[11px] text-gray-900 font-bold uppercase bg-gray-50/50">
@@ -527,7 +695,6 @@ export function renderUserOverview(container, data, actions) {
               <tbody id="users-table-body" class="divide-y divide-gray-50/50"></tbody>
             </table>
           </div>
-        </div>
       </div>
       <div class="flex items-center justify-between gap-4 py-4 px-0.5 text-sm text-gray-500">
         <div class="flex items-center gap-3">
@@ -555,58 +722,65 @@ export function renderUserOverview(container, data, actions) {
     </div>
   `;
 
-  const searchInput = container.querySelector('#user-search-input');
-  const clearSearchBtn = container.querySelector('#clear-search-btn');
-  const clearSearchContainer = container.querySelector('#clear-search-container');
-  const tbody = container.querySelector('#users-table-body');
-  const totalCount = container.querySelector('#users-total-count');
-  const pageRange = container.querySelector('#users-page-range');
-  const pageLabel = container.querySelector('#users-page-label');
-  const prevButton = container.querySelector('#users-page-prev');
-  const nextButton = container.querySelector('#users-page-next');
-  const pageSizeSelect = container.querySelector('#users-page-size');
+	const searchInput = container.querySelector("#user-search-input");
+	const clearSearchBtn = container.querySelector("#clear-search-btn");
+	const clearSearchContainer = container.querySelector(
+		"#clear-search-container",
+	);
+	const tbody = container.querySelector("#users-table-body");
+	const totalCount = container.querySelector("#users-total-count");
+	const pageRange = container.querySelector("#users-page-range");
+	const pageLabel = container.querySelector("#users-page-label");
+	const prevButton = container.querySelector("#users-page-prev");
+	const nextButton = container.querySelector("#users-page-next");
+	const pageSizeSelect = container.querySelector("#users-page-size");
 
-  function getPendingKey(type, userId) {
-    return `${type}:${userId}`;
-  }
+	function getPendingKey(type, userId) {
+		return `${type}:${userId}`;
+	}
 
-  function setPending(type, userId, value) {
-    uiState.pending[getPendingKey(type, userId)] = value;
-    syncPendingState();
-  }
+	function setPending(type, userId, value) {
+		uiState.pending[getPendingKey(type, userId)] = value;
+		syncPendingState();
+	}
 
-  async function refreshAccessInspector(userId) {
-    if (!userId) return;
-    const modal = uiState.accessInspector.modalEl;
-    const body = uiState.accessInspector.bodyEl;
-    if (!modal || !body) return;
-    const currentToken = String(Date.now());
-    uiState.accessInspector.userId = userId;
-    uiState.accessInspector.refreshToken = currentToken;
-    body.innerHTML = '<div class="text-sm text-gray-400">Refreshing ACL inspector...</div>';
-    try {
-      const payload = await fetchAdminUserAccess(userId);
-      if (uiState.accessInspector.refreshToken !== currentToken) return;
-      uiState.accessInspector.payload = payload;
-      body.innerHTML = renderAccessInspectorContent(payload, uiState.accessInspector.showDisabled);
-    } catch (err) {
-      if (uiState.accessInspector.refreshToken !== currentToken) return;
-      body.innerHTML = `
+	async function refreshAccessInspector(userId) {
+		if (!userId) return;
+		const modal = uiState.accessInspector.modalEl;
+		const body = uiState.accessInspector.bodyEl;
+		if (!modal || !body) return;
+		const currentToken = String(Date.now());
+		uiState.accessInspector.userId = userId;
+		uiState.accessInspector.refreshToken = currentToken;
+		body.innerHTML =
+			'<div class="text-sm text-gray-400">Refreshing ACL inspector...</div>';
+		try {
+			const payload = await fetchAdminUserAccess(userId);
+			if (uiState.accessInspector.refreshToken !== currentToken) return;
+			uiState.accessInspector.payload = payload;
+			body.innerHTML = renderAccessInspectorContent(
+				payload,
+				uiState.accessInspector.showDisabled,
+			);
+		} catch (err) {
+			if (uiState.accessInspector.refreshToken !== currentToken) return;
+			body.innerHTML = `
         <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
-          ${escapeHtml(err.message || 'Failed to inspect user access')}
+          ${escapeHtml(err.message || "Failed to inspect user access")}
         </div>
       `;
-    } finally {
-      if (uiState.accessInspector.refreshToken === currentToken) {
-        uiState.accessInspector.refreshToken = null;
-      }
-    }
-  }
+		} finally {
+			if (uiState.accessInspector.refreshToken === currentToken) {
+				uiState.accessInspector.refreshToken = null;
+			}
+		}
+	}
 
-  function isPending(type, userId) {
-    return Boolean(uiState.pending[getPendingKey(type, userId)]);
-  }
+	function isPending(type, userId) {
+		return Boolean(uiState.pending[getPendingKey(type, userId)]);
+	}
 
+<<<<<<< HEAD
   function syncSearchClearState() {
     if (!clearSearchContainer) return;
     if (String(uiState.query || '').trim()) {
@@ -615,30 +789,49 @@ export function renderUserOverview(container, data, actions) {
       clearSearchContainer.classList.add('hidden');
     }
   }
+=======
+	function applySearchFilter() {
+		const query = String(uiState.query || "").toLowerCase();
+		tbody.querySelectorAll("tr").forEach((row) => {
+			const text = row.textContent.toLowerCase();
+			row.style.display = text.includes(query) ? "" : "none";
+		});
+	}
 
-  function syncPendingState() {
-    tbody.querySelectorAll('.btn-change-role').forEach((btn) => {
-      btn.disabled = isPending('role', btn.dataset.userId);
-      btn.classList.toggle('opacity-50', btn.disabled);
-      btn.classList.toggle('pointer-events-none', btn.disabled);
-    });
-    tbody.querySelectorAll('.btn-inspect-user-access').forEach((btn) => {
-      btn.disabled = isPending('access', btn.dataset.userId);
-      btn.classList.toggle('opacity-50', btn.disabled);
-      btn.classList.toggle('pointer-events-none', btn.disabled);
-    });
-    tbody.querySelectorAll('.btn-edit-user').forEach((btn) => {
-      btn.disabled = isPending('edit', btn.dataset.userId);
-      btn.classList.toggle('opacity-50', btn.disabled);
-      btn.classList.toggle('pointer-events-none', btn.disabled);
-    });
-    tbody.querySelectorAll('.btn-delete-user').forEach((btn) => {
-      btn.disabled = isPending('delete', btn.dataset.userId);
-      btn.classList.toggle('opacity-50', btn.disabled);
-      btn.classList.toggle('pointer-events-none', btn.disabled);
-    });
-  }
+	function syncSearchClearState() {
+		if (!clearSearchContainer) return;
+		if (String(uiState.query || "").trim()) {
+			clearSearchContainer.classList.remove("hidden");
+		} else {
+			clearSearchContainer.classList.add("hidden");
+		}
+	}
+>>>>>>> feature/short-term-tasks
 
+	function syncPendingState() {
+		tbody.querySelectorAll(".btn-change-role").forEach((btn) => {
+			btn.disabled = isPending("role", btn.dataset.userId);
+			btn.classList.toggle("opacity-50", btn.disabled);
+			btn.classList.toggle("pointer-events-none", btn.disabled);
+		});
+		tbody.querySelectorAll(".btn-inspect-user-access").forEach((btn) => {
+			btn.disabled = isPending("access", btn.dataset.userId);
+			btn.classList.toggle("opacity-50", btn.disabled);
+			btn.classList.toggle("pointer-events-none", btn.disabled);
+		});
+		tbody.querySelectorAll(".btn-edit-user").forEach((btn) => {
+			btn.disabled = isPending("edit", btn.dataset.userId);
+			btn.classList.toggle("opacity-50", btn.disabled);
+			btn.classList.toggle("pointer-events-none", btn.disabled);
+		});
+		tbody.querySelectorAll(".btn-delete-user").forEach((btn) => {
+			btn.disabled = isPending("delete", btn.dataset.userId);
+			btn.classList.toggle("opacity-50", btn.disabled);
+			btn.classList.toggle("pointer-events-none", btn.disabled);
+		});
+	}
+
+<<<<<<< HEAD
   function applySearchFilter() {
     const query = String(uiState.query || '')
       .trim()
@@ -747,23 +940,138 @@ export function renderUserOverview(container, data, actions) {
             }
           }
         });
+=======
+	function bindRowActions() {
+		tbody.querySelectorAll(".btn-change-role").forEach((btn) => {
+			btn.addEventListener("click", async () => {
+				const currentRole = normalizeRole(btn.dataset.userRole || "member");
+				const userName = btn.dataset.userName;
+				const userEmail = btn.dataset.userEmail || "";
+				const userStatus = btn.dataset.userAccountStatus || "active";
+				const nextRole = currentRole === "admin" ? "member" : "admin";
+				if (
+					!window.confirm(
+						`Change role for ${userName} to ${nextRole.toUpperCase()}?`,
+					)
+				)
+					return;
+				try {
+					const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
+						method: "PUT",
+						body: JSON.stringify({
+							primary_role: nextRole,
+							account_status: userStatus,
+							name: userName,
+							email: userEmail,
+						}),
+					});
+					const responsePayload = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						throw new Error(
+							getActionError(
+								responsePayload,
+								`Failed to update user (${res.status})`,
+							),
+						);
+					}
+					actions.updateUser(responsePayload.user);
+				} catch (err) {
+					window.alert(err?.message || "Failed to update user.");
+				}
+			});
+		});
 
-        try {
-          await refreshAccessInspector(btn.dataset.userId);
-        } catch (err) {
-          if (uiState.accessInspector.bodyEl) {
-            uiState.accessInspector.bodyEl.innerHTML = `
+		tbody.querySelectorAll(".btn-delete-user").forEach((btn) => {
+			btn.addEventListener("click", async () => {
+				const userName = btn.dataset.userName;
+				if (
+					!window.confirm(
+						`Delete user ${userName}? This will permanently remove the account record.`,
+					)
+				)
+					return;
+				try {
+					const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
+						method: "DELETE",
+					});
+					const responsePayload = await res.json().catch(() => ({}));
+					if (!res.ok) {
+						throw new Error(
+							getActionError(
+								responsePayload,
+								`Failed to delete user (${res.status})`,
+							),
+						);
+					}
+					actions.removeUser(btn.dataset.userId);
+				} catch (err) {
+					window.alert(err?.message || "Failed to delete user.");
+				}
+			});
+		});
+
+		tbody.querySelectorAll(".btn-inspect-user-access").forEach((btn) => {
+			btn.addEventListener("click", async () => {
+				setPending("access", btn.dataset.userId, true);
+				uiState.accessInspector.userId = btn.dataset.userId;
+				uiState.accessInspector.refreshToken = null;
+				uiState.accessInspector.payload = null;
+				uiState.accessInspector.showDisabled = false;
+				const shell = renderAclInspectorModal(
+					{
+						name: btn.dataset.userName || "",
+						email: btn.dataset.userEmail || "",
+						primary_role: String(btn.dataset.userRole || "member").trim(),
+						account_status: btn.dataset.userAccountStatus || "active",
+					},
+					'<div class="text-sm text-gray-400">Loading ACL inspector...</div>',
+					() => {
+						uiState.accessInspector.userId = null;
+						uiState.accessInspector.refreshToken = null;
+						uiState.accessInspector.payload = null;
+						uiState.accessInspector.modalEl = null;
+						uiState.accessInspector.bodyEl = null;
+					},
+				);
+				uiState.accessInspector.modalEl = shell.modal;
+				uiState.accessInspector.bodyEl = shell.bodyEl;
+				shell.modal.classList.add("user-access-modal-shell");
+
+				shell.modal?.addEventListener("click", (e) => {
+					if (e.target.closest("[data-toggle-disabled-rules]")) {
+						uiState.accessInspector.showDisabled =
+							!uiState.accessInspector.showDisabled;
+						if (
+							uiState.accessInspector.payload &&
+							uiState.accessInspector.bodyEl
+						) {
+							uiState.accessInspector.bodyEl.innerHTML =
+								renderAccessInspectorContent(
+									uiState.accessInspector.payload,
+									uiState.accessInspector.showDisabled,
+								);
+						}
+					}
+				});
+>>>>>>> feature/short-term-tasks
+
+				try {
+					await refreshAccessInspector(btn.dataset.userId);
+				} catch (err) {
+					if (uiState.accessInspector.bodyEl) {
+						uiState.accessInspector.bodyEl.innerHTML = `
               <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
-                ${escapeHtml(err.message || 'Failed to inspect user access')}
+                ${escapeHtml(err.message || "Failed to inspect user access")}
               </div>
             `;
-          }
-        } finally {
-          setPending('access', btn.dataset.userId, false);
-        }
-      });
-    });
+					}
+				} finally {
+					setPending("access", btn.dataset.userId, false);
+				}
+			});
+		});
 
+<<<<<<< HEAD
     tbody.querySelectorAll('.btn-edit-user').forEach((btn) => {
       btn.addEventListener('click', async () => {
         try {
@@ -797,11 +1105,47 @@ export function renderUserOverview(container, data, actions) {
             email: String(user.email || '').trim(),
             password: '',
           };
+=======
+		tbody.querySelectorAll(".btn-edit-user").forEach((btn) => {
+			btn.addEventListener("click", async () => {
+				try {
+					const roles = await loadAdminRoles();
+					const user = {
+						id: btn.dataset.userId,
+						name: btn.dataset.userName || "",
+						email: btn.dataset.userEmail || "",
+						primary_role: String(btn.dataset.userRole || "member").trim(),
+						account_status: btn.dataset.userAccountStatus || "active",
+					};
+					document.body.insertAdjacentHTML(
+						"beforeend",
+						renderEditUserModal(user, null, roles),
+					);
 
-          const close = () => {
-            modal?.remove();
-          };
+					const modal = document.getElementById("edit-user-modal");
+					const form = document.getElementById("edit-user-form");
+					const saveBtn = modal?.querySelector("#edit-user-save-btn");
+					const fields = {
+						primaryRole: form?.querySelector('[name="primary_role"]'),
+						accountStatus: form?.querySelector('[name="account_status"]'),
+						name: form?.querySelector('[name="name"]'),
+						email: form?.querySelector('[name="email"]'),
+						password: form?.querySelector('[name="password"]'),
+					};
+					const baseValues = {
+						primary_role: normalizeRole(user.primary_role || "member"),
+						account_status: String(user.account_status || "active"),
+						name: String(user.name || "").trim(),
+						email: String(user.email || "").trim(),
+						password: "",
+					};
+>>>>>>> feature/short-term-tasks
 
+					const close = () => {
+						modal?.remove();
+					};
+
+<<<<<<< HEAD
           const isDirty = () =>
             normalizeRole(fields.primaryRole?.value || 'member') !== baseValues.primary_role ||
             String(fields.accountStatus?.value || 'active') !== baseValues.account_status ||
@@ -846,56 +1190,133 @@ export function renderUserOverview(container, data, actions) {
               window.alert(err?.message || 'Failed to update user.');
             }
           };
+=======
+					const isDirty = () =>
+						normalizeRole(fields.primaryRole?.value || "member") !==
+							baseValues.primary_role ||
+						String(fields.accountStatus?.value || "active") !==
+							baseValues.account_status ||
+						String(fields.name?.value || "").trim() !== baseValues.name ||
+						String(fields.email?.value || "").trim() !== baseValues.email ||
+						String(fields.password?.value || "").trim() !== "";
 
-          modal?.addEventListener('click', (e) => {
-            if (e.target === modal || e.target.closest('[data-close-edit-user]')) {
-              close();
-            }
-          });
-          saveBtn?.addEventListener('click', () => {
-            saveEdit();
-          });
+					const syncDirty = () => {
+						setModalSaveButtonState(saveBtn, {
+							enabled: isDirty(),
+							saving: false,
+						});
+					};
 
-          form?.querySelectorAll('input, select, textarea').forEach((el) => {
-            el.addEventListener('input', syncDirty);
-            el.addEventListener('change', syncDirty);
-          });
+					const saveEdit = async () => {
+						displayFieldErrors(form);
+						if (
+							typeof form?.reportValidity === "function" &&
+							!form.reportValidity()
+						)
+							return;
+						const fd = new FormData(form);
+						const payload = {
+							primary_role: String(fd.get("primary_role") || "member").trim(),
+							account_status: String(fd.get("account_status") || "active"),
+							name: String(fd.get("name") || "").trim(),
+							email: String(fd.get("email") || "").trim(),
+						};
+						const password = String(fd.get("password") || "");
+						if (password) payload.password = password;
+						clearFormErrors(form);
+						try {
+							const res = await apiFetch(`/api/admin/users/${user.id}`, {
+								method: "PUT",
+								body: JSON.stringify(payload),
+							});
+							const responsePayload = await res.json().catch(() => ({}));
+							if (!res.ok) {
+								throw new Error(
+									getActionError(
+										responsePayload,
+										`Failed to update user (${res.status})`,
+									),
+								);
+							}
+							actions.updateUser(responsePayload.user);
+							close();
+						} catch (err) {
+							window.alert(err?.message || "Failed to update user.");
+						}
+					};
+>>>>>>> feature/short-term-tasks
 
-          form?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            saveEdit();
-          });
+					modal?.addEventListener("click", (e) => {
+						if (
+							e.target === modal ||
+							e.target.closest("[data-close-edit-user]")
+						) {
+							close();
+						}
+					});
+					saveBtn?.addEventListener("click", () => {
+						saveEdit();
+					});
 
-          syncDirty();
-        } catch (err) {
-          window.alert(err.message);
-        }
-      });
-    });
-  }
+					form?.querySelectorAll("input, select, textarea").forEach((el) => {
+						el.addEventListener("input", syncDirty);
+						el.addEventListener("change", syncDirty);
+					});
 
-  if (!uiState.accessInspectorListenersBound) {
-    if (typeof window.__growchatAccessInspectorCleanup === 'function') {
-      window.__growchatAccessInspectorCleanup();
-    }
-    uiState.accessInspectorListenersBound = true;
-    const handleAccessInvalidation = () => {
-      if (uiState.accessInspector?.userId && uiState.accessInspector.modalEl) {
-        refreshAccessInspector(uiState.accessInspector.userId);
-      }
-    };
-    window.addEventListener('growchat:models-invalidated', handleAccessInvalidation);
-    window.addEventListener('growchat:connections-invalidated', handleAccessInvalidation);
-    window.addEventListener('growchat:tool-servers-invalidated', handleAccessInvalidation);
-    uiState.accessInspectorCleanup = () => {
-      window.removeEventListener('growchat:models-invalidated', handleAccessInvalidation);
-      window.removeEventListener('growchat:connections-invalidated', handleAccessInvalidation);
-      window.removeEventListener('growchat:tool-servers-invalidated', handleAccessInvalidation);
-      uiState.accessInspectorListenersBound = false;
-    };
-    window.__growchatAccessInspectorCleanup = uiState.accessInspectorCleanup;
-  }
+					form?.addEventListener("submit", async (e) => {
+						e.preventDefault();
+						saveEdit();
+					});
 
+					syncDirty();
+				} catch (err) {
+					window.alert(err.message);
+				}
+			});
+		});
+	}
+
+	if (!uiState.accessInspectorListenersBound) {
+		if (typeof window.__growchatAccessInspectorCleanup === "function") {
+			window.__growchatAccessInspectorCleanup();
+		}
+		uiState.accessInspectorListenersBound = true;
+		const handleAccessInvalidation = () => {
+			if (uiState.accessInspector?.userId && uiState.accessInspector.modalEl) {
+				refreshAccessInspector(uiState.accessInspector.userId);
+			}
+		};
+		window.addEventListener(
+			"growchat:models-invalidated",
+			handleAccessInvalidation,
+		);
+		window.addEventListener(
+			"growchat:connections-invalidated",
+			handleAccessInvalidation,
+		);
+		window.addEventListener(
+			"growchat:tool-servers-invalidated",
+			handleAccessInvalidation,
+		);
+		uiState.accessInspectorCleanup = () => {
+			window.removeEventListener(
+				"growchat:models-invalidated",
+				handleAccessInvalidation,
+			);
+			window.removeEventListener(
+				"growchat:connections-invalidated",
+				handleAccessInvalidation,
+			);
+			window.removeEventListener(
+				"growchat:tool-servers-invalidated",
+				handleAccessInvalidation,
+			);
+			uiState.accessInspectorListenersBound = false;
+		};
+		window.__growchatAccessInspectorCleanup = uiState.accessInspectorCleanup;
+	}
+
+<<<<<<< HEAD
   function updateView() {
     const users = data.users || [];
     const total = data.total || users.length;
@@ -908,51 +1329,67 @@ export function renderUserOverview(container, data, actions) {
     totalCount.textContent = String(total);
     const isTableLoading =
       data.loading && (data.loadingMode === 'table' || data.loadingMode === 'initial');
+=======
+	function updateView() {
+		const users = data.users || [];
+		const total = data.total || users.length;
+		const page = data.pagination?.page || 1;
+		const pageSize = data.pagination?.pageSize || 20;
+		const totalPages = Math.max(1, Math.ceil(total / pageSize));
+		const pageStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+		const pageEnd = Math.min(page * pageSize, total);
 
-    tbody.innerHTML = isTableLoading
-      ? renderLoadingRows(Math.min(pageSize, 10))
-      : renderUserRows(users);
-    pageRange.textContent = `${pageStart}-${pageEnd} of ${total}`;
-    pageLabel.textContent = `Page ${page} / ${totalPages}`;
-    prevButton.disabled = data.loading || page <= 1;
-    nextButton.disabled = data.loading || page >= totalPages;
-    pageSizeSelect.disabled = data.loading;
-    pageSizeSelect.value = String(pageSize);
-    searchInput.value = uiState.query;
-    if (!isTableLoading) {
-      bindRowActions();
-      applySearchFilter();
-      syncPendingState();
-    }
-  }
+		totalCount.textContent = String(total);
+		const isTableLoading =
+			data.loading &&
+			(data.loadingMode === "table" || data.loadingMode === "initial");
+>>>>>>> feature/short-term-tasks
 
-  searchInput?.addEventListener('input', (e) => {
-    uiState.query = String(e.target.value || '');
-    syncSearchClearState();
-    applySearchFilter();
-  });
+		tbody.innerHTML = isTableLoading
+			? renderLoadingRows(Math.min(pageSize, 10))
+			: renderUserRows(users);
+		pageRange.textContent = `${pageStart}-${pageEnd} of ${total}`;
+		pageLabel.textContent = `Page ${page} / ${totalPages}`;
+		prevButton.disabled = data.loading || page <= 1;
+		nextButton.disabled = data.loading || page >= totalPages;
+		pageSizeSelect.disabled = data.loading;
+		pageSizeSelect.value = String(pageSize);
+		searchInput.value = uiState.query;
+		if (!isTableLoading) {
+			bindRowActions();
+			applySearchFilter();
+			syncPendingState();
+		}
+	}
 
-  clearSearchBtn?.addEventListener('click', () => {
-    if (!searchInput) return;
-    uiState.query = '';
-    searchInput.value = '';
-    syncSearchClearState();
-    searchInput.focus();
-    applySearchFilter();
-  });
+	searchInput?.addEventListener("input", (e) => {
+		uiState.query = String(e.target.value || "");
+		syncSearchClearState();
+		applySearchFilter();
+	});
 
-  pageSizeSelect?.addEventListener('change', async (e) => {
-    data.pagination.pageSize = parseInt(e.target.value, 10);
-    data.pagination.page = 1;
-    await actions.reload({ preserveContent: true });
-  });
+	clearSearchBtn?.addEventListener("click", () => {
+		if (!searchInput) return;
+		uiState.query = "";
+		searchInput.value = "";
+		syncSearchClearState();
+		searchInput.focus();
+		applySearchFilter();
+	});
 
-  prevButton?.addEventListener('click', async () => {
-    if (data.pagination.page <= 1) return;
-    data.pagination.page -= 1;
-    await actions.reload({ preserveContent: true });
-  });
+	pageSizeSelect?.addEventListener("change", async (e) => {
+		data.pagination.pageSize = parseInt(e.target.value, 10);
+		data.pagination.page = 1;
+		await actions.reload({ preserveContent: true });
+	});
 
+	prevButton?.addEventListener("click", async () => {
+		if (data.pagination.page <= 1) return;
+		data.pagination.page -= 1;
+		await actions.reload({ preserveContent: true });
+	});
+
+<<<<<<< HEAD
   nextButton?.addEventListener('click', async () => {
     const totalPages = Math.max(
       1,
@@ -1022,36 +1459,112 @@ export function renderUserOverview(container, data, actions) {
         saving: false,
       });
     };
+=======
+	nextButton?.addEventListener("click", async () => {
+		const totalPages = Math.max(
+			1,
+			Math.ceil((data.total || 0) / (data.pagination?.pageSize || 20)),
+		);
+		if (data.pagination.page >= totalPages) return;
+		data.pagination.page += 1;
+		await actions.reload({ preserveContent: true });
+	});
 
-    const close = () => {
-      modal?.remove();
-    };
+	container
+		.querySelector("#open-add-user-modal")
+		?.addEventListener("click", async () => {
+			const roles = await loadAdminRoles();
+			document.body.insertAdjacentHTML(
+				"beforeend",
+				renderAddUserModal(
+					{
+						primary_role: "member",
+						account_status: "active",
+						name: "",
+						email: "",
+						password: "",
+						csv: "",
+						tab: "form",
+					},
+					roles,
+				),
+			);
+			const modal = document.getElementById("add-user-modal");
+			const form = document.getElementById("add-user-form");
+			const csvForm = document.getElementById("add-user-csv-form");
+			const formTab = modal?.querySelector('[data-add-user-tab="form"]');
+			const csvTab = modal?.querySelector('[data-add-user-tab="csv"]');
+			const saveBtn = modal?.querySelector("#add-user-save-btn");
+			const fields = {
+				primaryRole: form?.querySelector('[name="primary_role"]'),
+				accountStatus: form?.querySelector('[name="account_status"]'),
+				name: form?.querySelector('[name="name"]'),
+				email: form?.querySelector('[name="email"]'),
+				password: form?.querySelector('[name="password"]'),
+				csv: csvForm?.querySelector('[name="csv"]'),
+			};
+			const modalState = {
+				activeTab: "form",
+				dirty: false,
+			};
+			const baseValues = {
+				primary_role: "member",
+				account_status: "active",
+				name: "",
+				email: "",
+				password: "",
+				csv: "",
+			};
 
-    const setTab = (tab) => {
-      const isForm = tab === 'form';
-      modalState.activeTab = tab;
-      form?.classList.toggle('hidden', !isForm);
-      csvForm?.classList.toggle('hidden', isForm);
-      formTab?.classList.toggle('text-gray-900', isForm);
-      formTab?.classList.toggle('border-gray-900', isForm);
-      formTab?.classList.toggle('text-gray-400', !isForm);
-      formTab?.classList.toggle('border-transparent', !isForm);
-      csvTab?.classList.toggle('text-gray-900', !isForm);
-      csvTab?.classList.toggle('border-gray-900', !isForm);
-      csvTab?.classList.toggle('text-gray-400', isForm);
-      csvTab?.classList.toggle('border-transparent', isForm);
-      syncDirty();
-    };
+			const isDirty = () =>
+				String(fields.primaryRole?.value || "member") !==
+					baseValues.primary_role ||
+				String(fields.accountStatus?.value || "active") !==
+					baseValues.account_status ||
+				String(fields.name?.value || "").trim() !== baseValues.name ||
+				String(fields.email?.value || "").trim() !== baseValues.email ||
+				String(fields.password?.value || "").trim() !== baseValues.password ||
+				String(fields.csv?.value || "").trim() !== baseValues.csv;
 
-    formTab?.addEventListener('click', () => setTab('form'));
-    csvTab?.addEventListener('click', () => setTab('csv'));
+			const syncDirty = () => {
+				modalState.dirty = isDirty();
+				setModalSaveButtonState(saveBtn, {
+					enabled: modalState.dirty,
+					saving: false,
+				});
+			};
+>>>>>>> feature/short-term-tasks
 
-    modal?.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.closest('[data-close-add-user]')) {
-        close();
-      }
-    });
+			const close = () => {
+				modal?.remove();
+			};
 
+			const setTab = (tab) => {
+				const isForm = tab === "form";
+				modalState.activeTab = tab;
+				form?.classList.toggle("hidden", !isForm);
+				csvForm?.classList.toggle("hidden", isForm);
+				formTab?.classList.toggle("text-gray-900", isForm);
+				formTab?.classList.toggle("border-gray-900", isForm);
+				formTab?.classList.toggle("text-gray-400", !isForm);
+				formTab?.classList.toggle("border-transparent", !isForm);
+				csvTab?.classList.toggle("text-gray-900", !isForm);
+				csvTab?.classList.toggle("border-gray-900", !isForm);
+				csvTab?.classList.toggle("text-gray-400", isForm);
+				csvTab?.classList.toggle("border-transparent", isForm);
+				syncDirty();
+			};
+
+			formTab?.addEventListener("click", () => setTab("form"));
+			csvTab?.addEventListener("click", () => setTab("csv"));
+
+			modal?.addEventListener("click", (e) => {
+				if (e.target === modal || e.target.closest("[data-close-add-user]")) {
+					close();
+				}
+			});
+
+<<<<<<< HEAD
     const saveCurrent = () => {
       void (async () => {
         try {
@@ -1103,33 +1616,100 @@ export function renderUserOverview(container, data, actions) {
         }
       })();
     };
+=======
+			const saveCurrent = () => {
+				void (async () => {
+					try {
+						if (modalState.activeTab === "csv") {
+							if (
+								typeof csvForm?.reportValidity === "function" &&
+								!csvForm.reportValidity()
+							)
+								return;
+							const fd = new FormData(csvForm);
+							const csv = String(fd.get("csv") || "").trim();
+							const res = await apiFetch("/api/admin/users/import", {
+								method: "POST",
+								body: JSON.stringify({ csv }),
+							});
+							const responsePayload = await res.json().catch(() => ({}));
+							if (!res.ok) {
+								throw new Error(
+									getActionError(
+										responsePayload,
+										`Failed to import users (${res.status})`,
+									),
+								);
+							}
+							actions.invalidateCache?.();
+							await actions.reload?.({ preserveContent: true });
+						} else {
+							if (
+								typeof form?.reportValidity === "function" &&
+								!form.reportValidity()
+							)
+								return;
+							const fd = new FormData(form);
+							const payload = {
+								primary_role: String(fd.get("primary_role") || "member").trim(),
+								account_status: String(fd.get("account_status") || "active"),
+								name: String(fd.get("name") || "").trim(),
+								email: String(fd.get("email") || "").trim(),
+								password: String(fd.get("password") || ""),
+							};
+							const res = await apiFetch("/api/admin/users", {
+								method: "POST",
+								body: JSON.stringify(payload),
+							});
+							const responsePayload = await res.json().catch(() => ({}));
+							if (!res.ok) {
+								throw new Error(
+									getActionError(
+										responsePayload,
+										`Failed to create user (${res.status})`,
+									),
+								);
+							}
+							actions.prependUser(responsePayload.user);
+						}
+						close();
+					} catch (err) {
+						const errorEl = modal?.querySelector("#add-user-error");
+						if (errorEl) {
+							errorEl.textContent = err?.message || "Failed to save user.";
+							errorEl.classList.remove("hidden");
+						}
+					}
+				})();
+			};
+>>>>>>> feature/short-term-tasks
 
-    saveBtn?.addEventListener('click', () => {
-      saveCurrent();
-    });
+			saveBtn?.addEventListener("click", () => {
+				saveCurrent();
+			});
 
-    form?.querySelectorAll('input, select, textarea').forEach((el) => {
-      el.addEventListener('input', syncDirty);
-      el.addEventListener('change', syncDirty);
-    });
-    csvForm?.querySelectorAll('input, select, textarea').forEach((el) => {
-      el.addEventListener('input', syncDirty);
-      el.addEventListener('change', syncDirty);
-    });
+			form?.querySelectorAll("input, select, textarea").forEach((el) => {
+				el.addEventListener("input", syncDirty);
+				el.addEventListener("change", syncDirty);
+			});
+			csvForm?.querySelectorAll("input, select, textarea").forEach((el) => {
+				el.addEventListener("input", syncDirty);
+				el.addEventListener("change", syncDirty);
+			});
 
-    form?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      saveCurrent();
-    });
+			form?.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				saveCurrent();
+			});
 
-    csvForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      saveCurrent();
-    });
+			csvForm?.addEventListener("submit", async (e) => {
+				e.preventDefault();
+				saveCurrent();
+			});
 
-    setTab(modalState.activeTab);
-  });
+			setTab(modalState.activeTab);
+		});
 
-  updateView();
-  syncSearchClearState();
+	updateView();
+	syncSearchClearState();
 }

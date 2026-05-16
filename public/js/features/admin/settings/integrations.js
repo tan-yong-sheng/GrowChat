@@ -1,4 +1,10 @@
+<<<<<<< HEAD
 import { apiFetch } from '../../../shared/api.js';
+=======
+import {
+  apiFetch,
+} from '../../../shared/api.js';
+>>>>>>> feature/short-term-tasks
 import { buildMcpServerModalMarkup } from '../../../shared/components/server-modal.js';
 import {
   fetchAdminToolServerAccess,
@@ -13,7 +19,10 @@ import {
   shouldShowAuthField,
 } from './integrations-helpers.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
+<<<<<<< HEAD
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
+=======
+>>>>>>> feature/short-term-tasks
 import { escapeHtml, escapeSelector } from '../../../shared/utils/dom-escape.js';
 import { buildTraceAttrs } from '../../../shared/utils/trace-attrs.js';
 
@@ -27,6 +36,7 @@ function cloneAclRules(rules = [], normalizer = (rule) => rule) {
 function getAclRulesSignature(rules = [], normalizer) {
   return cloneAclRules(rules, normalizer)
     .map((rule) => ({
+<<<<<<< HEAD
       principal_type: String(rule?.principal_type || '')
         .trim()
         .toLowerCase(),
@@ -45,6 +55,19 @@ function getAclRulesSignature(rules = [], normalizer) {
         a.action.localeCompare(b.action) ||
         a.effect.localeCompare(b.effect)
     )
+=======
+      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
+      principal_id: String(rule?.principal_id || '').trim(),
+      effect: String(rule?.effect || '').trim().toLowerCase(),
+      action: String(rule?.action || '').trim().toLowerCase(),
+    }))
+    .sort((a, b) => (
+      a.principal_type.localeCompare(b.principal_type)
+      || a.principal_id.localeCompare(b.principal_id)
+      || a.action.localeCompare(b.action)
+      || a.effect.localeCompare(b.effect)
+    ))
+>>>>>>> feature/short-term-tasks
     .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
     .join('|');
 }
@@ -52,6 +75,7 @@ function getAclRulesSignature(rules = [], normalizer) {
 export function renderIntegrationsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'integrations';
   const canManageAcls = data.capabilities?.canManageAcls !== false;
+<<<<<<< HEAD
   const integrationsState =
     data.integrationsSettings ||
     (data.integrationsSettings = {
@@ -63,6 +87,17 @@ export function renderIntegrationsSettings(container, data) {
       selectedServer: null,
       modalMode: 'create',
     });
+=======
+  const integrationsState = data.integrationsSettings || (data.integrationsSettings = {
+    loading: false,
+    error: null,
+    toolServers: [],
+    loaded: false,
+    showModal: false,
+    selectedServer: null,
+    modalMode: 'create',
+  });
+>>>>>>> feature/short-term-tasks
 
   const updateServerToggle = (btn, enabled) => {
     if (!btn) return;
@@ -84,11 +119,15 @@ export function renderIntegrationsSettings(container, data) {
     btn.classList.toggle('cursor-not-allowed', !serverEnabled);
     btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
     btn.setAttribute('aria-disabled', serverEnabled ? 'false' : 'true');
+<<<<<<< HEAD
     btn.title = serverEnabled
       ? enabled
         ? 'Disable tool'
         : 'Enable tool'
       : 'Enable the server to edit tools';
+=======
+    btn.title = serverEnabled ? (enabled ? 'Disable tool' : 'Enable tool') : 'Enable the server to edit tools';
+>>>>>>> feature/short-term-tasks
     const knob = btn.querySelector('span');
     if (knob) {
       knob.classList.toggle('translate-x-4', enabled);
@@ -100,9 +139,13 @@ export function renderIntegrationsSettings(container, data) {
 
   const renderLoadingSkeleton = () => `
     <div class="space-y-2">
+<<<<<<< HEAD
       ${Array.from({ length: 4 })
         .map(
           () => `
+=======
+      ${Array.from({ length: 4 }).map(() => `
+>>>>>>> feature/short-term-tasks
         <div class="border-b border-gray-50 last:border-0">
           <div class="py-2.5 flex items-center justify-between pr-2 animate-pulse">
             <div class="flex flex-col min-w-0 flex-1 space-y-2">
@@ -117,9 +160,13 @@ export function renderIntegrationsSettings(container, data) {
             </div>
           </div>
         </div>
+<<<<<<< HEAD
       `
         )
         .join('')}
+=======
+      `).join('')}
+>>>>>>> feature/short-term-tasks
     </div>
   `;
 
@@ -150,6 +197,7 @@ export function renderIntegrationsSettings(container, data) {
     broadcastToolServersInvalidation();
   };
 
+<<<<<<< HEAD
   const runVerify = async ({
     serverId,
     url,
@@ -159,6 +207,22 @@ export function renderIntegrationsSettings(container, data) {
     basicPass,
     headers,
   }) => {
+=======
+  const commitOpenServerModalDraft = async () => {
+    const modalRoot = container.querySelector('#edit-connection-modal');
+    if (!modalRoot || modalRoot.classList.contains('hidden')) return true;
+    const saveModalBtn = modalRoot.querySelector('#save-modal');
+    if (!saveModalBtn || saveModalBtn.disabled) return true;
+
+    saveModalBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    return modalRoot.classList.contains('hidden');
+  };
+
+  const runVerify = async ({ serverId, url, authType, bearerToken, basicUser, basicPass, headers }) => {
+>>>>>>> feature/short-term-tasks
     const res = await apiFetch('/api/admin/tool-servers/test', {
       method: 'POST',
       body: JSON.stringify({
@@ -173,9 +237,13 @@ export function renderIntegrationsSettings(container, data) {
     });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok) {
+<<<<<<< HEAD
       throw new Error(
         payload.details?.message || payload.message || payload.error || 'Connection failed'
       );
+=======
+      throw new Error(payload.details?.message || payload.message || payload.error || 'Connection failed');
+>>>>>>> feature/short-term-tasks
     }
     const tools = Array.isArray(payload.tools) ? payload.tools : [];
     return {
@@ -214,12 +282,17 @@ export function renderIntegrationsSettings(container, data) {
     const renderSummary = () => {
       let reasonText = 'No explicit rules. Admin users can access by default.';
       if (summaryEl) {
+<<<<<<< HEAD
         const allowCount = Array.from(state.rulesByGroup.values()).filter(
           (value) => value === 'allow'
         ).length;
         const denyCount = Array.from(state.rulesByGroup.values()).filter(
           (value) => value === 'deny'
         ).length;
+=======
+        const allowCount = Array.from(state.rulesByGroup.values()).filter((value) => value === 'allow').length;
+        const denyCount = Array.from(state.rulesByGroup.values()).filter((value) => value === 'deny').length;
+>>>>>>> feature/short-term-tasks
         if (!allowCount && !denyCount) {
           summaryEl.textContent = 'No access rules';
           reasonText = 'No explicit rules. Admin users can access by default.';
@@ -229,8 +302,12 @@ export function renderIntegrationsSettings(container, data) {
           if (denyCount) parts.push(`${denyCount} deny`);
           summaryEl.textContent = parts.join(', ');
           if (allowCount && denyCount) {
+<<<<<<< HEAD
             reasonText =
               'Explicit allow rules share this MCP server with selected groups. Deny rules override allow rules.';
+=======
+            reasonText = 'Explicit allow rules share this MCP server with selected groups. Deny rules override allow rules.';
+>>>>>>> feature/short-term-tasks
           } else if (denyCount) {
             reasonText = 'This MCP server is explicitly blocked for selected groups.';
           } else {
@@ -252,10 +329,15 @@ export function renderIntegrationsSettings(container, data) {
         enabled: true,
         saving: state.saving,
         label: 'Save',
+<<<<<<< HEAD
         enabledClass:
           'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
         disabledClass:
           'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+=======
+        enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+        disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+>>>>>>> feature/short-term-tasks
       });
     };
 
@@ -264,9 +346,13 @@ export function renderIntegrationsSettings(container, data) {
       if (state.loading) {
         listEl.innerHTML = `
           <div class="space-y-2">
+<<<<<<< HEAD
             ${Array.from({ length: 5 })
               .map(
                 () => `
+=======
+            ${Array.from({ length: 5 }).map(() => `
+>>>>>>> feature/short-term-tasks
               <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 animate-pulse">
                 <div class="flex flex-col min-w-0 flex-1 space-y-2">
                   <div class="h-3.5 w-40 bg-gray-200 rounded-full"></div>
@@ -274,9 +360,13 @@ export function renderIntegrationsSettings(container, data) {
                 </div>
                 <div class="h-4 w-4 bg-gray-100 rounded border border-gray-200"></div>
               </div>
+<<<<<<< HEAD
             `
               )
               .join('')}
+=======
+            `).join('')}
+>>>>>>> feature/short-term-tasks
           </div>
         `;
         return;
@@ -286,6 +376,7 @@ export function renderIntegrationsSettings(container, data) {
         errorEl.classList.toggle('hidden', !state.error);
       }
       if (!state.groups.length) {
+<<<<<<< HEAD
         listEl.innerHTML =
           '<div class="text-sm text-gray-500 py-6 text-center">No resource teams available.</div>';
         return;
@@ -298,6 +389,16 @@ export function renderIntegrationsSettings(container, data) {
             ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">System</span>'
             : '';
           return `
+=======
+        listEl.innerHTML = '<div class="text-sm text-gray-500 py-6 text-center">No resource teams available.</div>';
+        return;
+      }
+      listEl.innerHTML = state.groups.map((group) => {
+        const groupId = group.id;
+        const effect = state.rulesByGroup.get(groupId) || 'none';
+        const badge = group.is_system ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">System</span>' : '';
+        return `
+>>>>>>> feature/short-term-tasks
           <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 hover:border-gray-300">
             <div class="flex flex-col min-w-0">
               <div class="flex items-center gap-2">
@@ -313,8 +414,12 @@ export function renderIntegrationsSettings(container, data) {
             </select>
           </div>
         `;
+<<<<<<< HEAD
         })
         .join('');
+=======
+      }).join('');
+>>>>>>> feature/short-term-tasks
 
       listEl.querySelectorAll('.tool-server-acl-effect').forEach((select) => {
         select.addEventListener('change', () => {
@@ -342,6 +447,7 @@ export function renderIntegrationsSettings(container, data) {
         state.rulesByGroup = new Map(
           (Array.isArray(payload.rules) ? payload.rules : [])
             .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
+<<<<<<< HEAD
             .map((rule) => [
               String(rule.principal_id || '').trim(),
               String(rule.effect || 'allow')
@@ -350,6 +456,9 @@ export function renderIntegrationsSettings(container, data) {
                 ? 'deny'
                 : 'allow',
             ])
+=======
+            .map((rule) => [String(rule.principal_id || '').trim(), String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow'])
+>>>>>>> feature/short-term-tasks
             .filter(([groupId]) => Boolean(groupId))
         );
       } catch (err) {
@@ -379,8 +488,12 @@ export function renderIntegrationsSettings(container, data) {
         }
         close();
       } catch (err) {
+<<<<<<< HEAD
         if (saveErrorEl)
           saveErrorEl.textContent = err.message || 'Failed to save MCP server access';
+=======
+        if (saveErrorEl) saveErrorEl.textContent = err.message || 'Failed to save MCP server access';
+>>>>>>> feature/short-term-tasks
       } finally {
         state.saving = false;
         updateSaveButton();
@@ -420,9 +533,13 @@ export function renderIntegrationsSettings(container, data) {
     if (integrationsState.toolServers.length === 0) {
       return '<div class="py-10 text-center text-sm text-gray-400">No tool servers configured. Click + to add one.</div>';
     }
+<<<<<<< HEAD
     return integrationsState.toolServers
       .map(
         (server) => `
+=======
+    return integrationsState.toolServers.map(server => `
+>>>>>>> feature/short-term-tasks
       ${(() => {
         const serverEnabled = server.enabled !== false;
         const tools = Array.isArray(server.tools) ? server.tools : [];
@@ -473,6 +590,7 @@ export function renderIntegrationsSettings(container, data) {
         <div class="px-2 pb-3 ${server.toolsExpanded ? '' : 'hidden'}">
           ${server.toolsError ? `<div class="text-[11px] text-red-500 mb-2">${server.toolsError}</div>` : ''}
           <div class="space-y-2">
+<<<<<<< HEAD
             ${
               tools.length
                 ? tools
@@ -487,6 +605,19 @@ export function renderIntegrationsSettings(container, data) {
                           : description;
                       const toolEnabled = tool.enabled !== false;
                       return `
+=======
+            ${(tools.length)
+            ? tools.map((tool) => {
+              const description = String(tool.description || '');
+              const maxLen = 160;
+              const isExpanded = Boolean(tool._expanded);
+              const hasMore = description.length > maxLen;
+              const preview = hasMore && !isExpanded
+                ? `${description.slice(0, maxLen).trimEnd()}…`
+                : description;
+              const toolEnabled = tool.enabled !== false;
+              return `
+>>>>>>> feature/short-term-tasks
                 <div class="rounded-xl border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
@@ -505,6 +636,7 @@ export function renderIntegrationsSettings(container, data) {
                       <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toolEnabled ? 'translate-x-4' : 'translate-x-0'}"></span>
                     </button>
                   </div>
+<<<<<<< HEAD
                   ${
                     description
                       ? `
@@ -519,14 +651,28 @@ export function renderIntegrationsSettings(container, data) {
                     .join('')
                 : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit MCP Server.</div>'
             }
+=======
+                  ${description ? `
+                    <div class="text-[11px] text-gray-500 mt-1">${escapeHtml(preview)}</div>
+                    ${hasMore ? `<button data-server-id="${server.id}" data-tool-name="${tool.name}" class="tool-desc-toggle text-[10px] text-gray-400 hover:text-gray-600 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
+                  ` : ''}
+                </div>
+              `;
+            }).join('')
+            : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit MCP Server.</div>'}
+>>>>>>> feature/short-term-tasks
           </div>
         </div>
       </div>
     `;
       })()}
+<<<<<<< HEAD
     `
       )
       .join('');
+=======
+    `).join('');
+>>>>>>> feature/short-term-tasks
   };
 
   const updateServerRowState = (serverId) => {
@@ -543,9 +689,13 @@ export function renderIntegrationsSettings(container, data) {
     if (serverToggle) updateServerToggle(serverToggle, serverEnabled);
     row.querySelectorAll('.tool-toggle').forEach((toggle) => {
       const toolName = toggle.dataset.toolName;
+<<<<<<< HEAD
       const tool = Array.isArray(server.tools)
         ? server.tools.find((entry) => entry.name === toolName)
         : null;
+=======
+      const tool = Array.isArray(server.tools) ? server.tools.find((entry) => entry.name === toolName) : null;
+>>>>>>> feature/short-term-tasks
       const toolEnabled = tool ? tool.enabled !== false : false;
       updateToolToggle(toggle, toolEnabled, serverEnabled);
     });
@@ -556,9 +706,13 @@ export function renderIntegrationsSettings(container, data) {
     const server = integrationsState.toolServers.find((entry) => entry.id === serverId);
     if (!row || !server) return;
     const serverEnabled = server.enabled !== false;
+<<<<<<< HEAD
     const tool = Array.isArray(server.tools)
       ? server.tools.find((entry) => entry.name === toolName)
       : null;
+=======
+    const tool = Array.isArray(server.tools) ? server.tools.find((entry) => entry.name === toolName) : null;
+>>>>>>> feature/short-term-tasks
     if (!tool) return;
     const toggle = row.querySelector(`.tool-toggle[data-tool-name="${escapeSelector(toolName)}"]`);
     if (toggle) updateToolToggle(toggle, tool.enabled !== false, serverEnabled);
@@ -583,7 +737,11 @@ export function renderIntegrationsSettings(container, data) {
     });
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full"${traceAttrs}>
+<<<<<<< HEAD
         <div class="pt-0.5 pb-6 sticky top-0 z-10 bg-white">
+=======
+        <div class="pt-0.5 pb-6 bg-white">
+>>>>>>> feature/short-term-tasks
           <div class="max-w-2xl mx-auto w-full flex justify-between items-center">
             <div class="flex items-center text-xl font-medium px-0.5 gap-2">
               <div class="flex-shrink-0 text-gray-900">Integrations</div>
@@ -591,7 +749,11 @@ export function renderIntegrationsSettings(container, data) {
           </div>
         </div>
 
+<<<<<<< HEAD
         <div class="flex-1 min-h-0 overflow-y-auto">
+=======
+        <div class="flex-1 min-h-0">
+>>>>>>> feature/short-term-tasks
           <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
             <section class="space-y-1">
               <div class="flex items-center justify-between px-0.5">
@@ -650,15 +812,23 @@ export function renderIntegrationsSettings(container, data) {
     if (oauthScopeInput) oauthScopeInput.value = server?.oauth_scope || '';
     if (oauthClientIdInput) oauthClientIdInput.value = server?.oauth_client_id || '';
     if (oauthClientSecretInput) oauthClientSecretInput.value = server?.oauth_client_secret || '';
+<<<<<<< HEAD
     if (oauthTokenMethodSelect)
       oauthTokenMethodSelect.value = server?.oauth_token_auth_method || '';
+=======
+    if (oauthTokenMethodSelect) oauthTokenMethodSelect.value = server?.oauth_token_auth_method || '';
+>>>>>>> feature/short-term-tasks
     if (oauthStatus) {
       oauthStatus.textContent = server?.oauth_connected ? 'Connected' : 'Not connected';
     }
     const title = container.querySelector('#server-modal-title');
+<<<<<<< HEAD
     if (title)
       title.textContent =
         integrationsState.modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server';
+=======
+    if (title) title.textContent = integrationsState.modalMode === 'update' ? 'Edit MCP Server' : 'Add MCP Server';
+>>>>>>> feature/short-term-tasks
     const deleteBtn = container.querySelector('#delete-server');
     if (deleteBtn) deleteBtn.classList.toggle('hidden', !server);
     setTestStatus('idle', '');
@@ -685,6 +855,7 @@ export function renderIntegrationsSettings(container, data) {
       modal.setAttribute('data-trace-scope', 'admin');
       modal.setAttribute('data-trace-family', 'mcp-servers');
       modal.setAttribute('data-trace-owner', 'admin truth');
+<<<<<<< HEAD
       modal.setAttribute(
         'data-trace-read',
         '/api/admin/tool-servers | /api/admin/tool-servers/access'
@@ -702,6 +873,17 @@ export function renderIntegrationsSettings(container, data) {
     setModalHash(
       integrationsState.modalMode === 'update' ? 'edit-connection-modal' : 'add-connection-modal'
     );
+=======
+      modal.setAttribute('data-trace-read', '/api/admin/tool-servers | /api/admin/tool-servers/access');
+      modal.setAttribute('data-trace-write', '/api/admin/tool-servers | /api/admin/tool-servers/access');
+      modal.setAttribute('data-trace-invalidation', 'tool-server views only');
+      modal.setAttribute(
+        'data-trace-action',
+        integrationsState.modalMode === 'update' ? 'edit server' : 'add server',
+      );
+    }
+    setModalHash(integrationsState.modalMode === 'update' ? 'edit-connection-modal' : 'add-connection-modal');
+>>>>>>> feature/short-term-tasks
     fillModalFields(integrationsState.selectedServer);
   };
 
@@ -723,9 +905,13 @@ export function renderIntegrationsSettings(container, data) {
       const res = await apiFetch('/api/admin/tool-servers?include_disabled=1');
       if (!res.ok) throw new Error('Failed to load tool servers');
       const payload = await res.json();
+<<<<<<< HEAD
       integrationsState.toolServers = sortResourcesByEnabledThenLabel(
         mapSavedToolServers(payload?.servers, [])
       );
+=======
+      integrationsState.toolServers = sortResourcesByEnabledThenLabel(mapSavedToolServers(payload?.servers, []));
+>>>>>>> feature/short-term-tasks
       if (isActiveTab()) render();
     } catch (err) {
       console.warn('Failed to load tool servers', err);
@@ -764,7 +950,11 @@ export function renderIntegrationsSettings(container, data) {
       const toggle = e.target.closest('.server-toggle');
       if (toggle) {
         const id = toggle.dataset.id;
+<<<<<<< HEAD
         const server = integrationsState.toolServers.find((s) => s.id === id);
+=======
+        const server = integrationsState.toolServers.find(s => s.id === id);
+>>>>>>> feature/short-term-tasks
         if (server) {
           const previousState = server.enabled;
           server.enabled = !server.enabled;
@@ -780,7 +970,11 @@ export function renderIntegrationsSettings(container, data) {
       const toolsToggle = e.target.closest('.tools-toggle');
       if (toolsToggle) {
         const id = toolsToggle.dataset.id;
+<<<<<<< HEAD
         const server = integrationsState.toolServers.find((s) => s.id === id);
+=======
+        const server = integrationsState.toolServers.find(s => s.id === id);
+>>>>>>> feature/short-term-tasks
         if (server) {
           server.toolsExpanded = !server.toolsExpanded;
           renderToolServersList();
@@ -791,9 +985,15 @@ export function renderIntegrationsSettings(container, data) {
       if (descToggle) {
         const serverId = descToggle.dataset.serverId;
         const toolName = descToggle.dataset.toolName;
+<<<<<<< HEAD
         const server = integrationsState.toolServers.find((s) => s.id === serverId);
         if (server && Array.isArray(server.tools)) {
           const tool = server.tools.find((t) => t.name === toolName);
+=======
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+        if (server && Array.isArray(server.tools)) {
+          const tool = server.tools.find(t => t.name === toolName);
+>>>>>>> feature/short-term-tasks
           if (tool) {
             tool._expanded = !tool._expanded;
             renderToolServersList();
@@ -804,7 +1004,11 @@ export function renderIntegrationsSettings(container, data) {
       const editBtn = e.target.closest('.edit-server-btn');
       if (editBtn) {
         const id = editBtn.dataset.id;
+<<<<<<< HEAD
         const server = integrationsState.toolServers.find((s) => s.id === id);
+=======
+        const server = integrationsState.toolServers.find(s => s.id === id);
+>>>>>>> feature/short-term-tasks
         openModal(server || null);
         return;
       }
@@ -869,7 +1073,11 @@ export function renderIntegrationsSettings(container, data) {
           headers,
         });
         setTestStatus('success', result.message);
+<<<<<<< HEAD
         const server = integrationsState.toolServers.find((s) => s.id === serverId);
+=======
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+>>>>>>> feature/short-term-tasks
         if (server) {
           server.tools = result.tools;
           server.toolsError = '';
@@ -878,7 +1086,11 @@ export function renderIntegrationsSettings(container, data) {
         renderToolServersList();
       } catch (err) {
         setTestStatus('error', err.message || 'Connection failed');
+<<<<<<< HEAD
         const server = integrationsState.toolServers.find((s) => s.id === serverId);
+=======
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+>>>>>>> feature/short-term-tasks
         if (server) {
           server.toolsError = err.message || 'Connection failed';
           server.toolsExpanded = false;
@@ -897,6 +1109,7 @@ export function renderIntegrationsSettings(container, data) {
       const bearerToken = container.querySelector('#server-auth-bearer')?.value || '';
       const basicUser = container.querySelector('#server-auth-basic-username')?.value || '';
       const basicPass = container.querySelector('#server-auth-basic-password')?.value || '';
+<<<<<<< HEAD
       const oauthClientName =
         container.querySelector('#server-auth-oauth-client-name')?.value || '';
       const oauthScope = container.querySelector('#server-auth-oauth-scope')?.value || '';
@@ -911,6 +1124,17 @@ export function renderIntegrationsSettings(container, data) {
         const index = integrationsState.toolServers.findIndex(
           (s) => s.id === integrationsState.selectedServer.id
         );
+=======
+      const oauthClientName = container.querySelector('#server-auth-oauth-client-name')?.value || '';
+      const oauthScope = container.querySelector('#server-auth-oauth-scope')?.value || '';
+      const oauthClientId = container.querySelector('#server-auth-oauth-client-id')?.value || '';
+      const oauthClientSecret = container.querySelector('#server-auth-oauth-client-secret')?.value || '';
+      const oauthTokenMethod = container.querySelector('#server-auth-oauth-token-method')?.value || '';
+      const serverId = integrationsState.selectedServer?.id || '';
+
+      if (integrationsState.selectedServer) {
+        const index = integrationsState.toolServers.findIndex(s => s.id === integrationsState.selectedServer.id);
+>>>>>>> feature/short-term-tasks
         if (index !== -1) {
           integrationsState.toolServers[index] = {
             ...integrationsState.toolServers[index],
@@ -925,7 +1149,11 @@ export function renderIntegrationsSettings(container, data) {
             oauth_scope: oauthScope,
             oauth_client_id: oauthClientId,
             oauth_client_secret: oauthClientSecret,
+<<<<<<< HEAD
             oauth_token_auth_method: oauthTokenMethod,
+=======
+            oauth_token_auth_method: oauthTokenMethod
+>>>>>>> feature/short-term-tasks
           };
         } else {
           integrationsState.toolServers.push({
@@ -942,7 +1170,11 @@ export function renderIntegrationsSettings(container, data) {
             oauth_scope: oauthScope,
             oauth_client_id: oauthClientId,
             oauth_client_secret: oauthClientSecret,
+<<<<<<< HEAD
             oauth_token_auth_method: oauthTokenMethod,
+=======
+            oauth_token_auth_method: oauthTokenMethod
+>>>>>>> feature/short-term-tasks
           });
         }
       } else {
@@ -960,7 +1192,11 @@ export function renderIntegrationsSettings(container, data) {
           oauth_scope: oauthScope,
           oauth_client_id: oauthClientId,
           oauth_client_secret: oauthClientSecret,
+<<<<<<< HEAD
           oauth_token_auth_method: oauthTokenMethod,
+=======
+          oauth_token_auth_method: oauthTokenMethod
+>>>>>>> feature/short-term-tasks
         });
       }
 
@@ -987,7 +1223,11 @@ export function renderIntegrationsSettings(container, data) {
           basicPass,
           headers,
         });
+<<<<<<< HEAD
         const server = integrationsState.toolServers.find((s) => s.id === serverId);
+=======
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+>>>>>>> feature/short-term-tasks
         if (server) {
           server.tools = verifyResult.tools;
           server.toolsError = '';
@@ -995,7 +1235,11 @@ export function renderIntegrationsSettings(container, data) {
         }
         renderToolServersList();
       } catch (err) {
+<<<<<<< HEAD
         const server = integrationsState.toolServers.find((s) => s.id === serverId);
+=======
+        const server = integrationsState.toolServers.find(s => s.id === serverId);
+>>>>>>> feature/short-term-tasks
         if (server) {
           server.toolsError = err.message || 'Connection failed';
           server.toolsExpanded = false;
@@ -1007,9 +1251,13 @@ export function renderIntegrationsSettings(container, data) {
     container.querySelector('#delete-server')?.addEventListener('click', async () => {
       if (integrationsState.selectedServer) {
         const serverId = integrationsState.selectedServer.id;
+<<<<<<< HEAD
         integrationsState.toolServers = integrationsState.toolServers.filter(
           (s) => s.id !== serverId
         );
+=======
+        integrationsState.toolServers = integrationsState.toolServers.filter(s => s.id !== serverId);
+>>>>>>> feature/short-term-tasks
         integrationsState.selectedServer = null;
         closeModal();
         renderToolServersList();
@@ -1029,10 +1277,14 @@ export function renderIntegrationsSettings(container, data) {
       const button = container.querySelector('#toggle-bearer-visibility');
       if (!input || !button) return;
       input.type = input.type === 'password' ? 'text' : 'password';
+<<<<<<< HEAD
       button.setAttribute(
         'aria-label',
         input.type === 'password' ? 'Show password' : 'Hide password'
       );
+=======
+      button.setAttribute('aria-label', input.type === 'password' ? 'Show password' : 'Hide password');
+>>>>>>> feature/short-term-tasks
       const label = button.querySelector('[data-password-toggle-label]');
       if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
     });
@@ -1042,10 +1294,14 @@ export function renderIntegrationsSettings(container, data) {
       const button = container.querySelector('#toggle-basic-visibility');
       if (!input || !button) return;
       input.type = input.type === 'password' ? 'text' : 'password';
+<<<<<<< HEAD
       button.setAttribute(
         'aria-label',
         input.type === 'password' ? 'Show password' : 'Hide password'
       );
+=======
+      button.setAttribute('aria-label', input.type === 'password' ? 'Show password' : 'Hide password');
+>>>>>>> feature/short-term-tasks
       const label = button.querySelector('[data-password-toggle-label]');
       if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
     });
@@ -1062,6 +1318,7 @@ export function renderIntegrationsSettings(container, data) {
           body: JSON.stringify({
             id: serverId,
             url: container.querySelector('#server-url')?.value || '',
+<<<<<<< HEAD
             oauth_client_name:
               container.querySelector('#server-auth-oauth-client-name')?.value || '',
             oauth_scope: container.querySelector('#server-auth-oauth-scope')?.value || '',
@@ -1070,6 +1327,13 @@ export function renderIntegrationsSettings(container, data) {
               container.querySelector('#server-auth-oauth-client-secret')?.value || '',
             oauth_token_auth_method:
               container.querySelector('#server-auth-oauth-token-method')?.value || '',
+=======
+            oauth_client_name: container.querySelector('#server-auth-oauth-client-name')?.value || '',
+            oauth_scope: container.querySelector('#server-auth-oauth-scope')?.value || '',
+            oauth_client_id: container.querySelector('#server-auth-oauth-client-id')?.value || '',
+            oauth_client_secret: container.querySelector('#server-auth-oauth-client-secret')?.value || '',
+            oauth_token_auth_method: container.querySelector('#server-auth-oauth-token-method')?.value || '',
+>>>>>>> feature/short-term-tasks
           }),
         });
         const payload = await res.json().catch(() => ({}));
@@ -1090,3 +1354,7 @@ export function renderIntegrationsSettings(container, data) {
   render();
   loadIntegrations();
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> feature/short-term-tasks

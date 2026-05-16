@@ -21,6 +21,7 @@ describe("Message Input - Ctrl+Enter Keyboard Shortcut", () => {
 			const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 			const isShift = e.shiftKey;
 
+<<<<<<< HEAD
 			if (isEnter && isCtrlOrCmd) {
 				e.preventDefault();
 				if (input.value.trim()) composer.dispatchEvent(new Event("submit"));
@@ -30,6 +31,19 @@ describe("Message Input - Ctrl+Enter Keyboard Shortcut", () => {
 			}
 		});
 	}
+=======
+  beforeEach(() => {
+    const indexHtml = fs.readFileSync(
+      path.join(process.cwd(), 'public/index.html'),
+      'utf-8'
+    );
+    dom = new JSDOM(indexHtml, {
+      url: process.env.TEST_URL || 'http://localhost:8787/',
+      pretendToBeVisual: true,
+    });
+    window = dom.window;
+    document = window.document;
+>>>>>>> feature/short-term-tasks
 
 	beforeEach(() => {
 		const indexHtml = fs.readFileSync(

@@ -177,9 +177,168 @@ The system relies on two distinct shape grammars:
 - **Negative letter-spacing on Display**: Headlines (like the "How can I help you today?" hero text) utilize a tight letter-spacing (`-0.374px`) to create a confident, engineered aesthetic.
 - **Readable Body**: Chat messages and body text utilize standard tracking and a relaxed line-height (`1.5`) to ensure readability during long reading sessions.
 
+<<<<<<< HEAD
 ### 5. Micro-interactions
 - **Active Scaling**: Primary buttons do not shift colors drastically on press; instead, they utilize an `active:scale-95` transform to provide tactile, physical feedback that the button has been depressed.
 - **Focus Rings**: Keyboard accessibility is maintained through clean, 2px solid Focus Black (`#000000`) outlines, avoiding default browser fuzziness.
+=======
+### My Settings Drawer
+
+```text
+-------------------------------------------------- app behind
+|                                                |
+|  dimmed backdrop                               |
+|                                   ------------ |
+|                                  |  Header   | |
+|                                  | Personal  | |
+|                                  |-----------| |
+|                                  | Overview  | |
+|                                  | Profile   | |
+|                                  | Security  | |
+|                                  | ...       | |
+|                                  |-----------| |
+|                                  | Save/Cancel| |
+|                                  ------------ |
+--------------------------------------------------
+```
+
+### Admin Settings Page
+
+```text
+--------------------------------------------------------------
+| Top nav                                                    |
+|------------------------------------------------------------|
+| Admin overview or section nav                              |
+|------------------------------------------------------------|
+| Main workspace content                                      |
+|                                                            |
+|   task cards, tables, forms, and shared settings sections   |
+|                                                            |
+|------------------------------------------------------------|
+| Sticky save footer                                           |
+--------------------------------------------------------------
+```
+
+## Shared Components
+
+These should remain shared underneath both surfaces:
+
+- settings shell
+- settings top nav
+- settings subnav
+- shared action footer
+- modal and drawer form primitives
+- workspace capability resolver
+- backend workspace settings service
+
+## Components To Create Or Modify
+
+### Create
+
+- `My Settings` drawer/sheet host
+- `Admin Settings Overview` landing page
+- scope badge component, if not already present
+- drawer route state helper
+
+### Modify
+
+- `public/js/features/account/account.js`
+  - render `My Settings` as a drawer-backed surface
+- `public/js/features/admin/admin.js`
+  - keep `Admin Settings` as a page
+- shared settings shell components
+  - reuse the same form and save logic in both places
+- permission/capability helpers
+  - keep the UI aware of `read`, `manage`, and `manage access`
+
+## Visual Rules
+
+### My Settings
+
+- lighter density
+- personal language
+- shorter helper copy
+- default to fewer actions
+- no ACL controls unless explicitly allowed
+
+### Admin Settings
+
+- denser and more operational
+- workspace language
+- clear impact statements
+- task-oriented overview first
+- advanced access controls visible only by capability
+
+## Visual Identity
+
+### Color Palette (Monochrome)
+- **Primary:** `#171717` (Neutral Black) - Used for primary CTA buttons, active states, and headings.
+- **Surface:** `#ffffff` (Pure White) - Main content areas and cards.
+- **Background:** `#f5f5f5` / `#fafafa` (Light Greys) - App background, sidebars, and structural secondary surfaces.
+- **Borders:** `#e5e5e5` (Light Grey) - Hair-line dividers and input borders.
+- **Muted:** `#737373` (Medium Grey) - Muted labels and secondary text.
+
+### Spacing & Grid
+- **Scale:** Strict 8-point grid (8px, 16px, 24px, 32px, 48px, 64px).
+- **Rounding:** 4px (Soft) for most components; 8px for large containers.
+
+## Interaction Rules
+
+### Drawer Behavior
+
+- Open with a route change
+- Close with browser back or explicit close button
+- Preserve refresh state
+- Trap focus inside the drawer
+- Restore focus to the opener on close
+
+### Save Behavior
+
+- Save should not force a full page reload
+- Use optimistic updates when safe
+- Keep the drawer open after save unless the user exits
+
+### Mobile Behavior
+
+- Drawer becomes a full-screen sheet on small screens
+- Header and primary actions stay sticky
+- Use single-column layouts
+
+## ASCII Decision Tree
+
+```text
+User opens settings
+  |
+  +-- Personal account change?
+  |     +-- Yes -> My Settings drawer
+  |     +-- No  -> Admin Settings page
+  |
+  +-- Needs workspace-wide impact?
+        +-- Yes -> Admin Settings page
+        +-- No  -> My Settings drawer
+```
+
+## Learning Model
+
+The user should understand the app through scope:
+
+- `Personal` means only my account
+- `Workspace` means shared settings
+- `Admin` means elevated operational control
+
+That scope should be visible in the page chrome, not hidden in route names.
+
+## Maintenance Goal
+
+The code should remain shared underneath, but the UX should not feel duplicated.
+
+That means:
+
+- one backend service
+- one capability matrix
+- one shared component set
+- two intentionally different surface patterns
+>>>>>>> feature/short-term-tasks
 
 ## Admin Workspace Modifications
 While the core chat interface is airy and conversational, the `/admin` and `/account` settings routes transition into a slightly denser, data-management mode:

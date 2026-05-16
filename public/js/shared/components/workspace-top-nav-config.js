@@ -5,7 +5,7 @@ const ACCOUNT_TOP_NAV_TABS = Object.freeze([
 const ADMIN_TOP_NAV_TABS = Object.freeze([
   Object.freeze({ href: '/admin/users', key: 'users', label: 'Users' }),
   Object.freeze({ href: '/admin/settings/connections', key: 'settings', label: 'Settings' }),
-  Object.freeze({ href: '/admin/system/general', key: 'system', label: 'System' }),
+  Object.freeze({ href: '/admin/system/registration', key: 'system', label: 'System' }),
 ]);
 
 function cloneTabs(tabs) {

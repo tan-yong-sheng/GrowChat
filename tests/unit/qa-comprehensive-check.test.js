@@ -7,10 +7,25 @@ import { resolveTestUrl } from "../shared/test-env.js";
 
 const testUrl = resolveTestUrl();
 
+<<<<<<< HEAD
 describe("QA Comprehensive UI/UX Check", () => {
 	let dom;
 	let window;
 	let document;
+=======
+  beforeEach(() => {
+    const authHtml = fs.readFileSync(
+      path.join(process.cwd(), 'public/auth.html'),
+      'utf-8'
+    );
+    dom = new JSDOM(authHtml, {
+      url: (process.env.TEST_URL || 'http://localhost:8787').replace(/\/$/, '') + '/auth.html',
+      pretendToBeVisual: true,
+    });
+    window = dom.window;
+    document = window.document;
+  });
+>>>>>>> feature/short-term-tasks
 
 	beforeEach(() => {
 		const authHtml = fs.readFileSync(
