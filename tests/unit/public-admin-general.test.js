@@ -31,18 +31,27 @@ describe('admin general settings', () => {
     vi.clearAllMocks();
     mocks.apiFetch.mockImplementation(async (url) => {
       if (String(url) === '/api/models?scope=global') {
-        return new Response(JSON.stringify({
-          models: [{ id: 'model-a', name: 'Model A' }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            models: [{ id: 'model-a', name: 'Model A' }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (String(url) === '/api/admin/config') {
-        return new Response(JSON.stringify({
-          public_registration: true,
-          public_registration_status: 'pending',
-          default_model_id: '',
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            public_registration: true,
+            public_registration_status: 'pending',
+            default_model_id: '',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
   });
 
@@ -58,10 +67,12 @@ describe('admin general settings', () => {
     const initialCallCount = mocks.apiFetch.mock.calls.length;
     container.querySelector('#public-reg-toggle')?.click();
 
-    await vi.waitFor(() => expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(initialCallCount));
-    const putCall = mocks.apiFetch.mock.calls.find(([url, options]) => (
-      String(url) === '/api/admin/config' && options?.method === 'PUT'
-    ));
+    await vi.waitFor(() =>
+      expect(mocks.apiFetch.mock.calls.length).toBeGreaterThan(initialCallCount)
+    );
+    const putCall = mocks.apiFetch.mock.calls.find(
+      ([url, options]) => String(url) === '/api/admin/config' && options?.method === 'PUT'
+    );
     expect(putCall).toBeTruthy();
     expect(putCall[1].body).toBe(JSON.stringify({ public_registration: false }));
   });
@@ -80,17 +91,15 @@ describe('admin general settings', () => {
     registrationStatus.dispatchEvent(new Event('change', { bubbles: true }));
 
     await vi.waitFor(() => {
-      const putCall = mocks.apiFetch.mock.calls.find(([url, options]) => (
-        String(url) === '/api/admin/config' && options?.method === 'PUT'
-      ));
+      const putCall = mocks.apiFetch.mock.calls.find(
+        ([url, options]) => String(url) === '/api/admin/config' && options?.method === 'PUT'
+      );
       expect(putCall).toBeTruthy();
     });
 
-    const putCall = mocks.apiFetch.mock.calls.find(([url, options]) => (
-      String(url) === '/api/admin/config' && options?.method === 'PUT'
-    ));
+    const putCall = mocks.apiFetch.mock.calls.find(
+      ([url, options]) => String(url) === '/api/admin/config' && options?.method === 'PUT'
+    );
     expect(putCall[1].body).toBe(JSON.stringify({ public_registration_status: 'active' }));
   });
 });
-
-

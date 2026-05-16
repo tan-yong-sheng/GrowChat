@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 {
   "context": "Admin Users Table Management",
   "nodes": [
@@ -27,34 +26,4 @@
       "description": "Forces pagination back to page 1 on new search"
     }
   ]
-=======
-{
-  "context": "Admin Users Table Management",
-  "nodes": [
-    { "id": "input_user_search", "type": "text_input", "page": "/admin/users/overview" },
-    { "id": "api_fetch_users", "type": "api_endpoint", "path": "/api/admin/users?q={query}" },
-    { "id": "table_users", "type": "data_grid", "page": "/admin/users/overview" },
-    { "id": "ctrl_pagination", "type": "pagination", "page": "/admin/users/overview" }
-  ],
-  "edges": [
-    {
-      "from": "input_user_search",
-      "to": "api_fetch_users",
-      "type": "triggers_api_debounced",
-      "description": "Fires after user stops typing for 300ms"
-    },
-    {
-      "from": "api_fetch_users",
-      "to": "table_users",
-      "type": "updates_dom",
-      "description": "Re-renders table rows"
-    },
-    {
-      "from": "input_user_search",
-      "to": "ctrl_pagination",
-      "type": "mutates_state",
-      "description": "Forces pagination back to page 1 on new search"
-    }
-  ]
->>>>>>> feature/short-term-tasks
 }

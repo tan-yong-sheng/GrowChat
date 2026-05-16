@@ -300,13 +300,13 @@ function renderUserRows(users) {
 									: "??"
 						}
           </div>
-          <div class="truncate">${name}</div>
+          <div class="truncate">${escapeHtml(name)}</div>
         </div>
       </td>
       <td class="px-3 py-4 whitespace-nowrap">
         <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${accountStatusBadgeClass(accountStatus)} uppercase">${accountStatusDisplayName(accountStatus)}</span>
       </td>
-      <td class="px-3 py-4 text-gray-500 truncate" title="${email}">${email}</td>
+      <td class="px-3 py-4 text-gray-500 truncate" title="${escapeHtml(email)}">${escapeHtml(email)}</td>
       <td class="px-3 py-4 text-gray-400 font-normal uppercase text-[10px] whitespace-nowrap">${u.last_active_at ? timeSince(u.last_active_at * 1000) : "N/A"}</td>
       <td class="px-3 py-4 text-gray-400 font-normal text-[10px] whitespace-nowrap">${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : "N/A"}</td>
       <td class="px-3 py-4 text-right whitespace-nowrap">
@@ -326,7 +326,7 @@ function renderUserRows(users) {
 						normalizedRole === "admin"
 							? ""
 							: `
-          <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-user" data-user-id="${u.id}" data-user-name="${name}" title="Delete record">
+          <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-user" data-user-id="${u.id}" data-user-name="${escapeHtml(name)}" title="Delete record">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
             </svg>

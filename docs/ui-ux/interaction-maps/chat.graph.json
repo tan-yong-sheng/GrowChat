@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 {
   "context": "Main Chat Flow",
   "nodes": [
@@ -40,47 +39,4 @@
       "description": "Severs the streaming connection early"
     }
   ]
-=======
-{
-  "context": "Main Chat Flow",
-  "nodes": [
-    { "id": "input_composer", "type": "textarea", "page": "/" },
-    { "id": "btn_send", "type": "button", "page": "/" },
-    { "id": "btn_stop", "type": "button", "page": "/" },
-    { "id": "api_chat_stream", "type": "websocket_or_sse", "path": "/api/chat/stream" },
-    { "id": "ui_message_list", "type": "container", "page": "/" }
-  ],
-  "edges": [
-    {
-      "from": "input_composer",
-      "to": "btn_send",
-      "type": "mutates_state",
-      "description": "Enables send button when length > 0"
-    },
-    {
-      "from": "btn_send",
-      "to": "api_chat_stream",
-      "type": "triggers_api",
-      "description": "Initiates streaming generation"
-    },
-    {
-      "from": "btn_send",
-      "to": "btn_stop",
-      "type": "morphs_into",
-      "description": "Send icon becomes Stop icon during generation"
-    },
-    {
-      "from": "api_chat_stream",
-      "to": "ui_message_list",
-      "type": "updates_dom",
-      "description": "Appends tokens to the active message bubble"
-    },
-    {
-      "from": "btn_stop",
-      "to": "api_chat_stream",
-      "type": "aborts_api",
-      "description": "Severs the streaming connection early"
-    }
-  ]
->>>>>>> feature/short-term-tasks
 }
