@@ -1,19 +1,6 @@
-<<<<<<< HEAD
-import { state } from '../../shared/store.js';
-import { apiFetch, fetchAdminGroups } from '../../shared/api.js';
-import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
-import {
-  renderWorkspaceSidebar,
-  wireWorkspaceSidebar,
-} from '../../shared/components/workspace-sidebar.js';
-import { createUserProfileFooter } from '../../shared/components/user-profile-footer.js';
-import { mountSidebarFooter } from '../../shared/components/sidebar-footer-mount.js';
-import { buildWorkspaceTopNavConfig } from '../../shared/components/workspace-top-nav-config.js';
-=======
 import { state, setState, subscribe } from "../../shared/store.js";
 import { apiFetch, fetchAdminGroups } from "../../shared/api.js";
 import { renderWorkspaceShell } from "../../shared/components/workspace-shell.js";
->>>>>>> feature/short-term-tasks
 import {
 	renderWorkspaceSidebar,
 	wireWorkspaceSidebar,
@@ -44,15 +31,6 @@ const loadAdminUsersRolesModule = () => import("./users/roles.js");
 import { createSettingsRouteCache } from "../../shared/utils/settings-route-cache.js";
 import { setSidebarRouteScope } from "../../shared/utils/sidebar-visibility.js";
 import {
-<<<<<<< HEAD
-  renderErrorState,
-  renderLoadingState,
-  renderSettingsLayout,
-  renderSettingsSkeleton,
-  renderSystemLayout,
-  renderUsersLayout,
-} from './admin-layout.js';
-=======
 	getAdminSubnavPath,
 	getAdminTopNavPath,
 	resolveAdminRouteState,
@@ -66,66 +44,8 @@ import {
 	renderSystemLayout,
 	renderUsersLayout,
 } from "./admin-layout.js";
->>>>>>> feature/short-term-tasks
-
-const ADMIN_SUBTAB_LABELS = {
-  overview: 'Overview',
-  roles: 'Roles',
-  groups: 'Groups',
-  policies: 'Policies',
-  general: 'General',
-  security: 'Security',
-  connections: 'Connections',
-  models: 'Models',
-  integrations: 'Integrations',
-};
-
-function normalizeAdminSubTab(mainTab, subTab) {
-  const value = String(subTab || '').trim();
-  if (mainTab === 'users') {
-    return ['overview', 'roles', 'groups', 'policies'].includes(value) ? value : 'overview';
-  }
-  if (mainTab === 'system') {
-    return ['general', 'security'].includes(value) ? value : 'general';
-  }
-  return ['connections', 'models', 'integrations'].includes(value) ? value : 'connections';
-}
-
-function getAdminSubTabLabel(subTab) {
-  return ADMIN_SUBTAB_LABELS[subTab] || 'Overview';
-}
 
 export async function renderAdminPage(container) {
-<<<<<<< HEAD
-  const initialRouteState = resolveAdminRouteState(window.location.pathname);
-  const capabilities = normalizeWorkspaceCapabilities(
-    {
-      permissions: state.permissions,
-      primaryRole: state.userRoles?.[0]?.role_name || 'admin',
-    },
-    { route: 'admin' }
-  );
-  let mainTab = initialRouteState.mainTab;
-  let subTab = initialRouteState.subTab;
-  let shellMounted = false;
-  let data = {
-    capabilities,
-    users: [],
-    total: 0,
-    groups: [],
-    groupsLoading: false,
-    groupsSort: 'members',
-    loading: false,
-    loadingMode: 'initial',
-    error: null,
-    groupsError: null,
-    usersCache: {},
-    pagination: {
-      page: 1,
-      pageSize: 20,
-    },
-  };
-=======
 	const initialRouteState = resolveAdminRouteState(window.location.pathname);
 	const capabilities = normalizeWorkspaceCapabilities(
 		{
@@ -154,7 +74,6 @@ export async function renderAdminPage(container) {
 			pageSize: 20,
 		},
 	};
->>>>>>> feature/short-term-tasks
 
 	const usersModules = {
 		renderUserOverview: null,
@@ -182,46 +101,6 @@ export async function renderAdminPage(container) {
 	let settingsModulesReadyPromise = null;
 	let systemModulesReadyPromise = null;
 
-<<<<<<< HEAD
-  const ensureUsersModules = () => {
-    if (usersModules.renderUserOverview) return Promise.resolve(usersModules);
-    if (usersModulesReadyPromise) return usersModulesReadyPromise;
-    usersModulesReadyPromise = Promise.all([
-      loadAdminUsersOverviewModule(),
-      loadAdminUsersGroupsModule(),
-      loadAdminUsersGroupsHelpersModule(),
-      loadAdminUsersGroupsListHelpersModule(),
-      loadAdminSettingsPoliciesModule(),
-      loadAdminUsersRolesModule(),
-    ])
-      .then(
-        ([
-          overviewModule,
-          groupsModule,
-          groupsHelpersModule,
-          groupsListHelpersModule,
-          policiesModule,
-          rolesModule,
-        ]) => {
-          usersModules.renderUserOverview = overviewModule.renderUserOverview;
-          usersModules.preloadGroupsData = groupsModule.preloadGroupsData;
-          usersModules.renderGroupsOverview = groupsModule.renderGroupsOverview;
-          usersModules.shouldLoadGroups = groupsHelpersModule.shouldLoadGroups;
-          usersModules.removeGroupById = groupsListHelpersModule.removeGroupById;
-          usersModules.updateGroupMemberCount = groupsListHelpersModule.updateGroupMemberCount;
-          usersModules.upsertGroup = groupsListHelpersModule.upsertGroup;
-          usersModules.renderPoliciesSettings = policiesModule.renderPoliciesSettings;
-          usersModules.renderRolesPage = rolesModule.renderRolesPage;
-          return usersModules;
-        }
-      )
-      .catch((err) => {
-        usersModulesReadyPromise = null;
-        throw err;
-      });
-    return usersModulesReadyPromise;
-  };
-=======
 	const ensureUsersModules = () => {
 		if (usersModules.renderUserOverview) return Promise.resolve(usersModules);
 		if (usersModulesReadyPromise) return usersModulesReadyPromise;
@@ -263,7 +142,6 @@ export async function renderAdminPage(container) {
 			});
 		return usersModulesReadyPromise;
 	};
->>>>>>> feature/short-term-tasks
 
 	const ensureSettingsModules = () => {
 		if (settingsModules.renderConnectionsSettings)
@@ -340,25 +218,6 @@ export async function renderAdminPage(container) {
 		}
 	};
 
-<<<<<<< HEAD
-  const sortUsers = (users) =>
-    users.slice().sort((a, b) => {
-      const roleOrder = { admin: 0, member: 1 };
-      const statusOrder = { active: 0, pending: 1 };
-      const roleDiff = (roleOrder[a.primary_role] ?? 2) - (roleOrder[b.primary_role] ?? 2);
-      if (roleDiff !== 0) return roleDiff;
-      const statusDiff =
-        (statusOrder[a.account_status] ?? 2) - (statusOrder[b.account_status] ?? 2);
-      if (statusDiff !== 0) return statusDiff;
-      const nameDiff = String(a.name || '').localeCompare(String(b.name || ''), undefined, {
-        sensitivity: 'base',
-      });
-      if (nameDiff !== 0) return nameDiff;
-      return String(a.email || '').localeCompare(String(b.email || ''), undefined, {
-        sensitivity: 'base',
-      });
-    });
-=======
 	const sortUsers = (users) =>
 		users.slice().sort((a, b) => {
 			const roleOrder = { admin: 0, member: 1 };
@@ -382,26 +241,11 @@ export async function renderAdminPage(container) {
 				{ sensitivity: "base" },
 			);
 		});
->>>>>>> feature/short-term-tasks
 
 	const clearUsersCache = () => {
 		data.usersCache = {};
 	};
 
-<<<<<<< HEAD
-  const updateCachedUser = (updatedUser) => {
-    Object.keys(data.usersCache).forEach((key) => {
-      const cached = data.usersCache[key];
-      const hasUser = cached.users.some((user) => user.id === updatedUser.id);
-      if (!hasUser) return;
-      cached.users = sortUsers(
-        cached.users.map((user) =>
-          user.id === updatedUser.id ? { ...user, ...updatedUser } : user
-        )
-      );
-    });
-  };
-=======
 	const updateCachedUser = (updatedUser) => {
 		Object.keys(data.usersCache).forEach((key) => {
 			const cached = data.usersCache[key];
@@ -414,7 +258,6 @@ export async function renderAdminPage(container) {
 			);
 		});
 	};
->>>>>>> feature/short-term-tasks
 
 	const removeCachedUser = (userId) => {
 		clearUsersCache();
@@ -431,39 +274,6 @@ export async function renderAdminPage(container) {
 		data.total += 1;
 	};
 
-<<<<<<< HEAD
-  const renderSubContent = async () => {
-    subTab = normalizeAdminSubTab(mainTab, subTab);
-    const mainContentEl = container.querySelector('#admin-main-content');
-    if (!mainContentEl) return;
-
-    const tabsContainer =
-      container.querySelector('#users-tabs-container') ||
-      container.querySelector('#settings-tabs-container') ||
-      container.querySelector('#system-tabs-container');
-
-    if (!tabsContainer) {
-      if (mainTab === 'users') {
-        mainContentEl.replaceChildren(
-          document.createRange().createContextualFragment(renderUsersLayout(subTab))
-        );
-      } else if (mainTab === 'system') {
-        mainContentEl.replaceChildren(
-          document.createRange().createContextualFragment(renderSystemLayout(subTab))
-        );
-      } else {
-        mainContentEl.replaceChildren(
-          document.createRange().createContextualFragment(renderSettingsLayout(subTab))
-        );
-      }
-      bindSubnav();
-    } else {
-      if (mainTab === 'users') {
-        tabsContainer.id = 'users-tabs-container';
-        tabsContainer.replaceChildren(
-          document.createRange().createContextualFragment(`
-          <a href="/admin/users/overview" data-subnav="overview" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'overview' ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:text-gray-900'}">
-=======
 	const renderSubContent = async () => {
 		const mainContentEl = container.querySelector("#admin-main-content");
 		if (!mainContentEl) return;
@@ -487,7 +297,6 @@ export async function renderAdminPage(container) {
 				tabsContainer.id = "users-tabs-container";
 				tabsContainer.innerHTML = `
           <a href="/admin/users/overview" data-subnav="overview" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === "overview" ? "bg-gray-100 text-gray-900" : "text-gray-700 hover:text-gray-900"}">
->>>>>>> feature/short-term-tasks
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5">
               <path d="M8.5 4.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10.9 12.006c.11.542-.348.994-.9.994H2c-.553 0-1.01-.452-.902-.994a5.002 5.002 0 0 1 9.803 0ZM14.002 12h-1.59a2.556 2.556 0 0 0-.04-.29 6.476 6.476 0 0 0-1.167-2.603 3.002 3.002 0 0 1 3.633 1.911c.18.522-.283.982-.836.982ZM12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>
             </svg>
@@ -512,31 +321,6 @@ export async function renderAdminPage(container) {
             </svg>
             <span>Policies</span>
           </a>
-<<<<<<< HEAD
-        `)
-        );
-      } else if (mainTab === 'system') {
-        tabsContainer.id = 'system-tabs-container';
-        tabsContainer.replaceChildren(
-          document.createRange().createContextualFragment(`
-          <a href="/admin/system/general" data-subnav="general" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'general' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5">
-              <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/>
-            </svg>
-            <span>General</span>
-          </a>
-          <a href="/admin/system/security" data-subnav="security" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'security' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5"><path d="M8 1a.75.75 0 0 1 .75.75v1.258a5.25 5.25 0 1 1-1.5 0V1.75A.75.75 0 0 1 8 1ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Z"/></svg>
-            <span>Security</span>
-          </a>
-        `)
-        );
-      } else {
-        tabsContainer.id = 'settings-tabs-container';
-        tabsContainer.replaceChildren(
-          document.createRange().createContextualFragment(`
-          <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === 'connections' ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-700'}">
-=======
         `;
 			} else if (mainTab === "system") {
 				// Use renderSystemLayout() as single source of truth for system nav
@@ -546,7 +330,6 @@ export async function renderAdminPage(container) {
 				tabsContainer.id = "settings-tabs-container";
 				tabsContainer.innerHTML = `
           <a href="/admin/settings/connections" data-subnav="connections" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === "connections" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-700"}">
->>>>>>> feature/short-term-tasks
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5">
               <path d="M4 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4Zm0 1.5h8a.5.5 0 0 1 .5.5v2.5h-9V5a.5.5 0 0 1 .5-.5Zm8 7H4a.5.5 0 0 1-.5-.5v-2h9v2a.5.5 0 0 1-.5.5Z"/>
             </svg>
@@ -566,47 +349,6 @@ export async function renderAdminPage(container) {
               </svg>
               <span>Integrations</span>
             </a>
-<<<<<<< HEAD
-        `)
-        );
-      }
-      bindSubnav();
-    }
-
-    const subContentEl =
-      container.querySelector('#admin-sub-body') || container.querySelector('#admin-sub-content');
-    if (!subContentEl) return;
-
-    const needsModuleLoad =
-      (mainTab === 'users' && !usersModules.renderUserOverview) ||
-      (mainTab === 'system' && !systemModules.renderGeneralSettings) ||
-      (mainTab === 'settings' && !settingsModules.renderConnectionsSettings);
-    if (needsModuleLoad) {
-      subContentEl.replaceChildren(
-        document
-          .createRange()
-          .createContextualFragment(
-            mainTab === 'users' ? renderLoadingState() : renderSettingsSkeleton()
-          )
-      );
-      renderMainActionFooter();
-      updateMainActionFooter();
-      try {
-        await ensureMainTabModules(mainTab);
-      } catch (err) {
-        subContentEl.replaceChildren(
-          document
-            .createRange()
-            .createContextualFragment(
-              renderErrorState(err?.message || 'Failed to load admin section.')
-            )
-        );
-        renderMainActionFooter();
-        updateMainActionFooter();
-        return;
-      }
-    }
-=======
         `;
 			}
 			bindSubnav();
@@ -637,24 +379,11 @@ export async function renderAdminPage(container) {
 				return;
 			}
 		}
->>>>>>> feature/short-term-tasks
 
 		subContentEl.dataset.settingsTab = subTab;
 		data.sharedActionFooter = false;
 		renderMainActionFooter();
 
-<<<<<<< HEAD
-    if (mainTab === 'settings') {
-      if (subTab === 'connections') {
-        settingsModules.renderConnectionsSettings?.(subContentEl, data);
-      } else if (subTab === 'models') {
-        settingsModules.renderModelsSettings?.(subContentEl, data);
-      } else if (subTab === 'integrations') {
-        settingsModules.renderIntegrationsSettings?.(subContentEl, data);
-      } else {
-        subContentEl.replaceChildren(
-          document.createRange().createContextualFragment(`
-=======
 		if (mainTab === "settings") {
 			if (subTab === "connections") {
 				settingsModules.renderConnectionsSettings?.(subContentEl, data);
@@ -664,34 +393,15 @@ export async function renderAdminPage(container) {
 				settingsModules.renderIntegrationsSettings?.(subContentEl, data);
 			} else {
 				subContentEl.innerHTML = `
->>>>>>> feature/short-term-tasks
           <div class="flex flex-col items-center justify-center h-full text-center p-10">
             <div class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.978 2.978 0 01-3.34-3.34L15 2.25 10.5 2.25l-4.5 4.5v1.5a1.5 1.5 0 001.5 1.5h1.5l3.93 3.93m2.856 2.856l1.5 1.5a1.5 1.5 0 001.5-1.5V10.5l-4.5-4.5H6" />
               </svg>
             </div>
-            <h3 class="text-lg font-medium text-gray-900 mb-1">${getAdminSubTabLabel(subTab)} Settings</h3>
+            <h3 class="text-lg font-medium text-gray-900 mb-1">${subTab.charAt(0).toUpperCase() + subTab.slice(1)} Settings</h3>
             <p class="text-sm text-gray-700 max-w-xs">This section is currently under development.</p>
           </div>
-<<<<<<< HEAD
-        `)
-        );
-      }
-      renderMainActionFooter();
-      updateMainActionFooter();
-      return;
-    }
-
-    if (mainTab === 'system') {
-      if (subTab === 'general') {
-        systemModules.renderGeneralSettings?.(subContentEl, data);
-      } else if (subTab === 'security') {
-        systemModules.renderSecuritySettings?.(subContentEl, data);
-      } else {
-        subContentEl.replaceChildren(
-          document.createRange().createContextualFragment(`
-=======
         `;
 			}
 			renderMainActionFooter();
@@ -723,32 +433,21 @@ export async function renderAdminPage(container) {
 					});
 			} else {
 				subContentEl.innerHTML = `
->>>>>>> feature/short-term-tasks
           <div class="flex flex-col items-center justify-center h-full text-center p-10">
             <div class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.978 2.978 0 01-3.34-3.34L15 2.25 10.5 2.25l-4.5 4.5v1.5a1.5 1.5 0 001.5 1.5h1.5l3.93 3.93m2.856 2.856l1.5 1.5a1.5 1.5 0 001.5-1.5V10.5l-4.5-4.5H6" />
               </svg>
             </div>
-            <h3 class="text-lg font-medium text-gray-900 mb-1">${getAdminSubTabLabel(subTab)} System</h3>
+            <h3 class="text-lg font-medium text-gray-900 mb-1">${subTab.charAt(0).toUpperCase() + subTab.slice(1)} System</h3>
             <p class="text-sm text-gray-700 max-w-xs">This section is currently under development.</p>
           </div>
-<<<<<<< HEAD
-        `)
-        );
-      }
-      renderMainActionFooter();
-      updateMainActionFooter();
-      return;
-    }
-=======
         `;
 			}
 			renderMainActionFooter();
 			updateMainActionFooter();
 			return;
 		}
->>>>>>> feature/short-term-tasks
 
 		if (mainTab === "users" && subTab === "roles") {
 			usersModules.renderRolesPage?.(subContentEl, data);
@@ -764,82 +463,6 @@ export async function renderAdminPage(container) {
 			return;
 		}
 
-<<<<<<< HEAD
-    if (data.error) {
-      subContentEl.replaceChildren(
-        document.createRange().createContextualFragment(renderErrorState(data.error))
-      );
-    } else if (subTab === 'overview') {
-      usersModules.renderUserOverview?.(subContentEl, data, {
-        reload: loadUsers,
-        setUsers(nextUsers, total = nextUsers.length) {
-          data.users = nextUsers;
-          data.total = total;
-          clearUsersCache();
-          renderSubContent();
-        },
-        updateUser(updatedUser) {
-          updateCachedUser(updatedUser);
-          data.users = sortUsers(
-            data.users.map((user) =>
-              user.id === updatedUser.id ? { ...user, ...updatedUser } : user
-            )
-          );
-          renderSubContent();
-        },
-        removeUser(userId) {
-          removeCachedUser(userId);
-          renderSubContent();
-        },
-        prependUser(user) {
-          prependCachedUser(user);
-          renderSubContent();
-        },
-        invalidateCache() {
-          clearUsersCache();
-          renderSubContent();
-        },
-      });
-    } else if (data.loading && data.loadingMode === 'initial') {
-      subContentEl.replaceChildren(
-        document.createRange().createContextualFragment(renderLoadingState())
-      );
-    } else {
-      usersModules.renderGroupsOverview?.(subContentEl, data, {
-        reload: loadGroups,
-        onSortChange(nextSort) {
-          data.groupsSort = nextSort;
-          renderSubContent();
-        },
-        onCreate(group) {
-          data.groups = usersModules.upsertGroup?.(data.groups, group) || data.groups;
-          renderSubContent();
-        },
-        onUpdate(group) {
-          data.groups = usersModules.upsertGroup?.(data.groups, group) || data.groups;
-          renderSubContent();
-        },
-        onDelete(groupId) {
-          data.groups = usersModules.removeGroupById?.(data.groups, groupId) || data.groups;
-          renderSubContent();
-        },
-        onMemberDelta(groupId, delta) {
-          if (!delta) return;
-          data.groups =
-            usersModules.updateGroupMemberCount?.(data.groups, groupId, delta) || data.groups;
-          renderSubContent();
-        },
-      });
-    }
-    renderMainActionFooter();
-    updateMainActionFooter();
-  };
-
-  async function loadUsers({ preserveContent = true } = {}) {
-    const qParam = data.pagination.query ? `&q=${encodeURIComponent(data.pagination.query)}` : '';
-    const cacheKey = `${data.pagination.page}:${data.pagination.pageSize}:${data.pagination.query}`;
-    const cached = data.usersCache[cacheKey];
-=======
 		if (data.error) {
 			subContentEl.innerHTML = renderErrorState(data.error);
 		} else if (subTab === "overview") {
@@ -916,7 +539,6 @@ export async function renderAdminPage(container) {
 	async function loadUsers({ preserveContent = true } = {}) {
 		const cacheKey = `${data.pagination.page}:${data.pagination.pageSize}`;
 		const cached = data.usersCache[cacheKey];
->>>>>>> feature/short-term-tasks
 
 		if (cached) {
 			data.users = cached.users;
@@ -933,34 +555,6 @@ export async function renderAdminPage(container) {
 		data.error = null;
 		renderSubContent();
 
-<<<<<<< HEAD
-    try {
-      const offset = (data.pagination.page - 1) * data.pagination.pageSize;
-      const res = await apiFetch(
-        `/api/admin/users?limit=${data.pagination.pageSize}&offset=${offset}${qParam}`
-      );
-      if (res.status === 403) {
-        data.error = 'You do not have permission to manage users.';
-      } else if (!res.ok) {
-        throw new Error(`Failed to fetch users (${res.status})`);
-      } else {
-        const payload = await res.json();
-        data.users = payload.users || [];
-        data.total = payload.total || 0;
-        data.usersCache[cacheKey] = {
-          users: data.users,
-          total: data.total,
-        };
-      }
-    } catch (err) {
-      data.error = err.message || 'Failed to fetch users.';
-    } finally {
-      data.loading = false;
-      data.loadingMode = 'idle';
-      renderSubContent();
-    }
-  }
-=======
 		try {
 			const offset = (data.pagination.page - 1) * data.pagination.pageSize;
 			const res = await apiFetch(
@@ -987,7 +581,6 @@ export async function renderAdminPage(container) {
 			renderSubContent();
 		}
 	}
->>>>>>> feature/short-term-tasks
 
 	async function loadGroups({ preserveContent = true } = {}) {
 		data.groupsLoading = true;
@@ -1039,41 +632,6 @@ export async function renderAdminPage(container) {
 		});
 	}
 
-<<<<<<< HEAD
-  function bindSubnav() {
-    container.querySelectorAll('a[data-subnav]').forEach((link) => {
-      link.onclick = async (e) => {
-        e.preventDefault();
-        const allowed = await guardNavigation();
-        if (!allowed) return;
-        const nav = link.dataset.subnav;
-        window.history.pushState({}, '', getAdminSubnavPath(mainTab, nav));
-        updateRouteInfo();
-        const subContentEl = container.querySelector('#admin-sub-content');
-        if (subContentEl && (mainTab === 'settings' || mainTab === 'system')) {
-          subContentEl.replaceChildren(
-            document.createRange().createContextualFragment(renderSettingsSkeleton())
-          );
-          renderMainActionFooter();
-          updateMainActionFooter();
-          requestAnimationFrame(() => renderSubContent());
-          return;
-        }
-        renderSubContent();
-        if (mainTab === 'users' && subTab === 'groups') {
-          try {
-            await ensureUsersModules();
-            if (usersModules.shouldLoadGroups?.(data)) {
-              await loadGroups({ preserveContent: false });
-            }
-          } catch {
-            // Ignore route-preload failures here; renderSubContent handles module-load errors.
-          }
-        }
-      };
-    });
-  }
-=======
 	function bindSubnav() {
 		container.querySelectorAll("a[data-subnav]").forEach((link) => {
 			link.onclick = async (e) => {
@@ -1105,7 +663,6 @@ export async function renderAdminPage(container) {
 			};
 		});
 	}
->>>>>>> feature/short-term-tasks
 
 	function mountShell() {
 		const previousCleanup =
@@ -1114,18 +671,6 @@ export async function renderAdminPage(container) {
 			container.__cleanup();
 		}
 
-<<<<<<< HEAD
-    container.replaceChildren(
-      document.createRange().createContextualFragment(
-        renderWorkspaceShell({
-          sidebarHtml: renderWorkspaceSidebar({
-            homeHref: '/',
-            homeId: 'workspace-home-link',
-            homeLabel: 'GrowChat',
-            footerId: 'sidebar-footer',
-          }),
-          mainHtml: `
-=======
 		container.innerHTML = renderWorkspaceShell({
 			sidebarHtml: renderWorkspaceSidebar({
 				homeHref: "/",
@@ -1134,7 +679,6 @@ export async function renderAdminPage(container) {
 				footerId: "sidebar-footer",
 			}),
 			mainHtml: `
->>>>>>> feature/short-term-tasks
           ${renderWorkspaceTopNav({
 						...buildWorkspaceTopNavConfig({
 							variant: "admin",
@@ -1149,39 +693,6 @@ export async function renderAdminPage(container) {
 					})}
           <div class="flex-1 flex overflow-hidden" id="admin-main-content"></div>
         `,
-<<<<<<< HEAD
-        })
-      )
-    );
-    container.insertAdjacentHTML(
-      'beforeend',
-      '<div id="search-modal-container"></div><div id="files-modal-container"></div>'
-    );
-
-    wireWorkspaceSidebar(container, {
-      guardNavigation,
-      navigateHome: async () => {
-        window.history.pushState({}, '', '/');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      },
-      searchModalContainerSelector: '#search-modal-container',
-      filesModalContainerSelector: '#files-modal-container',
-      footerId: 'sidebar-footer',
-    });
-    void mountSidebarFooter(container, createUserProfileFooter({ guardNavigation }));
-    bindTopNav();
-    if (!container.__sharedFooterClickBound) {
-      container.__sharedFooterClickBound = true;
-    }
-    shellMounted = true;
-    renderMainActionFooter();
-    const priorCleanup = previousCleanup;
-    container.__cleanup = () => {
-      priorCleanup?.();
-      removeInvalidationListeners?.();
-    };
-  }
-=======
 		});
 		container.insertAdjacentHTML(
 			"beforeend",
@@ -1210,7 +721,6 @@ export async function renderAdminPage(container) {
 			removeInvalidationListeners?.();
 		};
 	}
->>>>>>> feature/short-term-tasks
 
 	const unregisterConnections = settingsRouteCache.registerConnectionsRefresh(
 		() => {

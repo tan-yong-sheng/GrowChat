@@ -87,27 +87,6 @@ describe("account shell tabs", () => {
 		const { renderAccountPage } = await loadModule();
 		await renderAccountPage(document.getElementById("app"));
 
-<<<<<<< HEAD
-    const tabs = Array.from(document.querySelectorAll('[data-account-area-tab]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Settings']);
-    expect(tabs[0].getAttribute('href')).toBe('/account/settings/connections');
-    expect(tabs[0].className).toContain('text-gray-900');
-    expect(tabs[0].className).toContain('underline');
-    expect(document.querySelector('#account-settings-drawer')).not.toBeNull();
-    expect(document.querySelector('#account-settings-overlay')).not.toBeNull();
-    expect(document.querySelector('#account-settings-close')).not.toBeNull();
-    expect(document.querySelector('#account-main-footer')).not.toBeNull();
-
-    const innerTabs = Array.from(
-      document.querySelectorAll('#account-tabs-container [data-subnav]')
-    );
-    expect(innerTabs.map((tab) => tab.textContent?.trim())).toEqual([
-      'Connections',
-      'Models',
-      'Integrations',
-    ]);
-  }, 10000);
-=======
 		const tabs = Array.from(
 			document.querySelectorAll("[data-account-area-tab]"),
 		);
@@ -132,7 +111,6 @@ describe("account shell tabs", () => {
 		]);
 		expect(document.querySelector('[data-subnav="sessions"]')).not.toBeNull();
 	}, 10000);
->>>>>>> feature/short-term-tasks
 
 	it("keeps Settings active on a settings subsection route", async () => {
 		window.history.pushState({}, "", "/account/settings/connections");
@@ -144,30 +122,6 @@ describe("account shell tabs", () => {
 		const { renderAccountPage } = await loadModule();
 		await renderAccountPage(document.getElementById("app"));
 
-<<<<<<< HEAD
-    const tabs = Array.from(document.querySelectorAll('[data-account-area-tab]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Settings']);
-    expect(tabs[0].getAttribute('href')).toBe('/account/settings/connections');
-    expect(tabs[0].className).toContain('text-gray-900');
-    expect(tabs[0].className).toContain('underline');
-    expect(document.querySelector('#account-settings-drawer')).not.toBeNull();
-    expect(document.querySelector('h1')).toBeNull();
-    expect(document.body.textContent).toContain('Settings');
-    expect(document.querySelector('[data-subnav="connections"]')?.className).toContain(
-      'bg-gray-100'
-    );
-    expect(document.querySelector('#account-main-footer')).not.toBeNull();
-
-    const innerTabs = Array.from(
-      document.querySelectorAll('#account-tabs-container [data-subnav]')
-    );
-    expect(innerTabs.map((tab) => tab.textContent?.trim())).toEqual([
-      'Connections',
-      'Models',
-      'Integrations',
-    ]);
-  });
-=======
 		const tabs = Array.from(
 			document.querySelectorAll("[data-account-area-tab]"),
 		);
@@ -194,7 +148,6 @@ describe("account shell tabs", () => {
 		]);
 		expect(document.querySelector('[data-subnav="sessions"]')).not.toBeNull();
 	});
->>>>>>> feature/short-term-tasks
 
 	it("renders the shared workspace sidebar chrome", async () => {
 		window.history.pushState({}, "", "/account/settings/connections");

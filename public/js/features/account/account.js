@@ -1,17 +1,13 @@
 import { apiFetch } from '../../shared/api.js';
 import { ensureMarkedReady } from '../../shared/utils.js';
-import { escapeHtml } from '../../shared/utils/dom-escape.js';
-import { createUserProfileFooter } from '../../shared/components/user-profile-footer.js';
-import { mountSidebarFooter } from '../../shared/components/sidebar-footer-mount.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
 import { renderSettingsDrawerShell } from '../../shared/components/settings-drawer-shell.js';
 import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
-import {
-  renderWorkspaceSidebar,
-  wireWorkspaceSidebar,
-} from '../../shared/components/workspace-sidebar.js';
+import { renderWorkspaceSidebar, wireWorkspaceSidebar } from '../../shared/components/workspace-sidebar.js';
 import { buildWorkspaceTopNavConfig } from '../../shared/components/workspace-top-nav-config.js';
-import { renderWorkspaceTopNav } from '../../shared/components/settings-top-nav.js';
+import {
+  renderWorkspaceTopNav,
+} from '../../shared/components/settings-top-nav.js';
 import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-vertical-tabs.js';
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
@@ -32,22 +28,19 @@ async function loadAccountSectionRenderer(section) {
   }
 
   if (normalized === 'connections') {
-    accountSectionRenderers.connections = import('./account-connections.js').then(
-      ({ renderAccountConnectionsSection }) => renderAccountConnectionsSection
-    );
+    accountSectionRenderers.connections = import('./account-connections.js')
+      .then(({ renderAccountConnectionsSection }) => renderAccountConnectionsSection);
     return accountSectionRenderers.connections;
   }
 
   if (normalized === 'models') {
-    accountSectionRenderers.models = import('./account-models.js').then(
-      ({ renderAccountModelsSection }) => renderAccountModelsSection
-    );
+    accountSectionRenderers.models = import('./account-models.js')
+      .then(({ renderAccountModelsSection }) => renderAccountModelsSection);
     return accountSectionRenderers.models;
   }
 
-  accountSectionRenderers.integrations = import('./account-integrations.js').then(
-    ({ renderAccountIntegrationsSection }) => renderAccountIntegrationsSection
-  );
+  accountSectionRenderers.integrations = import('./account-integrations.js')
+    .then(({ renderAccountIntegrationsSection }) => renderAccountIntegrationsSection);
   return accountSectionRenderers.integrations;
 }
 
@@ -60,12 +53,7 @@ function normalizeAccountSection(section) {
 }
 
 export function resolveAccountSectionFromPath(pathname) {
-  if (
-    pathname === '/account' ||
-    pathname === '/account/' ||
-    pathname === '/account/profile' ||
-    pathname.startsWith('/account/profile/')
-  ) {
+  if (pathname === '/account' || pathname === '/account/' || pathname === '/account/profile' || pathname.startsWith('/account/profile/')) {
     return 'connections';
   }
   if (pathname.startsWith('/account/settings/connections')) return 'connections';
@@ -88,6 +76,28 @@ function getAccountSectionPath(section) {
       return '/account/settings/sessions';
     default:
       return '/account/settings/connections';
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function formatSectionLabel(section) {
+  switch (section) {
+    case 'connections':
+      return 'Connections';
+    case 'models':
+      return 'Models';
+    case 'integrations':
+      return 'Integrations';
+    default:
+      return 'Overview';
   }
 }
 
@@ -154,6 +164,22 @@ function getAccountNavItems(section) {
   ];
 }
 
+function renderReadOnlySection(title, items = [], emptyText = 'Nothing to show yet.') {
+  return `
+    <section class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">${escapeHtml(title)}</div>
+      <div class="mt-3 space-y-2">
+        ${items.length ? items.map((item) => `
+          <div class="rounded-xl border border-gray-100 px-3 py-2">
+            <div class="font-medium text-gray-900">${escapeHtml(item.name || item.id)}</div>
+            <div class="text-xs text-gray-500">${escapeHtml(item.note || item.url || '')}</div>
+          </div>
+        `).join('') : `<div class="text-sm text-gray-500">${escapeHtml(emptyText)}</div>`}
+      </div>
+    </section>
+  `;
+}
+
 async function renderAccountSection({
   section,
   accountState,
@@ -163,10 +189,8 @@ async function renderAccountSection({
   onRefresh,
 }) {
   if (section === 'overview') {
-    content.replaceChildren(
-      document.createRange().createContextualFragment(renderOverview(accountState))
-    );
-    if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
+    content.innerHTML = renderOverview(accountState);
+    if (footerHost) footerHost.innerHTML = '';
     return;
   }
 
@@ -212,12 +236,6 @@ async function renderAccountSection({
     return;
   }
 
-<<<<<<< HEAD
-  content.replaceChildren(
-    document.createRange().createContextualFragment(renderOverview(accountState))
-  );
-  if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
-=======
   if (section === 'sessions') {
     const sessionsEl = await renderSessionsSection({
       apiFetch,
@@ -230,7 +248,6 @@ async function renderAccountSection({
 
   content.innerHTML = renderOverview(accountState);
   if (footerHost) footerHost.innerHTML = '';
->>>>>>> feature/short-term-tasks
 }
 
 export async function renderAccountPage(container) {
@@ -245,22 +262,18 @@ export async function renderAccountPage(container) {
   let accountState = null;
 
   const loadCurrentState = async () => {
-    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), {
-      route: 'account',
-    });
+    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
     return accountState;
   };
 
-  container.replaceChildren(
-    document.createRange().createContextualFragment(
-      renderWorkspaceShell({
-        sidebarHtml: renderWorkspaceSidebar({
-          homeHref: '/',
-          homeId: 'workspace-home-link',
-          homeLabel: 'GrowChat',
-          footerId: 'sidebar-footer',
-        }),
-        mainHtml: `
+  container.innerHTML = renderWorkspaceShell({
+    sidebarHtml: renderWorkspaceSidebar({
+      homeHref: '/',
+      homeId: 'workspace-home-link',
+      homeLabel: 'GrowChat',
+      footerId: 'sidebar-footer',
+    }),
+    mainHtml: `
       <div class="relative flex-1 min-h-0 overflow-hidden bg-[#fafafa] text-gray-900">
         ${renderSettingsDrawerShell({
           rootId: 'account-settings-drawer',
@@ -296,14 +309,9 @@ export async function renderAccountPage(container) {
         })}
       </div>
     `,
-      })
-    )
-  );
+  });
 
-  container.insertAdjacentHTML(
-    'beforeend',
-    '<div id="search-modal-container"></div><div id="files-modal-container"></div>'
-  );
+  container.insertAdjacentHTML('beforeend', '<div id="search-modal-container"></div><div id="files-modal-container"></div>');
 
   wireWorkspaceSidebar(container, {
     navigateHome: async () => {
@@ -311,8 +319,8 @@ export async function renderAccountPage(container) {
     },
     searchModalContainerSelector: '#search-modal-container',
     filesModalContainerSelector: '#files-modal-container',
+    footerId: 'sidebar-footer',
   });
-  void mountSidebarFooter(container, createUserProfileFooter());
 
   const content = container.querySelector('[data-account-content]');
   const footerHost = container.querySelector('#account-main-footer');
@@ -332,14 +340,8 @@ export async function renderAccountPage(container) {
       onRefresh: loadCurrentState,
     });
   } catch (err) {
-    content.replaceChildren(
-      document
-        .createRange()
-        .createContextualFragment(
-          `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`
-        )
-    );
-    if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
+    content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
+    if (footerHost) footerHost.innerHTML = '';
   }
 
   const closeBtn = container.querySelector('#account-settings-close');
@@ -378,9 +380,7 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   let footerHost = null;
 
   const loadCurrentState = async () => {
-    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), {
-      route: 'account',
-    });
+    accountState = normalizeWorkspaceCapabilities(await loadAccountState(), { route: 'account' });
     return accountState;
   };
 
@@ -395,16 +395,14 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   };
 
   const renderDrawer = async () => {
-    mount.replaceChildren(
-      document.createRange().createContextualFragment(
-        renderSettingsDrawerShell({
-          rootId: 'account-settings-drawer-modal',
-          title: 'My Settings',
-          subtitle: 'Personal account preferences and tools.',
-          scopeLabel: 'Personal',
-          closeId: 'account-settings-drawer-close',
-          overlayId: 'account-settings-drawer-overlay',
-          body: `
+    mount.innerHTML = renderSettingsDrawerShell({
+      rootId: 'account-settings-drawer-modal',
+      title: 'My Settings',
+      subtitle: 'Personal account preferences and tools.',
+      scopeLabel: 'Personal',
+      closeId: 'account-settings-drawer-close',
+      overlayId: 'account-settings-drawer-overlay',
+      body: `
         <div class="flex h-full min-h-0 flex-col overflow-hidden">
           ${renderSettingsShell({
             navPaneHtml: renderWorkspaceVerticalTabs({
@@ -422,18 +420,14 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
           })}
         </div>
       `,
-        })
-      )
-    );
+    });
 
     drawer = mount.querySelector('#account-settings-drawer-modal');
     content = mount.querySelector('[data-account-drawer-content]');
     footerHost = mount.querySelector('#account-drawer-footer');
 
     drawer?.querySelector('#account-settings-drawer-close')?.addEventListener('click', closeDrawer);
-    drawer
-      ?.querySelector('#account-settings-drawer-overlay')
-      ?.addEventListener('click', closeDrawer);
+    drawer?.querySelector('#account-settings-drawer-overlay')?.addEventListener('click', closeDrawer);
     drawer?.querySelectorAll('a[data-subnav]').forEach((link) => {
       link.addEventListener('click', async (event) => {
         event.preventDefault();
@@ -462,14 +456,8 @@ export async function openAccountSettingsDrawer({ section = 'connections' } = {}
   try {
     await renderDrawer();
   } catch (err) {
-    content.replaceChildren(
-      document
-        .createRange()
-        .createContextualFragment(
-          `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`
-        )
-    );
-    if (footerHost) footerHost.replaceChildren(document.createRange().createContextualFragment(''));
+    content.innerHTML = `<div class="text-sm text-red-600">${escapeHtml(err.message || 'Failed to load account settings')}</div>`;
+    if (footerHost) footerHost.innerHTML = '';
   }
 
   mount.__cleanup = () => {

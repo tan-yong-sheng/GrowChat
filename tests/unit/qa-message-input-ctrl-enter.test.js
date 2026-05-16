@@ -1,37 +1,38 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { JSDOM } from "jsdom";
-import fs from "fs";
-import path from "path";
-import { resolveTestUrl } from "../shared/test-env.js";
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { JSDOM } from 'jsdom';
+import fs from 'fs';
+import path from 'path';
 
-const testUrl = resolveTestUrl();
+describe('Message Input - Ctrl+Enter Keyboard Shortcut', () => {
+  let dom;
+  let window;
+  let document;
+  let container;
+  let input;
+  let composer;
 
-describe("Message Input - Ctrl+Enter Keyboard Shortcut", () => {
-	let dom;
-	let window;
-	let document;
-	let container;
-	let input;
-	let composer;
+  // Helper to attach the actual keydown handler
+  function attachKeydownHandler() {
+    input.addEventListener('keydown', async (e) => {
+      const isEnter = e.key === 'Enter';
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      const isShift = e.shiftKey;
 
-	function attachKeydownHandler() {
-		input.addEventListener("keydown", async (e) => {
-			const isEnter = e.key === "Enter";
-			const isCtrlOrCmd = e.ctrlKey || e.metaKey;
-			const isShift = e.shiftKey;
+      // Ctrl+Enter or Cmd+Enter: always submit
+      if (isEnter && isCtrlOrCmd) {
+        e.preventDefault();
+        if (input.value.trim()) composer.dispatchEvent(new Event('submit'));
+      }
+      // Enter without modifiers (not Shift): submit on single line
+      else if (isEnter && !isShift && !isCtrlOrCmd) {
+        e.preventDefault();
+        if (input.value.trim()) composer.dispatchEvent(new Event('submit'));
+      }
+      // Shift+Enter: allow multi-line without submitting
+    });
+  }
 
-<<<<<<< HEAD
-			if (isEnter && isCtrlOrCmd) {
-				e.preventDefault();
-				if (input.value.trim()) composer.dispatchEvent(new Event("submit"));
-			} else if (isEnter && !isShift && !isCtrlOrCmd) {
-				e.preventDefault();
-				if (input.value.trim()) composer.dispatchEvent(new Event("submit"));
-			}
-		});
-	}
-=======
   beforeEach(() => {
     const indexHtml = fs.readFileSync(
       path.join(process.cwd(), 'public/index.html'),
@@ -43,150 +44,173 @@ describe("Message Input - Ctrl+Enter Keyboard Shortcut", () => {
     });
     window = dom.window;
     document = window.document;
->>>>>>> feature/short-term-tasks
 
-	beforeEach(() => {
-		const indexHtml = fs.readFileSync(
-			path.join(process.cwd(), "public/index.html"),
-			"utf-8",
-		);
-		dom = new JSDOM(indexHtml, {
-			url: testUrl,
-			pretendToBeVisual: true,
-		});
-		window = dom.window;
-		document = window.document;
+    // Create message input form
+    container = document.createElement('div');
+    container.innerHTML = `
+      <form id="composer" class="relative">
+        <textarea id="message-input" placeholder="Message" style="height: 44px;"></textarea>
+        <button id="send-btn" type="button" aria-label="Send message"></button>
+      </form>
+    `;
+    document.body.appendChild(container);
+    input = container.querySelector('#message-input');
+    composer = container.querySelector('#composer');
 
-		container = document.createElement("div");
-		composer = document.createElement("form");
-		composer.id = "composer";
-		composer.className = "relative";
+    // Attach the handler
+    attachKeydownHandler();
+  });
 
-		input = document.createElement("textarea");
-		input.id = "message-input";
-		input.placeholder = "Message";
-		input.style.height = "44px";
+  afterEach(() => {
+    dom.window.close();
+  });
 
-		const sendBtn = document.createElement("button");
-		sendBtn.id = "send-btn";
-		sendBtn.type = "button";
-		sendBtn.setAttribute("aria-label", "Send message");
+  describe('Ctrl+Enter Shortcut', () => {
+    it('should send message on Ctrl+Enter', () => {
+      input.value = 'Hello world';
 
-		composer.appendChild(input);
-		composer.appendChild(sendBtn);
-		container.appendChild(composer);
-		document.body.appendChild(container);
+      let submitFired = false;
+      composer.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFired = true;
+      });
 
-		attachKeydownHandler();
-	});
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        ctrlKey: true,
+        bubbles: true,
+      });
 
-	afterEach(() => {
-		dom.window.close();
-	});
+      input.dispatchEvent(event);
 
-	describe("Ctrl+Enter Shortcut", () => {
-		it("should send message on Ctrl+Enter", () => {
-			input.value = "Hello world";
+      expect(submitFired).toBe(true);
+    });
 
-			let submitFired = false;
-			composer.addEventListener("submit", (e) => {
-				e.preventDefault();
-				submitFired = true;
-			});
+    it('should send message on Cmd+Enter (Mac equivalent)', () => {
+      input.value = 'Test message';
 
-			const event = new KeyboardEvent("keydown", {
-				key: "Enter",
-				code: "Enter",
-				ctrlKey: true,
-				bubbles: true,
-			});
+      let submitFired = false;
+      composer.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFired = true;
+      });
 
-			input.dispatchEvent(event);
-			expect(submitFired).toBe(true);
-		});
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        metaKey: true,
+        bubbles: true,
+      });
 
-		it("should send message on Cmd+Enter (Mac equivalent)", () => {
-			input.value = "Test message";
+      input.dispatchEvent(event);
 
-			let submitFired = false;
-			composer.addEventListener("submit", (e) => {
-				e.preventDefault();
-				submitFired = true;
-			});
+      expect(submitFired).toBe(true);
+    });
 
-			const event = new KeyboardEvent("keydown", {
-				key: "Enter",
-				code: "Enter",
-				metaKey: true,
-				bubbles: true,
-			});
+    it('should not send message on Shift+Enter (allows multi-line)', () => {
+      input.value = 'Hello\nworld';
 
-			input.dispatchEvent(event);
-			expect(submitFired).toBe(true);
-		});
+      let submitFired = false;
+      composer.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFired = true;
+      });
 
-		it("should not send message on Shift+Enter (allows multi-line)", () => {
-			input.value = "Hello\nworld";
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        shiftKey: true,
+        ctrlKey: false,
+        metaKey: false,
+        bubbles: true,
+      });
 
-			let submitFired = false;
-			composer.addEventListener("submit", (e) => {
-				e.preventDefault();
-				submitFired = true;
-			});
+      input.dispatchEvent(event);
 
-			const event = new KeyboardEvent("keydown", {
-				key: "Enter",
-				code: "Enter",
-				shiftKey: true,
-				ctrlKey: false,
-				metaKey: false,
-				bubbles: true,
-			});
+      expect(submitFired).toBe(false);
+    });
 
-			input.dispatchEvent(event);
-			expect(submitFired).toBe(false);
-		});
+    it('should send on regular Enter when on single line', () => {
+      input.value = 'Single line message';
 
-		it("should send on regular Enter when on single line", () => {
-			input.value = "Single line message";
+      let submitFired = false;
+      composer.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFired = true;
+      });
 
-			let submitFired = false;
-			composer.addEventListener("submit", (e) => {
-				e.preventDefault();
-				submitFired = true;
-			});
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        bubbles: true,
+      });
 
-			const event = new KeyboardEvent("keydown", {
-				key: "Enter",
-				code: "Enter",
-				ctrlKey: false,
-				metaKey: false,
-				shiftKey: false,
-				bubbles: true,
-			});
+      input.dispatchEvent(event);
 
-			input.dispatchEvent(event);
-			expect(submitFired).toBe(true);
-		});
+      expect(submitFired).toBe(true);
+    });
 
-		it("should not send empty message", () => {
-			input.value = "   ";
+    it('should allow multi-line input with Shift+Enter', () => {
+      input.value = 'Line 1\nLine 2';
 
-			let submitFired = false;
-			composer.addEventListener("submit", (e) => {
-				e.preventDefault();
-				submitFired = true;
-			});
+      let submitFired = false;
+      composer.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitFired = true;
+      });
 
-			const event = new KeyboardEvent("keydown", {
-				key: "Enter",
-				code: "Enter",
-				ctrlKey: true,
-				bubbles: true,
-			});
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        shiftKey: true,
+        bubbles: true,
+      });
 
-			input.dispatchEvent(event);
-			expect(submitFired).toBe(false);
-		});
-	});
+      input.dispatchEvent(event);
+
+      expect(submitFired).toBe(false);
+    });
+
+    it('should clear input after sending with Ctrl+Enter', () => {
+      input.value = 'Test message';
+
+      composer.addEventListener('submit', (e) => {
+        e.preventDefault();
+        input.value = '';
+        input.dispatchEvent(new Event('input'));
+      });
+
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        ctrlKey: true,
+        bubbles: true,
+      });
+
+      input.dispatchEvent(event);
+
+      expect(input.value).toBe('');
+    });
+  });
+
+  describe('Keyboard Shortcut Help', () => {
+    it('message input should have aria-label indicating keyboard shortcuts', () => {
+      input.setAttribute('aria-label', 'Message text. Press Ctrl+Enter or Cmd+Enter to send, or Shift+Enter for new line');
+
+      expect(input.getAttribute('aria-label')).toContain('Ctrl+Enter');
+      expect(input.getAttribute('aria-label')).toContain('Cmd+Enter');
+    });
+
+    it('send button should have title showing keyboard shortcut', () => {
+      const sendBtn = container.querySelector('#send-btn');
+      sendBtn.setAttribute('title', 'Send message (Ctrl+Enter)');
+
+      expect(sendBtn.getAttribute('title')).toContain('Ctrl+Enter');
+    });
+  });
 });
+

@@ -107,20 +107,6 @@ async function submit(e) {
 			return;
 		}
 
-<<<<<<< HEAD
-    setAuthState(data);
-    window.location.href = '/';
-  } catch {
-    err.textContent = 'Network error. Please try again.';
-    err.classList.remove('hidden');
-  } finally {
-    isSubmitting = false;
-    authSubmit.textContent = originalText;
-    authSubmit.classList.remove('opacity-60', 'cursor-not-allowed');
-    toggleModeBtn.disabled = false;
-    updateButtonState(form, authSubmit, isSubmitting);
-  }
-=======
 		setAuthState(data);
 		window.location.href = "/";
 	} catch (error) {
@@ -157,7 +143,6 @@ async function bootstrapAuthMode() {
 		updateButtonState(form, authSubmit, isSubmitting);
 		updateSubmitAvailability();
 	}
->>>>>>> feature/short-term-tasks
 }
 
 function openForgotPasswordModal() {
@@ -206,20 +191,6 @@ async function handleForgotPasswordSubmit(e) {
 			return;
 		}
 
-<<<<<<< HEAD
-    modalSuccess.textContent = 'Check your email for a password reset link';
-    modalSuccess.classList.remove('hidden');
-    forgotEmailInput.value = '';
-    setTimeout(() => closeForgotPasswordModal(), 2000);
-  } catch {
-    modalError.textContent = 'Network error. Please try again.';
-    modalError.classList.remove('hidden');
-  } finally {
-    isSubmitting = false;
-    forgotSubmitBtn.disabled = false;
-    forgotSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-  }
-=======
 		modalSuccess.textContent = "Check your email for a password reset link";
 		modalSuccess.classList.remove("hidden");
 		forgotEmailInput.value = "";
@@ -232,7 +203,6 @@ async function handleForgotPasswordSubmit(e) {
 		forgotSubmitBtn.disabled = false;
 		forgotSubmitBtn.classList.remove("opacity-60", "cursor-not-allowed");
 	}
->>>>>>> feature/short-term-tasks
 }
 
 function openResetPasswordModal() {
@@ -306,21 +276,6 @@ async function handleResetPasswordSubmit(e) {
 			return;
 		}
 
-<<<<<<< HEAD
-    resetSuccess.textContent = 'Password reset successful. Redirecting to login...';
-    resetSuccess.classList.remove('hidden');
-    setTimeout(() => {
-      window.location.href = '/auth.html';
-    }, 2000);
-  } catch {
-    resetError.textContent = 'Network error. Please try again.';
-    resetError.classList.remove('hidden');
-  } finally {
-    isSubmitting = false;
-    resetSubmitBtn.disabled = false;
-    resetSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-  }
-=======
 		resetSuccess.textContent =
 			"Password reset successful. Redirecting to login...";
 		resetSuccess.classList.remove("hidden");
@@ -335,7 +290,6 @@ async function handleResetPasswordSubmit(e) {
 		resetSubmitBtn.disabled = false;
 		resetSubmitBtn.classList.remove("opacity-60", "cursor-not-allowed");
 	}
->>>>>>> feature/short-term-tasks
 }
 
 function checkForResetToken() {
@@ -373,20 +327,6 @@ resetPasswordModal.addEventListener("click", (e) => {
 });
 
 // Form validation listeners
-<<<<<<< HEAD
-emailInput.addEventListener('input', () => {
-  err.classList.add('hidden');
-  updateButtonState(form, authSubmit, isSubmitting);
-});
-passwordInput.addEventListener('input', () => {
-  err.classList.add('hidden');
-  updateButtonState(form, authSubmit, isSubmitting);
-});
-nameInput.addEventListener('input', () => {
-  err.classList.add('hidden');
-  updateButtonState(form, authSubmit, isSubmitting);
-});
-=======
 emailInput.addEventListener("input", () =>
 	updateButtonState(form, authSubmit, isSubmitting),
 );
@@ -396,7 +336,6 @@ passwordInput.addEventListener("input", () =>
 nameInput.addEventListener("input", () =>
 	updateButtonState(form, authSubmit, isSubmitting),
 );
->>>>>>> feature/short-term-tasks
 
 form.addEventListener("submit", submit);
 bootstrapAuthMode();

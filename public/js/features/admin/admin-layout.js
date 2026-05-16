@@ -42,21 +42,12 @@ export function renderSettingsSkeleton() {
   `;
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 export function renderErrorState(message) {
   return `
     <div class="flex items-center justify-center h-full ${ADMIN_SHELL_BODY_PADDING_CLASS} p-6">
       <div class="max-w-md w-full rounded-3xl border border-red-100 bg-red-50/60 p-6 text-center">
         <div class="text-sm font-semibold text-red-700">Unable to load admin content</div>
-        <div class="mt-2 text-sm text-red-600">${escapeHtml(message)}</div>
+        <div class="mt-2 text-sm text-red-600">${message}</div>
       </div>
     </div>
   `;
@@ -91,20 +82,6 @@ export function renderSystemLayout(subTab) {
           id: 'system-tabs-container',
           items: [
             {
-<<<<<<< HEAD
-              href: '/admin/system/general',
-              key: 'general',
-              label: 'General',
-              active: subTab === 'general',
-              icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5"><path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 12a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1H3v-1Z"/></svg>',
-            },
-            {
-              href: '/admin/system/security',
-              key: 'security',
-              label: 'Security',
-              active: subTab === 'security',
-              icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5"><path d="M8 1a.75.75 0 0 1 .75.75v1.258a5.25 5.25 0 1 1-1.5 0V1.75A.75.75 0 0 1 8 1ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Z"/></svg>',
-=======
               href: '/admin/system/registration',
               key: 'registration',
               label: 'Registration',
@@ -131,7 +108,6 @@ export function renderSystemLayout(subTab) {
               label: 'Activity Log',
               active: subTab === 'activity',
               icon: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
->>>>>>> feature/short-term-tasks
             },
           ],
         }),
@@ -193,7 +169,7 @@ export function renderUsersLayout(subTab) {
                 <div class="text-gray-500 font-normal ml-0.5" id="users-total-count"></div>
               </div>
               <div class="flex items-center gap-3">
-                <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-full border border-gray-100/30 w-64">
+                <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30 w-64">
                   <div class="flex-shrink-0 text-gray-400">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
                       <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />

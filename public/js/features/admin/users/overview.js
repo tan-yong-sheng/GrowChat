@@ -11,22 +11,6 @@ import {
 } from "../../../shared/form-validation.js";
 
 const escapeHtml = (value) =>
-<<<<<<< HEAD
-  String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-
-function roleBadgeClass(role) {
-  const value = String(role || '')
-    .trim()
-    .toLowerCase();
-  if (value === 'admin') return 'bg-blue-100 text-blue-700';
-  if (value === 'member') return 'bg-green-100 text-green-700';
-  return 'bg-gray-100 text-gray-700';
-=======
 	String(value || "")
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")
@@ -41,7 +25,6 @@ function roleBadgeClass(role) {
 	if (value === "admin") return "bg-neutral-900 text-white";
 	if (value === "member") return "bg-neutral-100 text-neutral-900";
 	return "bg-gray-100 text-gray-700";
->>>>>>> feature/short-term-tasks
 }
 
 function roleDisplayName(role) {
@@ -54,15 +37,9 @@ function roleDisplayName(role) {
 }
 
 function normalizeRole(role) {
-<<<<<<< HEAD
-  return String(role || '')
-    .trim()
-    .toLowerCase();
-=======
 	return String(role || "")
 		.trim()
 		.toLowerCase();
->>>>>>> feature/short-term-tasks
 }
 
 function buildRoleSelectOptions(roles, selectedRole = "member") {
@@ -84,15 +61,6 @@ function buildRoleSelectOptions(roles, selectedRole = "member") {
 	(Array.isArray(roles) ? roles : []).forEach((role) => pushRole(role?.name));
 	pushRole(selectedRole);
 
-<<<<<<< HEAD
-  return orderedRoles
-    .map(
-      (roleName) => `
-    <option value="${escapeHtml(roleName)}" ${normalizeRole(roleName) === selected ? 'selected' : ''}>${escapeHtml(roleDisplayName(roleName))}</option>
-  `
-    )
-    .join('');
-=======
 	return orderedRoles
 		.map(
 			(roleName) => `
@@ -100,7 +68,6 @@ function buildRoleSelectOptions(roles, selectedRole = "member") {
   `,
 		)
 		.join("");
->>>>>>> feature/short-term-tasks
 }
 
 async function loadAdminRoles() {
@@ -193,17 +160,10 @@ function renderRuleList(rules = [], { showDisabled = false } = {}) {
 	return `
     <div class="space-y-2">
       ${visibleRules
-<<<<<<< HEAD
-        .map((rule) => {
-          const state = getRuleAccessState(rule);
-          return `
-        <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white px-3 py-2 text-xs text-gray-700 ${rule?.resource_enabled === false ? 'opacity-60' : ''}">
-=======
 				.map((rule) => {
 					const state = getRuleAccessState(rule);
 					return `
         <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white px-3 py-2 text-xs text-gray-700 ${rule?.resource_enabled === false ? "opacity-60" : ""}">
->>>>>>> feature/short-term-tasks
           ${renderChip(state.label, state.kind)}
           ${renderChip(rule.effect || "allow", rule.effect)}
           ${renderChip(rule.principal_label || rule.principal_type, "neutral")}
@@ -214,36 +174,13 @@ function renderRuleList(rules = [], { showDisabled = false } = {}) {
           ${rule?.resource_enabled === false ? '<span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Disabled</span>' : ""}
         </div>
       `;
-<<<<<<< HEAD
-        })
-        .join('')}
-=======
 				})
 				.join("")}
->>>>>>> feature/short-term-tasks
     </div>
   `;
 }
 
 function renderAccessInspectorContent(payload, showDisabled = false) {
-<<<<<<< HEAD
-  const user = payload?.user || {};
-  const groups = Array.isArray(payload?.groups) ? payload.groups : [];
-  const rolePermissions = Array.isArray(payload?.role_permissions) ? payload.role_permissions : [];
-  const access = payload?.access || {};
-  const allRules = [
-    ...(access.models || []),
-    ...(access.connections || []),
-    ...(access.mcp_servers || []),
-  ];
-  const disabledRuleCount = allRules.filter((rule) => rule?.resource_enabled === false).length;
-  const primaryRole = String(user.primary_role || 'member').trim();
-  const families = [
-    ['Models', access.models || []],
-    ['Connections', access.connections || []],
-    ['MCP Servers', access.mcp_servers || []],
-  ];
-=======
 	const user = payload?.user || {};
 	const groups = Array.isArray(payload?.groups) ? payload.groups : [];
 	const rolePermissions = Array.isArray(payload?.role_permissions)
@@ -264,7 +201,6 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
 		["Connections", access.connections || []],
 		["MCP Servers", access.mcp_servers || []],
 	];
->>>>>>> feature/short-term-tasks
 
 	return `
     <div class="space-y-4">
@@ -300,13 +236,8 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
       </section>
 
       ${families
-<<<<<<< HEAD
-        .map(
-          ([label, rules]) => `
-=======
 				.map(
 					([label, rules]) => `
->>>>>>> feature/short-term-tasks
         <section class="space-y-2">
           <div class="flex items-center justify-between gap-3">
             <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">${escapeHtml(label)}</div>
@@ -314,29 +245,17 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
           </div>
           ${renderRuleList(rules, { showDisabled })}
         </section>
-<<<<<<< HEAD
-      `
-        )
-        .join('')}
-=======
       `,
 				)
 				.join("")}
->>>>>>> feature/short-term-tasks
     </div>
   `;
 }
 
 function renderAclInspectorModal(
-<<<<<<< HEAD
-  user,
-  body = '<div class="text-sm text-gray-400">Loading ACL inspector...</div>',
-  onClose = null
-=======
 	user,
 	body = '<div class="text-sm text-gray-400">Loading ACL inspector...</div>',
 	onClose = null,
->>>>>>> feature/short-term-tasks
 ) {
 	return createAdminModalShell({
 		preset: "aclEditor",
@@ -351,16 +270,6 @@ function renderAclInspectorModal(
 }
 
 function renderUserRows(users) {
-<<<<<<< HEAD
-  return users
-    .map((u) => {
-      const role = String(u.primary_role || 'member').trim();
-      const normalizedRole = normalizeRole(role);
-      const accountStatus = String(u.account_status || 'active');
-      const name = String(u.name || '');
-      const email = String(u.email || '');
-      return `
-=======
 	return users
 		.map((u) => {
 			const role = String(u.primary_role || "member").trim();
@@ -369,7 +278,6 @@ function renderUserRows(users) {
 			const name = String(u.name || "");
 			const email = String(u.email || "");
 			return `
->>>>>>> feature/short-term-tasks
     <tr data-user-row="${u.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
       <td class="px-3 py-4 whitespace-nowrap">
         <button class="btn-change-role focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition" data-user-id="${u.id}" data-user-role="${escapeHtml(role)}" data-user-name="${escapeHtml(name)}" data-user-email="${escapeHtml(email)}" data-user-account-status="${escapeHtml(accountStatus)}">
@@ -380,19 +288,6 @@ function renderUserRows(users) {
         <div class="flex items-center gap-2.5 min-w-0">
           <div class="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-600 overflow-hidden shrink-0">
             ${
-<<<<<<< HEAD
-              u.avatar
-                ? `<img class="w-full h-full object-cover" src="${u.avatar}" alt="">`
-                : name
-                  ? name
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')
-                      .toUpperCase()
-                      .substring(0, 2)
-                  : '??'
-            }
-=======
 							u.avatar
 								? `<img class="w-full h-full object-cover" src="${u.avatar}" alt="">`
 								: name
@@ -404,7 +299,6 @@ function renderUserRows(users) {
 											.substring(0, 2)
 									: "??"
 						}
->>>>>>> feature/short-term-tasks
           </div>
           <div class="truncate">${name}</div>
         </div>
@@ -429,35 +323,15 @@ function renderUserRows(users) {
             </svg>
           </button>
           ${
-<<<<<<< HEAD
-            normalizedRole === 'admin'
-              ? ''
-              : `
-=======
 						normalizedRole === "admin"
 							? ""
 							: `
->>>>>>> feature/short-term-tasks
           <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-user" data-user-id="${u.id}" data-user-name="${name}" title="Delete record">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
             </svg>
           </button>
           `
-<<<<<<< HEAD
-          }
-        </div>
-      </td>
-    </tr>`;
-    })
-    .join('');
-}
-
-function renderLoadingRows(count = 10) {
-  return Array.from(
-    { length: count },
-    () => `
-=======
 					}
         </div>
       </td>
@@ -470,7 +344,6 @@ function renderLoadingRows(count = 10) {
 	return Array.from(
 		{ length: count },
 		() => `
->>>>>>> feature/short-term-tasks
     <tr class="bg-white text-xs animate-pulse">
       <td class="px-3 py-4"><div class="h-5 w-14 rounded bg-gray-100"></div></td>
       <td class="px-3 py-4"><div class="flex items-center gap-2.5"><div class="w-7 h-7 rounded-full bg-gray-100"></div><div class="h-4 w-28 rounded bg-gray-100"></div></div></td>
@@ -480,13 +353,8 @@ function renderLoadingRows(count = 10) {
       <td class="px-3 py-4"><div class="h-4 w-14 rounded bg-gray-100"></div></td>
       <td class="px-3 py-4"><div class="ml-auto h-8 w-20 rounded bg-gray-100"></div></td>
     </tr>
-<<<<<<< HEAD
-  `
-  ).join('');
-=======
   `,
 	).join("");
->>>>>>> feature/short-term-tasks
 }
 
 function renderAddUserModal(draft = null, roles = []) {
@@ -618,22 +486,6 @@ function renderEditUserModal(user, draft = null, roles = []) {
 }
 
 export function renderUserOverview(container, data, actions) {
-<<<<<<< HEAD
-  const uiState =
-    data.userOverviewUi ||
-    (data.userOverviewUi = {
-      query: '',
-      pending: {},
-      accessInspector: {
-        userId: null,
-        refreshToken: null,
-        payload: null,
-        showDisabled: false,
-        modalEl: null,
-        bodyEl: null,
-      },
-    });
-=======
 	const uiState =
 		data.userOverviewUi ||
 		(data.userOverviewUi = {
@@ -648,7 +500,6 @@ export function renderUserOverview(container, data, actions) {
 				bodyEl: null,
 			},
 		});
->>>>>>> feature/short-term-tasks
 
 	container.innerHTML = `
     <div class="flex flex-col min-h-0 animate-in fade-in duration-300">
@@ -658,7 +509,7 @@ export function renderUserOverview(container, data, actions) {
           <div class="text-gray-500 font-normal ml-0.5" id="users-total-count"></div>
         </div>
         <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-full border border-gray-100/30 w-64">
+          <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30 w-64">
             <div class="flex-shrink-0 text-gray-400">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
                 <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
@@ -780,16 +631,6 @@ export function renderUserOverview(container, data, actions) {
 		return Boolean(uiState.pending[getPendingKey(type, userId)]);
 	}
 
-<<<<<<< HEAD
-  function syncSearchClearState() {
-    if (!clearSearchContainer) return;
-    if (String(uiState.query || '').trim()) {
-      clearSearchContainer.classList.remove('hidden');
-    } else {
-      clearSearchContainer.classList.add('hidden');
-    }
-  }
-=======
 	function applySearchFilter() {
 		const query = String(uiState.query || "").toLowerCase();
 		tbody.querySelectorAll("tr").forEach((row) => {
@@ -806,7 +647,6 @@ export function renderUserOverview(container, data, actions) {
 			clearSearchContainer.classList.add("hidden");
 		}
 	}
->>>>>>> feature/short-term-tasks
 
 	function syncPendingState() {
 		tbody.querySelectorAll(".btn-change-role").forEach((btn) => {
@@ -831,116 +671,6 @@ export function renderUserOverview(container, data, actions) {
 		});
 	}
 
-<<<<<<< HEAD
-  function applySearchFilter() {
-    const query = String(uiState.query || '')
-      .trim()
-      .toLowerCase();
-    const rows = tbody?.querySelectorAll('tr[data-user-row]') || [];
-    rows.forEach((row) => {
-      const haystack = String(row.textContent || '').toLowerCase();
-      row.style.display = !query || haystack.includes(query) ? '' : 'none';
-    });
-    syncSearchClearState();
-  }
-
-  function bindRowActions() {
-    tbody.querySelectorAll('.btn-change-role').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const currentRole = normalizeRole(btn.dataset.userRole || 'member');
-        const userName = btn.dataset.userName;
-        const userEmail = btn.dataset.userEmail || '';
-        const userStatus = btn.dataset.userAccountStatus || 'active';
-        const nextRole = currentRole === 'admin' ? 'member' : 'admin';
-        if (!window.confirm(`Change role for ${userName} to ${nextRole.toUpperCase()}?`)) return;
-        try {
-          const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-              primary_role: nextRole,
-              account_status: userStatus,
-              name: userName,
-              email: userEmail,
-            }),
-          });
-          const responsePayload = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            throw new Error(
-              getActionError(responsePayload, `Failed to update user (${res.status})`)
-            );
-          }
-          actions.updateUser(responsePayload.user);
-        } catch (err) {
-          window.alert(err?.message || 'Failed to update user.');
-        }
-      });
-    });
-
-    tbody.querySelectorAll('.btn-delete-user').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const userName = btn.dataset.userName;
-        if (
-          !window.confirm(
-            `Delete user ${userName}? This will permanently remove the account record.`
-          )
-        )
-          return;
-        try {
-          const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
-            method: 'DELETE',
-          });
-          const responsePayload = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            throw new Error(
-              getActionError(responsePayload, `Failed to delete user (${res.status})`)
-            );
-          }
-          actions.removeUser(btn.dataset.userId);
-        } catch (err) {
-          window.alert(err?.message || 'Failed to delete user.');
-        }
-      });
-    });
-
-    tbody.querySelectorAll('.btn-inspect-user-access').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        setPending('access', btn.dataset.userId, true);
-        uiState.accessInspector.userId = btn.dataset.userId;
-        uiState.accessInspector.refreshToken = null;
-        uiState.accessInspector.payload = null;
-        uiState.accessInspector.showDisabled = false;
-        const shell = renderAclInspectorModal(
-          {
-            name: btn.dataset.userName || '',
-            email: btn.dataset.userEmail || '',
-            primary_role: String(btn.dataset.userRole || 'member').trim(),
-            account_status: btn.dataset.userAccountStatus || 'active',
-          },
-          '<div class="text-sm text-gray-400">Loading ACL inspector...</div>',
-          () => {
-            uiState.accessInspector.userId = null;
-            uiState.accessInspector.refreshToken = null;
-            uiState.accessInspector.payload = null;
-            uiState.accessInspector.modalEl = null;
-            uiState.accessInspector.bodyEl = null;
-          }
-        );
-        uiState.accessInspector.modalEl = shell.modal;
-        uiState.accessInspector.bodyEl = shell.bodyEl;
-        shell.modal.classList.add('user-access-modal-shell');
-
-        shell.modal?.addEventListener('click', (e) => {
-          if (e.target.closest('[data-toggle-disabled-rules]')) {
-            uiState.accessInspector.showDisabled = !uiState.accessInspector.showDisabled;
-            if (uiState.accessInspector.payload && uiState.accessInspector.bodyEl) {
-              uiState.accessInspector.bodyEl.innerHTML = renderAccessInspectorContent(
-                uiState.accessInspector.payload,
-                uiState.accessInspector.showDisabled
-              );
-            }
-          }
-        });
-=======
 	function bindRowActions() {
 		tbody.querySelectorAll(".btn-change-role").forEach((btn) => {
 			btn.addEventListener("click", async () => {
@@ -1053,7 +783,6 @@ export function renderUserOverview(container, data, actions) {
 						}
 					}
 				});
->>>>>>> feature/short-term-tasks
 
 				try {
 					await refreshAccessInspector(btn.dataset.userId);
@@ -1071,41 +800,6 @@ export function renderUserOverview(container, data, actions) {
 			});
 		});
 
-<<<<<<< HEAD
-    tbody.querySelectorAll('.btn-edit-user').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        try {
-          const roles = await loadAdminRoles();
-          const user = {
-            id: btn.dataset.userId,
-            name: btn.dataset.userName || '',
-            email: btn.dataset.userEmail || '',
-            primary_role: String(btn.dataset.userRole || 'member').trim(),
-            account_status: btn.dataset.userAccountStatus || 'active',
-          };
-          const modalWrapper = document.createElement('div');
-          modalWrapper.innerHTML = renderEditUserModal(user, null, roles);
-          const modal = modalWrapper.firstElementChild;
-          if (modal) document.body.appendChild(modal);
-
-          const modalEl = document.getElementById('edit-user-modal');
-          const form = document.getElementById('edit-user-form');
-          const saveBtn = modal?.querySelector('#edit-user-save-btn');
-          const fields = {
-            primaryRole: form?.querySelector('[name="primary_role"]'),
-            accountStatus: form?.querySelector('[name="account_status"]'),
-            name: form?.querySelector('[name="name"]'),
-            email: form?.querySelector('[name="email"]'),
-            password: form?.querySelector('[name="password"]'),
-          };
-          const baseValues = {
-            primary_role: normalizeRole(user.primary_role || 'member'),
-            account_status: String(user.account_status || 'active'),
-            name: String(user.name || '').trim(),
-            email: String(user.email || '').trim(),
-            password: '',
-          };
-=======
 		tbody.querySelectorAll(".btn-edit-user").forEach((btn) => {
 			btn.addEventListener("click", async () => {
 				try {
@@ -1139,58 +833,11 @@ export function renderUserOverview(container, data, actions) {
 						email: String(user.email || "").trim(),
 						password: "",
 					};
->>>>>>> feature/short-term-tasks
 
 					const close = () => {
 						modal?.remove();
 					};
 
-<<<<<<< HEAD
-          const isDirty = () =>
-            normalizeRole(fields.primaryRole?.value || 'member') !== baseValues.primary_role ||
-            String(fields.accountStatus?.value || 'active') !== baseValues.account_status ||
-            String(fields.name?.value || '').trim() !== baseValues.name ||
-            String(fields.email?.value || '').trim() !== baseValues.email ||
-            String(fields.password?.value || '').trim() !== '';
-
-          const syncDirty = () => {
-            setModalSaveButtonState(saveBtn, {
-              enabled: isDirty(),
-              saving: false,
-            });
-          };
-
-          const saveEdit = async () => {
-            displayFieldErrors(form);
-            if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
-            const fd = new FormData(form);
-            const payload = {
-              primary_role: String(fd.get('primary_role') || 'member').trim(),
-              account_status: String(fd.get('account_status') || 'active'),
-              name: String(fd.get('name') || '').trim(),
-              email: String(fd.get('email') || '').trim(),
-            };
-            const password = String(fd.get('password') || '');
-            if (password) payload.password = password;
-            clearFormErrors(form);
-            try {
-              const res = await apiFetch(`/api/admin/users/${user.id}`, {
-                method: 'PUT',
-                body: JSON.stringify(payload),
-              });
-              const responsePayload = await res.json().catch(() => ({}));
-              if (!res.ok) {
-                throw new Error(
-                  getActionError(responsePayload, `Failed to update user (${res.status})`)
-                );
-              }
-              actions.updateUser(responsePayload.user);
-              close();
-            } catch (err) {
-              window.alert(err?.message || 'Failed to update user.');
-            }
-          };
-=======
 					const isDirty = () =>
 						normalizeRole(fields.primaryRole?.value || "member") !==
 							baseValues.primary_role ||
@@ -1244,7 +891,6 @@ export function renderUserOverview(container, data, actions) {
 							window.alert(err?.message || "Failed to update user.");
 						}
 					};
->>>>>>> feature/short-term-tasks
 
 					modal?.addEventListener("click", (e) => {
 						if (
@@ -1316,20 +962,6 @@ export function renderUserOverview(container, data, actions) {
 		window.__growchatAccessInspectorCleanup = uiState.accessInspectorCleanup;
 	}
 
-<<<<<<< HEAD
-  function updateView() {
-    const users = data.users || [];
-    const total = data.total || users.length;
-    const page = data.pagination?.page || 1;
-    const pageSize = data.pagination?.pageSize || 20;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const pageStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
-    const pageEnd = Math.min(page * pageSize, total);
-
-    totalCount.textContent = String(total);
-    const isTableLoading =
-      data.loading && (data.loadingMode === 'table' || data.loadingMode === 'initial');
-=======
 	function updateView() {
 		const users = data.users || [];
 		const total = data.total || users.length;
@@ -1343,7 +975,6 @@ export function renderUserOverview(container, data, actions) {
 		const isTableLoading =
 			data.loading &&
 			(data.loadingMode === "table" || data.loadingMode === "initial");
->>>>>>> feature/short-term-tasks
 
 		tbody.innerHTML = isTableLoading
 			? renderLoadingRows(Math.min(pageSize, 10))
@@ -1389,77 +1020,6 @@ export function renderUserOverview(container, data, actions) {
 		await actions.reload({ preserveContent: true });
 	});
 
-<<<<<<< HEAD
-  nextButton?.addEventListener('click', async () => {
-    const totalPages = Math.max(
-      1,
-      Math.ceil((data.total || 0) / (data.pagination?.pageSize || 20))
-    );
-    if (data.pagination.page >= totalPages) return;
-    data.pagination.page += 1;
-    await actions.reload({ preserveContent: true });
-  });
-
-  container.querySelector('#open-add-user-modal')?.addEventListener('click', async () => {
-    const roles = await loadAdminRoles();
-    document.body.insertAdjacentHTML(
-      'beforeend',
-      renderAddUserModal(
-        {
-          primary_role: 'member',
-          account_status: 'active',
-          name: '',
-          email: '',
-          password: '',
-          csv: '',
-          tab: 'form',
-        },
-        roles
-      )
-    );
-    const modal = document.getElementById('add-user-modal');
-    const form = document.getElementById('add-user-form');
-    const csvForm = document.getElementById('add-user-csv-form');
-    const formTab = modal?.querySelector('[data-add-user-tab="form"]');
-    const csvTab = modal?.querySelector('[data-add-user-tab="csv"]');
-    const saveBtn = modal?.querySelector('#add-user-save-btn');
-    const fields = {
-      primaryRole: form?.querySelector('[name="primary_role"]'),
-      accountStatus: form?.querySelector('[name="account_status"]'),
-      name: form?.querySelector('[name="name"]'),
-      email: form?.querySelector('[name="email"]'),
-      password: form?.querySelector('[name="password"]'),
-      csv: csvForm?.querySelector('[name="csv"]'),
-    };
-    const modalState = {
-      activeTab: 'form',
-      dirty: false,
-    };
-    const baseValues = {
-      primary_role: 'member',
-      account_status: 'active',
-      name: '',
-      email: '',
-      password: '',
-      csv: '',
-    };
-
-    const isDirty = () =>
-      String(fields.primaryRole?.value || 'member') !== baseValues.primary_role ||
-      String(fields.accountStatus?.value || 'active') !== baseValues.account_status ||
-      String(fields.name?.value || '').trim() !== baseValues.name ||
-      String(fields.email?.value || '').trim() !== baseValues.email ||
-      String(fields.password?.value || '').trim() !== baseValues.password ||
-      String(fields.csv?.value || '').trim() !== baseValues.csv;
-
-    const syncDirty = () => {
-      modalState.dirty = isDirty();
-      setModalSaveButtonState(saveBtn, {
-        enabled: modalState.dirty,
-        saving: false,
-      });
-    };
-=======
 	nextButton?.addEventListener("click", async () => {
 		const totalPages = Math.max(
 			1,
@@ -1533,7 +1093,6 @@ export function renderUserOverview(container, data, actions) {
 					saving: false,
 				});
 			};
->>>>>>> feature/short-term-tasks
 
 			const close = () => {
 				modal?.remove();
@@ -1564,59 +1123,6 @@ export function renderUserOverview(container, data, actions) {
 				}
 			});
 
-<<<<<<< HEAD
-    const saveCurrent = () => {
-      void (async () => {
-        try {
-          if (modalState.activeTab === 'csv') {
-            if (typeof csvForm?.reportValidity === 'function' && !csvForm.reportValidity()) return;
-            const fd = new FormData(csvForm);
-            const csv = String(fd.get('csv') || '').trim();
-            const res = await apiFetch('/api/admin/users/import', {
-              method: 'POST',
-              body: JSON.stringify({ csv }),
-            });
-            const responsePayload = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(
-                getActionError(responsePayload, `Failed to import users (${res.status})`)
-              );
-            }
-            actions.invalidateCache?.();
-            await actions.reload?.({ preserveContent: true });
-          } else {
-            if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
-            const fd = new FormData(form);
-            const payload = {
-              primary_role: String(fd.get('primary_role') || 'member').trim(),
-              account_status: String(fd.get('account_status') || 'active'),
-              name: String(fd.get('name') || '').trim(),
-              email: String(fd.get('email') || '').trim(),
-              password: String(fd.get('password') || ''),
-            };
-            const res = await apiFetch('/api/admin/users', {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            });
-            const responsePayload = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(
-                getActionError(responsePayload, `Failed to create user (${res.status})`)
-              );
-            }
-            actions.prependUser(responsePayload.user);
-          }
-          close();
-        } catch (err) {
-          const errorEl = modal?.querySelector('#add-user-error');
-          if (errorEl) {
-            errorEl.textContent = err?.message || 'Failed to save user.';
-            errorEl.classList.remove('hidden');
-          }
-        }
-      })();
-    };
-=======
 			const saveCurrent = () => {
 				void (async () => {
 					try {
@@ -1682,7 +1188,6 @@ export function renderUserOverview(container, data, actions) {
 					}
 				})();
 			};
->>>>>>> feature/short-term-tasks
 
 			saveBtn?.addEventListener("click", () => {
 				saveCurrent();
