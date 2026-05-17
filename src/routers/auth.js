@@ -155,11 +155,11 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
         requireString(body.email, 'email, name, password are required').toLowerCase()
       );
       name = requireString(body.name, 'email, name, password are required');
-    // Strip HTML tags from name to prevent stored XSS
-    name = stripHtml(name);
-    if (!name) {
-      return error(req, 'Name cannot be empty after removing invalid characters', 400);
-    }
+      // Strip HTML tags from name to prevent stored XSS
+      name = stripHtml(name);
+      if (!name) {
+        return error(req, 'Name cannot be empty after removing invalid characters', 400);
+      }
       password = requireString(body.password, 'email, name, password are required', {
         trim: false,
       });
@@ -627,7 +627,7 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     if (!token) {
       return error(req, 'Token is required', 400);
     }
-    
+
     const { verifyEmail } = await import('./email-verification.js');
     return verifyEmail({ token });
   }
@@ -650,12 +650,12 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     } catch {
       return error(req, 'Invalid JSON body', 400);
     }
-    
+
     const email = body?.email;
     if (!email) {
       return error(req, 'Email is required', 400);
     }
-    
+
     const { resendVerification } = await import('./email-verification.js');
     return resendVerification({ email, env });
   }
