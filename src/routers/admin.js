@@ -6,7 +6,7 @@
  */
 
 import { createDB } from "../db.js";
-import { error, json } from "../utils/response.js";
+import { error, getConnectionTestFailureMessage, json } from "../utils/response.js";
 import { authorize, logAuditEvent, getAuditLog } from "../utils/authorize.js";
 import {
 	getConfigBool,
@@ -1089,9 +1089,15 @@ export async function adminRouter(req, env, ctx, user, path) {
 				headers: buildConnectionHeaders(testConnection),
 			});
 			if (!discovery.items.length) {
-				const message = discovery.error?.message || "No models discovered";
+				const upstreamMessage = discovery.error?.message || "No models discovered";
+				const upstreamStatus = discovery.error?.status;
+				console.warn(
+					"Connection test failed:",
+					JSON.stringify({ status: upstreamStatus, url: discovery.error?.url, message: upstreamMessage }),
+				);
+				const safeReason = getConnectionTestFailureMessage(upstreamStatus);
 				return error(req, "Connection failed", 502, {
-					message: String(message).slice(0, 200),
+					message: safeReason,
 				});
 			}
 
