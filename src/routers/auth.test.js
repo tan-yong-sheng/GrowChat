@@ -443,21 +443,41 @@ describe('authRouter', () => {
     expect(mocks.revokeRefreshToken).toHaveBeenCalledWith(env, 'bye');
   });
 
-  it('fails auth endpoints when JWT_SECRET is missing', async () => {
+  it('returns 500 when JWT_SECRET is missing', async () => {
     const env = { DB: {}, JWT_SECRET: '' };
 
-    await expect(
-      authRouter(
-        makeReq('/api/auth/login', 'POST', {
-          email: 'user@example.com',
-          password: 'password123',
-        }),
-        env,
-        {},
-        null,
-        '/api/auth/login'
-      )
-    ).rejects.toThrow('JWT_SECRET environment variable is required for non-localhost deployments');
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'user@example.com',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.details.message).toContain('JWT_SECRET');
+  });
+
+  it('returns 500 with clear message when JWT_SECRET is too short', async () => {
+    const env = { DB: {}, JWT_SECRET: 'too-short' };
+    const res = await authRouter(
+      makeReq('/api/auth/register', 'POST', {
+        email: 'test@example.com',
+        name: 'Test',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/register'
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.details.message).toContain('JWT_SECRET');
+    expect(body.details.message).toContain('32 bytes');
   });
 
   it('GET /api/auth/me returns user profile when authenticated', async () => {
