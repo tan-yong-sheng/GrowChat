@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   updateUserToolServer: vi.fn(),
   deleteUserToolServer: vi.fn(),
   testToolServerConnection: vi.fn(),
+  isSafeOutboundUrl: vi.fn(() => ({ safe: true })),
 }));
 
 vi.mock('../db.js', () => ({
@@ -90,6 +91,9 @@ vi.mock('../admin/tool-servers.js', () => ({
   loadUserToolServers: (...args) => mocks.loadUserToolServers(...args),
   testToolServerConnection: (...args) => mocks.testToolServerConnection(...args),
   updateUserToolServer: (...args) => mocks.updateUserToolServer(...args),
+}));
+vi.mock('../utils/validation.js', () => ({
+  isSafeOutboundUrl: (...args) => mocks.isSafeOutboundUrl(...args),
 }));
 
 import { usersRouter } from './users.js';
@@ -565,40 +569,40 @@ describe('usersRouter', () => {
   });
 
   it('does not leak upstream error details when personal connection test fails', async () => {
-      mocks.discoverConnectionModels.mockResolvedValueOnce({
-        items: [],
-        error: {
-          status: 401,
-          url: 'https://api.openai.com/v1/models',
-          message: 'Incorrect API key provided: sk-test-************cdef.',
-        },
-      });
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const res = await usersRouter(
-        makeReq('/api/users/me/resources/connections/test', 'POST', {
-          name: 'Leaky Connection',
-          base_url: 'https://api.openai.com/v1',
-          provider_type: 'openai-compatible',
-          key: 'sk-test-bad',
-        }),
-        env,
-        {},
-        user,
-        '/api/users/me/resources/connections/test'
-      );
-      const payload = await res.json();
-      expect(res.status).toBe(502);
-      expect(payload.details.message).toBe('Authentication failed \u2014 check your API key');
-      expect(payload.details.message).not.toContain('sk-test');
-      expect(payload.details.message).not.toContain('Incorrect API key');
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Connection test failed:',
-        expect.stringContaining('Incorrect API key'),
-      );
-      consoleSpy.mockRestore();
+    mocks.discoverConnectionModels.mockResolvedValueOnce({
+      items: [],
+      error: {
+        status: 401,
+        url: 'https://api.openai.com/v1/models',
+        message: 'Incorrect API key provided: sk-test-************cdef.',
+      },
     });
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await usersRouter(
+      makeReq('/api/users/me/resources/connections/test', 'POST', {
+        name: 'Leaky Connection',
+        base_url: 'https://api.openai.com/v1',
+        provider_type: 'openai-compatible',
+        key: 'sk-test-bad',
+      }),
+      env,
+      {},
+      user,
+      '/api/users/me/resources/connections/test'
+    );
+    const payload = await res.json();
+    expect(res.status).toBe(502);
+    expect(payload.details.message).toBe('Authentication failed \u2014 check your API key');
+    expect(payload.details.message).not.toContain('sk-test');
+    expect(payload.details.message).not.toContain('Incorrect API key');
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'Connection test failed:',
+      expect.stringContaining('Incorrect API key')
+    );
+    consoleSpy.mockRestore();
+  });
 
-    it('returns personal MCP servers for the current user', async () => {
+  it('returns personal MCP servers for the current user', async () => {
     mocks.loadToolServers.mockResolvedValueOnce([
       {
         id: 'mcp-personal',

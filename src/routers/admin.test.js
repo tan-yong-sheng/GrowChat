@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   setConfigValue: vi.fn(),
   mcpRequest: vi.fn(),
   mcpNotify: vi.fn(),
+  isSafeOutboundUrl: vi.fn(() => ({ safe: true })),
 }));
 
 vi.mock('../db.js', () => ({
@@ -57,6 +58,9 @@ vi.mock('../mcp/client.js', () => ({
   MCP_PROTOCOL_VERSION: '2024-11-05',
   mcpNotify: (...args) => mocks.mcpNotify(...args),
   mcpRequest: (...args) => mocks.mcpRequest(...args),
+}));
+vi.mock('../utils/validation.js', () => ({
+  isSafeOutboundUrl: (...args) => mocks.isSafeOutboundUrl(...args),
 }));
 
 import { adminRouter } from './admin.js';
@@ -242,46 +246,47 @@ describe('adminRouter openai connections', () => {
   });
 
   it('does not leak upstream error details when connection test fails', async () => {
-		mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([]);
-		mocks.buildConnectionHeaders.mockReturnValueOnce({ Authorization: 'Bearer sk-test-123' });
-		mocks.discoverConnectionModels.mockResolvedValueOnce({
-			items: [],
-			error: {
-				status: 401,
-				url: 'https://api.openai.com/v1/models',
-				message: 'Incorrect API key provided: sk-test-************cdef. You can find your API key at https://platform.openai.com/account/api-keys.',
-			},
-		});
-		const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const res = await adminRouter(
-			new Request('https://example.com/api/admin/openai/connections/test', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					providerType: 'openai',
-					url: 'https://api.openai.com/v1',
-					key: 'sk-test-bad-key',
-					headers: '{}',
-				}),
-			}),
-			{ DB: {} },
-			{},
-			{ sub: 'admin-1' },
-			'/api/admin/openai/connections/test'
-		);
-		const payload = await res.json();
-		expect(res.status).toBe(502);
-		expect(payload.details.message).toBe('Authentication failed \u2014 check your API key');
-		expect(payload.details.message).not.toContain('sk-test');
-		expect(payload.details.message).not.toContain('Incorrect API key');
-		expect(consoleSpy).toHaveBeenCalledWith(
-			'Connection test failed:',
-			expect.stringContaining('Incorrect API key'),
-		);
-		consoleSpy.mockRestore();
-	});
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValueOnce([]);
+    mocks.buildConnectionHeaders.mockReturnValueOnce({ Authorization: 'Bearer sk-test-123' });
+    mocks.discoverConnectionModels.mockResolvedValueOnce({
+      items: [],
+      error: {
+        status: 401,
+        url: 'https://api.openai.com/v1/models',
+        message:
+          'Incorrect API key provided: sk-test-************cdef. You can find your API key at https://platform.openai.com/account/api-keys.',
+      },
+    });
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/openai/connections/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerType: 'openai',
+          url: 'https://api.openai.com/v1',
+          key: 'sk-test-bad-key',
+          headers: '{}',
+        }),
+      }),
+      { DB: {} },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/openai/connections/test'
+    );
+    const payload = await res.json();
+    expect(res.status).toBe(502);
+    expect(payload.details.message).toBe('Authentication failed \u2014 check your API key');
+    expect(payload.details.message).not.toContain('sk-test');
+    expect(payload.details.message).not.toContain('Incorrect API key');
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'Connection test failed:',
+      expect.stringContaining('Incorrect API key')
+    );
+    consoleSpy.mockRestore();
+  });
 
-	it('returns connection access groups for a connection', async () => {
+  it('returns connection access groups for a connection', async () => {
     const all = vi.fn(async (sql) => {
       if (String(sql).includes('FROM groups')) {
         return [
@@ -1247,7 +1252,6 @@ describe('adminRouter openai connections', () => {
       '/api/admin/openai/connections'
     );
     const payload = await res.json();
-
     expect(res.status).toBe(200);
     expect(payload).toEqual({ ok: true, model_updates: 0, access_updates: [] });
     expect(batch).toHaveBeenCalledTimes(1);

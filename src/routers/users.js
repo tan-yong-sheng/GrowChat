@@ -8,6 +8,7 @@ import {
   resolvePermissions,
   getUserRoles,
 } from '../utils/authorize.js';
+import { isSafeOutboundUrl } from '../utils/validation.js';
 import { getConfigValue } from '../utils/app-config.js';
 import { hashPassword } from '../shared/auth.js';
 import {
@@ -420,6 +421,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
     if (!/^https?:\/\//i.test(baseUrl)) {
       return error(req, 'Connection URL must start with http:// or https://', 400);
     }
+    const urlSafety = isSafeOutboundUrl(baseUrl);
+    if (!urlSafety.safe) {
+      return error(req, urlSafety.reason, 400);
+    }
 
     let headers = {};
     try {
@@ -456,7 +461,11 @@ export async function usersRouter(req, env, _ctx, user, path) {
         const upstreamStatus = discovery.error?.status;
         console.warn(
           'Connection test failed:',
-          JSON.stringify({ status: upstreamStatus, url: discovery.error?.url, message: upstreamMessage }),
+          JSON.stringify({
+            status: upstreamStatus,
+            url: discovery.error?.url,
+            message: upstreamMessage,
+          })
         );
         const safeReason = getConnectionTestFailureMessage(upstreamStatus);
         return error(req, 'Connection failed', 502, {
@@ -542,6 +551,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
     if (!url || !/^https?:\/\//i.test(url)) {
       return error(req, 'Server URL must start with http:// or https://', 400);
     }
+    const mcpUrlSafety = isSafeOutboundUrl(url);
+    if (!mcpUrlSafety.safe) {
+      return error(req, mcpUrlSafety.reason, 400);
+    }
 
     try {
       const result = await testToolServerConnection({
@@ -583,6 +596,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
     const serverUrl = String(body.url || existingServer?.url || '').trim();
     if (!serverUrl || !/^https?:\/\//i.test(serverUrl)) {
       return error(req, 'Server URL must start with http:// or https://', 400);
+    }
+    const userOauthUrlSafety = isSafeOutboundUrl(serverUrl);
+    if (!userOauthUrlSafety.safe) {
+      return error(req, userOauthUrlSafety.reason, 400);
     }
 
     const oauthClientName = String(
@@ -1500,7 +1517,11 @@ export async function usersRouter(req, env, _ctx, user, path) {
     }
 
     // Can update name
-    if (body.name !== undefined) { const name = stripHtml(body.name); if (!name) { return error(req, 'Name cannot be empty after removing invalid characters', 400); }
+    if (body.name !== undefined) {
+      const name = stripHtml(body.name);
+      if (!name) {
+        return error(req, 'Name cannot be empty after removing invalid characters', 400);
+      }
       updates.push('name = ?');
       values.push(name);
       updatedFields.push('name');
