@@ -48,6 +48,10 @@ module.exports = [
               from: { type: 'f-utils' },
               allow: { to: { type: ['f-utils', 'f-shared'] } },
             },
+            {
+              from: { type: 'scripts' },
+              allow: { to: { type: ['scripts'] } },
+            },
           ],
         },
       ],
