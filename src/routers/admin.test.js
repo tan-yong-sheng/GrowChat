@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   setConfigValue: vi.fn(),
   mcpRequest: vi.fn(),
   mcpNotify: vi.fn(),
+  isSafeOutboundUrl: vi.fn(() => ({ safe: true })),
 }));
 
 vi.mock('../db.js', () => ({
@@ -57,6 +58,9 @@ vi.mock('../mcp/client.js', () => ({
   MCP_PROTOCOL_VERSION: '2024-11-05',
   mcpNotify: (...args) => mocks.mcpNotify(...args),
   mcpRequest: (...args) => mocks.mcpRequest(...args),
+}));
+vi.mock('../utils/validation.js', () => ({
+  isSafeOutboundUrl: (...args) => mocks.isSafeOutboundUrl(...args),
 }));
 
 import { adminRouter } from './admin.js';
@@ -1247,9 +1251,7 @@ describe('adminRouter openai connections', () => {
       '/api/admin/openai/connections'
     );
     const payload = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(payload).toEqual({ ok: true, model_updates: 0, access_updates: [] });
+		expect(res.status).toBe(200);    expect(payload).toEqual({ ok: true, model_updates: 0, access_updates: [] });
     expect(batch).toHaveBeenCalledTimes(1);
     expect(mocks.setConfigValue).not.toHaveBeenCalled();
     expect(mocks.logAuditEvent).toHaveBeenCalledWith(

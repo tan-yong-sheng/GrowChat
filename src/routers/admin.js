@@ -8,6 +8,7 @@
 import { createDB } from "../db.js";
 import { error, getConnectionTestFailureMessage, json } from "../utils/response.js";
 import { authorize, logAuditEvent, getAuditLog } from "../utils/authorize.js";
+import { isSafeOutboundUrl } from "../utils/validation.js";
 import {
 	getConfigBool,
 	getConfigValue,
@@ -1040,6 +1041,10 @@ export async function adminRouter(req, env, ctx, user, path) {
 				400,
 			);
 		}
+		const urlSafety = isSafeOutboundUrl(baseUrl);
+		if (!urlSafety.safe) {
+			return error(req, urlSafety.reason, 400);
+		}
 
 		const key = String(body.key || "").trim();
 		let headers = {};
@@ -1098,8 +1103,7 @@ export async function adminRouter(req, env, ctx, user, path) {
 				const safeReason = getConnectionTestFailureMessage(upstreamStatus);
 				return error(req, "Connection failed", 502, {
 					message: safeReason,
-				});
-			}
+				});			}
 
 			return json(req, {
 				ok: true,
@@ -1166,7 +1170,10 @@ export async function adminRouter(req, env, ctx, user, path) {
 
 		const url = String(body.url || "").trim();
 		if (!url || !isValidHttpUrl(url)) {
-			return error(req, "Server URL must start with http:// or https://", 400);
+			return error(req, "Server URL must start with http:// or https://", 400);		}
+		const serverUrlSafety = isSafeOutboundUrl(url);
+		if (!serverUrlSafety.safe) {
+			return error(req, serverUrlSafety.reason, 400);
 		}
 
 		let headers = {};
@@ -1343,7 +1350,10 @@ export async function adminRouter(req, env, ctx, user, path) {
 		const existingServer = serverIndex === -1 ? null : servers[serverIndex];
 		const serverUrl = String(body.url || existingServer?.url || "").trim();
 		if (!serverUrl || !isValidHttpUrl(serverUrl)) {
-			return error(req, "Server URL must start with http:// or https://", 400);
+			return error(req, "Server URL must start with http:// or https://", 400);		}
+		const oauthUrlSafety = isSafeOutboundUrl(serverUrl);
+		if (!oauthUrlSafety.safe) {
+			return error(req, oauthUrlSafety.reason, 400);
 		}
 
 		if (!existingServer) {
@@ -1707,6 +1717,10 @@ export async function adminRouter(req, env, ctx, user, path) {
 						throw new Error(
 							"Connection URL must start with http:// or https://",
 						);
+					}
+					const bulkUrlSafety = isSafeOutboundUrl(url);
+					if (!bulkUrlSafety.safe) {
+						throw new Error(bulkUrlSafety.reason);
 					}
 					const keyRaw =
 						conn.key !== undefined ? String(conn.key || "").trim() : "";
