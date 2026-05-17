@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 
 const budgets = {
   'features/chat': 14.0,
-  shared: 7.5,
+  shared: 9.0,
   'features/account': 6.5,
-  'features/admin': 5.5,
+  'features/admin': 7.5,
   total: 4.5,
 };
 

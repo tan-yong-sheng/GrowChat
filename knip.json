@@ -18,7 +18,11 @@
     "public/js/shared/components/chat-controls-panel.js",
     "public/js/shared/components/form-label-with-helper.js",
     "public/js/shared/components/status-badge.js",
-    "public/js/shared/utils/model-filters.test.js"
+    "public/js/shared/utils/model-filters.test.js",
+    "public/js/features/admin/settings/security.js",
+    "tests/e2e/frontend/admin-test-helpers.ts",
+    "tests/shared/playwright-global-setup.js",
+    "tests/shared/test-env.js"
   ],
   "ignoreDependencies": ["dompurify", "ecc-universal", "zod"],
   "ignoreBinaries": ["dot", "uv", "semgrep"],

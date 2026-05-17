@@ -1,0 +1,11 @@
+name: GrowChat CodeQL Config
+
+# Exclude test files and generated code from analysis
+exclude_paths:
+  - node_modules
+  - coverage
+  - .wrangler
+  - public/styles.css
+  - tests/e2e
+  - '*.test.js'
+  - '*.spec.js'
