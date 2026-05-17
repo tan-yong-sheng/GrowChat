@@ -38,15 +38,15 @@ vi.mock('../shared/session.js', () => ({
   revokeRefreshToken: (...args) => mocks.revokeRefreshToken(...args),
 }));
 
-
 vi.mock('../repositories/user-repository.js', () => ({
   createUserRepository: (db) => ({
-    count: () => db.first('SELECT COUNT(*) as count FROM users').then(r => Number(r?.count || 0)),
+    count: () => db.first('SELECT COUNT(*) as count FROM users').then((r) => Number(r?.count || 0)),
     findByEmail: (email, columns) => {
       const cols = columns || '*';
-      const sql = cols === '*' 
-        ? 'SELECT * FROM users WHERE email = ?' 
-        : 'SELECT id FROM users WHERE email = ?';
+      const sql =
+        cols === '*'
+          ? 'SELECT * FROM users WHERE email = ?'
+          : 'SELECT id FROM users WHERE email = ?';
       return db.first(sql, [email]);
     },
     findById: (id) => db.first('SELECT * FROM users WHERE id = ?', [id]),
@@ -61,9 +61,6 @@ vi.mock('../repositories/user-repository.js', () => ({
     touchLastActive: () => Promise.resolve(undefined),
   }),
 }));
-
-
-
 
 vi.mock('../utils/user-role.js', () => ({
   loadPrimaryRole: (...args) => mocks.loadPrimaryRole(...args),
@@ -86,7 +83,7 @@ function makeReq(path, method, body, headers = {}) {
 describe('authRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-	mocks.loadPrimaryRole.mockResolvedValue('member');
+    mocks.loadPrimaryRole.mockResolvedValue('member');
     queryResponses = {
       countUsers: [],
       appConfig: [],
@@ -493,13 +490,7 @@ describe('authRouter', () => {
 
   it('GET /api/auth/me returns 401 when not authenticated', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
-    const res = await authRouter(
-      makeReq('/api/auth/me', 'GET'),
-      env,
-      {},
-      null,
-      '/api/auth/me'
-    );
+    const res = await authRouter(makeReq('/api/auth/me', 'GET'), env, {}, null, '/api/auth/me');
     expect(res.status).toBe(401);
   });
 
