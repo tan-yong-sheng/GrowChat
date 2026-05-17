@@ -9,8 +9,14 @@ describe('isSafeOutboundUrl', () => {
   });
 
   it('rejects non-HTTP protocols', () => {
-    expect(isSafeOutboundUrl('ftp://example.com/')).toEqual({ safe: false, reason: expect.any(String) });
-    expect(isSafeOutboundUrl('file:///etc/passwd')).toEqual({ safe: false, reason: expect.any(String) });
+    expect(isSafeOutboundUrl('ftp://example.com/')).toEqual({
+      safe: false,
+      reason: expect.any(String),
+    });
+    expect(isSafeOutboundUrl('file:///etc/passwd')).toEqual({
+      safe: false,
+      reason: expect.any(String),
+    });
   });
 
   it('rejects invalid URLs', () => {

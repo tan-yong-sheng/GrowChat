@@ -419,12 +419,12 @@ export async function usersRouter(req, env, _ctx, user, path) {
       return error(req, 'Connection URL is required for compatible providers', 400);
     }
     if (!/^https?:\/\//i.test(baseUrl)) {
-            return error(req, 'Connection URL must start with http:// or https://', 400);
-          }
-          const urlSafety = isSafeOutboundUrl(baseUrl);
-          if (!urlSafety.safe) {
-            return error(req, urlSafety.reason, 400);
-          }
+      return error(req, 'Connection URL must start with http:// or https://', 400);
+    }
+    const urlSafety = isSafeOutboundUrl(baseUrl);
+    if (!urlSafety.safe) {
+      return error(req, urlSafety.reason, 400);
+    }
 
     let headers = {};
     try {
@@ -461,7 +461,11 @@ export async function usersRouter(req, env, _ctx, user, path) {
         const upstreamStatus = discovery.error?.status;
         console.warn(
           'Connection test failed:',
-          JSON.stringify({ status: upstreamStatus, url: discovery.error?.url, message: upstreamMessage }),
+          JSON.stringify({
+            status: upstreamStatus,
+            url: discovery.error?.url,
+            message: upstreamMessage,
+          })
         );
         const safeReason = getConnectionTestFailureMessage(upstreamStatus);
         return error(req, 'Connection failed', 502, {
