@@ -35,7 +35,8 @@
     "lint:dupes:scoped": "node scripts/run-scoped-guardrails.js --jscpd",
     "lint:hygiene": "npx knip --include files,dependencies,binaries",
     "precommit": "node scripts/secret-scan.cjs && npx lint-staged",
-    "prepush": "npm run test && npm run typecheck && npm run lint:logic:scoped && npm run lint:dupes:scoped && npm run lint:dupes:budget && npm run arch:check:scoped && npm run format:check:scoped && npm run lint:hygiene"
+    "prepush": "npm run test && npm run typecheck && npm run lint:logic:scoped && npm run lint:dupes:scoped && npm run lint:dupes:budget && npm run arch:check:scoped && npm run format:check:scoped && npm run lint:hygiene",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^20.5.0",
