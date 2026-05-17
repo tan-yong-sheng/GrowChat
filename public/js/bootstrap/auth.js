@@ -325,6 +325,15 @@ resetPasswordModal.addEventListener("click", (e) => {
 		closeResetPasswordModal();
 	}
 });
+document.addEventListener("keydown", (e) => {
+	if (e.key === "Escape") {
+		if (!forgotPasswordModal.classList.contains("hidden")) {
+			closeForgotPasswordModal();
+		} else if (!resetPasswordModal.classList.contains("hidden")) {
+			closeResetPasswordModal();
+		}
+	}
+});
 
 // Form validation listeners
 emailInput.addEventListener("input", () =>
