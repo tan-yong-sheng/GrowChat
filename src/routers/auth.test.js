@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   createRefreshToken: vi.fn(),
   consumeRefreshToken: vi.fn(),
   revokeRefreshToken: vi.fn(),
+  loadPrimaryRole: vi.fn(),
 }));
 
 let queryResponses;
@@ -37,6 +38,35 @@ vi.mock('../shared/session.js', () => ({
   revokeRefreshToken: (...args) => mocks.revokeRefreshToken(...args),
 }));
 
+vi.mock('../repositories/user-repository.js', () => ({
+  createUserRepository: (db) => ({
+    count: () => db.first('SELECT COUNT(*) as count FROM users').then((r) => Number(r?.count || 0)),
+    findByEmail: (email, columns) => {
+      const cols = columns || '*';
+      const sql =
+        cols === '*'
+          ? 'SELECT * FROM users WHERE email = ?'
+          : 'SELECT id FROM users WHERE email = ?';
+      return db.first(sql, [email]);
+    },
+    findById: (id) => db.first('SELECT * FROM users WHERE id = ?', [id]),
+    create: async (userData) => {
+      const id = userData.id || crypto.randomUUID();
+      await db.run(
+        'INSERT INTO users (id, email, password_hash, name, account_status, settings) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, userData.email, userData.passwordHash, userData.name, userData.accountStatus, '{}']
+      );
+      return { id, ...userData };
+    },
+    touchLastActive: () => Promise.resolve(undefined),
+  }),
+}));
+
+vi.mock('../utils/user-role.js', () => ({
+  loadPrimaryRole: (...args) => mocks.loadPrimaryRole(...args),
+  normalizePublicRole: vi.fn((r) => r || 'member'),
+}));
+
 import { authRouter } from './auth.js';
 
 const VALID_JWT_SECRET = '0123456789abcdef0123456789abcdef';
@@ -53,6 +83,7 @@ function makeReq(path, method, body, headers = {}) {
 describe('authRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.loadPrimaryRole.mockResolvedValue('member');
     queryResponses = {
       countUsers: [],
       appConfig: [],
@@ -427,5 +458,76 @@ describe('authRouter', () => {
         '/api/auth/login'
       )
     ).rejects.toThrow('JWT_SECRET environment variable is required for non-localhost deployments');
+  });
+
+  it('GET /api/auth/me returns user profile when authenticated', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    const mockUser = {
+      id: 'user-1',
+      email: 'alice@example.com',
+      name: 'Alice',
+      account_status: 'active',
+      settings: '{}',
+      created_at: 1000,
+      last_active_at: 2000,
+      updated_at: 3000,
+    };
+    queryResponses.userById.push(mockUser);
+    mocks.loadPrimaryRole.mockResolvedValueOnce('admin');
+    const res = await authRouter(
+      makeReq('/api/auth/me', 'GET'),
+      env,
+      {},
+      { sub: 'user-1', email: 'alice@example.com' },
+      '/api/auth/me'
+    );
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.id).toBe('user-1');
+    expect(payload.email).toBe('alice@example.com');
+    expect(payload.primary_role).toBe('admin');
+  });
+
+  it('GET /api/auth/me returns 401 when not authenticated', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    const res = await authRouter(makeReq('/api/auth/me', 'GET'), env, {}, null, '/api/auth/me');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/auth/me returns 404 when user not found', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    // userById defaults to null in beforeEach
+    const res = await authRouter(
+      makeReq('/api/auth/me', 'GET'),
+      env,
+      {},
+      { sub: 'deleted-user', email: 'gone@example.com' },
+      '/api/auth/me'
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 405 for wrong method on known auth paths', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'GET'),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+    expect(res.status).toBe(405);
+  });
+
+  it('returns 405 for DELETE on /api/auth/register', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    const res = await authRouter(
+      makeReq('/api/auth/register', 'DELETE'),
+      env,
+      {},
+      null,
+      '/api/auth/register'
+    );
+    expect(res.status).toBe(405);
   });
 });

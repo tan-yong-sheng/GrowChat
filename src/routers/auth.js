@@ -106,7 +106,7 @@ async function createAccessToken(secret, user, primaryRole) {
   );
 }
 
-export async function authRouter(req, env, _ctx, _authUser, path) {
+export async function authRouter(req, env, _ctx, authUser, path) {
   const db = createDB(env.DB);
   const users = createUserRepository(db);
   const jwtSecret = getJwtSecret(env, req);
@@ -148,11 +148,11 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
         requireString(body.email, 'email, name, password are required').toLowerCase()
       );
       name = requireString(body.name, 'email, name, password are required');
-    // Strip HTML tags from name to prevent stored XSS
-    name = stripHtml(name);
-    if (!name) {
-      return error(req, 'Name cannot be empty after removing invalid characters', 400);
-    }
+      // Strip HTML tags from name to prevent stored XSS
+      name = stripHtml(name);
+      if (!name) {
+        return error(req, 'Name cannot be empty after removing invalid characters', 400);
+      }
       password = requireString(body.password, 'email, name, password are required', {
         trim: false,
       });
@@ -620,7 +620,7 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     if (!token) {
       return error(req, 'Token is required', 400);
     }
-    
+
     const { verifyEmail } = await import('./email-verification.js');
     return verifyEmail({ token });
   }
@@ -643,14 +643,45 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     } catch {
       return error(req, 'Invalid JSON body', 400);
     }
-    
+
     const email = body?.email;
     if (!email) {
       return error(req, 'Email is required', 400);
     }
-    
+
     const { resendVerification } = await import('./email-verification.js');
     return resendVerification({ email, env });
+  }
+
+  // GET /api/auth/me - Return the authenticated user profile
+  if (req.method === 'GET' && path === '/api/auth/me') {
+    if (!authUser?.sub) {
+      return error(req, 'Authentication required', 401);
+    }
+    const db = createDB(env.DB);
+    const users = createUserRepository(db);
+    const user = await users.findById(authUser.sub);
+    if (!user) {
+      return error(req, 'User not found', 404);
+    }
+    const primaryRole = await loadPrimaryRole(env, authUser.sub);
+    return json(req, sanitizeUser(user, primaryRole));
+  }
+
+  // Return 405 for method mismatches on known auth paths
+  const authPaths = [
+    '/api/auth/register',
+    '/api/auth/login',
+    '/api/auth/refresh',
+    '/api/auth/logout',
+    '/api/auth/forgot-password',
+    '/api/auth/reset-password',
+    '/api/auth/verify-email',
+    '/api/auth/resend-verification',
+    '/api/auth/me',
+  ];
+  if (authPaths.includes(path)) {
+    return error(req, 'Method not allowed', 405);
   }
 
   return null;
