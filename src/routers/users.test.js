@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   updateUserToolServer: vi.fn(),
   deleteUserToolServer: vi.fn(),
   testToolServerConnection: vi.fn(),
+  isSafeOutboundUrl: vi.fn(() => ({ safe: true })),
 }));
 
 vi.mock('../db.js', () => ({
@@ -90,6 +91,9 @@ vi.mock('../admin/tool-servers.js', () => ({
   loadUserToolServers: (...args) => mocks.loadUserToolServers(...args),
   testToolServerConnection: (...args) => mocks.testToolServerConnection(...args),
   updateUserToolServer: (...args) => mocks.updateUserToolServer(...args),
+}));
+vi.mock('../utils/validation.js', () => ({
+  isSafeOutboundUrl: (...args) => mocks.isSafeOutboundUrl(...args),
 }));
 
 import { usersRouter } from './users.js';
