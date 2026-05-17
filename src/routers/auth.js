@@ -106,7 +106,7 @@ async function createAccessToken(secret, user, primaryRole) {
   );
 }
 
-export async function authRouter(req, env, _ctx, _authUser, path) {
+export async function authRouter(req, env, _ctx, authUser, path) {
   const db = createDB(env.DB);
   const users = createUserRepository(db);
   const jwtSecret = getJwtSecret(env, req);
@@ -653,5 +653,36 @@ export async function authRouter(req, env, _ctx, _authUser, path) {
     return resendVerification({ email, env });
   }
 
-  return null;
+	// GET /api/auth/me - Return the authenticated user profile
+	if (req.method === 'GET' && path === '/api/auth/me') {
+		if (!authUser?.sub) {
+			return error(req, 'Authentication required', 401);
+		}
+		const db = createDB(env.DB);
+		const users = createUserRepository(db);
+		const user = await users.findById(authUser.sub);
+		if (!user) {
+			return error(req, 'User not found', 404);
+		}
+		const primaryRole = await loadPrimaryRole(env, authUser.sub);
+		return json(req, sanitizeUser(user, primaryRole));
+	}
+
+	// Return 405 for method mismatches on known auth paths
+	const authPaths = [
+		'/api/auth/register',
+		'/api/auth/login',
+		'/api/auth/refresh',
+		'/api/auth/logout',
+		'/api/auth/forgot-password',
+		'/api/auth/reset-password',
+		'/api/auth/verify-email',
+		'/api/auth/resend-verification',
+		'/api/auth/me',
+	];
+	if (authPaths.includes(path)) {
+		return error(req, 'Method not allowed', 405);
+	}
+
+	return null;
 }
