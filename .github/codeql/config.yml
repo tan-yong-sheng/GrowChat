@@ -1,0 +1,10 @@
+name: GrowChat CodeQL Config
+
+paths-ignore:
+  - '**/node_modules/**'
+  - '**/coverage/**'
+  - '**/.wrangler/**'
+  - '**/tests/e2e/**'
+  - '**/*.test.js'
+  - '**/*.spec.js'
+  - 'public/styles.css'

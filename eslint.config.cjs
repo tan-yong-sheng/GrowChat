@@ -20,6 +20,7 @@ module.exports = [
         { type: 'f-feature', pattern: 'public/js/features/**' },
         { type: 'f-shared', pattern: 'public/js/shared/**' },
         { type: 'f-utils', pattern: 'public/js/utils/**' },
+        { type: 'scripts', pattern: 'scripts/**' },
       ],
     },
     rules: {
@@ -46,6 +47,10 @@ module.exports = [
             {
               from: { type: 'f-utils' },
               allow: { to: { type: ['f-utils', 'f-shared'] } },
+            },
+            {
+              from: { type: 'scripts' },
+              allow: { to: { type: ['scripts'] } },
             },
           ],
         },
