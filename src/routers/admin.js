@@ -6,7 +6,7 @@
  */
 
 import { createDB } from "../db.js";
-import { error, json } from "../utils/response.js";
+import { error, getConnectionTestFailureMessage, json } from "../utils/response.js";
 import { authorize, logAuditEvent, getAuditLog } from "../utils/authorize.js";
 import {
 	getConfigBool,
@@ -1095,15 +1095,7 @@ export async function adminRouter(req, env, ctx, user, path) {
 					"Connection test failed:",
 					JSON.stringify({ status: upstreamStatus, url: discovery.error?.url, message: upstreamMessage }),
 				);
-				const safeReason = upstreamStatus === 401
-					? "Authentication failed \u2014 check your API key"
-					: upstreamStatus === 403
-						? "Access denied \u2014 check your permissions"
-						: upstreamStatus === 404
-							? "Endpoint not found \u2014 check your connection URL"
-							: upstreamStatus != null && upstreamStatus >= 500
-								? "Upstream server error \u2014 try again later"
-								: "Connection failed \u2014 check your settings and try again";
+				const safeReason = getConnectionTestFailureMessage(upstreamStatus);
 				return error(req, "Connection failed", 502, {
 					message: safeReason,
 				});
