@@ -17,7 +17,7 @@
     <div class="w-full max-w-[440px] px-6 flex flex-col items-center">
       <h1 id="auth-title" class="text-[32px] font-semibold mb-8 text-gray-900">Sign in to GrowChat</h1>
 
-      <form id="auth-form" class="w-full space-y-4">
+      <form id="auth-form" method="POST" action="#" class="w-full space-y-4">
         <!-- Name field for registration -->
         <div id="name-wrap" class="hidden">
            <label class="block text-sm font-medium text-gray-900 mb-1.5" for="name">Name</label>
@@ -54,7 +54,7 @@
       <h2 id="modal-title" class="text-[24px] font-semibold mb-2 text-gray-900">Reset your password</h2>
       <p id="modal-subtitle" class="text-sm text-gray-600 mb-6">Enter your email to receive a password reset link</p>
 
-      <form id="forgot-password-form" class="space-y-4">
+      <form id="forgot-password-form" method="POST" action="#" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-900 mb-1.5" for="forgot-email">Email</label>
           <input id="forgot-email" type="email" autocomplete="email" placeholder="Enter your email" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-500 transition placeholder:text-gray-400" required />
@@ -76,7 +76,7 @@
       <h2 class="text-[24px] font-semibold mb-2 text-gray-900">Create new password</h2>
       <p class="text-sm text-gray-600 mb-6">Enter your new password below</p>
 
-      <form id="reset-password-form" class="space-y-4">
+      <form id="reset-password-form" method="POST" action="#" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-900 mb-1.5" for="new-password">New Password</label>
           <input id="new-password" type="password" autocomplete="new-password" placeholder="Enter new password" class="w-full px-5 py-3 border border-gray-200 rounded-[20px] focus:outline-none focus:ring-1 focus:ring-gray-500 transition placeholder:text-gray-400" required />

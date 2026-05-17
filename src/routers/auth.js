@@ -109,7 +109,14 @@ async function createAccessToken(secret, user, primaryRole) {
 export async function authRouter(req, env, _ctx, _authUser, path) {
   const db = createDB(env.DB);
   const users = createUserRepository(db);
-  const jwtSecret = getJwtSecret(env, req);
+  let jwtSecret;
+  try {
+    jwtSecret = getJwtSecret(env, req);
+  } catch (err) {
+    return error(req, 'JWT configuration error', 500, {
+      message: err?.message || 'JWT_SECRET configuration error',
+    });
+  }
 
   if (path.startsWith('/api/auth/') && !jwtSecret) {
     return error(req, 'JWT_SECRET is not configured', 500);

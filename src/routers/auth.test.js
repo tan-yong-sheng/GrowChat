@@ -428,4 +428,24 @@ describe('authRouter', () => {
       )
     ).rejects.toThrow('JWT_SECRET environment variable is required for non-localhost deployments');
   });
+
+  it('returns 500 with clear message when JWT_SECRET is too short', async () => {
+    const env = { DB: {}, JWT_SECRET: 'too-short' };
+    const res = await authRouter(
+      makeReq('/api/auth/register', 'POST', {
+        email: 'test@example.com',
+        name: 'Test',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/register'
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(res.status).toBe(500);
+    expect(body.details.message).toContain('JWT_SECRET');
+    expect(body.details.message).toContain('32 bytes');
+  });
 });
