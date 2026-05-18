@@ -2,9 +2,11 @@
 import { spawnSync } from 'node:child_process';
 
 const steps = [
-  ['test', ['npm', ['test']]],
-  ['coverage', ['npm', ['run', 'test:coverage']]],
-  ['css', ['npm', ['run', 'build:css']]],
+  ['lint', ['pnpm', ['run', 'lint']]],
+  ['format-check', ['pnpm', ['run', 'format:check']]],
+  ['test', ['pnpm', ['test']]],
+  ['coverage', ['pnpm', ['run', 'test:coverage']]],
+  ['css', ['pnpm', ['run', 'build:css']]],
   ['migrations', ['node', ['scripts/validate-migrations.js']]],
 ];
 

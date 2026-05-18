@@ -36,11 +36,12 @@ tests/e2e/artifacts/
 .gemini/*
 
 # Allow specific .claude subdirectories
+!.claude/agents/
+!.claude/agents/**
 !.claude/rules/
 !.claude/rules/**
 !.claude/skills/
 !.claude/skills/**
-.planning/
 
 auth.json
 dev-local.err.log
@@ -248,3 +249,4 @@ vendor/
 *.log
 coverage/
 tmp/
+package-lock.json
