@@ -79,7 +79,7 @@ pnpm run deploy                     # Triggers predeploy → tests → coverage 
 pnpm run validate:migrations
 
 # Local D1 management
-npx wrangler d1 migrations apply growchat --local  # Apply migrations manually
+pnpm exec wrangler d1 migrations apply growchat --local  # Apply migrations manually
 ```
 
 **Email:** Uses Resend for transactional emails (password reset). Configure via `RESEND_API_KEY` secret + `RESEND_FROM_EMAIL` in app config.

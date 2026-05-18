@@ -395,13 +395,15 @@ JSON.parse(localStorage.getItem('growchat_auth'));
 
 ```javascript
 const parts = token.split('.');
-JSON.parse(atob(parts[1]));
+const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+JSON.parse(atob(b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=')));
 ```
 
 ### Check Token Expiry
 
 ```javascript
-const payload = JSON.parse(atob(token.split('.')[1]));
+const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+const payload = JSON.parse(atob(b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=')));
 new Date(payload.exp * 1000);
 ```
 

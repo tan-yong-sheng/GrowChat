@@ -111,8 +111,8 @@ Open `http://localhost:8787` in your browser.
    D1 migrations are applied automatically on first deployment. For manual execution:
    ```bash
    wrangler d1 execute growchat --file=./migrations/001_initial.sql
-   wrangler d1 execute growchat --file=./migrations/002_phase2_faqs.sql
-   wrangler d1 execute growchat --file=./migrations/003_phase2_documents.sql
+   wrangler d1 execute growchat --file=./migrations/002_settings_permissions.sql
+   wrangler d1 execute growchat --file=./migrations/003_password_reset_tokens.sql
    ```
 
 ## Architecture
@@ -278,17 +278,27 @@ pnpm run build:css
 
 ### Run Tests
 
-Tests not yet configured (Phase 3 roadmap).
+```bash
+pnpm test               # Unit tests (Vitest)
+pnpm run test:coverage  # Coverage report
+pnpm run test:e2e       # E2E tests (Playwright)
+```
 
 ### Code Quality
 
-No linter currently configured (Phase 3 roadmap).
+```bash
+pnpm run lint           # ESLint
+pnpm run lint:fix       # Auto-fix ESLint
+pnpm run format         # Prettier
+pnpm run format:check   # Check formatting
+pnpm run typecheck      # TypeScript guardrails
+```
 
 ## Deployment Status
 
 - **Latest Version**: Deployed to Cloudflare Workers
 - **URL**: `https://growchat.tanyongsheng-net.workers.dev`
-- **Test Status**: Manual smoke tests passing (register, login, chat creation, streaming)
+- **Test Status**: 177 test files, 1121 tests passing (Vitest + Playwright)
 
 ## Troubleshooting
 

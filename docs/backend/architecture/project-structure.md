@@ -190,5 +190,5 @@ pnpm run test:coverage   # Coverage report
 pnpm run test:e2e        # Playwright E2E
 
 # Deployment
-pnpm run deploy           # predeploy → tests → coverage → CSS → migrations → deploy
+pnpm run deploy           # predeploy: lint → format-check → test → coverage → build:css → validate migrations → wrangler deploy
 ```
