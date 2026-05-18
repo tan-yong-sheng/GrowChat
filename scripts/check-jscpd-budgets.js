@@ -12,11 +12,15 @@ const budgets = {
 
 const run =
   process.platform === 'win32'
-    ? spawnSync('cmd.exe', ['/d', '/s', '/c', 'npx jscpd public/js --reporters json --silent'], {
-        stdio: 'inherit',
-        shell: false,
-      })
-    : spawnSync('npx', ['jscpd', 'public/js', '--reporters', 'json', '--silent'], {
+    ? spawnSync(
+        'cmd.exe',
+        ['/d', '/s', '/c', 'pnpm exec jscpd public/js --reporters json --silent'],
+        {
+          stdio: 'inherit',
+          shell: false,
+        }
+      )
+    : spawnSync('pnpm', ['exec', 'jscpd', 'public/js', '--reporters', 'json', '--silent'], {
         stdio: 'inherit',
         shell: false,
       });
