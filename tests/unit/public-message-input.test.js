@@ -76,7 +76,9 @@ describe('message input', () => {
     expect(input.disabled).toBe(true);
     expect(composer.getAttribute('aria-disabled')).toBe('true');
     expect(sendBtn.disabled).toBe(true);
-    expect(container.textContent).toContain('No selectable models are available. Ask an admin to restore access or hide fewer models.');
+    expect(container.textContent).toContain(
+      'No selectable models are available. Ask an admin to restore access or hide fewer models.'
+    );
 
     view.destroy();
   });
@@ -119,8 +121,18 @@ describe('message input', () => {
           source: 'user',
           enabled: true,
           tools: [
-            { name: 'weather_lookup', title: 'Weather Lookup', description: 'Lookup weather', enabled: true },
-            { name: 'news_lookup', title: 'News Lookup', description: 'Lookup news', enabled: true },
+            {
+              name: 'weather_lookup',
+              title: 'Weather Lookup',
+              description: 'Lookup weather',
+              enabled: true,
+            },
+            {
+              name: 'news_lookup',
+              title: 'News Lookup',
+              description: 'Lookup news',
+              enabled: true,
+            },
           ],
         },
         {
@@ -130,7 +142,12 @@ describe('message input', () => {
           access_label: 'Shared',
           enabled: true,
           tools: [
-            { name: 'search_lookup', title: 'Search Lookup', description: 'Lookup search', enabled: true },
+            {
+              name: 'search_lookup',
+              title: 'Search Lookup',
+              description: 'Lookup search',
+              enabled: true,
+            },
           ],
         },
       ],
@@ -148,7 +165,9 @@ describe('message input', () => {
     expect(container.querySelector('#tools-menu-all-on')).not.toBeNull();
     expect(container.querySelector('#tools-menu-all-off')).not.toBeNull();
     expect(container.querySelector('#tools-menu-all-on')?.classList.contains('hidden')).toBe(true);
-    expect(container.querySelector('#tools-menu-all-off')?.classList.contains('hidden')).toBe(false);
+    expect(container.querySelector('#tools-menu-all-off')?.classList.contains('hidden')).toBe(
+      false
+    );
 
     container.querySelector('#tools-menu-all-off').click();
     expect(store.state.newChatToolSelection).toEqual([]);
@@ -158,7 +177,9 @@ describe('message input', () => {
     container.querySelector('#tools-menu-all-on').click();
     expect(store.state.newChatToolSelection).toBeNull();
     expect(container.querySelector('#tools-menu-all-on')?.classList.contains('hidden')).toBe(true);
-    expect(container.querySelector('#tools-menu-all-off')?.classList.contains('hidden')).toBe(false);
+    expect(container.querySelector('#tools-menu-all-off')?.classList.contains('hidden')).toBe(
+      false
+    );
 
     container.querySelector('[data-tool-server-expand][data-tool-server-id="server-1"]').click();
     expect(container.textContent).toContain('Weather Lookup');
@@ -175,8 +196,16 @@ describe('message input', () => {
     container.querySelector('[data-tool-server-toggle][data-tool-server-id="server-1"]').click();
     expect(store.state.newChatToolSelection).toBeNull();
 
-    expect(container.querySelector('[data-tool-toggle][data-tool-name="weather_lookup"]')?.getAttribute('aria-pressed')).toBe('true');
-    expect(container.querySelector('[data-tool-toggle][data-tool-name="search_lookup"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(
+      container
+        .querySelector('[data-tool-toggle][data-tool-name="weather_lookup"]')
+        ?.getAttribute('aria-pressed')
+    ).toBe('true');
+    expect(
+      container
+        .querySelector('[data-tool-toggle][data-tool-name="search_lookup"]')
+        ?.getAttribute('aria-pressed')
+    ).toBe('true');
 
     view.destroy();
   });
@@ -198,8 +227,20 @@ describe('message input', () => {
           access_label: 'Shared',
           enabled: true,
           tools: [
-            { name: 'search_lookup', title: 'Search Lookup', description: 'Lookup search', enabled: true, visible_for_user: true },
-            { name: 'private_lookup', title: 'Private Lookup', description: 'Hidden search', enabled: true, visible_for_user: false },
+            {
+              name: 'search_lookup',
+              title: 'Search Lookup',
+              description: 'Lookup search',
+              enabled: true,
+              visible_for_user: true,
+            },
+            {
+              name: 'private_lookup',
+              title: 'Private Lookup',
+              description: 'Hidden search',
+              enabled: true,
+              visible_for_user: false,
+            },
           ],
         },
       ],
@@ -213,6 +254,59 @@ describe('message input', () => {
     expect(container.textContent).toContain('Shared');
     expect(container.textContent).toContain('Search Lookup');
     expect(container.textContent).not.toContain('Private Lookup');
+    view.destroy();
+  });
+
+  it('keeps model-selector-container before stop-btn in DOM order so position stays stable (issue #48)', async () => {
+    const { store, renderMessageInput } = await loadModules();
+    const container = document.getElementById('root');
+    store.setState({
+      activeChatId: 'chat-1',
+      models: [{ id: 'm1', name: 'GPT Mini' }],
+      activeModelId: 'm1',
+      drafts: {},
+    });
+    const view = renderMessageInput(container, vi.fn());
+    const modelContainer = container.querySelector('#model-selector-container');
+    const stopBtn = container.querySelector('#stop-btn');
+    // The model-selector-container must appear BEFORE stop-btn in DOM order
+    // so that the Model button doesn't shift position when stop becomes visible.
+    // When stop-btn comes first, it pushes model-selector-container to the right
+    // when it's un-hidden during streaming.
+    const rightSideButtons = container.querySelector('.flex-shrink-0.flex.items-center.mb-1');
+    const children = Array.from(rightSideButtons.children);
+    const modelIndex = children.indexOf(modelContainer);
+    const stopIndex = children.indexOf(stopBtn);
+    expect(modelIndex).toBeLessThan(stopIndex);
+    view.destroy();
+  });
+
+  it('clicking model-selector-btn inside a form does not submit the form (issue #48)', async () => {
+    vi.resetModules();
+    const store = await import('../../public/js/shared/store.js');
+    const { renderMessageInput } = await import('../../public/js/features/chat/message-input.js');
+    const { renderModelSelector } = await import('../../public/js/features/chat/model-selector.js');
+    const container = document.getElementById('root');
+    const onSend = vi.fn();
+    store.setState({
+      activeChatId: 'chat-1',
+      models: [{ id: 'm1', name: 'GPT Mini' }],
+      activeModelId: 'm1',
+      drafts: {},
+    });
+    const view = renderMessageInput(container, onSend);
+    const modelContainer = container.querySelector('#model-selector-container');
+    const destroyModel = renderModelSelector(modelContainer);
+    const input = container.querySelector('#message-input');
+    input.value = 'halfway text';
+    input.dispatchEvent(new Event('input'));
+    // Clicking the model-selector-btn should NOT trigger onSend
+    const modelBtn = container.querySelector('#model-selector-btn');
+    modelBtn.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onSend).not.toHaveBeenCalled();
+    expect(input.value).toBe('halfway text');
+    destroyModel();
     view.destroy();
   });
 
@@ -243,5 +337,3 @@ describe('message input', () => {
     view.destroy();
   });
 });
-
-
