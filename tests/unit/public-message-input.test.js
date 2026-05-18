@@ -10,7 +10,8 @@ async function loadModules() {
   vi.resetModules();
   const store = await import('../../public/js/shared/store.js');
   const { renderMessageInput } = await import('../../public/js/features/chat/message-input.js');
-  return { store, renderMessageInput };
+  const { renderModelSelector } = await import('../../public/js/features/chat/model-selector.js');
+  return { store, renderMessageInput, renderModelSelector };
 }
 
 describe('message input', () => {
@@ -282,10 +283,7 @@ describe('message input', () => {
   });
 
   it('clicking model-selector-btn inside a form does not submit the form (issue #48)', async () => {
-    vi.resetModules();
-    const store = await import('../../public/js/shared/store.js');
-    const { renderMessageInput } = await import('../../public/js/features/chat/message-input.js');
-    const { renderModelSelector } = await import('../../public/js/features/chat/model-selector.js');
+    const { store, renderMessageInput, renderModelSelector } = await loadModules();
     const container = document.getElementById('root');
     const onSend = vi.fn();
     store.setState({

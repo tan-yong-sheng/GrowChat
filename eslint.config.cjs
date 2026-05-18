@@ -89,7 +89,7 @@ module.exports = [
 
   // Test files — relaxed function length limit
   {
-    files: ['tests/**/*.js', 'tests/**/*.test.js'],
+    files: ['tests/**/*.js'],
     rules: {
       'max-lines-per-function': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
     },
