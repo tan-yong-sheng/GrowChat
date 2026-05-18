@@ -249,3 +249,4 @@ vendor/
 *.log
 coverage/
 tmp/
+package-lock.json

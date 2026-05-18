@@ -5,6 +5,7 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 ## Features
 
 ✅ **Phase 1 (Deployed)**
+
 - User authentication with JWT tokens and refresh token rotation
 - Multi-user chat management with persistent D1 database
 - Streaming LLM responses via Server-Sent Events (SSE)
@@ -13,6 +14,7 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 - Responsive web UI built with vanilla JS and Tailwind CSS
 
 ✅ **Phase 2 (In Progress)**
+
 - RAG with Cloudflare Vectorize for FAQ and document vector search
 - File uploads with R2 cloud storage
 - Document text extraction (plain text, markdown, images with OCR)
@@ -22,6 +24,7 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 - Vector index management and reindexing
 
 🚀 **Phase 3 (Planned)**
+
 - PDF file support
 - Testing infrastructure
 - Chat sharing and exports
@@ -30,6 +33,7 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 18+
 - Cloudflare account with:
   - Workers (free tier)
@@ -42,13 +46,13 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 ```bash
 git clone https://github.com/tan-yong-sheng/GrowChat.git
 cd GrowChat
-npm install
+pnpm install
 ```
 
 ### Local Development
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Open `http://localhost:8787` in your browser.
@@ -56,32 +60,41 @@ Open `http://localhost:8787` in your browser.
 ### Deployment
 
 1. **Create D1 Database**
+
    ```bash
    wrangler d1 create growchat
    ```
+
    Copy the database ID from the output into `wrangler.jsonc`.
 
 2. **Create KV Namespaces**
+
    ```bash
    wrangler kv:namespace create SESSIONS
    wrangler kv:namespace create CHAT_SESSIONS
    wrangler kv:namespace create CACHE
    ```
+
    Update `wrangler.jsonc` with the namespace IDs.
 
 3. **Create R2 Bucket (Phase 2)**
+
    ```bash
    wrangler r2 bucket create growchat-files
    ```
+
    Update `wrangler.jsonc` with the bucket name and binding.
 
 4. **Create Vectorize Index (Phase 2)**
+
    ```bash
    wrangler vectorize create faq-vectors --dimensions=768 --metric=cosine
    ```
+
    Update `wrangler.jsonc` with the index name and binding.
 
 5. **Set Secrets**
+
    ```bash
    wrangler secret put JWT_SECRET
    wrangler secret put OPENAI_API_KEY
@@ -89,8 +102,9 @@ Open `http://localhost:8787` in your browser.
    ```
 
 6. **Deploy**
+
    ```bash
-   npm run deploy
+   pnpm run deploy
    ```
 
 7. **Apply D1 Migrations**
@@ -175,6 +189,7 @@ JWT_SECRET=...  # Set via wrangler secret
 ### Model Selection
 
 The system checks for models in this order:
+
 1. User-provided model in request
 2. Chat's stored model
 3. `DEFAULT_MODEL` environment variable
@@ -258,7 +273,7 @@ faq_usage (Phase 2, analytics)
 ### Build CSS
 
 ```bash
-npm run build:css
+pnpm run build:css
 ```
 
 ### Run Tests
@@ -278,23 +293,27 @@ No linter currently configured (Phase 3 roadmap).
 ## Troubleshooting
 
 ### JWT_SECRET not configured
+
 ```bash
 wrangler secret put JWT_SECRET
-# Re-deploy: npm run deploy
+# Re-deploy: pnpm run deploy
 ```
 
 ### OPENAI_API_KEY missing
+
 ```bash
 wrangler secret put OPENAI_API_KEY
-# Re-deploy: npm run deploy
+# Re-deploy: pnpm run deploy
 ```
 
 ### D1 Database errors
+
 Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 
 ## Roadmap
 
 ### Phase 1 (✅ Deployed)
+
 - ✅ User authentication with JWT and refresh tokens
 - ✅ Multi-user chat with persistent storage
 - ✅ Streaming LLM responses via SSE
@@ -303,6 +322,7 @@ Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 - ✅ Responsive web UI
 
 ### Phase 2 (🚀 In Progress)
+
 - 🚀 Vector embeddings with Cloudflare Vectorize (768-dim, cosine similarity)
 - 🚀 FAQ management with semantic search
 - 🚀 File uploads with R2 storage
@@ -316,6 +336,7 @@ Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 - 🚀 Admin panel with statistics and vector management
 
 ### Phase 3 (Planned)
+
 - [ ] PDF file support with text extraction
 - [ ] Testing infrastructure (unit + E2E)
 - [ ] Chat sharing and export

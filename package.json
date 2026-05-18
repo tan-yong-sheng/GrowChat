@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:css": "npx tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
-    "deploy": "npm run build:css && wrangler deploy",
-    "dev": "npm run build:css && node scripts/init-local-db.js && wrangler dev --ip 0.0.0.0 -- --log-level debug",
+    "build:css": "pnpm exec tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
+    "deploy": "pnpm run build:css && wrangler deploy",
+    "dev": "pnpm run build:css && node scripts/init-local-db.js && wrangler dev --ip 0.0.0.0 -- --log-level debug",
     "dev:db": "node scripts/init-local-db.js",
-    "dev:remote": "npm run build:css && wrangler dev --remote --ip 0.0.0.0 -- --log-level debug",
+    "dev:remote": "pnpm run build:css && wrangler dev --remote --ip 0.0.0.0 -- --log-level debug",
     "predeploy": "node scripts/pre-deploy.js",
     "generate:api-docs": "node scripts/generate-api-docs.js",
     "validate:migrations": "node scripts/validate-migrations.js",
@@ -33,9 +33,9 @@
     "lint:dupes": "jscpd public/js",
     "lint:dupes:budget": "node scripts/check-jscpd-budgets.js",
     "lint:dupes:scoped": "node scripts/run-scoped-guardrails.js --jscpd",
-    "lint:hygiene": "npx knip --include files,dependencies,binaries",
-    "precommit": "node scripts/secret-scan.cjs && npx lint-staged",
-    "prepush": "npm run test && npm run typecheck && npm run lint:logic:scoped && npm run lint:dupes:scoped && npm run lint:dupes:budget && npm run arch:check:scoped && npm run format:check:scoped && npm run lint:hygiene",
+    "lint:hygiene": "pnpm exec knip --include files,dependencies,binaries",
+    "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
+    "prepush": "pnpm run test && pnpm run typecheck && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -84,6 +84,14 @@
     ],
     "*.css": [
       "prettier --write"
+    ]
+  },
+  "packageManager": "pnpm@10.33.4",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
     ]
   }
 }

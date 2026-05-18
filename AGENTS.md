@@ -24,35 +24,35 @@ The core structure, architecture, and behavior of GrowChat are fully mapped as a
 
 ```bash
 # Full dev setup: CSS build → DB init → local server
-npm run dev                         # localhost:8787, --log-level debug
+pnpm run dev                         # localhost:8787, --log-level debug
 
 # Individual steps
-npm run build:css                   # Tailwind: src/input.css → public/styles.css
-npm run dev:db                      # Initialize local D1 database only
-npm run dev:remote                  # Connect to remote DB (skip local setup)
+pnpm run build:css                   # Tailwind: src/input.css → public/styles.css
+pnpm run dev:db                      # Initialize local D1 database only
+pnpm run dev:remote                  # Connect to remote DB (skip local setup)
 ```
 
 ## Testing (Vitest + Playwright)
 
 ```bash
 # Unit tests - frontend coverage on public/js/** modules
-npm test                           # Run all tests (src/**/*.test.js + tests/unit/**)
-npm run test:watch                 # Watch mode
-npm run test:coverage              # Coverage report (coverage/ folder)
+pnpm test                           # Run all tests (src/**/*.test.js + tests/unit/**)
+pnpm run test:watch                 # Watch mode
+pnpm run test:coverage              # Coverage report (coverage/ folder)
 
 # E2E tests (Playwright) - tests exist in tests/e2e/frontend/
-# Note: Ensure `npm run dev` is running on port 8787 in another terminal before running E2E
-npm run test:e2e                   # Run E2E tests
-npm run test:e2e:ui                # Playwright UI mode
-npm run test:e2e:update-snapshots  # Update visual snapshots
+# Note: Ensure `pnpm run dev` is running on port 8787 in another terminal before running E2E
+pnpm run test:e2e                   # Run E2E tests
+pnpm run test:e2e:ui                # Playwright UI mode
+pnpm run test:e2e:update-snapshots  # Update visual snapshots
 ```
 
 ## Code Quality (ESLint & Prettier)
 
 ```bash
-npm run format                     # Format files using Prettier
-npm run lint                       # Check for ESLint warnings/errors
-npm run lint:fix                   # Auto-fix ESLint issues
+pnpm run format                     # Format files using Prettier
+pnpm run lint                       # Check for ESLint warnings/errors
+pnpm run lint:fix                   # Auto-fix ESLint issues
 ```
 
 ## Deployment
@@ -63,7 +63,7 @@ wrangler secret put JWT_SECRET
 wrangler secret put RESEND_API_KEY
 
 # Deploy to Cloudflare
-npm run deploy                     # Triggers predeploy → tests → coverage → CSS → migrations → wrangler deploy
+pnpm run deploy                     # Triggers predeploy → tests → coverage → CSS → migrations → wrangler deploy
 ```
 
 ## Database & Migrations
@@ -76,7 +76,7 @@ npm run deploy                     # Triggers predeploy → tests → coverage �
 003_password_reset_tokens.sql      # Password reset system
 
 # Validate migrations before deploy (included in predeploy)
-npm run validate:migrations
+pnpm run validate:migrations
 
 # Local D1 management
 npx wrangler d1 migrations apply growchat --local  # Apply migrations manually
@@ -145,8 +145,8 @@ npx wrangler d1 migrations apply growchat --local  # Apply migrations manually
 
 ### Development
 
-1. **CSS must be built before dev:** `npm run dev` handles this
-2. **Local DB init required:** `npm run dev:db` if using local D1
+1. **CSS must be built before dev:** `pnpm run dev` handles this
+2. **Local DB init required:** `pnpm run dev:db` if using local D1
 3. **Workers AI disabled:** Only OpenAI-compatible APIs via user connections
 4. **Durable Objects:** MessageQueueDO for real-time SSE (15s keepalive)
 5. **Predeploy hook** (`predeploy` in package.json) runs: lint → format check → test → coverage → build:css → validate migrations → wrangler deploy
@@ -159,9 +159,9 @@ npx wrangler d1 migrations apply growchat --local  # Apply migrations manually
 
 ## When Making Changes
 
-1. **CSS changes:** Always run `npm run build:css`
-2. **Schema changes:** Add migration file, run `npm run validate:migrations`
-3. **Deploy:** Set secrets first, `npm run deploy` runs full predeploy gate
+1. **CSS changes:** Always run `pnpm run build:css`
+2. **Schema changes:** Add migration file, run `pnpm run validate:migrations`
+3. **Deploy:** Set secrets first, `pnpm run deploy` runs full predeploy gate
 4. **Testing:** Frontend coverage expected on key modules in `public/js/`
 5. **Documentation:** Update the `docs/` Developer Wiki Knowledge Graph if new states, components, endpoints, or flows are introduced.
 

@@ -2,14 +2,14 @@
 
 ## Endpoints
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| POST | `/api/auth/register` | None | Create account |
-| POST | `/api/auth/login` | None | Sign in |
-| POST | `/api/auth/refresh` | None | Get new access token |
-| POST | `/api/auth/logout` | Bearer | Sign out |
-| POST | `/api/auth/forgot-password` | None | Request password reset |
-| POST | `/api/auth/reset-password` | None | Complete password reset |
+| Method | Path                        | Auth   | Purpose                 |
+| ------ | --------------------------- | ------ | ----------------------- |
+| POST   | `/api/auth/register`        | None   | Create account          |
+| POST   | `/api/auth/login`           | None   | Sign in                 |
+| POST   | `/api/auth/refresh`         | None   | Get new access token    |
+| POST   | `/api/auth/logout`          | Bearer | Sign out                |
+| POST   | `/api/auth/forgot-password` | None   | Request password reset  |
+| POST   | `/api/auth/reset-password`  | None   | Complete password reset |
 
 ---
 
@@ -18,6 +18,7 @@
 ### Register
 
 **Request:**
+
 ```json
 POST /api/auth/register
 {
@@ -28,6 +29,7 @@ POST /api/auth/register
 ```
 
 **Response (Active - First User):**
+
 ```json
 201 Created
 {
@@ -50,6 +52,7 @@ POST /api/auth/register
 ```
 
 **Response (Pending - Subsequent User):**
+
 ```json
 201 Created
 {
@@ -65,6 +68,7 @@ POST /api/auth/register
 ### Login
 
 **Request:**
+
 ```json
 POST /api/auth/login
 {
@@ -74,6 +78,7 @@ POST /api/auth/login
 ```
 
 **Response (Success):**
+
 ```json
 200 OK
 {
@@ -86,6 +91,7 @@ POST /api/auth/login
 ```
 
 **Response (Pending Account):**
+
 ```json
 403 Forbidden
 {
@@ -99,6 +105,7 @@ POST /api/auth/login
 ### Refresh Token
 
 **Request:**
+
 ```json
 POST /api/auth/refresh
 {
@@ -107,6 +114,7 @@ POST /api/auth/refresh
 ```
 
 **Response:**
+
 ```json
 200 OK
 {
@@ -123,6 +131,7 @@ POST /api/auth/refresh
 ### Logout
 
 **Request:**
+
 ```json
 POST /api/auth/logout
 Authorization: Bearer eyJhbGc...
@@ -132,6 +141,7 @@ Authorization: Bearer eyJhbGc...
 ```
 
 **Response:**
+
 ```json
 200 OK
 {
@@ -144,6 +154,7 @@ Authorization: Bearer eyJhbGc...
 ### Forgot Password
 
 **Request:**
+
 ```json
 POST /api/auth/forgot-password
 {
@@ -152,6 +163,7 @@ POST /api/auth/forgot-password
 ```
 
 **Response (Always Success):**
+
 ```json
 200 OK
 {
@@ -164,6 +176,7 @@ POST /api/auth/forgot-password
 ### Reset Password
 
 **Request:**
+
 ```json
 POST /api/auth/reset-password
 {
@@ -173,6 +186,7 @@ POST /api/auth/reset-password
 ```
 
 **Response:**
+
 ```json
 200 OK
 {
@@ -185,6 +199,7 @@ POST /api/auth/reset-password
 ## Frontend API Usage
 
 ### Get Auth State
+
 ```javascript
 import { getAuthState } from './public/js/shared/api/auth.js';
 
@@ -193,6 +208,7 @@ const auth = getAuthState();
 ```
 
 ### Set Auth State
+
 ```javascript
 import { setAuthState } from './public/js/shared/api/auth.js';
 
@@ -201,6 +217,7 @@ setAuthState(data);
 ```
 
 ### Clear Auth State
+
 ```javascript
 import { clearAuthState } from './public/js/shared/api/auth.js';
 
@@ -209,6 +226,7 @@ clearAuthState();
 ```
 
 ### Check Token Validity
+
 ```javascript
 import { isAccessTokenUsable } from './public/js/shared/api/auth.js';
 
@@ -218,6 +236,7 @@ if (isAccessTokenUsable(token)) {
 ```
 
 ### Refresh Token
+
 ```javascript
 import { refreshToken } from './public/js/shared/api/auth.js';
 
@@ -226,11 +245,12 @@ const newAuth = await refreshToken(refreshTokenValue);
 ```
 
 ### Make Authenticated Request
+
 ```javascript
 import { apiFetch } from './public/js/shared/api/request.js';
 
 const response = await apiFetch('/api/chats', {
-  method: 'GET'
+  method: 'GET',
 });
 // Automatically handles token refresh on 401/403
 ```
@@ -240,6 +260,7 @@ const response = await apiFetch('/api/chats', {
 ## Backend API Usage
 
 ### Verify JWT
+
 ```javascript
 import { verifyJWT } from '../shared/auth.js';
 
@@ -252,6 +273,7 @@ try {
 ```
 
 ### Hash Password
+
 ```javascript
 import { hashPassword } from '../shared/auth.js';
 
@@ -260,6 +282,7 @@ const hash = await hashPassword(password);
 ```
 
 ### Verify Password
+
 ```javascript
 import { verifyPassword } from '../shared/auth.js';
 
@@ -268,6 +291,7 @@ const isValid = await verifyPassword(password, storedHash);
 ```
 
 ### Create Refresh Token
+
 ```javascript
 import { createRefreshToken } from '../shared/session.js';
 
@@ -276,6 +300,7 @@ const { token, expiresAt } = await createRefreshToken(env, userId);
 ```
 
 ### Consume Refresh Token
+
 ```javascript
 import { consumeRefreshToken } from '../shared/session.js';
 
@@ -284,6 +309,7 @@ const session = await consumeRefreshToken(env, token);
 ```
 
 ### Revoke Refresh Token
+
 ```javascript
 import { revokeRefreshToken } from '../shared/session.js';
 
@@ -295,25 +321,25 @@ await revokeRefreshToken(env, token);
 
 ## Common Error Codes
 
-| Code | Meaning | Action |
-|------|---------|--------|
-| 400 | Bad request (validation error) | Check request format |
-| 401 | Unauthorized (invalid credentials or token) | Re-login or refresh token |
-| 403 | Forbidden (account pending or revoked) | Wait for approval or contact admin |
-| 409 | Conflict (email already registered) | Use different email or login |
-| 429 | Rate limited | Wait before retrying |
-| 500 | Server error | Check logs, retry later |
+| Code | Meaning                                     | Action                             |
+| ---- | ------------------------------------------- | ---------------------------------- |
+| 400  | Bad request (validation error)              | Check request format               |
+| 401  | Unauthorized (invalid credentials or token) | Re-login or refresh token          |
+| 403  | Forbidden (account pending or revoked)      | Wait for approval or contact admin |
+| 409  | Conflict (email already registered)         | Use different email or login       |
+| 429  | Rate limited                                | Wait before retrying               |
+| 500  | Server error                                | Check logs, retry later            |
 
 ---
 
 ## Token Lifetimes
 
-| Token | TTL | Renewable |
-|-------|-----|-----------|
-| Access Token (JWT) | 15 minutes | Yes (via refresh) |
-| Refresh Token | 7 days | Yes (new one issued on refresh) |
-| Password Reset Token | 1 hour | No (single-use) |
-| Client Session ID | Session | No (per tab) |
+| Token                | TTL        | Renewable                       |
+| -------------------- | ---------- | ------------------------------- |
+| Access Token (JWT)   | 15 minutes | Yes (via refresh)               |
+| Refresh Token        | 7 days     | Yes (new one issued on refresh) |
+| Password Reset Token | 1 hour     | No (single-use)                 |
+| Client Session ID    | Session    | No (per tab)                    |
 
 ---
 
@@ -336,19 +362,22 @@ await revokeRefreshToken(env, token);
 ## Testing Auth Flows
 
 ### Unit Tests
+
 ```bash
-npm test src/routers/auth.test.js
+pnpm test src/routers/auth.test.js
 ```
 
 ### RBAC Tests
+
 ```bash
-npm test tests/rbac.test.js
-npm test tests/rbac.integration.test.js
+pnpm test tests/rbac.test.js
+pnpm test tests/rbac.integration.test.js
 ```
 
 ### E2E Tests
+
 ```bash
-npm run test:e2e
+pnpm run test:e2e
 # Tests: auth.spec.ts, chat.spec.ts, admin-settings.spec.ts
 ```
 
@@ -357,28 +386,33 @@ npm run test:e2e
 ## Debugging Tips
 
 ### Check Auth State in Browser Console
+
 ```javascript
-JSON.parse(localStorage.getItem('growchat_auth'))
+JSON.parse(localStorage.getItem('growchat_auth'));
 ```
 
 ### Decode JWT Payload
+
 ```javascript
 const parts = token.split('.');
-JSON.parse(atob(parts[1]))
+JSON.parse(atob(parts[1]));
 ```
 
 ### Check Token Expiry
+
 ```javascript
 const payload = JSON.parse(atob(token.split('.')[1]));
-new Date(payload.exp * 1000)
+new Date(payload.exp * 1000);
 ```
 
 ### Trace Token Refresh
+
 - Open DevTools Network tab
 - Look for `POST /api/auth/refresh` requests
 - Check response for new tokens
 
 ### Check Rate Limits
+
 - Rate limit state stored in KV under `rate-limit:*` keys
 - Check CACHE namespace in wrangler.toml
 

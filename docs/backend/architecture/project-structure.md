@@ -158,15 +158,15 @@ Policy: Forward-only, sequential filenames, additive-only after baseline.
 
 ### Cloudflare Bindings (`wrangler.jsonc`)
 
-| Binding | Type | Name |
-| --- | --- | --- |
-| `ASSETS` | Assets | `./public` |
-| `DB` | D1 | `growchat` |
-| `FILES` | R2 | `growchat-files` |
+| Binding         | Type           | Name             |
+| --------------- | -------------- | ---------------- |
+| `ASSETS`        | Assets         | `./public`       |
+| `DB`            | D1             | `growchat`       |
+| `FILES`         | R2             | `growchat-files` |
 | `MESSAGE_QUEUE` | Durable Object | `MessageQueueDO` |
-| `CHAT_SESSIONS` | KV | — |
-| `SESSIONS` | KV | — |
-| `CACHE` | KV | — |
+| `CHAT_SESSIONS` | KV             | —                |
+| `SESSIONS`      | KV             | —                |
+| `CACHE`         | KV             | —                |
 
 ### Required Secrets
 
@@ -179,16 +179,16 @@ wrangler secret put RESEND_API_KEY
 
 ```bash
 # Development
-npm run dev              # CSS build → DB init → local server (localhost:8787)
-npm run build:css        # Tailwind: src/input.css → public/styles.css
-npm run dev:db           # Initialize local D1 database
+pnpm run dev              # CSS build → DB init → local server (localhost:8787)
+pnpm run build:css        # Tailwind: src/input.css → public/styles.css
+pnpm run dev:db           # Initialize local D1 database
 
 # Testing
-npm test                 # All unit tests (Vitest)
-npm run test:watch       # Watch mode
-npm run test:coverage   # Coverage report
-npm run test:e2e        # Playwright E2E
+pnpm test                 # All unit tests (Vitest)
+pnpm run test:watch       # Watch mode
+pnpm run test:coverage   # Coverage report
+pnpm run test:e2e        # Playwright E2E
 
 # Deployment
-npm run deploy           # predeploy → tests → coverage → CSS → migrations → deploy
+pnpm run deploy           # predeploy → tests → coverage → CSS → migrations → deploy
 ```
