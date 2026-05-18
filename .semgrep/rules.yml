@@ -37,6 +37,7 @@ rules:
         - '**/public/js/**/*'
       exclude:
         - '**/public/js/shared/components/button.js'
+        - '**/public/js/features/chat/model-selector.js' # dropdown trigger with custom inner HTML; renderButton() cannot produce chevron+label combo
         - '**/*.test.js'
         - '**/*.spec.js'
     message: 'Raw pill button markup bypasses canonical button primitive. Use renderButton() instead.'

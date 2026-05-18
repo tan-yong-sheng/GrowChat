@@ -20,6 +20,7 @@ module.exports = [
         { type: 'f-feature', pattern: 'public/js/features/**' },
         { type: 'f-shared', pattern: 'public/js/shared/**' },
         { type: 'f-utils', pattern: 'public/js/utils/**' },
+        { type: 'test', pattern: 'tests/**' },
         { type: 'scripts', pattern: 'scripts/**' },
       ],
     },
@@ -52,6 +53,14 @@ module.exports = [
               from: { type: 'scripts' },
               allow: { to: { type: ['scripts'] } },
             },
+            {
+              from: { type: 'test' },
+              allow: {
+                to: {
+                  type: ['f-bootstrap', 'f-feature', 'f-shared', 'f-utils', 'test', 'scripts'],
+                },
+              },
+            },
           ],
         },
       ],
@@ -75,6 +84,14 @@ module.exports = [
       'max-lines-per-function': ['warn', { max: 120, skipBlankLines: true, skipComments: true }],
       'max-depth': ['warn', 4],
       'max-nested-callbacks': ['warn', 3],
+    },
+  },
+
+  // Test files — relaxed function length limit
+  {
+    files: ['tests/**/*.js'],
+    rules: {
+      'max-lines-per-function': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
     },
   },
 ];

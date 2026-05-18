@@ -109,6 +109,26 @@ describe('model selector', () => {
     destroy();
   });
 
+  it('has type="button" on model-selector-btn to prevent form submit (issue #48)', async () => {
+    const { store, renderModelSelector } = await loadModules();
+    const container = document.getElementById('root');
+    store.setState({
+      models: [
+        { id: 'm1', name: 'GPT Mini' },
+        { id: 'm2', name: 'Claude' },
+      ],
+      activeModelId: 'm1',
+    });
+    const destroy = renderModelSelector(container);
+    const btn = container.querySelector('#model-selector-btn');
+    expect(btn).not.toBeNull();
+    // Per HTML spec, the default type for <button> is "submit", which causes
+    // unintended form submission when the button is inside a <form>.
+    // The button must explicitly declare type="button" to prevent this.
+    expect(btn.getAttribute('type')).toBe('button');
+    destroy();
+  });
+
   it('shows a fallback notice when the active model is no longer available', async () => {
     const { store, renderModelSelector } = await loadModules();
     const container = document.getElementById('root');
