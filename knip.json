@@ -13,6 +13,7 @@
   "include": ["files", "dependencies", "binaries"],
   "ignoreFiles": [
     "public/js/features/chat/keyboard-navigation.js",
+    "public/js/features/landing.js",
     "public/js/features/admin/settings/connections-helpers.test.js",
     "public/js/shared/components/action-bar.js",
     "public/js/shared/components/chat-controls-panel.js",
