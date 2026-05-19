@@ -16,14 +16,6 @@ function trendIndicator(current, previous) {
   return { arrow: '→', color: 'text-gray-400', label: 'flat' };
 }
 
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function formatNumber(n) {
   if (n == null) return '—';
