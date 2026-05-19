@@ -16,6 +16,19 @@ export class UserRepository {
     return this.db.first(`SELECT ${columns} FROM users WHERE email = ?`, [email]);
   }
 
+  async findByGoogleId(googleId, columns = '*') {
+    if (!googleId) return null;
+    try {
+      return await this.db.first(`SELECT ${columns} FROM users WHERE google_id = ?`, [googleId]);
+    } catch (err) {
+      // Graceful fallback if google_id column hasn't been migrated yet
+      if (/no such column:\s*google_id/i.test(String(err?.message || ''))) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
   async create(user) {
     const id = user.id || crypto.randomUUID();
     const accountStatus =
@@ -24,12 +37,13 @@ export class UserRepository {
         .toLowerCase() === 'pending'
         ? 'pending'
         : 'active';
+
     try {
       await this.db.run(
         `INSERT INTO users (
-          id, email, password_hash, name, account_status, settings, preferences,
-          created_at, updated_at, last_active_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch(), unixepoch())`,
+            id, email, password_hash, name, account_status, settings, preferences,
+            google_id, created_at, updated_at, last_active_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch(), unixepoch())`,
         [
           id,
           user.email,
@@ -38,10 +52,12 @@ export class UserRepository {
           accountStatus,
           user.settings || '{}',
           user.preferences || '{}',
+          user.googleId || null,
         ]
       );
     } catch (err) {
-      if (/no such column:\s*last_active_at/i.test(String(err?.message || ''))) {
+      if (/no such column:\s*(last_active_at|google_id)/i.test(String(err?.message || ''))) {
+        // Fallback: try without the missing columns
         await this.db.run(
           'INSERT INTO users (id, email, password_hash, name, account_status, settings, preferences, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())',
           [
@@ -73,11 +89,24 @@ export class UserRepository {
     }
   }
 
+  async updateGoogleId(userId, googleId) {
+    if (!userId || !googleId) return;
+    try {
+      await this.db.run('UPDATE users SET google_id = ?, updated_at = unixepoch() WHERE id = ?', [
+        googleId,
+        userId,
+      ]);
+    } catch (err) {
+      if (/no such column:\s*google_id/i.test(String(err?.message || ''))) {
+        return;
+      }
+      throw err;
+    }
+  }
+
   async list({ limit, offset, columns = '*' }) {
     return this.db.all(
-      `SELECT ${columns} FROM users
-       ORDER BY LOWER(COALESCE(name, '')) ASC, LOWER(email) ASC
-       LIMIT ? OFFSET ?`,
+      `SELECT ${columns} FROM users ORDER BY LOWER(COALESCE(name, '')) ASC, LOWER(email) ASC LIMIT ? OFFSET ?`,
       [limit, offset]
     );
   }
