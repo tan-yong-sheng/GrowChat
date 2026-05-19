@@ -25,7 +25,7 @@ Add Google OAuth 2.0 as a login method alongside the existing email+password aut
 - [x] Implement `state` parameter (CSRF protection) — store in KV with short TTL
 - [x] Auto-provisioning: new Google users get a local account created with `member` role and `active` status
 - [x] Email matching: if Google email matches an existing local user, link the accounts (add `google_id` to user record)
-- [x] Add `google_id` column to users table — new migration `migrations/004_google_oauth.sql`
+- [x] Add `google_id` column to users table — new migration `migrations/007_google_oauth.sql`
 - [x] Update `src/services/auth.js` (or equivalent) to handle Google-authenticated sessions with same JWT + refresh token flow
 - [x] Update auth page UI (`public/js/features/auth/` or `public/auth.html`) — add "Sign in with Google" button alongside email/password form
 - [x] Fallback: local auth still works when `GOOGLE_CLIENT_ID` is not configured — detect env var presence, conditionally show Google button

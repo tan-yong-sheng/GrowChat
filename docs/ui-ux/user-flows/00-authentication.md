@@ -38,7 +38,7 @@ stateDiagram-v2
         IdleRegister --> TypingRegister : Inputs Name, Email, Password
         ButtonEnabledRegister --> SubmittingRegister : Click "Sign up"
         SubmittingRegister --> RegistrationFailed : 400 Bad Request
-        SubmittingRegister --> Success : 200 OK
+        SubmittingRegister --> Success : 201 Created
     }
 
     state ForgotPasswordModal {

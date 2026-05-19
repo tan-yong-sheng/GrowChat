@@ -82,7 +82,7 @@ sequenceDiagram
 
 Tokens are delivered via URL hash fragment, NOT query parameters:
 
-```
+```text
 /auth.html#access_token=jwt-token&refresh_token=opaque-token&expires_in=900
 ```
 
@@ -107,7 +107,7 @@ Hash fragments are NOT sent to the server, which means:
 
 The auth page detects Google OAuth availability via the health endpoint:
 
-```
+```text
 GET /api/health → { ..., google_oauth: true/false }
 ```
 

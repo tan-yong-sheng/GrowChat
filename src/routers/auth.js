@@ -151,6 +151,7 @@ async function exchangeGoogleCodeForUser(code, clientId, clientSecret, redirectU
   const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    signal: AbortSignal.timeout(8000),
     body: new URLSearchParams({
       code,
       client_id: clientId,
@@ -170,6 +171,7 @@ async function exchangeGoogleCodeForUser(code, clientId, clientSecret, redirectU
   // Step 2: Get user info from the userinfo endpoint using the access token
   const userinfoRes = await fetch(GOOGLE_USERINFO_URL, {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!userinfoRes.ok) {
@@ -754,6 +756,18 @@ export async function authRouter(req, env, _ctx, authUser, path) {
       return error(req, 'Google OAuth is not configured', 503);
     }
 
+    // Rate limit OAuth initiation to prevent state flooding
+    const oauthStartLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-google',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authLogin,
+    });
+    if (!oauthStartLimit.allowed) {
+      return error(req, 'Too many Google OAuth attempts', 429, {
+        retry_after: Math.ceil((oauthStartLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
     const url = new URL(req.url);
     const origin = url.origin;
     const redirectUri = `${origin}/api/auth/google/callback`;
@@ -796,7 +810,10 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     }
 
     if (!code) {
-      return error(req, 'Missing authorization code', 400);
+      return Response.redirect(
+        `${new URL(req.url).origin}/auth.html?oauth_error=missing_info`,
+        302
+      );
     }
 
     // CSRF protection: validate the state parameter
@@ -816,7 +833,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     const oauthLimit = await checkRateLimit(env.CACHE, {
       action: 'auth-google-callback',
       subject: resolveRateLimitSubject(req),
-      ...RATE_LIMITS.authLogin, // Reuse login rate limits
+      ...RATE_LIMITS.authLogin, // Reuse login rate limits for callback
     });
     if (!oauthLimit.allowed) {
       return Response.redirect(
@@ -851,8 +868,9 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     const googleId = googleUser.sub;
     const googleEmail = (googleUser.email || '').toLowerCase();
     const googleName = googleUser.name || 'Google User';
+    const googleEmailVerified = googleUser.email_verified === true;
 
-    if (!googleId || !googleEmail) {
+    if (!googleId || !googleEmail || !googleEmailVerified) {
       return Response.redirect(
         `${new URL(req.url).origin}/auth.html?oauth_error=missing_info`,
         302
@@ -878,7 +896,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
         isNewAccount = true;
         const hasUsers = (await users.count()) > 0;
         const finalRole = hasUsers ? 'member' : 'admin';
-        const finalAccountStatus = finalRole === 'admin' ? 'active' : 'active';
+        const finalAccountStatus = 'active';
         // Google OAuth users are auto-activated (email verified by Google)
 
         user = await users.create({
@@ -933,7 +951,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
 
     // Redirect back to the SPA with tokens in the URL hash fragment
     // Hash fragments are NOT sent to the server, keeping tokens secure
-    const callbackUrl = new URL(`${new URL(req.url).origin}/auth.html`);
+    const callbackUrl = new URL('/auth.html', req.url);
     callbackUrl.hash = new URLSearchParams({
       access_token: accessToken,
       refresh_token: refresh.token,

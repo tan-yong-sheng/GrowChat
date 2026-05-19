@@ -167,6 +167,19 @@ function restoreFetch(originalFetch) {
   globalThis.fetch = originalFetch;
 }
 
+/**
+ * Wraps a test function with mocked Google fetch, ensuring restoration
+ * even if the test throws. Prevents cross-test fetch mock pollution.
+ */
+async function withMockedGoogleFetch(overrides, run) {
+  const originalFetch = mockGoogleFetch(overrides);
+  try {
+    return await run();
+  } finally {
+    restoreFetch(originalFetch);
+  }
+}
+
 describe('Google OAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -432,6 +445,7 @@ describe('Google OAuth', () => {
         sub: 'google-pending',
         email: 'pending@gmail.com',
         name: 'Pending User',
+        email_verified: true,
       },
     });
 
@@ -517,6 +531,47 @@ describe('Google OAuth', () => {
     const res = await authRouter(req, env, {}, null, '/api/auth/google/callback');
 
     // Missing code parameter → 400 error
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(302);
+  });
+
+  it('redirects with error when Google email is not verified', async () => {
+    const env = makeEnv();
+    // Set up valid state in KV so CSRF check passes
+    mocks.kvGet.mockResolvedValueOnce({ createdAt: Date.now() });
+    await withMockedGoogleFetch(
+      {
+        userinfoResponse: {
+          sub: 'google-unverified',
+          email: 'unverified@gmail.com',
+          name: 'Unverified User',
+          email_verified: false,
+        },
+      },
+      async () => {
+        const req = makeReq('/api/auth/google/callback?state=valid-state&code=auth-code', 'GET');
+        const result = await authRouter(req, env, {}, null, '/api/auth/google/callback');
+        expect(result.status).toBe(302);
+        expect(result.headers.get('location')).toContain('oauth_error=missing_info');
+        expect(mocks.create).not.toHaveBeenCalled();
+        expect(mocks.updateGoogleId).not.toHaveBeenCalled();
+      }
+    );
+  });
+
+  it('returns 429 when Google OAuth initiation is rate limited', async () => {
+    // Temporarily override the checkRateLimit mock to return rate-limited
+    const rateLimit = await import('../services/rate-limit.js');
+    const origCheck = rateLimit.checkRateLimit;
+    rateLimit.checkRateLimit = vi
+      .fn()
+      .mockResolvedValue({ allowed: false, resetAt: Date.now() + 60000 });
+    try {
+      const env = makeEnv();
+      const req = makeReq('/api/auth/google', 'GET');
+      const result = await authRouter(req, env, {}, null, '/api/auth/google');
+      expect(result.status).toBe(429);
+    } finally {
+      rateLimit.checkRateLimit = origCheck;
+    }
   });
 });

@@ -4,7 +4,7 @@ Complete authentication system: registration, login, token refresh, password res
 
 ## 1. REGISTRATION (`POST /api/auth/register`)
 
-```
+```text
 Frontend (public/js/bootstrap/auth.js)
   ↓
   POST /api/auth/register { email, name, password }
@@ -39,7 +39,7 @@ Frontend receives:
 
 ## 2. LOGIN (`POST /api/auth/login`)
 
-```
+```text
 Frontend (public/js/bootstrap/auth.js)
   ↓
   POST /api/auth/login { email, password }
@@ -73,7 +73,7 @@ Frontend receives:
 
 ## 3. TOKEN REFRESH (`POST /api/auth/refresh`)
 
-```
+```text
 Frontend (public/js/shared/api/request.js apiFetch)
   ├─ Check if access_token expired (JWT exp claim)
   ├─ If expired + refresh_token exists:
@@ -108,7 +108,7 @@ Frontend receives:
 
 ## 4. LOGOUT (`POST /api/auth/logout`)
 
-```
+```text
 Frontend (optional)
   ↓
   POST /api/auth/logout { refresh_token }
@@ -136,7 +136,7 @@ Frontend:
 
 ### 5a. Request Reset (`POST /api/auth/forgot-password`)
 
-```
+```text
 Frontend (public/js/bootstrap/auth.js modal)
   ↓
   POST /api/auth/forgot-password { email }
@@ -165,7 +165,7 @@ Frontend:
 
 ### 5b. Reset Password (`POST /api/auth/reset-password`)
 
-```
+```text
 Frontend (public/js/bootstrap/auth.js modal, triggered by ?token= URL param)
   ↓
   POST /api/auth/reset-password { token, password }
@@ -233,7 +233,7 @@ Frontend:
 
 ### 7a. Initiate Google Sign-In (`GET /api/auth/google`)
 
-```
+```text
 Frontend (public/js/bootstrap/auth.js)
 ↓ User clicks "Sign in with Google" button
 ↓ (button only visible when GOOGLE_CLIENT_ID is configured)
@@ -268,7 +268,7 @@ User sees Google consent screen
 
 ### 7b. Google OAuth Callback (`GET /api/auth/google/callback`)
 
-```
+```text
 Google → GET /api/auth/google/callback?code=X&state=Y
 (or ?error=access_denied&state=Y)
 ↓
@@ -323,7 +323,7 @@ Frontend (public/js/bootstrap/auth.js)
 
 ### 7c. Error Handling (Frontend)
 
-```
+```text
 Frontend (public/js/bootstrap/auth.js)
 ├─ handleOAuthError() reads ?oauth_error from URL query
 ├─ Maps error codes to user-friendly messages:
@@ -421,7 +421,7 @@ apiFetch(path, options)
 
 ## 10. BOOTSTRAP FLOW
 
-```
+```text
 1. App loads (public/js/bootstrap/app.js)
 2. Check localStorage for auth state
 3. If no auth state → redirect to /auth.html
@@ -482,7 +482,7 @@ CREATE TABLE password_reset_tokens (
 
 ### refresh_tokens (KV storage)
 
-```
+```text
 Key: refresh:{hash}
 Value: '1' (gate key, deleted on consume)
 TTL: 7 days

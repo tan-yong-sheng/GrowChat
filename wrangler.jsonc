@@ -80,7 +80,6 @@
         "ENVIRONMENT": "production",
         "EMAIL_PROVIDER": "resend",
         "ALLOWED_ORIGINS": "*",
-        "RESEND_API_KEY": "re_xxxxx",
       },
       "d1_databases": [
         {
