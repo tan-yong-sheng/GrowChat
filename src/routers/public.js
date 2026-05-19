@@ -29,6 +29,7 @@ export async function publicRouter(req, env, _ctx, _user, path) {
 			initialized,
 			service: env.APP_NAME || "GrowChat",
 			timestamp: new Date().toISOString(),
+			google_oauth: !!env.GOOGLE_CLIENT_ID,
 			bindings: {
 				db: !!env.DB,
 				sessions: !!env.SESSIONS,
