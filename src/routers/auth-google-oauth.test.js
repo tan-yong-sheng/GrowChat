@@ -559,19 +559,15 @@ describe('Google OAuth', () => {
   });
 
   it('returns 429 when Google OAuth initiation is rate limited', async () => {
-    // Temporarily override the checkRateLimit mock to return rate-limited
-    const rateLimit = await import('../services/rate-limit.js');
-    const origCheck = rateLimit.checkRateLimit;
-    rateLimit.checkRateLimit = vi
-      .fn()
-      .mockResolvedValue({ allowed: false, resetAt: Date.now() + 60000 });
-    try {
-      const env = makeEnv();
-      const req = makeReq('/api/auth/google', 'GET');
-      const result = await authRouter(req, env, {}, null, '/api/auth/google');
-      expect(result.status).toBe(429);
-    } finally {
-      rateLimit.checkRateLimit = origCheck;
-    }
+    // Override the global checkRateLimit mock for this test
+    const { checkRateLimit } = await import('../services/rate-limit.js');
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      resetAt: Date.now() + 60000,
+    });
+    const env = makeEnv();
+    const req = makeReq('/api/auth/google', 'GET');
+    const result = await authRouter(req, env, {}, null, '/api/auth/google');
+    expect(result.status).toBe(429);
   });
 });

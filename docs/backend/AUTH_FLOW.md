@@ -236,7 +236,7 @@ Frontend:
 ```text
 Frontend (public/js/bootstrap/auth.js)
 ↓ User clicks "Sign in with Google" button
-↓ (button only visible when GOOGLE_CLIENT_ID is configured)
+↓ (button only visible when both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured)
 ↓ GET /api/auth/google (browser top-level navigation)
 ↓
 Backend (src/routers/auth.js)
@@ -263,7 +263,7 @@ User sees Google consent screen
 **Key Points:**
 
 - State parameter prevents CSRF attacks (one-time use, stored in KV, 10-min TTL)
-- Google OAuth button only appears when `GOOGLE_CLIENT_ID` is configured
+- Google OAuth button only appears when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are configured
 - Local auth continues to work without Google OAuth configured
 
 ### 7b. Google OAuth Callback (`GET /api/auth/google/callback`)
