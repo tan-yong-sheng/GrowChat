@@ -56,6 +56,26 @@ async function fetchHtmlAsset(env, req, pathname) {
   return injectSriIntoHtmlResponse(response, env);
 }
 
+/**
+ * Serve the landing page for unauthenticated root-path requests.
+ * Returns null if the request should fall through to the default handler.
+ */
+async function maybeServeLandingPage(req, env) {
+ const url = new URL(req.url);
+ if (url.pathname !== '/' || req.headers.get('Authorization') || url.searchParams.has('app')) {
+ return null;
+ }
+ try {
+ const landingUrl = new URL(req.url);
+ landingUrl.pathname = '/landing';
+ const response = await env.ASSETS.fetch(new Request(landingUrl.toString(), req));
+ if (response.ok) return await injectSriIntoHtmlResponse(response, env);
+ } catch (err) {
+ console.error('Landing asset fetch failed:', String(err?.message || err));
+ }
+ return null;
+}
+
 export default {
   async fetch(req, env, ctx) {
     const path = getPath(req);
@@ -113,7 +133,11 @@ export default {
         );
       }
 
-      // Check if this looks like an SPA route (not a static asset)
+      // Landing page: serve landing.html for unauthenticated / (no auth header, no ?app override).
+ const landingPage = await maybeServeLandingPage(req, env);
+ if (landingPage) return landingPage;
+
+ // Check if this looks like an SPA route (not a static asset)
       const isStaticAsset =
         /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i.test(path) ||
         path === '/' ||
