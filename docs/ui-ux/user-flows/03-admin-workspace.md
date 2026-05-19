@@ -40,11 +40,24 @@ stateDiagram-v2
 - **Trigger**: User navigates to `/admin`.
 - **UI State**:
   - The interface fundamentally shifts from the chat "drawer/modal" paradigm to a dense, full-page data-management view.
-  - The primary sidebar vanishes (or collapses), replaced by a new top-level horizontal navigation: "Users", "Settings", "System".
+  - The primary sidebar vanishes (or collapses), replaced by a new top-level horizontal navigation: "Overview", "Users", "Settings", "System".
 - **Edge Cases / Bug Discovery**:
   - **Role Downgrade Mid-Session**: If an admin's role is revoked by another admin while they are viewing this page, does the next API action return a 403, and does the UI gracefully kick them back to the home screen?
 
-### 2. Users Management Table
+### 2. Usage Overview Dashboard
+
+- **Trigger**: Viewing `/admin/overview` (default admin landing page).
+- **UI State**:
+  - Displays five key metric cards: Total Users, Active Users (7d), Active Users (30d), Messages (7d), Sparks (30d).
+  - Each card includes a trend indicator (↑↓→) comparing current period vs previous period.
+  - Below the cards: two data tables for daily (last 7 days) and weekly (last 4 weeks) message breakdowns.
+  - Sparks detail section shows total, last 30d, and previous 30d LLM API call counts.
+- **Data Source**: `GET /api/admin/usage` — all data from existing `users` and `messages` tables.
+- **Edge Cases**:
+  - **No Activity**: If there are zero messages in the period, trend indicator shows → (flat) with "no data".
+  - **Fresh Workspace**: All counts show 0 or — with appropriate empty states.
+
+### 3. Users Management Table
 - **Trigger**: Viewing `/admin/users/overview`.
 - **UI State**:
   - Displays a clean data grid.
@@ -56,7 +69,7 @@ stateDiagram-v2
   - **Pagination Overflow**: If a user is on Page 5, and performs a search that yields only 1 page of results, does the UI break, or gracefully reset to Page 1?
   - **Empty States**: If a search yields zero results, is there a clear "No users found" empty state, or just a broken blank table?
 
-### 3. Workspace Settings (Connections)
+### 4. Workspace Settings (Connections)
 - **Trigger**: Viewing `/admin/settings/connections`.
 - **UI State**:
   - Empty State: Displays "No connections configured" when empty.

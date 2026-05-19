@@ -11,6 +11,7 @@ import {
 	renderWorkspaceTopNavSidebarToggle,
 } from "../../shared/components/settings-top-nav.js";
 import { normalizeWorkspaceCapabilities } from "../../shared/utils/workspace-capabilities.js";
+const loadAdminUsageOverviewModule = () => import("./usage/overview.js");
 const loadAdminUsersOverviewModule = () => import("./users/overview.js");
 const loadAdminUsersGroupsModule = () => import("./users/groups.js");
 const loadAdminUsersGroupsHelpersModule = () =>
@@ -43,6 +44,7 @@ import {
 	renderSettingsSkeleton,
 	renderSystemLayout,
 	renderUsersLayout,
+	renderOverviewLayout,
 } from "./admin-layout.js";
 
 export async function renderAdminPage(container) {
@@ -100,6 +102,11 @@ export async function renderAdminPage(container) {
 	let usersModulesReadyPromise = null;
 	let settingsModulesReadyPromise = null;
 	let systemModulesReadyPromise = null;
+let overviewModulesReadyPromise = null;
+
+const overviewModules = {
+	renderUsageOverview: null,
+};
 
 	const ensureUsersModules = () => {
 		if (usersModules.renderUserOverview) return Promise.resolve(usersModules);
@@ -195,7 +202,23 @@ export async function renderAdminPage(container) {
 		return systemModulesReadyPromise;
 	};
 
+	const ensureOverviewModules = () => {
+		if (overviewModules.renderUsageOverview) return Promise.resolve(overviewModules);
+		if (overviewModulesReadyPromise) return overviewModulesReadyPromise;
+		overviewModulesReadyPromise = loadAdminUsageOverviewModule()
+			.then((overviewModule) => {
+				overviewModules.renderUsageOverview = overviewModule.renderUsageOverview;
+				return overviewModules;
+			})
+			.catch((err) => {
+				overviewModulesReadyPromise = null;
+				throw err;
+			});
+		return overviewModulesReadyPromise;
+	};
+
 	const ensureMainTabModules = async (tab) => {
+		if (tab === "overview") return ensureOverviewModules();
 		if (tab === "users") return ensureUsersModules();
 		if (tab === "system") return ensureSystemModules();
 		return ensureSettingsModules();
@@ -284,7 +307,9 @@ export async function renderAdminPage(container) {
 			container.querySelector("#system-tabs-container");
 
 		if (!tabsContainer) {
-			if (mainTab === "users") {
+			if (mainTab === "overview") {
+				mainContentEl.innerHTML = renderOverviewLayout();
+			} else if (mainTab === "users") {
 				mainContentEl.innerHTML = renderUsersLayout(subTab);
 			} else if (mainTab === "system") {
 				mainContentEl.innerHTML = renderSystemLayout(subTab);
@@ -293,7 +318,10 @@ export async function renderAdminPage(container) {
 			}
 			bindSubnav();
 		} else {
-			if (mainTab === "users") {
+			if (mainTab === "overview") {
+				mainContentEl.innerHTML = renderOverviewLayout();
+				bindSubnav();
+			} else if (mainTab === "users") {
 				tabsContainer.id = "users-tabs-container";
 				tabsContainer.innerHTML = `
           <a href="/admin/users/overview" data-subnav="overview" class="flex items-center gap-2 px-3 py-2 rounded-lg transition ${subTab === "overview" ? "bg-gray-100 text-gray-900" : "text-gray-700 hover:text-gray-900"}">
@@ -383,6 +411,13 @@ export async function renderAdminPage(container) {
 		subContentEl.dataset.settingsTab = subTab;
 		data.sharedActionFooter = false;
 		renderMainActionFooter();
+
+		if (mainTab === "overview") {
+			overviewModules.renderUsageOverview?.(subContentEl);
+			renderMainActionFooter();
+			updateMainActionFooter();
+			return;
+		}
 
 		if (mainTab === "settings") {
 			if (subTab === "connections") {

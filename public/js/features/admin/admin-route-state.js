@@ -1,41 +1,24 @@
 export function resolveAdminRouteState(pathname) {
 	if (pathname === "/admin" || pathname === "/admin/") {
-		return {
-			mainTab: "users",
-			subTab: "overview",
-			canonicalPath: "/admin/users/overview",
-		};
+		return { mainTab: "overview", subTab: "usage", canonicalPath: "/admin/overview" };
+	}
+	if (pathname === "/admin/overview" || pathname === "/admin/overview/") {
+		return { mainTab: "overview", subTab: "usage", canonicalPath: "/admin/overview" };
 	}
 	if (pathname === "/admin/users" || pathname === "/admin/users/") {
-		return {
-			mainTab: "users",
-			subTab: "overview",
-			canonicalPath: "/admin/users/overview",
-		};
+		return { mainTab: "users", subTab: "overview", canonicalPath: "/admin/users/overview" };
 	}
 	if (
 		pathname === "/admin/users/overview" ||
 		pathname.startsWith("/admin/users/overview/")
 	) {
-		return {
-			mainTab: "users",
-			subTab: "overview",
-			canonicalPath: "/admin/users/overview",
-		};
+		return { mainTab: "users", subTab: "overview", canonicalPath: "/admin/users/overview" };
 	}
 	if (pathname === "/admin/settings" || pathname === "/admin/settings/") {
-		return {
-			mainTab: "settings",
-			subTab: "connections",
-			canonicalPath: "/admin/settings/connections",
-		};
+		return { mainTab: "settings", subTab: "connections", canonicalPath: "/admin/settings/connections" };
 	}
 	if (pathname === "/admin/system" || pathname === "/admin/system/") {
-		return {
-			mainTab: "system",
-			subTab: "registration",
-			canonicalPath: "/admin/system/registration",
-		};
+		return { mainTab: "system", subTab: "registration", canonicalPath: "/admin/system/registration" };
 	}
 	if (
 		pathname === "/admin/users/roles" ||
@@ -47,21 +30,13 @@ export function resolveAdminRouteState(pathname) {
 		pathname === "/admin/users/groups" ||
 		pathname.startsWith("/admin/users/groups/")
 	) {
-		return {
-			mainTab: "users",
-			subTab: "groups",
-			canonicalPath: "/admin/users/groups",
-		};
+		return { mainTab: "users", subTab: "groups", canonicalPath: "/admin/users/groups" };
 	}
 	if (
 		pathname === "/admin/users/policy" ||
 		pathname.startsWith("/admin/users/policy/")
 	) {
-		return {
-			mainTab: "users",
-			subTab: "policies",
-			canonicalPath: "/admin/users/policies",
-		};
+		return { mainTab: "users", subTab: "policies", canonicalPath: "/admin/users/policies" };
 	}
 	if (
 		pathname === "/admin/users/policies" ||
@@ -69,47 +44,33 @@ export function resolveAdminRouteState(pathname) {
 	) {
 		return { mainTab: "users", subTab: "policies", canonicalPath: pathname };
 	}
+
 	// System sub-routes
 	if (
 		pathname === "/admin/system/registration" ||
 		pathname.startsWith("/admin/system/registration/")
 	) {
-		return {
-			mainTab: "system",
-			subTab: "registration",
-			canonicalPath: "/admin/system/registration",
-		};
+		return { mainTab: "system", subTab: "registration", canonicalPath: "/admin/system/registration" };
 	}
 	if (
 		pathname === "/admin/system/email" ||
 		pathname.startsWith("/admin/system/email/")
 	) {
-		return {
-			mainTab: "system",
-			subTab: "email",
-			canonicalPath: "/admin/system/email",
-		};
+		return { mainTab: "system", subTab: "email", canonicalPath: "/admin/system/email" };
 	}
 	if (
 		pathname === "/admin/system/security" ||
 		pathname.startsWith("/admin/system/security/")
 	) {
-		return {
-			mainTab: "system",
-			subTab: "security",
-			canonicalPath: "/admin/system/security",
-		};
+		return { mainTab: "system", subTab: "security", canonicalPath: "/admin/system/security" };
 	}
 	if (
 		pathname === "/admin/system/activity" ||
 		pathname.startsWith("/admin/system/activity/")
 	) {
-		return {
-			mainTab: "system",
-			subTab: "activity",
-			canonicalPath: "/admin/system/activity",
-		};
+		return { mainTab: "system", subTab: "activity", canonicalPath: "/admin/system/activity" };
 	}
+
 	// Settings sub-routes
 	if (pathname.startsWith("/admin/settings")) {
 		let subTab = "connections";
@@ -118,18 +79,21 @@ export function resolveAdminRouteState(pathname) {
 		else if (pathname.includes("/models")) subTab = "models";
 		return { mainTab: "settings", subTab, canonicalPath: pathname };
 	}
+
 	// System fallback
 	if (pathname.startsWith("/admin/system")) {
 		let subTab = "registration";
 		if (pathname.includes("/email")) subTab = "email";
 		else if (pathname.includes("/security")) subTab = "security";
 		else if (pathname.includes("/activity")) subTab = "activity";
-		return {
-			mainTab: "system",
-			subTab,
-			canonicalPath: `/admin/system/${subTab}`,
-		};
+		return { mainTab: "system", subTab, canonicalPath: `/admin/system/${subTab}` };
 	}
+
+	// Overview fallback
+	if (pathname.startsWith("/admin/overview")) {
+		return { mainTab: "overview", subTab: "usage", canonicalPath: "/admin/overview" };
+	}
+
 	// Users fallback
 	let subTab = "overview";
 	if (pathname.includes("/roles")) subTab = "roles";
@@ -139,12 +103,16 @@ export function resolveAdminRouteState(pathname) {
 }
 
 export function getAdminTopNavPath(mainTab) {
+	if (mainTab === "overview") return "/admin/overview";
 	if (mainTab === "users") return "/admin/users/overview";
 	if (mainTab === "system") return "/admin/system/registration";
 	return "/admin/settings/connections";
 }
 
 export function getAdminSubnavPath(mainTab, subTab) {
+	if (mainTab === "overview") {
+		return "/admin/overview";
+	}
 	if (mainTab === "users") {
 		return `/admin/users/${subTab}`;
 	}

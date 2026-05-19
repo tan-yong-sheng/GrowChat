@@ -108,3 +108,8 @@ export async function removeGroupMembers(groupId, userIds = []) {
   });
   return readJsonResponse(res, `Failed to remove group members (${res.status})`);
 }
+
+export async function fetchAdminUsage({ signal, cache = 'no-store' } = {}) {
+	const res = await apiFetch('/api/admin/usage', { signal, cache });
+	return readJsonResponse(res, `Failed to fetch usage metrics (${res.status})`);
+}
