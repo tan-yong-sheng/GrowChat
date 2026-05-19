@@ -169,9 +169,23 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-raw-model-access-badge-markup-in-model-settings-features'
+    // Use --json output to avoid terminal line-wrapping issues with rule IDs
+    // (semgrep wraps long rule IDs at hyphens, breaking toContain matching)
+    const resultJson = run(
+      'semgrep',
+      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/account/account-models.js'],
+      fixtureRoot
     );
+    let foundBadgeRule = false;
+    try {
+      const parsed = JSON.parse(resultJson.stdout);
+      foundBadgeRule = (parsed.results ?? []).some((r) =>
+        r.check_id?.includes('no-raw-model-access-badge-markup-in-model-settings-features')
+      );
+    } catch {
+      /* ignore parse errors */
+    }
+    expect(foundBadgeRule).toBe(true);
   }, 20000);
 
   it('rejects direct getModelAccessPresentation usage in model settings pages', () => {
@@ -192,8 +206,20 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-direct-model-access-presentation-in-model-settings-features'
+    const resultJson2 = run(
+      'semgrep',
+      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/admin/settings/models.js'],
+      fixtureRoot
     );
+    let foundPresentationRule = false;
+    try {
+      const parsed = JSON.parse(resultJson2.stdout);
+      foundPresentationRule = (parsed.results ?? []).some((r) =>
+        r.check_id?.includes('no-direct-model-access-presentation-in-model-settings-features')
+      );
+    } catch {
+      /* ignore parse errors */
+    }
+    expect(foundPresentationRule).toBe(true);
   }, 20000);
 });
