@@ -1,3 +1,6 @@
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
+
 /**
  * Security Audit Logging Service
  *
@@ -34,7 +37,7 @@ export const SecurityEventTypes = {
  */
 export async function logSecurityEvent(env, eventType, details = {}) {
   if (!env?.SESSIONS) {
-    console.warn('SESSIONS KV binding required for audit logging');
+    logger.warn('SESSIONS KV binding required for audit logging');
     return;
   }
 
@@ -53,7 +56,7 @@ export async function logSecurityEvent(env, eventType, details = {}) {
       expirationTtl: AUDIT_LOG_TTL_SECONDS,
     });
   } catch (err) {
-    console.error('Failed to log security event:', err);
+    logger.error('Failed to log security event', { error: err?.message || err });
     // Don't throw - audit logging should not break the application
   }
 }
@@ -90,7 +93,7 @@ export async function trackFailedLoginAttempt(env, email) {
 
     return attempts.length;
   } catch (err) {
-    console.error('Failed to track login attempt:', err);
+    logger.error('Failed to track login attempt', { error: err?.message || err });
     return 0;
   }
 }
@@ -109,7 +112,7 @@ export async function clearFailedLoginAttempts(env, email) {
   try {
     await env.SESSIONS.delete(key);
   } catch (err) {
-    console.error('Failed to clear login attempts:', err);
+    logger.error('Failed to clear login attempts', { error: err?.message || err });
   }
 }
 

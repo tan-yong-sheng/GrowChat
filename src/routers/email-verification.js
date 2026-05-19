@@ -1,3 +1,6 @@
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
+
 /**
  * Email Verification Router
  * Handles email verification and resend verification endpoints
@@ -25,7 +28,7 @@ function getEmailTemplate() {
 				"utf-8",
 			);
 		} catch (error) {
-			console.error("Failed to load email template:", error);
+			logger.error("Failed to load email template", { error: error?.message || error });
 			emailTemplate = "<html>{{userName}} {{verificationUrl}}</html>";
 		}
 	}
@@ -156,7 +159,7 @@ export async function resendVerification({ email, env }) {
 			html,
 		});
 	} catch (error) {
-		console.error("Failed to send verification email:", error);
+		logger.error("Failed to send verification email", { error: error?.message || error });
 		// Don't fail the request if email send fails
 	}
 
@@ -204,7 +207,7 @@ export async function createEmailVerification(userId, email, env) {
 			html,
 		});
 	} catch (error) {
-		console.error("Failed to send verification email:", error);
+		logger.error("Failed to send verification email", { error: error?.message || error });
 		// Don't fail the request if email send fails
 	}
 

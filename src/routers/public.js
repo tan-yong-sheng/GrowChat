@@ -1,11 +1,13 @@
 import { createDB } from "../db.js";
 import { error, json } from "../utils/response.js";
+import { createLogger } from "../utils/logger.js";
 
 /**
  * Public routes handler for shared chats.
  * Routes: GET /s/:share_id - View a shared chat with messages (read-only, no auth required)
  */
 export async function publicRouter(req, env, _ctx, _user, path) {
+  const logger = createLogger(env);
 	if (path === "/api/health") {
 		if (req.method !== "GET") {
 			return error(req, "Method not allowed", 405);
@@ -19,7 +21,7 @@ export async function publicRouter(req, env, _ctx, _user, path) {
 				initialized = Number(row?.count || 0) > 0;
 			} catch (err) {
 				if (!/no such table:\s*users/i.test(String(err?.message || ""))) {
-					console.warn("Health check bootstrap probe failed:", err);
+					logger.warn("Health check bootstrap probe failed", { error: err?.message || err });
 				}
 			}
 		}
@@ -100,7 +102,7 @@ export async function publicRouter(req, env, _ctx, _user, path) {
 			shared: true,
 		});
 	} catch (err) {
-		console.error("Public share endpoint error:", err);
+		logger.error("Public share endpoint error", { error: err?.message || err });
 		return error(req, "Internal server error", 500);
 	}
 }

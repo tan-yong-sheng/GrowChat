@@ -13,6 +13,7 @@
  */
 
 import { createDB } from '../db.js';
+import { createLogger } from '../utils/logger.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { error, json } from '../utils/response.js';
 
@@ -29,6 +30,7 @@ function normalizePermissionsList(value) {
 }
 
 export async function groupsRouter(req, env, _ctx, user, path) {
+  const logger = createLogger(env);
   if (!path.startsWith('/api/admin/groups')) return null;
 
   const isReadOnly = req.method === 'GET';
@@ -67,7 +69,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
 
       return json(req, { groups: payload });
     } catch (err) {
-      console.error('List groups failed:', err);
+      logger.error('List groups failed', { error: err?.message || err });
       return error(req, 'Failed to list groups', 500);
     }
   }
@@ -135,7 +137,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
         201
       );
     } catch (err) {
-      console.error('Create group failed:', err);
+      logger.error('Create group failed', { error: err?.message || err });
       return error(req, 'Failed to create group', 500);
     }
   }
@@ -167,7 +169,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
         members,
       });
     } catch (err) {
-      console.error('Get group failed:', err);
+      logger.error('Get group failed', { error: err?.message || err });
       return error(req, 'Failed to fetch group', 500);
     }
   }
@@ -244,7 +246,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
         },
       });
     } catch (err) {
-      console.error('Update group failed:', err);
+      logger.error('Update group failed', { error: err?.message || err });
       return error(req, 'Failed to update group', 500);
     }
   }
@@ -269,7 +271,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
 
       return new Response(null, { status: 204 });
     } catch (err) {
-      console.error('Delete group failed:', err);
+      logger.error('Delete group failed', { error: err?.message || err });
       return error(req, 'Failed to delete group', 500);
     }
   }
@@ -314,7 +316,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
 
       return json(req, { group_id: groupId, user_ids: userIds }, 201);
     } catch (err) {
-      console.error('Add group members failed:', err);
+      logger.error('Add group members failed', { error: err?.message || err });
       return error(req, 'Failed to add group members', 500);
     }
   }
@@ -353,7 +355,7 @@ export async function groupsRouter(req, env, _ctx, user, path) {
 
       return json(req, { group_id: groupId, user_ids: userIds });
     } catch (err) {
-      console.error('Remove group members failed:', err);
+      logger.error('Remove group members failed', { error: err?.message || err });
       return error(req, 'Failed to remove group members', 500);
     }
   }

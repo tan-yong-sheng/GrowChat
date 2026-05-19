@@ -1,9 +1,11 @@
 import { createDB } from '../db.js';
+import { createLogger } from '../utils/logger.js';
 import { error, json } from '../utils/response.js';
 import { buildUserProfileResponse } from './user-profile.js';
 import { loadWorkspaceSettingsPayload } from '../services/workspace-settings.js';
 
 export async function userSettingsRouter(req, env, _ctx, user, path) {
+  const logger = createLogger(env);
   const isUserSettingsPath =
     path === '/api/users/me/settings' || path === '/api/users/me/settings/';
 
@@ -28,7 +30,7 @@ export async function userSettingsRouter(req, env, _ctx, user, path) {
 
     return json(req, payload);
   } catch (err) {
-    console.error('Load user settings failed:', err);
+    logger.error('Load user settings failed', { error: err?.message || err });
     return error(req, 'Failed to load user settings', 500);
   }
 }

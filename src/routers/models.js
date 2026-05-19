@@ -34,6 +34,8 @@ import {
 } from '../llm/provider-registry.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
+import { createLogger, createRootLogger } from '../utils/logger.js';
+const rootLogger = createRootLogger({});
 
 const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
 const DEFAULT_ATTACHMENT_CAPS = { text: true };
@@ -86,7 +88,7 @@ async function ensureModelAccessTable(db) {
       'CREATE INDEX IF NOT EXISTS idx_model_access_enabled ON model_access (is_enabled)'
     );
   } catch (err) {
-    console.warn('Failed to ensure model_access table:', err.message);
+    rootLogger.warn('Failed to ensure model_access table', { error: err.message });
   }
 }
 
@@ -96,7 +98,7 @@ async function getDisabledModelSet(db) {
     const rows = await db.all('SELECT model_id FROM model_access WHERE is_enabled = 0');
     return new Set(rows.map((row) => row.model_id));
   } catch (err) {
-    console.warn('Failed to read model_access disabled set:', err.message);
+    rootLogger.warn('Failed to read model_access disabled set', { error: err.message });
     return new Set();
   }
 }
@@ -111,7 +113,7 @@ async function getModelAccessMap(db) {
     });
     return map;
   } catch (err) {
-    console.warn('Failed to read model_access map:', err.message);
+    rootLogger.warn('Failed to read model_access map', { error: err.message });
     return new Map();
   }
 }
@@ -268,7 +270,7 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
       if (!discovery.items.length) {
         const errorLabel = discovery.error?.status ? `${discovery.error.status}` : 'no models';
         if (!shouldSuppressDiscoveryWarning(conn, discovery)) {
-          console.warn('Model discovery failed', { baseUrl: conn.baseUrl, errorLabel });
+          rootLogger.warn('Model discovery failed', { baseUrl: conn.baseUrl, errorLabel });
         }
         continue;
       }
@@ -302,7 +304,7 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         });
       }
     } catch (err) {
-      console.warn('Model discovery error', { baseUrl: conn.baseUrl, error: err?.message || err });
+      rootLogger.warn('Model discovery error', { baseUrl: conn.baseUrl, error: err?.message || err });
     }
   }
 
@@ -561,7 +563,7 @@ async function loadCustomModels(env) {
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (err) {
-      console.warn('Failed to fetch custom models from KV, falling back to D1:', err.message);
+      rootLogger.warn('Failed to fetch custom models from KV, falling back to D1', { error: err.message });
     }
   }
 
@@ -586,7 +588,7 @@ async function loadCustomModels(env) {
       }
     } catch (err) {
       // Table may not exist yet in fresh installations. This is not an error condition for read operations.
-      console.warn('No custom_models in D1 (table may not exist yet):', err.message);
+      rootLogger.warn('No custom_models in D1 (table may not exist yet)', { error: err.message });
     }
   }
 
@@ -603,6 +605,7 @@ async function loadCustomModels(env) {
  *   DELETE /api/models/:id      - Remove model config (admin only)
  */
 export async function modelsRouter(req, env, _ctx, user, path) {
+  const logger = createLogger(env);
   // GET /api/models - List available models
   if (req.method === 'GET' && path === '/api/models') {
     // No auth required - everyone should see available models
@@ -632,7 +635,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           db = createDB(env.DB);
           openaiEnabled = await getConfigBool(db, 'openai_enabled', true);
         } catch (err) {
-          console.warn('Failed to read openai_enabled config:', err.message);
+          logger.warn('Failed to read openai_enabled config', { error: err.message });
         }
       }
 
@@ -661,7 +664,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         });
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
-        console.warn('Failed to fetch base models from OpenAI-compatible sources:', err.message);
+        logger.warn('Failed to fetch base models from OpenAI-compatible sources', { error: err.message });
       }
 
       // Load custom models. This may fail if KV or D1 is unavailable.
@@ -669,7 +672,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       try {
         customModels = await loadCustomModels(env);
       } catch (err) {
-        console.warn('Failed to load custom models:', err.message);
+        logger.warn('Failed to load custom models', { error: err.message });
       }
 
       let allModels = [...baseModels, ...customModels];
@@ -820,7 +823,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         }
       );
     } catch (err) {
-      console.error('Unexpected error listing models:', err);
+      logger.error('Unexpected error listing models', { error: err?.message || err });
       return error(req, 'Failed to list models', 500);
     }
   }
@@ -853,7 +856,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         rules,
       });
     } catch (err) {
-      console.error('Load model access failed:', err);
+      logger.error('Load model access failed', { error: err?.message || err });
       return error(req, 'Failed to load model access', 500);
     }
   }
@@ -952,7 +955,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         updates: normalizedUpdates,
       });
     } catch (err) {
-      console.error('Bulk model access update failed:', err);
+      logger.error('Bulk model access update failed', { error: err?.message || err });
       return error(req, 'Failed to update model access', 500);
     }
   }
@@ -992,7 +995,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           rules,
         });
       } catch (err) {
-        console.error('Load model access failed:', err);
+        logger.error('Load model access failed', { error: err?.message || err });
         return error(req, 'Failed to load model access', 500);
       }
     }
@@ -1060,7 +1063,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           })),
         });
       } catch (err) {
-        console.error('Update model access failed:', err);
+        logger.error('Update model access failed', { error: err?.message || err });
         return error(req, 'Failed to update model access', 500);
       }
     }
@@ -1103,7 +1106,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         try {
           openaiEnabled = await getConfigBool(db, 'openai_enabled', true);
         } catch (err) {
-          console.warn('Failed to read openai_enabled config:', err.message);
+          logger.warn('Failed to read openai_enabled config', { error: err.message });
         }
       } else {
         return error(req, 'Database unavailable', 500);
@@ -1113,13 +1116,13 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         modelConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled });
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
-        console.warn('Failed to fetch base models from OpenAI-compatible sources:', err.message);
+        logger.warn('Failed to fetch base models from OpenAI-compatible sources', { error: err.message });
       }
 
       try {
         customModels = await loadCustomModels(env);
       } catch (err) {
-        console.warn('Failed to load custom models:', err.message);
+        logger.warn('Failed to load custom models', { error: err.message });
       }
 
       let allModels = [...baseModels, ...customModels];
@@ -1180,7 +1183,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         providers: providerStats,
       });
     } catch (err) {
-      console.error('Unexpected error listing admin models:', err);
+      logger.error('Unexpected error listing admin models', { error: err?.message || err });
       return error(req, 'Failed to list models', 500);
     }
   }
@@ -1415,7 +1418,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         access_updates: sanitizedAccessUpdates,
       });
     } catch (err) {
-      console.error('Model settings update failed:', err);
+      logger.error('Model settings update failed', { error: err?.message || err });
       return error(req, 'Failed to update model settings', 500);
     }
   }
@@ -1531,7 +1534,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         201
       );
     } catch (err) {
-      console.error('Add custom model failed:', err);
+      logger.error('Add custom model failed', { error: err?.message || err });
       return error(req, 'Failed to add custom model', 500);
     }
   }
@@ -1548,7 +1551,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         const modelConnections = await getAllOpenAIConnectionConfigs(env);
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
-        console.warn(
+        logger.warn(
           'Failed to discover base models for GET /api/models/:id:',
           err?.message || err
         );
@@ -1572,7 +1575,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       // Model not found
       return error(req, 'Model not found', 404);
     } catch (err) {
-      console.error('Get model failed:', err);
+      logger.error('Get model failed', { error: err?.message || err });
       return error(req, 'Failed to fetch model', 500);
     }
   }
@@ -1667,7 +1670,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         message: 'Model updated successfully',
       });
     } catch (err) {
-      console.error('Update model failed:', err);
+      logger.error('Update model failed', { error: err?.message || err });
       return error(req, 'Failed to update model', 500);
     }
   }
@@ -1733,7 +1736,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
       return json(req, { success: true, message: 'Model removed successfully' });
     } catch (err) {
-      console.error('Delete model failed:', err);
+      logger.error('Delete model failed', { error: err?.message || err });
       return error(req, 'Failed to remove model', 500);
     }
   }

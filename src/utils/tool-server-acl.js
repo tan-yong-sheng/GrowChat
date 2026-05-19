@@ -1,3 +1,6 @@
+import { createRootLogger } from './logger.js';
+const logger = createRootLogger({});
+
 const MISSING_TABLE_REGEX = /no such table:\s*tool_server_acl_rules/i;
 
 export function normalizeToolServerAclEffect(value) {
@@ -128,7 +131,7 @@ export async function ensureToolServerAclRulesTable(db) {
       'CREATE INDEX IF NOT EXISTS idx_tool_server_acl_rules_principal ON tool_server_acl_rules(principal_type, principal_id)'
     );
   } catch (err) {
-    console.warn('Failed to ensure tool_server_acl_rules table:', err?.message || err);
+    logger.warn('Failed to ensure tool_server_acl_rules table', { error: err?.message || err });
   }
 }
 

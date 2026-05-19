@@ -6,6 +6,8 @@
  */
 
 import { createDB } from '../db.js';
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
 
 /**
  * Denial reason codes for machine-readable error classification
@@ -44,7 +46,7 @@ export async function resolvePermissions(db, user) {
     const rolePermissions = (roleResult.results || []).map((row) => row.key);
     return Array.from(new Set(rolePermissions));
   } catch (err) {
-    console.error('Permission resolution failed:', err);
+    logger.error('Permission resolution failed', { error: err?.message || err });
     return [];
   }
 }
@@ -107,7 +109,7 @@ export async function authorize(env, user, options = {}) {
       action,
     };
   } catch (err) {
-    console.error('Authorization check failed:', err);
+    logger.error('Authorization check failed', { error: err?.message || err });
     return {
       allow: false,
       code: 'server_error',
@@ -133,7 +135,7 @@ export async function logAuditEvent(env, event) {
   const { actor_id, action, resource_type, resource_id, metadata } = event;
 
   if (!actor_id || !action || !resource_type) {
-    console.warn('Audit event missing required fields:', event);
+    logger.warn('Audit event missing required fields', { event });
     return;
   }
 
@@ -149,7 +151,7 @@ export async function logAuditEvent(env, event) {
       .bind(id, actor_id, action, resource_type, resource_id, metadataJson, created_at)
       .run();
   } catch (err) {
-    console.error('Failed to log audit event:', err);
+    logger.error('Failed to log audit event', { error: err?.message || err });
     // Don't throw - audit logging failures shouldn't break operations
   }
 }
@@ -233,7 +235,7 @@ export async function getRoleUserCount(env, roleName, excludeUserId) {
       .first();
     return result?.count || 0;
   } catch (err) {
-    console.error('Failed to get role user count:', err);
+    logger.error('Failed to get role user count', { error: err?.message || err });
     return 0;
   }
 }
@@ -340,7 +342,7 @@ export async function getAuditLog(env, options = {}) {
       offset: safeOffset,
     };
   } catch (err) {
-    console.error('Failed to get audit log:', err);
+    logger.error('Failed to get audit log', { error: err?.message || err });
     return {
       entries: [],
       total: 0,
@@ -370,7 +372,7 @@ export async function getUserRoles(db, userId) {
     const result = await db.prepare(query).bind(userId).all();
     return result.results || [];
   } catch (err) {
-    console.error('Failed to get user roles:', err);
+    logger.error('Failed to get user roles', { error: err?.message || err });
     return [];
   }
 }
@@ -406,7 +408,7 @@ export async function getRoleDetails(env, roleName) {
       permissions: permResult.results || [],
     };
   } catch (err) {
-    console.error('Failed to get role details:', err);
+    logger.error('Failed to get role details', { error: err?.message || err });
     return null;
   }
 }

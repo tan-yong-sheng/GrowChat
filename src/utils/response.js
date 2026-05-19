@@ -110,7 +110,6 @@ function sanitizeErrorMessage(message, status) {
   // For 5xx errors, never expose internal details to clients
   if (status >= 500) {
     // Log the actual error server-side (would be captured by worker logs)
-    console.error('Internal error:', message);
     return 'An error occurred. Please try again later.';
   }
 
@@ -149,7 +148,12 @@ export function error(req, message, status = 500, details = undefined) {
   }
 
   const sanitized = sanitizeErrorMessage(message, status);
-  return json(req, { error: sanitized, ...(details ? { details } : {}) }, status);
+  const { requestId, ...restDetails } = (details && typeof details === 'object') ? details : {};
+  return json(req, {
+    error: sanitized,
+    ...(requestId ? { requestId } : {}),
+    ...(Object.keys(restDetails).length > 0 ? { details: restDetails } : {})
+  }, status);
 }
 
 export function preflight(req) {

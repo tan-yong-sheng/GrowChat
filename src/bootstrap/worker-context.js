@@ -1,6 +1,8 @@
 import { verifyJWT } from '../shared/auth.js';
 import { getJwtSecret } from '../shared/jwt-secret.js';
 import { error } from '../utils/response.js';
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
 import { loadPrimaryRole as loadPrimaryRoleFromDb } from '../utils/user-role.js';
 
 export function getPath(req) {
@@ -68,7 +70,7 @@ export async function touchLastActive(env, userId) {
     if (/no such column:\s*last_active_at/i.test(String(err?.message || ''))) {
       return;
     }
-    console.warn('last_active_at update skipped:', String(err?.message || err));
+    logger.warn('last_active_at update skipped', { error: String(err?.message || err) });
   }
 }
 

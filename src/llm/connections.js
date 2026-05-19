@@ -12,6 +12,7 @@ import {
 } from './provider-registry.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
+import { createLogger } from '../utils/logger.js';
 
 function normalizeUrl(url) {
   if (!url) return '';
@@ -367,6 +368,7 @@ export async function discoverConnectionModels(connection = {}, options = {}) {
 }
 
 export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
+  const logger = createLogger(env);
   const includeDisabled = options.includeDisabled === true;
   if (!env?.DB) return [];
   try {
@@ -416,7 +418,7 @@ export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
     if (includeDisabled) return normalized;
     return normalized.filter((conn) => conn.enabled !== false);
   } catch (err) {
-    console.warn('Failed to load stored connections:', err?.message || err);
+    logger.warn('Failed to load stored connections', { error: err?.message || err });
     return [];
   }
 }
@@ -524,6 +526,7 @@ function normalizeUserConnectionRow(row, index = 0) {
 }
 
 export async function loadUserOpenAIConnectionConfigs(db, userId, options = {}) {
+  const logger = createLogger({});
   const includeDisabled = options.includeDisabled === true;
   if (!db || !userId) return [];
   try {
@@ -542,12 +545,13 @@ export async function loadUserOpenAIConnectionConfigs(db, userId, options = {}) 
     if (includeDisabled) return normalized;
     return normalized.filter((conn) => conn.enabled !== false);
   } catch (err) {
-    console.warn('Failed to load user connections:', err?.message || err);
+    logger.warn('Failed to load user connections', { error: err?.message || err });
     return [];
   }
 }
 
 export async function getUserOpenAIConnectionConfig(db, userId, connectionId) {
+  const logger = createLogger({});
   if (!db || !userId || !connectionId) return null;
   try {
     await ensureUserConnectionsTable(db);
@@ -559,7 +563,7 @@ export async function getUserOpenAIConnectionConfig(db, userId, connectionId) {
     );
     return normalizeUserConnectionRow(row);
   } catch (err) {
-    console.warn('Failed to load user connection:', err?.message || err);
+    logger.warn('Failed to load user connection', { error: err?.message || err });
     return null;
   }
 }
@@ -678,6 +682,7 @@ export async function deleteUserOpenAIConnection(db, userId, connectionId) {
 }
 
 export async function getAllOpenAIConnectionConfigs(env, options = {}) {
+  const logger = createLogger(env);
   const includeDisabled = options.includeDisabled === true;
   const includeHiddenForUser = options.includeHiddenForUser === true;
   const userId = options.userId ? String(options.userId).trim() : '';
@@ -707,7 +712,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
       const db = createDB(env.DB);
       userConnections = await loadUserOpenAIConnectionConfigs(db, userId, { includeDisabled });
     } catch (err) {
-      console.warn('Failed to load user-owned connections:', err?.message || err);
+      logger.warn('Failed to load user-owned connections', { error: err?.message || err });
       userConnections = [];
     }
   }
@@ -767,7 +772,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     if (includeDisabled) return filtered;
     return filtered.filter((conn) => conn.enabled !== false);
   } catch (err) {
-    console.warn('Failed to apply connection ACL filtering:', err?.message || err);
+    logger.warn('Failed to apply connection ACL filtering', { error: err?.message || err });
     if (includeDisabled) return combined;
     return combined.filter((conn) => conn.enabled !== false);
   }

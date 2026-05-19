@@ -1,4 +1,5 @@
 import { error, json, sseHeaders, sseData } from '../utils/response.js';
+import { createLogger } from '../utils/logger.js';
 import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
@@ -118,6 +119,7 @@ export async function chatMessageRouter({
   originSessionId,
   assistantStreamRunner,
 }) {
+  const logger = createLogger(env);
   const sendMatch = path.match(/^\/api\/chats\/([^/]+)\/messages$/);
   if (sendMatch && req.method === 'POST') {
     const chatId = sendMatch[1];
@@ -246,7 +248,7 @@ export async function chatMessageRouter({
         );
         await db.batch(statements);
       } catch (err) {
-        console.warn('Failed to persist message attachments:', String(err?.message || err));
+        logger.warn('Failed to persist message attachments', { error: String(err?.message || err) });
       }
     }
 
@@ -483,7 +485,7 @@ export async function chatMessageRouter({
         attachmentIds = normalizeAttachmentIds(inherited.map((row) => row.document_id));
       } catch (err) {
         if (!/no such table:\s*message_documents/i.test(String(err?.message || ''))) {
-          console.warn('Failed to load inherited attachments:', String(err?.message || err));
+          logger.warn('Failed to load inherited attachments', { error: String(err?.message || err) });
         }
       }
     }
@@ -566,7 +568,7 @@ export async function chatMessageRouter({
         );
         await db.batch(statements);
       } catch (err) {
-        console.warn('Failed to persist branch attachments:', String(err?.message || err));
+        logger.warn('Failed to persist branch attachments', { error: String(err?.message || err) });
       }
     }
 

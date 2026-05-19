@@ -56,6 +56,8 @@ import {
   toPersonalToolServerSummary,
 } from '../services/workspace-settings.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
+import { createLogger, createRootLogger } from '../utils/logger.js';
+const rootLogger = createRootLogger({});
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback)
@@ -103,7 +105,7 @@ async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
     );
   } catch (err) {
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      console.warn('RBAC role binding skipped: run migrations/001_initial.sql');
+      rootLogger.warn('RBAC role binding skipped: run migrations/001_initial.sql');
       return;
     }
     throw err;
@@ -127,7 +129,7 @@ async function loadModelEnabledMap(db) {
       ])
     );
   } catch (err) {
-    console.warn('Failed to read model access map:', err?.message || err);
+    rootLogger.warn('Failed to read model access map', { error: err?.message || err });
     return new Map();
   }
 }
@@ -168,6 +170,7 @@ async function findUserToolServerByOauthState(db, state) {
 }
 
 export async function usersRouter(req, env, _ctx, user, path) {
+  const logger = createLogger(env);
   const isUsersPath =
     path === '/api/users/me' ||
     path === '/api/users/me/update' ||
@@ -300,7 +303,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         my_connections: payload.my_connections,
       });
     } catch (err) {
-      console.error('Load user connections failed:', err);
+      logger.error('Load user connections failed', { error: err?.message || err });
       return error(req, 'Failed to load resources', 500);
     }
   }
@@ -459,14 +462,11 @@ export async function usersRouter(req, env, _ctx, user, path) {
       if (!discovery.items.length) {
         const upstreamMessage = discovery.error?.message || 'No models discovered';
         const upstreamStatus = discovery.error?.status;
-        console.warn(
-          'Connection test failed:',
-          JSON.stringify({
+        logger.warn('Connection test failed', {
             status: upstreamStatus,
             url: discovery.error?.url,
-            message: upstreamMessage,
-          })
-        );
+            upstreamMessage,
+          });
         const safeReason = getConnectionTestFailureMessage(upstreamStatus);
         return error(req, 'Connection failed', 502, {
           message: safeReason,
@@ -510,7 +510,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       });
       return json(req, payload);
     } catch (err) {
-      console.error('Load user MCP servers failed:', err);
+      logger.error('Load user MCP servers failed', { error: err?.message || err });
       return error(req, 'Failed to load MCP servers', 500);
     }
   }
@@ -995,7 +995,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         offset,
       });
     } catch (err) {
-      console.error('List users failed:', err);
+      logger.error('List users failed', { error: err?.message || err });
       return error(req, 'Failed to list users', 500);
     }
   }
@@ -1149,7 +1149,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         },
       });
     } catch (err) {
-      console.error('Inspect user access failed:', err);
+      logger.error('Inspect user access failed', { error: err?.message || err });
       return error(req, 'Failed to inspect user access', 500);
     }
   }
@@ -1437,7 +1437,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         },
       });
     } catch (err) {
-      console.error('Get user failed:', err);
+      logger.error('Get user failed', { error: err?.message || err });
       return error(req, 'Failed to fetch user', 500);
     }
   }
@@ -1636,7 +1636,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         },
       });
     } catch (err) {
-      console.error('Update user failed:', err);
+      logger.error('Update user failed', { error: err?.message || err });
       return error(req, 'Failed to update user', 500);
     }
   }
@@ -1696,7 +1696,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
       return json(req, { success: true, message: 'User deleted successfully' });
     } catch (err) {
-      console.error('Delete user failed:', err);
+      logger.error('Delete user failed', { error: err?.message || err });
       return error(req, 'Failed to delete user', 500);
     }
   }

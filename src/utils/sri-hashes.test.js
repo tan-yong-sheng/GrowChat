@@ -14,13 +14,18 @@ describe('sri-hashes utils', () => {
     injectSriHashes(html, { marked: null });
     injectSriHashes(html, { marked: null });
 
-    const matchingWarnings = warnSpy.mock.calls.filter(
-      (call) =>
-        String(call?.[0] || '').includes(
-          'SRI hash missing; resource will load without integrity check'
-        ) && call?.[1]?.key === 'marked'
-    );
-
+    // Structured logger emits JSON string via console.warn
+    const matchingWarnings = warnSpy.mock.calls.filter((call) => {
+      try {
+        const parsed = JSON.parse(call?.[0] || '');
+        return (
+          parsed.message === 'SRI hash missing; resource will load without integrity check' &&
+          parsed.key === 'marked'
+        );
+      } catch {
+        return false;
+      }
+    });
     expect(matchingWarnings).toHaveLength(1);
   });
 

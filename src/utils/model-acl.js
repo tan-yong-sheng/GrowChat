@@ -1,3 +1,6 @@
+import { createRootLogger } from './logger.js';
+const logger = createRootLogger({});
+
 const MISSING_TABLE_REGEX = /no such table:\s*model_acl_rules/i;
 
 function safeDecodeResourceId(value) {
@@ -151,7 +154,7 @@ export async function ensureModelAclRulesTable(db) {
       'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_principal ON model_acl_rules(principal_type, principal_id)'
     );
   } catch (err) {
-    console.warn('Failed to ensure model_acl_rules table:', err?.message || err);
+    logger.warn('Failed to ensure model_acl_rules table', { error: err?.message || err });
   }
 }
 
