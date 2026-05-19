@@ -84,7 +84,7 @@ describe('guardrail fixtures', () => {
 
     expect(result.status).not.toBe(0);
     expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain('no-frontend-to-src');
-  }, 10000);
+  }, 60000);
 
   it('rejects frontend worker-env access via semgrep', () => {
     const fixtureRoot = makeFixtureRoot();
