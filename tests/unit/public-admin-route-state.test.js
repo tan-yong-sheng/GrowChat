@@ -8,9 +8,9 @@ import {
 describe("admin route state", () => {
 	it("resolves canonical route state for top-level admin paths", () => {
 		expect(resolveAdminRouteState("/admin")).toEqual({
-			mainTab: "users",
-			subTab: "overview",
-			canonicalPath: "/admin/users/overview",
+			mainTab: "overview",
+			subTab: "usage",
+			canonicalPath: "/admin/overview",
 		});
 		expect(resolveAdminRouteState("/admin/users")).toEqual({
 			mainTab: "users",
@@ -53,9 +53,11 @@ describe("admin route state", () => {
 	});
 
 	it("builds top and sub navigation paths consistently", () => {
+		expect(getAdminTopNavPath("overview")).toBe("/admin/overview");
 		expect(getAdminTopNavPath("users")).toBe("/admin/users/overview");
 		expect(getAdminTopNavPath("settings")).toBe("/admin/settings/connections");
 		expect(getAdminTopNavPath("system")).toBe("/admin/system/registration");
+		expect(getAdminSubnavPath("overview", "usage")).toBe("/admin/overview");
 		expect(getAdminSubnavPath("users", "groups")).toBe("/admin/users/groups");
 		expect(getAdminSubnavPath("settings", "connections")).toBe(
 			"/admin/settings/connections",
