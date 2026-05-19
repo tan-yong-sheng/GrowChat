@@ -45,6 +45,34 @@ async function prompt(label, { default: def } = {}) {
 }
 
 /**
+ * Prompt for a secret value without echoing it to the terminal.
+ * Uses a no-echo input mode so the secret doesn't appear in
+ * terminal scrollback or screen recordings.
+ */
+async function secretPrompt(label) {
+  console.log(`${label}: `);
+  const secretRl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  // Mute echo so typed characters aren't visible
+  const origWrite = process.stdout.write.bind(process.stdout);
+  let muted = false;
+  process.stdout.write = (chunk, ...args) => {
+    if (muted && typeof chunk === 'string' && chunk !== '\n' && chunk !== '\r\n') {
+      return origWrite('*', ...args);
+    }
+    return origWrite(chunk, ...args);
+  };
+  muted = true;
+  const answer = await secretRl.question('');
+  muted = false;
+  process.stdout.write = origWrite;
+  secretRl.close();
+  return answer.trim();
+}
+
+/**
  * Prompt a yes/no question. Defaults to "yes" unless def is false.
  */
 async function confirm(label, { default: def = true } = {}) {
@@ -56,27 +84,47 @@ async function confirm(label, { default: def = true } = {}) {
 }
 
 /**
- * Run a command via spawnSync, inheriting stdio.
- * Returns { ok, status }.
+ * Run a command via spawnSync.
+ * When captureOutput is false (default), inherits stdio for live output.
+ * When captureOutput is true, captures stdout/stderr for programmatic parsing.
+ * Returns { ok, status, stdout, stderr }.
  */
-function run(cmd, args, { exitOnError = true, label: stepLabel } = {}) {
+function run(cmd, args, { exitOnError = true, label: stepLabel, captureOutput = false } = {}) {
   const display = `${cmd} ${args.join(' ')}`;
   if (stepLabel) console.log(`\n⏳ ${stepLabel}...`);
   else console.log(` → ${display}`);
 
+  const stdioConfig = captureOutput ? ['inherit', 'pipe', 'pipe'] : 'inherit';
   const result = spawnSync(cmd, args, {
-    stdio: 'inherit',
+    stdio: stdioConfig,
     shell: true,
     cwd: ROOT,
   });
 
   const ok = result.status === 0;
+  const stdout = (result.stdout ?? '').toString();
+  const stderr = (result.stderr ?? '').toString();
+
   if (!ok && exitOnError) {
     console.error(`\n❌ Command failed: ${display}`);
+    if (captureOutput && stderr) console.error(stderr);
     console.error('   Fix the issue above and re-run the wizard.');
     process.exit(result.status ?? 1);
   }
-  return { ok, status: result.status ?? 1 };
+  return { ok, status: result.status ?? 1, stdout, stderr };
+}
+
+/**
+ * Check if a wrangler command output indicates the resource already exists.
+ * Looks for common "already exists" patterns in stdout and stderr.
+ */
+function isAlreadyExists(stdout, stderr) {
+  const combined = `${stdout} ${stderr}`.toLowerCase();
+  return (
+    combined.includes('already exists') ||
+    combined.includes('already been created') ||
+    combined.includes('name is already taken')
+  );
 }
 
 /**
@@ -108,66 +156,96 @@ function generateSecret(length = 32) {
 
 async function stepWelcome() {
   console.log(`
+
   ╔══════════════════════════════════════════════════════╗
-  ║            🌱 GrowChat Setup Wizard                  ║
+  ║ 🌱 GrowChat Setup Wizard                            ║
   ║                                                      ║
-  ║   This wizard will set up everything you need to     ║
-  ║   deploy GrowChat to Cloudflare Workers.             ║
+  ║ This wizard will set up everything you need to       ║
+  ║ deploy GrowChat to Cloudflare Workers.               ║
   ║                                                      ║
-  ║   It will:                                           ║
-  ║     1. Create D1 database, R2 bucket, KV namespaces  ║
-  ║     2. Apply database migrations                     ║
-  ║     3. Set your secrets (JWT, API keys)              ║
-  ║     4. Deploy to Cloudflare                          ║
+  ║ It will:                                             ║
+  ║   1. Create D1 database, R2 bucket, KV namespaces   ║
+  ║   2. Apply database migrations                       ║
+  ║   3. Set your secrets (JWT, API keys)                ║
+  ║   4. Deploy to Cloudflare                            ║
   ║                                                      ║
-  ║   Press Ctrl+C at any time to abort.                 ║
+  ║ Press Ctrl+C at any time to abort.                   ║
   ╚══════════════════════════════════════════════════════╝
-`);
-  await confirm('Ready to begin?', { default: true });
+  `);
+  const ready = await confirm('Ready to begin?', { default: true });
+  if (!ready) {
+    console.log('\n👋 Wizard cancelled. Re-run with: pnpm run setup');
+    process.exit(0);
+  }
+}
+
+/**
+ * Handle a failed resource creation command.
+ * If the output indicates the resource already exists, logs a skip message.
+ * Otherwise, displays the error and asks whether to continue.
+ */
+async function handleCreateError(result, resourceLabel) {
+  if (isAlreadyExists(result.stdout, result.stderr)) {
+    console.log(` ${resourceLabel} already exists — skipping.`);
+  } else {
+    console.error(`\n❌ ${resourceLabel} creation failed with an unexpected error:`);
+    console.error(result.stderr || result.stdout);
+    const continueAnyway = await confirm('Skip and continue anyway?', {
+      default: false,
+    });
+    if (!continueAnyway) process.exit(1);
+  }
 }
 
 /**
  * Step 1: Create Cloudflare resources.
  * Checks for existing resources before creating.
+ * Distinguishes "already exists" from real errors.
  */
 async function stepCreateResources() {
   console.log('\n📡 Step 1: Creating Cloudflare resources\n');
-  console.log("  We'll create the D1 database, R2 bucket, and KV namespaces");
-  console.log("  needed by GrowChat. If a resource already exists, we'll skip it.\n");
+  console.log(" We'll create the D1 database, R2 bucket, and KV namespaces");
+  console.log(" needed by GrowChat. If a resource already exists, we'll skip it.\n");
 
   // ── D1 Database ─────────────────────────────────────────────────────────
   const dbResult = run('pnpm', ['exec', 'wrangler', 'd1', 'create', 'growchat'], {
     exitOnError: false,
     label: 'Creating D1 database "growchat"',
+    captureOutput: true,
   });
 
   if (dbResult.ok) {
-    console.log('\n⚠️  IMPORTANT: Copy the database_id from the output above');
-    console.log('    and update wrangler.jsonc → d1_databases[0].database_id\n');
-    const dbId = await prompt('Enter the D1 database ID from above');
-    if (dbId) {
-      updateWranglerD1Id(dbId);
+    // Parse database_id from wrangler output
+    const dbIdMatch =
+      dbResult.stdout.match(/database_id\s*=\s*([a-f0-9-]+)/i) ||
+      dbResult.stdout.match(/"database_id"\s*:\s*"([a-f0-9-]+)"/i);
+    if (dbIdMatch) {
+      const dbId = dbIdMatch[1];
+      console.log(`  Found database_id: ${dbId.substring(0, 8)}...`);
+      const autoUpdate = await confirm('Auto-update wrangler.jsonc with this D1 database ID?');
+      if (autoUpdate) {
+        updateWranglerD1Id(dbId);
+      }
     } else {
-      const updated = await confirm('Have you updated wrangler.jsonc with the database ID?');
-      if (!updated) {
-        console.log(
-          "  You'll need to update it before migrations can run. Re-run the wizard after."
-        );
-        process.exit(1);
+      console.log('  ⚠️ Could not parse database_id from output.');
+      const dbId = await prompt('Enter the D1 database ID');
+      if (dbId) {
+        updateWranglerD1Id(dbId);
       }
     }
   } else {
-    console.log('  D1 database "growchat" already exists — skipping.');
+    await handleCreateError(dbResult, 'D1 database "growchat"');
   }
 
   // ── R2 Bucket ───────────────────────────────────────────────────────────
   const r2Result = run('pnpm', ['exec', 'wrangler', 'r2', 'bucket', 'create', 'growchat-files'], {
     exitOnError: false,
     label: 'Creating R2 bucket "growchat-files"',
+    captureOutput: true,
   });
 
   if (!r2Result.ok) {
-    console.log('  R2 bucket "growchat-files" already exists — skipping.');
+    await handleCreateError(r2Result, 'R2 bucket "growchat-files"');
   }
 
   // ── KV Namespaces ───────────────────────────────────────────────────────
@@ -178,15 +256,24 @@ async function stepCreateResources() {
     const kvResult = run('pnpm', ['exec', 'wrangler', 'kv', 'namespace', 'create', ns], {
       exitOnError: false,
       label: `Creating KV namespace "${ns}"`,
+      captureOutput: true,
     });
 
     if (kvResult.ok) {
-      console.log(`\n⚠️  Copy the id for "${ns}" from the output above`);
-      console.log('    and update the corresponding entry in wrangler.jsonc.\n');
-      const kvId = await prompt(`Enter the KV namespace ID for ${ns}`);
-      if (kvId) kvIds[ns] = kvId;
+      // Parse KV namespace ID from output
+      const kvIdMatch =
+        kvResult.stdout.match(/id\s*=\s*([a-f0-9]{32})/i) ||
+        kvResult.stdout.match(/"id"\s*:\s*"([a-f0-9]{32})"/i);
+      if (kvIdMatch) {
+        const kvId = kvIdMatch[1];
+        console.log(`  Found ID: ${kvId.substring(0, 8)}...`);
+        kvIds[ns] = kvId;
+      } else {
+        const kvId = await prompt(`Enter the KV namespace ID for ${ns}`);
+        if (kvId) kvIds[ns] = kvId;
+      }
     } else {
-      console.log(`  KV namespace "${ns}" already exists — skipping.`);
+      await handleCreateError(kvResult, `KV namespace "${ns}"`);
     }
   }
 
@@ -215,7 +302,7 @@ function updateWranglerD1Id(dbId) {
   content = content.replace(/("preview_database_id"\s*:\s*")([^"]*)(")/, `$1${dbId}$3`);
 
   writeFileSync(wranglerPath, content);
-  console.log('  ✏️  wrangler.jsonc updated with D1 database ID.');
+  console.log(' ✏️ wrangler.jsonc updated with D1 database ID.');
 }
 
 /**
@@ -244,7 +331,7 @@ function updateWranglerKvIds(ids) {
   }
 
   writeFileSync(wranglerPath, content);
-  console.log('  ✏️  wrangler.jsonc updated with KV namespace IDs.');
+  console.log(' ✏️ wrangler.jsonc updated with KV namespace IDs.');
 }
 
 /**
@@ -255,7 +342,7 @@ async function stepApplyMigrations() {
 
   const migrationsDir = resolve(ROOT, 'migrations');
   if (!existsSync(migrationsDir)) {
-    console.error('  ❌ No migrations/ directory found. Cannot apply migrations.');
+    console.error(' ❌ No migrations/ directory found. Cannot apply migrations.');
     process.exit(1);
   }
 
@@ -268,32 +355,42 @@ async function stepApplyMigrations() {
 
 /**
  * Step 3: Set secrets.
+ * Uses no-echo prompts for sensitive values so they don't
+ * appear in terminal scrollback.
  */
 async function stepSetSecrets() {
   console.log('\n🔐 Step 3: Setting secrets\n');
-  console.log('  Secrets are stored securely in Cloudflare — never written to files.\n');
+  console.log(' Secrets are stored securely in Cloudflare — never written to files.\n');
 
   // ── JWT_SECRET ──────────────────────────────────────────────────────────
   const defaultJwt = generateSecret();
-  console.log('  JWT_SECRET is used to sign authentication tokens.');
-  console.log('  A random one has been generated for you — press Enter to use it.\n');
-  const jwtSecret = await prompt('JWT_SECRET', { default: defaultJwt });
+  console.log(' JWT_SECRET is used to sign authentication tokens.');
+  console.log(' A random one has been generated for you.');
+  const useDefaultJwt = await confirm('Use the generated JWT secret?', {
+    default: true,
+  });
+  let jwtSecret;
+  if (useDefaultJwt) {
+    jwtSecret = defaultJwt;
+  } else {
+    jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
+  }
   setSecret('JWT_SECRET', jwtSecret);
-  console.log('  ✅ JWT_SECRET set.\n');
+  console.log(' ✅ JWT_SECRET set.\n');
 
   // ── RESEND_API_KEY (optional) ───────────────────────────────────────────
-  console.log('  RESEND_API_KEY is used for transactional emails (password reset).');
-  console.log('  This is optional — you can set it later via:');
-  console.log('    pnpm exec wrangler secret put RESEND_API_KEY\n');
+  console.log(' RESEND_API_KEY is used for transactional emails (password reset).');
+  console.log(' This is optional — you can set it later via:');
+  console.log('   pnpm exec wrangler secret put RESEND_API_KEY\n');
   const hasResend = await confirm('Do you have a Resend API key?');
   if (hasResend) {
-    const resendKey = await prompt('RESEND_API_KEY');
+    const resendKey = await secretPrompt('RESEND_API_KEY');
     if (resendKey) {
       setSecret('RESEND_API_KEY', resendKey);
-      console.log('  ✅ RESEND_API_KEY set.\n');
+      console.log(' ✅ RESEND_API_KEY set.\n');
     }
   } else {
-    console.log('  ⏭️  Skipped RESEND_API_KEY — emails will not work until this is set.\n');
+    console.log(' ⏭️ Skipped RESEND_API_KEY — emails will not work until this is set.\n');
   }
 
   // ── RESEND_FROM_EMAIL (optional, only if Resend key set) ────────────────
@@ -303,7 +400,7 @@ async function stepSetSecrets() {
     });
     if (resendFrom) {
       setSecret('RESEND_FROM_EMAIL', resendFrom);
-      console.log('  ✅ RESEND_FROM_EMAIL set.\n');
+      console.log(' ✅ RESEND_FROM_EMAIL set.\n');
     }
   }
 
@@ -312,19 +409,25 @@ async function stepSetSecrets() {
 
 /**
  * Step 4: Create admin account.
+ *
+ * Note: Fully automated admin creation would require calling the registration
+ * API and then promoting via D1 — both of which need the app to be deployed
+ * first. This step therefore provides clear post-deploy instructions.
  */
 async function stepCreateAdmin() {
   console.log('\n👤 Step 4: Create admin account\n');
-  console.log('  After deployment, register your admin account at the app URL.');
-  console.log('  Then promote the account to admin via the D1 console:\n');
-  console.log('    pnpm exec wrangler d1 execute growchat --remote \\');
-  console.log("      --command=\"UPDATE users SET role='admin' WHERE email='YOUR_EMAIL'\"\n");
-  await confirm("Understood — I'll promote my account after first login?");
+  console.log(' After deployment, register your admin account at the app URL.');
+  console.log(' Then promote the account to admin via the D1 console:\n');
+  console.log('   pnpm exec wrangler d1 execute growchat --remote \\');
+  console.log("     --command=\"UPDATE users SET role='admin' WHERE email='YOUR_EMAIL'\"\n");
+  console.log(' Or use the Cloudflare dashboard D1 console.\n');
+  const understood = await confirm("Understood — I'll promote my account after first login?");
+  if (!understood) {
+    console.log('   No problem — you can do this manually after deploy.');
+  }
 }
 
-/**
- * Step 5: Deploy.
- */
+/** Step 5: Deploy. */
 async function stepDeploy() {
   console.log('\n🚀 Step 5: Deploying to Cloudflare Workers\n');
 
@@ -340,23 +443,23 @@ async function stepDeploy() {
 async function stepSummary() {
   console.log(`
   ╔══════════════════════════════════════════════════════╗
-  ║            🎉 GrowChat is live!                      ║
+  ║ 🎉 GrowChat is live!                                ║
   ║                                                      ║
-  ║   Next steps:                                        ║
-  ║     1. Open your Workers URL (shown above)           ║
-  ║     2. Register your admin account                   ║
-  ║     3. Promote to admin via D1 console               ║
-  ║     4. Add an LLM connection in Settings             ║
+  ║ Next steps:                                          ║
+  ║   1. Open your Workers URL (shown above)             ║
+  ║   2. Register your admin account                     ║
+  ║   3. Promote to admin via D1 console                 ║
+  ║   4. Add an LLM connection in Settings               ║
   ║                                                      ║
-  ║   Useful commands:                                   ║
-  ║     pnpm run dev       — Local development           ║
-  ║     pnpm run deploy    — Re-deploy after changes     ║
-  ║     pnpm exec wrangler — Run any wrangler command    ║
+  ║ Useful commands:                                     ║
+  ║   pnpm run dev       — Local development             ║
+  ║   pnpm run deploy    — Re-deploy after changes       ║
+  ║   pnpm exec wrangler — Run any wrangler command      ║
   ║                                                      ║
-  ║   Docs: docs/index.md                                ║
-  ║   Issues: github.com/tan-yong-sheng/GrowChat/issues  ║
+  ║ Docs:   docs/index.md                                ║
+  ║ Issues: github.com/tan-yong-sheng/GrowChat/issues    ║
   ╚══════════════════════════════════════════════════════╝
-`);
+  `);
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────

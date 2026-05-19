@@ -52,7 +52,7 @@ The `backend` directory maps APIs, background jobs, database schemas, and data f
   - [Background Jobs](backend/jobs/)
   - [External Integrations](backend/integrations/)
   - [Infrastructure & Deployments](backend/infra/)
-- [Deployment Guide](backend/infra/deployment.md) — one-command deploy, wizard, manual setup, troubleshooting
+  - [Deployment Guide](backend/infra/deployment.md) — one-command deploy, wizard, manual setup, troubleshooting
 - [Auth & Identity Flow Details](backend/auth/)
 
 ## 🐞 Bug Hunting & Standards
