@@ -52,7 +52,7 @@ pnpm exec wrangler d1 execute growchat --remote \
 
 ## Manual Setup (advanced)
 
-See [README.md](../../README.md) for the manual step-by-step deployment instructions.
+See [README.md](../../../README.md) for the manual step-by-step deployment instructions.
 
 ## Re-deploying After Changes
 

@@ -51,18 +51,18 @@ if ! command -v pnpm &>/dev/null; then
 fi
 ok "pnpm $(pnpm -v) detected"
 
+# ── Install dependencies ───────────────────────────────────────────────────
+
+info "Installing dependencies..."
+pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+ok "Dependencies installed"
+
 # Check wrangler auth
 if ! pnpm exec wrangler whoami &>/dev/null 2>&1; then
 	warn "Not logged into Cloudflare. Launching login..."
 	pnpm exec wrangler login || fail "Cloudflare login failed. Run: pnpm exec wrangler login"
 fi
 ok "Cloudflare authentication confirmed"
-
-# ── Install dependencies ───────────────────────────────────────────────────
-
-info "Installing dependencies..."
-pnpm install --frozen-lockfile 2>/dev/null || pnpm install
-ok "Dependencies installed"
 
 # ── Run setup wizard ───────────────────────────────────────────────────────
 

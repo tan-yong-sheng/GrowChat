@@ -13,6 +13,8 @@
   },
 
   // D1 database — update database_id after running: wrangler d1 create growchat
+  // ⚠️ WARNING: preview_database_id uses the same DB as production. For local dev,
+  //   create a separate preview DB or use --local to avoid modifying production data.
   "d1_databases": [
     {
       "binding": "DB",
@@ -23,6 +25,8 @@
   ],
 
   // R2 bucket for file uploads — bucket created by: wrangler r2 bucket create growchat-files
+  // ⚠️ WARNING: preview_bucket_name uses the same bucket as production. For local dev,
+  //   create a separate preview bucket or use --local to avoid modifying production data.
   "r2_buckets": [
     {
       "binding": "FILES",
@@ -48,6 +52,8 @@
   ],
 
   // KV namespaces — update ids after running: wrangler kv:namespace create <NAME>
+  // ⚠️ WARNING: preview_id uses the same namespace as production. For local dev,
+  //   create separate preview namespaces or use --local to avoid modifying production data.
   "kv_namespaces": [
     {
       "binding": "CHAT_SESSIONS",
@@ -71,6 +77,7 @@
     "APP_NAME": "GrowChat",
     "ENVIRONMENT": "production",
     "EMAIL_PROVIDER": "resend",
-    "ALLOWED_ORIGINS": "*",
+    // TODO: Replace with your actual domain after first deploy (e.g., "https://growchat.your-domain.com")
+    "ALLOWED_ORIGINS": "https://YOUR_WORKERS_URL",
   },
 }

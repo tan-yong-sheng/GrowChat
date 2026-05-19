@@ -1,7 +1,7 @@
 # GrowChat local development environment variables
 # Copy this file to .dev.vars and fill in the values.
 #
-#   cp .dev.vars.example .dev.vars
+#   cp template/.dev.vars.example .dev.vars
 #
 # These are used by `wrangler dev` for local development only.
 # Production secrets are set via: pnpm exec wrangler secret put <NAME>
