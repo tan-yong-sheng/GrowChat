@@ -35,6 +35,29 @@ function run(command, args, cwd) {
   });
 }
 
+/**
+ * Normalize semgrep output so rule ID assertions work in worktrees.
+ *
+ * Semgrep prefixes rule IDs with the config file path (slashes → dots),
+ * e.g. "mnt.data.Coding.GrowChat..semgrep.no-frontend-worker-env-access".
+ * It also wraps long rule IDs across lines.
+ *
+ * This function:
+ *  1. Collapses whitespace so line-wrapped rule IDs rejoin
+ *  2. Strips any ".semgrep." path prefix from rule IDs
+ */
+function normalizeSemgrepOutput(output) {
+  // Collapse whitespace so line-wrapped rule IDs become contiguous
+  let normalized = output.replace(/\s+/g, ' ');
+  // Strip path prefixes like "mnt.data.Coding.GrowChat..worktrees.deploy..semgrep."
+  normalized = normalized.replace(/\S*\.semgrep\./g, '');
+  // Fix line-wrapped rule IDs: semgrep wraps long IDs, inserting a space after
+  // a hyphen at the wrap point. E.g. "in-model-settings- features" → "in-model-settings-features"
+  // Match: lowercase word segment, hyphen, space, lowercase word (the wrapped continuation)
+  normalized = normalized.replace(/([a-z])- ([a-z])/g, '$1-$2');
+  return normalized;
+}
+
 describe('guardrail fixtures', () => {
   it('rejects frontend imports into src via dependency-cruiser', () => {
     const fixtureRoot = makeFixtureRoot();
@@ -78,7 +101,7 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+    expect(normalizeSemgrepOutput(`${result.stdout ?? ''}${result.stderr ?? ''}`)).toContain(
       'no-frontend-worker-env-access'
     );
   }, 20000);
@@ -104,7 +127,7 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+    expect(normalizeSemgrepOutput(`${result.stdout ?? ''}${result.stderr ?? ''}`)).toContain(
       'no-raw-status-badge-markup-in-account-features'
     );
   }, 20000);
@@ -127,7 +150,7 @@ describe('guardrail fixtures', () => {
     );
 
     expect(badResult.status).not.toBe(0);
-    expect(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`).toContain(
+    expect(normalizeSemgrepOutput(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`)).toContain(
       'no-raw-pill-button-markup-in-feature-code'
     );
 
@@ -169,7 +192,7 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+    expect(normalizeSemgrepOutput(`${result.stdout ?? ''}${result.stderr ?? ''}`)).toContain(
       'no-raw-model-access-badge-markup-in-model-settings-features'
     );
   }, 20000);
@@ -192,7 +215,7 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+    expect(normalizeSemgrepOutput(`${result.stdout ?? ''}${result.stderr ?? ''}`)).toContain(
       'no-direct-model-access-presentation-in-model-settings-features'
     );
   }, 20000);
