@@ -18,18 +18,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../db.js', () => ({
 	createDB: (...args) => mocks.createDB(...args),
 }));
-
 vi.mock('../utils/authorize.js', () => ({
 	authorize: (...args) => mocks.authorize(...args),
 	logAuditEvent: (...args) => mocks.logAuditEvent(...args),
 }));
-
 vi.mock('../utils/app-config.js', () => ({
 	getConfigBool: (...args) => mocks.getConfigBool(...args),
 	getConfigValue: (...args) => mocks.getConfigValue(...args),
 	setConfigValue: (...args) => mocks.setConfigValue(...args),
 }));
-
 vi.mock('../llm/connections.js', () => ({
 	buildConnectionHeaders: (...args) => mocks.buildConnectionHeaders(...args),
 	discoverConnectionModels: (...args) => mocks.discoverConnectionModels(...args),
@@ -42,17 +39,14 @@ vi.mock('../llm/connections.js', () => ({
 	normalizeConnectionManualModels: (value) => value || [],
 	normalizeProviderFamily: vi.fn(() => 'openai'),
 }));
-
 vi.mock('../mcp/client.js', () => ({
 	MCP_PROTOCOL_VERSION: '2024-11-05',
 	mcpNotify: (...args) => mocks.mcpNotify(...args),
 	mcpRequest: (...args) => mocks.mcpRequest(...args),
 }));
-
 vi.mock('../utils/validation.js', () => ({
 	isSafeOutboundUrl: (...args) => mocks.isSafeOutboundUrl(...args),
 }));
-
 vi.mock('../admin/tool-servers.js', () => ({
 	buildAuthorizationUrl: vi.fn(),
 	discoverAuthorizationMetadata: vi.fn(),
@@ -73,18 +67,15 @@ vi.mock('../admin/tool-servers.js', () => ({
 	selectTokenAuthMethod: vi.fn(),
 	sha256Base64Url: vi.fn(() => 'test-hash'),
 }));
-
 vi.mock('../../public/js/shared/utils/connection-model-selection.js', () => ({
 	normalizeConnectionModelSelectionMode: vi.fn(() => 'all'),
 }));
-
 vi.mock('../utils/connection-acl.js', () => ({
 	buildConnectionAclRuleSaveStatements: vi.fn(() => ({ statements: [] })),
 	loadConnectionAclRules: vi.fn(() => []),
 	normalizeConnectionAclRule: vi.fn(),
 	saveConnectionAclRulesForConnection: vi.fn(() => []),
 }));
-
 vi.mock('../utils/tool-server-acl.js', () => ({
 	buildToolServerAclRuleSaveStatements: vi.fn(() => ({ statements: [] })),
 	loadToolServerAclRules: vi.fn(() => []),
@@ -98,33 +89,28 @@ function makeReq(path, method = 'GET') {
 	return new Request(`https://example.com${path}`, { method });
 }
 
-/** Creates a chainable mock query: .bind().first() / .all() */
-function mockChain(result) {
-	return { bind: () => mockChain(result), first: () => Promise.resolve(result), all: () => Promise.resolve({ results: result }) };
-}
-
-/** Creates a mock DB with sequential query results for the usage endpoint. */
+/**
+ * Creates a mock DB that supports db.batch() for the usage endpoint.
+ * Returns D1-style batch results: [{results: [{count: N}]}, {results: [{day, count}]}]
+ */
 function makeMockDb(o = {}) {
-	const d = {
-		total: o.totalUsers ?? 10, a7: o.activeUsers7d ?? 5, a30: o.activeUsers30d ?? 8,
-		pa7: o.prevActiveUsers7d ?? 3, pa30: o.prevActiveUsers30d ?? 6,
-		daily: o.dailyMessages ?? [{ day: '2026-05-19', count: 42 }],
-		weekly: o.weeklyMessages ?? [{ week: '2026-W20', count: 150 }],
-		pd: o.prevDailyTotal ?? 30, pw: o.prevWeeklyTotal ?? 120,
-		s30: o.sparks30d ?? 25, ps30: o.prevSparks30d ?? 20, ts: o.totalSparks ?? 100,
-	};
-	// Query order: total, a7, a30, pa7, pa30, daily(.all), weekly(.all), pd, pw, s30, ps30, ts
-	const results = [
-		{ count: d.total }, { count: d.a7 }, { count: d.a30 }, { count: d.pa7 }, { count: d.pa30 },
-		d.daily, d.weekly, { count: d.pd }, { count: d.pw }, { count: d.s30 }, { count: d.ps30 }, { count: d.ts },
+	const batchResults = [
+		{ results: [{ count: o.totalUsers ?? 10 }] },       // 0: total users
+		{ results: [{ count: o.activeUsers7d ?? 5 }] },     // 1: active 7d
+		{ results: [{ count: o.activeUsers30d ?? 8 }] },    // 2: active 30d
+		{ results: [{ count: o.prevActiveUsers7d ?? 3 }] }, // 3: prev active 7d
+		{ results: [{ count: o.prevActiveUsers30d ?? 6 }] },// 4: prev active 30d
+		{ results: o.dailyMessages ?? [{ day: '2026-05-19', count: 42 }] }, // 5: daily messages
+		{ results: o.weeklyMessages ?? [{ week: '2026-W20', count: 150 }] },// 6: weekly messages
+		{ results: [{ count: o.prevDailyTotal ?? 30 }] },   // 7: prev daily total
+		{ results: [{ count: o.prevWeeklyTotal ?? 120 }] }, // 8: prev weekly total
+		{ results: [{ count: o.sparks30d ?? 25 }] },        // 9: sparks 30d
+		{ results: [{ count: o.prevSparks30d ?? 20 }] },    // 10: prev sparks 30d
+		{ results: [{ count: o.totalSparks ?? 100 }] },     // 11: total sparks
 	];
-	let i = 0;
 	return {
-		prepare: vi.fn(() => {
-			const idx = i++;
-			const r = results[idx] ?? { count: 0 };
-			return mockChain(r);
-		}),
+		prepare: vi.fn(() => ({ bind: vi.fn() })), // stub for .prepare().bind() in batch array
+		batch: vi.fn(() => Promise.resolve(batchResults)),
 	};
 }
 
@@ -145,7 +131,6 @@ describe('adminRouter GET /api/admin/usage', () => {
 		mocks.authorize.mockResolvedValue({ allow: false, reason: 'Forbidden' });
 		const db = makeMockDb();
 		mocks.createDB.mockReturnValue(db);
-
 		const res = await adminRouter(
 			makeReq('/api/admin/usage'),
 			{},
@@ -159,7 +144,6 @@ describe('adminRouter GET /api/admin/usage', () => {
 	it('returns usage metrics with correct structure', async () => {
 		const db = makeMockDb();
 		mocks.createDB.mockReturnValue(db);
-
 		const res = await adminRouter(
 			makeReq('/api/admin/usage'),
 			{},
@@ -168,25 +152,21 @@ describe('adminRouter GET /api/admin/usage', () => {
 			'/api/admin/usage'
 		);
 		expect(res.status).toBe(200);
-
 		const body = await res.json();
 		expect(body).toHaveProperty('users');
 		expect(body).toHaveProperty('messages');
 		expect(body).toHaveProperty('sparks');
-
 		expect(body.users).toHaveProperty('total');
 		expect(body.users).toHaveProperty('active_7d');
 		expect(body.users).toHaveProperty('active_30d');
 		expect(body.users).toHaveProperty('prev_active_7d');
 		expect(body.users).toHaveProperty('prev_active_30d');
-
 		expect(body.messages).toHaveProperty('daily');
 		expect(body.messages).toHaveProperty('weekly');
 		expect(body.messages).toHaveProperty('daily_total');
 		expect(body.messages).toHaveProperty('prev_daily_total');
 		expect(body.messages).toHaveProperty('weekly_total');
 		expect(body.messages).toHaveProperty('prev_weekly_total');
-
 		expect(body.sparks).toHaveProperty('total');
 		expect(body.sparks).toHaveProperty('last_30d');
 		expect(body.sparks).toHaveProperty('prev_30d');
@@ -199,7 +179,6 @@ describe('adminRouter GET /api/admin/usage', () => {
 			activeUsers30d: 25,
 		});
 		mocks.createDB.mockReturnValue(db);
-
 		const res = await adminRouter(
 			makeReq('/api/admin/usage'),
 			{},
@@ -208,7 +187,6 @@ describe('adminRouter GET /api/admin/usage', () => {
 			'/api/admin/usage'
 		);
 		expect(res.status).toBe(200);
-
 		const body = await res.json();
 		expect(body.users.total).toBe(42);
 		expect(typeof body.users.active_7d).toBe('number');
@@ -224,7 +202,6 @@ describe('adminRouter GET /api/admin/usage', () => {
 			weeklyMessages: [{ week: '2026-W20', count: 150 }],
 		});
 		mocks.createDB.mockReturnValue(db);
-
 		const res = await adminRouter(
 			makeReq('/api/admin/usage'),
 			{},
@@ -233,20 +210,32 @@ describe('adminRouter GET /api/admin/usage', () => {
 			'/api/admin/usage'
 		);
 		expect(res.status).toBe(200);
-
 		const body = await res.json();
 		expect(Array.isArray(body.messages.daily)).toBe(true);
 		expect(Array.isArray(body.messages.weekly)).toBe(true);
 	});
 
+	it('calls db.batch with 12 statements for single round-trip', async () => {
+		const db = makeMockDb();
+		mocks.createDB.mockReturnValue(db);
+		await adminRouter(
+			makeReq('/api/admin/usage'),
+			{},
+			{},
+			{ sub: 'admin-1' },
+			'/api/admin/usage'
+		);
+		expect(db.batch).toHaveBeenCalledTimes(1);
+		const statements = db.batch.mock.calls[0][0];
+		expect(statements.length).toBe(12);
+	});
+
 	it('returns 500 when database queries fail', async () => {
 		const db = {
-			prepare: vi.fn(() => {
-				throw new Error('Database error');
-			}),
+			prepare: vi.fn(),
+			batch: vi.fn(() => { throw new Error('Database error'); }),
 		};
 		mocks.createDB.mockReturnValue(db);
-
 		const res = await adminRouter(
 			makeReq('/api/admin/usage'),
 			{},

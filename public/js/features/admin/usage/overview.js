@@ -1,4 +1,5 @@
 import { fetchAdminUsage } from '../../../shared/api.js';
+import { escapeHtml } from '../../../shared/utils.js';
 
 /**
  * Trend arrow indicator: compares current vs previous value.
