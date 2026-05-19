@@ -26,7 +26,6 @@
 
 # ── E2E test artifacts (generated, not baselines) ──
 tests/e2e/artifacts/
-tests/e2e/artifacts/responsiveness/
 test-results/
 report/
 playwright-report/
@@ -55,7 +54,7 @@ bower_components/
 .next/
 out/
 dist/
-build/Release/
+build/
 .nuxt/
 .vuepress/dist/
 .docusaurus/
@@ -90,7 +89,7 @@ lerna-debug.log*
 logs/
 
 # ── Diagnostic reports ──
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+report.*.json
 
 # ── Runtime data ──
 pids/
@@ -132,7 +131,7 @@ Thumbs.db
 __pycache__/
 *.pyc
 .venv/
-venenv/
+venv/
 target/
 vendor/
 
