@@ -1,0 +1,76 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "growchat",
+  "main": "src/index.js",
+  "compatibility_date": "2025-12-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // Static Assets - serves the frontend SPA
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+  },
+
+  // D1 database — update database_id after running: wrangler d1 create growchat
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "growchat",
+      "database_id": "YOUR_D1_DATABASE_ID",
+      "preview_database_id": "YOUR_D1_DATABASE_ID",
+    },
+  ],
+
+  // R2 bucket for file uploads — bucket created by: wrangler r2 bucket create growchat-files
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "growchat-files",
+      "preview_bucket_name": "growchat-files",
+    },
+  ],
+
+  // Durable Object for real-time SSE message delivery
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MESSAGE_QUEUE",
+        "class_name": "MessageQueueDO",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "message-queue-v1",
+      "new_sqlite_classes": ["MessageQueueDO"],
+    },
+  ],
+
+  // KV namespaces — update ids after running: wrangler kv:namespace create <NAME>
+  "kv_namespaces": [
+    {
+      "binding": "CHAT_SESSIONS",
+      "id": "YOUR_CHAT_SESSIONS_KV_ID",
+      "preview_id": "YOUR_CHAT_SESSIONS_KV_ID",
+    },
+    {
+      "binding": "SESSIONS",
+      "id": "YOUR_SESSIONS_KV_ID",
+      "preview_id": "YOUR_SESSIONS_KV_ID",
+    },
+    {
+      "binding": "CACHE",
+      "id": "YOUR_CACHE_KV_ID",
+      "preview_id": "YOUR_CACHE_KV_ID",
+    },
+  ],
+
+  // Non-secret environment variables
+  "vars": {
+    "APP_NAME": "GrowChat",
+    "ENVIRONMENT": "production",
+    "EMAIL_PROVIDER": "resend",
+    "ALLOWED_ORIGINS": "*",
+  },
+}

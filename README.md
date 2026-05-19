@@ -34,19 +34,37 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 
 ### Prerequisites
 
-- Node.js 18+
-- Cloudflare account with:
-  - Workers (free tier)
-  - D1 database (free tier)
-  - KV namespaces (free tier)
-  - Workers AI (free tier)
+- [Node.js](https://nodejs.org) 18+
+- [pnpm](https://pnpm.io) (auto-installed via corepack)
+- Cloudflare account ([free tier](https://dash.cloudflare.com/sign-up))
 
-### Installation
+### One-Command Deploy (recommended)
 
 ```bash
 git clone https://github.com/tan-yong-sheng/GrowChat.git
 cd GrowChat
 pnpm install
+pnpm run setup
+```
+
+The setup wizard will:
+
+1. Create all required Cloudflare resources (D1, R2, KV)
+2. Apply database migrations automatically
+3. Prompt for secrets (JWT_SECRET, optional RESEND_API_KEY)
+4. Deploy to Cloudflare Workers
+
+That's it — your instance is live.
+
+### Post-Deploy: Create Admin
+
+1. Open your Workers URL (shown in the wizard output)
+2. Register your account
+3. Promote to admin:
+
+```bash
+pnpm exec wrangler d1 execute growchat --remote \
+  --command="UPDATE users SET role='admin' WHERE email='YOUR_EMAIL'"
 ```
 
 ### Local Development
@@ -57,63 +75,52 @@ pnpm run dev
 
 Open `http://localhost:8787` in your browser.
 
-### Deployment
+### Manual Setup (advanced)
+
+If you prefer full control over each step:
 
 1. **Create D1 Database**
 
-   ```bash
-   wrangler d1 create growchat
-   ```
+```bash
+pnpm exec wrangler d1 create growchat
+```
 
-   Copy the database ID from the output into `wrangler.jsonc`.
+Copy the `database_id` from the output into `wrangler.jsonc` → `d1_databases[0].database_id`.
 
 2. **Create KV Namespaces**
 
-   ```bash
-   wrangler kv:namespace create SESSIONS
-   wrangler kv:namespace create CHAT_SESSIONS
-   wrangler kv:namespace create CACHE
-   ```
+```bash
+pnpm exec wrangler kv:namespace create SESSIONS
+pnpm exec wrangler kv:namespace create CHAT_SESSIONS
+pnpm exec wrangler kv:namespace create CACHE
+```
 
-   Update `wrangler.jsonc` with the namespace IDs.
+Update `wrangler.jsonc` with the namespace IDs.
 
-3. **Create R2 Bucket (Phase 2)**
+3. **Create R2 Bucket**
 
-   ```bash
-   wrangler r2 bucket create growchat-files
-   ```
+```bash
+pnpm exec wrangler r2 bucket create growchat-files
+```
 
-   Update `wrangler.jsonc` with the bucket name and binding.
+4. **Apply D1 Migrations**
 
-4. **Create Vectorize Index (Phase 2)**
-
-   ```bash
-   wrangler vectorize create faq-vectors --dimensions=768 --metric=cosine
-   ```
-
-   Update `wrangler.jsonc` with the index name and binding.
+```bash
+pnpm exec wrangler d1 migrations apply growchat --remote
+```
 
 5. **Set Secrets**
 
-   ```bash
-   wrangler secret put JWT_SECRET
-   wrangler secret put OPENAI_API_KEY
-   wrangler secret put OPENAI_BASE_URL
-   ```
+```bash
+pnpm exec wrangler secret put JWT_SECRET
+pnpm exec wrangler secret put RESEND_API_KEY   # optional
+```
 
 6. **Deploy**
 
-   ```bash
-   pnpm run deploy
-   ```
-
-7. **Apply D1 Migrations**
-   D1 migrations are applied automatically on first deployment. For manual execution:
-   ```bash
-   wrangler d1 execute growchat --file=./migrations/001_initial.sql
-   wrangler d1 execute growchat --file=./migrations/002_settings_permissions.sql
-   wrangler d1 execute growchat --file=./migrations/003_password_reset_tokens.sql
-   ```
+```bash
+pnpm run deploy
+```
 
 ## Architecture
 
