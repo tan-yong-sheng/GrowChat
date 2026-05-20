@@ -96,7 +96,7 @@ const assistantStreamRunner = createAssistantRunner({
   sleep,
 });
 
-export async function chatRouter(req, env, ctx, user, path) {
+export async function chatRouter(req, env, ctx, user, path, requestId) {
   const isChatPath =
     path === '/api/chats' ||
     path === '/api/tool-servers' ||

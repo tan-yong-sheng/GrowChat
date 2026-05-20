@@ -29,8 +29,8 @@ function normalizePermissionsList(value) {
   return Array.from(new Set(cleaned));
 }
 
-export async function groupsRouter(req, env, _ctx, user, path) {
-  const logger = createLogger(env);
+export async function groupsRouter(req, env, _ctx, user, path, requestId) {
+  const logger = createLogger(env, requestId ? { requestId } : {});
   if (!path.startsWith('/api/admin/groups')) return null;
 
   const isReadOnly = req.method === 'GET';

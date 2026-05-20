@@ -1137,7 +1137,8 @@ describe('adminRouter openai connections', () => {
       expect.objectContaining({
         action: 'admin_config_updated',
         resource_id: 'config',
-      })
+      }),
+      expect.anything()
     );
   });
 
@@ -1224,7 +1225,8 @@ describe('adminRouter openai connections', () => {
       expect.objectContaining({
         action: 'attachment_caps_updated',
         resource_id: 'model-attachment-caps',
-      })
+      }),
+      expect.anything()
     );
   });
 
@@ -1270,7 +1272,8 @@ describe('adminRouter openai connections', () => {
       expect.objectContaining({
         action: 'openai_connections_updated',
         resource_id: 'openai-connections',
-      })
+      }),
+      expect.anything()
     );
   });
 

@@ -75,7 +75,7 @@ function getModelAttachmentCapsEntry(caps, modelId) {
   return applyAttachmentDefaults(attachments);
 }
 
-async function ensureModelAccessTable(db) {
+async function ensureModelAccessTable(db, logger = rootLogger) {
   try {
     await db.run(
       `CREATE TABLE IF NOT EXISTS model_access (
@@ -92,9 +92,9 @@ async function ensureModelAccessTable(db) {
   }
 }
 
-async function getDisabledModelSet(db) {
+async function getDisabledModelSet(db, logger = rootLogger) {
   try {
-    await ensureModelAccessTable(db);
+    await ensureModelAccessTable(db, logger);
     const rows = await db.all('SELECT model_id FROM model_access WHERE is_enabled = 0');
     return new Set(rows.map((row) => row.model_id));
   } catch (err) {
@@ -103,9 +103,9 @@ async function getDisabledModelSet(db) {
   }
 }
 
-async function getModelAccessMap(db) {
+async function getModelAccessMap(db, logger = rootLogger) {
   try {
-    await ensureModelAccessTable(db);
+    await ensureModelAccessTable(db, logger);
     const rows = await db.all('SELECT model_id, is_enabled FROM model_access');
     const map = new Map();
     rows.forEach((row) => {
@@ -238,7 +238,7 @@ function pruneExpiredConnectionDiscoveryCache(cache, now = Date.now()) {
   }
 }
 
-async function fetchBaseModelsFromOpenAI(env, connections = []) {
+async function fetchBaseModelsFromOpenAI(env, connections = [], logger = rootLogger) {
   const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
   const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
   const discovered = [];
@@ -609,8 +609,8 @@ async function loadCustomModels(env) {
  *   PUT    /api/models/:id      - Update model config (admin only)
  *   DELETE /api/models/:id      - Remove model config (admin only)
  */
-export async function modelsRouter(req, env, _ctx, user, path) {
-  const logger = createLogger(env);
+export async function modelsRouter(req, env, _ctx, user, path, requestId) {
+  const logger = createLogger(env, requestId ? { requestId } : {});
   // GET /api/models - List available models
   if (req.method === 'GET' && path === '/api/models') {
     // No auth required - everyone should see available models
@@ -708,7 +708,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
       if (db) {
         if (scope === 'effective' && user?.sub) {
           const [accessMap, userOverrides, aclRules] = await Promise.all([
-            getModelAccessMap(db),
+            getModelAccessMap(db, logger),
             loadUserResourceOverrides(db, user.sub),
             loadModelAclRules(db),
           ]);
@@ -785,7 +785,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
           );
         }
 
-        const disabledSet = await getDisabledModelSet(db);
+        const disabledSet = await getDisabledModelSet(db, logger);
         if (!includeDisabled && disabledSet.size > 0) {
           publicModels = publicModels.filter((model) => !disabledSet.has(model.id));
         }
@@ -897,7 +897,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
     try {
       const db = createDB(env.DB);
-      const accessMap = await getModelAccessMap(db);
+      const accessMap = await getModelAccessMap(db, logger);
       const groups = await db.all('SELECT id FROM groups');
       const validGroupIds = new Set(groups.map((group) => group.id));
       const statements = [];
@@ -1017,7 +1017,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
 
       try {
         const db = createDB(env.DB);
-        const accessMap = await getModelAccessMap(db);
+        const accessMap = await getModelAccessMap(db, logger);
         const isEnabled = accessMap.has(modelId) ? accessMap.get(modelId) : true;
         if (!isEnabled) {
           return error(req, 'Disabled models cannot be edited', 409);
@@ -1139,7 +1139,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         allModels = allModels.filter((model) => !isOpenAIProvider(model));
       }
 
-      const accessMap = await getModelAccessMap(db);
+      const accessMap = await getModelAccessMap(db, logger);
       const adminModels = allModels.map((model) => {
         const publicModel = toPublicModel(model);
         const enabled =
@@ -1307,7 +1307,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
     }
 
     try {
-      const currentAccessMap = await getModelAccessMap(db);
+      const currentAccessMap = await getModelAccessMap(db, logger);
       const nextAccessMap = new Map(currentAccessMap);
       for (const update of sanitizedUpdates) {
         nextAccessMap.set(update.id, update.enabled);

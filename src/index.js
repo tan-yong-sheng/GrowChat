@@ -108,7 +108,7 @@ export default {
         }
 
         for (const route of API_ROUTES) {
-          const response = await route(req, env, ctx, user, path);
+          const response = await route(req, env, ctx, user, path, requestId);
           if (response) return response;
         }
         return error(req, 'Not found', 404, { requestId });

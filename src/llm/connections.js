@@ -12,7 +12,7 @@ import {
 } from './provider-registry.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, createRootLogger } from '../utils/logger.js';
 
 function normalizeUrl(url) {
   if (!url) return '';
@@ -525,8 +525,12 @@ function normalizeUserConnectionRow(row, index = 0) {
   };
 }
 
-export async function loadUserOpenAIConnectionConfigs(db, userId, options = {}) {
-  const logger = createLogger({});
+export async function loadUserOpenAIConnectionConfigs(
+  db,
+  userId,
+  options = {},
+  logger = createRootLogger({})
+) {
   const includeDisabled = options.includeDisabled === true;
   if (!db || !userId) return [];
   try {
@@ -550,8 +554,12 @@ export async function loadUserOpenAIConnectionConfigs(db, userId, options = {}) 
   }
 }
 
-export async function getUserOpenAIConnectionConfig(db, userId, connectionId) {
-  const logger = createLogger({});
+export async function getUserOpenAIConnectionConfig(
+  db,
+  userId,
+  connectionId,
+  logger = createRootLogger({})
+) {
   if (!db || !userId || !connectionId) return null;
   try {
     await ensureUserConnectionsTable(db);

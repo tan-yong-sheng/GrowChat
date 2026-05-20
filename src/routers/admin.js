@@ -104,8 +104,8 @@ async function ensureAdminMutationAccess(env, user, permission, resource = 'admi
 /**
  * Admin Router Handler
  */
-export async function adminRouter(req, env, ctx, user, path) {
-  const logger = createLogger(env);
+export async function adminRouter(req, env, ctx, user, path, requestId) {
+  const logger = createLogger(env, requestId ? { requestId } : {});
   if (!path.startsWith('/api/admin/')) return null;
 
   const requiredPermission = resolveAdminPermission(path, req.method);
@@ -223,13 +223,17 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       await db.batch(statements);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'connection_access_updated',
-        resource_type: 'connection',
-        resource_id: 'connection-access',
-        metadata: { updates: normalizedUpdates.length },
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'connection_access_updated',
+          resource_type: 'connection',
+          resource_id: 'connection-access',
+          metadata: { updates: normalizedUpdates.length },
+        },
+        logger
+      );
       return json(req, {
         ok: true,
         updates: normalizedUpdates,
@@ -323,20 +327,29 @@ export async function adminRouter(req, env, ctx, user, path) {
           filteredRules
         );
 
-        await logAuditEvent(env, {
-          actor_id: user.sub,
-          action: 'connection_access_updated',
-          resource_type: 'connection',
-          resource_id: connectionId,
-          metadata: {
-            rules: savedRules.map((rule) => ({
-              principal_type: rule.principal_type,
-              principal_id: rule.principal_id,
-              effect: rule.effect,
-              action: rule.action,
-            })),
+        await logAuditEvent(
+          env,
+          {
+            actor_id: user.sub,
+            action: 'connection_access_updated',
+            resource_type: 'connection',
+            resource_id: connectionId,
+            metadata: {
+              rules: savedRules.map(
+                (rule) => (
+                  {
+                    principal_type: rule.principal_type,
+                    principal_id: rule.principal_id,
+                    effect: rule.effect,
+                    action: rule.action,
+                  },
+                  logger
+                )
+              ),
+            },
           },
-        });
+          logger
+        );
 
         return json(req, {
           connection_id: connectionId,
@@ -456,13 +469,17 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       await db.batch(statements);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'tool_server_access_updated',
-        resource_type: 'tool-server',
-        resource_id: 'tool-server-access',
-        metadata: { updates: normalizedUpdates.length },
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'tool_server_access_updated',
+          resource_type: 'tool-server',
+          resource_id: 'tool-server-access',
+          metadata: { updates: normalizedUpdates.length },
+        },
+        logger
+      );
       return json(req, {
         ok: true,
         updates: normalizedUpdates,
@@ -554,20 +571,29 @@ export async function adminRouter(req, env, ctx, user, path) {
           filteredRules
         );
 
-        await logAuditEvent(env, {
-          actor_id: user.sub,
-          action: 'tool_server_access_updated',
-          resource_type: 'tool-server',
-          resource_id: toolServerId,
-          metadata: {
-            rules: savedRules.map((rule) => ({
-              principal_type: rule.principal_type,
-              principal_id: rule.principal_id,
-              effect: rule.effect,
-              action: rule.action,
-            })),
+        await logAuditEvent(
+          env,
+          {
+            actor_id: user.sub,
+            action: 'tool_server_access_updated',
+            resource_type: 'tool-server',
+            resource_id: toolServerId,
+            metadata: {
+              rules: savedRules.map(
+                (rule) => (
+                  {
+                    principal_type: rule.principal_type,
+                    principal_id: rule.principal_id,
+                    effect: rule.effect,
+                    action: rule.action,
+                  },
+                  logger
+                )
+              ),
+            },
           },
-        });
+          logger
+        );
 
         return json(req, {
           tool_server_id: toolServerId,
@@ -713,12 +739,16 @@ export async function adminRouter(req, env, ctx, user, path) {
       if (hasDefaultModel) {
         await setConfigValue(db, 'default_model_id', normalizedDefaultModel);
       }
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'admin_config_updated',
-        resource_type: 'admin',
-        resource_id: 'config',
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'admin_config_updated',
+          resource_type: 'admin',
+          resource_id: 'config',
+        },
+        logger
+      );
       return json(req, {
         public_registration: hasPublicRegistration ? body.public_registration : undefined,
         public_registration_status: hasRegistrationStatus
@@ -792,12 +822,16 @@ export async function adminRouter(req, env, ctx, user, path) {
           };
         }
         await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(nextCaps));
-        await logAuditEvent(env, {
-          actor_id: user.sub,
-          action: 'attachment_caps_replaced',
-          resource_type: 'admin',
-          resource_id: 'model-attachment-caps',
-        });
+        await logAuditEvent(
+          env,
+          {
+            actor_id: user.sub,
+            action: 'attachment_caps_replaced',
+            resource_type: 'admin',
+            resource_id: 'model-attachment-caps',
+          },
+          logger
+        );
         return json(req, { caps: nextCaps });
       }
 
@@ -843,12 +877,16 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(caps));
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'attachment_caps_updated',
-        resource_type: 'admin',
-        resource_id: 'model-attachment-caps',
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'attachment_caps_updated',
+          resource_type: 'admin',
+          resource_id: 'model-attachment-caps',
+        },
+        logger
+      );
 
       return json(req, { caps });
     } catch (err) {
@@ -1443,12 +1481,16 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     try {
       await saveToolServers(db, sanitized);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'tool_servers_updated',
-        resource_type: 'admin',
-        resource_id: 'tool-servers',
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'tool_servers_updated',
+          resource_type: 'admin',
+          resource_id: 'tool-servers',
+        },
+        logger
+      );
       return json(req, { ok: true, servers: sanitized.map(redactToolServer) });
     } catch (err) {
       logger.error('Tool servers update failed', { error: err?.message || err });
@@ -1703,17 +1745,21 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       await db.batch(statements);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'openai_connections_updated',
-        resource_type: 'admin',
-        resource_id: 'openai-connections',
-        metadata: {
-          connections: sanitized.length,
-          model_updates: modelUpdates.length,
-          access_updates: normalizedAccessUpdates.length,
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'openai_connections_updated',
+          resource_type: 'admin',
+          resource_id: 'openai-connections',
+          metadata: {
+            connections: sanitized.length,
+            model_updates: modelUpdates.length,
+            access_updates: normalizedAccessUpdates.length,
+          },
         },
-      });
+        logger
+      );
       return json(req, {
         ok: true,
         model_updates: modelUpdates.length,
@@ -1777,12 +1823,16 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     try {
       await setConfigValue(db, 'resend_api_key', apiKey);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'email_config_updated',
-        resource_type: 'admin',
-        resource_id: 'email-config',
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'email_config_updated',
+          resource_type: 'admin',
+          resource_id: 'email-config',
+        },
+        logger
+      );
       return json(req, {
         message: 'Email configuration updated',
       });
@@ -1833,17 +1883,25 @@ export async function adminRouter(req, env, ctx, user, path) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        logger.error('Resend API error', { errorData });
+        logger.error('Resend API error', {
+          status: response.status,
+          code: errorData.code || errorData.name,
+          message: errorData.message,
+        });
         return error(req, 'Failed to send test email', 400);
       }
 
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'email_config_test_sent',
-        resource_type: 'admin',
-        resource_id: 'email-config',
-        metadata: { test_email: testEmail },
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'email_config_test_sent',
+          resource_type: 'admin',
+          resource_id: 'email-config',
+          metadata: { test_email: testEmail },
+        },
+        logger
+      );
 
       return json(req, {
         message: 'Test email sent',

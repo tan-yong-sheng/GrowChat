@@ -1,5 +1,5 @@
-import { createRootLogger } from '../utils/logger.js';
-const logger = createRootLogger({});
+import { createLogger, createRootLogger } from '../utils/logger.js';
+const rootLogger = createRootLogger({});
 
 /**
  * Email Verification Router
@@ -25,7 +25,7 @@ function getEmailTemplate() {
         'utf-8'
       );
     } catch (error) {
-      logger.error('Failed to load email template', { error: error?.message || error });
+      rootLogger.error('Failed to load email template', { error: error?.message || error });
       emailTemplate = '<html>{{userName}} {{verificationUrl}}</html>';
     }
   }

@@ -261,6 +261,22 @@ describe('logger.js - Structured JSON Logger', () => {
     });
   });
 
+  describe('child() after reconfigure', () => {
+    it('should use updated env after reconfigure, not stale original', () => {
+      const logger = createRootLogger({}); // defaults to 'info'
+      logger.reconfigure({ LOG_LEVEL: 'debug' });
+
+      const child = logger.child({ userId: 'u-123' });
+      expect(child.level).toBe('debug');
+
+      child.debug('child debug msg');
+      expect(consoleSpies.debug).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(consoleSpies.debug.mock.calls[0][0]);
+      expect(parsed.message).toBe('child debug msg');
+      expect(parsed.userId).toBe('u-123');
+    });
+  });
+
   describe('requestId propagation', () => {
     it('should propagate requestId through all log levels', () => {
       const logger = createLogger({ LOG_LEVEL: 'debug' }, { requestId: 'test-req-id' });

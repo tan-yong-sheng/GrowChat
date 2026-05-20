@@ -89,7 +89,7 @@ async function resolveRequestedRole(db, requestedRole) {
   return ['member', 'admin'].includes(fallbackRole) ? fallbackRole : null;
 }
 
-async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
+async function syncGlobalRoleBinding(db, userId, role, accountStatus, logger = rootLogger) {
   try {
     await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
 
@@ -112,7 +112,7 @@ async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
   }
 }
 
-async function loadModelEnabledMap(db) {
+async function loadModelEnabledMap(db, logger = rootLogger) {
   try {
     await db.run(
       `CREATE TABLE IF NOT EXISTS model_access (
@@ -169,8 +169,8 @@ async function findUserToolServerByOauthState(db, state) {
   return null;
 }
 
-export async function usersRouter(req, env, _ctx, user, path) {
-  const logger = createLogger(env);
+export async function usersRouter(req, env, _ctx, user, path, requestId) {
+  const logger = createLogger(env, requestId ? { requestId } : {});
   const isUsersPath =
     path === '/api/users/me' ||
     path === '/api/users/me/update' ||
@@ -1042,7 +1042,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         sub: userId,
         role: primaryRole,
       });
-      const modelEnabledMap = await loadModelEnabledMap(db);
+      const modelEnabledMap = await loadModelEnabledMap(db, logger);
       const connectionEnabledMap = new Map(
         (
           await getAllOpenAIConnectionConfigs(env, {
@@ -1219,7 +1219,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       [id, email, passwordHash, name, accountStatus]
     );
 
-    await syncGlobalRoleBinding(db, id, role, accountStatus);
+    await syncGlobalRoleBinding(db, id, role, accountStatus, logger);
 
     const createdUser = await db.first(
       'SELECT id, email, name, account_status, settings, created_at, updated_at, last_active_at FROM users WHERE id = ?',
@@ -1360,7 +1360,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         ) VALUES (?, ?, ?, ?, ?, '{}', '{}', unixepoch(), unixepoch(), unixepoch())`,
         [id, email, passwordHash, name, accountStatus]
       );
-      await syncGlobalRoleBinding(db, id, role, accountStatus);
+      await syncGlobalRoleBinding(db, id, role, accountStatus, logger);
       results.push({
         row: rowNumber,
         ok: true,
@@ -1589,7 +1589,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     try {
       await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
       if (oldRole !== newRole || oldAccountStatus !== newAccountStatus) {
-        await syncGlobalRoleBinding(db, userId, newRole, newAccountStatus);
+        await syncGlobalRoleBinding(db, userId, newRole, newAccountStatus, logger);
       }
 
       // Log audit event for role change

@@ -7,7 +7,7 @@
 
 import { createDB } from '../db.js';
 import { createRootLogger } from '../utils/logger.js';
-const logger = createRootLogger({});
+const rootLogger = createRootLogger({});
 
 /**
  * Denial reason codes for machine-readable error classification
@@ -27,7 +27,7 @@ export const DENIAL_REASONS = {
  * @param {Object} user - User object with sub (user ID)
  * @returns {Promise<string[]>} Array of permission keys user has
  */
-export async function resolvePermissions(db, user) {
+export async function resolvePermissions(db, user, logger = rootLogger) {
   if (!user?.sub) return [];
 
   try {
@@ -62,7 +62,7 @@ export async function resolvePermissions(db, user) {
  * @param {string} options.resourceId - Resource ID (optional)
  * @returns {Promise<Object>} { allow: boolean, reason?: string }
  */
-export async function authorize(env, user, options = {}) {
+export async function authorize(env, user, options = {}, logger = rootLogger) {
   // Default deny
   const { action } = options;
 
@@ -131,7 +131,7 @@ export async function authorize(env, user, options = {}) {
  * @param {Object} event.metadata - Additional metadata (as object)
  * @returns {Promise<void>}
  */
-export async function logAuditEvent(env, event) {
+export async function logAuditEvent(env, event, logger = rootLogger) {
   const { actor_id, action, resource_type, resource_id, metadata } = event;
 
   if (!actor_id || !action || !resource_type) {
@@ -177,7 +177,7 @@ function generateId(prefix) {
  * @param {Object} context - Optional context
  * @returns {Promise<boolean>} True if user has permission
  */
-export async function hasPermission(env, user, permission, context) {
+export async function hasPermission(env, user, permission, context, logger = rootLogger) {
   const decision = await authorize(env, user, {
     action: permission,
     context,
@@ -193,7 +193,7 @@ export async function hasPermission(env, user, permission, context) {
  * @param {Object} user - User object
  * @throws {Error} If permission denied
  */
-export async function requireAdmin(env, user) {
+export async function requireAdmin(env, user, logger = rootLogger) {
   const decision = await authorize(env, user, {
     action: 'admin.rbac.admin',
   });
@@ -214,7 +214,7 @@ export async function requireAdmin(env, user) {
  * @param {string} excludeUserId - User ID to exclude from count (optional)
  * @returns {Promise<number>} Count of users with role
  */
-export async function getRoleUserCount(env, roleName, excludeUserId) {
+export async function getRoleUserCount(env, roleName, excludeUserId, logger = rootLogger) {
   try {
     let query = `
       SELECT COUNT(*) as count
@@ -249,7 +249,7 @@ export async function getRoleUserCount(env, roleName, excludeUserId) {
  * @param {string} roleName - Role name (e.g., 'admin')
  * @returns {Promise<boolean>} True if this is the last user with role
  */
-export async function isLastOwnerOfRole(env, userId, roleName) {
+export async function isLastOwnerOfRole(env, userId, roleName, logger = rootLogger) {
   const count = await getRoleUserCount(env, roleName, userId);
   return count === 0;
 }
@@ -267,7 +267,7 @@ export async function isLastOwnerOfRole(env, userId, roleName) {
  * @param {number} options.offset - Offset for pagination (default 0)
  * @returns {Promise<Object>} { entries, total, limit, offset }
  */
-export async function getAuditLog(env, options = {}) {
+export async function getAuditLog(env, options = {}, logger = rootLogger) {
   const { actor_id, action, resource_type, resource_id, limit = 100, offset = 0 } = options;
 
   // Validate and cap limit
@@ -359,7 +359,7 @@ export async function getAuditLog(env, options = {}) {
  * @param {string} userId - User ID
  * @returns {Promise<Object[]>} Array of { role_id, role_name }
  */
-export async function getUserRoles(db, userId) {
+export async function getUserRoles(db, userId, logger = rootLogger) {
   try {
     const query = `
       SELECT ur.id, ur.role_id, r.name as role_name
@@ -384,7 +384,7 @@ export async function getUserRoles(db, userId) {
  * @param {string} roleName - Role name (e.g., 'admin')
  * @returns {Promise<Object>} { id, name, system, permissions: [...] }
  */
-export async function getRoleDetails(env, roleName) {
+export async function getRoleDetails(env, roleName, logger = rootLogger) {
   try {
     // Get role
     const roleQuery = 'SELECT * FROM roles WHERE name = ?';

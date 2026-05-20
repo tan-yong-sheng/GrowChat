@@ -50,6 +50,7 @@ export function resolveLogLevel(env) {
  * @returns {Object} Logger with debug/info/warn/error methods
  */
 export function createLogger(env, context = {}) {
+  let currentEnv = env;
   let level = resolveLogLevel(env);
   let levelValue = LEVEL_VALUES[level];
 
@@ -122,6 +123,7 @@ export function createLogger(env, context = {}) {
      * Updates the log level but preserves the existing context.
      */
     reconfigure(newEnv) {
+      currentEnv = newEnv;
       level = resolveLogLevel(newEnv);
       levelValue = LEVEL_VALUES[level];
     },
@@ -130,7 +132,7 @@ export function createLogger(env, context = {}) {
      * Create a child logger with additional context merged in.
      * Useful for adding userId after authentication.
      */
-    child: (extraContext = {}) => createLogger(env, { ...context, ...extraContext }),
+    child: (extraContext = {}) => createLogger(currentEnv, { ...context, ...extraContext }),
   };
 }
 
