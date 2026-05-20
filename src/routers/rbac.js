@@ -98,8 +98,9 @@ async function loadRolePermissionKeys(db, roleId) {
 /**
  * RBAC Admin Router Handler
  */
-export async function rbacRouter(req, env, _ctx, user, path, requestId) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+export async function rbacRouter(req, env, _ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   // Route guard: only match RBAC admin paths
   const isRbacPath = path.startsWith('/api/admin/rbac/') || path === '/api/admin/audit';
   if (!isRbacPath) return null;

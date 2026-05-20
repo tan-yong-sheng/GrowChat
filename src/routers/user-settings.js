@@ -4,8 +4,9 @@ import { error, json } from '../utils/response.js';
 import { buildUserProfileResponse } from './user-profile.js';
 import { loadWorkspaceSettingsPayload } from '../services/workspace-settings.js';
 
-export async function userSettingsRouter(req, env, _ctx, user, path, requestId) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+export async function userSettingsRouter(req, env, _ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const isUserSettingsPath =
     path === '/api/users/me/settings' || path === '/api/users/me/settings/';
 

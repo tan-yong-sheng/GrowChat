@@ -118,9 +118,10 @@ export async function chatMessageRouter({
   path,
   originSessionId,
   assistantStreamRunner,
-  requestId,
+  requestContext = {},
 }) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const sendMatch = path.match(/^\/api\/chats\/([^/]+)\/messages$/);
   if (sendMatch && req.method === 'POST') {
     const chatId = sendMatch[1];

@@ -6,8 +6,9 @@ import { createLogger } from '../utils/logger.js';
  * Public routes handler for shared chats.
  * Routes: GET /s/:share_id - View a shared chat with messages (read-only, no auth required)
  */
-export async function publicRouter(req, env, _ctx, _user, path, requestId) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+export async function publicRouter(req, env, _ctx, _user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   if (path === '/api/health') {
     if (req.method !== 'GET') {
       return error(req, 'Method not allowed', 405);

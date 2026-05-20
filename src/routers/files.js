@@ -32,8 +32,9 @@ import { createLogger } from '../utils/logger.js';
  *   GET    /api/files/:id/content        - Get safe content representation
  *   DELETE /api/files/:id                - Delete document and R2 file
  */
-export async function filesRouter(req, env, ctx, user, path, requestId) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+export async function filesRouter(req, env, ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const isFilePath =
     path === '/api/files' ||
     path === '/api/files/health' ||

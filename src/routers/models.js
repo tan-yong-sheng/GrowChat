@@ -609,8 +609,9 @@ async function loadCustomModels(env) {
  *   PUT    /api/models/:id      - Update model config (admin only)
  *   DELETE /api/models/:id      - Remove model config (admin only)
  */
-export async function modelsRouter(req, env, _ctx, user, path, requestId) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+export async function modelsRouter(req, env, _ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   // GET /api/models - List available models
   if (req.method === 'GET' && path === '/api/models') {
     // No auth required - everyone should see available models

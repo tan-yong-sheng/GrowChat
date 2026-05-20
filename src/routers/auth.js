@@ -107,8 +107,9 @@ async function createAccessToken(secret, user, primaryRole) {
   );
 }
 
-export async function authRouter(req, env, _ctx, authUser, path, requestId) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+export async function authRouter(req, env, _ctx, authUser, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const db = createDB(env.DB);
   const users = createUserRepository(db);
   let jwtSecret;

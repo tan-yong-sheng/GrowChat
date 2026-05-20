@@ -169,8 +169,9 @@ async function findUserToolServerByOauthState(db, state) {
   return null;
 }
 
-export async function usersRouter(req, env, _ctx, user, path, requestId) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+export async function usersRouter(req, env, _ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const isUsersPath =
     path === '/api/users/me' ||
     path === '/api/users/me/update' ||

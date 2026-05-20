@@ -104,8 +104,9 @@ async function ensureAdminMutationAccess(env, user, permission, resource = 'admi
 /**
  * Admin Router Handler
  */
-export async function adminRouter(req, env, ctx, user, path, requestId) {
-  const logger = createLogger(env, requestId ? { requestId } : {});
+export async function adminRouter(req, env, ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   if (!path.startsWith('/api/admin/')) return null;
 
   const requiredPermission = resolveAdminPermission(path, req.method);
@@ -335,17 +336,12 @@ export async function adminRouter(req, env, ctx, user, path, requestId) {
             resource_type: 'connection',
             resource_id: connectionId,
             metadata: {
-              rules: savedRules.map(
-                (rule) => (
-                  {
-                    principal_type: rule.principal_type,
-                    principal_id: rule.principal_id,
-                    effect: rule.effect,
-                    action: rule.action,
-                  },
-                  logger
-                )
-              ),
+              rules: savedRules.map((rule) => ({
+                principal_type: rule.principal_type,
+                principal_id: rule.principal_id,
+                effect: rule.effect,
+                action: rule.action,
+              })),
             },
           },
           logger
@@ -579,17 +575,12 @@ export async function adminRouter(req, env, ctx, user, path, requestId) {
             resource_type: 'tool-server',
             resource_id: toolServerId,
             metadata: {
-              rules: savedRules.map(
-                (rule) => (
-                  {
-                    principal_type: rule.principal_type,
-                    principal_id: rule.principal_id,
-                    effect: rule.effect,
-                    action: rule.action,
-                  },
-                  logger
-                )
-              ),
+              rules: savedRules.map((rule) => ({
+                principal_type: rule.principal_type,
+                principal_id: rule.principal_id,
+                effect: rule.effect,
+                action: rule.action,
+              })),
             },
           },
           logger

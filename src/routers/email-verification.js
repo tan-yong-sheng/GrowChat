@@ -41,7 +41,7 @@ const VERIFICATION_TOKEN_EXPIRY_SECONDS = 24 * 60 * 60; // 24 hours
  * @param {D1Database} params.db - Database instance (optional, uses default)
  * @returns {Promise<Response>}
  */
-export async function verifyEmail({ token, env }) {
+export async function verifyEmail({ token, env, logger = createLogger(env) }) {
   const db = env?.DB ? createDB(env.DB) : null;
   if (!db) {
     return Response.json({ error: 'Database unavailable' }, { status: 500 });
@@ -87,7 +87,7 @@ export async function verifyEmail({ token, env }) {
  * @param {Object} params.env - Environment variables (for email sending)
  * @returns {Promise<Response>}
  */
-export async function resendVerification({ email, env }) {
+export async function resendVerification({ email, env, logger = createLogger(env) }) {
   const db = env?.DB ? createDB(env.DB) : null;
   if (!db) {
     return Response.json({ error: 'Database unavailable' }, { status: 500 });
@@ -160,7 +160,7 @@ export async function resendVerification({ email, env }) {
  * @param {Object} env - Environment variables
  * @returns {Promise<string>} - Verification token
  */
-export async function createEmailVerification(userId, email, env) {
+export async function createEmailVerification(userId, email, env, logger = createRootLogger({})) {
   const db = env?.DB ? createDB(env.DB) : null;
   if (!db) {
     throw new Error('Database unavailable');
