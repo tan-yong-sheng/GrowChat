@@ -65,10 +65,17 @@ async function fetchHtmlAsset(env, req, pathname) {
  */
 async function maybeServeLandingPage(req, env) {
   const url = new URL(req.url);
+  // Browsers never send Authorization headers on page navigations, and GrowChat
+  // uses Bearer-token auth (no session cookies), so server-side auth detection
+  // for / is impossible. Authenticated users are redirected client-side by
+  // landing.js (via ?app=1 query parameter).
   if (url.pathname !== '/' || req.headers.get('Authorization') || url.searchParams.has('app')) {
     return null;
   }
   try {
+    // Use /landing (not /landing.html) because the Assets binding
+    // redirects /landing.html → /landing with a 307 pretty-URL redirect,
+    // which would return an empty body instead of the landing page.
     const landingUrl = new URL(req.url);
     landingUrl.pathname = '/landing';
     const response = await env.ASSETS.fetch(new Request(landingUrl.toString(), req));
