@@ -37,7 +37,11 @@ export const PUBLIC_ROUTES = [
   { method: 'GET', path: '/api/auth/google', description: 'Google OAuth redirect' },
   { method: 'GET', path: '/api/auth/google/callback', description: 'Google OAuth callback' },
   { method: 'GET', path: '/api/auth/verify-email', description: 'Verify email address' },
-  { method: 'POST', path: '/api/auth/resend-verification', description: 'Resend verification email' },
+  {
+    method: 'POST',
+    path: '/api/auth/resend-verification',
+    description: 'Resend verification email',
+  },
   { method: 'GET', path: /^\/s\/[^/]+$/, description: 'View shared chat' },
   {
     method: 'GET',
