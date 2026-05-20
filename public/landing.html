@@ -11,11 +11,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
   <style>
-    body { font-family: 'Inter', 'Archivo', sans-serif; }
+    body { font-family: 'Inter', sans-serif; }
+  h1, h2, h3 { font-family: 'Archivo', 'Inter', sans-serif; }
+ a:focus-visible, button:focus-visible {
+  outline: 2px solid #0066cc;
+  outline-offset: 2px;
+  border-radius: 9999px;
+ }
     .hero-gradient {
-      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,102,204,0.08) 0%, transparent 70%);
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(0,102,204,0.15) 0%, transparent 70%);
     }
-  </style>
+  @media (prefers-reduced-motion: reduce) {
+  .fade-in-up { opacity: 1 !important; transform: none !important; transition: none !important; }
+ }
+</style>
 </head>
 <body class="min-h-screen bg-white text-[#171717] antialiased">
 
@@ -26,13 +35,13 @@
   <nav class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-[#e5e5e5]">
     <div class="max-w-6xl mx-auto px-6 flex items-center justify-between h-16">
       <a href="/" class="flex items-center gap-2.5">
-        <img src="/logo.png" alt="GrowChat" class="w-8 h-8 object-contain" />
-        <span class="text-lg font-semibold tracking-tight">GrowChat</span>
+        <img src="/logo.png" alt="GrowChat" class="w-10 h-10 object-contain" />
+        <span class="text-lg font-bold tracking-tight">GrowChat</span>
       </a>
       <div class="hidden md:flex items-center gap-8 text-sm text-[#737373]">
-        <a href="#features" class="hover:text-[#171717] transition-colors">Features</a>
-        <a href="#compare" class="hover:text-[#171717] transition-colors">Compare</a>
-        <a href="#pricing" class="hover:text-[#171717] transition-colors">Pricing</a>
+        <a href="#features" class="py-2 hover:text-[#171717] transition-colors">Features</a>
+        <a href="#compare" class="py-2 hover:text-[#171717] transition-colors">Compare</a>
+        <a href="#pricing" class="py-2 hover:text-[#171717] transition-colors">Pricing</a>
       </div>
       <div class="hidden md:flex items-center gap-3">
         <a href="https://github.com/tan-yong-sheng/GrowChat" target="_blank" rel="noopener" class="flex items-center gap-2 text-sm text-[#737373] hover:text-[#171717] transition-colors">
@@ -59,16 +68,16 @@
   <!-- Hero -->
   <section class="hero-gradient">
     <div class="max-w-6xl mx-auto px-6 pt-20 pb-24 md:pt-32 md:pb-36 text-center">
-      <div class="inline-flex items-center px-4 py-1.5 rounded-full bg-[#f0f7ff] text-[#0066cc] text-xs font-medium mb-8">
+      <div class="fade-in-up inline-flex items-center px-4 py-1.5 rounded-full bg-[#f0f7ff] text-[#0066cc] text-xs font-medium mb-8">
         Open Source &middot; MIT License
       </div>
-      <h1 class="text-4xl md:text-6xl font-bold tracking-tight leading-[1.1] max-w-3xl mx-auto">
+      <h1 class="fade-in-up fade-in-up-delay-1 text-4xl md:text-6xl font-bold tracking-tight leading-[1.1] max-w-3xl mx-auto">
         30-second deploy.<br />Zero Docker.<br />Chat with any LLM.
       </h1>
-      <p class="mt-6 text-lg md:text-xl text-[#737373] max-w-xl mx-auto leading-relaxed">
+      <p class="fade-in-up fade-in-up-delay-2 mt-6 text-lg md:text-xl text-[#737373] max-w-xl mx-auto leading-relaxed">
         Self-hosted multi-user chat on Cloudflare Workers. Built-in RBAC, multi-provider LLM, and zero ops.
       </p>
-      <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+      <div class="fade-in-up fade-in-up-delay-3 mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
         <a href="/auth" class="inline-flex items-center px-8 py-3 rounded-full text-base font-semibold bg-[#0066cc] text-white hover:bg-[#005bb5] transition-colors shadow-sm">
           Deploy to Cloudflare
           <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
@@ -84,30 +93,24 @@
   <!-- Features -->
   <section id="features" class="py-20 md:py-28 bg-[#fafafa]">
     <div class="max-w-6xl mx-auto px-6">
-      <div class="text-center mb-16">
-        <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Three pillars, one platform</h2>
-        <p class="mt-4 text-[#737373] text-lg max-w-lg mx-auto">Everything you need for team-wide LLM chat &mdash; nothing you don&apos;t.</p>
+      <div class="mb-16">
+        <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Built different</h2>
+        <p class="mt-4 text-[#737373] text-lg max-w-lg">Three things no other self-hosted chat app gets right.</p>
       </div>
-      <div class="grid md:grid-cols-3 gap-8">
+      <div class="space-y-8">
         <div class="bg-white rounded-2xl p-8 border border-[#e5e5e5]">
-          <div class="w-12 h-12 rounded-full bg-[#f0f7ff] flex items-center justify-center mb-6">
-            <svg class="w-6 h-6 text-[#0066cc]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
-          </div>
-          <h3 class="text-xl font-semibold mb-3">3-Scope RBAC</h3>
+          <svg class="w-6 h-6 text-[#0066cc] mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
+    <h3 class="text-xl font-semibold mb-3">3-Scope RBAC</h3>
           <p class="text-[#737373] leading-relaxed">Read, Manage, and Manage Access permissions per resource. Admin, Member, and Viewer roles out of the box. No more shared passwords or wild-west API keys.</p>
         </div>
         <div class="bg-white rounded-2xl p-8 border border-[#e5e5e5]">
-          <div class="w-12 h-12 rounded-full bg-[#f0f7ff] flex items-center justify-center mb-6">
-            <svg class="w-6 h-6 text-[#0066cc]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-          </div>
-          <h3 class="text-xl font-semibold mb-3">Multi-Provider LLM</h3>
+          <svg class="w-6 h-6 text-[#0066cc] mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+    <h3 class="text-xl font-semibold mb-3">Multi-Provider LLM</h3>
           <p class="text-[#737373] leading-relaxed">Bring any OpenAI-compatible API &mdash; OpenAI, Anthropic, Groq, Ollama, or your own fine-tuned endpoint. Switch models per conversation. Your keys, your data.</p>
         </div>
         <div class="bg-white rounded-2xl p-8 border border-[#e5e5e5]">
-          <div class="w-12 h-12 rounded-full bg-[#f0f7ff] flex items-center justify-center mb-6">
-            <svg class="w-6 h-6 text-[#0066cc]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.97l-2.12 2.12a2.5 2.5 0 01-3.535 0l-.707-.707a2.5 2.5 0 010-3.536l2.122-2.121m4.95-4.95l2.121-2.122a2.5 2.5 0 013.536 0l.707.707a2.5 2.5 0 010 3.536l-2.122 2.121M5.636 18.364l12.728-12.728"/></svg>
-          </div>
-          <h3 class="text-xl font-semibold mb-3">Cloudflare Deploy</h3>
+          <svg class="w-6 h-6 text-[#0066cc] mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.97l-2.12 2.12a2.5 2.5 0 01-3.535 0l-.707-.707a2.5 2.5 0 010-3.536l2.122-2.121m4.95-4.95l2.121-2.122a2.5 2.5 0 013.536 0l.707.707a2.5 2.5 0 010 3.536l-2.122 2.121M5.636 18.364l12.728-12.728"/></svg>
+    <h3 class="text-xl font-semibold mb-3">Cloudflare Deploy</h3>
           <p class="text-[#737373] leading-relaxed">One command, 30 seconds. D1 for persistence, KV for sessions, R2 for files, Durable Objects for real-time. Edge-native, globally distributed, zero cold starts.</p>
         </div>
       </div>
@@ -117,12 +120,12 @@
   <!-- Comparison -->
   <section id="compare" class="py-20 md:py-28">
     <div class="max-w-6xl mx-auto px-6">
-      <div class="text-center mb-16">
+      <div class="mb-16">
         <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Why GrowChat?</h2>
-        <p class="mt-4 text-[#737373] text-lg max-w-lg mx-auto">How we compare to the alternatives.</p>
+        <p class="mt-4 text-[#737373] text-lg max-w-lg">How we compare to the alternatives.</p>
       </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
+        <table class="w-full min-w-[600px] text-left border-collapse">
           <thead>
             <tr class="border-b border-[#e5e5e5]">
               <th class="py-4 pr-6 text-sm font-medium text-[#737373]"></th>
@@ -177,9 +180,9 @@
   <!-- Pricing -->
   <section id="pricing" class="py-20 md:py-28 bg-[#fafafa]">
     <div class="max-w-6xl mx-auto px-6">
-      <div class="text-center mb-16">
+      <div class="mb-16">
         <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Free &amp; Open Source</h2>
-        <p class="mt-4 text-[#737373] text-lg max-w-lg mx-auto">No pricing tiers. No usage limits. Just your Cloudflare bill.</p>
+        <p class="mt-4 text-[#737373] text-lg max-w-lg">No pricing tiers. No usage limits. Just your Cloudflare bill.</p>
       </div>
       <div class="max-w-md mx-auto bg-white rounded-2xl border border-[#e5e5e5] p-8 text-center">
         <div class="inline-flex items-center px-4 py-1.5 rounded-full bg-[#f0f7ff] text-[#0066cc] text-xs font-medium mb-6">
@@ -226,8 +229,8 @@
           <span class="text-sm text-[#737373]">&middot; MIT License</span>
         </div>
         <div class="flex items-center gap-6 text-sm text-[#737373]">
-          <a href="https://github.com/tan-yong-sheng/GrowChat" target="_blank" rel="noopener" class="hover:text-[#171717] transition-colors">GitHub</a>
-          <a href="/auth" class="hover:text-[#171717] transition-colors">Deploy</a>
+          <a href="https://github.com/tan-yong-sheng/GrowChat" target="_blank" rel="noopener" class="py-2 hover:text-[#171717] transition-colors">GitHub</a>
+          <a href="/auth" class="py-2 hover:text-[#171717] transition-colors">Deploy</a>
         </div>
       </div>
     </div>
