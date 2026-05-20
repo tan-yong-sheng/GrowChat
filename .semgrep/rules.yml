@@ -98,11 +98,11 @@ rules:
       - pattern: if ($ROLES.includes($USER?.primary_role)) { $$$BODY }
     paths:
       include:
-        - 'src/routers/**/*.js'
+        - '**/src/routers/**/*.js'
       exclude:
-        - 'src/utils/role-policy.js'
-        - 'src/utils/admin.js'
-        - 'src/utils/rbac.js'
+        - '**/src/utils/role-policy.js'
+        - '**/src/utils/admin.js'
+        - '**/src/utils/rbac.js'
         - '**/*.test.js'
         - '**/*.spec.js'
     message: 'Routers must not embed role checks. Use role-policy helpers or authorize().'

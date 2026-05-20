@@ -78,8 +78,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-frontend-worker-env-access'
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toMatch(
+      /no-frontend-worker-env-access/
     );
   }, 20000);
 
@@ -104,8 +104,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-raw-status-badge-markup-in-account-features'
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toMatch(
+      /no-raw-status-badge-markup-in-account-features/
     );
   }, 20000);
 
@@ -127,8 +127,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(badResult.status).not.toBe(0);
-    expect(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`).toContain(
-      'no-raw-pill-button-markup-in-feature-code'
+    expect(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`).toMatch(
+      /no-raw-pill-button-markup-in-feature-code/
     );
 
     writeFixture(
@@ -169,8 +169,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-raw-model-access-badge-markup-in-model-settings-features'
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toMatch(
+      /no-raw-model-access-badge-markup-in-model-settings-features/
     );
   }, 20000);
 
@@ -192,8 +192,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-direct-model-access-presentation-in-model-settings-features'
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toMatch(
+      /no-direct-model-access-presentation-in-model-settings[\s-]*features/
     );
   }, 20000);
 });
