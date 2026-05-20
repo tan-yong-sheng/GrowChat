@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createLogger, createRootLogger, resolveLogLevel, reconfigureAllRootLoggers } from './logger.js';
+import {
+  createLogger,
+  createRootLogger,
+  resolveLogLevel,
+  reconfigureAllRootLoggers,
+} from './logger.js';
 
 describe('logger.js - Structured JSON Logger', () => {
   let consoleSpies;
@@ -204,7 +209,7 @@ describe('logger.js - Structured JSON Logger', () => {
     });
   });
 
-describe('reconfigure - code review fix', () => {
+  describe('reconfigure - code review fix', () => {
     it('should update log level when reconfigure is called with new env', () => {
       const logger = createRootLogger({}); // defaults to 'info'
       expect(logger.level).toBe('info');
@@ -258,10 +263,7 @@ describe('reconfigure - code review fix', () => {
 
   describe('requestId propagation', () => {
     it('should propagate requestId through all log levels', () => {
-      const logger = createLogger(
-        { LOG_LEVEL: 'debug' },
-        { requestId: 'test-req-id' }
-      );
+      const logger = createLogger({ LOG_LEVEL: 'debug' }, { requestId: 'test-req-id' });
 
       logger.debug('debug msg');
       logger.info('info msg');

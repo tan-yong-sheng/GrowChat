@@ -59,10 +59,7 @@ export function createLogger(env, context = {}) {
 
     // Wrap arrays and non-objects in a `data` key to avoid spreading
     // indexed keys (e.g. {"0": ...}) or primitive values into the entry.
-    const safeData =
-      data && typeof data === 'object' && !Array.isArray(data)
-        ? data
-        : { data };
+    const safeData = data && typeof data === 'object' && !Array.isArray(data) ? data : { data };
 
     // Build entry with reserved fields protected from data key collisions.
     // Reserved keys (level, timestamp, message) are assigned LAST so they
@@ -115,7 +112,9 @@ export function createLogger(env, context = {}) {
     error: (message, data) => emit('error', message, data),
 
     /** Current resolved log level (for introspection / testing) */
-    get level() { return level; },
+    get level() {
+      return level;
+    },
 
     /**
      * Reconfigure the logger with a new env (e.g. when env becomes

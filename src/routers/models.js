@@ -304,7 +304,10 @@ async function fetchBaseModelsFromOpenAI(env, connections = []) {
         });
       }
     } catch (err) {
-      rootLogger.warn('Model discovery error', { baseUrl: conn.baseUrl, error: err?.message || err });
+      rootLogger.warn('Model discovery error', {
+        baseUrl: conn.baseUrl,
+        error: err?.message || err,
+      });
     }
   }
 
@@ -563,7 +566,9 @@ async function loadCustomModels(env) {
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (err) {
-      rootLogger.warn('Failed to fetch custom models from KV, falling back to D1', { error: err.message });
+      rootLogger.warn('Failed to fetch custom models from KV, falling back to D1', {
+        error: err.message,
+      });
     }
   }
 
@@ -664,7 +669,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         });
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
-        logger.warn('Failed to fetch base models from OpenAI-compatible sources', { error: err.message });
+        logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
+          error: err.message,
+        });
       }
 
       // Load custom models. This may fail if KV or D1 is unavailable.
@@ -1116,7 +1123,9 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         modelConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled });
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
-        logger.warn('Failed to fetch base models from OpenAI-compatible sources', { error: err.message });
+        logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
+          error: err.message,
+        });
       }
 
       try {
@@ -1551,10 +1560,7 @@ export async function modelsRouter(req, env, _ctx, user, path) {
         const modelConnections = await getAllOpenAIConnectionConfigs(env);
         baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
       } catch (err) {
-        logger.warn(
-          'Failed to discover base models for GET /api/models/:id:',
-          err?.message || err
-        );
+        logger.warn('Failed to discover base models for GET /api/models/:id:', err?.message || err);
       }
 
       if (baseModels.length > 0) {

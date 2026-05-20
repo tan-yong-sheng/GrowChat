@@ -248,7 +248,9 @@ export async function chatMessageRouter({
         );
         await db.batch(statements);
       } catch (err) {
-        logger.warn('Failed to persist message attachments', { error: String(err?.message || err) });
+        logger.warn('Failed to persist message attachments', {
+          error: String(err?.message || err),
+        });
       }
     }
 
@@ -485,7 +487,9 @@ export async function chatMessageRouter({
         attachmentIds = normalizeAttachmentIds(inherited.map((row) => row.document_id));
       } catch (err) {
         if (!/no such table:\s*message_documents/i.test(String(err?.message || ''))) {
-          logger.warn('Failed to load inherited attachments', { error: String(err?.message || err) });
+          logger.warn('Failed to load inherited attachments', {
+            error: String(err?.message || err),
+          });
         }
       }
     }

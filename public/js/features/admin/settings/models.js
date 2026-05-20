@@ -2,7 +2,10 @@ import { apiFetch } from '../../../shared/api.js';
 import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
 import { normalizeModelSearchQuery } from '../../../shared/utils/model-search.js';
-import { buildProviderOptions, filterModelsBySearchAndProvider } from '../../../shared/utils/model-filters.js';
+import {
+  buildProviderOptions,
+  filterModelsBySearchAndProvider,
+} from '../../../shared/utils/model-filters.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import {
@@ -32,31 +35,41 @@ function cloneAclRules(rules = [], normalizer = (rule) => rule) {
 function getAclRulesSignature(rules = [], normalizer) {
   return cloneAclRules(rules, normalizer)
     .map((rule) => ({
-      principal_type: String(rule?.principal_type || '').trim().toLowerCase(),
+      principal_type: String(rule?.principal_type || '')
+        .trim()
+        .toLowerCase(),
       principal_id: String(rule?.principal_id || '').trim(),
-      effect: String(rule?.effect || '').trim().toLowerCase(),
-      action: String(rule?.action || '').trim().toLowerCase(),
+      effect: String(rule?.effect || '')
+        .trim()
+        .toLowerCase(),
+      action: String(rule?.action || '')
+        .trim()
+        .toLowerCase(),
     }))
-    .sort((a, b) => (
-      a.principal_type.localeCompare(b.principal_type)
-      || a.principal_id.localeCompare(b.principal_id)
-      || a.action.localeCompare(b.action)
-      || a.effect.localeCompare(b.effect)
-    ))
+    .sort(
+      (a, b) =>
+        a.principal_type.localeCompare(b.principal_type) ||
+        a.principal_id.localeCompare(b.principal_id) ||
+        a.action.localeCompare(b.action) ||
+        a.effect.localeCompare(b.effect)
+    )
     .map((rule) => `${rule.principal_type}:${rule.principal_id}:${rule.action}:${rule.effect}`)
     .join('|');
 }
 
 const getCapTooltip = getAttachmentCapTooltip;
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const escapeHtml = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 function getModelAccessPresentation(model = {}) {
-  const accessVariant = String(model?.access_variant || '').trim().toLowerCase();
+  const accessVariant = String(model?.access_variant || '')
+    .trim()
+    .toLowerCase();
   const accessLabel = String(model?.access_label || '').trim();
   if (accessVariant === 'shared' || accessLabel.toLowerCase() === 'shared') {
     return {
@@ -79,32 +92,41 @@ function getModelAccessPresentation(model = {}) {
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';
   const canManageAcls = data.capabilities?.canManageAcls !== false;
-  const modelsState = data.modelsSettings || (data.modelsSettings = {
-    loading: false,
-    error: null,
-    models: [],
-    total: 0,
-    activeTotal: 0,
-    limit: 20,
-    offset: 0,
-    disabledModels: new Set(),
-    attachmentCaps: {},
-    capsLoading: false,
-    capsError: null,
-    query: '',
-    provider: 'all',
-    providerOptions: [],
-    invalidateToken: null,
-    needsReload: false,
-  });
-  const ensureMounted = () => container.dataset.modelsMounted === '1' && Boolean(container.querySelector('[data-models-scroll]'));
-  const getLocalModels = () => modelsState.models.map((model) => ({
-    ...model,
-    enabled: model.enabled !== false && !modelsState.disabledModels.has(model.id),
-  }));
-  const getActiveModelCount = () => (Number.isFinite(modelsState.activeTotal) ? modelsState.activeTotal : 0);
+  const modelsState =
+    data.modelsSettings ||
+    (data.modelsSettings = {
+      loading: false,
+      error: null,
+      models: [],
+      total: 0,
+      activeTotal: 0,
+      limit: 20,
+      offset: 0,
+      disabledModels: new Set(),
+      attachmentCaps: {},
+      capsLoading: false,
+      capsError: null,
+      query: '',
+      provider: 'all',
+      providerOptions: [],
+      invalidateToken: null,
+      needsReload: false,
+    });
+  const ensureMounted = () =>
+    container.dataset.modelsMounted === '1' &&
+    Boolean(container.querySelector('[data-models-scroll]'));
+  const getLocalModels = () =>
+    modelsState.models.map((model) => ({
+      ...model,
+      enabled: model.enabled !== false && !modelsState.disabledModels.has(model.id),
+    }));
+  const getActiveModelCount = () =>
+    Number.isFinite(modelsState.activeTotal) ? modelsState.activeTotal : 0;
 
-  if (data.modelsSettingsInvalidate && modelsState.invalidateToken !== data.modelsSettingsInvalidate) {
+  if (
+    data.modelsSettingsInvalidate &&
+    modelsState.invalidateToken !== data.modelsSettingsInvalidate
+  ) {
     modelsState.invalidateToken = data.modelsSettingsInvalidate;
     modelsState.models = [];
     modelsState.total = 0;
@@ -233,7 +255,6 @@ export function renderModelsSettings(container, data) {
     }
   };
 
-
   const updateModelToggle = (btn, enabled) => {
     if (!btn) return;
     btn.classList.toggle('bg-black', enabled);
@@ -300,28 +321,41 @@ export function renderModelsSettings(container, data) {
       clearHidden: !modelsState.query,
       providerId: 'model-provider-select',
       providerValue: modelsState.provider,
-      providerOptionsMarkup: mergedProviders.map((option) => `
+      providerOptionsMarkup: mergedProviders
+        .map(
+          (option) => `
         <option value="${option.value}" ${option.value === modelsState.provider ? 'selected' : ''}>
           ${option.label}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
         </option>
-      `).join(''),
+      `
+        )
+        .join(''),
     });
 
     syncModelsTableState(container, {
       loading: modelsState.loading,
-      rowsHtml: modelsState.loading ? `
-                    ${Array.from({ length: 5 }).map(() => `
+      rowsHtml: modelsState.loading
+        ? `
+                    ${Array.from({ length: 5 })
+                      .map(
+                        () => `
                       <tr class="bg-white text-xs animate-pulse">
                         <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
                         <td class="px-4 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
                         <td class="px-4 py-4"><div class="h-6 w-20 rounded-full bg-gray-100"></div></td>
                         <td class="px-4 py-4 text-right"><div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div></td>
                       </tr>
-                    `).join('')}
-                  ` : filteredModels.length === 0 ? '' : filteredModels.map(model => {
-        const access = getModelAccessPresentation(model);
-        const isDisabled = modelsState.disabledModels.has(model.id);
-        return `
+                    `
+                      )
+                      .join('')}
+                  `
+        : filteredModels.length === 0
+          ? ''
+          : filteredModels
+              .map((model) => {
+                const access = getModelAccessPresentation(model);
+                const isDisabled = modelsState.disabledModels.has(model.id);
+                return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
                       <td class="px-4 py-4 text-gray-400 font-mono truncate" title="${model.id}">${model.id}</td>
@@ -353,10 +387,12 @@ export function renderModelsSettings(container, data) {
                       </td>
                     </tr>
                   `;
-      }).join(''),
-      emptyMessage: pageTotal === 0 && !usingFilter
-        ? 'No models are selected upstream.'
-        : `No models found${usingFilter ? ` matching "${modelsState.query}"` : ''}.`,
+              })
+              .join(''),
+      emptyMessage:
+        pageTotal === 0 && !usingFilter
+          ? 'No models are selected upstream.'
+          : `No models found${usingFilter ? ` matching "${modelsState.query}"` : ''}.`,
       tbodyId: 'models-table-body',
       emptyColSpan: 4,
     });
@@ -375,7 +411,9 @@ export function renderModelsSettings(container, data) {
 
     const errorSlot = container.querySelector('#models-error-container');
     if (errorSlot) {
-      errorSlot.innerHTML = modelsState.error ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>` : '';
+      errorSlot.innerHTML = modelsState.error
+        ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>`
+        : '';
     }
 
     // Save button removed - using immediate-save pattern
@@ -460,11 +498,14 @@ export function renderModelsSettings(container, data) {
         const modelId = aclBtn.getAttribute('data-model-acl');
         if (!modelId) return;
         const model = (modelsState.models || []).find((item) => item.id === modelId);
-        openModelAccessModal({ id: modelId, name: model?.name || modelId }, {
-          onApply: async (rules) => {
-            await saveAclChanges(modelId, rules);
-          },
-        });
+        openModelAccessModal(
+          { id: modelId, name: model?.name || modelId },
+          {
+            onApply: async (rules) => {
+              await saveAclChanges(modelId, rules);
+            },
+          }
+        );
       }
     });
   };
@@ -498,8 +539,12 @@ export function renderModelsSettings(container, data) {
     const renderSummary = () => {
       let reasonText = 'No explicit rules. Admin users can access by default.';
       if (summaryEl) {
-        const allowCount = Array.from(state.rulesByGroup.values()).filter((value) => value === 'allow').length;
-        const denyCount = Array.from(state.rulesByGroup.values()).filter((value) => value === 'deny').length;
+        const allowCount = Array.from(state.rulesByGroup.values()).filter(
+          (value) => value === 'allow'
+        ).length;
+        const denyCount = Array.from(state.rulesByGroup.values()).filter(
+          (value) => value === 'deny'
+        ).length;
         if (!allowCount && !denyCount) {
           summaryEl.textContent = 'No access rules';
           reasonText = 'No explicit rules. Admin users can access by default.';
@@ -509,7 +554,8 @@ export function renderModelsSettings(container, data) {
           if (denyCount) parts.push(`${denyCount} deny`);
           summaryEl.textContent = parts.join(', ');
           if (allowCount && denyCount) {
-            reasonText = 'Explicit allow rules share this model with selected groups. Deny rules override allow rules.';
+            reasonText =
+              'Explicit allow rules share this model with selected groups. Deny rules override allow rules.';
           } else if (denyCount) {
             reasonText = 'This model is explicitly blocked for selected groups.';
           } else {
@@ -531,8 +577,10 @@ export function renderModelsSettings(container, data) {
         enabled: true,
         saving: state.saving,
         label: 'Save',
-        enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
-        disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+        enabledClass:
+          'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+        disabledClass:
+          'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
       });
     };
 
@@ -541,7 +589,9 @@ export function renderModelsSettings(container, data) {
       if (state.loading) {
         listEl.innerHTML = `
           <div class="space-y-2">
-            ${Array.from({ length: 5 }).map(() => `
+            ${Array.from({ length: 5 })
+              .map(
+                () => `
               <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 animate-pulse">
                 <div class="flex flex-col min-w-0 flex-1 space-y-2">
                   <div class="h-3.5 w-40 bg-gray-200 rounded-full"></div>
@@ -549,7 +599,9 @@ export function renderModelsSettings(container, data) {
                 </div>
                 <div class="h-4 w-4 bg-gray-100 rounded border border-gray-200"></div>
               </div>
-            `).join('')}
+            `
+              )
+              .join('')}
           </div>
         `;
         return;
@@ -559,14 +611,18 @@ export function renderModelsSettings(container, data) {
         errorEl.classList.toggle('hidden', !state.error);
       }
       if (!state.groups.length) {
-        listEl.innerHTML = '<div class="text-sm text-gray-500 py-6 text-center">No resource teams available.</div>';
+        listEl.innerHTML =
+          '<div class="text-sm text-gray-500 py-6 text-center">No resource teams available.</div>';
         return;
       }
-      listEl.innerHTML = state.groups.map((group) => {
-        const groupId = group.id;
-        const effect = state.rulesByGroup.get(groupId) || 'none';
-        const badge = group.is_system ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">System</span>' : '';
-        return `
+      listEl.innerHTML = state.groups
+        .map((group) => {
+          const groupId = group.id;
+          const effect = state.rulesByGroup.get(groupId) || 'none';
+          const badge = group.is_system
+            ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">System</span>'
+            : '';
+          return `
           <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 hover:border-gray-300">
             <div class="flex flex-col min-w-0">
               <div class="flex items-center gap-2">
@@ -582,7 +638,8 @@ export function renderModelsSettings(container, data) {
             </select>
           </div>
         `;
-      }).join('');
+        })
+        .join('');
 
       listEl.querySelectorAll('.model-acl-effect').forEach((select) => {
         select.addEventListener('change', () => {
@@ -615,7 +672,14 @@ export function renderModelsSettings(container, data) {
         state.rulesByGroup = new Map(
           (Array.isArray(payload.rules) ? payload.rules : [])
             .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
-            .map((rule) => [String(rule.principal_id || '').trim(), String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow'])
+            .map((rule) => [
+              String(rule.principal_id || '').trim(),
+              String(rule.effect || 'allow')
+                .trim()
+                .toLowerCase() === 'deny'
+                ? 'deny'
+                : 'allow',
+            ])
             .filter(([groupId]) => Boolean(groupId))
         );
       } catch (err) {
@@ -661,7 +725,7 @@ export function renderModelsSettings(container, data) {
 
   const render = () => {
     if (!isActiveTab()) return;
-    
+
     const query = normalizeModelSearchQuery(modelsState.query);
     const usingFilter = Boolean(query);
     const visibleModels = getLocalModels();
@@ -687,19 +751,28 @@ export function renderModelsSettings(container, data) {
     const pageStart = pageTotal === 0 ? 0 : modelsState.offset + 1;
     const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
 
-    const rowsHtml = modelsState.loading ? `
-                    ${Array.from({ length: 5 }).map(() => `
+    const rowsHtml = modelsState.loading
+      ? `
+                    ${Array.from({ length: 5 })
+                      .map(
+                        () => `
                       <tr class="bg-white text-xs animate-pulse">
                         <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
                         <td class="px-4 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
                         <td class="px-4 py-4"><div class="h-6 w-20 rounded-full bg-gray-100"></div></td>
                         <td class="px-4 py-4 text-right"><div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div></td>
                       </tr>
-                    `).join('')}
-                  ` : filteredModels.length === 0 ? '' : filteredModels.map(model => {
-      const access = getModelAccessPresentation(model);
-      const isDisabled = modelsState.disabledModels.has(model.id);
-      return `
+                    `
+                      )
+                      .join('')}
+                  `
+      : filteredModels.length === 0
+        ? ''
+        : filteredModels
+            .map((model) => {
+              const access = getModelAccessPresentation(model);
+              const isDisabled = modelsState.disabledModels.has(model.id);
+              return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
                       <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
@@ -731,7 +804,8 @@ export function renderModelsSettings(container, data) {
                       </td>
                     </tr>
                   `;
-    }).join('');
+            })
+            .join('');
 
     if (!ensureMounted()) {
       container.innerHTML = `
@@ -747,11 +821,15 @@ export function renderModelsSettings(container, data) {
           clearButtonId: 'model-clear-search-btn',
           clearHidden: !modelsState.query,
           providerId: 'model-provider-select',
-          providerOptionsMarkup: mergedProviders.map((option) => `
+          providerOptionsMarkup: mergedProviders
+            .map(
+              (option) => `
             <option value="${option.value}" ${option.value === modelsState.provider ? 'selected' : ''}>
               ${option.label}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
             </option>
-          `).join(''),
+          `
+            )
+            .join(''),
         })}
         ${renderModelsTableShellHtml({
           loading: modelsState.loading,
@@ -793,12 +871,16 @@ export function renderModelsSettings(container, data) {
       if (res.ok) {
         const payload = await res.json();
         const selectedModels = sortModelsByActiveThenName(
-          (Array.isArray(payload.models) ? payload.models : []).filter((model) => model?.enabled !== false)
+          (Array.isArray(payload.models) ? payload.models : []).filter(
+            (model) => model?.enabled !== false
+          )
         );
         modelsState.models = selectedModels;
         modelsState.total = selectedModels.length;
         modelsState.activeTotal = selectedModels.length;
-        modelsState.providerOptions = buildProviderOptions(modelsState.models, { includeAll: false });
+        modelsState.providerOptions = buildProviderOptions(modelsState.models, {
+          includeAll: false,
+        });
         modelsState.disabledModels = new Set();
         const capsFromModels = extractAttachmentCapsFromModels(modelsState.models);
         modelsState.attachmentCaps = capsFromModels;
@@ -812,10 +894,7 @@ export function renderModelsSettings(container, data) {
     }
   };
 
-
-
   render();
   loadModels(modelsState.needsReload);
   modelsState.needsReload = false;
 }
-

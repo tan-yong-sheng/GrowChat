@@ -280,12 +280,14 @@ describe('adminRouter openai connections', () => {
     expect(payload.details.message).not.toContain('sk-test');
     expect(payload.details.message).not.toContain('Incorrect API key');
     // Structured logger emits JSON via console.warn
-    const warnCalls = consoleSpy.mock.calls.map(call => call[0]);
-    const matchedCall = warnCalls.find(call => {
+    const warnCalls = consoleSpy.mock.calls.map((call) => call[0]);
+    const matchedCall = warnCalls.find((call) => {
       try {
         const parsed = JSON.parse(call);
         return parsed.message === 'Connection test failed';
-      } catch { return false; }
+      } catch {
+        return false;
+      }
     });
     expect(matchedCall).toBeTruthy();
     const parsed = JSON.parse(matchedCall);

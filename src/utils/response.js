@@ -134,11 +134,11 @@ function sanitizeErrorMessage(message, status) {
  * test failure message. Never exposes raw upstream error details.
  */
 export function getConnectionTestFailureMessage(status) {
-	if (status === 401) return 'Authentication failed \u2014 check your API key';
-	if (status === 403) return 'Access denied \u2014 check your permissions';
-	if (status === 404) return 'Endpoint not found \u2014 check your connection URL';
-	if (status != null && status >= 500) return 'Upstream server error \u2014 try again later';
-	return 'Connection failed \u2014 check your settings and try again';
+  if (status === 401) return 'Authentication failed \u2014 check your API key';
+  if (status === 403) return 'Access denied \u2014 check your permissions';
+  if (status === 404) return 'Endpoint not found \u2014 check your connection URL';
+  if (status != null && status >= 500) return 'Upstream server error \u2014 try again later';
+  return 'Connection failed \u2014 check your settings and try again';
 }
 
 export function error(req, message, status = 500, details = undefined) {
@@ -148,19 +148,24 @@ export function error(req, message, status = 500, details = undefined) {
   }
 
   const sanitized = sanitizeErrorMessage(message, status);
- const isPlainObj = details && typeof details === 'object' && !Array.isArray(details);
- const requestId = isPlainObj ? details.requestId : undefined;
- let restDetails = details;
- if (isPlainObj && requestId) {
- restDetails = { ...details };
- delete restDetails.requestId;
- }
- const hasDetails = restDetails !== undefined && (!isPlainObj || Object.keys(restDetails).length > 0);
- return json(req, {
- error: sanitized,
- ...(requestId ? { requestId } : {}),
- ...(hasDetails ? { details: restDetails } : {})
- }, status);
+  const isPlainObj = details && typeof details === 'object' && !Array.isArray(details);
+  const requestId = isPlainObj ? details.requestId : undefined;
+  let restDetails = details;
+  if (isPlainObj && requestId) {
+    restDetails = { ...details };
+    delete restDetails.requestId;
+  }
+  const hasDetails =
+    restDetails !== undefined && (!isPlainObj || Object.keys(restDetails).length > 0);
+  return json(
+    req,
+    {
+      error: sanitized,
+      ...(requestId ? { requestId } : {}),
+      ...(hasDetails ? { details: restDetails } : {}),
+    },
+    status
+  );
 }
 
 export function preflight(req) {

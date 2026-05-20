@@ -162,7 +162,10 @@ export async function filesRouter(req, env, ctx, user, path) {
               logger.info('Document extraction complete', { documentId });
             })
             .catch((err) => {
-              logger.error('Failed to process document extraction', { documentId, error: err?.message || err });
+              logger.error('Failed to process document extraction', {
+                documentId,
+                error: err?.message || err,
+              });
             })
         );
       } else {

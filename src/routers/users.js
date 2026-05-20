@@ -463,10 +463,10 @@ export async function usersRouter(req, env, _ctx, user, path) {
         const upstreamMessage = discovery.error?.message || 'No models discovered';
         const upstreamStatus = discovery.error?.status;
         logger.warn('Connection test failed', {
-            status: upstreamStatus,
-            url: discovery.error?.url,
-            upstreamMessage,
-          });
+          status: upstreamStatus,
+          url: discovery.error?.url,
+          upstreamMessage,
+        });
         const safeReason = getConnectionTestFailureMessage(upstreamStatus);
         return error(req, 'Connection failed', 502, {
           message: safeReason,

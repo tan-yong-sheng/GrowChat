@@ -978,10 +978,10 @@ export async function adminRouter(req, env, ctx, user, path) {
         const upstreamMessage = discovery.error?.message || 'No models discovered';
         const upstreamStatus = discovery.error?.status;
         logger.warn('Connection test failed', {
-            status: upstreamStatus,
-            url: discovery.error?.url,
-            upstreamMessage,
-          });
+          status: upstreamStatus,
+          url: discovery.error?.url,
+          upstreamMessage,
+        });
         const safeReason = getConnectionTestFailureMessage(upstreamStatus);
         return error(req, 'Connection failed', 502, {
           message: safeReason,
@@ -1177,7 +1177,9 @@ export async function adminRouter(req, env, ctx, user, path) {
             await saveToolServers(db, servers);
           }
         } catch (persistErr) {
-          logger.warn('Failed to persist tool server error', { error: persistErr?.message || persistErr });
+          logger.warn('Failed to persist tool server error', {
+            error: persistErr?.message || persistErr,
+          });
         }
       }
       return error(req, 'Connection failed', 502, {
