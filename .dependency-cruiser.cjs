@@ -55,6 +55,18 @@ module.exports = {
       from: { path: '(^|[\\/])public[\\/]js[\\/]' },
       to: { path: '(^|[\\/])src[\\/]' },
     },
+    // === Frontend: admin route architecture — only 3 top-level tabs allowed ===
+    {
+      name: 'no-admin-top-level-beyond-users-settings-system',
+      comment:
+        'Admin features must live under /users/, /settings/, or /system/ — not as new top-level tabs',
+      severity: 'error',
+      from: {
+        path: '^public/js/features/admin/(?!users/|settings/|system/)([^/]+/)',
+      },
+      to: {},
+    },
+
     // === Frontend: cross-feature coupling is legacy debt, warn only ===
     {
       name: 'warn-cross-feature',

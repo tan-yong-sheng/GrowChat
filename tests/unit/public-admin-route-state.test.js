@@ -8,9 +8,9 @@ import {
 describe('admin route state', () => {
   it('resolves canonical route state for top-level admin paths', () => {
     expect(resolveAdminRouteState('/admin')).toEqual({
-      mainTab: 'overview',
+      mainTab: 'system',
       subTab: 'usage',
-      canonicalPath: '/admin/overview',
+      canonicalPath: '/admin/system/usage',
     });
     expect(resolveAdminRouteState('/admin/users')).toEqual({
       mainTab: 'users',
@@ -24,12 +24,17 @@ describe('admin route state', () => {
     });
     expect(resolveAdminRouteState('/admin/system')).toEqual({
       mainTab: 'system',
-      subTab: 'registration',
-      canonicalPath: '/admin/system/registration',
+      subTab: 'usage',
+      canonicalPath: '/admin/system/usage',
     });
   });
 
   it('resolves system sub-routes correctly', () => {
+    expect(resolveAdminRouteState('/admin/system/usage')).toEqual({
+      mainTab: 'system',
+      subTab: 'usage',
+      canonicalPath: '/admin/system/usage',
+    });
     expect(resolveAdminRouteState('/admin/system/registration')).toEqual({
       mainTab: 'system',
       subTab: 'registration',
@@ -53,13 +58,12 @@ describe('admin route state', () => {
   });
 
   it('builds top and sub navigation paths consistently', () => {
-    expect(getAdminTopNavPath('overview')).toBe('/admin/overview');
     expect(getAdminTopNavPath('users')).toBe('/admin/users/overview');
     expect(getAdminTopNavPath('settings')).toBe('/admin/settings/connections');
-    expect(getAdminTopNavPath('system')).toBe('/admin/system/registration');
-    expect(getAdminSubnavPath('overview', 'usage')).toBe('/admin/overview');
+    expect(getAdminTopNavPath('system')).toBe('/admin/system/usage');
     expect(getAdminSubnavPath('users', 'groups')).toBe('/admin/users/groups');
     expect(getAdminSubnavPath('settings', 'connections')).toBe('/admin/settings/connections');
+    expect(getAdminSubnavPath('system', 'usage')).toBe('/admin/system/usage');
     expect(getAdminSubnavPath('system', 'registration')).toBe('/admin/system/registration');
   });
 });

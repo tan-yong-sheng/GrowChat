@@ -40,13 +40,13 @@ stateDiagram-v2
 - **Trigger**: User navigates to `/admin`.
 - **UI State**:
   - The interface fundamentally shifts from the chat "drawer/modal" paradigm to a dense, full-page data-management view.
-  - The primary sidebar vanishes (or collapses), replaced by a new top-level horizontal navigation: "Overview", "Users", "Settings", "System".
+  - The primary sidebar vanishes (or collapses), replaced by a new top-level horizontal navigation: "Users", "Settings", "System".
 - **Edge Cases / Bug Discovery**:
   - **Role Downgrade Mid-Session**: If an admin's role is revoked by another admin while they are viewing this page, does the next API action return a 403, and does the UI gracefully kick them back to the home screen?
 
-### 2. Usage Overview Dashboard
+### 2. Usage Dashboard (System Sub-tab)
 
-- **Trigger**: Viewing `/admin/overview` (default admin landing page).
+- **Trigger**: Viewing `/admin/system/usage` (default admin landing page).
 - **UI State**:
   - Displays five key metric cards: Total Users, Active Users (7d), Active Users (30d), Messages (7d), Sparks (30d).
   - Each card includes a trend indicator (↑↓→) comparing current period vs previous period.

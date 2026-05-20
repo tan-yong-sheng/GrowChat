@@ -181,7 +181,7 @@ describe('public app bootstrap', () => {
     await loadApp();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(window.location.pathname).toBe('/admin/overview');
+    expect(window.location.pathname).toBe('/admin/system/usage');
     expect(mocks.renderAdminPage).toHaveBeenCalledTimes(1);
     expect(document.getElementById('app').dataset.view).toBe('admin');
   });

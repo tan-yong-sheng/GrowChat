@@ -14,7 +14,7 @@
 
 ## Goal
 
-Build an admin dashboard at `/admin/overview` that shows workspace usage metrics: total users, active users (7d/30d), messages sent per day/week, and LLM API calls (sparks). Data sourced from existing D1 tables — no new tables needed for MVP.
+Build an admin dashboard at `/admin/system/usage` that shows workspace usage metrics: total users, active users (7d/30d), messages sent per day/week, and LLM API calls (sparks). Data sourced from existing D1 tables — no new tables needed for MVP.
 
 ## Implementation Scope
 
@@ -24,20 +24,20 @@ Build an admin dashboard at `/admin/overview` that shows workspace usage metrics
   - Messages sent (per day for last 7 days, per week for last 4 weeks) — from `messages` table
   - LLM sparks count — from `messages` where `role = 'assistant'` (proxy for API calls)
 - [x] Add RBAC protection — admin-only access via `ensureAdminAclAccess`
-- [x] Create admin dashboard UI component `public/js/features/admin/usage/overview.js`:
+- [x] Create admin dashboard UI component `public/js/features/admin/system/usage.js`:
   - Card layout with key metrics (total users, active 7d, active 30d, messages, sparks)
   - Trend indicators (↑↓→) comparing current period vs previous period
   - Simple data tables for daily/weekly breakdowns
-- [x] Update `public/js/features/admin/admin-route-state.js` — add `/admin/overview` route
+- [x] Update `public/js/features/admin/admin-route-state.js` — add `/admin/system/usage` route
 - [x] Update `public/js/bootstrap/app.js` — add admin overview route rendering
-- [x] Update admin navigation — add "Overview" / "Usage" link in admin sidebar
+- [x] Update admin navigation — add "Usage" sub-tab under System in admin sidebar
 - [x] Charts/graphs optional for MVP — plain numbers with trend indicators are sufficient
 - [x] Add unit tests for the `/api/admin/usage` endpoint
 - [x] Update `docs/` wiki with admin dashboard documentation
 
 ## Acceptance Criteria
 
-- New admin route `/admin/overview` shows a dashboard
+- New admin route `/admin/system/usage` shows a dashboard
 - Dashboard displays: total users, active users (7d/30d), messages sent (per day/week), LLM API calls (sparks)
 - Data sourced from existing D1 tables (users, messages) — no new tables for MVP
 - RBAC enforced — admin-only access

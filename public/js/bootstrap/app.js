@@ -86,7 +86,7 @@ export async function renderCurrentRoute() {
   }
 
   if (path === '/admin' || path === '/admin/') {
-    window.history.replaceState({}, '', '/admin/overview');
+    window.history.replaceState({}, '', '/admin/system/usage');
     return renderCurrentRoute();
   }
 

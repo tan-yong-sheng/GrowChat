@@ -7,12 +7,10 @@ describe('workspace top nav config', () => {
       variant: 'account',
       currentKey: 'overview',
     });
-
     const settings = buildWorkspaceTopNavConfig({
       variant: 'account',
       currentKey: 'connections',
     });
-
     expect(overview.tabs.map((tab) => tab.label)).toEqual(['Settings']);
     expect(overview.activeKey).toBe('settings');
     expect(overview.dataAttrName).toBe('data-account-area-tab');
@@ -24,13 +22,7 @@ describe('workspace top nav config', () => {
       variant: 'admin',
       currentKey: 'system',
     });
-
-    expect(config.tabs.map((tab) => tab.label)).toEqual([
-      'Overview',
-      'Users',
-      'Settings',
-      'System',
-    ]);
+    expect(config.tabs.map((tab) => tab.label)).toEqual(['Users', 'Settings', 'System']);
     expect(config.activeKey).toBe('system');
     expect(config.dataAttrName).toBe('data-nav');
   });
