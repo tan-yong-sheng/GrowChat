@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createLogger, createRootLogger, resolveLogLevel } from './logger.js';
+import { createLogger, createRootLogger, resolveLogLevel, reconfigureAllRootLoggers } from './logger.js';
 
 describe('logger.js - Structured JSON Logger', () => {
   let consoleSpies;
@@ -160,6 +160,99 @@ describe('logger.js - Structured JSON Logger', () => {
       expect(parsed).not.toHaveProperty('requestId');
       expect(parsed).not.toHaveProperty('userId');
       expect(parsed.message).toBe('Root message');
+    });
+  });
+
+  describe('emit safety - code review fixes', () => {
+    it('should not crash on circular references in data', () => {
+      const logger = createLogger({ LOG_LEVEL: 'info' });
+      const circular = {};
+      circular.self = circular;
+      // Must not throw
+      expect(() => logger.info('Circular test', circular)).not.toThrow();
+      // Should still emit a log entry (fallback goes to console.error)
+      expect(consoleSpies.error).toHaveBeenCalled();
+      const fallbackParsed = JSON.parse(consoleSpies.error.mock.calls[0][0]);
+      expect(fallbackParsed.message).toBe('Circular test');
+      expect(fallbackParsed.error).toBe('Logger serialization failed');
+    });
+
+    it('should not allow data keys to overwrite core metadata (level, timestamp)', () => {
+      const logger = createLogger({ LOG_LEVEL: 'info' });
+      logger.info('Metadata test', { level: 'critical', timestamp: 'fake' });
+      const parsed = JSON.parse(consoleSpies.info.mock.calls[0][0]);
+      expect(parsed.level).toBe('info'); // not 'critical'
+      expect(parsed.timestamp).not.toBe('fake');
+    });
+
+    it('should wrap array data in a data key instead of spreading indexed keys', () => {
+      const logger = createLogger({ LOG_LEVEL: 'info' });
+      logger.info('Array test', ['item1', 'item2']);
+      const parsed = JSON.parse(consoleSpies.info.mock.calls[0][0]);
+      expect(parsed.message).toBe('Array test');
+      expect(parsed.data).toEqual(['item1', 'item2']);
+      expect(parsed).not.toHaveProperty('0');
+      expect(parsed).not.toHaveProperty('1');
+    });
+
+    it('should wrap non-object data in a data key', () => {
+      const logger = createLogger({ LOG_LEVEL: 'info' });
+      logger.info('String data', 'just a string');
+      const parsed = JSON.parse(consoleSpies.info.mock.calls[0][0]);
+      expect(parsed.message).toBe('String data'); // message always wins
+      expect(parsed.data).toBe('just a string');
+    });
+  });
+
+describe('reconfigure - code review fix', () => {
+    it('should update log level when reconfigure is called with new env', () => {
+      const logger = createRootLogger({}); // defaults to 'info'
+      expect(logger.level).toBe('info');
+
+      logger.debug('should be filtered');
+      expect(consoleSpies.debug).not.toHaveBeenCalled();
+
+      // Reconfigure with env that has LOG_LEVEL=debug
+      logger.reconfigure({ LOG_LEVEL: 'debug' });
+      expect(logger.level).toBe('debug');
+
+      logger.debug('should now pass');
+      expect(consoleSpies.debug).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(consoleSpies.debug.mock.calls[0][0]);
+      expect(parsed.message).toBe('should now pass');
+    });
+
+    it('should suppress logs after reconfiguring to a higher level', () => {
+      const logger = createRootLogger({ LOG_LEVEL: 'debug' });
+      logger.debug('passes at debug');
+      expect(consoleSpies.debug).toHaveBeenCalledTimes(1);
+
+      logger.reconfigure({ LOG_LEVEL: 'error' });
+      expect(logger.level).toBe('error');
+
+      logger.info('should be filtered');
+      logger.warn('should be filtered');
+      expect(consoleSpies.info).not.toHaveBeenCalled();
+      expect(consoleSpies.warn).not.toHaveBeenCalled();
+
+      logger.error('should pass');
+      expect(consoleSpies.error).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('reconfigureAllRootLoggers', () => {
+    it('should reconfigure all root loggers at once', () => {
+      const logger1 = createRootLogger({}); // defaults to 'info'
+      const logger2 = createRootLogger({}); // defaults to 'info'
+      expect(logger1.level).toBe('info');
+      expect(logger2.level).toBe('info');
+
+      reconfigureAllRootLoggers({ LOG_LEVEL: 'debug' });
+      expect(logger1.level).toBe('debug');
+      expect(logger2.level).toBe('debug');
+
+      logger1.debug('should pass now');
+      expect(consoleSpies.debug).toHaveBeenCalledTimes(1);
     });
   });
 

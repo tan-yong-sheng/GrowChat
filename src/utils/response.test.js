@@ -139,6 +139,24 @@ describe('response.js - HTTP Response Helpers', () => {
       expect(body.details).toBeUndefined();
     });
 
+  it('should preserve array details without mangling them into objects', async () => {
+    const details = ['error_code_1', 'error_code_2'];
+    const response = error(mockRequest, 'Multiple errors', 400, details);
+    const body = await response.json();
+    expect(body.error).toBe('Multiple errors');
+    expect(body.details).toEqual(['error_code_1', 'error_code_2']);
+    expect(body).not.toHaveProperty('0');
+  });
+
+  it('should extract requestId from object details and promote to top-level', async () => {
+    const details = { requestId: 'req-123', field: 'email' };
+    const response = error(mockRequest, 'Validation error', 400, details);
+    const body = await response.json();
+    expect(body.requestId).toBe('req-123');
+    expect(body.details).toEqual({ field: 'email' });
+    expect(body.details).not.toHaveProperty('requestId');
+  });
+
     it('should include Origin header when set', () => {
       mockRequest.headers.set('Origin', 'https://example.com');
       const response = error(mockRequest, 'Unauthorized', 401);

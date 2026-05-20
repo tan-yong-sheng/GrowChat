@@ -148,12 +148,19 @@ export function error(req, message, status = 500, details = undefined) {
   }
 
   const sanitized = sanitizeErrorMessage(message, status);
-  const { requestId, ...restDetails } = (details && typeof details === 'object') ? details : {};
-  return json(req, {
-    error: sanitized,
-    ...(requestId ? { requestId } : {}),
-    ...(Object.keys(restDetails).length > 0 ? { details: restDetails } : {})
-  }, status);
+ const isPlainObj = details && typeof details === 'object' && !Array.isArray(details);
+ const requestId = isPlainObj ? details.requestId : undefined;
+ let restDetails = details;
+ if (isPlainObj && requestId) {
+ restDetails = { ...details };
+ delete restDetails.requestId;
+ }
+ const hasDetails = restDetails !== undefined && (!isPlainObj || Object.keys(restDetails).length > 0);
+ return json(req, {
+ error: sanitized,
+ ...(requestId ? { requestId } : {}),
+ ...(hasDetails ? { details: restDetails } : {})
+ }, status);
 }
 
 export function preflight(req) {

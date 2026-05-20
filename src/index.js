@@ -11,7 +11,7 @@ import {
 import { error, preflight } from './utils/response.js';
 import { getSriHashes, injectSriHashes } from './utils/sri-hashes.js';
 import { MessageQueueDO } from './durable/message-queue.js';
-import { createLogger } from './utils/logger.js';
+import { createLogger, reconfigureAllRootLoggers } from './utils/logger.js';
 
 const QUIET_INCOMING_PATHS = new Set(['/.well-known/appspecific/com.chrome.devtools.json']);
 
@@ -64,6 +64,10 @@ async function fetchHtmlAsset(env, req, pathname, logger) {
 
 export default {
   async fetch(req, env, ctx) {
+    // Reconfigure module-level root loggers with env on the first request
+    // so LOG_LEVEL from wrangler.jsonc takes effect globally.
+    reconfigureAllRootLoggers(env);
+
     const path = getPath(req);
     const { requestId, logger } = createRequestContext(env);
 

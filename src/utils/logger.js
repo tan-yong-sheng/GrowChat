@@ -13,6 +13,12 @@
  * In request context (with requestId):
  *   const logger = createLogger(env, { requestId: 'abc-123', userId: 'user-456' });
  *   logger.info('Authenticated', { email: 'user@example.com' });
+ *
+ * Module-level root loggers (outside request lifecycle):
+ *   import { createRootLogger } from '../utils/logger.js';
+ *   const logger = createRootLogger({});
+ *   // Later, when env becomes available (e.g. in first request):
+ *   logger.reconfigure(env);
  */
 
 const LEVEL_VALUES = { debug: 0, info: 1, warn: 2, error: 3 };
@@ -44,39 +50,61 @@ export function resolveLogLevel(env) {
  * @returns {Object} Logger with debug/info/warn/error methods
  */
 export function createLogger(env, context = {}) {
-  const level = resolveLogLevel(env);
-  const levelValue = LEVEL_VALUES[level];
+  let level = resolveLogLevel(env);
+  let levelValue = LEVEL_VALUES[level];
 
   function emit(entryLevel, message, data = {}) {
     const entryValue = LEVEL_VALUES[entryLevel];
     if (entryValue < levelValue) return;
 
+    // Wrap arrays and non-objects in a `data` key to avoid spreading
+    // indexed keys (e.g. {"0": ...}) or primitive values into the entry.
+    const safeData =
+      data && typeof data === 'object' && !Array.isArray(data)
+        ? data
+        : { data };
+
+    // Build entry with reserved fields protected from data key collisions.
+    // Reserved keys (level, timestamp, message) are assigned LAST so they
+    // always take precedence over any overlapping keys in data/context.
     const entry = {
+      ...safeData,
+      ...context,
       level: entryLevel,
       timestamp: new Date().toISOString(),
-      ...(context.requestId ? { requestId: context.requestId } : {}),
-      ...(context.userId ? { userId: context.userId } : {}),
-      ...(data && typeof data === 'object' ? data : {}),
-      // Ensure the log message is never overwritten by data keys
       message: typeof message === 'string' ? message : String(message),
     };
 
     // Workers console output is captured by the platform logger.
     // Use the matching console method so severity is preserved in
     // Cloudflare's structured log viewer (Workers tail / wrangler tail).
-    switch (entryLevel) {
-      case 'debug':
-        console.debug(JSON.stringify(entry));
-        break;
-      case 'info':
-        console.info(JSON.stringify(entry));
-        break;
-      case 'warn':
-        console.warn(JSON.stringify(entry));
-        break;
-      case 'error':
-        console.error(JSON.stringify(entry));
-        break;
+    // Wrap JSON.stringify in try-catch to prevent circular reference crashes.
+    try {
+      const output = JSON.stringify(entry);
+      switch (entryLevel) {
+        case 'debug':
+          console.debug(output);
+          break;
+        case 'info':
+          console.info(output);
+          break;
+        case 'warn':
+          console.warn(output);
+          break;
+        case 'error':
+          console.error(output);
+          break;
+      }
+    } catch (err) {
+      // Fallback: log a safe entry if serialization fails (e.g. circular refs)
+      const fallback = JSON.stringify({
+        level: entryLevel,
+        message: typeof message === 'string' ? message : String(message),
+        timestamp: new Date().toISOString(),
+        error: 'Logger serialization failed',
+        originalError: err?.message || String(err),
+      });
+      console.error(fallback);
     }
   }
 
@@ -87,7 +115,17 @@ export function createLogger(env, context = {}) {
     error: (message, data) => emit('error', message, data),
 
     /** Current resolved log level (for introspection / testing) */
-    level,
+    get level() { return level; },
+
+    /**
+     * Reconfigure the logger with a new env (e.g. when env becomes
+     * available in the first request for module-level root loggers).
+     * Updates the log level but preserves the existing context.
+     */
+    reconfigure(newEnv) {
+      level = resolveLogLevel(newEnv);
+      levelValue = LEVEL_VALUES[level];
+    },
 
     /**
      * Create a child logger with additional context merged in.
@@ -99,9 +137,31 @@ export function createLogger(env, context = {}) {
 
 /**
  * Root logger without request context — for use outside the request
- * lifecycle (e.g. Durable Object alarms, startup code).
- * Still respects LOG_LEVEL from env.
+ * lifecycle (e.g. Durable Object alarms, startup code, module-level utils).
+ *
+ * IMPORTANT: In Cloudflare Workers, env bindings are only available inside
+ * the fetch handler. Module-level root loggers created with createRootLogger({})
+ * will default to 'info' level. Call reconfigureAllRootLoggers(env) once env
+ * is available (e.g. in the first request handler) to respect LOG_LEVEL from
+ * wrangler.jsonc.
  */
+
+// Registry of all root loggers for bulk reconfiguration
+const rootLoggerRegistry = [];
+
 export function createRootLogger(env) {
-  return createLogger(env, {});
+  const logger = createLogger(env, {});
+  rootLoggerRegistry.push(logger);
+  return logger;
+}
+
+/**
+ * Reconfigure all module-level root loggers with the given env.
+ * Call this once from the first request handler (src/index.js) so that
+ * LOG_LEVEL from wrangler.jsonc takes effect for all root loggers.
+ */
+export function reconfigureAllRootLoggers(env) {
+  for (const logger of rootLoggerRegistry) {
+    logger.reconfigure(env);
+  }
 }
