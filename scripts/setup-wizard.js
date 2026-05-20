@@ -168,6 +168,9 @@ async function stepWelcome() {
   ║   2. Apply database migrations                       ║
   ║   3. Set your secrets (JWT, API keys)                ║
   ║   4. Deploy to Cloudflare                            ║
+ ║                                                     ║
+ ║ Tip: Set env vars JWT_SECRET, RESEND_API_KEY,      ║
+ ║      RESEND_FROM_EMAIL to skip interactive prompts  ║
   ║                                                      ║
   ║ Press Ctrl+C at any time to abort.                   ║
   ╚══════════════════════════════════════════════════════╝
@@ -357,46 +360,88 @@ async function stepApplyMigrations() {
  * Step 3: Set secrets.
  * Uses no-echo prompts for sensitive values so they don't
  * appear in terminal scrollback.
+ *
+ * Environment variables are detected and offered as defaults:
+ *   JWT_SECRET, RESEND_API_KEY, RESEND_FROM_EMAIL
+ * This supports CI/CD and headless workflows where secrets are
+ * pre-set in the environment.
  */
 async function stepSetSecrets() {
   console.log('\n🔐 Step 3: Setting secrets\n');
   console.log(' Secrets are stored securely in Cloudflare — never written to files.\n');
 
   // ── JWT_SECRET ──────────────────────────────────────────────────────────
-  const defaultJwt = generateSecret();
-  console.log(' JWT_SECRET is used to sign authentication tokens.');
-  console.log(' A random one has been generated for you.');
-  const useDefaultJwt = await confirm('Use the generated JWT secret?', {
-    default: true,
-  });
-  let jwtSecret;
-  if (useDefaultJwt) {
-    jwtSecret = defaultJwt;
-  } else {
-    jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
-  }
-  setSecret('JWT_SECRET', jwtSecret);
-  console.log(' ✅ JWT_SECRET set.\n');
+  const envJwt = process.env.JWT_SECRET;
+  const defaultJwt = envJwt || generateSecret();
 
-  // ── RESEND_API_KEY (optional) ───────────────────────────────────────────
-  console.log(' RESEND_API_KEY is used for transactional emails (password reset).');
-  console.log(' This is optional — you can set it later via:');
-  console.log('   pnpm exec wrangler secret put RESEND_API_KEY\n');
-  const hasResend = await confirm('Do you have a Resend API key?');
-  if (hasResend) {
-    const resendKey = await secretPrompt('RESEND_API_KEY');
-    if (resendKey) {
-      setSecret('RESEND_API_KEY', resendKey);
-      console.log(' ✅ RESEND_API_KEY set.\n');
+  if (envJwt) {
+    console.log(' JWT_SECRET found in environment.');
+    const useEnv = await confirm('Use the JWT_SECRET from environment?', {
+      default: true,
+    });
+    if (useEnv) {
+      setSecret('JWT_SECRET', envJwt);
+      console.log(' ✅ JWT_SECRET set (from environment).\n');
+    } else {
+      const jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
+      setSecret('JWT_SECRET', jwtSecret || defaultJwt);
+      console.log(' ✅ JWT_SECRET set.\n');
     }
   } else {
-    console.log(' ⏭️ Skipped RESEND_API_KEY — emails will not work until this is set.\n');
+    console.log(' JWT_SECRET is used to sign authentication tokens.');
+    console.log(' A random one has been generated for you.');
+    const useDefaultJwt = await confirm('Use the generated JWT secret?', {
+      default: true,
+    });
+    let jwtSecret;
+    if (useDefaultJwt) {
+      jwtSecret = defaultJwt;
+    } else {
+      jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
+    }
+    setSecret('JWT_SECRET', jwtSecret);
+    console.log(' ✅ JWT_SECRET set.\n');
+  }
+
+  // ── RESEND_API_KEY (optional) ───────────────────────────────────────────
+  const envResendKey = process.env.RESEND_API_KEY;
+  let hasResend = false;
+
+  console.log(' RESEND_API_KEY is used for transactional emails (password reset).');
+  console.log(' This is optional — you can set it later via:');
+  console.log(' pnpm exec wrangler secret put RESEND_API_KEY\n');
+
+  if (envResendKey) {
+    console.log(' RESEND_API_KEY found in environment.');
+    const useEnv = await confirm('Use the RESEND_API_KEY from environment?', {
+      default: true,
+    });
+    if (useEnv) {
+      setSecret('RESEND_API_KEY', envResendKey);
+      console.log(' ✅ RESEND_API_KEY set (from environment).\n');
+      hasResend = true;
+    }
+  }
+
+  if (!hasResend) {
+    hasResend = await confirm('Do you have a Resend API key?');
+    if (hasResend) {
+      const resendKey = await secretPrompt('RESEND_API_KEY');
+      if (resendKey) {
+        setSecret('RESEND_API_KEY', resendKey);
+        console.log(' ✅ RESEND_API_KEY set.\n');
+      }
+    } else {
+      console.log(' ⏭️ Skipped RESEND_API_KEY — emails will not work until this is set.\n');
+    }
   }
 
   // ── RESEND_FROM_EMAIL (optional, only if Resend key set) ────────────────
   if (hasResend) {
+    const envResendFrom = process.env.RESEND_FROM_EMAIL;
+    const defaultFrom = envResendFrom || 'onboarding@resend.dev';
     const resendFrom = await prompt('RESEND_FROM_EMAIL', {
-      default: 'onboarding@resend.dev',
+      default: defaultFrom,
     });
     if (resendFrom) {
       setSecret('RESEND_FROM_EMAIL', resendFrom);

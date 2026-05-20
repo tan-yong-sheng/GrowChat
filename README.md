@@ -44,7 +44,7 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 git clone https://github.com/tan-yong-sheng/GrowChat.git
 cd GrowChat
 pnpm install
-pnpm run setup
+pnpm run setup          # Creates resources + sets secrets + deploys
 ```
 
 The setup wizard will:
@@ -54,7 +54,11 @@ The setup wizard will:
 3. Prompt for secrets (JWT_SECRET, optional RESEND_API_KEY)
 4. Deploy to Cloudflare Workers
 
-That's it — your instance is live.
+> **`pnpm run setup` includes deployment.** You do not need to run `pnpm run deploy` afterward. For re-deploying after code changes, use `pnpm run deploy`.
+
+> **Tip:** Pre-set env vars to skip interactive prompts: `JWT_SECRET=xxx RESEND_API_KEY=xxx pnpm run setup`
+
+That's it — your instance is live. See [docs/DEPLOY.md](docs/DEPLOY.md) for the full deployment guide.
 
 ### Post-Deploy: Create Admin
 

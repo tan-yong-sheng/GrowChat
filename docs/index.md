@@ -2,6 +2,8 @@
 
 Welcome to the GrowChat knowledge graph. This documentation is structured as an interconnected wiki, designed to map the system from high-level user flows down to low-level database state machines.
 
+> **🚀 New here?** Start with the [**Deployment Guide**](DEPLOY.md) — one-command deploy, env vars, `pnpm run setup` vs `pnpm run deploy`, and troubleshooting.
+
 ## 🎨 Frontend & UX (The UI Knowledge Graph)
 
 The `ui-ux` directory maps the exact interaction behaviors, components, and visual states of the application.
@@ -52,7 +54,8 @@ The `backend` directory maps APIs, background jobs, database schemas, and data f
   - [Background Jobs](backend/jobs/)
   - [External Integrations](backend/integrations/)
   - [Infrastructure & Deployments](backend/infra/)
-  - [Deployment Guide](backend/infra/deployment.md) — one-command deploy, wizard, manual setup, troubleshooting
+  - [Deployment Guide](DEPLOY.md) — one-command deploy, wizard, env vars, troubleshooting
+    _(detailed infra reference: [backend/infra/](backend/infra/))_
 - [Auth & Identity Flow Details](backend/auth/)
 
 ## 🐞 Bug Hunting & Standards
