@@ -78,9 +78,7 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toMatch(
-      /no-frontend-worker-env-access/
-    );
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toMatch(/no-frontend-worker-env-access/);
   }, 20000);
 
   it('rejects raw status badge markup in account feature slice via semgrep', () => {
