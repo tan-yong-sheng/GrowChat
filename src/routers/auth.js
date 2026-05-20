@@ -12,9 +12,17 @@ import { ValidationError } from '../errors/http-errors.js';
 import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 import { createEmailService } from '../services/email/email-service.js';
 import { escapeHtml, stripHtml } from '../utils/sanitize.js';
+import { logSecurityEvent, SecurityEventTypes } from '../services/audit-logging.js';
 
 const PASSWORD_RESET_TTL_SECONDS = 3600;
 const PASSWORD_RESET_TTL_DISPLAY = '1 hour';
+
+// --- Google OAuth 2.0 constants ---
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
+const GOOGLE_OAUTH_STATE_TTL_SECONDS = 600; // 10 minutes
+const GOOGLE_OAUTH_STATE_KV_PREFIX = 'oauth-state:';
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback)
@@ -91,6 +99,86 @@ function readBearerToken(req) {
   const header = req.headers.get('Authorization');
   if (!header?.startsWith('Bearer ')) return null;
   return header.slice('Bearer '.length).trim();
+}
+
+/**
+ * Generate OAuth state parameter, store in KV with TTL for CSRF protection.
+ * @returns {Promise<string>} The state value to include in the redirect URL
+ */
+async function generateOAuthState(env) {
+  const state = crypto.randomUUID();
+  const key = `${GOOGLE_OAUTH_STATE_KV_PREFIX}${state}`;
+  await env.SESSIONS.put(key, JSON.stringify({ createdAt: Date.now() }), {
+    expirationTtl: GOOGLE_OAUTH_STATE_TTL_SECONDS,
+  });
+  return state;
+}
+
+/**
+ * Validate and consume an OAuth state parameter from KV.
+ * @param {Object} env - Worker environment
+ * @param {string} state - State value from the callback
+ * @returns {Promise<boolean>} True if valid
+ */
+async function validateOAuthState(env, state) {
+  if (!state) return false;
+  const key = `${GOOGLE_OAUTH_STATE_KV_PREFIX}${state}`;
+  try {
+    const stored = await env.SESSIONS.get(key, 'json');
+    if (!stored) return false;
+    // Consume the state (one-time use)
+    await env.SESSIONS.delete(key);
+    // Check it hasn't expired (KV TTL should handle this, but double-check)
+    const age = Date.now() - (stored.createdAt || 0);
+    if (age > GOOGLE_OAUTH_STATE_TTL_SECONDS * 1000) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Exchange an authorization code for Google tokens and user info.
+ * Uses fetch() — no external OAuth libraries.
+ * @param {string} code - Authorization code from Google
+ * @param {string} clientId - Google OAuth client ID
+ * @param {string} clientSecret - Google OAuth client secret
+ * @param {string} redirectUri - The redirect URI registered with Google
+ * @returns {Promise<{sub: string, email: string, name: string, email_verified: boolean}>}
+ */
+async function exchangeGoogleCodeForUser(code, clientId, clientSecret, redirectUri) {
+  // Step 1: Exchange code for tokens
+  const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    signal: AbortSignal.timeout(8000),
+    body: new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    }).toString(),
+  });
+
+  if (!tokenRes.ok) {
+    const errBody = await tokenRes.text();
+    throw new Error(`Google token exchange failed: ${tokenRes.status} ${errBody}`);
+  }
+
+  const tokenData = await tokenRes.json();
+
+  // Step 2: Get user info from the userinfo endpoint using the access token
+  const userinfoRes = await fetch(GOOGLE_USERINFO_URL, {
+    headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    signal: AbortSignal.timeout(8000),
+  });
+
+  if (!userinfoRes.ok) {
+    throw new Error(`Google userinfo fetch failed: ${userinfoRes.status}`);
+  }
+
+  return await userinfoRes.json();
 }
 
 async function createAccessToken(secret, user, primaryRole) {
@@ -660,6 +748,218 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     return resendVerification({ email, env });
   }
 
+  // --- Google OAuth routes ---
+
+  // GET /api/auth/google — Redirect to Google OAuth consent screen
+  if (req.method === 'GET' && path === '/api/auth/google') {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+      return error(req, 'Google OAuth is not configured', 503);
+    }
+
+    // Rate limit OAuth initiation to prevent state flooding
+    const oauthStartLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-google',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authLogin,
+    });
+    if (!oauthStartLimit.allowed) {
+      return error(req, 'Too many Google OAuth attempts', 429, {
+        retry_after: Math.ceil((oauthStartLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
+    const url = new URL(req.url);
+    const origin = url.origin;
+    const redirectUri = `${origin}/api/auth/google/callback`;
+
+    const state = await generateOAuthState(env);
+    const googleAuthUrl = new URL(GOOGLE_AUTH_URL);
+    googleAuthUrl.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
+    googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
+    googleAuthUrl.searchParams.set('response_type', 'code');
+    googleAuthUrl.searchParams.set('scope', 'openid email profile');
+    googleAuthUrl.searchParams.set('state', state);
+    googleAuthUrl.searchParams.set('access_type', 'offline');
+    googleAuthUrl.searchParams.set('prompt', 'consent');
+
+    return Response.redirect(googleAuthUrl.toString(), 302);
+  }
+
+  // GET /api/auth/google/callback — Exchange auth code, create/link account, issue JWT
+  if (req.method === 'GET' && path === '/api/auth/google/callback') {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+      return error(req, 'Google OAuth is not configured', 503);
+    }
+
+    const url = new URL(req.url);
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+    const oauthError = url.searchParams.get('error');
+
+    // Handle user denial or Google-side errors
+    if (oauthError) {
+      await logSecurityEvent(env, SecurityEventTypes.LOGIN_FAILURE, {
+        provider: 'google',
+        error: oauthError,
+        ip: req.headers.get('CF-Connecting-IP') || 'unknown',
+      });
+      return Response.redirect(
+        `${new URL(req.url).origin}/auth.html?oauth_error=access_denied`,
+        302
+      );
+    }
+
+    if (!code) {
+      return Response.redirect(
+        `${new URL(req.url).origin}/auth.html?oauth_error=missing_info`,
+        302
+      );
+    }
+
+    // CSRF protection: validate the state parameter
+    const validState = await validateOAuthState(env, state);
+    if (!validState) {
+      await logSecurityEvent(env, SecurityEventTypes.CSRF_TOKEN_VALIDATION_FAILED, {
+        provider: 'google',
+        ip: req.headers.get('CF-Connecting-IP') || 'unknown',
+      });
+      return Response.redirect(
+        `${new URL(req.url).origin}/auth.html?oauth_error=invalid_state`,
+        302
+      );
+    }
+
+    // Rate limit Google OAuth callbacks
+    const oauthLimit = await checkRateLimit(env.CACHE, {
+      action: 'auth-google-callback',
+      subject: resolveRateLimitSubject(req),
+      ...RATE_LIMITS.authLogin, // Reuse login rate limits for callback
+    });
+    if (!oauthLimit.allowed) {
+      return Response.redirect(
+        `${new URL(req.url).origin}/auth.html?oauth_error=rate_limited`,
+        302
+      );
+    }
+
+    let googleUser;
+    try {
+      const origin = new URL(req.url).origin;
+      const redirectUri = `${origin}/api/auth/google/callback`;
+      googleUser = await exchangeGoogleCodeForUser(
+        code,
+        env.GOOGLE_CLIENT_ID,
+        env.GOOGLE_CLIENT_SECRET,
+        redirectUri
+      );
+    } catch (err) {
+      console.error('Google OAuth token exchange failed:', err?.message || err);
+      await logSecurityEvent(env, SecurityEventTypes.LOGIN_FAILURE, {
+        provider: 'google',
+        error: 'token_exchange_failed',
+        ip: req.headers.get('CF-Connecting-IP') || 'unknown',
+      });
+      return Response.redirect(
+        `${new URL(req.url).origin}/auth.html?oauth_error=exchange_failed`,
+        302
+      );
+    }
+
+    const googleId = googleUser.sub;
+    const googleEmail = (googleUser.email || '').toLowerCase();
+    const googleName = googleUser.name || 'Google User';
+    const googleEmailVerified = googleUser.email_verified === true;
+
+    if (!googleId || !googleEmail || !googleEmailVerified) {
+      return Response.redirect(
+        `${new URL(req.url).origin}/auth.html?oauth_error=missing_info`,
+        302
+      );
+    }
+
+    // --- Account resolution ---
+    // 1. Try to find existing user by google_id
+    let user = await users.findByGoogleId(googleId);
+    let isNewAccount = false;
+
+    if (user) {
+      // Existing linked account — log them in
+    } else if (googleEmail) {
+      // 2. Try email matching — link Google account to existing local user
+      const existingByEmail = await users.findByEmail(googleEmail);
+      if (existingByEmail) {
+        // Link the Google ID to the existing account
+        await users.updateGoogleId(existingByEmail.id, googleId);
+        user = await users.findById(existingByEmail.id);
+      } else {
+        // 3. Auto-provision: create a new account for this Google user
+        isNewAccount = true;
+        const hasUsers = (await users.count()) > 0;
+        const finalRole = hasUsers ? 'member' : 'admin';
+        const finalAccountStatus = 'active';
+        // Google OAuth users are auto-activated (email verified by Google)
+
+        user = await users.create({
+          email: googleEmail,
+          passwordHash: 'oauth:no-password', // Sentinel — Google users don't use password login
+          name: stripHtml(googleName),
+          accountStatus: finalAccountStatus,
+          settings: '{}',
+          googleId,
+        });
+
+        await ensureUserRoleBinding(db, user.id, finalRole, finalAccountStatus);
+        user = { ...user, primary_role: finalRole, account_status: finalAccountStatus };
+
+        await logSecurityEvent(env, SecurityEventTypes.LOGIN_SUCCESS, {
+          provider: 'google',
+          userId: user.id,
+          isNewAccount: true,
+          ip: req.headers.get('CF-Connecting-IP') || 'unknown',
+        });
+      }
+    }
+
+    if (!user) {
+      return Response.redirect(`${new URL(req.url).origin}/auth.html?oauth_error=no_account`, 302);
+    }
+
+    if (!isActiveAccount(user)) {
+      return Response.redirect(
+        `${new URL(req.url).origin}/auth.html?oauth_error=pending_account`,
+        302
+      );
+    }
+
+    // Same JWT + refresh token flow as local auth
+    const primaryRole = (await loadPrimaryRole(db, user.id)) || 'member';
+    await ensureUserRoleBinding(db, user.id, primaryRole, user.account_status);
+    await users.touchLastActive(user.id);
+    const freshUser = await users.findById(user.id);
+
+    const accessToken = await createAccessToken(jwtSecret, freshUser, primaryRole);
+    const refresh = await createRefreshToken(env, freshUser.id);
+
+    if (!isNewAccount) {
+      await logSecurityEvent(env, SecurityEventTypes.LOGIN_SUCCESS, {
+        provider: 'google',
+        userId: freshUser.id,
+        isNewAccount: false,
+        ip: req.headers.get('CF-Connecting-IP') || 'unknown',
+      });
+    }
+
+    // Redirect back to the SPA with tokens in the URL hash fragment
+    // Hash fragments are NOT sent to the server, keeping tokens secure
+    const callbackUrl = new URL('/auth.html', req.url);
+    callbackUrl.hash = new URLSearchParams({
+      access_token: accessToken,
+      refresh_token: refresh.token,
+      expires_in: '900',
+    }).toString();
+    return Response.redirect(callbackUrl.toString(), 302);
+  }
+
   // GET /api/auth/me - Return the authenticated user profile
   if (req.method === 'GET' && path === '/api/auth/me') {
     if (!authUser?.sub) {
@@ -686,6 +986,8 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     '/api/auth/verify-email',
     '/api/auth/resend-verification',
     '/api/auth/me',
+    '/api/auth/google',
+    '/api/auth/google/callback',
   ];
   if (authPaths.includes(path)) {
     return error(req, 'Method not allowed', 405);

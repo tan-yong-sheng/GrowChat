@@ -42,7 +42,11 @@ jobs:
       - name: Setup Semgrep
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          pnpm run setup:semgrep
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        shell: bash
+
+      - name: Install Semgrep via uv
+        run: pnpm run setup:semgrep
 
       - name: Pre-push gate
         run: pnpm run prepush

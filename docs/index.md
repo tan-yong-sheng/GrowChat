@@ -35,6 +35,7 @@ The `backend` directory maps APIs, background jobs, database schemas, and data f
     *   [Chat Streaming & SSE](backend/flows/chat-streaming.flow.md)
     *   [Model Discovery & Merging](backend/flows/model-discovery.flow.md)
     *   [User Login & Auth](backend/flows/user-login.flow.md)
+* [Google OAuth 2.0](backend/flows/google-oauth.flow.md)
     *   [RBAC Authorization Engine](backend/flows/rbac-authorization.flow.md)
 *   **[Data Models](backend/data-models/)**: Database schemas and their implicit relationships.
     *   [Users & Sessions](backend/data-models/user.md)
