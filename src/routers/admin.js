@@ -1890,75 +1890,109 @@ export async function adminRouter(req, env, ctx, user, path) {
   }
 
   // GET /api/admin/usage - Workspace usage metrics for admin dashboard
-	if (req.method === 'GET' && path === '/api/admin/usage') {
-		try {
-			const now = Math.floor(Date.now() / 1000);
-			const sevenDaysAgo = now - 7 * 86400;
-			const thirtyDaysAgo = now - 30 * 86400;
-			const fourteenDaysAgo = now - 14 * 86400;
-			const sixtyDaysAgo = now - 60 * 86400;
+  if (req.method === 'GET' && path === '/api/admin/usage') {
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const sevenDaysAgo = now - 7 * 86400;
+      const thirtyDaysAgo = now - 30 * 86400;
+      const fourteenDaysAgo = now - 14 * 86400;
+      const sixtyDaysAgo = now - 60 * 86400;
 
-			// Batch all 12 queries into a single DB round-trip for performance
-			const batchResults = await db.batch([
-				db.prepare('SELECT COUNT(*) as count FROM users'),
-				db.prepare('SELECT COUNT(*) as count FROM users WHERE last_active_at >= ?').bind(sevenDaysAgo),
-				db.prepare('SELECT COUNT(*) as count FROM users WHERE last_active_at >= ?').bind(thirtyDaysAgo),
-				db.prepare('SELECT COUNT(*) as count FROM users WHERE last_active_at >= ? AND last_active_at < ?').bind(fourteenDaysAgo, sevenDaysAgo),
-				db.prepare('SELECT COUNT(*) as count FROM users WHERE last_active_at >= ? AND last_active_at < ?').bind(sixtyDaysAgo, thirtyDaysAgo),
-				db.prepare("SELECT date(created_at, 'unixepoch') as day, COUNT(*) as count FROM messages WHERE created_at >= ? GROUP BY day ORDER BY day ASC").bind(sevenDaysAgo),
-				db.prepare("SELECT strftime('%Y-W%W', created_at, 'unixepoch') as week, COUNT(*) as count FROM messages WHERE created_at >= ? GROUP BY week ORDER BY week ASC").bind(thirtyDaysAgo),
-				db.prepare('SELECT COUNT(*) as count FROM messages WHERE created_at >= ? AND created_at < ?').bind(fourteenDaysAgo, sevenDaysAgo),
-				db.prepare('SELECT COUNT(*) as count FROM messages WHERE created_at >= ? AND created_at < ?').bind(sixtyDaysAgo, thirtyDaysAgo),
-				db.prepare('SELECT COUNT(*) as count FROM messages WHERE role = ? AND created_at >= ?').bind('assistant', thirtyDaysAgo),
-				db.prepare('SELECT COUNT(*) as count FROM messages WHERE role = ? AND created_at >= ? AND created_at < ?').bind('assistant', sixtyDaysAgo, thirtyDaysAgo),
-				db.prepare("SELECT COUNT(*) as count FROM messages WHERE role = 'assistant'"),
-			]);
+      // Batch all 12 queries into a single DB round-trip for performance
+      const batchResults = await db.batch([
+        db.prepare('SELECT COUNT(*) as count FROM users'),
+        db
+          .prepare('SELECT COUNT(*) as count FROM users WHERE last_active_at >= ?')
+          .bind(sevenDaysAgo),
+        db
+          .prepare('SELECT COUNT(*) as count FROM users WHERE last_active_at >= ?')
+          .bind(thirtyDaysAgo),
+        db
+          .prepare(
+            'SELECT COUNT(*) as count FROM users WHERE last_active_at >= ? AND last_active_at < ?'
+          )
+          .bind(fourteenDaysAgo, sevenDaysAgo),
+        db
+          .prepare(
+            'SELECT COUNT(*) as count FROM users WHERE last_active_at >= ? AND last_active_at < ?'
+          )
+          .bind(sixtyDaysAgo, thirtyDaysAgo),
+        db
+          .prepare(
+            "SELECT date(created_at, 'unixepoch') as day, COUNT(*) as count FROM messages WHERE created_at >= ? GROUP BY day ORDER BY day ASC"
+          )
+          .bind(sevenDaysAgo),
+        db
+          .prepare(
+            "SELECT strftime('%Y-W%W', created_at, 'unixepoch') as week, COUNT(*) as count FROM messages WHERE created_at >= ? GROUP BY week ORDER BY week ASC"
+          )
+          .bind(thirtyDaysAgo),
+        db
+          .prepare(
+            'SELECT COUNT(*) as count FROM messages WHERE created_at >= ? AND created_at < ?'
+          )
+          .bind(fourteenDaysAgo, sevenDaysAgo),
+        db
+          .prepare(
+            'SELECT COUNT(*) as count FROM messages WHERE created_at >= ? AND created_at < ?'
+          )
+          .bind(sixtyDaysAgo, thirtyDaysAgo),
+        db
+          .prepare('SELECT COUNT(*) as count FROM messages WHERE role = ? AND created_at >= ?')
+          .bind('assistant', thirtyDaysAgo),
+        db
+          .prepare(
+            'SELECT COUNT(*) as count FROM messages WHERE role = ? AND created_at >= ? AND created_at < ?'
+          )
+          .bind('assistant', sixtyDaysAgo, thirtyDaysAgo),
+        db.prepare("SELECT COUNT(*) as count FROM messages WHERE role = 'assistant'"),
+      ]);
 
-			// Extract results from batch — .first() queries return {results:[{count:N}]}
-			const getCount = (idx) => batchResults[idx]?.results?.[0]?.count || 0;
-			const totalUsers = getCount(0);
-			const activeUsers7d = getCount(1);
-			const activeUsers30d = getCount(2);
-			const prevActiveUsers7d = getCount(3);
-			const prevActiveUsers30d = getCount(4);
-			const dailyMessages = batchResults[5]?.results || [];
-			const weeklyMessages = batchResults[6]?.results || [];
-			const prevDailyTotal = getCount(7);
-			const prevWeeklyTotal = getCount(8);
-			const sparks30d = getCount(9);
-			const prevSparks30d = getCount(10);
-			const totalSparks = getCount(11);
+      // Extract results from batch — .first() queries return {results:[{count:N}]}
+      const getCount = (idx) => batchResults[idx]?.results?.[0]?.count || 0;
+      const totalUsers = getCount(0);
+      const activeUsers7d = getCount(1);
+      const activeUsers30d = getCount(2);
+      const prevActiveUsers7d = getCount(3);
+      const prevActiveUsers30d = getCount(4);
+      const dailyMessages = batchResults[5]?.results || [];
+      const weeklyMessages = batchResults[6]?.results || [];
+      const prevDailyTotal = getCount(7);
+      const prevWeeklyTotal = getCount(8);
+      const sparks30d = getCount(9);
+      const prevSparks30d = getCount(10);
+      const totalSparks = getCount(11);
 
-			const currentDailyTotal = dailyMessages.reduce((sum, row) => sum + (row.count || 0), 0);
-			const currentWeeklyTotal = weeklyMessages.reduce((sum, row) => sum + (row.count || 0), 0);
+      const currentDailyTotal = dailyMessages.reduce((sum, row) => sum + (row.count || 0), 0);
+      const currentWeeklyTotal = weeklyMessages.reduce((sum, row) => sum + (row.count || 0), 0);
 
-			return json(req, {
-				users: {
-					total: totalUsers,
-					active_7d: activeUsers7d,
-					active_30d: activeUsers30d,
-					prev_active_7d: prevActiveUsers7d,
-					prev_active_30d: prevActiveUsers30d,
-				},
-				messages: {
-					daily: dailyMessages.map((row) => ({ day: row.day, count: row.count })),
-					weekly: weeklyMessages.map((row) => ({ week: row.week, count: row.count })),
-					daily_total: currentDailyTotal,
-					prev_daily_total: prevDailyTotal,
-					weekly_total: currentWeeklyTotal,
-					prev_weekly_total: prevWeeklyTotal,
-				},
-				sparks: {
-					total: totalSparks,
-					last_30d: sparks30d,
-					prev_30d: prevSparks30d,
-				},
-			});
-		} catch (err) {
-			console.error('Usage metrics fetch failed:', err);
-			return error(req, 'Failed to fetch usage metrics', 500);
-		}
-	}
+      return json(req, {
+        users: {
+          total: totalUsers,
+          active_7d: activeUsers7d,
+          active_30d: activeUsers30d,
+          prev_active_7d: prevActiveUsers7d,
+          prev_active_30d: prevActiveUsers30d,
+        },
+        messages: {
+          daily: dailyMessages.map((row) => ({ day: row.day, count: row.count })),
+          weekly: weeklyMessages.map((row) => ({ week: row.week, count: row.count })),
+          daily_total: currentDailyTotal,
+          prev_daily_total: prevDailyTotal,
+          weekly_total: currentWeeklyTotal,
+          prev_weekly_total: prevWeeklyTotal,
+        },
+        sparks: {
+          total: totalSparks,
+          last_30d: sparks30d,
+          prev_30d: prevSparks30d,
+        },
+      });
+    } catch (err) {
+      console.error('Usage metrics fetch failed:', err);
+      return error(req, 'Failed to fetch usage metrics', 500);
+    }
+  }
 
-	return null;
+  return null;
 }

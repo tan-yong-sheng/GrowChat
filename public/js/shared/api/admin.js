@@ -110,6 +110,6 @@ export async function removeGroupMembers(groupId, userIds = []) {
 }
 
 export async function fetchAdminUsage({ signal, cache = 'no-store' } = {}) {
-	const res = await apiFetch('/api/admin/usage', { signal, cache });
-	return readJsonResponse(res, `Failed to fetch usage metrics (${res.status})`);
+  const res = await apiFetch('/api/admin/usage', { signal, cache });
+  return readJsonResponse(res, `Failed to fetch usage metrics (${res.status})`);
 }

@@ -237,26 +237,26 @@ export function renderUsersLayout(subTab) {
 }
 
 export function renderOverviewLayout() {
-	return `
+  return `
 	${renderSettingsViewport({
-		viewportClass: ADMIN_SETTINGS_VIEWPORT_CLASS,
-		contentHtml: renderSettingsShell({
-			navPaneHtml: renderWorkspaceVerticalTabs({
-				id: 'overview-tabs-container',
-				items: [
-					{
-						href: '/admin/overview',
-						key: 'usage',
-						label: 'Usage',
-						active: true,
-						icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5"><path d="M2 11.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Zm0-4a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1-.75-.75Zm0-4a.75.75 0 0 1 .75-.75h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1-.75-.75ZM8.146 10.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L9 11.707V14.5a.5.5 0 0 1-1 0v-2.793l-1.146 1.147a.5.5 0 0 1-.708-.708l2-2Z"/></svg>',
-					},
-				],
-			}),
-			bodyId: 'admin-sub-body',
-			contentId: 'admin-sub-content',
-			bodyPaddingClass: ADMIN_SHELL_BODY_PADDING_CLASS,
-		}),
-	})}
+    viewportClass: ADMIN_SETTINGS_VIEWPORT_CLASS,
+    contentHtml: renderSettingsShell({
+      navPaneHtml: renderWorkspaceVerticalTabs({
+        id: 'overview-tabs-container',
+        items: [
+          {
+            href: '/admin/overview',
+            key: 'usage',
+            label: 'Usage',
+            active: true,
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-5"><path d="M2 11.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Zm0-4a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1-.75-.75Zm0-4a.75.75 0 0 1 .75-.75h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1-.75-.75ZM8.146 10.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L9 11.707V14.5a.5.5 0 0 1-1 0v-2.793l-1.146 1.147a.5.5 0 0 1-.708-.708l2-2Z"/></svg>',
+          },
+        ],
+      }),
+      bodyId: 'admin-sub-body',
+      contentId: 'admin-sub-content',
+      bodyPaddingClass: ADMIN_SHELL_BODY_PADDING_CLASS,
+    }),
+  })}
 `;
 }

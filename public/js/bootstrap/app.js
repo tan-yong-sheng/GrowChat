@@ -85,7 +85,6 @@ export async function renderCurrentRoute() {
     return renderCurrentRoute();
   }
 
-
   if (path === '/admin' || path === '/admin/') {
     window.history.replaceState({}, '', '/admin/overview');
     return renderCurrentRoute();
@@ -111,7 +110,7 @@ export async function renderCurrentRoute() {
     return renderCurrentRoute();
   }
 
-// Handle email verification route (no auth required - must be before ensureSession)
+  // Handle email verification route (no auth required - must be before ensureSession)
   if (path === '/verify' || path.startsWith('/verify/')) {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
@@ -121,14 +120,15 @@ export async function renderCurrentRoute() {
       const { apiFetch } = await import('../shared/api.js');
       await renderVerificationPage(token, { apiFetch }, app);
     } else {
-      const { renderVerificationPendingWithApi } = await import('../features/auth/verification-pending.js');
+      const { renderVerificationPendingWithApi } =
+        await import('../features/auth/verification-pending.js');
       const { apiFetch } = await import('../shared/api.js');
       const pendingEl = renderVerificationPendingWithApi(email, {
         apiFetch,
         showToast: (msg, type) => {
           console.log(`[Toast] ${type}: ${msg}`);
           alert(`${type.toUpperCase()}: ${msg}`);
-        }
+        },
       });
       app.innerHTML = '';
       app.appendChild(pendingEl);
@@ -214,8 +214,10 @@ async function bootstrap() {
   installRouteChangeListener();
   const { prefetchModels } = await import('./session-bootstrap.js');
   setState({
-    models: [{ id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', enabled: true, hidden_for_user: false }],
-    modelsLoading: false
+    models: [
+      { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', enabled: true, hidden_for_user: false },
+    ],
+    modelsLoading: false,
   });
   prefetchModels({ allowCache: true });
   window.renderCurrentRoute = renderCurrentRoute;
@@ -223,4 +225,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-

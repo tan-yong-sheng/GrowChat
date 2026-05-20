@@ -25,7 +25,12 @@ describe('workspace top nav config', () => {
       currentKey: 'system',
     });
 
-    expect(config.tabs.map((tab) => tab.label)).toEqual(['Overview', 'Users', 'Settings', 'System']);
+    expect(config.tabs.map((tab) => tab.label)).toEqual([
+      'Overview',
+      'Users',
+      'Settings',
+      'System',
+    ]);
     expect(config.activeKey).toBe('system');
     expect(config.dataAttrName).toBe('data-nav');
   });

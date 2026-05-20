@@ -11,11 +11,12 @@ function trendIndicator(current, previous) {
     return { arrow: '→', color: 'text-gray-400', label: 'no data' };
   }
   const ratio = (current - previous) / previous;
-  if (ratio > 0.05) return { arrow: '↑', color: 'text-emerald-600', label: `+${Math.round(ratio * 100)}%` };
-  if (ratio < -0.05) return { arrow: '↓', color: 'text-red-500', label: `${Math.round(ratio * 100)}%` };
+  if (ratio > 0.05)
+    return { arrow: '↑', color: 'text-emerald-600', label: `+${Math.round(ratio * 100)}%` };
+  if (ratio < -0.05)
+    return { arrow: '↓', color: 'text-red-500', label: `${Math.round(ratio * 100)}%` };
   return { arrow: '→', color: 'text-gray-400', label: 'flat' };
 }
-
 
 function formatNumber(n) {
   if (n == null) return '—';
@@ -46,7 +47,8 @@ function renderMetricCard({ label, value, trend, icon }) {
  * Render the daily messages breakdown table.
  */
 function renderDailyTable(daily = []) {
-  if (!daily.length) return '<p class="text-sm text-gray-400 py-4 text-center">No message data for the last 7 days.</p>';
+  if (!daily.length)
+    return '<p class="text-sm text-gray-400 py-4 text-center">No message data for the last 7 days.</p>';
   const rows = daily
     .map(
       (row) => `
@@ -72,7 +74,8 @@ function renderDailyTable(daily = []) {
  * Render the weekly messages breakdown table.
  */
 function renderWeeklyTable(weekly = []) {
-  if (!weekly.length) return '<p class="text-sm text-gray-400 py-4 text-center">No weekly message data available.</p>';
+  if (!weekly.length)
+    return '<p class="text-sm text-gray-400 py-4 text-center">No weekly message data available.</p>';
   const rows = weekly
     .map(
       (row) => `
