@@ -1,7 +1,16 @@
 import { apiFetch, fetchAdminGroups, fetchAdminModels } from '../../../shared/api.js';
-import { broadcastModelsInvalidation, consumeModelsInvalidation } from '../../../shared/utils/model-sync.js';
-import { consumeConnectionsInvalidation, broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
-import { broadcastToolServersInvalidation, consumeToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
+import {
+  broadcastModelsInvalidation,
+  consumeModelsInvalidation,
+} from '../../../shared/utils/model-sync.js';
+import {
+  consumeConnectionsInvalidation,
+  broadcastConnectionsInvalidation,
+} from '../../../shared/utils/connection-sync.js';
+import {
+  broadcastToolServersInvalidation,
+  consumeToolServersInvalidation,
+} from '../../../shared/utils/tool-server-sync.js';
 import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
@@ -77,9 +86,13 @@ function renderSkeleton() {
     <div class="space-y-4">
       <div class="h-12 w-full rounded-3xl bg-gray-100 animate-pulse"></div>
       <div class="grid gap-3">
-        ${Array.from({ length: 4 }).map(() => `
+        ${Array.from({ length: 4 })
+          .map(
+            () => `
           <div class="h-20 rounded-3xl bg-gray-50 border border-gray-100 animate-pulse"></div>
-        `).join('')}
+        `
+          )
+          .join('')}
       </div>
     </div>
   `;
@@ -90,7 +103,9 @@ function renderFamilySkeleton() {
     <div class="space-y-4">
       <div class="h-12 w-full rounded-3xl bg-gray-100 animate-pulse"></div>
       <div class="grid gap-2">
-        ${Array.from({ length: 4 }).map(() => `
+        ${Array.from({ length: 4 })
+          .map(
+            () => `
           <div class="group flex items-center justify-between gap-2 rounded-2xl border border-gray-200 bg-white px-2 py-0.5 shadow-sm">
             <div class="flex items-center gap-1 min-w-0 flex-1">
               <div class="h-3.5 w-3.5 rounded border border-gray-200 bg-gray-100 animate-pulse shrink-0"></div>
@@ -104,7 +119,9 @@ function renderFamilySkeleton() {
               <div class="h-7 w-7 rounded-lg bg-gray-100 animate-pulse"></div>
             </div>
           </div>
-        `).join('')}
+        `
+          )
+          .join('')}
       </div>
       <div class="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
         <div class="flex items-center justify-between gap-4">
@@ -117,36 +134,18 @@ function renderFamilySkeleton() {
 }
 
 function isActiveTab(container) {
-  const settingsTab = container?.dataset?.settingsTab
-    || document.querySelector('#admin-sub-content')?.dataset.settingsTab
-    || document.querySelector('[data-settings-tab]')?.dataset.settingsTab
-    || '';
+  const settingsTab =
+    container?.dataset?.settingsTab ||
+    document.querySelector('#admin-sub-content')?.dataset.settingsTab ||
+    document.querySelector('[data-settings-tab]')?.dataset.settingsTab ||
+    '';
   const pathname = window.location.pathname || '';
-  return settingsTab === 'policies' && (
-    pathname === '/'
-    || pathname.startsWith('/admin/settings/policies')
-    || pathname.startsWith('/admin/users/policies')
+  return (
+    settingsTab === 'policies' &&
+    (pathname === '/' ||
+      pathname.startsWith('/admin/settings/policies') ||
+      pathname.startsWith('/admin/users/policies'))
   );
-}
-
-function _summarizeRules(resource, groupId = '') {
-  const rules = Array.isArray(resource?.rules) ? resource.rules : [];
-  const normalizedGroup = String(groupId || '').trim();
-  if (normalizedGroup) {
-    const deny = rules.some((rule) => String(rule.effect || '').toLowerCase() === 'deny' && String(rule.principal_type || '').toLowerCase() === 'group' && String(rule.principal_id || '') === normalizedGroup);
-    const allow = rules.some((rule) => String(rule.effect || '').toLowerCase() === 'allow' && String(rule.principal_type || '').toLowerCase() === 'group' && String(rule.principal_id || '') === normalizedGroup);
-    if (deny && allow) return { label: 'Mixed', kind: 'none' };
-    if (deny) return { label: 'Denied', kind: 'none' };
-    if (allow) return { label: 'Allowed', kind: 'shared' };
-    return { label: 'No rule', kind: 'none' };
-  }
-
-  const allowCount = rules.filter((rule) => String(rule.effect || '').toLowerCase() === 'allow').length;
-  const denyCount = rules.filter((rule) => String(rule.effect || '').toLowerCase() === 'deny').length;
-  if (!allowCount && !denyCount) return { label: 'No rules', kind: 'none' };
-  if (allowCount && denyCount) return { label: `${allowCount} allow, ${denyCount} deny`, kind: 'shared' };
-  if (denyCount) return { label: `${denyCount} deny`, kind: 'none' };
-  return { label: `${allowCount} allow`, kind: 'shared' };
 }
 
 function getResourceNote(resource, family) {
@@ -187,14 +186,18 @@ function getFamilyBulkSummary(familyKey, count) {
 }
 
 function filterEnabledResources(resources = []) {
-  return (Array.isArray(resources) ? resources : []).filter((resource) => resource?.enabled !== false);
+  return (Array.isArray(resources) ? resources : []).filter(
+    (resource) => resource?.enabled !== false
+  );
 }
 
 function sortResourcesByVisibility(resources = [], groupId = '') {
   const normalizedGroupId = String(groupId || '').trim();
   return (Array.isArray(resources) ? resources : []).slice().sort((a, b) => {
-    const categoryA = a?.enabled === false ? 'disabled' : getResourceAccessState(a, normalizedGroupId);
-    const categoryB = b?.enabled === false ? 'disabled' : getResourceAccessState(b, normalizedGroupId);
+    const categoryA =
+      a?.enabled === false ? 'disabled' : getResourceAccessState(a, normalizedGroupId);
+    const categoryB =
+      b?.enabled === false ? 'disabled' : getResourceAccessState(b, normalizedGroupId);
     const orderA = VISIBILITY_SORT_ORDER[categoryA] ?? 99;
     const orderB = VISIBILITY_SORT_ORDER[categoryB] ?? 99;
     if (orderA !== orderB) return orderA - orderB;
@@ -206,10 +209,20 @@ function getResourceAccessState(resource, groupId = '') {
   const rules = Array.isArray(resource?.rules) ? resource.rules : [];
   const normalizedGroup = String(groupId || '').trim();
   const deny = normalizedGroup
-    ? rules.some((rule) => String(rule.effect || '').toLowerCase() === 'deny' && String(rule.principal_type || '').toLowerCase() === 'group' && String(rule.principal_id || '') === normalizedGroup)
+    ? rules.some(
+        (rule) =>
+          String(rule.effect || '').toLowerCase() === 'deny' &&
+          String(rule.principal_type || '').toLowerCase() === 'group' &&
+          String(rule.principal_id || '') === normalizedGroup
+      )
     : rules.some((rule) => String(rule.effect || '').toLowerCase() === 'deny');
   const allow = normalizedGroup
-    ? rules.some((rule) => String(rule.effect || '').toLowerCase() === 'allow' && String(rule.principal_type || '').toLowerCase() === 'group' && String(rule.principal_id || '') === normalizedGroup)
+    ? rules.some(
+        (rule) =>
+          String(rule.effect || '').toLowerCase() === 'allow' &&
+          String(rule.principal_type || '').toLowerCase() === 'group' &&
+          String(rule.principal_id || '') === normalizedGroup
+      )
     : rules.some((rule) => String(rule.effect || '').toLowerCase() === 'allow');
 
   if (deny) return 'denied';
@@ -236,7 +249,12 @@ function getVisibilityFilterBadge(label, enabled) {
   return { label, kind: 'neutral' };
 }
 
-function buildPoliciesDeepLink({ groupId = 'all', familyKey = '', resourceId = '', open = 'access' } = {}) {
+function buildPoliciesDeepLink({
+  groupId = 'all',
+  familyKey = '',
+  resourceId = '',
+  open = 'access',
+} = {}) {
   const url = new URL('/admin/users/policies', window.location.origin);
   url.searchParams.set('group', String(groupId || 'all').trim() || 'all');
   if (familyKey) url.searchParams.set('family', String(familyKey).trim());
@@ -250,22 +268,33 @@ function getModelConnectionWarning(resource, groupId = '', connectionRulesById =
   if (getResourceAccessState(resource, groupId) !== 'allowed') return null;
   const connectionId = String(resource?.connection_id || '').trim();
   if (!connectionId) return null;
-  const connectionRules = connectionRulesById instanceof Map ? connectionRulesById.get(connectionId) || [] : [];
+  const connectionRules =
+    connectionRulesById instanceof Map ? connectionRulesById.get(connectionId) || [] : [];
   const state = getResourceAccessState({ rules: connectionRules }, groupId);
   if (state === 'allowed') return null;
   const connectionLabel = resource.connection_name || resource.connection_id || 'connection';
   return {
     label: state === 'denied' ? 'Connection denied' : 'Connection missing access',
     kind: 'warning',
-    title: state === 'denied'
-      ? `This selected resource has denied ACL access to the connection "${connectionLabel}".`
-      : `This selected resource does not have ACL access to the connection "${connectionLabel}".`,
-    linkHref: buildPoliciesDeepLink({ groupId, familyKey: 'connections', resourceId: connectionId, open: 'access' }),
+    title:
+      state === 'denied'
+        ? `This selected resource has denied ACL access to the connection "${connectionLabel}".`
+        : `This selected resource does not have ACL access to the connection "${connectionLabel}".`,
+    linkHref: buildPoliciesDeepLink({
+      groupId,
+      familyKey: 'connections',
+      resourceId: connectionId,
+      open: 'access',
+    }),
     linkLabel: 'Open connection ACL',
   };
 }
 
-function buildModelAccessModalWarning(resources = [], groupId = '', connectionRulesById = new Map()) {
+function buildModelAccessModalWarning(
+  resources = [],
+  groupId = '',
+  connectionRulesById = new Map()
+) {
   const items = Array.isArray(resources) ? resources.filter(Boolean) : [];
   if (!items.length) return null;
   const warnings = items
@@ -282,16 +311,24 @@ function buildModelAccessModalWarning(resources = [], groupId = '', connectionRu
     .filter(Boolean);
   if (!warnings.length) return null;
 
-  const uniqueConnections = [...new Set(warnings.map((item) => item.connectionLabel).filter(Boolean))];
-  const title = warnings.length === 1
-    ? 'Dependency warning'
-    : `${warnings.length} selected models depend on blocked connections`;
-  const message = warnings.length === 1
-    ? warnings[0].warning.title
-    : `The selected group does not have ACL access to ${uniqueConnections.length === 1 ? `the connection "${uniqueConnections[0]}"` : `${uniqueConnections.length} connections`} required by these models.`;
-  const extra = warnings.length > 1
-    ? `Affected models: ${warnings.slice(0, 3).map((item) => item.resourceLabel).join(', ')}${warnings.length > 3 ? ` +${warnings.length - 3} more` : ''}`
-    : '';
+  const uniqueConnections = [
+    ...new Set(warnings.map((item) => item.connectionLabel).filter(Boolean)),
+  ];
+  const title =
+    warnings.length === 1
+      ? 'Dependency warning'
+      : `${warnings.length} selected models depend on blocked connections`;
+  const message =
+    warnings.length === 1
+      ? warnings[0].warning.title
+      : `The selected group does not have ACL access to ${uniqueConnections.length === 1 ? `the connection "${uniqueConnections[0]}"` : `${uniqueConnections.length} connections`} required by these models.`;
+  const extra =
+    warnings.length > 1
+      ? `Affected models: ${warnings
+          .slice(0, 3)
+          .map((item) => item.resourceLabel)
+          .join(', ')}${warnings.length > 3 ? ` +${warnings.length - 3} more` : ''}`
+      : '';
   const firstConnectionId = String(items[0]?.connection_id || '').trim();
   const url = new URL(window.location.href);
   url.searchParams.set('group', String(groupId || 'all').trim() || 'all');
@@ -309,14 +346,24 @@ function buildModelAccessModalWarning(resources = [], groupId = '', connectionRu
 }
 
 function normalizeAclRule(rule) {
-  const principalType = String(rule?.principal_type || '').trim().toLowerCase();
+  const principalType = String(rule?.principal_type || '')
+    .trim()
+    .toLowerCase();
   const principalId = String(rule?.principal_id || '').trim();
   if (principalType !== 'group' || !principalId) return null;
   return {
     principal_type: 'group',
     principal_id: principalId,
-    effect: String(rule?.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow',
-    action: String(rule?.action || 'use').trim().toLowerCase() || 'use',
+    effect:
+      String(rule?.effect || 'allow')
+        .trim()
+        .toLowerCase() === 'deny'
+        ? 'deny'
+        : 'allow',
+    action:
+      String(rule?.action || 'use')
+        .trim()
+        .toLowerCase() || 'use',
   };
 }
 
@@ -332,21 +379,28 @@ function renderResourceList({
   return `
     <section class="space-y-2">
       <div class="space-y-1">
-        ${resources.length ? resources.map((resource) => {
-    const visibilityBadge = getResourceVisibilityBadge(resource, groupId);
-    const ownerBadge = resource.source === 'user'
-      ? resourceBadge('Personal', 'personal', true)
-      : resourceBadge('Platform', 'admin', true);
-    const dependencyWarning = familyKey === 'models'
-      ? getModelConnectionWarning(resource, groupId, connectionRulesById)
-      : null;
-    const isSelected = selectedIds instanceof Set && selectedIds.has(resource.id);
-    const note = getResourceNote(resource, familyKey);
-    const editDisabled = resource.enabled === false;
-    return `
+        ${
+          resources.length
+            ? resources
+                .map((resource) => {
+                  const visibilityBadge = getResourceVisibilityBadge(resource, groupId);
+                  const ownerBadge =
+                    resource.source === 'user'
+                      ? resourceBadge('Personal', 'personal', true)
+                      : resourceBadge('Platform', 'admin', true);
+                  const dependencyWarning =
+                    familyKey === 'models'
+                      ? getModelConnectionWarning(resource, groupId, connectionRulesById)
+                      : null;
+                  const isSelected = selectedIds instanceof Set && selectedIds.has(resource.id);
+                  const note = getResourceNote(resource, familyKey);
+                  const editDisabled = resource.enabled === false;
+                  return `
             <div class="group flex items-center justify-between gap-2 rounded-lg border ${isSelected ? 'border-gray-400 bg-gray-50' : 'border-gray-200 bg-white'} px-2 py-0.5">
               <label class="flex items-center gap-1 min-w-0 flex-1 cursor-pointer" title="${escapeHtml(note)}">
-                ${onToggleSelection ? `
+                ${
+                  onToggleSelection
+                    ? `
                   <input
                     type="checkbox"
                     class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-300 shrink-0"
@@ -354,7 +408,9 @@ function renderResourceList({
                     ${isSelected ? 'checked' : ''}
                     aria-label="Select ${escapeHtml(getResourceLabel(resource))}"
                   >
-                ` : ''}
+                `
+                    : ''
+                }
                 <div class="min-w-0 flex items-center gap-1">
                   <div class="text-[12px] font-semibold text-gray-900 truncate">${escapeHtml(getResourceLabel(resource))}</div>
                   <span class="opacity-80 transition group-hover:opacity-100">${ownerBadge}</span>
@@ -362,7 +418,9 @@ function renderResourceList({
                 </div>
               </label>
               <div class="flex items-center gap-1 shrink-0">
-                ${dependencyWarning ? `
+                ${
+                  dependencyWarning
+                    ? `
                   <a
                     href="${escapeHtml(dependencyWarning.linkHref || buildPoliciesDeepLink({ groupId, familyKey: 'connections', resourceId: resource.connection_id || '', open: 'access' }))}"
                     class="inline-flex items-center gap-1 rounded-full border px-[5px] py-0.5 text-[8px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200"
@@ -374,7 +432,9 @@ function renderResourceList({
                     </svg>
                     <span>Blocked</span>
                   </a>
-                ` : ''}
+                `
+                    : ''
+                }
                 ${resourceBadge(visibilityBadge.label, visibilityBadge.kind, true)}
                 <button
                   type="button"
@@ -392,11 +452,14 @@ function renderResourceList({
               </div>
             </div>
           `;
-  }).join('') : `
+                })
+                .join('')
+            : `
           <div class="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-500 text-center">
             No resources in this family.
           </div>
-        `}
+        `
+        }
       </div>
     </section>
   `;
@@ -408,13 +471,19 @@ function buildAclRows(groups, rules = []) {
     if (String(rule?.principal_type || '').toLowerCase() !== 'group') continue;
     const groupId = String(rule.principal_id || '').trim();
     if (!groupId) continue;
-    const effect = String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow';
+    const effect =
+      String(rule.effect || 'allow')
+        .trim()
+        .toLowerCase() === 'deny'
+        ? 'deny'
+        : 'allow';
     rulesByGroup.set(groupId, effect);
   }
 
-  return groups.map((group) => {
-    const effect = rulesByGroup.get(group.id) || 'none';
-    return `
+  return groups
+    .map((group) => {
+      const effect = rulesByGroup.get(group.id) || 'none';
+      return `
       <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2">
         <div class="min-w-0">
           <div class="flex items-center gap-2">
@@ -430,11 +499,14 @@ function buildAclRows(groups, rules = []) {
         </select>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 }
 
 async function loadFamilyAccess({ familyKey, resourceIds = [], signal } = {}) {
-  const ids = Array.isArray(resourceIds) ? resourceIds.map((id) => String(id || '').trim()).filter(Boolean) : [];
+  const ids = Array.isArray(resourceIds)
+    ? resourceIds.map((id) => String(id || '').trim()).filter(Boolean)
+    : [];
   const query = ids.length ? `?ids=${encodeURIComponent(ids.join(','))}` : '';
   const endpoint = getAdminAclAccessPath(familyKey, { bulk: true, query });
   const res = await apiFetch(endpoint, { signal });
@@ -458,8 +530,17 @@ async function saveFamilyAccess({ familyKey, updates }) {
   return res.json();
 }
 
-async function openAccessModal({ familyKey, resource, resources = null, groups, _selectedGroupId = '', resourceWarning = null, onSaved = null }) {
-  const targetResources = Array.isArray(resources) && resources.length ? resources : [resource].filter(Boolean);
+async function openAccessModal({
+  familyKey,
+  resource,
+  resources = null,
+  groups,
+  _selectedGroupId = '',
+  resourceWarning = null,
+  onSaved = null,
+}) {
+  const targetResources =
+    Array.isArray(resources) && resources.length ? resources : [resource].filter(Boolean);
   const resourceLabel = getResourceLabel(targetResources[0]);
   const bulkCount = targetResources.length;
   const body = `
@@ -467,7 +548,9 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
       <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
         <div class="text-sm font-semibold text-gray-900">${escapeHtml(resourceLabel)}</div>
         <div class="text-xs text-gray-500">${escapeHtml(getResourceNote(targetResources[0], familyKey))}</div>
-        ${resourceWarning ? `
+        ${
+          resourceWarning
+            ? `
           <div class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] text-amber-800">
             <div class="flex items-start gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mt-0.5 size-5 shrink-0 text-amber-500">
@@ -476,7 +559,9 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
               <div class="min-w-0">
                 <div class="text-sm font-semibold text-amber-900">${escapeHtml(resourceWarning.title)}</div>
                 <div class="mt-1 leading-snug">${escapeHtml(resourceWarning.message)}</div>
-                ${resourceWarning.linkHref ? `
+                ${
+                  resourceWarning.linkHref
+                    ? `
                   <a
                     href="${escapeHtml(resourceWarning.linkHref)}"
                     class="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
@@ -486,20 +571,28 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
                       <path fill-rule="evenodd" d="M5 10a.75.75 0 0 1 .75-.75h6.69L10.22 7.03a.75.75 0 1 1 1.06-1.06l3.72 3.72a.75.75 0 0 1 0 1.06l-3.72 3.72a.75.75 0 1 1-1.06-1.06l2.22-2.22H5.75A.75.75 0 0 1 5 10Z" clip-rule="evenodd" />
                     </svg>
                   </a>
-                ` : ''}
+                `
+                    : ''
+                }
                 ${resourceWarning.extra ? `<div class="mt-1 text-[11px] text-amber-700">${escapeHtml(resourceWarning.extra)}</div>` : ''}
               </div>
             </div>
           </div>
-        ` : ''}
-        ${bulkCount > 1 ? `
+        `
+            : ''
+        }
+        ${
+          bulkCount > 1
+            ? `
           <div class="mt-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
             Bulk editing ${escapeHtml(String(bulkCount))} ${escapeHtml(getFamilyBulkSummary(familyKey, bulkCount).toLowerCase())}. Existing rules will be replaced on every selected resource.
           </div>
           <div class="mt-3 text-[11px] text-gray-500">
             ${escapeHtml(summarizeSelectedResources(targetResources))}
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
       <div class="space-y-3">
         <div class="flex items-center justify-between">
@@ -513,9 +606,10 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
   `;
   const modal = createModal({
     preset: 'access',
-    title: bulkCount > 1
-      ? `Bulk ${getFamilyBulkSummary(familyKey, bulkCount)} ACL`
-      : `${familyKey === 'models' ? 'Model' : familyKey === 'connections' ? 'Connection' : 'MCP Server'} Access`,
+    title:
+      bulkCount > 1
+        ? `Bulk ${getFamilyBulkSummary(familyKey, bulkCount)} ACL`
+        : `${familyKey === 'models' ? 'Model' : familyKey === 'connections' ? 'Connection' : 'MCP Server'} Access`,
     subtitle: 'Central ACL editor',
     body,
     footer: `
@@ -537,13 +631,21 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
     if (String(rule?.principal_type || '').toLowerCase() !== 'group') continue;
     const groupId = String(rule.principal_id || '').trim();
     if (!groupId) continue;
-    rulesByGroup.set(groupId, String(rule.effect || 'allow').trim().toLowerCase() === 'deny' ? 'deny' : 'allow');
+    rulesByGroup.set(
+      groupId,
+      String(rule.effect || 'allow')
+        .trim()
+        .toLowerCase() === 'deny'
+        ? 'deny'
+        : 'allow'
+    );
   }
 
   const renderList = () => {
     if (!listEl) return;
     if (!groups.length) {
-      listEl.innerHTML = '<div class="text-sm text-gray-500 py-6 text-center">No groups available.</div>';
+      listEl.innerHTML =
+        '<div class="text-sm text-gray-500 py-6 text-center">No groups available.</div>';
       return;
     }
     listEl.innerHTML = buildAclRows(groups, rules);
@@ -567,8 +669,10 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
       enabled: true,
       saving: true,
       label: 'Save',
-      enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
-      disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+      enabledClass:
+        'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+      disabledClass:
+        'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
     });
     try {
       const nextRules = Array.from(rulesByGroup.entries()).map(([groupId, effect]) => ({
@@ -589,8 +693,10 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
         enabled: true,
         saving: false,
         label: 'Save',
-        enabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
-        disabledClass: 'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
+        enabledClass:
+          'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+        disabledClass:
+          'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
       });
     }
   });
@@ -603,7 +709,9 @@ export function renderPoliciesSettings(container, _data = {}) {
   const initialGroupId = String(initialParams.get('group') || 'all').trim() || 'all';
   const initialDeepLinkFamily = String(initialParams.get('family') || '').trim();
   const initialDeepLinkResource = String(initialParams.get('resource') || '').trim();
-  const initialDeepLinkOpen = String(initialParams.get('open') || '').trim().toLowerCase();
+  const initialDeepLinkOpen = String(initialParams.get('open') || '')
+    .trim()
+    .toLowerCase();
   const state = {
     loading: true,
     error: null,
@@ -643,7 +751,11 @@ export function renderPoliciesSettings(container, _data = {}) {
     pendingDeepLink: null,
     deepLinkOpened: false,
   };
-  if (FAMILIES.some((family) => family.key === initialDeepLinkFamily) && initialDeepLinkResource && (initialDeepLinkOpen === 'access' || initialDeepLinkOpen === 'acl')) {
+  if (
+    FAMILIES.some((family) => family.key === initialDeepLinkFamily) &&
+    initialDeepLinkResource &&
+    (initialDeepLinkOpen === 'access' || initialDeepLinkOpen === 'acl')
+  ) {
     state.pendingDeepLink = {
       familyKey: initialDeepLinkFamily,
       resourceId: initialDeepLinkResource,
@@ -674,7 +786,10 @@ export function renderPoliciesSettings(container, _data = {}) {
     }
   };
 
-  const invalidateFamilyState = (familyKeys = [], { renderActive = false, reloadActive = false } = {}) => {
+  const invalidateFamilyState = (
+    familyKeys = [],
+    { renderActive = false, reloadActive = false } = {}
+  ) => {
     const normalizedKeys = Array.isArray(familyKeys) ? familyKeys : [];
     let shouldRender = false;
     let shouldReload = false;
@@ -716,20 +831,22 @@ export function renderPoliciesSettings(container, _data = {}) {
   };
 
   const getConnectionRulesByIdForWarnings = () => {
-    const currentConnections = Array.isArray(state.resources.connections) ? state.resources.connections : [];
+    const currentConnections = Array.isArray(state.resources.connections)
+      ? state.resources.connections
+      : [];
     if (currentConnections.length) {
       const map = new Map();
       for (const resource of currentConnections) {
         const connectionId = String(resource?.id || '').trim();
         if (!connectionId) continue;
-        const rules = Array.isArray(resource?.rules)
-          ? resource.rules
-          : [];
+        const rules = Array.isArray(resource?.rules) ? resource.rules : [];
         map.set(connectionId, cloneAclRules(rules, normalizeAclRule));
       }
       return map;
     }
-    return state.modelConnectionRulesById instanceof Map ? state.modelConnectionRulesById : new Map();
+    return state.modelConnectionRulesById instanceof Map
+      ? state.modelConnectionRulesById
+      : new Map();
   };
 
   const handleVisibilityOutsideClick = (event) => {
@@ -744,21 +861,32 @@ export function renderPoliciesSettings(container, _data = {}) {
 
   const getSelectedSet = (familyKey) => state.selectionByFamily[familyKey] || DEFAULT_SELECTION();
   const setSelectedSet = (familyKey, values) => {
-    state.selectionByFamily[familyKey] = new Set(Array.isArray(values) ? values : Array.from(values || []));
+    state.selectionByFamily[familyKey] = new Set(
+      Array.isArray(values) ? values : Array.from(values || [])
+    );
   };
-  const getPagination = (familyKey) => state.paginationByFamily[familyKey] || { page: 1, pageSize: 20 };
+  const getPagination = (familyKey) =>
+    state.paginationByFamily[familyKey] || { page: 1, pageSize: 20 };
   const setPagination = (familyKey, next) => {
     state.paginationByFamily[familyKey] = {
       page: Math.max(1, Number.parseInt(next?.page || 1, 10) || 1),
-      pageSize: PAGE_SIZES.includes(Number.parseInt(next?.pageSize, 10)) ? Number.parseInt(next.pageSize, 10) : 20,
+      pageSize: PAGE_SIZES.includes(Number.parseInt(next?.pageSize, 10))
+        ? Number.parseInt(next.pageSize, 10)
+        : 20,
     };
   };
 
   const applyResourceRulesImmediate = async (familyKey, resourceIds, nextRules) => {
-    const ids = new Set((Array.isArray(resourceIds) ? resourceIds : [resourceIds]).map((id) => String(id || '').trim()).filter(Boolean));
+    const ids = new Set(
+      (Array.isArray(resourceIds) ? resourceIds : [resourceIds])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    );
     if (!ids.size) return;
 
-    const targetResources = (state.resources[familyKey] || []).filter((resource) => ids.has(String(resource.id || '').trim()));
+    const targetResources = (state.resources[familyKey] || []).filter((resource) =>
+      ids.has(String(resource.id || '').trim())
+    );
     if (!targetResources.length) return;
 
     // Store previous state for rollback
@@ -780,7 +908,11 @@ export function renderPoliciesSettings(container, _data = {}) {
     // Make API call
     try {
       const updates = targetResources.map((resource) => ({
-        [familyKey === 'models' ? 'model_id' : familyKey === 'connections' ? 'connection_id' : 'tool_server_id']: resource.id,
+        [familyKey === 'models'
+          ? 'model_id'
+          : familyKey === 'connections'
+            ? 'connection_id'
+            : 'tool_server_id']: resource.id,
         rules: cloneAclRules(nextRules, normalizeAclRule),
       }));
       await saveFamilyAccess({ familyKey, updates });
@@ -823,9 +955,14 @@ export function renderPoliciesSettings(container, _data = {}) {
         resource.providerType,
         resource.base_url,
         resource.url,
-      ].join(' ').toLowerCase();
+      ]
+        .join(' ')
+        .toLowerCase();
       if (query && !text.includes(query)) return false;
-      const category = getResourceAccessState(resource, state.selectedGroupId === 'all' ? '' : state.selectedGroupId);
+      const category = getResourceAccessState(
+        resource,
+        state.selectedGroupId === 'all' ? '' : state.selectedGroupId
+      );
       return Boolean(state.visibilityFilters[category]);
     });
     return filtered;
@@ -841,35 +978,39 @@ export function renderPoliciesSettings(container, _data = {}) {
     const page = Math.min(Math.max(pagination.page || 1, 1), totalPages);
     const start = total === 0 ? 0 : (page - 1) * pageSize;
     const items = filtered.slice(start, start + pageSize);
-    return { filtered, items, total, totalPages, page, pageSize, start, end: Math.min(start + pageSize, total) };
-  };
-
-  const _openBulkEditorForFamily = async (familyKey) => {
-    const selectedIds = getSelectedSet(familyKey);
-    const resources = (state.resources[familyKey] || []).filter((resource) => selectedIds.has(resource.id));
-    if (!resources.length) return;
-    await openAccessModal({
-      familyKey,
-      resource: resources[0],
-      resources,
-      groups: state.groups,
-      selectedGroupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
-      onSaved: async (nextRules, targetResources) => {
-        await applyResourceRulesImmediate(familyKey, targetResources.map((item) => item.id), nextRules);
-        setSelectedSet(familyKey, []);
-      },
-    });
+    return {
+      filtered,
+      items,
+      total,
+      totalPages,
+      page,
+      pageSize,
+      start,
+      end: Math.min(start + pageSize, total),
+    };
   };
 
   const openDeepLinkedAccessModal = async (familyKey) => {
-    if (state.deepLinkOpened || !state.pendingDeepLink || state.pendingDeepLink.familyKey !== familyKey) return;
-    const targetResource = (state.resources[familyKey] || []).find((resource) => String(resource.id || '').trim() === state.pendingDeepLink.resourceId);
+    if (
+      state.deepLinkOpened ||
+      !state.pendingDeepLink ||
+      state.pendingDeepLink.familyKey !== familyKey
+    )
+      return;
+    const targetResource = (state.resources[familyKey] || []).find(
+      (resource) => String(resource.id || '').trim() === state.pendingDeepLink.resourceId
+    );
     if (!targetResource) return;
     state.deepLinkOpened = true;
     const connectionRulesById = getConnectionRulesByIdForWarnings();
-    const resourceWarning = familyKey === 'models'
-      ? buildModelAccessModalWarning([targetResource], state.selectedGroupId === 'all' ? '' : state.selectedGroupId, connectionRulesById)
-      : null;
+    const resourceWarning =
+      familyKey === 'models'
+        ? buildModelAccessModalWarning(
+            [targetResource],
+            state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
+            connectionRulesById
+          )
+        : null;
     await openAccessModal({
       familyKey,
       resource: targetResource,
@@ -877,7 +1018,11 @@ export function renderPoliciesSettings(container, _data = {}) {
       selectedGroupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
       resourceWarning,
       onSaved: async (nextRules, targetResources) => {
-        await applyResourceRulesImmediate(familyKey, targetResources.map((item) => item.id), nextRules);
+        await applyResourceRulesImmediate(
+          familyKey,
+          targetResources.map((item) => item.id),
+          nextRules
+        );
       },
     });
   };
@@ -902,7 +1047,12 @@ export function renderPoliciesSettings(container, _data = {}) {
     try {
       let payload;
       if (familyKey === 'models') {
-        payload = await fetchAdminModels({ limit: 1000, offset: 0, includeDisabled: false, signal: controller.signal });
+        payload = await fetchAdminModels({
+          limit: 1000,
+          offset: 0,
+          includeDisabled: false,
+          signal: controller.signal,
+        });
       } else if (familyKey === 'connections') {
         const res = await apiFetch('/api/admin/openai/connections', { signal: controller.signal });
         if (!res.ok) throw new Error('Failed to load connections');
@@ -916,28 +1066,46 @@ export function renderPoliciesSettings(container, _data = {}) {
       if (controller.signal.aborted) return;
       if (familyLoadSeq[familyKey] !== seq) return;
 
-      const resources = familyKey === 'models'
-        ? filterEnabledResources(payload.models)
-        : familyKey === 'connections'
-          ? filterEnabledResources(payload.connections)
-          : filterEnabledResources(payload.servers);
+      const resources =
+        familyKey === 'models'
+          ? filterEnabledResources(payload.models)
+          : familyKey === 'connections'
+            ? filterEnabledResources(payload.connections)
+            : filterEnabledResources(payload.servers);
       const ids = resources.map((resource) => resource.id).filter(Boolean);
       let accessRules = [];
       let connectionAccessRules = [];
       if (ids.length) {
-        const accessPayload = await loadFamilyAccess({ familyKey, resourceIds: ids, signal: controller.signal });
+        const accessPayload = await loadFamilyAccess({
+          familyKey,
+          resourceIds: ids,
+          signal: controller.signal,
+        });
         accessRules = Array.isArray(accessPayload.rules) ? accessPayload.rules : [];
       }
       if (familyKey === 'models') {
-        const connectionIds = Array.from(new Set(resources
-          .map((resource) => String(resource?.connection_id || '').trim())
-          .filter(Boolean)));
+        const connectionIds = Array.from(
+          new Set(
+            resources
+              .map((resource) => String(resource?.connection_id || '').trim())
+              .filter(Boolean)
+          )
+        );
         if (connectionIds.length) {
           try {
-            const connectionAccessPayload = await loadFamilyAccess({ familyKey: 'connections', resourceIds: connectionIds, signal: controller.signal });
-            connectionAccessRules = Array.isArray(connectionAccessPayload.rules) ? connectionAccessPayload.rules : [];
+            const connectionAccessPayload = await loadFamilyAccess({
+              familyKey: 'connections',
+              resourceIds: connectionIds,
+              signal: controller.signal,
+            });
+            connectionAccessRules = Array.isArray(connectionAccessPayload.rules)
+              ? connectionAccessPayload.rules
+              : [];
           } catch (err) {
-            console.warn('Failed to load connection dependency access for models:', err?.message || err);
+            console.warn(
+              'Failed to load connection dependency access for models:',
+              err?.message || err
+            );
             connectionAccessRules = [];
           }
         }
@@ -948,7 +1116,9 @@ export function renderPoliciesSettings(container, _data = {}) {
 
       const rulesByResource = new Map();
       for (const rule of accessRules) {
-        const resourceId = String(rule?.model_id || rule?.connection_id || rule?.tool_server_id || '').trim();
+        const resourceId = String(
+          rule?.model_id || rule?.connection_id || rule?.tool_server_id || ''
+        ).trim();
         if (!resourceId) continue;
         if (!rulesByResource.has(resourceId)) {
           rulesByResource.set(resourceId, []);
@@ -968,7 +1138,10 @@ export function renderPoliciesSettings(container, _data = {}) {
         state.modelConnectionRulesById = connectionRulesById;
       }
 
-      const sortedResources = sortResourcesByVisibility(resources, state.selectedGroupId === 'all' ? '' : state.selectedGroupId);
+      const sortedResources = sortResourcesByVisibility(
+        resources,
+        state.selectedGroupId === 'all' ? '' : state.selectedGroupId
+      );
 
       state.resources[familyKey] = sortedResources.map((resource) => ({
         ...resource,
@@ -1029,23 +1202,32 @@ export function renderPoliciesSettings(container, _data = {}) {
 
     const groupOptions = [
       `<option value="all"${state.selectedGroupId === 'all' ? ' selected' : ''}>All groups</option>`,
-      ...state.groups.map((group) => `<option value="${escapeHtml(group.id)}"${state.selectedGroupId === group.id ? ' selected' : ''}>${escapeHtml(group.name || group.id)}</option>`),
+      ...state.groups.map(
+        (group) =>
+          `<option value="${escapeHtml(group.id)}"${state.selectedGroupId === group.id ? ' selected' : ''}>${escapeHtml(group.name || group.id)}</option>`
+      ),
     ].join('');
 
-    const familyOptions = FAMILIES.map((family) => `
+    const familyOptions = FAMILIES.map(
+      (family) => `
       <option value="${escapeHtml(family.key)}"${state.activeFamily === family.key ? ' selected' : ''}>${escapeHtml(family.label)}</option>
-    `).join('');
+    `
+    ).join('');
 
-    const activeFamily = FAMILIES.find((family) => family.key === state.activeFamily) || FAMILIES[0];
+    const activeFamily =
+      FAMILIES.find((family) => family.key === state.activeFamily) || FAMILIES[0];
     const activePaged = getPagedResources(activeFamily.key);
     const activeSelectedIds = getSelectedSet(activeFamily.key);
     const activeSelectionCount = activeSelectedIds.size;
     const activeVisibleIds = activePaged.items.map((resource) => resource.id);
-    const activeVisibleSelectedCount = activeVisibleIds.filter((id) => activeSelectedIds.has(id)).length;
-    const activeAllVisibleSelected = activeVisibleIds.length > 0 && activeVisibleSelectedCount === activeVisibleIds.length;
-    const activeVisibilityCount = Object.entries(state.visibilityFilters)
-      .filter(([key, value]) => DEFAULT_VISIBILITY_FILTERS[key] !== value)
-      .length;
+    const activeVisibleSelectedCount = activeVisibleIds.filter((id) =>
+      activeSelectedIds.has(id)
+    ).length;
+    const activeAllVisibleSelected =
+      activeVisibleIds.length > 0 && activeVisibleSelectedCount === activeVisibleIds.length;
+    const activeVisibilityCount = Object.entries(state.visibilityFilters).filter(
+      ([key, value]) => DEFAULT_VISIBILITY_FILTERS[key] !== value
+    ).length;
     const activeFamilyStatus = state.familyStatus[activeFamily.key] || 'idle';
     const activeFamilyError = state.familyError[activeFamily.key] || '';
     const activeFamilyToolbar = `
@@ -1082,21 +1264,28 @@ export function renderPoliciesSettings(container, _data = {}) {
     `;
     const activeFamilyPanel = `
       <div data-family-panel="${activeFamily.key}" class="space-y-4">
-        ${activeFamilyStatus === 'error' ? `
+        ${
+          activeFamilyStatus === 'error'
+            ? `
           <div class="rounded-3xl border border-red-100 bg-red-50/70 p-5 text-sm text-red-700">
             <div class="font-semibold">Unable to load ${escapeHtml(activeFamily.label.toLowerCase())}</div>
             <div class="mt-1 text-red-600">${escapeHtml(activeFamilyError || 'Please try again.')}</div>
           </div>
-        ` : activeFamilyStatus === 'loaded' ? renderResourceList({
-      title: activeFamily.label,
-      familyKey: activeFamily.key,
-      resources: activePaged.items,
-      groupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
-      selectedIds: activeSelectedIds,
-      connectionRulesById: activeFamily.key === 'models' ? getConnectionRulesByIdForWarnings() : new Map(),
-      onToggleSelection: true,
-      onEdit: null,
-    }) : renderFamilySkeleton()}
+        `
+            : activeFamilyStatus === 'loaded'
+              ? renderResourceList({
+                  title: activeFamily.label,
+                  familyKey: activeFamily.key,
+                  resources: activePaged.items,
+                  groupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
+                  selectedIds: activeSelectedIds,
+                  connectionRulesById:
+                    activeFamily.key === 'models' ? getConnectionRulesByIdForWarnings() : new Map(),
+                  onToggleSelection: true,
+                  onEdit: null,
+                })
+              : renderFamilySkeleton()
+        }
       </div>
     `;
     const stickyHeader = `
@@ -1107,11 +1296,15 @@ export function renderPoliciesSettings(container, _data = {}) {
               <div class="flex-shrink-0 text-gray-900">Access Policies</div>
             </div>
           </div>
-          ${window.location.pathname.startsWith('/admin/users/policies') ? `
+          ${
+            window.location.pathname.startsWith('/admin/users/policies')
+              ? `
             <div class="px-0.5 text-[11px] text-gray-500 leading-tight">
               Slim policy review view. Disabled resources stay hidden by default.
             </div>
-          ` : ''}
+          `
+              : ''
+          }
 
           <div class="flex flex-nowrap items-end gap-2 overflow-visible">
             <label class="min-w-0 flex-[0.95] space-y-1">
@@ -1145,32 +1338,60 @@ export function renderPoliciesSettings(container, _data = {}) {
                 <label class="mt-3 flex items-start gap-2 text-sm text-gray-700">
                   <input type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-300" data-policy-filter="allowed" ${state.visibilityFilters.allowed ? 'checked' : ''}>
                   <span>
-                    ${(() => { const badge = getVisibilityFilterBadge('Allowed', state.visibilityFilters.allowed); return `<span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>`; })()}
+                    ${(() => {
+                      const badge = getVisibilityFilterBadge(
+                        'Allowed',
+                        state.visibilityFilters.allowed
+                      );
+                      return `<span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>`;
+                    })()}
                     <span class="block text-[11px] text-gray-500">Show allowlisted resources.</span>
                   </span>
                 </label>
                 <label class="mt-3 flex items-start gap-2 text-sm text-gray-700">
                   <input type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-300" data-policy-filter="inaccessible" ${state.visibilityFilters.inaccessible ? 'checked' : ''}>
                   <span>
-                    ${(() => { const badge = getVisibilityFilterBadge('No access', state.visibilityFilters.inaccessible); return `<span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>`; })()}
+                    ${(() => {
+                      const badge = getVisibilityFilterBadge(
+                        'No access',
+                        state.visibilityFilters.inaccessible
+                      );
+                      return `<span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>`;
+                    })()}
                     <span class="block text-[11px] text-gray-500">Show resources with no matching ACL rule.</span>
                   </span>
                 </label>
                 <label class="mt-3 flex items-start gap-2 text-sm text-gray-700">
                   <input type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-300" data-policy-filter="denied" ${state.visibilityFilters.denied ? 'checked' : ''}>
                   <span>
-                    ${(() => { const badge = getVisibilityFilterBadge('Denied', state.visibilityFilters.denied); return `<span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>`; })()}
+                    ${(() => {
+                      const badge = getVisibilityFilterBadge(
+                        'Denied',
+                        state.visibilityFilters.denied
+                      );
+                      return `<span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>`;
+                    })()}
                     <span class="block text-[11px] text-gray-500">Show explicit deny rules.</span>
                   </span>
                 </label>
-                ${window.location.pathname.startsWith('/admin/users/policies') ? '' : `
+                ${
+                  window.location.pathname.startsWith('/admin/users/policies')
+                    ? ''
+                    : `
                 <label class="mt-3 flex items-start gap-2 text-sm text-gray-700">
                   <input type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-300" data-policy-filter="disabled" ${state.visibilityFilters.disabled ? 'checked' : ''}>
                   <span>
-                    ${(() => { const badge = getVisibilityFilterBadge('Disabled', state.visibilityFilters.disabled); return `<span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>`; })()}
+                    ${(() => {
+                      const badge = getVisibilityFilterBadge(
+                        'Disabled',
+                        state.visibilityFilters.disabled
+                      );
+                      return `<span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>`;
+                    })()}
                     <span class="block text-[11px] text-gray-500">Show disabled resources.</span>
                   </span>
-                </label>`}
+                </label>`
+                }
               </div>
             </div>
           </div>
@@ -1181,13 +1402,17 @@ export function renderPoliciesSettings(container, _data = {}) {
     container.innerHTML = `
       <div class="flex flex-col min-h-0 animate-in fade-in duration-300">
         ${stickyHeader}
-        ${activeFamilyStatus === 'loaded' ? `
+        ${
+          activeFamilyStatus === 'loaded'
+            ? `
           <div class="shrink-0 bg-white border-b border-gray-100">
             <div class="max-w-6xl mx-auto w-full px-0.5 py-3">
               ${activeFamilyToolbar}
             </div>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
         <div class="flex-1 min-h-0" data-policies-scroll="1">
           <div class="max-w-6xl mx-auto w-full space-y-4 pb-6 pt-4">
             <section class="space-y-4">
@@ -1216,7 +1441,7 @@ export function renderPoliciesSettings(container, _data = {}) {
         if (state.resources[family.key]) {
           state.resources[family.key] = sortResourcesByVisibility(
             state.resources[family.key],
-            state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
+            state.selectedGroupId === 'all' ? '' : state.selectedGroupId
           );
         }
       }
@@ -1267,7 +1492,9 @@ export function renderPoliciesSettings(container, _data = {}) {
       btn.addEventListener('click', async () => {
         const familyKey = btn.dataset.family || 'models';
         const resourceId = btn.dataset.editResource || '';
-        const resource = (state.resources[familyKey] || []).find((item) => String(item.id) === resourceId);
+        const resource = (state.resources[familyKey] || []).find(
+          (item) => String(item.id) === resourceId
+        );
         if (!resource) return;
         try {
           const connectionRulesById = getConnectionRulesByIdForWarnings();
@@ -1276,11 +1503,20 @@ export function renderPoliciesSettings(container, _data = {}) {
             resource,
             groups: state.groups,
             selectedGroupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
-            resourceWarning: familyKey === 'models'
-              ? buildModelAccessModalWarning([resource], state.selectedGroupId === 'all' ? '' : state.selectedGroupId, connectionRulesById)
-              : null,
+            resourceWarning:
+              familyKey === 'models'
+                ? buildModelAccessModalWarning(
+                    [resource],
+                    state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
+                    connectionRulesById
+                  )
+                : null,
             onSaved: async (nextRules, targetResources) => {
-              await applyResourceRulesImmediate(familyKey, targetResources.map((item) => item.id), nextRules);
+              await applyResourceRulesImmediate(
+                familyKey,
+                targetResources.map((item) => item.id),
+                nextRules
+              );
             },
           });
         } catch (err) {
@@ -1324,7 +1560,9 @@ export function renderPoliciesSettings(container, _data = {}) {
       btn.addEventListener('click', async () => {
         const familyKey = btn.getAttribute('data-bulk-edit-family') || state.activeFamily;
         const selectedIds = getSelectedSet(familyKey);
-        const resources = (state.resources[familyKey] || []).filter((resource) => selectedIds.has(resource.id));
+        const resources = (state.resources[familyKey] || []).filter((resource) =>
+          selectedIds.has(resource.id)
+        );
         if (!resources.length) return;
         try {
           const connectionRulesById = getConnectionRulesByIdForWarnings();
@@ -1334,11 +1572,20 @@ export function renderPoliciesSettings(container, _data = {}) {
             resources,
             groups: state.groups,
             selectedGroupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
-            resourceWarning: familyKey === 'models'
-              ? buildModelAccessModalWarning(resources, state.selectedGroupId === 'all' ? '' : state.selectedGroupId, connectionRulesById)
-              : null,
+            resourceWarning:
+              familyKey === 'models'
+                ? buildModelAccessModalWarning(
+                    resources,
+                    state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
+                    connectionRulesById
+                  )
+                : null,
             onSaved: async (nextRules, targetResources) => {
-              await applyResourceRulesImmediate(familyKey, targetResources.map((item) => item.id), nextRules);
+              await applyResourceRulesImmediate(
+                familyKey,
+                targetResources.map((item) => item.id),
+                nextRules
+              );
               setSelectedSet(familyKey, []);
             },
           });
@@ -1348,12 +1595,14 @@ export function renderPoliciesSettings(container, _data = {}) {
       });
     });
 
-
     container.querySelectorAll('[data-page-size-family]').forEach((select) => {
       select.addEventListener('change', () => {
         const familyKey = select.getAttribute('data-page-size-family') || state.activeFamily;
         const nextSize = Number.parseInt(select.value, 10);
-        setPagination(familyKey, { page: 1, pageSize: PAGE_SIZES.includes(nextSize) ? nextSize : 20 });
+        setPagination(familyKey, {
+          page: 1,
+          pageSize: PAGE_SIZES.includes(nextSize) ? nextSize : 20,
+        });
         render();
       });
     });
@@ -1372,7 +1621,10 @@ export function renderPoliciesSettings(container, _data = {}) {
         const familyKey = btn.getAttribute('data-next-page-family') || state.activeFamily;
         const pagination = getPagination(familyKey);
         const { totalPages } = getPagedResources(familyKey);
-        setPagination(familyKey, { ...pagination, page: Math.min(totalPages, pagination.page + 1) });
+        setPagination(familyKey, {
+          ...pagination,
+          page: Math.min(totalPages, pagination.page + 1),
+        });
         render();
       });
     });
@@ -1391,7 +1643,10 @@ export function renderPoliciesSettings(container, _data = {}) {
       const groupsPayload = await fetchAdminGroups();
 
       state.groups = Array.isArray(groupsPayload.groups) ? groupsPayload.groups : [];
-      if (state.selectedGroupId !== 'all' && !state.groups.some((group) => group.id === state.selectedGroupId)) {
+      if (
+        state.selectedGroupId !== 'all' &&
+        !state.groups.some((group) => group.id === state.selectedGroupId)
+      ) {
         state.selectedGroupId = 'all';
       }
     } catch (err) {

@@ -3,12 +3,18 @@ const js = require('@eslint/js');
 const globals = require('globals');
 const boundariesPlugin = require('eslint-plugin-boundaries');
 
+const srcTypes = [
+  's-router', 's-service', 's-shared', 's-utils', 's-feature', 's-admin',
+  's-llm', 's-chat', 's-mcp', 's-middleware', 's-repository', 's-bootstrap',
+  's-config', 's-durable', 's-errors', 's-validation', 's-root',
+];
+
 module.exports = [
   js.configs.recommended,
 
-  // Boundary rules — phased strict rollout: frontend-first warn baseline
-  // Element types are registered for future enforcement; dependency rules
-  // are disabled until stricter layering is rolled out incrementally.
+  // Boundary rules — phased strict rollout: frontend-first warn baseline.
+  // Frontend dependency rules are enforced; backend elements are registered
+  // with permissive allow-all rules until stricter layering is rolled out.
   {
     plugins: {
       boundaries: boundariesPlugin,
@@ -22,7 +28,6 @@ module.exports = [
         { type: 'f-feature', pattern: 'public/js/features/**' },
         { type: 'f-shared', pattern: 'public/js/shared/**' },
         { type: 'f-utils', pattern: 'public/js/utils/**' },
-
         // Backend (src/)
         { type: 's-router', pattern: 'src/routers/**' },
         { type: 's-service', pattern: 'src/services/**' },
@@ -41,7 +46,6 @@ module.exports = [
         { type: 's-errors', pattern: 'src/errors/**' },
         { type: 's-validation', pattern: 'src/validation/**' },
         { type: 's-root', pattern: 'src/*', mode: 'file' },
-
         { type: 'test', pattern: 'tests/**' },
         { type: 'scripts', pattern: 'scripts/**' },
       ],
@@ -49,11 +53,66 @@ module.exports = [
     rules: {
       'boundaries/no-unknown': 'off',
       'boundaries/no-unknown-files': 'off',
-      'boundaries/dependencies': 'off',
+      'boundaries/dependencies': ['warn', {
+        default: 'disallow',
+        rules: [
+          // Frontend guardrails (preserved from original config)
+          {
+            from: { type: 'f-bootstrap' },
+            allow: { to: { type: ['f-bootstrap', 'f-shared'] } },
+          },
+          {
+            from: { type: 'f-feature' },
+            allow: { to: { type: ['f-feature', 'f-shared'] } },
+          },
+          {
+            from: { type: 'f-shared' },
+            allow: { to: { type: ['f-shared'] } },
+          },
+          {
+            from: { type: 'f-utils' },
+            allow: { to: { type: ['f-utils', 'f-shared'] } },
+          },
+          {
+            from: { type: 'scripts' },
+            allow: { to: { type: ['scripts'] } },
+          },
+          {
+            from: { type: 'test' },
+            allow: { to: { type: ['f-bootstrap', 'f-feature', 'f-shared', 'f-utils', 'test', 'scripts'] } },
+          },
+          // Backend permissive baseline — allow all src element types to import
+          // from each other and from f-shared. TODO: tighten incrementally.
+          {
+            from: { type: srcTypes },
+            allow: { to: { type: [...srcTypes, 'f-shared'] } },
+          },
+          // Tests may import from any src or frontend element type
+          {
+            from: { type: 'test' },
+            allow: { to: { type: [...srcTypes, 'f-feature', 'f-shared'] } },
+          },
+          // src root-level files may import from test helpers
+          {
+            from: { type: 's-root' },
+            allow: { to: { type: ['test'] } },
+          },
+          // src feature test files may import from frontend feature code
+          {
+            from: { type: 's-feature' },
+            allow: { to: { type: ['f-feature'] } },
+          },
+          // src router test files may import from test helpers
+          {
+            from: { type: 's-router' },
+            allow: { to: { type: ['test'] } },
+          },
+        ],
+      }],
     },
   },
 
-  // Original project rules (applied to all files)
+  // Original project rules — strict defaults for new code
   {
     languageOptions: {
       ecmaVersion: 2024,
@@ -66,13 +125,17 @@ module.exports = [
     rules: {
       'no-unused-vars': [
         'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
       ],
       'no-console': 'off',
       'no-duplicate-imports': 'warn',
-      complexity: ['warn', { max: 50 }],
-      'max-lines-per-function': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
-      'max-depth': ['warn', 7],
+      complexity: ['warn', { max: 15 }],
+      'max-lines-per-function': ['warn', { max: 120, skipBlankLines: true, skipComments: true }],
+      'max-depth': ['warn', 4],
       'max-nested-callbacks': ['warn', 3],
     },
   },
@@ -88,7 +151,7 @@ module.exports = [
     },
   },
 
-  // Large router and controller files — higher limits for legacy mega-functions.
+  // Large router and controller files — relaxed limits for legacy mega-functions.
   // TODO: Refactor these into sub-handlers and remove this override.
   {
     files: [
@@ -129,10 +192,82 @@ module.exports = [
       'src/llm/provider-adapters.js',
       'public/js/features/admin/admin.js',
       'public/js/features/admin/settings/models.js',
+      // Additional legacy files with existing complexity/line/depth exceedances
+      'public/js/bootstrap/app.js',
+      'public/js/bootstrap/session-bootstrap.js',
+      'public/js/features/account/account-models.js',
+      'public/js/features/account/sessions.js',
+      'public/js/features/admin/admin-route-state.js',
+      'public/js/features/admin/audit-logs.js',
+      'public/js/features/admin/settings/connections-helpers.js',
+      'public/js/features/admin/settings/email-delivery.js',
+      'public/js/features/admin/settings/general.js',
+      'public/js/features/admin/settings/policies.js',
+      'public/js/features/admin/settings/registration.js',
+      'public/js/features/admin/settings/security.js',
+      'public/js/features/admin/settings/security-overview.js',
+      'public/js/features/admin/users/roles.js',
+      'public/js/features/chat/chat-file-events.js',
+      'public/js/features/chat/chat-list-actions.js',
+      'public/js/features/chat/chat-message-delete-actions.js',
+      'public/js/features/chat/chat-message-dom.js',
+      'public/js/features/chat/chat-message-identity.js',
+      'public/js/features/chat/chat-message-list-controller.js',
+      'public/js/features/chat/chat-message-rendering.js',
+      'public/js/features/chat/chat-message-stream-assistant.js',
+      'public/js/features/chat/chat-message-stream.js',
+      'public/js/features/chat/chat-message-stream-temp-chat.js',
+      'public/js/features/chat/chat-message-utils.js',
+      'public/js/features/chat/chat-modals.js',
+      'public/js/features/chat/chat-shell-controller.js',
+      'public/js/features/chat/chat-sidebar-list.js',
+      'public/js/features/chat/chat-stream-controller.js',
+      'public/js/features/chat/chat-ui-resources.js',
+      'public/js/features/chat/model-selector-helpers.js',
+      'public/js/shared/api/files.js',
+      'public/js/shared/api/models.js',
+      'public/js/shared/api/request.js',
+      'public/js/shared/components/chat-placeholder.js',
+      'public/js/shared/components/chat-row.js',
+      'public/js/shared/components/files-modal-controller.js',
+      'public/js/shared/components/form-label-with-helper.js',
+      'public/js/shared/components/models-section.js',
+      'public/js/shared/components/search-bar.js',
+      'public/js/shared/components/search-input.js',
+      'public/js/shared/components/search-modal-controller.js',
+      'public/js/shared/components/server-modal.js',
+      'public/js/shared/components/settings-modal-shell.js',
+      'public/js/shared/components/settings-top-nav.js',
+      'public/js/shared/components/user-profile-footer-controller.js',
+      'public/js/shared/components/viewport-modal-shell.js',
+      'public/js/shared/realtime.js',
+      'public/js/shared/store.js',
+      'public/js/shared/utils/attachment-types.js',
+      'public/js/shared/utils/conversation.js',
+      'public/js/shared/utils/model-access-presentation.js',
+      'public/js/shared/utils/model-filters.js',
+      'public/js/shared/utils/model-search.js',
+      'public/js/shared/utils/user-resource-overrides.js',
+      'public/js/shared/utils/workspace-capabilities.js',
+      'src/chat/mcp.js',
+      'src/chat/stream-finalize.js',
+      'src/chat/stream-lifecycle.js',
+      'src/chat/tools.js',
+      'src/features/realtime/realtime.js',
+      'src/llm.js',
+      'src/llm/system-prompt.js',
+      'src/mcp/client.js',
+      'src/routers/chat-core.js',
+      'src/routers/public.js',
+      'src/routers/user-profile.js',
+      'src/services/uploads.js',
+      'src/services/workspace-settings.js',
+      'src/utils/validation.js',
     ],
     rules: {
       complexity: 'off',
       'max-lines-per-function': 'off',
+      'max-depth': 'off',
     },
   },
 ];
