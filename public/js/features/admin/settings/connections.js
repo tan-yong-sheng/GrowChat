@@ -5,7 +5,6 @@ import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
-import { upsertItemById, removeItemById } from '../../../shared/utils/list-state.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
 import { getAdminModalPreset } from '../modal-shell.js';
@@ -204,7 +203,7 @@ export function renderConnectionsSettings(container, data) {
     list.innerHTML = getConnectionsListMarkup();
   };
 
-  const openConnectionAccessModal = async (connection, { onApply } = {}) => {
+  const openConnectionAccessModal = async (connection, { _onApply } = {}) => {
     if (!connection?.id) return;
     const { modal, close } = createAdminAclModalShell({
       idsPrefix: 'connection-acl',

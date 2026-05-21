@@ -17,7 +17,7 @@ export function renderModelsHeaderHtml({
   clearButtonId = '',
   clearHidden = true,
   providerId,
-  providerValue = 'all',
+  providerValue: _providerValue = 'all',
   providerOptionsMarkup = '',
   searchPlaceholder = 'Search models',
 }) {
@@ -51,7 +51,7 @@ export function renderModelsTableShellHtml({
   loading,
   rowsHtml,
   emptyMessage,
-  usingFilter = false,
+  usingFilter: _usingFilter = false,
   tbodyId = 'models-table-body',
   emptyColSpan = 4,
 }) {
@@ -128,7 +128,7 @@ export function renderModelsPaginationHtml({
 
 export function syncModelsHeaderState(container, {
   countTitle = 'Active models',
-  countLabel = '',
+  countLabel: _countLabel = '',
   countValue = '',
   searchId,
   searchValue = '',
@@ -181,7 +181,7 @@ export function syncModelsTableState(container, {
   loading,
   rowsHtml,
   emptyMessage,
-  usingFilter = false,
+  usingFilter: _usingFilter = false,
   tbodyId = 'models-table-body',
   emptyColSpan = 4,
 } = {}) {

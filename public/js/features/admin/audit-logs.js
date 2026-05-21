@@ -316,7 +316,7 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
             contentEl.appendChild(paginationEl);
           }
         }
-      } catch (err) {
+      } catch {
         if (contentEl) {
           contentEl.innerHTML = `
             <div class="error-state text-center py-8 bg-red-50 rounded-lg">

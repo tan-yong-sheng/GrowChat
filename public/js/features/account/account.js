@@ -1,5 +1,5 @@
 import { apiFetch } from '../../shared/api.js';
-import { ensureMarkedReady } from '../../shared/utils.js';
+import { ensureMarkedReady, showToast } from '../../shared/utils.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
 import { renderSettingsDrawerShell } from '../../shared/components/settings-drawer-shell.js';
 import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
@@ -12,7 +12,6 @@ import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-v
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
-import { showToast } from '../../shared/utils.js';
 import { renderSessionsSection } from './sessions.js';
 
 const accountSectionRenderers = {
@@ -88,18 +87,6 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function formatSectionLabel(section) {
-  switch (section) {
-    case 'connections':
-      return 'Connections';
-    case 'models':
-      return 'Models';
-    case 'integrations':
-      return 'Integrations';
-    default:
-      return 'Overview';
-  }
-}
 
 async function loadAccountState() {
   const res = await apiFetch('/api/users/me/settings');
@@ -164,21 +151,6 @@ function getAccountNavItems(section) {
   ];
 }
 
-function renderReadOnlySection(title, items = [], emptyText = 'Nothing to show yet.') {
-  return `
-    <section class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">${escapeHtml(title)}</div>
-      <div class="mt-3 space-y-2">
-        ${items.length ? items.map((item) => `
-          <div class="rounded-xl border border-gray-100 px-3 py-2">
-            <div class="font-medium text-gray-900">${escapeHtml(item.name || item.id)}</div>
-            <div class="text-xs text-gray-500">${escapeHtml(item.note || item.url || '')}</div>
-          </div>
-        `).join('') : `<div class="text-sm text-gray-500">${escapeHtml(emptyText)}</div>`}
-      </div>
-    </section>
-  `;
-}
 
 async function renderAccountSection({
   section,

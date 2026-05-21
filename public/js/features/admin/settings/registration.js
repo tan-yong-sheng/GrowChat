@@ -1,14 +1,5 @@
 import { apiFetch } from '../../../shared/api.js';
-import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 
-const escapeHtml = (text) => {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-};
 
 export function renderRegistrationSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'registration';
@@ -36,9 +27,9 @@ export function renderRegistrationSettings(container, data) {
   const getToggleState = (isOn) => ({
     isOn: Boolean(isOn),
     ariaPressed: String(Boolean(isOn)),
-    statusText: Boolean(isOn) ? 'On' : 'Off',
-    toggleClass: Boolean(isOn) ? 'bg-black' : 'bg-gray-200',
-    knobTransform: Boolean(isOn) ? 'translateX(16px)' : 'translateX(0px)',
+    statusText: isOn ? 'On' : 'Off',
+    toggleClass: isOn ? 'bg-black' : 'bg-gray-200',
+    knobTransform: isOn ? 'translateX(16px)' : 'translateX(0px)',
   });
 
   const updatePublicRegToggle = () => {

@@ -15,8 +15,6 @@ import {
 } from '../../../shared/components/models-section.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
-  ATTACHMENT_CAP_TYPES,
-  cloneAttachmentCaps,
   extractAttachmentCapsFromModels,
   getAttachmentCapTooltip,
   getAttachmentCapValue,
@@ -138,7 +136,7 @@ export function renderModelsSettings(container, data) {
     }
   };
 
-  const toggleModelEnabled = async (modelId) => {
+  const _toggleModelEnabled = async (modelId) => {
     const model = modelsState.models.find((m) => m.id === modelId);
     if (!model) return;
 
@@ -234,7 +232,7 @@ export function renderModelsSettings(container, data) {
   };
 
 
-  const updateModelToggle = (btn, enabled) => {
+  const _updateModelToggle = (btn, enabled) => {
     if (!btn) return;
     btn.classList.toggle('bg-black', enabled);
     btn.classList.toggle('bg-gray-200', !enabled);
@@ -245,7 +243,7 @@ export function renderModelsSettings(container, data) {
     }
   };
 
-  const updateCapButton = (btn, enabled) => {
+  const _updateCapButton = (btn, enabled) => {
     if (!btn) return;
     const label = btn.getAttribute('data-cap-label') || 'Attachment';
     const kind = btn.getAttribute('data-cap-kind') || '';
@@ -320,7 +318,7 @@ export function renderModelsSettings(container, data) {
                     `).join('')}
                   ` : filteredModels.length === 0 ? '' : filteredModels.map(model => {
         const access = getModelAccessPresentation(model);
-        const isDisabled = modelsState.disabledModels.has(model.id);
+        const _isDisabled = modelsState.disabledModels.has(model.id);
         return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>

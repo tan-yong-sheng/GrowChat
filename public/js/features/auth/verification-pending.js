@@ -56,7 +56,7 @@ export function renderVerificationPending(email, { onResend, onContinue }) {
   const continueBtn = container.querySelector('#continue-btn');
   
   let cooldown = COOLDOWN_SECONDS;
-  let resendAttempts = 0;
+  let _resendAttempts = 0;
 
   // Countdown timer
   const interval = setInterval(() => {
@@ -92,7 +92,7 @@ export function renderVerificationPending(email, { onResend, onContinue }) {
       cooldown = COOLDOWN_SECONDS;
       cooldownText.style.display = '';
       resendBtn.textContent = 'Resend email';
-      resendAttempts++;
+      _resendAttempts++;
       
       // Show success toast (caller handles toast)
     } catch (err) {

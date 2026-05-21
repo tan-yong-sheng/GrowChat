@@ -176,7 +176,7 @@ export async function renderVerificationPage(token, { apiFetch }, container = do
         },
       }));
     }
-  } catch (err) {
+  } catch {
     container.innerHTML = '';
     container.appendChild(renderVerificationError({
       errorType: 'invalid',

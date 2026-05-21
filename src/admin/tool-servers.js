@@ -239,7 +239,7 @@ export async function loadToolServers(db, options = {}) {
       .filter(
         (server) => includeHiddenForUser || (server.access_allowed && server.visible_for_user)
       )
-      .map(({ access_allowed, ...server }) => server);
+      .map(({ access_allowed: _access_allowed, ...server }) => server);
 
     return [...adminServers, ...userServers];
   } catch {

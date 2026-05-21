@@ -1,7 +1,6 @@
 import { apiFetch, fetchAdminGroups, fetchAdminModels } from '../../../shared/api.js';
 import { broadcastModelsInvalidation, consumeModelsInvalidation } from '../../../shared/utils/model-sync.js';
-import { consumeConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
-import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
+import { consumeConnectionsInvalidation, broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import { broadcastToolServersInvalidation, consumeToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
@@ -130,7 +129,7 @@ function isActiveTab(container) {
   );
 }
 
-function summarizeRules(resource, groupId = '') {
+function _summarizeRules(resource, groupId = '') {
   const rules = Array.isArray(resource?.rules) ? resource.rules : [];
   const normalizedGroup = String(groupId || '').trim();
   if (normalizedGroup) {
@@ -328,7 +327,7 @@ function renderResourceList({
   selectedIds = DEFAULT_SELECTION(),
   connectionRulesById = new Map(),
   onToggleSelection = null,
-  onEdit,
+  _onEdit,
 }) {
   return `
     <section class="space-y-2">
@@ -459,7 +458,7 @@ async function saveFamilyAccess({ familyKey, updates }) {
   return res.json();
 }
 
-async function openAccessModal({ familyKey, resource, resources = null, groups, selectedGroupId = '', resourceWarning = null, onSaved = null }) {
+async function openAccessModal({ familyKey, resource, resources = null, groups, _selectedGroupId = '', resourceWarning = null, onSaved = null }) {
   const targetResources = Array.isArray(resources) && resources.length ? resources : [resource].filter(Boolean);
   const resourceLabel = getResourceLabel(targetResources[0]);
   const bulkCount = targetResources.length;
@@ -599,7 +598,7 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
   renderList();
 }
 
-export function renderPoliciesSettings(container, data = {}) {
+export function renderPoliciesSettings(container, _data = {}) {
   const initialParams = new URLSearchParams(window.location.search || '');
   const initialGroupId = String(initialParams.get('group') || 'all').trim() || 'all';
   const initialDeepLinkFamily = String(initialParams.get('family') || '').trim();
@@ -845,7 +844,7 @@ export function renderPoliciesSettings(container, data = {}) {
     return { filtered, items, total, totalPages, page, pageSize, start, end: Math.min(start + pageSize, total) };
   };
 
-  const openBulkEditorForFamily = async (familyKey) => {
+  const _openBulkEditorForFamily = async (familyKey) => {
     const selectedIds = getSelectedSet(familyKey);
     const resources = (state.resources[familyKey] || []).filter((resource) => selectedIds.has(resource.id));
     if (!resources.length) return;

@@ -104,7 +104,7 @@ async function submit(e) {
 
     setAuthState(data);
     window.location.href = '/';
-  } catch (error) {
+  } catch {
     err.textContent = 'Network error. Please try again.';
     err.classList.remove('hidden');
   } finally {
@@ -131,7 +131,7 @@ async function bootstrapAuthMode() {
     } else {
       setMode('login');
     }
-  } catch (error) {
+  } catch {
     bootstrapReady = true;
     setMode('login');
   } finally {
@@ -190,7 +190,7 @@ async function handleForgotPasswordSubmit(e) {
     modalSuccess.classList.remove('hidden');
     forgotEmailInput.value = '';
     setTimeout(() => closeForgotPasswordModal(), 2000);
-  } catch (error) {
+  } catch {
     modalError.textContent = 'Network error. Please try again.';
     modalError.classList.remove('hidden');
   } finally {
@@ -276,7 +276,7 @@ async function handleResetPasswordSubmit(e) {
     setTimeout(() => {
       window.location.href = '/auth.html';
     }, 2000);
-  } catch (error) {
+  } catch {
     resetError.textContent = 'Network error. Please try again.';
     resetError.classList.remove('hidden');
   } finally {

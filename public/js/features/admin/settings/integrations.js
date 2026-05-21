@@ -7,6 +7,7 @@ import {
   updateAdminToolServerAccess,
 } from '../../../shared/admin-access.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
+import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import {
@@ -132,19 +133,6 @@ export function renderIntegrationsSettings(container, data) {
     const payload = await res.json().catch(() => ({}));
     integrationsState.toolServers = mapSavedToolServers(payload?.servers, sanitized);
     broadcastToolServersInvalidation();
-  };
-
-  const commitOpenServerModalDraft = async () => {
-    const modalRoot = container.querySelector('#edit-connection-modal');
-    if (!modalRoot || modalRoot.classList.contains('hidden')) return true;
-    const saveModalBtn = modalRoot.querySelector('#save-modal');
-    if (!saveModalBtn || saveModalBtn.disabled) return true;
-
-    saveModalBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await Promise.resolve();
-    await Promise.resolve();
-
-    return modalRoot.classList.contains('hidden');
   };
 
   const runVerify = async ({ serverId, url, authType, bearerToken, basicUser, basicPass, headers }) => {

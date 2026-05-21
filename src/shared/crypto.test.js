@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { generateToken, hashTokenAsync, constantTimeEquals } from "./crypto.js";
 
 describe("Crypto utilities", () => {

@@ -1,4 +1,4 @@
-import { state, setState, subscribe } from "../../shared/store.js";
+import { state } from "../../shared/store.js";
 import { apiFetch, fetchAdminGroups } from "../../shared/api.js";
 import { renderWorkspaceShell } from "../../shared/components/workspace-shell.js";
 import {
@@ -36,7 +36,6 @@ import {
 	resolveAdminRouteState,
 } from "./admin-route-state.js";
 import {
-	ADMIN_SHELL_BODY_PADDING_CLASS,
 	renderErrorState,
 	renderLoadingState,
 	renderSettingsLayout,
