@@ -17,6 +17,7 @@ import {
   syncModelsTableState,
 } from '../../../shared/components/models-section.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
+import { renderModelAccessBadgeForModel } from '../../../shared/components/model-access-badge.js';
 import {
   extractAttachmentCapsFromModels,
   getAttachmentCapTooltip,
@@ -63,29 +64,6 @@ const escapeHtml = (value) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-
-function getModelAccessPresentation(model = {}) {
-  const accessVariant = String(model?.access_variant || '')
-    .trim()
-    .toLowerCase();
-  const accessLabel = String(model?.access_label || '').trim();
-  if (accessVariant === 'shared' || accessLabel.toLowerCase() === 'shared') {
-    return {
-      label: 'Shared',
-      className: 'border-gray-200 bg-gray-50 text-gray-600',
-    };
-  }
-  if (accessVariant === 'personal' || accessLabel.toLowerCase() === 'personal') {
-    return {
-      label: 'Personal',
-      className: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    };
-  }
-  return {
-    label: accessLabel || 'Admin',
-    className: 'border-sky-100 bg-sky-50 text-sky-700',
-  };
-}
 
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';
@@ -351,7 +329,6 @@ export function renderModelsSettings(container, data) {
           ? ''
           : filteredModels
               .map((model) => {
-                const access = getModelAccessPresentation(model);
                 const _isDisabled = modelsState.disabledModels.has(model.id);
                 return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
@@ -359,12 +336,7 @@ export function renderModelsSettings(container, data) {
                       <td class="px-4 py-4 text-gray-400 font-mono truncate" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
-                          <span
-                            data-model-access="${escapeHtml(model.id)}"
-                            class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${access.className}"
-                          >
-                            ${escapeHtml(access.label)}
-                          </span>
+                          ${renderModelAccessBadgeForModel(model)}
                         </div>
                       </td>
                       <td class="px-4 py-4 text-right">
@@ -768,7 +740,6 @@ export function renderModelsSettings(container, data) {
         ? ''
         : filteredModels
             .map((model) => {
-              const access = getModelAccessPresentation(model);
               const isDisabled = modelsState.disabledModels.has(model.id);
               return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
@@ -776,12 +747,7 @@ export function renderModelsSettings(container, data) {
                       <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
-                          <span
-                            data-model-access="${escapeHtml(model.id)}"
-                            class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${access.className}"
-                          >
-                            ${escapeHtml(access.label)}
-                          </span>
+                          ${renderModelAccessBadgeForModel(model)}
                         </div>
                       </td>
                       <td class="px-4 py-4 text-right">

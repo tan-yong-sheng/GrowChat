@@ -10,6 +10,7 @@ import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
 import { buildMemberSet, clampUserLimit, filterUsers } from './groups-members-helpers.js';
 import { sortGroups } from './groups-list-helpers.js';
+import { renderButton } from '../../../shared/components/button.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -133,9 +134,15 @@ function renderGroupModal({
 
   const isDirty = () => {
     const name = String(overlay.querySelector('#group-name-input')?.value || '').trim();
-    const description = String(overlay.querySelector('#group-description-input')?.value || '').trim();
+    const description = String(
+      overlay.querySelector('#group-description-input')?.value || ''
+    ).trim();
     const membersSignature = Array.from(selectedMembers).sort().join('|');
-    return name !== originalName.trim() || description !== originalDescription.trim() || membersSignature !== originalMembersSignature;
+    return (
+      name !== originalName.trim() ||
+      description !== originalDescription.trim() ||
+      membersSignature !== originalMembersSignature
+    );
   };
 
   const close = () => {
@@ -182,14 +189,19 @@ function renderGroupModal({
         <div class="text-sm text-gray-700 py-6 text-center">No users found.</div>
       `;
     } else {
-      membersListEl.innerHTML = filtered.map((user) => {
-        const isSelected = selectedMembers.has(user.id);
-        const initials = String(user.name || user.email || '?').trim().charAt(0).toUpperCase() || '?';
-        const buttonLabel = isSelected ? 'Member' : 'Add';
-        const buttonClass = isSelected
-          ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
-          : 'bg-gray-100 text-gray-600 border-gray-200 hover:border-gray-300';
-        return `
+      membersListEl.innerHTML = filtered
+        .map((user) => {
+          const isSelected = selectedMembers.has(user.id);
+          const initials =
+            String(user.name || user.email || '?')
+              .trim()
+              .charAt(0)
+              .toUpperCase() || '?';
+          const buttonLabel = isSelected ? 'Member' : 'Add';
+          const buttonClass = isSelected
+            ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
+            : 'bg-gray-100 text-gray-600 border-gray-200 hover:border-gray-300';
+          return `
           <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2">
             <div class="flex items-center gap-3">
               <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">${escapeHtml(initials)}</div>
@@ -198,12 +210,16 @@ function renderGroupModal({
                 <div class="text-[11px] text-gray-700">${escapeHtml(user.email || '')}</div>
               </div>
             </div>
-            <button type="button" class="member-toggle text-[11px] font-semibold px-3 py-1 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${buttonClass}" data-user-id="${escapeHtml(user.id)}">
-              ${buttonLabel}
-            </button>
+            ${renderButton({
+              label: buttonLabel,
+              variant: isSelected ? 'secondary' : 'ghost',
+              className: `member-toggle text-[11px] px-3 py-1 ${buttonClass}`,
+              dataAttrs: { 'user-id': user.id },
+            })}
           </div>
         `;
-      }).join('');
+        })
+        .join('');
     }
 
     if (membersCountEl) {
@@ -335,7 +351,9 @@ async function openCreateModal({ onRefresh, onCreate, navigationState }) {
       if (typeof onCreate === 'function') {
         onCreate({
           ...created.group,
-          member_count: created?.group?.member_count ?? (Array.isArray(payload.member_ids) ? payload.member_ids.length : 0),
+          member_count:
+            created?.group?.member_count ??
+            (Array.isArray(payload.member_ids) ? payload.member_ids.length : 0),
         });
       } else {
         await onRefresh?.();
@@ -375,7 +393,9 @@ async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, navigatio
       if (typeof onUpdate === 'function') {
         onUpdate({
           ...updated.group,
-          member_count: updated?.group?.member_count ?? (Array.isArray(payload.member_ids) ? payload.member_ids.length : 0),
+          member_count:
+            updated?.group?.member_count ??
+            (Array.isArray(payload.member_ids) ? payload.member_ids.length : 0),
         });
       } else {
         await onRefresh?.();
@@ -410,7 +430,8 @@ export function renderGroupsOverview(container, data, actions = {}) {
   const deleteGroup = async (groupId) => {
     const group = (data.groups || []).find((item) => item.id === groupId) || null;
     if (!group || group.is_system) return false;
-    if (!window.confirm(`Delete group ${group.name}? This will permanently remove the group.`)) return false;
+    if (!window.confirm(`Delete group ${group.name}? This will permanently remove the group.`))
+      return false;
     await deleteAdminGroup(group.id);
     if (typeof actions.onDelete === 'function') {
       actions.onDelete(group.id);
@@ -433,10 +454,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
             <div class="text-lg font-medium text-gray-700">${groups.length}</div>
           </div>
           <div class="flex items-center justify-end gap-1.5 shrink-0">
-            <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-group-btn">
-              <span class="mr-2 text-sm">+</span>
-              <span>New Group</span>
-            </button>
+            ${renderButton({ label: '+ New Group', variant: 'secondary', id: 'create-group-btn', className: 'px-3 py-1.5 text-xs shadow-sm' })}
           </div>
         </div>
       </div>
@@ -461,23 +479,33 @@ export function renderGroupsOverview(container, data, actions = {}) {
           </div>
         </div>
 
-        ${isLoading ? `
+        ${
+          isLoading
+            ? `
           <div class="p-10 text-center text-sm text-gray-700">Loading groups...</div>
-        ` : error ? `
+        `
+            : error
+              ? `
           <div class="p-10 text-center text-sm text-red-500">${error}</div>
-        ` : groups.length ? `
+        `
+              : groups.length
+                ? `
           <div class="px-4 pb-2 pr-5">
             <div class="grid grid-cols-1 gap-1">
-              ${groups.map((group) => {
-                const rowClasses = 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl transition-all border border-transparent hover:border-gray-100/50 hover:bg-gray-50/80 group cursor-pointer';
-                const deleteButton = group.is_system ? '' : `
+              ${groups
+                .map((group) => {
+                  const rowClasses =
+                    'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 rounded-2xl transition-all border border-transparent hover:border-gray-100/50 hover:bg-gray-50/80 group cursor-pointer';
+                  const deleteButton = group.is_system
+                    ? ''
+                    : `
                     <button type="button" class="p-2 hover:bg-red-50 rounded-xl text-gray-700 hover:text-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 btn-delete-group" data-group-id="${group.id}" data-group-name="${escapeHtml(group.name)}" aria-label="Delete group">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" class="size-5">
                         <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75V4H5a2 2 0 0 0-2 2v.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V6a2 2 0 0 0-2-2h-1v-.25A2.75 2.75 0 0 0 11.25 1h-2.5ZM8 4h4v-.25A1.25 1.25 0 0 0 10.75 2.5h-1.5A1.25 1.25 0 0 0 8 3.75V4ZM5 8.5V17a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.5h-10Z" clip-rule="evenodd" />
                       </svg>
                     </button>
                   `;
-                return `
+                  return `
                 <div class="${rowClasses}" data-group-row="${group.id}">
                   <div class="flex items-center gap-3.5">
                     <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-700">
@@ -504,10 +532,14 @@ export function renderGroupsOverview(container, data, actions = {}) {
                     ${deleteButton}
                   </div>
                 </div>
-              `; }).join('')}
+              `;
+                })
+                .join('')}
             </div>
           </div>
-        ` : renderEmptyState()}
+        `
+                : renderEmptyState()
+        }
       </div>
 
     </div>
@@ -524,20 +556,24 @@ export function renderGroupsOverview(container, data, actions = {}) {
       navigationState: data,
     });
   });
-  container.querySelectorAll('.btn-edit-group').forEach((btn) => btn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    await openEditModal(btn.dataset.groupId, {
-      onRefresh: reload,
-      onUpdate: actions.onUpdate,
-      onDelete: deleteGroup,
-      navigationState: data,
-    });
-  }));
+  container.querySelectorAll('.btn-edit-group').forEach((btn) =>
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await openEditModal(btn.dataset.groupId, {
+        onRefresh: reload,
+        onUpdate: actions.onUpdate,
+        onDelete: deleteGroup,
+        navigationState: data,
+      });
+    })
+  );
 
-  container.querySelectorAll('.btn-delete-group').forEach((btn) => btn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    await deleteGroup(btn.dataset.groupId);
-  }));
+  container.querySelectorAll('.btn-delete-group').forEach((btn) =>
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await deleteGroup(btn.dataset.groupId);
+    })
+  );
 
   const searchInput = container.querySelector('#group-search-input');
   const clearSearchBtn = container.querySelector('#clear-search-btn');
@@ -565,7 +601,6 @@ export function renderGroupsOverview(container, data, actions = {}) {
     searchInput.focus();
     searchInput.dispatchEvent(new Event('input'));
   });
-
 }
 
 export async function preloadGroupsData() {

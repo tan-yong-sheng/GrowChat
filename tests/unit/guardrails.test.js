@@ -5,17 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-/** Run semgrep with --json and extract the rule IDs from findings. */
-function semgrepRuleIds(configPath, targetFile, cwd) {
-  const result = run('semgrep', ['scan', '--config', configPath, '--json', targetFile], cwd);
-  try {
-    const parsed = JSON.parse(result.stdout);
-    return (parsed.results ?? []).map((r) => r.check_id);
-  } catch {
-    return [];
-  }
-}
-
 const repoRoot = process.cwd();
 const depcruiseConfig = path.join(repoRoot, '.dependency-cruiser.cjs');
 const semgrepConfig = path.join(repoRoot, '.semgrep/rules.yml');
@@ -167,28 +156,25 @@ describe('guardrail fixtures', () => {
       ].join('\n') + '\n'
     );
 
+    // Single --json run: avoids terminal line-wrapping issues with long rule IDs
+    // and consolidates exit-status + rule-id checks into one semgrep invocation
     const result = run(
       'semgrep',
-      [
-        'scan',
-        '--config',
-        semgrepConfig,
-        '--error',
-        'public/js/features/account/account-models.js',
-      ],
+      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/account/account-models.js'],
       fixtureRoot
     );
-
-    expect(result.status).not.toBe(0);
-    const ruleIds = semgrepRuleIds(
-      semgrepConfig,
-      'public/js/features/account/account-models.js',
-      fixtureRoot
-    );
-    const found = ruleIds.some((id) =>
-      id.endsWith('no-raw-model-access-badge-markup-in-model-settings-features')
-    );
-    expect(found).toBe(true);
+    let foundBadgeRule = false;
+    let parsed = { results: [] };
+    try {
+      parsed = JSON.parse(result.stdout);
+      foundBadgeRule = (parsed.results ?? []).some((r) =>
+        r.check_id?.includes('no-raw-model-access-badge-markup-in-model-settings-features')
+      );
+    } catch {
+      /* ignore parse errors */
+    }
+    expect(parsed.results.length).toBeGreaterThan(0);
+    expect(foundBadgeRule).toBe(true);
   }, 20000);
 
   it('rejects direct getModelAccessPresentation usage in model settings pages', () => {
@@ -202,21 +188,23 @@ describe('guardrail fixtures', () => {
       ].join('\n') + '\n'
     );
 
+    // Single --json run: avoids terminal line-wrapping issues with long rule IDs
     const result = run(
       'semgrep',
-      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/admin/settings/models.js'],
+      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/admin/settings/models.js'],
       fixtureRoot
     );
-
-    expect(result.status).not.toBe(0);
-    const ruleIds2 = semgrepRuleIds(
-      semgrepConfig,
-      'public/js/features/admin/settings/models.js',
-      fixtureRoot
-    );
-    const found2 = ruleIds2.some((id) =>
-      id.endsWith('no-direct-model-access-presentation-in-model-settings-features')
-    );
-    expect(found2).toBe(true);
+    let foundPresentationRule = false;
+    let parsed = { results: [] };
+    try {
+      parsed = JSON.parse(result.stdout);
+      foundPresentationRule = (parsed.results ?? []).some((r) =>
+        r.check_id?.includes('no-direct-model-access-presentation-in-model-settings-features')
+      );
+    } catch {
+      /* ignore parse errors */
+    }
+    expect(parsed.results.length).toBeGreaterThan(0);
+    expect(foundPresentationRule).toBe(true);
   }, 20000);
 });

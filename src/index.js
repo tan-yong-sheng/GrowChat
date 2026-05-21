@@ -56,6 +56,33 @@ async function fetchHtmlAsset(env, req, pathname) {
   return injectSriIntoHtmlResponse(response, env);
 }
 
+/**
+ * Serve the landing page for unauthenticated root-path requests.
+ * Returns null if the request should fall through to the default handler.
+ */
+async function maybeServeLandingPage(req, env) {
+  const url = new URL(req.url);
+  // Browsers never send Authorization headers on page navigations, and GrowChat
+  // uses Bearer-token auth (no session cookies), so server-side auth detection
+  // for / is impossible. Authenticated users are redirected client-side by
+  // landing.js (via ?app=1 query parameter).
+  if (url.pathname !== '/' || req.headers.get('Authorization') || url.searchParams.has('app')) {
+    return null;
+  }
+  try {
+    // Use /landing (not /landing.html) because the Assets binding
+    // redirects /landing.html → /landing with a 307 pretty-URL redirect,
+    // which would return an empty body instead of the landing page.
+    const landingUrl = new URL(req.url);
+    landingUrl.pathname = '/landing';
+    const response = await env.ASSETS.fetch(new Request(landingUrl.toString(), req));
+    if (response.ok) return await injectSriIntoHtmlResponse(response, env);
+  } catch (err) {
+    console.error('Landing asset fetch failed:', String(err?.message || err));
+  }
+  return null;
+}
+
 export default {
   async fetch(req, env, ctx) {
     const path = getPath(req);
@@ -112,6 +139,10 @@ export default {
           }
         );
       }
+
+      // Landing page: serve landing.html for unauthenticated / (no auth header, no ?app override).
+      const landingPage = await maybeServeLandingPage(req, env);
+      if (landingPage) return landingPage;
 
       // Check if this looks like an SPA route (not a static asset)
       const isStaticAsset =

@@ -1,32 +1,37 @@
-name: Semgrep report
+name: Semgrep
 
-on: [pull_request]
+on:
+  pull_request:
+  push:
+    branches: [main]
 
 jobs:
   semgrep:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Install Semgrep
         run: python3 -m pip install semgrep
-
-      - name: Run report-only Semgrep scan
+      - name: Run custom rules (blocking — ERROR severity only)
+        run: |
+          semgrep scan \
+            --config .semgrep/rules.yml \
+            --error \
+            src public
+      - name: Run security-audit scan (report-only)
+        if: always()
         run: |
           semgrep scan \
             --config p/security-audit \
-            --config .semgrep/rules.yml \
             --exclude-rule javascript.audit.detect-replaceall-sanitization.detect-replaceall-sanitization \
             --exclude-rule generic.html-templates.security.var-in-href.var-in-href \
             src public \
             --json \
             --output semgrep-report.json || true
-
       - name: Upload Semgrep report
         if: always() && !env.ACT
         uses: actions/upload-artifact@v4

@@ -248,6 +248,7 @@ module.exports = [
       'public/js/shared/api/files.js',
       'public/js/shared/api/models.js',
       'public/js/shared/api/request.js',
+      'public/js/shared/components/button.js',
       'public/js/shared/components/chat-placeholder.js',
       'public/js/shared/components/chat-row.js',
       'public/js/shared/components/files-modal-controller.js',
