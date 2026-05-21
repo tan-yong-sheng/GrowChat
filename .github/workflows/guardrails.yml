@@ -39,10 +39,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
       - name: Setup Semgrep
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          pnpm run setup:semgrep
+        run: pnpm run setup:semgrep
 
       - name: Pre-push gate
         run: pnpm run prepush
