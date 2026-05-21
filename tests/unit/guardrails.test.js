@@ -206,10 +206,12 @@ describe('guardrail fixtures', () => {
     );
     const eslintBin = path.join(repoRoot, 'node_modules', '.bin', 'eslint');
     const eslintConfig = path.join(repoRoot, 'eslint.config.cjs');
-    const result = run(eslintBin, ['src/utils/example.js', '--config', eslintConfig, '--no-ignore'], fixtureRoot);
-    expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-console-logging'
+    const result = run(
+      eslintBin,
+      ['src/utils/example.js', '--config', eslintConfig, '--no-ignore'],
+      fixtureRoot
     );
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain('no-console-logging');
   }, 30000);
 });

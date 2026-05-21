@@ -18,8 +18,7 @@ const noConsoleLoggingRule = {
   meta: {
     type: 'problem',
     docs: {
-      description:
-        'Disallow console.* calls in src/ — use structured logger instead',
+      description: 'Disallow console.* calls in src/ — use structured logger instead',
       category: 'Best Practices',
       recommended: true,
     },
