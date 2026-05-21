@@ -3,6 +3,7 @@ import { fetchAdminUserAccess } from '../../../shared/admin-access.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { buildAdminModalShellMarkup, createAdminModalShell } from '../modal-shell.js';
 import { displayFieldErrors, clearFormErrors } from '../../../shared/form-validation.js';
+import { renderButton } from '../../../shared/components/button.js';
 
 const escapeHtml = (value) =>
   String(value || '')
@@ -199,9 +200,12 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
             <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
             ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
           </div>
-          <button type="button" data-toggle-disabled-rules class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}">
-            ${showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`}
-          </button>
+          ${renderButton({
+      label: showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`,
+      variant: 'secondary',
+      className: `px-2.5 py-1 text-[10px] uppercase tracking-wider ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}`,
+      dataAttrs: { 'toggle-disabled-rules': '' },
+    })}
         </div>
       </div>
 

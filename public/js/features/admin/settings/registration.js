@@ -35,10 +35,9 @@ export function renderRegistrationSettings(container, data) {
 
   const getToggleState = (isOn) => ({
     isOn: Boolean(isOn),
-    ariaPressed: String(Boolean(isOn)),
-    statusText: Boolean(isOn) ? 'On' : 'Off',
-    toggleClass: Boolean(isOn) ? 'bg-black' : 'bg-gray-200',
-    knobTransform: Boolean(isOn) ? 'translateX(16px)' : 'translateX(0px)',
+    ariaPressed: String(isOn),
+    statusText: isOn ? 'On' : 'Off',
+    toggleClass: isOn ? 'bg-black' : 'bg-gray-200',
   });
 
   const updatePublicRegToggle = () => {
@@ -49,7 +48,10 @@ export function renderRegistrationSettings(container, data) {
     regToggle.classList.toggle('bg-black', toggleState.isOn);
     regToggle.classList.toggle('bg-gray-200', !toggleState.isOn);
     const knob = regToggle.querySelector('span');
-    if (knob) knob.style.transform = toggleState.knobTransform;
+    if (knob) {
+      knob.classList.toggle('translate-x-4', toggleState.isOn);
+      knob.classList.toggle('translate-x-0', !toggleState.isOn);
+    }
     const status = container.querySelector('#public-reg-status');
     if (status) status.textContent = toggleState.statusText;
     updateRegistrationStatusVisibility();
@@ -98,7 +100,7 @@ export function renderRegistrationSettings(container, data) {
 									<div id="public-reg-status" class="text-[10px] text-gray-700">${regToggleState.statusText}</div>
 								</div>
 								<button id="public-reg-toggle" aria-pressed="${regToggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${regToggleState.toggleClass}">
-									<span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" style="transform: ${regToggleState.knobTransform};"></span>
+									<span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${regToggleState.isOn ? 'translate-x-4' : 'translate-x-0'}"></span>
 								</button>
 							</div>
 							<div id="registration-status-wrap" class="py-2.5 ${regToggleState.isOn ? '' : 'hidden'}">

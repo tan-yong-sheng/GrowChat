@@ -1,4 +1,5 @@
 import { filterModelsBySearch } from '../utils/model-search.js';
+import { renderButton } from './button.js';
 import { sortModelsByActiveThenName } from '../utils/model-state.js';
 function normalizeProviderType(value) {
   return (
@@ -112,13 +113,6 @@ function formatHeadersValue(headers) {
   } catch {
     return '';
   }
-}
-
-function buildButtonAttrs(attrs = []) {
-  return attrs
-    .filter(Boolean)
-    .map((attr) => ` ${attr}`)
-    .join('');
 }
 
 export function buildConnectionModalBodyMarkup({
@@ -250,7 +244,7 @@ export function buildConnectionModalBodyMarkup({
       </div>
       <div class="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2${manualModelsHiddenClass}${showManualModelAdd ? '' : ' hidden'}">
         <input id="modal-manual-model-id" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none${disabledControlClass}" placeholder="Add model manually" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
-        <button type="button" id="modal-manual-model-add" class="shrink-0 rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white hover:bg-gray-900 transition${disabledControlClass}"${disabledAttr}>Add</button>
+        ${renderButton({ label: 'Add', variant: 'primary', id: 'modal-manual-model-add', className: `shrink-0 px-3 py-1 text-[11px] font-medium${disabledControlClass}`, disabled: !!disabledAttr })}
       </div>
       <div id="modal-models-list" class="rounded-2xl border border-gray-100 bg-white max-h-48 overflow-y-auto scrollbar-hidden text-sm">${resolvedModelMarkup}</div>
       <div id="modal-models-status" class="text-[11px] text-gray-700"></div>
@@ -332,12 +326,6 @@ export function buildConnectionModalMarkup({
   const resolvedHeaders = formatHeadersValue(connection?.headers);
   const apiType = connectionApiTypeDetails(providerType);
   const modelListMarkup = '';
-  const deleteButtonAttrs = buildButtonAttrs([
-    showAccountHooks ? 'data-account-connection-delete-modal' : '',
-  ]);
-  const saveButtonAttrs = buildButtonAttrs([
-    showAccountHooks ? 'data-account-connection-save' : '',
-  ]);
   const hiddenClass = isVisible ? '' : ' hidden';
   const deleteHiddenClass = connection?.id && !isEnvConnection ? '' : ' hidden';
   const testHiddenClass = isEnvConnection ? ' hidden' : '';
@@ -432,7 +420,7 @@ export function buildConnectionModalMarkup({
             </div>
             <div class="flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2${manualModelsHiddenClass}">
               <input id="modal-manual-model-id" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none${disabledControlClass}" placeholder="Add model manually" autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true"${disabledAttr}>
-              <button id="modal-manual-model-add" class="shrink-0 rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white hover:bg-gray-900 transition${disabledControlClass}"${disabledAttr}>Add</button>
+              ${renderButton({ label: 'Add', variant: 'primary', id: 'modal-manual-model-add', className: `shrink-0 px-3 py-1 text-[11px] font-medium${disabledControlClass}`, disabled: !canManage })}
             </div>
             <div id="modal-models-list" class="rounded-2xl border border-gray-100 bg-white max-h-48 overflow-y-auto scrollbar-hidden text-sm">${modelListMarkup}</div>
             <div id="modal-models-status" class="text-[11px] text-gray-600"></div>
@@ -440,8 +428,8 @@ export function buildConnectionModalMarkup({
         </div>
 
         <div class="px-6 py-6 flex justify-end gap-3 border-t border-gray-50">
-          <button type="button" id="delete-connection"${deleteButtonAttrs} class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full${deleteHiddenClass}${disabledControlClass}"${canManage ? '' : ' disabled'}>Delete</button>
-          <button type="button" id="save-modal"${saveButtonAttrs} class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full${disabledControlClass}"${canManage ? '' : ' disabled'}>Save</button>
+          ${renderButton({ label: 'Delete', variant: 'ghost', id: 'delete-connection', className: `px-5 py-1.5${deleteHiddenClass}${disabledControlClass}`, disabled: !canManage, dataAttrs: showAccountHooks ? { 'account-connection-delete-modal': '' } : {} })}
+          ${renderButton({ label: 'Save', variant: 'primary', id: 'save-modal', className: `px-5 py-1.5${disabledControlClass}`, disabled: !canManage, dataAttrs: showAccountHooks ? { 'account-connection-save': '' } : {} })}
         </div>
       </div>
     </div>

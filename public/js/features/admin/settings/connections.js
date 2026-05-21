@@ -7,6 +7,7 @@ import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import { upsertItemById, removeItemById } from '../../../shared/utils/list-state.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
+import { renderButton } from '../../../shared/components/button.js';
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
 import { getAdminModalPreset } from '../modal-shell.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
@@ -458,7 +459,7 @@ export function renderConnectionsSettings(container, data) {
       </div>
 
       <!-- Edit Connection Modal -->
-      <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} ${connectionsState.showModal ? '' : 'hidden'}" style="z-index: ${STANDARD_MODAL_PRESET.zIndex};">
+      <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} z-[${STANDARD_MODAL_PRESET.zIndex}] ${connectionsState.showModal ? '' : 'hidden'}">
         <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-gray-50">
@@ -497,8 +498,8 @@ export function renderConnectionsSettings(container, data) {
           </div>
 
           <div class="px-6 py-6 flex justify-end gap-3 border-t border-gray-50">
-            <button type="button" id="delete-connection" class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 active:scale-95 ${connectionsState.selectedConnection ? '' : 'hidden'}">Delete</button>
-            <button type="button" id="save-modal" class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 active:scale-95">Save</button>
+            ${renderButton({ label: 'Delete', variant: 'ghost', id: 'delete-connection', className: `px-5 py-1.5 focus:ring-red-500 active:scale-95 ${connectionsState.selectedConnection ? '' : 'hidden'}` })}
+            ${renderButton({ label: 'Save', variant: 'primary', id: 'save-modal', className: 'px-5 py-1.5 active:scale-95' })}
           </div>
         </div>
       </div>

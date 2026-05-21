@@ -10,6 +10,7 @@ import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
 import { buildMemberSet, clampUserLimit, filterUsers } from './groups-members-helpers.js';
 import { sortGroups } from './groups-list-helpers.js';
+import { renderButton } from '../../../shared/components/button.js';
 
 function escapeHtml(value) {
   return String(value || '')
@@ -198,9 +199,12 @@ function renderGroupModal({
                 <div class="text-[11px] text-gray-700">${escapeHtml(user.email || '')}</div>
               </div>
             </div>
-            <button type="button" class="member-toggle text-[11px] font-semibold px-3 py-1 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${buttonClass}" data-user-id="${escapeHtml(user.id)}">
-              ${buttonLabel}
-            </button>
+            ${renderButton({
+        label: buttonLabel,
+        variant: isSelected ? 'secondary' : 'ghost',
+        className: `member-toggle text-[11px] px-3 py-1 \${buttonClass}`,
+        dataAttrs: { 'user-id': user.id },
+      })}
           </div>
         `;
       }).join('');
@@ -433,10 +437,7 @@ export function renderGroupsOverview(container, data, actions = {}) {
             <div class="text-lg font-medium text-gray-700">${groups.length}</div>
           </div>
           <div class="flex items-center justify-end gap-1.5 shrink-0">
-            <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-group-btn">
-              <span class="mr-2 text-sm">+</span>
-              <span>New Group</span>
-            </button>
+            ${renderButton({ label: '+ New Group', variant: 'secondary', id: 'create-group-btn', className: 'px-3 py-1.5 text-xs shadow-sm' })}
           </div>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
 import { captureRenderState, restoreRenderState } from '../../../shared/components/search-bar.js';
+import { renderButton } from '../../../shared/components/button.js';
 
 function cloneAclRules(rules = [], normalizer = (rule) => rule) {
   if (!Array.isArray(rules)) return [];
@@ -521,7 +522,7 @@ async function openAccessModal({ familyKey, resource, resources = null, groups, 
     body,
     footer: `
       <button type="button" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition" data-close-modal>Cancel</button>
-      <button type="button" class="px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" id="policy-acl-save">Save</button>
+      ${renderButton({ label: 'Save', variant: 'primary', id: 'policy-acl-save', className: 'px-5 py-2' })}
     `,
   });
 
@@ -1053,9 +1054,9 @@ export function renderPoliciesSettings(container, data = {}) {
       <div class="flex items-center justify-between gap-3 rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
         <div class="flex items-center gap-2 min-w-0 flex-wrap">
           <span class="text-xs text-gray-500 truncate">${escapeHtml(activeSelectionCount ? `${activeSelectionCount} selected` : 'No selection')}</span>
-          ${activeAllVisibleSelected ? '' : `<button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" data-select-visible-family="${activeFamily.key}">Select visible</button>`}
-          ${activeSelectionCount ? `<button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" data-clear-selection-family="${activeFamily.key}">Clear</button>` : ''}
-          <button type="button" class="px-3 py-1.5 text-[11px] font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed" data-bulk-edit-family="${activeFamily.key}" ${activeSelectionCount ? '' : 'disabled'}>Bulk ACL</button>
+          ${activeAllVisibleSelected ? '' : `${renderButton({ label: 'Select visible', variant: 'secondary', className: 'px-3 py-1.5 text-[11px]', dataAttrs: { 'select-visible-family': activeFamily.key } })}`}
+          ${activeSelectionCount ? `${renderButton({ label: 'Clear', variant: 'secondary', className: 'px-3 py-1.5 text-[11px]', dataAttrs: { 'clear-selection-family': activeFamily.key } })}` : ''}
+          ${renderButton({ label: 'Bulk ACL', variant: 'primary', className: 'px-3 py-1.5 text-[11px]', disabled: !activeSelectionCount, dataAttrs: { 'bulk-edit-family': activeFamily.key } })}
         </div>
         <div class="text-xs text-gray-400">${activeVisibleIds.length ? `${activeVisibleSelectedCount}/${activeVisibleIds.length} visible selected` : 'No visible rows'}</div>
       </div>
