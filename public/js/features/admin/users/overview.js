@@ -201,11 +201,11 @@ function renderAccessInspectorContent(payload, showDisabled = false) {
             ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
           </div>
           ${renderButton({
-      label: showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`,
-      variant: 'secondary',
-      className: `px-2.5 py-1 text-[10px] uppercase tracking-wider ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}`,
-      dataAttrs: { 'toggle-disabled-rules': '' },
-    })}
+            label: showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`,
+            variant: 'secondary',
+            className: `px-2.5 py-1 text-[10px] uppercase tracking-wider ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}`,
+            dataAttrs: { 'toggle-disabled-rules': '' },
+          })}
         </div>
       </div>
 
