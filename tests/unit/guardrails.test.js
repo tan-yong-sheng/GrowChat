@@ -5,6 +5,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+/** Run semgrep with --json and extract the rule IDs from findings. */
+function semgrepRuleIds(configPath, targetFile, cwd) {
+  const result = run('semgrep', ['scan', '--config', configPath, '--json', targetFile], cwd);
+  try {
+    const parsed = JSON.parse(result.stdout);
+    return (parsed.results ?? []).map((r) => r.check_id);
+  } catch {
+    return [];
+  }
+}
+
 const repoRoot = process.cwd();
 const depcruiseConfig = path.join(repoRoot, '.dependency-cruiser.cjs');
 const semgrepConfig = path.join(repoRoot, '.semgrep/rules.yml');
@@ -169,9 +180,15 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-raw-model-access-badge-markup-in-model-settings-features'
+    const ruleIds = semgrepRuleIds(
+      semgrepConfig,
+      'public/js/features/account/account-models.js',
+      fixtureRoot
     );
+    const found = ruleIds.some((id) =>
+      id.endsWith('no-raw-model-access-badge-markup-in-model-settings-features')
+    );
+    expect(found).toBe(true);
   }, 20000);
 
   it('rejects direct getModelAccessPresentation usage in model settings pages', () => {
@@ -192,8 +209,14 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-direct-model-access-presentation-in-model-settings-features'
+    const ruleIds2 = semgrepRuleIds(
+      semgrepConfig,
+      'public/js/features/admin/settings/models.js',
+      fixtureRoot
     );
+    const found2 = ruleIds2.some((id) =>
+      id.endsWith('no-direct-model-access-presentation-in-model-settings-features')
+    );
+    expect(found2).toBe(true);
   }, 20000);
 });
