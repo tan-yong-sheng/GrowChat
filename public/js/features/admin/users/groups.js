@@ -213,7 +213,7 @@ function renderGroupModal({
             ${renderButton({
               label: buttonLabel,
               variant: isSelected ? 'secondary' : 'ghost',
-              className: `member-toggle text-[11px] px-3 py-1 \${buttonClass}`,
+              className: `member-toggle text-[11px] px-3 py-1 ${buttonClass}`,
               dataAttrs: { 'user-id': user.id },
             })}
           </div>
