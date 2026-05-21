@@ -170,7 +170,13 @@ export async function renderAdminPage(container) {
       loadAdminAuditLogsModule(),
     ])
       .then(
-        ([registrationModule, emailDeliveryModule, securityOverviewModule, auditLogsModule]) => {
+        ([
+          usageModule,
+          registrationModule,
+          emailDeliveryModule,
+          securityOverviewModule,
+          auditLogsModule,
+        ]) => {
           systemModules.renderUsageOverview = usageModule.renderUsageOverview;
           systemModules.renderRegistrationSettings = registrationModule.renderRegistrationSettings;
           systemModules.renderEmailDeliverySettings =
