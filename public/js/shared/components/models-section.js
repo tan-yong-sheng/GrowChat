@@ -1,12 +1,11 @@
 import { renderSearchBarHtml } from './search-bar.js';
 
-const escapeHtml = (value) =>
-  String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+const escapeHtml = (value) => String(value ?? '')
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;');
 
 export function renderModelsHeaderHtml({
   countTitle = 'Active models',
@@ -18,7 +17,7 @@ export function renderModelsHeaderHtml({
   clearButtonId = '',
   clearHidden = true,
   providerId,
-  providerValue: _providerValue = 'all',
+  _providerValue = 'all',
   providerOptionsMarkup = '',
   searchPlaceholder = 'Search models',
 }) {
@@ -52,14 +51,13 @@ export function renderModelsTableShellHtml({
   loading,
   rowsHtml,
   emptyMessage,
-  usingFilter: _usingFilter = false,
+  _usingFilter = false,
   tbodyId = 'models-table-body',
   emptyColSpan = 4,
 }) {
   const body = loading
     ? rowsHtml
-    : rowsHtml ||
-      `
+    : rowsHtml || `
       <tr>
         <td colspan="${emptyColSpan}" class="py-10 text-center text-sm text-gray-400">
           ${escapeHtml(emptyMessage || 'No models found.')}
@@ -128,22 +126,19 @@ export function renderModelsPaginationHtml({
   `;
 }
 
-export function syncModelsHeaderState(
-  container,
-  {
-    countTitle = 'Active models',
-    countLabel: _countLabel = '',
-    countValue = '',
-    searchId,
-    searchValue = '',
-    clearId,
-    clearButtonId = '',
-    clearHidden = true,
-    providerId,
-    providerOptionsMarkup = '',
-    providerValue = 'all',
-  } = {}
-) {
+export function syncModelsHeaderState(container, {
+  countTitle = 'Active models',
+  _countLabel = '',
+  countValue = '',
+  searchId,
+  searchValue = '',
+  clearId,
+  clearButtonId = '',
+  clearHidden = true,
+  providerId,
+  providerOptionsMarkup = '',
+  providerValue = 'all',
+} = {}) {
   if (!container) return;
   const countEl = container.querySelector('[data-models-count-value]');
   if (countEl) {
@@ -152,11 +147,7 @@ export function syncModelsHeaderState(
   }
 
   const searchInput = searchId ? container.querySelector(`#${escapeHtml(searchId)}`) : null;
-  if (
-    searchInput &&
-    document.activeElement !== searchInput &&
-    searchInput.value !== String(searchValue ?? '')
-  ) {
+  if (searchInput && document.activeElement !== searchInput && searchInput.value !== String(searchValue ?? '')) {
     searchInput.value = String(searchValue ?? '');
   }
 
@@ -186,24 +177,20 @@ export function syncModelsHeaderState(
   }
 }
 
-export function syncModelsTableState(
-  container,
-  {
-    loading,
-    rowsHtml,
-    emptyMessage,
-    usingFilter: _usingFilter = false,
-    tbodyId = 'models-table-body',
-    emptyColSpan = 4,
-  } = {}
-) {
+export function syncModelsTableState(container, {
+  loading,
+  rowsHtml,
+  emptyMessage,
+  _usingFilter = false,
+  tbodyId = 'models-table-body',
+  emptyColSpan = 4,
+} = {}) {
   if (!container) return;
   const tbody = container.querySelector(`#${escapeHtml(tbodyId)}`);
   if (!tbody) return;
   const body = loading
     ? rowsHtml
-    : rowsHtml ||
-      `
+    : rowsHtml || `
       <tr>
         <td colspan="${emptyColSpan}" class="py-10 text-center text-sm text-gray-400">
           ${escapeHtml(emptyMessage || 'No models found.')}
@@ -215,22 +202,19 @@ export function syncModelsTableState(
   }
 }
 
-export function syncModelsPaginationState(
-  container,
-  {
-    pageSizeId = 'page-size-select',
-    limit = 20,
-    pageStart = 0,
-    pageEnd = 0,
-    pageTotal = 0,
-    currentPage = 1,
-    totalPages = 1,
-    loading = false,
-    usingFilter = false,
-    prevId = 'prev-page',
-    nextId = 'next-page',
-  } = {}
-) {
+export function syncModelsPaginationState(container, {
+  pageSizeId = 'page-size-select',
+  limit = 20,
+  pageStart = 0,
+  pageEnd = 0,
+  pageTotal = 0,
+  currentPage = 1,
+  totalPages = 1,
+  loading = false,
+  usingFilter = false,
+  prevId = 'prev-page',
+  nextId = 'next-page',
+} = {}) {
   if (!container) return;
   const rangeEl = container.querySelector('[data-models-page-range]');
   if (rangeEl) {

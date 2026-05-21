@@ -38,15 +38,14 @@ describe('Session Management', () => {
 
     it('returns sessions with metadata', async () => {
       mockKV.list.mockResolvedValue({
-        keys: [{ name: 'session:user-1:session-1' }, { name: 'session:user-1:session-2' }],
+        keys: [
+          { name: 'session:user-1:session-1' },
+          { name: 'session:user-1:session-2' },
+        ],
       });
       mockKV.get
-        .mockResolvedValueOnce(
-          JSON.stringify({ device: 'Chrome', ip: '1.2.3.4', lastActive: 1234567890 })
-        )
-        .mockResolvedValueOnce(
-          JSON.stringify({ device: 'Firefox', ip: '5.6.7.8', lastActive: 1234567891 })
-        );
+        .mockResolvedValueOnce(JSON.stringify({ device: 'Chrome', ip: '1.2.3.4', lastActive: 1234567890 }))
+        .mockResolvedValueOnce(JSON.stringify({ device: 'Firefox', ip: '5.6.7.8', lastActive: 1234567891 }));
 
       const result = await getSessions({ userId: 'user-1', kv: mockKV });
       expect(result.status).toBe(200);
@@ -67,11 +66,7 @@ describe('Session Management', () => {
 
     it('returns 404 when session not found', async () => {
       mockKV.get.mockResolvedValue(null);
-      const result = await revokeSession({
-        sessionId: 'nonexistent',
-        userId: 'user-1',
-        kv: mockKV,
-      });
+      const result = await revokeSession({ sessionId: 'nonexistent', userId: 'user-1', kv: mockKV });
       expect(result.status).toBe(404);
     });
 
@@ -120,13 +115,7 @@ describe('Session Management', () => {
       const user = { sub: 'user-1' };
       mockKV.get.mockResolvedValue(JSON.stringify({ userId: 'user-1', device: 'Chrome' }));
       mockKV.delete.mockResolvedValue(undefined);
-      const result = await sessionManagementRouter(
-        mockDeleteReq,
-        env,
-        {},
-        user,
-        '/api/user/sessions/session-1'
-      );
+      const result = await sessionManagementRouter(mockDeleteReq, env, {}, user, '/api/user/sessions/session-1');
       expect(result.status).toBe(200);
     });
   });

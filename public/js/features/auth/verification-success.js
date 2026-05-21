@@ -22,7 +22,7 @@ export function renderVerificationSuccess({ onContinue }) {
   const container = document.createElement('div');
   container.className = 'min-h-screen flex items-center justify-center bg-gray-50';
   container.setAttribute('role', 'main');
-
+  
   container.innerHTML = `
     <div class="max-w-md w-full bg-white rounded-lg shadow-sm p-8 text-center">
       <div class="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center" role="img" aria-label="Success">
@@ -39,7 +39,7 @@ export function renderVerificationSuccess({ onContinue }) {
   `;
 
   container.querySelector('#continue-btn').addEventListener('click', onContinue);
-
+  
   return container;
 }
 
@@ -54,7 +54,7 @@ export function renderVerificationError({ errorType = 'invalid', onRetry }) {
   const container = document.createElement('div');
   container.className = 'min-h-screen flex items-center justify-center bg-gray-50';
   container.setAttribute('role', 'main');
-
+  
   const errorConfig = {
     invalid: {
       icon: 'red',
@@ -75,15 +75,14 @@ export function renderVerificationError({ errorType = 'invalid', onRetry }) {
       action: 'Continue to login',
     },
   };
-
+  
   const config = errorConfig[errorType] || errorConfig.invalid;
   const iconBg = config.icon === 'red' ? 'bg-red-100' : 'bg-blue-100';
   const iconColor = config.icon === 'red' ? 'text-red-600' : 'text-blue-600';
-  const iconPath =
-    config.icon === 'red'
-      ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>'
-      : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>';
-
+  const iconPath = config.icon === 'red' 
+    ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>'
+    : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>';
+  
   container.innerHTML = `
     <div class="max-w-md w-full bg-white rounded-lg shadow-sm p-8 text-center">
       <div class="w-16 h-16 mx-auto mb-4 ${iconBg} rounded-full flex items-center justify-center" role="img" aria-label="${config.icon === 'red' ? 'Error' : 'Info'}">
@@ -100,7 +99,7 @@ export function renderVerificationError({ errorType = 'invalid', onRetry }) {
   `;
 
   container.querySelector('#retry-btn').addEventListener('click', onRetry);
-
+  
   return container;
 }
 
@@ -113,7 +112,7 @@ export function renderVerificationLoading() {
   container.className = 'min-h-screen flex items-center justify-center bg-gray-50';
   container.setAttribute('role', 'main');
   container.setAttribute('aria-busy', 'true');
-
+  
   container.innerHTML = `
     <div class="max-w-md w-full bg-white rounded-lg shadow-sm p-8 text-center">
       <div class="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
@@ -126,7 +125,7 @@ export function renderVerificationLoading() {
       <p class="text-gray-600">Please wait while we verify your email address.</p>
     </div>
   `;
-
+  
   return container;
 }
 
@@ -142,58 +141,48 @@ export async function renderVerificationPage(token, { apiFetch }, container = do
   // Show loading state
   container.innerHTML = '';
   container.appendChild(renderVerificationLoading());
-
+  
   try {
     const res = await apiFetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`);
     const data = await res.json().catch(() => ({}));
-
+    
     container.innerHTML = '';
-
+    
     if (res.ok) {
-      container.appendChild(
-        renderVerificationSuccess({
-          onContinue: () => {
-            window.location.href = '/login?verified=true';
-          },
-        })
-      );
+      container.appendChild(renderVerificationSuccess({
+        onContinue: () => {
+          window.location.href = '/login?verified=true';
+        },
+      }));
     } else if (data.error?.toLowerCase().includes('expired')) {
-      container.appendChild(
-        renderVerificationError({
-          errorType: 'expired',
-          onRetry: () => {
-            window.location.href = '/login?action=request_verification';
-          },
-        })
-      );
+      container.appendChild(renderVerificationError({
+        errorType: 'expired',
+        onRetry: () => {
+          window.location.href = '/login?action=request_verification';
+        },
+      }));
     } else if (data.error?.toLowerCase().includes('already')) {
-      container.appendChild(
-        renderVerificationError({
-          errorType: 'already_verified',
-          onRetry: () => {
-            window.location.href = '/login';
-          },
-        })
-      );
+      container.appendChild(renderVerificationError({
+        errorType: 'already_verified',
+        onRetry: () => {
+          window.location.href = '/login';
+        },
+      }));
     } else {
-      container.appendChild(
-        renderVerificationError({
-          errorType: 'invalid',
-          onRetry: () => {
-            window.location.href = '/login?action=request_verification';
-          },
-        })
-      );
-    }
-  } catch {
-    container.innerHTML = '';
-    container.appendChild(
-      renderVerificationError({
+      container.appendChild(renderVerificationError({
         errorType: 'invalid',
         onRetry: () => {
           window.location.href = '/login?action=request_verification';
         },
-      })
-    );
+      }));
+    }
+  } catch {
+    container.innerHTML = '';
+    container.appendChild(renderVerificationError({
+      errorType: 'invalid',
+      onRetry: () => {
+        window.location.href = '/login?action=request_verification';
+      },
+    }));
   }
 }

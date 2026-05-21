@@ -14,7 +14,7 @@ export function renderSearchBarHtml({
   value = '',
   placeholder = 'Search',
   clearId,
-  clearButtonId: _clearButtonId,
+  _clearButtonId,
   clearHidden = true,
   wrapperClass = 'flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30 w-full sm:w-80 lg:w-64 min-w-0 focus-within:ring-1 focus-within:ring-gray-200',
   inputClass = 'w-full min-w-0 text-sm outline-none bg-transparent text-gray-700 placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white',

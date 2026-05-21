@@ -23,7 +23,10 @@ export async function editMessage({ messageId, content, userId }) {
   }
 
   // Find the message
-  const message = await db.prepare('SELECT * FROM messages WHERE id = ?').bind(messageId).first();
+  const message = await db
+    .prepare('SELECT * FROM messages WHERE id = ?')
+    .bind(messageId)
+    .first();
 
   if (!message) {
     return Response.json({ error: 'Message not found' }, { status: 404 });
