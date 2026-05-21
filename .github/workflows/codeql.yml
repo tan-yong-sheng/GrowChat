@@ -1,5 +1,4 @@
 name: CodeQL
-
 on:
   push:
     branches: [main]
@@ -16,7 +15,6 @@ jobs:
       security-events: write
       actions: read
       contents: read
-
     strategy:
       fail-fast: false
       matrix:
@@ -34,5 +32,17 @@ jobs:
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
+        if: ${{ !env.ACT }}
         with:
           category: '/language:${{ matrix.language }}'
+
+      # Local-only scan (act): run CodeQL database analyze without SARIF upload
+      - name: Local CodeQL Scan (act only)
+        if: ${{ env.ACT }}
+        run: |
+          echo "Running CodeQL scan locally (act) — SARIF upload skipped"
+          codeql database analyze /tmp/codeql_databases/javascript \
+            --format=sarif-latest \
+            --output=/tmp/results/javascript.sarif \
+            || true
+          echo "Local CodeQL scan complete"

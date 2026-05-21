@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 const repoRoot = process.cwd();
 const depcruiseConfig = path.join(repoRoot, '.dependency-cruiser.cjs');
 const semgrepConfig = path.join(repoRoot, '.semgrep/rules.yml');
+
 const depcruiseBin = 'node';
 const depcruiseScript = path.join(
   repoRoot,
@@ -33,6 +34,28 @@ function run(command, args, cwd) {
     encoding: 'utf8',
     shell: false,
   });
+}
+
+/**
+ * Strip semgrep config path prefix from rule IDs in output.
+ * Semgrep prefixes rule IDs with the absolute path of the config file
+ * (with dots replacing path separators) when the config is outside the
+ * scan directory. This normalises the output so assertions can match
+ * the bare rule ID regardless of where the config lives (main repo,
+ * worktree, or CI checkout).
+ */
+function stripSemgrepPathPrefix(output) {
+  // Semgrep prefixes rule IDs with the absolute path of the config file
+  // (path separators replaced with dots) when the config is outside the
+  // scan directory. This normalises the output so assertions can match
+  // the bare rule ID regardless of where the config lives (main repo,
+  // worktree, or CI checkout). Examples of prefixes:
+  //   mnt.data.Coding.GrowChat..worktrees.dashboard..semgrep.
+  //   /home/runner/work/GrowChat/GrowChat/.semgrep.
+  const noPrefix = output.replace(/\S*\.semgrep\./g, '');
+  // Collapse whitespace AND remove spaces after hyphens (semgrep wraps
+  // long rule IDs at hyphen boundaries, breaking the ID across lines)
+  return noPrefix.replace(/\s+/g, ' ').replace(/- /g, '-');
 }
 
 describe('guardrail fixtures', () => {
@@ -78,9 +101,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-frontend-worker-env-access'
-    );
+    const output = stripSemgrepPathPrefix(`${result.stdout ?? ''}${result.stderr ?? ''}`);
+    expect(output).toContain('no-frontend-worker-env-access');
   }, 20000);
 
   it('rejects raw status badge markup in account feature slice via semgrep', () => {
@@ -104,9 +126,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-raw-status-badge-markup-in-account-features'
-    );
+    const output = stripSemgrepPathPrefix(`${result.stdout ?? ''}${result.stderr ?? ''}`);
+    expect(output).toContain('no-raw-status-badge-markup-in-account-features');
   }, 20000);
 
   it('rejects rounded pill action buttons but allows compact toggle switches', () => {
@@ -127,9 +148,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(badResult.status).not.toBe(0);
-    expect(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`).toContain(
-      'no-raw-pill-button-markup-in-feature-code'
-    );
+    const badOutput = stripSemgrepPathPrefix(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`);
+    expect(badOutput).toContain('no-raw-pill-button-markup-in-feature-code');
 
     writeFixture(
       fixtureRoot,
@@ -169,9 +189,8 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-raw-model-access-badge-markup-in-model-settings-features'
-    );
+    const output = stripSemgrepPathPrefix(`${result.stdout ?? ''}${result.stderr ?? ''}`);
+    expect(output).toContain('no-raw-model-access-badge-markup-in-model-settings-features');
   }, 20000);
 
   it('rejects direct getModelAccessPresentation usage in model settings pages', () => {
@@ -192,8 +211,7 @@ describe('guardrail fixtures', () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-direct-model-access-presentation-in-model-settings-features'
-    );
+    const output = stripSemgrepPathPrefix(`${result.stdout ?? ''}${result.stderr ?? ''}`);
+    expect(output).toContain('no-direct-model-access-presentation-in-model-settings-features');
   }, 20000);
 });
