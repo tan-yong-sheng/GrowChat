@@ -28,7 +28,5 @@ export function escapeHtml(text) {
  * @returns {string} Text with HTML tags removed
  */
 export function stripHtml(text) {
-  return String(text ?? '')
-    .replace(/<[^>]*>/g, '')
-    .trim();
+  return String(text ?? '').replace(/<[^>]*>/g, '').trim();
 }
