@@ -1,3 +1,5 @@
+import { renderButton } from './button.js';
+
 /**
  * Renders a status badge/pill
  * Used consistently across admin and account settings pages
@@ -48,14 +50,7 @@ export function renderDataTable({
               ${actions
                 .map(
                   (action) => `
-                <button
-                  type="button"
-                  data-row-action="${action.key}"
-                  data-row-id="${row.id}"
-                  class="text-xs font-semibold px-3 py-1.5 rounded-full transition ${action.className || 'border border-gray-200 text-gray-700 hover:bg-gray-50'}"
-                >
-                  ${action.label}
-                </button>
+                ${renderButton({ label: action.label, variant: 'secondary', className: `text-xs px-3 py-1.5 ${action.className || 'border border-gray-200 text-gray-700 hover:bg-gray-50'}`, dataAttrs: { 'row-action': action.key, 'row-id': row.id } })}
               `
                 )
                 .join('')}
@@ -125,13 +120,7 @@ export function renderListItemCard({
             ${actions
               .map(
                 (action) => `
-              <button
-                type="button"
-                data-list-action="${action.key}"
-                class="text-xs font-semibold px-3 py-1.5 rounded-full transition ${action.className || 'border border-gray-200 text-gray-700 hover:bg-gray-50'}"
-              >
-                ${action.label}
-              </button>
+              ${renderButton({ label: action.label, variant: 'secondary', className: `text-xs px-3 py-1.5 ${action.className || 'border border-gray-200 text-gray-700 hover:bg-gray-50'}`, dataAttrs: { 'list-action': action.key } })}
             `
               )
               .join('')}

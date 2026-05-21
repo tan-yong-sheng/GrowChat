@@ -16,6 +16,8 @@ export function renderButton({
   className = '',
   disabled = false,
   ariaLabel = '',
+  id = '',
+  dataAttrs = {},
 } = {}) {
   const baseClasses =
     'inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed';
@@ -33,10 +35,18 @@ export function renderButton({
         ? variants.ghost
         : variants.primary;
   const finalClass = cn(baseClasses, variantClass, className);
+  const dataAttrEntries = Object.entries(dataAttrs || {})
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) =>
+      value === '' ? `data-${key}` : `data-${key}="${escapeHtml(String(value))}"`
+    );
+
   const attrs = [
     `type="${escapeHtml(type)}"`,
+    id ? `id="${escapeHtml(id)}"` : '',
     disabled ? 'disabled aria-disabled="true"' : '',
     ariaLabel ? `aria-label="${escapeHtml(ariaLabel)}"` : '',
+    ...dataAttrEntries,
   ]
     .filter(Boolean)
     .join(' ');

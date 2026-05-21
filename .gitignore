@@ -23,6 +23,7 @@
 .gsd-id
 .bg-shell/
 .actrc
+git-worktree-spec.md
 
 # ── E2E test artifacts (generated, not baselines) ──
 tests/e2e/artifacts/
@@ -141,3 +142,4 @@ vendor/
 # ── Secrets / credentials cache ──
 .secrets.cache.json
 semgrep-runtime.json
+semgrep-report.json

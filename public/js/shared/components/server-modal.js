@@ -1,3 +1,5 @@
+import { renderButton } from './button.js';
+
 const STANDARD_MODAL_PRESET = {
   outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
   overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
@@ -146,7 +148,7 @@ export function buildMcpServerModalMarkup({
               </select>
             </div>
             <div class="flex items-center gap-3">
-              <button id="connect-oauth" class="px-4 py-1.5 text-xs font-medium text-white bg-black hover:bg-gray-900 transition rounded-full${disabledControlClass}"${disabledAttr}>Connect OAuth</button>
+              ${renderButton({ label: 'Connect OAuth', variant: 'primary', id: 'connect-oauth', className: `px-4 py-1.5 text-xs font-medium${disabledControlClass}`, disabled: !canManage })}
               <div id="oauth-status" class="text-[11px] text-gray-600">${server?.oauth_connected ? 'Connected' : 'Not connected'}</div>
             </div>
             <div class="text-[11px] text-gray-600">OAuth requires saving the server first.</div>
@@ -159,8 +161,8 @@ export function buildMcpServerModalMarkup({
         </div>
 
         <div class="px-6 py-6 flex justify-end gap-3">
-          <button id="delete-server" class="px-5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition rounded-full${server ? '' : ' hidden'}${disabledControlClass}"${canManage ? '' : ' disabled'}>Delete</button>
-          <button id="save-modal" class="px-5 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-900 transition rounded-full${disabledControlClass}"${canManage ? '' : ' disabled'}>Save</button>
+          ${renderButton({ label: 'Delete', variant: 'ghost', id: 'delete-server', className: `px-5 py-1.5${server ? '' : ' hidden'}${disabledControlClass}`, disabled: !canManage })}
+          ${renderButton({ label: 'Save', variant: 'primary', id: 'save-modal', className: `px-5 py-1.5${disabledControlClass}`, disabled: !canManage })}
         </div>
       </div>
     </div>
