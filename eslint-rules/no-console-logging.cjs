@@ -63,3 +63,4 @@ const noConsoleLoggingRule = {
 };
 
 module.exports = noConsoleLoggingRule;
+
