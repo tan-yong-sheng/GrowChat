@@ -4,9 +4,23 @@ const globals = require('globals');
 const boundariesPlugin = require('eslint-plugin-boundaries');
 
 const srcTypes = [
-  's-router', 's-service', 's-shared', 's-utils', 's-feature', 's-admin',
-  's-llm', 's-chat', 's-mcp', 's-middleware', 's-repository', 's-bootstrap',
-  's-config', 's-durable', 's-errors', 's-validation', 's-root',
+  's-router',
+  's-service',
+  's-shared',
+  's-utils',
+  's-feature',
+  's-admin',
+  's-llm',
+  's-chat',
+  's-mcp',
+  's-middleware',
+  's-repository',
+  's-bootstrap',
+  's-config',
+  's-durable',
+  's-errors',
+  's-validation',
+  's-root',
 ];
 
 module.exports = [
@@ -53,62 +67,69 @@ module.exports = [
     rules: {
       'boundaries/no-unknown': 'off',
       'boundaries/no-unknown-files': 'off',
-      'boundaries/dependencies': ['warn', {
-        default: 'disallow',
-        rules: [
-          // Frontend guardrails (preserved from original config)
-          {
-            from: { type: 'f-bootstrap' },
-            allow: { to: { type: ['f-bootstrap', 'f-shared'] } },
-          },
-          {
-            from: { type: 'f-feature' },
-            allow: { to: { type: ['f-feature', 'f-shared'] } },
-          },
-          {
-            from: { type: 'f-shared' },
-            allow: { to: { type: ['f-shared'] } },
-          },
-          {
-            from: { type: 'f-utils' },
-            allow: { to: { type: ['f-utils', 'f-shared'] } },
-          },
-          {
-            from: { type: 'scripts' },
-            allow: { to: { type: ['scripts'] } },
-          },
-          {
-            from: { type: 'test' },
-            allow: { to: { type: ['f-bootstrap', 'f-feature', 'f-shared', 'f-utils', 'test', 'scripts'] } },
-          },
-          // Backend permissive baseline — allow all src element types to import
-          // from each other and from f-shared. TODO: tighten incrementally.
-          {
-            from: { type: srcTypes },
-            allow: { to: { type: [...srcTypes, 'f-shared'] } },
-          },
-          // Tests may import from any src or frontend element type
-          {
-            from: { type: 'test' },
-            allow: { to: { type: [...srcTypes, 'f-feature', 'f-shared'] } },
-          },
-          // src root-level files may import from test helpers
-          {
-            from: { type: 's-root' },
-            allow: { to: { type: ['test'] } },
-          },
-          // src feature test files may import from frontend feature code
-          {
-            from: { type: 's-feature' },
-            allow: { to: { type: ['f-feature'] } },
-          },
-          // src router test files may import from test helpers
-          {
-            from: { type: 's-router' },
-            allow: { to: { type: ['test'] } },
-          },
-        ],
-      }],
+      'boundaries/dependencies': [
+        'warn',
+        {
+          default: 'disallow',
+          rules: [
+            // Frontend guardrails (preserved from original config)
+            {
+              from: { type: 'f-bootstrap' },
+              allow: { to: { type: ['f-bootstrap', 'f-shared'] } },
+            },
+            {
+              from: { type: 'f-feature' },
+              allow: { to: { type: ['f-feature', 'f-shared'] } },
+            },
+            {
+              from: { type: 'f-shared' },
+              allow: { to: { type: ['f-shared'] } },
+            },
+            {
+              from: { type: 'f-utils' },
+              allow: { to: { type: ['f-utils', 'f-shared'] } },
+            },
+            {
+              from: { type: 'scripts' },
+              allow: { to: { type: ['scripts'] } },
+            },
+            {
+              from: { type: 'test' },
+              allow: {
+                to: {
+                  type: ['f-bootstrap', 'f-feature', 'f-shared', 'f-utils', 'test', 'scripts'],
+                },
+              },
+            },
+            // Backend permissive baseline — allow all src element types to import
+            // from each other and from f-shared. TODO: tighten incrementally.
+            {
+              from: { type: srcTypes },
+              allow: { to: { type: [...srcTypes, 'f-shared'] } },
+            },
+            // Tests may import from any src or frontend element type
+            {
+              from: { type: 'test' },
+              allow: { to: { type: [...srcTypes, 'f-feature', 'f-shared'] } },
+            },
+            // src root-level files may import from test helpers
+            {
+              from: { type: 's-root' },
+              allow: { to: { type: ['test'] } },
+            },
+            // src feature test files may import from frontend feature code
+            {
+              from: { type: 's-feature' },
+              allow: { to: { type: ['f-feature'] } },
+            },
+            // src router test files may import from test helpers
+            {
+              from: { type: 's-router' },
+              allow: { to: { type: ['test'] } },
+            },
+          ],
+        },
+      ],
     },
   },
 

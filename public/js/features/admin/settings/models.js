@@ -352,6 +352,7 @@ export function renderModelsSettings(container, data) {
           : filteredModels
               .map((model) => {
                 const access = getModelAccessPresentation(model);
+                const _isDisabled = modelsState.disabledModels.has(model.id);
                 return `
                     <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>

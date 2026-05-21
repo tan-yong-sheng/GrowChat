@@ -704,7 +704,7 @@ async function openAccessModal({
   renderList();
 }
 
-export function renderPoliciesSettings(container, _data = {}) {
+export function renderPoliciesSettings(container, __data = {}) {
   const initialParams = new URLSearchParams(window.location.search || '');
   const initialGroupId = String(initialParams.get('group') || 'all').trim() || 'all';
   const initialDeepLinkFamily = String(initialParams.get('family') || '').trim();
