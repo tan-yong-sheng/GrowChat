@@ -44,7 +44,7 @@
 
 ## States
 
-```
+```text
 [Page Load] → checkAuthRedirect()
   → has valid token? → redirect to /index.html
   → no token? → show landing page → fetchGitHubStars()

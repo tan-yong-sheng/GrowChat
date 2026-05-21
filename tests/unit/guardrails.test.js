@@ -156,36 +156,25 @@ describe('guardrail fixtures', () => {
       ].join('\n') + '\n'
     );
 
-    const result = run(
-      'semgrep',
-      [
-        'scan',
-        '--config',
-        semgrepConfig,
-        '--error',
-        'public/js/features/account/account-models.js',
-      ],
-      fixtureRoot
+  // Single --json run: avoids terminal line-wrapping issues with long rule IDs
+  // and consolidates exit-status + rule-id checks into one semgrep invocation
+  const result = run(
+    'semgrep',
+    ['scan', '--config', semgrepConfig, '--json', 'public/js/features/account/account-models.js'],
+    fixtureRoot
+  );
+  let foundBadgeRule = false;
+  let parsed = { results: [] };
+  try {
+    parsed = JSON.parse(result.stdout);
+    foundBadgeRule = (parsed.results ?? []).some((r) =>
+      r.check_id?.includes('no-raw-model-access-badge-markup-in-model-settings-features')
     );
-
-    expect(result.status).not.toBe(0);
-    // Use --json output to avoid terminal line-wrapping issues with rule IDs
-    // (semgrep wraps long rule IDs at hyphens, breaking toContain matching)
-    const resultJson = run(
-      'semgrep',
-      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/account/account-models.js'],
-      fixtureRoot
-    );
-    let foundBadgeRule = false;
-    try {
-      const parsed = JSON.parse(resultJson.stdout);
-      foundBadgeRule = (parsed.results ?? []).some((r) =>
-        r.check_id?.includes('no-raw-model-access-badge-markup-in-model-settings-features')
-      );
-    } catch {
-      /* ignore parse errors */
-    }
-    expect(foundBadgeRule).toBe(true);
+  } catch {
+    /* ignore parse errors */
+  }
+  expect(parsed.results.length).toBeGreaterThan(0);
+  expect(foundBadgeRule).toBe(true);
   }, 20000);
 
   it('rejects direct getModelAccessPresentation usage in model settings pages', () => {
@@ -199,27 +188,23 @@ describe('guardrail fixtures', () => {
       ].join('\n') + '\n'
     );
 
-    const result = run(
-      'semgrep',
-      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/admin/settings/models.js'],
-      fixtureRoot
+  // Single --json run: avoids terminal line-wrapping issues with long rule IDs
+  const result = run(
+    'semgrep',
+    ['scan', '--config', semgrepConfig, '--json', 'public/js/features/admin/settings/models.js'],
+    fixtureRoot
+  );
+  let foundPresentationRule = false;
+  let parsed = { results: [] };
+  try {
+    parsed = JSON.parse(result.stdout);
+    foundPresentationRule = (parsed.results ?? []).some((r) =>
+      r.check_id?.includes('no-direct-model-access-presentation-in-model-settings-features')
     );
-
-    expect(result.status).not.toBe(0);
-    const resultJson2 = run(
-      'semgrep',
-      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/admin/settings/models.js'],
-      fixtureRoot
-    );
-    let foundPresentationRule = false;
-    try {
-      const parsed = JSON.parse(resultJson2.stdout);
-      foundPresentationRule = (parsed.results ?? []).some((r) =>
-        r.check_id?.includes('no-direct-model-access-presentation-in-model-settings-features')
-      );
-    } catch {
-      /* ignore parse errors */
-    }
-    expect(foundPresentationRule).toBe(true);
+  } catch {
+    /* ignore parse errors */
+  }
+  expect(parsed.results.length).toBeGreaterThan(0);
+  expect(foundPresentationRule).toBe(true);
   }, 20000);
 });
