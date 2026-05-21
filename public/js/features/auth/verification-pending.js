@@ -26,7 +26,7 @@ export function renderVerificationPending(email, { onResend, onContinue }) {
   const container = document.createElement('div');
   container.className = 'min-h-screen flex items-center justify-center bg-gray-50';
   container.setAttribute('role', 'main');
-
+  
   container.innerHTML = `
     <div class="max-w-md w-full bg-white rounded-lg shadow-sm p-8 text-center">
       <div class="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center" role="img" aria-label="Success">
@@ -54,21 +54,21 @@ export function renderVerificationPending(email, { onResend, onContinue }) {
   const resendBtn = container.querySelector('#resend-btn');
   const cooldownText = container.querySelector('#cooldown-text');
   const continueBtn = container.querySelector('#continue-btn');
-
+  
   let cooldown = COOLDOWN_SECONDS;
   let resendAttempts = 0;
 
   // Countdown timer
   const interval = setInterval(() => {
     cooldown--;
-
+    
     // Update every second visually, but only announce every 10 seconds for a11y
     if (cooldown % 10 === 0 || cooldown <= 10) {
       cooldownEl.textContent = cooldown;
     } else {
       cooldownEl.textContent = cooldown;
     }
-
+    
     if (cooldown <= 0) {
       clearInterval(interval);
       resendBtn.disabled = false;
@@ -81,26 +81,26 @@ export function renderVerificationPending(email, { onResend, onContinue }) {
   // Resend button handler
   resendBtn.addEventListener('click', async () => {
     if (resendBtn.disabled) return;
-
+    
     resendBtn.disabled = true;
     resendBtn.innerHTML = '<span class="spinner"></span> Sending...';
-
+    
     try {
       await onResend();
-
+      
       // Success - restart cooldown
       cooldown = COOLDOWN_SECONDS;
       cooldownText.style.display = '';
       resendBtn.textContent = 'Resend email';
       resendAttempts++;
-
+      
       // Show success toast (caller handles toast)
     } catch (err) {
       // Error - re-enable button for retry
       resendBtn.disabled = false;
       resendBtn.textContent = 'Resend email';
       cooldownText.style.display = 'none';
-
+      
       // Show error toast (caller handles toast)
       throw err;
     }
@@ -135,12 +135,12 @@ export function renderVerificationPendingWithApi(email, { apiFetch, showToast })
         method: 'POST',
         body: JSON.stringify({ email }),
       });
-
+      
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to resend verification email');
       }
-
+      
       showToast('Email sent! Check your inbox.', 'success');
     },
     onContinue: () => {

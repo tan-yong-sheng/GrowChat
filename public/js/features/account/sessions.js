@@ -15,7 +15,7 @@ function escapeHtml(value) {
 
 function formatRelativeTime(timestamp) {
   if (!timestamp) return 'Unknown';
-  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+  const seconds = Math.floor((Date.now() / 1000) - timestamp);
   if (seconds < 60) return 'Just now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
@@ -126,8 +126,7 @@ export function renderSessionsList(sessions, { onRevoke, onRevokeAll }) {
 
       if (confirm(`Are you sure you want to revoke the session from "${deviceName}"?`)) {
         btn.disabled = true;
-        btn.innerHTML =
-          '<span class="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full"></span>';
+        btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full"></span>';
 
         try {
           await onRevoke(sessionId);
@@ -160,10 +159,7 @@ export function renderSessionsList(sessions, { onRevoke, onRevokeAll }) {
               const heading = container.querySelector('#other-sessions-heading');
               const countMatch = heading?.textContent?.match(/\(\d+\)/);
               if (countMatch && heading) {
-                heading.textContent = heading.textContent.replace(
-                  /\(\d+\)/,
-                  `(${remainingCards.length})`
-                );
+                heading.textContent = heading.textContent.replace(/\(\d+\)/, `(${remainingCards.length})`);
               }
             }
           }, 300);
@@ -182,8 +178,7 @@ export function renderSessionsList(sessions, { onRevoke, onRevokeAll }) {
       const count = sessionList.length;
       if (confirm(`Are you sure you want to revoke all ${count} sessions shown here?`)) {
         revokeAllBtn.disabled = true;
-        revokeAllBtn.innerHTML =
-          '<span class="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></span> Revoking...';
+        revokeAllBtn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></span> Revoking...';
 
         try {
           await onRevokeAll();
@@ -252,16 +247,14 @@ export async function renderSessionsSection({ apiFetch, showToast }) {
         showToast('Session revoked', 'success');
       },
       onRevokeAll: async () => {
-        const sessions = data.sessions || [];
-        await Promise.all(
-          sessions.map(async (session) => {
-            const res = await apiFetch(`/api/user/sessions/${session.id}`, { method: 'DELETE' });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.error || `Failed to revoke session ${session.id}`);
-            }
-          })
-        );
+        const sessions = (data.sessions || []);
+        await Promise.all(sessions.map(async (session) => {
+          const res = await apiFetch(`/api/user/sessions/${session.id}`, { method: 'DELETE' });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Failed to revoke session ${session.id}`);
+          }
+        }));
         data.sessions = [];
         showToast('All sessions revoked', 'success');
       },

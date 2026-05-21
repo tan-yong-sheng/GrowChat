@@ -967,9 +967,7 @@ function wireChat(root) {
   bindToolServersInvalidationListener();
   checkToolServersInvalidation();
   const modelSelectorContainer = root.querySelector('#model-selector-container');
-  const destroyModelSelector = modelSelectorContainer
-    ? renderModelSelector(modelSelectorContainer)
-    : null;
+  const destroyModelSelector = modelSelectorContainer ? renderModelSelector(modelSelectorContainer) : null;
   let toolServersWarmupTriggered = false;
   const warmupToolServers = () => {
     if (toolServersWarmupTriggered) return;
