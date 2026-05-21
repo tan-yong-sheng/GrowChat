@@ -63,5 +63,3 @@ const noConsoleLoggingRule = {
 };
 
 module.exports = noConsoleLoggingRule;
-
-// enforce structured logging - see docs/backend/infra/logging.md
