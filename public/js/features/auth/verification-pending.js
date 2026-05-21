@@ -62,11 +62,13 @@ export function renderVerificationPending(email, { onResend, onContinue }) {
   const interval = setInterval(() => {
     cooldown--;
 
-    // Update every second visually, but only announce every 10 seconds for a11y
-    if (cooldown % 10 === 0 || cooldown <= 10) {
-      cooldownEl.textContent = cooldown;
+    // Always update visually; only trigger aria-live announcements every
+    // 10 seconds (or when near zero) to avoid screen reader spam
+    cooldownEl.textContent = cooldown;
+    if (cooldown % 10 !== 0 && cooldown > 10) {
+      cooldownEl.parentElement?.removeAttribute('aria-live');
     } else {
-      cooldownEl.textContent = cooldown;
+      cooldownEl.parentElement?.setAttribute('aria-live', 'polite');
     }
 
     if (cooldown <= 0) {
