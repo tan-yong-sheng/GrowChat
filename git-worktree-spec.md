@@ -4,13 +4,13 @@
 
 ## Branch Info
 
-| Item            | Value                                            |
-| --------------- | ------------------------------------------------ |
-| Branch name     | `feature/admin-dashboard`                        |
-| Based on branch | `main` (ea8d80f3)                                |
-| Worktree path   | `.worktrees/dashboard` |
-| Created at      | 2026-05-19                                       |
-| GitHub Issue    | #35                                              |
+| Item            | Value                     |
+| --------------- | ------------------------- |
+| Branch name     | `feature/admin-dashboard` |
+| Based on branch | `main` (ea8d80f3)         |
+| Worktree path   | `.worktrees/dashboard`    |
+| Created at      | 2026-05-19                |
+| GitHub Issue    | #35                       |
 
 ## Goal
 
