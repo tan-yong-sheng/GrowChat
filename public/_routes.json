@@ -8,6 +8,7 @@
     "/logo.png",
     "/styles.css",
     "/js/*",
-    "/.well-known/*"
+    "/.well-known/*",
+    "/landing.html"
   ]
 }
