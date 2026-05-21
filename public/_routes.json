@@ -1,13 +1,12 @@
 {
   "version": 1,
-  "include": [
-    "/*"
-  ],
+  "include": ["/*"],
   "exclude": [
     "/favicon.png",
     "/logo.png",
     "/styles.css",
     "/js/*",
-    "/.well-known/*"
+    "/.well-known/*",
+    "/landing.html"
   ]
 }
