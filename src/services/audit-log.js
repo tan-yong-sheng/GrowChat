@@ -33,7 +33,17 @@ export async function logAuditEvent({
       `INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, ip_address, user_agent, details, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .bind(id, userId, action, resourceType, resourceId, ipAddress, userAgent, details ? JSON.stringify(details) : null, createdAt)
+    .bind(
+      id,
+      userId,
+      action,
+      resourceType,
+      resourceId,
+      ipAddress,
+      userAgent,
+      details ? JSON.stringify(details) : null,
+      createdAt
+    )
     .run();
 }
 

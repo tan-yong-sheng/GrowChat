@@ -15,28 +15,28 @@
  * @returns {Response|null} - Returns 403 response if origin not allowed, null if allowed
  */
 export function validateOrigin(req, env) {
-	const origin = req.headers.get("Origin");
+  const origin = req.headers.get('Origin');
 
-	// Allow requests without Origin header (same-origin requests, mobile apps, curl, etc.)
-	if (!origin) return null;
+  // Allow requests without Origin header (same-origin requests, mobile apps, curl, etc.)
+  if (!origin) return null;
 
-	const allowedOrigins = (env.ALLOWED_ORIGINS || "")
-		.split(",")
-		.map((o) => o.trim())
-		.filter(Boolean);
+  const allowedOrigins = (env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
 
-	// If no allowed origins configured, allow all (development mode)
-	if (allowedOrigins.length === 0) return null;
+  // If no allowed origins configured, allow all (development mode)
+  if (allowedOrigins.length === 0) return null;
 
-	// Wildcard means allow any origin.
-	if (allowedOrigins.includes("*")) return null;
+  // Wildcard means allow any origin.
+  if (allowedOrigins.includes('*')) return null;
 
-	// Check if origin is in allowed list
-	if (allowedOrigins.includes(origin)) return null;
+  // Check if origin is in allowed list
+  if (allowedOrigins.includes(origin)) return null;
 
-	// Origin not allowed - return 403
-	return new Response("Origin not allowed", {
-		status: 403,
-		headers: { "Content-Type": "text/plain" },
-	});
+  // Origin not allowed - return 403
+  return new Response('Origin not allowed', {
+    status: 403,
+    headers: { 'Content-Type': 'text/plain' },
+  });
 }

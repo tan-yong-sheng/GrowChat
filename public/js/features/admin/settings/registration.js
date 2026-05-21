@@ -1,6 +1,5 @@
 import { apiFetch } from '../../../shared/api.js';
 
-
 export function renderRegistrationSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'registration';
 

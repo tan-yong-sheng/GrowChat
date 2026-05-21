@@ -42,7 +42,11 @@ describe('Message Editing', () => {
         })),
       });
 
-      const result = await editMessage({ messageId: 'nonexistent', content: 'New content', userId: 'user-1' });
+      const result = await editMessage({
+        messageId: 'nonexistent',
+        content: 'New content',
+        userId: 'user-1',
+      });
       expect(result.status).toBe(404);
     });
 
@@ -58,7 +62,11 @@ describe('Message Editing', () => {
         })),
       });
 
-      const result = await editMessage({ messageId: 'msg-1', content: 'New content', userId: 'user-1' });
+      const result = await editMessage({
+        messageId: 'msg-1',
+        content: 'New content',
+        userId: 'user-1',
+      });
       expect(result.status).toBe(403);
     });
 
@@ -83,7 +91,11 @@ describe('Message Editing', () => {
         };
       });
 
-      const result = await editMessage({ messageId: 'msg-1', content: 'New content', userId: 'user-1' });
+      const result = await editMessage({
+        messageId: 'msg-1',
+        content: 'New content',
+        userId: 'user-1',
+      });
       expect(result.status).toBe(200);
       const body = await result.json();
       expect(body.message).toHaveProperty('id', 'msg-1');
