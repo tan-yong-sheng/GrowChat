@@ -101,6 +101,9 @@ function renderWeeklyTable(weekly = []) {
  * Fetch usage data and render the admin overview dashboard.
  */
 export async function renderUsageOverview(container) {
+  const renderId = String(Date.now());
+  container.dataset.usageRenderId = renderId;
+
   container.innerHTML = `
     <div class="flex flex-col min-h-0 animate-in fade-in duration-150 w-full">
       <div class="pt-0.5 pb-2.5 flex justify-between items-center bg-white">
@@ -117,6 +120,7 @@ export async function renderUsageOverview(container) {
   try {
     data = await fetchAdminUsage();
   } catch (err) {
+    if (container.dataset.usageRenderId !== renderId) return;
     container.innerHTML = `
       <div class="flex flex-col min-h-0 animate-in fade-in duration-150 w-full">
         <div class="pt-0.5 pb-2.5 flex justify-between items-center bg-white">
@@ -134,6 +138,7 @@ export async function renderUsageOverview(container) {
     return;
   }
 
+  if (container.dataset.usageRenderId !== renderId) return;
   const { users = {}, messages = {}, sparks = {} } = data;
 
   // Compute trends

@@ -1895,8 +1895,10 @@ export async function adminRouter(req, env, ctx, user, path) {
       const now = Math.floor(Date.now() / 1000);
       const sevenDaysAgo = now - 7 * 86400;
       const thirtyDaysAgo = now - 30 * 86400;
+      const fourWeeksAgo = now - 28 * 86400;
       const fourteenDaysAgo = now - 14 * 86400;
       const sixtyDaysAgo = now - 60 * 86400;
+      const eightWeeksAgo = now - 56 * 86400;
 
       // Batch all 12 queries into a single DB round-trip for performance
       const batchResults = await db.batch([
@@ -1926,7 +1928,7 @@ export async function adminRouter(req, env, ctx, user, path) {
           .prepare(
             "SELECT strftime('%Y-W%W', created_at, 'unixepoch') as week, COUNT(*) as count FROM messages WHERE created_at >= ? GROUP BY week ORDER BY week ASC"
           )
-          .bind(thirtyDaysAgo),
+          .bind(fourWeeksAgo),
         db
           .prepare(
             'SELECT COUNT(*) as count FROM messages WHERE created_at >= ? AND created_at < ?'
@@ -1936,7 +1938,7 @@ export async function adminRouter(req, env, ctx, user, path) {
           .prepare(
             'SELECT COUNT(*) as count FROM messages WHERE created_at >= ? AND created_at < ?'
           )
-          .bind(sixtyDaysAgo, thirtyDaysAgo),
+          .bind(eightWeeksAgo, fourWeeksAgo),
         db
           .prepare('SELECT COUNT(*) as count FROM messages WHERE role = ? AND created_at >= ?')
           .bind('assistant', thirtyDaysAgo),

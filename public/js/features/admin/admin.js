@@ -27,6 +27,7 @@ const loadAdminAuditLogsModule = () => import('./audit-logs.js');
 const loadAdminUsersRolesModule = () => import('./users/roles.js');
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
+import { escapeHtml } from '../../shared/utils.js';
 import {
   getAdminSubnavPath,
   getAdminTopNavPath,
@@ -418,7 +419,8 @@ export async function renderAdminPage(container) {
             subContentEl.appendChild(el);
           })
           .catch((err) => {
-            subContentEl.innerHTML = `<div class="p-8 text-center text-red-500">Failed to load audit logs: ${err.message}</div>`;
+            const safeMessage = escapeHtml(err?.message || 'Unknown error');
+            subContentEl.innerHTML = `<div class="p-8 text-center text-red-500">Failed to load audit logs: ${safeMessage}</div>`;
           });
       } else {
         subContentEl.innerHTML = `

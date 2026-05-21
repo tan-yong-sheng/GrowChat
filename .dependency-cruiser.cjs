@@ -62,6 +62,11 @@ module.exports = {
         'Admin features must live under /users/, /settings/, or /system/ — not as new top-level tabs',
       severity: 'error',
       from: {
+        // NOTE: This regex only catches disallowed *directories* (e.g. admin/foo/)
+        // because top-level .js files (admin-layout.js, admin.js, acl-modal.js)
+        // are shared infrastructure, not feature tabs. A new tab always creates
+        // a subdirectory, so matching dirs-only is sufficient and avoids false
+        // positives on shared helper modules.
         path: '^public/js/features/admin/(?!users/|settings/|system/)([^/]+/)',
       },
       to: {},

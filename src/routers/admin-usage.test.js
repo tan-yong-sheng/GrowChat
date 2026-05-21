@@ -226,8 +226,10 @@ describe('adminRouter GET /api/admin/usage', () => {
 
   it('returns 500 when database queries fail', async () => {
     const db = {
-      prepare: vi.fn(),
-      batch: vi.fn(() => {
+      prepare: vi.fn(() => ({
+        bind: vi.fn(() => ({})),
+      })),
+      batch: vi.fn(async () => {
         throw new Error('Database error');
       }),
     };
