@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 test.describe('Accessibility audit', () => {
   test('should not have any automatically detectable accessibility issues on home page', async ({
@@ -6,11 +7,14 @@ test.describe('Accessibility audit', () => {
   }) => {
     await page.goto('/');
 
-    // Dynamic import required due to CJS/ESM interop type mismatch
-    // (AxeBuilder is a constructor at runtime but TS can't resolve the construct signature)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { AxeBuilder } = require('@axe-core/playwright') as typeof import('@axe-core/playwright');
-    const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
+    // AxeBuilder is exported as both named and default (CJS/ESM dual export).
+    // TypeScript cannot resolve the construct signature from .d.ts under
+    // NodeNext moduleResolution, but the default import is the class at runtime.
+    const Builder = AxeBuilder as unknown as new (opts: {
+      page: import('playwright-core').Page;
+    }) => { analyze: () => Promise<{ violations: unknown[] }> };
+
+    const accessibilityScanResults = await new Builder({ page }).analyze();
 
     expect(accessibilityScanResults.violations).toEqual([]);
   });
