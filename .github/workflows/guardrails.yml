@@ -1,4 +1,5 @@
 name: Main branch gate
+
 on:
   pull_request:
   push:
@@ -49,10 +50,56 @@ jobs:
         run: |
           docker run --rm -v $PWD:/path ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --no-git --verbose
 
+      # Tier 1 + Tier 2 guardrails (unit tests, typecheck, eslint incl. complexity,
+      # semgrep, jscpd dupe budgets, depcruise circular deps, prettier, knip hygiene)
       - name: Pre-push gate
         run: pnpm run prepush
 
+      # Tier 2: Vitest coverage thresholds (80% lines/branches/functions/statements)
+      - name: Coverage threshold check
+        run: pnpm run test:coverage
+
+      # Tier 2: danger.js PR semantic checks
       - name: Run Danger
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm exec danger ci
+
+  # Tier 2: E2E accessibility gate (axe-core)
+  e2e-accessibility:
+    name: E2E accessibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build CSS
+        run: pnpm run build:css
+
+      - name: Start dev server
+        run: pnpm run dev:db && pnpm exec wrangler dev --port 8787 &
+        env:
+          CLOUDFLARE_ENV: development
+
+      - name: Wait for dev server
+        run: npx wait-on http://localhost:8787 --timeout 30000
+
+      - name: Run accessibility tests
+        run: pnpm exec playwright test tests/e2e/frontend/accessibility.spec.ts
+        env:
+          TEST_URL: http://localhost:8787
