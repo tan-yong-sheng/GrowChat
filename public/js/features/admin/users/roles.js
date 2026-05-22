@@ -6,6 +6,7 @@ import {
 } from '../../../shared/api.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
+import { renderButton } from '../../../shared/components/button.js';
 
 const ROLE_PRESETS = [
   {
@@ -220,7 +221,7 @@ function renderErrorState(message) {
       <div class="max-w-sm">
         <div class="text-sm font-semibold text-red-700">Unable to load roles</div>
         <div class="mt-1 text-sm text-red-600">${escapeHtml(message || 'Please try again.')}</div>
-        <button type="button" data-role-retry class="mt-3 rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">Retry</button>
+        ${renderButton({ label: 'Retry', variant: 'secondary', className: 'mt-3 px-3 py-1 text-xs text-red-700 border-red-200 hover:bg-red-50 focus:ring-red-500', dataAttrs: { 'role-retry': '' } })}
       </div>
     </div>
   `;
@@ -273,16 +274,10 @@ function createModalShell({ title, subtitle, showDelete = false } = {}) {
     footer: `
       <div class="text-[9px] text-gray-700 leading-tight" data-modal-note></div>
       <div class="flex items-center gap-1.5">
-        ${showDelete ? '<button type="button" class="rounded-full border border-red-200 bg-white px-2 py-0.75 text-[9px] font-semibold text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition" data-role-modal-delete>Delete</button>' : ''}
-        <button type="button" class="rounded-full border border-gray-200 px-2 py-0.75 text-[9px] font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" data-modal-discard>
-          Discard
-        </button>
-        <button type="button" class="rounded-full border border-gray-200 px-2 py-0.75 text-[9px] font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition" data-modal-reset>
-          Restore defaults
-        </button>
-        <button type="button" class="rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" data-role-save>
-          Save
-        </button>
+        ${showDelete ? renderButton({ label: 'Delete', variant: 'secondary', className: 'px-2 py-0.75 text-[9px] text-red-600 border-red-200 hover:bg-red-50 focus:ring-red-500', dataAttrs: { 'role-modal-delete': '' } }) : ''}
+        ${renderButton({ label: 'Discard', variant: 'secondary', className: 'px-2 py-0.75 text-[9px]', dataAttrs: { 'modal-discard': '' } })}
+        ${renderButton({ label: 'Restore defaults', variant: 'secondary', className: 'px-2 py-0.75 text-[9px]', dataAttrs: { 'modal-reset': '' } })}
+        ${renderButton({ label: 'Save', variant: 'primary', className: 'px-2.5 py-0.75 text-[9px]', dataAttrs: { 'role-save': '' } })}
       </div>
     `,
     closeAttr: 'data-modal-close',
@@ -843,10 +838,7 @@ export function renderRolesPage(container, data = {}) {
             <div class="text-lg font-medium text-gray-500">${roleCount}</div>
           </div>
           <div class="flex items-center justify-end gap-1.5 shrink-0">
-            <button class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-900 transition-all hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-semibold text-xs flex items-center justify-center shadow-sm" id="create-role-btn">
-              <span class="mr-2 text-sm">+</span>
-              <span>New Role</span>
-            </button>
+            ${renderButton({ label: '+ New Role', variant: 'secondary', id: 'create-role-btn', className: 'px-3 py-1.5 text-xs shadow-sm' })}
           </div>
         </div>
       </div>

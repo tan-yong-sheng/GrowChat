@@ -1,5 +1,4 @@
 import { state, setState, subscribe } from '../../shared/store.js';
-import { showToastProgress } from '../../shared/utils.js';
 import {
   filterEnabledModels,
   getPreferredModelId,
@@ -10,7 +9,6 @@ import {
   getModelAvailabilityFallbackNotice,
   getModelSelectorAvailabilitySummary,
   getModelSelectorDerivedState,
-  persistDefaultModelSelection,
   renderModelSelectorOption,
 } from './model-selector-helpers.js';
 
@@ -379,7 +377,7 @@ export function createModelSelectorController(container) {
 
     // Model name no longer shown in button - just "Model" text
 
-    const isDefaultModel = Boolean(
+    const _isDefaultModel = Boolean(
       preferredModelId && currentState.defaultModelId === preferredModelId
     );
 

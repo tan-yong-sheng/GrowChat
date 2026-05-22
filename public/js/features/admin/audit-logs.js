@@ -98,7 +98,9 @@ function renderAuditTable(logs) {
         </tr>
       </thead>
       <tbody>
-        ${logs.map(log => `
+        ${logs
+          .map(
+            (log) => `
           <tr class="border-b hover:bg-gray-50 transition-colors">
             <td class="p-3 text-sm text-gray-600 whitespace-nowrap">${formatTimestamp(log.created_at)}</td>
             <td class="p-3 text-sm text-gray-900">${escapeHtml(log.user_email || log.user_id || 'System')}</td>
@@ -113,7 +115,9 @@ function renderAuditTable(logs) {
             </td>
             <td class="p-3 text-sm text-gray-500 font-mono">${escapeHtml(log.ip_address || '—')}</td>
           </tr>
-        `).join('')}
+        `
+          )
+          .join('')}
       </tbody>
     </table>
   `;
@@ -251,10 +255,14 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
 
           // Add pagination if we have more than limit
           if (data.logs.length === limit || page > 1) {
-            const paginationEl = renderPagination(page, Math.ceil(data.total / limit) || 1, async (newPage) => {
-              page = newPage;
-              await refreshContent();
-            });
+            const paginationEl = renderPagination(
+              page,
+              Math.ceil(data.total / limit) || 1,
+              async (newPage) => {
+                page = newPage;
+                await refreshContent();
+              }
+            );
             contentEl.appendChild(paginationEl);
           }
         }
@@ -309,14 +317,18 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
           contentEl.innerHTML = renderAuditTable(data.logs);
 
           if (data.logs.length === limit || page > 1) {
-            const paginationEl = renderPagination(page, Math.ceil(data.total / limit) || 1, async (newPage) => {
-              page = newPage;
-              await refreshContent();
-            });
+            const paginationEl = renderPagination(
+              page,
+              Math.ceil(data.total / limit) || 1,
+              async (newPage) => {
+                page = newPage;
+                await refreshContent();
+              }
+            );
             contentEl.appendChild(paginationEl);
           }
         }
-      } catch (err) {
+      } catch {
         if (contentEl) {
           contentEl.innerHTML = `
             <div class="error-state text-center py-8 bg-red-50 rounded-lg">
@@ -345,8 +357,16 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
  * @returns {string} CSV content
  */
 function generateCsv(logs) {
-  const headers = ['Timestamp', 'User', 'Action', 'Resource Type', 'Resource ID', 'IP Address', 'Details'];
-  const rows = logs.map(log => [
+  const headers = [
+    'Timestamp',
+    'User',
+    'Action',
+    'Resource Type',
+    'Resource ID',
+    'IP Address',
+    'Details',
+  ];
+  const rows = logs.map((log) => [
     formatTimestamp(log.created_at),
     log.user_email || log.user_id || 'System',
     log.action,
@@ -358,7 +378,7 @@ function generateCsv(logs) {
 
   return [
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
   ].join('\n');
 }
 

@@ -112,7 +112,7 @@ export async function revokeSession({ sessionId, userId, kv }) {
   let session;
   try {
     session = JSON.parse(sessionData);
-  } catch (e) {
+  } catch {
     // Treat parse failure as corrupted data
     return Response.json({ error: 'Session data corrupted' }, { status: 410 });
   }

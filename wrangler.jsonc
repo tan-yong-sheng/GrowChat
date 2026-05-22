@@ -13,6 +13,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
+    "run_worker_first": true,
   },
   // Cloudflare AI/Vectorize bindings removed (OpenAI-compatible only)
   // D1 database for users/chats/messages
