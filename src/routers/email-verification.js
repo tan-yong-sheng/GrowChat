@@ -41,7 +41,7 @@ const VERIFICATION_TOKEN_EXPIRY_SECONDS = 24 * 60 * 60; // 24 hours
  * @param {D1Database} params.db - Database instance (optional, uses default)
  * @returns {Promise<Response>}
  */
-export async function verifyEmail({ token, env, logger = createLogger(env) }) {
+export async function verifyEmail({ token, env, _logger = createLogger(env) }) {
   const db = env?.DB ? createDB(env.DB) : null;
   if (!db) {
     return Response.json({ error: 'Database unavailable' }, { status: 500 });

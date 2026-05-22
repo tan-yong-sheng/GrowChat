@@ -75,7 +75,7 @@ function getModelAttachmentCapsEntry(caps, modelId) {
   return applyAttachmentDefaults(attachments);
 }
 
-async function ensureModelAccessTable(db, logger = rootLogger) {
+async function ensureModelAccessTable(db, _logger = rootLogger) {
   try {
     await db.run(
       `CREATE TABLE IF NOT EXISTS model_access (
@@ -238,7 +238,7 @@ function pruneExpiredConnectionDiscoveryCache(cache, now = Date.now()) {
   }
 }
 
-async function fetchBaseModelsFromOpenAI(env, connections = [], logger = rootLogger) {
+async function fetchBaseModelsFromOpenAI(env, connections = [], _logger = rootLogger) {
   const allowedFromEnv = splitModelList(env.OPENAI_MODELS || env.OPENAI_API_MODELS);
   const allowSet = allowedFromEnv.length > 0 ? new Set(allowedFromEnv) : null;
   const discovered = [];

@@ -89,7 +89,7 @@ async function resolveRequestedRole(db, requestedRole) {
   return ['member', 'admin'].includes(fallbackRole) ? fallbackRole : null;
 }
 
-async function syncGlobalRoleBinding(db, userId, role, accountStatus, logger = rootLogger) {
+async function syncGlobalRoleBinding(db, userId, role, accountStatus, _logger = rootLogger) {
   try {
     await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
 
@@ -112,7 +112,7 @@ async function syncGlobalRoleBinding(db, userId, role, accountStatus, logger = r
   }
 }
 
-async function loadModelEnabledMap(db, logger = rootLogger) {
+async function loadModelEnabledMap(db, _logger = rootLogger) {
   try {
     await db.run(
       `CREATE TABLE IF NOT EXISTS model_access (

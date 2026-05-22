@@ -288,6 +288,7 @@ module.exports = [
       'src/services/uploads.js',
       'src/services/workspace-settings.js',
       'src/utils/validation.js',
+      'src/utils/authorize.js',
     ],
     rules: {
       complexity: 'off',

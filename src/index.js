@@ -67,6 +67,7 @@ async function fetchHtmlAsset(env, req, pathname, logger) {
  * Returns null if the request should fall through to the default handler.
  */
 async function maybeServeLandingPage(req, env) {
+  const logger = createLogger(env);
   const url = new URL(req.url);
   // Browsers never send Authorization headers on page navigations, and GrowChat
   // uses Bearer-token auth (no session cookies), so server-side auth detection

@@ -177,7 +177,7 @@ function generateId(prefix) {
  * @param {Object} context - Optional context
  * @returns {Promise<boolean>} True if user has permission
  */
-export async function hasPermission(env, user, permission, context, logger = rootLogger) {
+export async function hasPermission(env, user, permission, context, _logger = rootLogger) {
   const decision = await authorize(env, user, {
     action: permission,
     context,
@@ -193,7 +193,7 @@ export async function hasPermission(env, user, permission, context, logger = roo
  * @param {Object} user - User object
  * @throws {Error} If permission denied
  */
-export async function requireAdmin(env, user, logger = rootLogger) {
+export async function requireAdmin(env, user, _logger = rootLogger) {
   const decision = await authorize(env, user, {
     action: 'admin.rbac.admin',
   });
@@ -249,7 +249,7 @@ export async function getRoleUserCount(env, roleName, excludeUserId, logger = ro
  * @param {string} roleName - Role name (e.g., 'admin')
  * @returns {Promise<boolean>} True if this is the last user with role
  */
-export async function isLastOwnerOfRole(env, userId, roleName, logger = rootLogger) {
+export async function isLastOwnerOfRole(env, userId, roleName, _logger = rootLogger) {
   const count = await getRoleUserCount(env, roleName, userId);
   return count === 0;
 }
