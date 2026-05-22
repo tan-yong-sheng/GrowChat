@@ -1,14 +1,7 @@
 {
-  "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": [
-    "src/index.js",
-    "public/js/bootstrap/app.js",
-    "public/index.html"
-  ],
-  "project": [
-    "src/**/*.js",
-    "public/js/**/*.js"
-  ],
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/index.js", "public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
+  "project": ["src/**/*.js", "public/js/**/*.js", "scripts/**/*.js", "tests/**/*.{js,ts}", "*.ts"],
   "ignoreDependencies": [
     "dompurify",
     "ecc-universal",
@@ -48,6 +41,12 @@
     "src/utils/admin.js",
     "src/utils/jwt-secret.js",
     "src/utils/rbac.js",
-    "src/utils/role-policy.js"
+    "src/utils/role-policy.js",
+    "tests/e2e/frontend/admin-test-helpers.ts",
+    "tests/e2e/playwright.config.ts",
+    "tests/rbac.integration.test.js",
+    "tests/rbac.test.js",
+    "tests/shared/playwright-global-setup.js",
+    "tests/shared/test-env.js"
   ]
 }

@@ -7,8 +7,6 @@ paths = [
   'tests/e2e/fixtures/.*',
   '\.claude/skills/api-design/SKILL\.md',
   'src/routers/auth\.test\.js',
-  'scripts/backend_smoke_matrix\.sh'
+  'scripts/backend_smoke_matrix\.sh',
+  'scripts/secret-scan\.cjs'
 ]
-
-[secrets]
-whitelist = ["scripts/secret-scan.cjs"]
