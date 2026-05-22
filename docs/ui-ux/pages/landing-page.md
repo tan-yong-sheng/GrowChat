@@ -4,11 +4,11 @@
 
 ## Route Logic
 
-| Condition | Served |
-|-----------|--------|
-| Unauthenticated `/` (no Authorization header) | `landing.html` |
-| Authenticated `/` (Authorization header) | SPA redirect via `landing.js` → `/index.html` |
-| API `/api/*` | Existing API routing (unchanged) |
+| Condition                                     | Served                                        |
+| --------------------------------------------- | --------------------------------------------- |
+| Unauthenticated `/` (no Authorization header) | `landing.html`                                |
+| Authenticated `/` (Authorization header)      | SPA redirect via `landing.js` → `/index.html` |
+| API `/api/*`                                  | Existing API routing (unchanged)              |
 
 ## Sections
 
@@ -36,11 +36,11 @@
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `public/landing.html` | Static marketing page |
-| `public/js/features/landing.js` | GitHub stars, smooth scroll, mobile nav, auth redirect |
-| `src/index.js` | Route handler (serves `landing.html` for unauthenticated `/`) |
+| File                            | Purpose                                                       |
+| ------------------------------- | ------------------------------------------------------------- |
+| `public/landing.html`           | Static marketing page                                         |
+| `public/js/features/landing.js` | GitHub stars, smooth scroll, mobile nav, auth redirect        |
+| `src/index.js`                  | Route handler (serves `landing.html` for unauthenticated `/`) |
 
 ## States
 

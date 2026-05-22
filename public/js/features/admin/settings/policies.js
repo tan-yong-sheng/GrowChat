@@ -3,8 +3,10 @@ import {
   broadcastModelsInvalidation,
   consumeModelsInvalidation,
 } from '../../../shared/utils/model-sync.js';
-import { consumeConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
-import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
+import {
+  consumeConnectionsInvalidation,
+  broadcastConnectionsInvalidation,
+} from '../../../shared/utils/connection-sync.js';
 import {
   broadcastToolServersInvalidation,
   consumeToolServersInvalidation,
@@ -145,41 +147,6 @@ function isActiveTab(container) {
       pathname.startsWith('/admin/settings/policies') ||
       pathname.startsWith('/admin/users/policies'))
   );
-}
-
-function summarizeRules(resource, groupId = '') {
-  const rules = Array.isArray(resource?.rules) ? resource.rules : [];
-  const normalizedGroup = String(groupId || '').trim();
-  if (normalizedGroup) {
-    const deny = rules.some(
-      (rule) =>
-        String(rule.effect || '').toLowerCase() === 'deny' &&
-        String(rule.principal_type || '').toLowerCase() === 'group' &&
-        String(rule.principal_id || '') === normalizedGroup
-    );
-    const allow = rules.some(
-      (rule) =>
-        String(rule.effect || '').toLowerCase() === 'allow' &&
-        String(rule.principal_type || '').toLowerCase() === 'group' &&
-        String(rule.principal_id || '') === normalizedGroup
-    );
-    if (deny && allow) return { label: 'Mixed', kind: 'none' };
-    if (deny) return { label: 'Denied', kind: 'none' };
-    if (allow) return { label: 'Allowed', kind: 'shared' };
-    return { label: 'No rule', kind: 'none' };
-  }
-
-  const allowCount = rules.filter(
-    (rule) => String(rule.effect || '').toLowerCase() === 'allow'
-  ).length;
-  const denyCount = rules.filter(
-    (rule) => String(rule.effect || '').toLowerCase() === 'deny'
-  ).length;
-  if (!allowCount && !denyCount) return { label: 'No rules', kind: 'none' };
-  if (allowCount && denyCount)
-    return { label: `${allowCount} allow, ${denyCount} deny`, kind: 'shared' };
-  if (denyCount) return { label: `${denyCount} deny`, kind: 'none' };
-  return { label: `${allowCount} allow`, kind: 'shared' };
 }
 
 function getResourceNote(resource, family) {
@@ -408,7 +375,7 @@ function renderResourceList({
   selectedIds = DEFAULT_SELECTION(),
   connectionRulesById = new Map(),
   onToggleSelection = null,
-  onEdit,
+  _onEdit,
 }) {
   return `
     <section class="space-y-2">
@@ -569,7 +536,7 @@ async function openAccessModal({
   resource,
   resources = null,
   groups,
-  selectedGroupId = '',
+  _selectedGroupId = '',
   resourceWarning = null,
   onSaved = null,
 }) {
@@ -738,7 +705,7 @@ async function openAccessModal({
   renderList();
 }
 
-export function renderPoliciesSettings(container, data = {}) {
+export function renderPoliciesSettings(container, _data = {}) {
   const initialParams = new URLSearchParams(window.location.search || '');
   const initialGroupId = String(initialParams.get('group') || 'all').trim() || 'all';
   const initialDeepLinkFamily = String(initialParams.get('family') || '').trim();
@@ -1022,29 +989,6 @@ export function renderPoliciesSettings(container, data = {}) {
       start,
       end: Math.min(start + pageSize, total),
     };
-  };
-
-  const openBulkEditorForFamily = async (familyKey) => {
-    const selectedIds = getSelectedSet(familyKey);
-    const resources = (state.resources[familyKey] || []).filter((resource) =>
-      selectedIds.has(resource.id)
-    );
-    if (!resources.length) return;
-    await openAccessModal({
-      familyKey,
-      resource: resources[0],
-      resources,
-      groups: state.groups,
-      selectedGroupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
-      onSaved: async (nextRules, targetResources) => {
-        await applyResourceRulesImmediate(
-          familyKey,
-          targetResources.map((item) => item.id),
-          nextRules
-        );
-        setSelectedSet(familyKey, []);
-      },
-    });
   };
 
   const openDeepLinkedAccessModal = async (familyKey) => {

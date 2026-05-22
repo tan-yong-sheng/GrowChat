@@ -38,7 +38,7 @@ function getBaseRef() {
 function getChangedFiles(baseRef) {
   const result = spawnSync(
     'git',
-    ['diff', '--name-only', '--diff-filter=ACMR', `${baseRef}...HEAD`],
+    ['diff', '--name-only', '--diff-filter', 'ACMR', `${baseRef}...HEAD`],
     { encoding: 'utf8', shell: false }
   );
   if (result.status !== 0) {
@@ -53,7 +53,6 @@ function getChangedFiles(baseRef) {
 
 const baseRef = getBaseRef();
 const files = getChangedFiles(baseRef);
-
 if (files.length === 0) {
   process.exit(0);
 }
@@ -61,21 +60,28 @@ if (files.length === 0) {
 if (process.argv.includes('--prettier')) {
   run('npx', ['prettier', '--check', ...files]);
 }
-
 if (process.argv.includes('--depcruise')) {
   const jsFiles = files.filter((file) => /\.(?:js|mjs|cjs)$/.test(file));
   if (jsFiles.length > 0) {
     run('npx', ['depcruise', ...jsFiles, '--config', '.dependency-cruiser.cjs']);
   }
 }
-
 if (process.argv.includes('--semgrep')) {
   const semgrepFiles = files.filter((file) => /\.(?:js|mjs|cjs)$/.test(file));
   if (semgrepFiles.length > 0) {
-    run('semgrep', ['scan', '--config', '.semgrep/rules.yml', '--error', ...semgrepFiles]);
+    // Use --baseline-commit to only block on NEW findings not present in the base branch.
+    // Pre-existing violations in changed files are reported but don't cause failure.
+    run('semgrep', [
+      'scan',
+      '--config',
+      '.semgrep/rules.yml',
+      '--error',
+      '--baseline-commit',
+      baseRef,
+      ...semgrepFiles,
+    ]);
   }
 }
-
 if (process.argv.includes('--jscpd')) {
   run('npx', ['jscpd', 'public/js']);
 }

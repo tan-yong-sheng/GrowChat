@@ -30,7 +30,7 @@ import {
   saveConnectionAclRulesForConnection,
 } from '../utils/connection-acl.js';
 import { normalizeProviderFamily } from '../llm/provider-registry.js';
-import { MCP_PROTOCOL_VERSION } from '../mcp/client.js';
+import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../mcp/client.js';
 import {
   buildAuthorizationUrl,
   discoverAuthorizationMetadata,
@@ -58,7 +58,6 @@ import {
   normalizeToolServerAclRule,
   saveToolServerAclRulesForToolServer,
 } from '../utils/tool-server-acl.js';
-import { mcpNotify, mcpRequest } from '../mcp/client.js';
 
 function isValidModelAccessId(value) {
   const id = String(value || '').trim();
@@ -931,7 +930,7 @@ export async function adminRouter(req, env, ctx, user, path) {
     }
 
     const key = String(body.key || '').trim();
-    let headers = {};
+    let headers;
     try {
       headers = parseHeadersForRequest(body.headers);
     } catch (err) {
@@ -1056,7 +1055,7 @@ export async function adminRouter(req, env, ctx, user, path) {
       return error(req, serverUrlSafety.reason, 400);
     }
 
-    let headers = {};
+    let headers;
     try {
       headers = parseHeadersForRequest(body.headers);
     } catch (err) {
@@ -1233,7 +1232,7 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     const redirectUri = new URL(req.url).origin + '/api/admin/tool-servers/oauth/callback';
 
-    let metadata = null;
+    let metadata;
     try {
       metadata = await discoverAuthorizationMetadata(authServerUrl);
     } catch {

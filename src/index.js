@@ -1,6 +1,3 @@
-/* eslint-disable boundaries/no-unknown-files */
-/* eslint-disable complexity */
-/* eslint-disable max-depth */
 import { validateOrigin } from './middleware/cors.js';
 import { API_ROUTES, isPublicRoute } from './bootstrap/router-registry.js';
 import {
