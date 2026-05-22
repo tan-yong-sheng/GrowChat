@@ -1,22 +1,5 @@
 {
-  "threshold": 4.5,
-  "thresholdBy": {
-    "public/js/features/chat": 12.5,
-    "public/js/features/admin": 5.5,
-    "public/js/features/account": 6.5,
-    "public/js/shared": 7.5,
-    "public/js": 4.5
-  },
-  "reporters": ["console", "json", "html"],
-  "ignore": [
-    "**/node_modules/**",
-    "**/coverage/**",
-    "**/*.test.js",
-    "**/*.spec.js",
-    "**/*.backup.*",
-    "**/*~",
-    "public/styles.css"
-  ],
-  "absolute": true,
-  "mode": "mild"
+  "reporters": ["html", "console", "json"],
+  "threshold": 0,
+  "ignore": ["**/node_modules/**", "**/dist/**", "**/coverage/**"]
 }

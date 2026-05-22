@@ -1,4 +1,4 @@
-import { danger, warn, fail } from 'danger';
+import { danger, warn } from 'danger';
 
 const pr = danger.github.pr;
 

@@ -24,6 +24,7 @@
 .bg-shell/
 .actrc
 git-worktree-spec.md
+CHANGELOG.md
 
 # ── E2E test artifacts (generated, not baselines) ──
 tests/e2e/artifacts/

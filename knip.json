@@ -13,11 +13,7 @@
     "postcss",
     "prettier-plugin-tailwindcss"
   ],
-  "ignoreBinaries": [
-    "dot",
-    "uv",
-    "semgrep"
-  ],
+  "ignoreBinaries": ["dot", "uv", "semgrep"],
   "ignoreFiles": [
     "public/js/features/admin/settings/security.js",
     "public/js/features/chat/keyboard-navigation.js",

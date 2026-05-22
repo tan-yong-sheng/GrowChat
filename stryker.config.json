@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Weekly mutation testing configuration",
+  "vitestRunner": {
+    "configFile": "vitest.config.js"
+  },
+  "testRunner": "vitest",
+  "reporters": ["html", "clear-text", "progress"],
+  "coverageAnalysis": "perTest",
+  "mutate": ["src/**/*.js"],
+  "ignoreStatic": true
+}

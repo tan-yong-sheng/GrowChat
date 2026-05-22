@@ -1,0 +1,11 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm run dev",
+      "url": ["http://localhost:8787"]
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
