@@ -46,3 +46,9 @@ jobs:
 
       - name: Pre-push gate
         run: pnpm run prepush
+
+      - name: Run Code Duplication Audit
+        run: pnpm run check:duplication
+
+      - name: Run Performance Regression Audit
+        run: pnpm run check:performance
