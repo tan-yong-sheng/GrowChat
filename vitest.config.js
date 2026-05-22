@@ -15,8 +15,14 @@ export default defineConfig({
     include: ['src/**/*.test.js', 'tests/unit/**/*.test.js'],
     exclude: ['tests/e2e/**', '.worktrees/**', 'node_modules/**', '.wrangler/**'],
     coverage: {
-      all: false,
+      all: true,
       provider: 'v8',
+      thresholds: {
+        lines: 80,
+        branches: 80,
+        functions: 80,
+        statements: 80,
+      },
       include: [
         'public/js/bootstrap/**/*.js',
         'public/js/features/chat/**/*.js',
