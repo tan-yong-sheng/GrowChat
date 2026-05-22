@@ -16,5 +16,10 @@ async function cleanupSnapshots(dir) {
   }
 }
 
-await cleanupSnapshots('./tests/e2e');
-console.log('Snapshot cleanup complete.');
+try {
+  await cleanupSnapshots('./tests/e2e');
+  console.log('Snapshot cleanup complete.');
+} catch (err) {
+  if (err.code !== 'ENOENT') throw err;
+  console.log('No snapshot directories found. Nothing to clean.');
+}

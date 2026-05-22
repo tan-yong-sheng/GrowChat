@@ -44,11 +44,17 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           pnpm run setup:semgrep
 
-      - name: Pre-push gate
+      - name: Run pre-push gate
         run: pnpm run prepush
 
-      - name: Run Code Duplication Audit
-        run: pnpm run check:duplication
+      - name: Run code duplication audit
+        run: pnpm exec jscpd src/ public/
 
-      - name: Run Performance Regression Audit
+      - name: Run performance regression audit
         run: pnpm run check:performance
+
+      - name: Run snapshot cleanup
+        run: pnpm run snapshots:clean
+
+      - name: Run migration validation
+        run: pnpm run validate:migrations
