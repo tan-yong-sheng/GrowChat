@@ -42,6 +42,7 @@ jobs:
       - name: Setup Semgrep
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
           pnpm run setup:semgrep
 
       - name: Setup Gitleaks
