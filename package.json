@@ -65,9 +65,11 @@
     "postcss": "^8.5.6",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.7.2",
+    "serve": "^14.2.6",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18",
+    "wait-on": "^9.0.10",
     "wrangler": "^4.75.0"
   },
   "commitlint": {

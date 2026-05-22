@@ -103,3 +103,4 @@ jobs:
         run: pnpm exec playwright test tests/e2e/frontend/accessibility.spec.ts
         env:
           TEST_URL: http://localhost:8787
+          PLAYWRIGHT_TEST_BASE_URL: http://localhost:8787
