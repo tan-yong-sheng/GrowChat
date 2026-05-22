@@ -47,8 +47,8 @@ jobs:
       - name: Run pre-push gate
         run: pnpm run prepush
 
-      - name: Run code duplication audit
-        run: pnpm exec jscpd src/ public/
+      - name: Run code duplication audit (budget-enforced)
+        run: pnpm run lint:dupes:budget
 
       - name: Run performance regression audit
         run: pnpm run check:performance

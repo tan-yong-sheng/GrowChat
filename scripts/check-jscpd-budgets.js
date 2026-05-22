@@ -24,7 +24,10 @@ const run =
         stdio: 'inherit',
         shell: false,
       });
-if (run.status !== 0) {
+if (run.status !== 0 && run.status !== 1) {
+  // jscpd exits with code 1 when duplicates exceed threshold — that's expected.
+  // Only propagate truly unexpected errors (e.g., missing config).
+  console.error(`jscpd exited with unexpected code ${run.status}`);
   process.exit(run.status ?? 1);
 }
 
