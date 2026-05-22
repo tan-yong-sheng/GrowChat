@@ -1,3 +1,6 @@
+import { createRootLogger } from './logger.js';
+const logger = createRootLogger({});
+
 const MISSING_TABLE_REGEX = /no such table:\s*connection_acl_rules/i;
 
 export function normalizeConnectionAclEffect(value) {
@@ -128,7 +131,7 @@ export async function ensureConnectionAclRulesTable(db) {
       'CREATE INDEX IF NOT EXISTS idx_connection_acl_rules_principal ON connection_acl_rules(principal_type, principal_id)'
     );
   } catch (err) {
-    console.warn('Failed to ensure connection_acl_rules table:', err?.message || err);
+    logger.warn('Failed to ensure connection_acl_rules table', { error: err?.message || err });
   }
 }
 

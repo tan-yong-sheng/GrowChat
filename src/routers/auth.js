@@ -12,6 +12,7 @@ import { ValidationError } from '../errors/http-errors.js';
 import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 import { createEmailService } from '../services/email/email-service.js';
 import { escapeHtml, stripHtml } from '../utils/sanitize.js';
+import { createLogger } from '../utils/logger.js';
 
 const PASSWORD_RESET_TTL_SECONDS = 3600;
 const PASSWORD_RESET_TTL_DISPLAY = '1 hour';
@@ -31,7 +32,7 @@ function isActiveAccount(user) {
   return normalizeAccountStatus(user.account_status) === 'active';
 }
 
-async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active') {
+async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active', logger = null) {
   if (!userId) return;
   if (normalizeAccountStatus(accountStatus) !== 'active') {
     try {
@@ -60,7 +61,7 @@ async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active')
   } catch (err) {
     // Temporary safety net: do not block auth when RBAC tables are not migrated yet.
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      console.warn('RBAC role binding skipped: run migrations/001_initial.sql');
+      (logger || console).warn('RBAC role binding skipped: run migrations/001_initial.sql');
       return;
     }
     throw err;
@@ -106,7 +107,9 @@ async function createAccessToken(secret, user, primaryRole) {
   );
 }
 
-export async function authRouter(req, env, _ctx, authUser, path) {
+export async function authRouter(req, env, _ctx, authUser, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const db = createDB(env.DB);
   const users = createUserRepository(db);
   let jwtSecret;
@@ -207,7 +210,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
         account_status: finalAccountStatus,
       };
     }
-    await ensureUserRoleBinding(db, id, finalRole, finalAccountStatus);
+    await ensureUserRoleBinding(db, id, finalRole, finalAccountStatus, logger);
     if (finalAccountStatus === 'pending') {
       return json(
         req,
@@ -273,7 +276,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     const user = await users.findByEmail(email);
     if (!user) return error(req, 'Invalid credentials', 401);
     const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
-    await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
+    await ensureUserRoleBinding(db, user.id, userRole, user.account_status, logger);
 
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
@@ -339,7 +342,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     const user = await users.findById(session.userId);
     if (!user) return error(req, 'User not found', 404);
     const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
-    await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
+    await ensureUserRoleBinding(db, user.id, userRole, user.account_status, logger);
     if (!isActiveAccount(user)) {
       return json(
         req,
@@ -545,7 +548,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
         html: emailHtml,
       });
     } catch (err) {
-      console.error('Failed to send password reset email:', err);
+      logger.error('Failed to send password reset email', { error: err?.message || err });
     }
 
     return json(req, {

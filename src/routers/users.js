@@ -56,6 +56,8 @@ import {
   toPersonalToolServerSummary,
 } from '../services/workspace-settings.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
+import { createLogger, createRootLogger } from '../utils/logger.js';
+const rootLogger = createRootLogger({});
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback)
@@ -87,7 +89,7 @@ async function resolveRequestedRole(db, requestedRole) {
   return ['member', 'admin'].includes(fallbackRole) ? fallbackRole : null;
 }
 
-async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
+async function syncGlobalRoleBinding(db, userId, role, accountStatus, _logger = rootLogger) {
   try {
     await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
 
@@ -103,14 +105,14 @@ async function syncGlobalRoleBinding(db, userId, role, accountStatus) {
     );
   } catch (err) {
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      console.warn('RBAC role binding skipped: run migrations/001_initial.sql');
+      rootLogger.warn('RBAC role binding skipped: run migrations/001_initial.sql');
       return;
     }
     throw err;
   }
 }
 
-async function loadModelEnabledMap(db) {
+async function loadModelEnabledMap(db, _logger = rootLogger) {
   try {
     await db.run(
       `CREATE TABLE IF NOT EXISTS model_access (
@@ -127,7 +129,7 @@ async function loadModelEnabledMap(db) {
       ])
     );
   } catch (err) {
-    console.warn('Failed to read model access map:', err?.message || err);
+    rootLogger.warn('Failed to read model access map', { error: err?.message || err });
     return new Map();
   }
 }
@@ -167,7 +169,9 @@ async function findUserToolServerByOauthState(db, state) {
   return null;
 }
 
-export async function usersRouter(req, env, _ctx, user, path) {
+export async function usersRouter(req, env, _ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const isUsersPath =
     path === '/api/users/me' ||
     path === '/api/users/me/update' ||
@@ -300,7 +304,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         my_connections: payload.my_connections,
       });
     } catch (err) {
-      console.error('Load user connections failed:', err);
+      logger.error('Load user connections failed', { error: err?.message || err });
       return error(req, 'Failed to load resources', 500);
     }
   }
@@ -459,14 +463,11 @@ export async function usersRouter(req, env, _ctx, user, path) {
       if (!discovery.items.length) {
         const upstreamMessage = discovery.error?.message || 'No models discovered';
         const upstreamStatus = discovery.error?.status;
-        console.warn(
-          'Connection test failed:',
-          JSON.stringify({
-            status: upstreamStatus,
-            url: discovery.error?.url,
-            message: upstreamMessage,
-          })
-        );
+        logger.warn('Connection test failed', {
+          status: upstreamStatus,
+          url: discovery.error?.url,
+          upstreamMessage,
+        });
         const safeReason = getConnectionTestFailureMessage(upstreamStatus);
         return error(req, 'Connection failed', 502, {
           message: safeReason,
@@ -510,7 +511,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       });
       return json(req, payload);
     } catch (err) {
-      console.error('Load user MCP servers failed:', err);
+      logger.error('Load user MCP servers failed', { error: err?.message || err });
       return error(req, 'Failed to load MCP servers', 500);
     }
   }
@@ -995,7 +996,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         offset,
       });
     } catch (err) {
-      console.error('List users failed:', err);
+      logger.error('List users failed', { error: err?.message || err });
       return error(req, 'Failed to list users', 500);
     }
   }
@@ -1042,7 +1043,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         sub: userId,
         role: primaryRole,
       });
-      const modelEnabledMap = await loadModelEnabledMap(db);
+      const modelEnabledMap = await loadModelEnabledMap(db, logger);
       const connectionEnabledMap = new Map(
         (
           await getAllOpenAIConnectionConfigs(env, {
@@ -1149,7 +1150,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         },
       });
     } catch (err) {
-      console.error('Inspect user access failed:', err);
+      logger.error('Inspect user access failed', { error: err?.message || err });
       return error(req, 'Failed to inspect user access', 500);
     }
   }
@@ -1219,7 +1220,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
       [id, email, passwordHash, name, accountStatus]
     );
 
-    await syncGlobalRoleBinding(db, id, role, accountStatus);
+    await syncGlobalRoleBinding(db, id, role, accountStatus, logger);
 
     const createdUser = await db.first(
       'SELECT id, email, name, account_status, settings, created_at, updated_at, last_active_at FROM users WHERE id = ?',
@@ -1360,7 +1361,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         ) VALUES (?, ?, ?, ?, ?, '{}', '{}', unixepoch(), unixepoch(), unixepoch())`,
         [id, email, passwordHash, name, accountStatus]
       );
-      await syncGlobalRoleBinding(db, id, role, accountStatus);
+      await syncGlobalRoleBinding(db, id, role, accountStatus, logger);
       results.push({
         row: rowNumber,
         ok: true,
@@ -1437,7 +1438,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         },
       });
     } catch (err) {
-      console.error('Get user failed:', err);
+      logger.error('Get user failed', { error: err?.message || err });
       return error(req, 'Failed to fetch user', 500);
     }
   }
@@ -1589,7 +1590,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
     try {
       await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
       if (oldRole !== newRole || oldAccountStatus !== newAccountStatus) {
-        await syncGlobalRoleBinding(db, userId, newRole, newAccountStatus);
+        await syncGlobalRoleBinding(db, userId, newRole, newAccountStatus, logger);
       }
 
       // Log audit event for role change
@@ -1636,7 +1637,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
         },
       });
     } catch (err) {
-      console.error('Update user failed:', err);
+      logger.error('Update user failed', { error: err?.message || err });
       return error(req, 'Failed to update user', 500);
     }
   }
@@ -1696,7 +1697,7 @@ export async function usersRouter(req, env, _ctx, user, path) {
 
       return json(req, { success: true, message: 'User deleted successfully' });
     } catch (err) {
-      console.error('Delete user failed:', err);
+      logger.error('Delete user failed', { error: err?.message || err });
       return error(req, 'Failed to delete user', 500);
     }
   }

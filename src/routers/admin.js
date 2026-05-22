@@ -52,6 +52,7 @@ import {
   sha256Base64Url,
 } from '../admin/tool-servers.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
+import { createLogger } from '../utils/logger.js';
 import {
   buildToolServerAclRuleSaveStatements,
   loadToolServerAclRules,
@@ -102,7 +103,9 @@ async function ensureAdminMutationAccess(env, user, permission, resource = 'admi
 /**
  * Admin Router Handler
  */
-export async function adminRouter(req, env, ctx, user, path) {
+export async function adminRouter(req, env, ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   if (!path.startsWith('/api/admin/')) return null;
 
   const requiredPermission = resolveAdminPermission(path, req.method);
@@ -137,7 +140,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         rules,
       });
     } catch (err) {
-      console.error('Load connection access failed:', err);
+      logger.error('Load connection access failed', { error: err?.message || err });
       return error(req, 'Failed to load connection access', 500);
     }
   }
@@ -220,19 +223,23 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       await db.batch(statements);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'connection_access_updated',
-        resource_type: 'connection',
-        resource_id: 'connection-access',
-        metadata: { updates: normalizedUpdates.length },
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'connection_access_updated',
+          resource_type: 'connection',
+          resource_id: 'connection-access',
+          metadata: { updates: normalizedUpdates.length },
+        },
+        logger
+      );
       return json(req, {
         ok: true,
         updates: normalizedUpdates,
       });
     } catch (err) {
-      console.error('Bulk connection access update failed:', err);
+      logger.error('Bulk connection access update failed', { error: err?.message || err });
       return error(req, 'Failed to update connection access', 500);
     }
   }
@@ -261,7 +268,7 @@ export async function adminRouter(req, env, ctx, user, path) {
           rules,
         });
       } catch (err) {
-        console.error('Load connection access failed:', err);
+        logger.error('Load connection access failed', { error: err?.message || err });
         return error(req, 'Failed to load connection access', 500);
       }
     }
@@ -320,20 +327,24 @@ export async function adminRouter(req, env, ctx, user, path) {
           filteredRules
         );
 
-        await logAuditEvent(env, {
-          actor_id: user.sub,
-          action: 'connection_access_updated',
-          resource_type: 'connection',
-          resource_id: connectionId,
-          metadata: {
-            rules: savedRules.map((rule) => ({
-              principal_type: rule.principal_type,
-              principal_id: rule.principal_id,
-              effect: rule.effect,
-              action: rule.action,
-            })),
+        await logAuditEvent(
+          env,
+          {
+            actor_id: user.sub,
+            action: 'connection_access_updated',
+            resource_type: 'connection',
+            resource_id: connectionId,
+            metadata: {
+              rules: savedRules.map((rule) => ({
+                principal_type: rule.principal_type,
+                principal_id: rule.principal_id,
+                effect: rule.effect,
+                action: rule.action,
+              })),
+            },
           },
-        });
+          logger
+        );
 
         return json(req, {
           connection_id: connectionId,
@@ -345,7 +356,7 @@ export async function adminRouter(req, env, ctx, user, path) {
           })),
         });
       } catch (err) {
-        console.error('Update connection access failed:', err);
+        logger.error('Update connection access failed', { error: err?.message || err });
         return error(req, 'Failed to update connection access', 500);
       }
     }
@@ -372,7 +383,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         rules,
       });
     } catch (err) {
-      console.error('Load tool server access failed:', err);
+      logger.error('Load tool server access failed', { error: err?.message || err });
       return error(req, 'Failed to load MCP server access', 500);
     }
   }
@@ -453,19 +464,23 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       await db.batch(statements);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'tool_server_access_updated',
-        resource_type: 'tool-server',
-        resource_id: 'tool-server-access',
-        metadata: { updates: normalizedUpdates.length },
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'tool_server_access_updated',
+          resource_type: 'tool-server',
+          resource_id: 'tool-server-access',
+          metadata: { updates: normalizedUpdates.length },
+        },
+        logger
+      );
       return json(req, {
         ok: true,
         updates: normalizedUpdates,
       });
     } catch (err) {
-      console.error('Bulk tool server access update failed:', err);
+      logger.error('Bulk tool server access update failed', { error: err?.message || err });
       return error(req, 'Failed to update MCP server access', 500);
     }
   }
@@ -494,7 +509,7 @@ export async function adminRouter(req, env, ctx, user, path) {
           rules,
         });
       } catch (err) {
-        console.error('Load tool server access failed:', err);
+        logger.error('Load tool server access failed', { error: err?.message || err });
         return error(req, 'Failed to load MCP server access', 500);
       }
     }
@@ -551,20 +566,24 @@ export async function adminRouter(req, env, ctx, user, path) {
           filteredRules
         );
 
-        await logAuditEvent(env, {
-          actor_id: user.sub,
-          action: 'tool_server_access_updated',
-          resource_type: 'tool-server',
-          resource_id: toolServerId,
-          metadata: {
-            rules: savedRules.map((rule) => ({
-              principal_type: rule.principal_type,
-              principal_id: rule.principal_id,
-              effect: rule.effect,
-              action: rule.action,
-            })),
+        await logAuditEvent(
+          env,
+          {
+            actor_id: user.sub,
+            action: 'tool_server_access_updated',
+            resource_type: 'tool-server',
+            resource_id: toolServerId,
+            metadata: {
+              rules: savedRules.map((rule) => ({
+                principal_type: rule.principal_type,
+                principal_id: rule.principal_id,
+                effect: rule.effect,
+                action: rule.action,
+              })),
+            },
           },
-        });
+          logger
+        );
 
         return json(req, {
           tool_server_id: toolServerId,
@@ -576,7 +595,7 @@ export async function adminRouter(req, env, ctx, user, path) {
           })),
         });
       } catch (err) {
-        console.error('Update tool server access failed:', err);
+        logger.error('Update tool server access failed', { error: err?.message || err });
         return error(req, 'Failed to update MCP server access', 500);
       }
     }
@@ -611,7 +630,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         total: result.total || mappedLogs.length,
       });
     } catch (err) {
-      console.error('Audit logs fetch failed:', err);
+      logger.error('Audit logs fetch failed', { error: err?.message || err });
       return error(req, 'Failed to fetch audit logs', 500);
     }
   }
@@ -639,7 +658,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         default_model_id: defaultModelId || null,
       });
     } catch (err) {
-      console.error('Admin config fetch failed:', err);
+      logger.error('Admin config fetch failed', { error: err?.message || err });
       return error(req, 'Failed to fetch admin config', 500);
     }
   }
@@ -710,12 +729,16 @@ export async function adminRouter(req, env, ctx, user, path) {
       if (hasDefaultModel) {
         await setConfigValue(db, 'default_model_id', normalizedDefaultModel);
       }
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'admin_config_updated',
-        resource_type: 'admin',
-        resource_id: 'config',
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'admin_config_updated',
+          resource_type: 'admin',
+          resource_id: 'config',
+        },
+        logger
+      );
       return json(req, {
         public_registration: hasPublicRegistration ? body.public_registration : undefined,
         public_registration_status: hasRegistrationStatus
@@ -724,7 +747,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         default_model_id: hasDefaultModel ? normalizedDefaultModel || null : undefined,
       });
     } catch (err) {
-      console.error('Admin config update failed:', err);
+      logger.error('Admin config update failed', { error: err?.message || err });
       return error(req, 'Failed to update admin config', 500);
     }
   }
@@ -747,7 +770,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         supported_types: ATTACHMENT_CAP_TYPES,
       });
     } catch (err) {
-      console.error('Attachment caps fetch failed:', err);
+      logger.error('Attachment caps fetch failed', { error: err?.message || err });
       return error(req, 'Failed to fetch attachment caps', 500);
     }
   }
@@ -789,12 +812,16 @@ export async function adminRouter(req, env, ctx, user, path) {
           };
         }
         await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(nextCaps));
-        await logAuditEvent(env, {
-          actor_id: user.sub,
-          action: 'attachment_caps_replaced',
-          resource_type: 'admin',
-          resource_id: 'model-attachment-caps',
-        });
+        await logAuditEvent(
+          env,
+          {
+            actor_id: user.sub,
+            action: 'attachment_caps_replaced',
+            resource_type: 'admin',
+            resource_id: 'model-attachment-caps',
+          },
+          logger
+        );
         return json(req, { caps: nextCaps });
       }
 
@@ -840,12 +867,16 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(caps));
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'attachment_caps_updated',
-        resource_type: 'admin',
-        resource_id: 'model-attachment-caps',
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'attachment_caps_updated',
+          resource_type: 'admin',
+          resource_id: 'model-attachment-caps',
+        },
+        logger
+      );
 
       return json(req, { caps });
     } catch (err) {
@@ -892,7 +923,7 @@ export async function adminRouter(req, env, ctx, user, path) {
           : manualConnections.filter((connection) => connection.enabled !== false),
       });
     } catch (err) {
-      console.error('OpenAI connections fetch failed:', err);
+      logger.error('OpenAI connections fetch failed', { error: err?.message || err });
       return error(req, 'Failed to fetch connections', 500);
     }
   }
@@ -974,14 +1005,11 @@ export async function adminRouter(req, env, ctx, user, path) {
       if (!discovery.items.length) {
         const upstreamMessage = discovery.error?.message || 'No models discovered';
         const upstreamStatus = discovery.error?.status;
-        console.warn(
-          'Connection test failed:',
-          JSON.stringify({
-            status: upstreamStatus,
-            url: discovery.error?.url,
-            message: upstreamMessage,
-          })
-        );
+        logger.warn('Connection test failed', {
+          status: upstreamStatus,
+          url: discovery.error?.url,
+          upstreamMessage,
+        });
         const safeReason = getConnectionTestFailureMessage(upstreamStatus);
         return error(req, 'Connection failed', 502, {
           message: safeReason,
@@ -1027,7 +1055,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         : servers.filter((server) => server.enabled !== false);
       return json(req, { servers: filtered.map(redactToolServer) });
     } catch (err) {
-      console.error('Tool servers fetch failed:', err);
+      logger.error('Tool servers fetch failed', { error: err?.message || err });
       return error(req, 'Failed to fetch tool servers', 500);
     }
   }
@@ -1177,7 +1205,9 @@ export async function adminRouter(req, env, ctx, user, path) {
             await saveToolServers(db, servers);
           }
         } catch (persistErr) {
-          console.warn('Failed to persist tool server error:', persistErr?.message || persistErr);
+          logger.warn('Failed to persist tool server error', {
+            error: persistErr?.message || persistErr,
+          });
         }
       }
       return error(req, 'Connection failed', 502, {
@@ -1441,15 +1471,19 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     try {
       await saveToolServers(db, sanitized);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'tool_servers_updated',
-        resource_type: 'admin',
-        resource_id: 'tool-servers',
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'tool_servers_updated',
+          resource_type: 'admin',
+          resource_id: 'tool-servers',
+        },
+        logger
+      );
       return json(req, { ok: true, servers: sanitized.map(redactToolServer) });
     } catch (err) {
-      console.error('Tool servers update failed:', err);
+      logger.error('Tool servers update failed', { error: err?.message || err });
       return error(req, 'Failed to update tool servers', 500);
     }
   }
@@ -1701,17 +1735,21 @@ export async function adminRouter(req, env, ctx, user, path) {
       }
 
       await db.batch(statements);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'openai_connections_updated',
-        resource_type: 'admin',
-        resource_id: 'openai-connections',
-        metadata: {
-          connections: sanitized.length,
-          model_updates: modelUpdates.length,
-          access_updates: normalizedAccessUpdates.length,
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'openai_connections_updated',
+          resource_type: 'admin',
+          resource_id: 'openai-connections',
+          metadata: {
+            connections: sanitized.length,
+            model_updates: modelUpdates.length,
+            access_updates: normalizedAccessUpdates.length,
+          },
         },
-      });
+        logger
+      );
       return json(req, {
         ok: true,
         model_updates: modelUpdates.length,
@@ -1726,7 +1764,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         })),
       });
     } catch (err) {
-      console.error('OpenAI connections update failed:', err);
+      logger.error('OpenAI connections update failed', { error: err?.message || err });
       return error(req, 'Failed to update connections', 500);
     }
   }
@@ -1740,7 +1778,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         resend_api_key_configured: !!resendApiKeyConfigured,
       });
     } catch (err) {
-      console.error('Email config fetch failed:', err);
+      logger.error('Email config fetch failed', { error: err?.message || err });
       return error(req, 'Failed to fetch email config', 500);
     }
   }
@@ -1775,17 +1813,21 @@ export async function adminRouter(req, env, ctx, user, path) {
 
     try {
       await setConfigValue(db, 'resend_api_key', apiKey);
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'email_config_updated',
-        resource_type: 'admin',
-        resource_id: 'email-config',
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'email_config_updated',
+          resource_type: 'admin',
+          resource_id: 'email-config',
+        },
+        logger
+      );
       return json(req, {
         message: 'Email configuration updated',
       });
     } catch (err) {
-      console.error('Email config update failed:', err);
+      logger.error('Email config update failed', { error: err?.message || err });
       return error(req, 'Failed to update email config', 500);
     }
   }
@@ -1831,23 +1873,31 @@ export async function adminRouter(req, env, ctx, user, path) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Resend API error:', errorData);
+        logger.error('Resend API error', {
+          status: response.status,
+          code: errorData.code || errorData.name,
+          message: errorData.message,
+        });
         return error(req, 'Failed to send test email', 400);
       }
 
-      await logAuditEvent(env, {
-        actor_id: user.sub,
-        action: 'email_config_test_sent',
-        resource_type: 'admin',
-        resource_id: 'email-config',
-        metadata: { test_email: testEmail },
-      });
+      await logAuditEvent(
+        env,
+        {
+          actor_id: user.sub,
+          action: 'email_config_test_sent',
+          resource_type: 'admin',
+          resource_id: 'email-config',
+          metadata: { test_email: testEmail },
+        },
+        logger
+      );
 
       return json(req, {
         message: 'Test email sent',
       });
     } catch (err) {
-      console.error('Email test failed:', err);
+      logger.error('Email test failed', { error: err?.message || err });
       return error(req, 'Failed to send test email', 500);
     }
   }
@@ -1883,7 +1933,7 @@ export async function adminRouter(req, env, ctx, user, path) {
         },
       });
     } catch (err) {
-      console.error('Security config fetch failed:', err);
+      logger.error('Security config fetch failed', { error: err?.message || err });
       return error(req, 'Failed to fetch security config', 500);
     }
   }

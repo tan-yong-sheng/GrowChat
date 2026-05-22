@@ -72,6 +72,7 @@
     "ENVIRONMENT": "dev",
     "EMAIL_PROVIDER": "resend",
     "ALLOWED_ORIGINS": "*",
+    "LOG_LEVEL": "debug",
   },
   "env": {
     "production": {
@@ -80,6 +81,7 @@
         "ENVIRONMENT": "production",
         "EMAIL_PROVIDER": "resend",
         "ALLOWED_ORIGINS": "*",
+    "LOG_LEVEL": "info",
         "RESEND_API_KEY": "re_xxxxx",
       },
       "d1_databases": [

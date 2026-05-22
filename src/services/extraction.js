@@ -6,6 +6,8 @@
  */
 
 import { parseDocument } from './parsers/index.js';
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
 
 /**
  * Extract text from an uploaded document and store a preview excerpt.
@@ -48,7 +50,7 @@ export async function extractDocumentText(env, db, documentId, contentType, buff
       excerptLength: excerpt.length,
     };
   } catch (err) {
-    console.error('Document extraction failed', { documentId, err });
+    logger.error('Document extraction failed', { documentId, error: err?.message || err });
 
     // Mark as failed in D1
     await db.run(`UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?`, [

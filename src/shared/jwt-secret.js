@@ -1,3 +1,6 @@
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
+
 let devJwtSecret = null;
 
 function isLocalHost(hostname) {
@@ -33,7 +36,7 @@ export function getJwtSecret(env, req) {
   if (!req) {
     if (!devJwtSecret) {
       devJwtSecret = generateSecret();
-      console.warn('JWT_SECRET not set. Using ephemeral dev-only secret.');
+      logger.warn('JWT_SECRET not set. Using ephemeral dev-only secret.');
     }
     return devJwtSecret;
   }
@@ -50,7 +53,7 @@ export function getJwtSecret(env, req) {
   // Dev-only: generate ephemeral secret
   if (!devJwtSecret) {
     devJwtSecret = generateSecret();
-    console.warn('JWT_SECRET not set. Using ephemeral dev-only secret for localhost.');
+    logger.warn('JWT_SECRET not set. Using ephemeral dev-only secret for localhost.');
   }
   return devJwtSecret;
 }

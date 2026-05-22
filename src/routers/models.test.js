@@ -182,10 +182,21 @@ describe('modelsRouter', () => {
     const res = await modelsRouter(makeReq('/api/models', 'GET'), env, {}, null, '/api/models');
 
     expect(res.status).toBe(200);
-    expect(warnSpy).toHaveBeenCalledWith('Model discovery failed', {
-      baseUrl: 'http://localhost:11434/v1',
-      errorLabel: '401',
+    // Structured logger emits JSON string via console.warn
+    const warnCalls = warnSpy.mock.calls.map((call) => call[0]);
+    const matchedCall = warnCalls.find((call) => {
+      try {
+        const parsed = JSON.parse(call);
+        return (
+          parsed.message === 'Model discovery failed' &&
+          parsed.baseUrl === 'http://localhost:11434/v1' &&
+          parsed.errorLabel === '401'
+        );
+      } catch {
+        return false;
+      }
     });
+    expect(matchedCall).toBeTruthy();
 
     warnSpy.mockRestore();
   });

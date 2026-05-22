@@ -1,4 +1,6 @@
 import { getConfigValue } from '../utils/app-config.js';
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
 import { createChatRepository } from '../repositories/chat-repository.js';
 import {
   MAX_ATTACHMENT_BYTES,
@@ -241,7 +243,7 @@ export async function attachDocumentsToMessages(db, messages = []) {
     if (/no such table:\s*message_documents/i.test(String(err?.message || ''))) {
       return messages;
     }
-    console.warn('Failed to load message attachments:', String(err?.message || err));
+    logger.warn('Failed to load message attachments', { error: String(err?.message || err) });
     return messages;
   }
 }

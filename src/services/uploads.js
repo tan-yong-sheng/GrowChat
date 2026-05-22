@@ -5,6 +5,8 @@
  */
 
 import { error } from '../utils/response.js';
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
 
 /**
  * Validate file before upload
@@ -212,7 +214,7 @@ export async function uploadFileToR2(env, userId, filename, contentType, buffer)
       objectId: r2Object.id,
     };
   } catch (err) {
-    console.error('R2 upload failed:', err);
+    logger.error('R2 upload failed', { error: err?.message || err });
     throw new Error(`R2 upload failed: ${err.message}`, { cause: err });
   }
 }
@@ -228,7 +230,7 @@ export async function deleteFileFromR2(env, r2Key) {
   try {
     await env.FILES.delete(r2Key);
   } catch (err) {
-    console.error('Failed to delete R2 object', { r2Key, err });
+    logger.error('Failed to delete R2 object', { r2Key, error: err?.message || err });
     // Non-fatal error
   }
 }

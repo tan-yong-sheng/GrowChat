@@ -7,6 +7,8 @@ import {
 import { loadPrimaryRole } from '../utils/user-role.js';
 import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../mcp/client.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
 
 const ATTACHMENT_CAP_TYPES = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
 
@@ -207,7 +209,7 @@ export async function loadToolServers(db, options = {}) {
       const aclRules = await loadToolServerAclRules(db);
       aclIndex = buildToolServerAclIndex(aclRules);
     } catch (err) {
-      console.warn('Failed to load tool server ACL rules:', err?.message || err);
+      logger.warn('Failed to load tool server ACL rules', { error: err?.message || err });
       aclIndex = new Map();
     }
 

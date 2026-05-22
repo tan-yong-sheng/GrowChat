@@ -1,3 +1,6 @@
+import { createRootLogger } from './logger.js';
+const logger = createRootLogger({});
+
 const SRI_RESOURCES = {
   'bootstrap-icons': {
     url: 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
@@ -80,7 +83,7 @@ async function readPersistedSriHashes(env) {
     const cached = await env.CACHE.get(SRI_CACHE_KEY);
     return cached ? JSON.parse(cached) : null;
   } catch (err) {
-    console.warn('Failed to read cached SRI hashes:', err?.message || err);
+    logger.warn('Failed to read cached SRI hashes', { error: err?.message || err });
     return null;
   }
 }
@@ -92,7 +95,7 @@ async function persistSriHashes(env, hashes) {
       expirationTtl: SRI_CACHE_TTL_SECONDS,
     });
   } catch (err) {
-    console.warn('Failed to cache SRI hashes:', err?.message || err);
+    logger.warn('Failed to cache SRI hashes', { error: err?.message || err });
   }
 }
 
@@ -108,7 +111,7 @@ async function refreshMissingSriHashesInBackground(env, missingEntries = [], bas
       } catch (err) {
         if (!sriWarningState.fetchFailures.has(key)) {
           sriWarningState.fetchFailures.add(key);
-          console.warn('Failed to fetch SRI hash', { key, error: err?.message || err });
+          logger.warn('Failed to fetch SRI hash', { key, error: err?.message || err });
         }
         return [key, null];
       }
@@ -182,7 +185,7 @@ function injectSriHashes(html, hashes) {
     if (!hashValue) {
       if (!sriWarningState.missingHashes.has(key)) {
         sriWarningState.missingHashes.add(key);
-        console.warn('SRI hash missing; resource will load without integrity check', { key });
+        logger.warn('SRI hash missing; resource will load without integrity check', { key });
       }
       continue;
     }

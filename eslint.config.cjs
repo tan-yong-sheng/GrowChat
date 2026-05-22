@@ -2,6 +2,7 @@
 const js = require('@eslint/js');
 const globals = require('globals');
 const boundariesPlugin = require('eslint-plugin-boundaries');
+const growchatLoggingPlugin = require('./eslint-rules/index.cjs');
 
 const srcTypes = [
   's-router',
@@ -32,6 +33,7 @@ module.exports = [
   {
     plugins: {
       boundaries: boundariesPlugin,
+      'growchat-logging': growchatLoggingPlugin,
     },
     settings: {
       'boundaries/root-path': process.cwd(),
@@ -153,6 +155,7 @@ module.exports = [
         },
       ],
       'no-console': 'off',
+      'growchat-logging/no-console-logging': 'error',
       'no-duplicate-imports': 'warn',
       complexity: ['warn', { max: 15 }],
       'max-lines-per-function': ['warn', { max: 120, skipBlankLines: true, skipComments: true }],
@@ -285,6 +288,7 @@ module.exports = [
       'src/services/uploads.js',
       'src/services/workspace-settings.js',
       'src/utils/validation.js',
+      'src/utils/authorize.js',
     ],
     rules: {
       complexity: 'off',

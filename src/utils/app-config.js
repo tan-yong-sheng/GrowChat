@@ -1,3 +1,6 @@
+import { createRootLogger } from './logger.js';
+const logger = createRootLogger({});
+
 export async function getConfigValue(db, key, fallback = null) {
   if (!key) return fallback;
   try {
@@ -33,7 +36,7 @@ export async function setConfigValue(db, key, value) {
     );
   } catch (err) {
     if (/no such table:\s*app_config/i.test(String(err?.message || ''))) {
-      console.warn('app_config table missing; run migrations/001_initial.sql');
+      logger.warn('app_config table missing; run migrations/001_initial.sql');
       return;
     }
     throw err;

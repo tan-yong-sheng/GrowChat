@@ -3,6 +3,8 @@
  * Handles session listing and revocation
  */
 import { error } from '../utils/response.js';
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
 
 /**
  * Router for session management endpoints
@@ -77,7 +79,7 @@ export async function getSessions({ userId, kv }) {
         });
       } catch (e) {
         // Skip corrupted session metadata
-        console.warn(`Corrupted session metadata for ${sessionId}:`, e.message);
+        logger.warn('Corrupted session metadata', { sessionId, error: e.message });
       }
     }
   }

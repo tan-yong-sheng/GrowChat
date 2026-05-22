@@ -139,6 +139,24 @@ describe('response.js - HTTP Response Helpers', () => {
       expect(body.details).toBeUndefined();
     });
 
+    it('should preserve array details without mangling them into objects', async () => {
+      const details = ['error_code_1', 'error_code_2'];
+      const response = error(mockRequest, 'Multiple errors', 400, details);
+      const body = await response.json();
+      expect(body.error).toBe('Multiple errors');
+      expect(body.details).toEqual(['error_code_1', 'error_code_2']);
+      expect(body).not.toHaveProperty('0');
+    });
+
+    it('should extract requestId from object details and promote to top-level', async () => {
+      const details = { requestId: 'req-123', field: 'email' };
+      const response = error(mockRequest, 'Validation error', 400, details);
+      const body = await response.json();
+      expect(body.requestId).toBe('req-123');
+      expect(body.details).toEqual({ field: 'email' });
+      expect(body.details).not.toHaveProperty('requestId');
+    });
+
     it('should include Origin header when set', () => {
       mockRequest.headers.set('Origin', 'https://example.com');
       const response = error(mockRequest, 'Unauthorized', 401);
@@ -402,35 +420,53 @@ describe('response.js - HTTP Response Helpers', () => {
 
   describe('getConnectionTestFailureMessage', () => {
     it('returns auth message for 401', () => {
-      expect(getConnectionTestFailureMessage(401)).toBe('Authentication failed \u2014 check your API key');
+      expect(getConnectionTestFailureMessage(401)).toBe(
+        'Authentication failed \u2014 check your API key'
+      );
     });
 
     it('returns access denied message for 403', () => {
-      expect(getConnectionTestFailureMessage(403)).toBe('Access denied \u2014 check your permissions');
+      expect(getConnectionTestFailureMessage(403)).toBe(
+        'Access denied \u2014 check your permissions'
+      );
     });
 
     it('returns endpoint not found message for 404', () => {
-      expect(getConnectionTestFailureMessage(404)).toBe('Endpoint not found \u2014 check your connection URL');
+      expect(getConnectionTestFailureMessage(404)).toBe(
+        'Endpoint not found \u2014 check your connection URL'
+      );
     });
 
     it('returns upstream server error for 5xx statuses', () => {
-      expect(getConnectionTestFailureMessage(500)).toBe('Upstream server error \u2014 try again later');
-      expect(getConnectionTestFailureMessage(502)).toBe('Upstream server error \u2014 try again later');
-      expect(getConnectionTestFailureMessage(503)).toBe('Upstream server error \u2014 try again later');
+      expect(getConnectionTestFailureMessage(500)).toBe(
+        'Upstream server error \u2014 try again later'
+      );
+      expect(getConnectionTestFailureMessage(502)).toBe(
+        'Upstream server error \u2014 try again later'
+      );
+      expect(getConnectionTestFailureMessage(503)).toBe(
+        'Upstream server error \u2014 try again later'
+      );
     });
 
     it('returns generic message for other statuses', () => {
-      expect(getConnectionTestFailureMessage(400)).toBe('Connection failed \u2014 check your settings and try again');
-      expect(getConnectionTestFailureMessage(429)).toBe('Connection failed \u2014 check your settings and try again');
+      expect(getConnectionTestFailureMessage(400)).toBe(
+        'Connection failed \u2014 check your settings and try again'
+      );
+      expect(getConnectionTestFailureMessage(429)).toBe(
+        'Connection failed \u2014 check your settings and try again'
+      );
     });
 
     it('returns generic message for undefined status', () => {
-      expect(getConnectionTestFailureMessage(undefined)).toBe('Connection failed \u2014 check your settings and try again');
+      expect(getConnectionTestFailureMessage(undefined)).toBe(
+        'Connection failed \u2014 check your settings and try again'
+      );
     });
 
     it('never exposes raw upstream details', () => {
-      const allMessages = [401, 403, 404, 500, 502, 400, 429, undefined, null].map(
-        (s) => getConnectionTestFailureMessage(s)
+      const allMessages = [401, 403, 404, 500, 502, 400, 429, undefined, null].map((s) =>
+        getConnectionTestFailureMessage(s)
       );
       for (const msg of allMessages) {
         expect(msg).not.toContain('sk-');

@@ -1,3 +1,6 @@
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
+
 /**
  * CSRF Protection Service
  *
@@ -32,7 +35,7 @@ export async function generateCsrfToken(env, sessionId) {
       { expirationTtl: CSRF_TOKEN_TTL_SECONDS }
     );
   } catch (err) {
-    console.error('Failed to store CSRF token:', err);
+    logger.error('Failed to store CSRF token', { error: err?.message || err });
     throw new Error('Failed to generate CSRF token', { cause: err });
   }
 
@@ -48,7 +51,7 @@ export async function generateCsrfToken(env, sessionId) {
  */
 export async function validateCsrfToken(env, token, sessionId) {
   if (!env?.SESSIONS) {
-    console.warn('SESSIONS KV binding is required for CSRF validation');
+    logger.warn('SESSIONS KV binding is required for CSRF validation');
     return false;
   }
 
@@ -75,7 +78,7 @@ export async function validateCsrfToken(env, token, sessionId) {
 
     return true;
   } catch (err) {
-    console.error('Failed to validate CSRF token:', err);
+    logger.error('Failed to validate CSRF token', { error: err?.message || err });
     return false;
   }
 }

@@ -14,6 +14,7 @@
  */
 
 import { createDB } from '../db.js';
+import { createLogger } from '../utils/logger.js';
 import { error, json } from '../utils/response.js';
 import { authorize, getAuditLog, logAuditEvent } from '../utils/authorize.js';
 
@@ -97,7 +98,9 @@ async function loadRolePermissionKeys(db, roleId) {
 /**
  * RBAC Admin Router Handler
  */
-export async function rbacRouter(req, env, _ctx, user, path) {
+export async function rbacRouter(req, env, _ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   // Route guard: only match RBAC admin paths
   const isRbacPath = path.startsWith('/api/admin/rbac/') || path === '/api/admin/audit';
   if (!isRbacPath) return null;
@@ -120,7 +123,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
 
       return json(req, { roles });
     } catch (err) {
-      console.error('List roles failed:', err);
+      logger.error('List roles failed', { error: err?.message || err });
       return error(req, 'Failed to list roles', 500);
     }
   }
@@ -181,7 +184,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
       );
       return json(req, { role }, 201);
     } catch (err) {
-      console.error('Create role failed:', err);
+      logger.error('Create role failed', { error: err?.message || err });
       return error(req, 'Failed to create role', 500);
     }
   }
@@ -269,7 +272,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
       );
       return json(req, { role: updated });
     } catch (err) {
-      console.error('Update role failed:', err);
+      logger.error('Update role failed', { error: err?.message || err });
       return error(req, 'Failed to update role', 500);
     }
   }
@@ -298,7 +301,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
 
       return new Response(null, { status: 204 });
     } catch (err) {
-      console.error('Delete role failed:', err);
+      logger.error('Delete role failed', { error: err?.message || err });
       return error(req, 'Failed to delete role', 500);
     }
   }
@@ -324,7 +327,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
 
       return json(req, { permissions, grouped_by_category: grouped });
     } catch (err) {
-      console.error('List permissions failed:', err);
+      logger.error('List permissions failed', { error: err?.message || err });
       return error(req, 'Failed to list permissions', 500);
     }
   }
@@ -395,7 +398,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         201
       );
     } catch (err) {
-      console.error('Create binding failed:', err);
+      logger.error('Create binding failed', { error: err?.message || err });
       return error(req, 'Failed to create role-permission binding', 500);
     }
   }
@@ -426,7 +429,7 @@ export async function rbacRouter(req, env, _ctx, user, path) {
         filters: { actor_id: actorId, resource_type: resourceType, action },
       });
     } catch (err) {
-      console.error('Audit log query failed:', err);
+      logger.error('Audit log query failed', { error: err?.message || err });
       return error(req, 'Failed to fetch audit log', 500);
     }
   }

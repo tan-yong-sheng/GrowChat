@@ -18,6 +18,7 @@ import {
   deleteDocument,
 } from '../services/uploads.js';
 import { extractDocumentText } from '../services/extraction.js';
+import { createLogger } from '../utils/logger.js';
 
 /**
  * File Router Handler
@@ -31,7 +32,9 @@ import { extractDocumentText } from '../services/extraction.js';
  *   GET    /api/files/:id/content        - Get safe content representation
  *   DELETE /api/files/:id                - Delete document and R2 file
  */
-export async function filesRouter(req, env, ctx, user, path) {
+export async function filesRouter(req, env, ctx, user, path, requestContext = {}) {
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const isFilePath =
     path === '/api/files' ||
     path === '/api/files/health' ||
@@ -151,20 +154,23 @@ export async function filesRouter(req, env, ctx, user, path) {
           extractDocumentText(env, db, documentId, contentType, buffer)
             .then(async (extractResult) => {
               if (extractResult?.skipped) {
-                console.log('Document extraction skipped', {
+                logger.info('Document extraction skipped', {
                   documentId,
                   reason: extractResult.reason || 'unsupported type',
                 });
                 return;
               }
-              console.log('Document extraction complete', { documentId });
+              logger.info('Document extraction complete', { documentId });
             })
             .catch((err) => {
-              console.error('Failed to process document extraction', { documentId, err });
+              logger.error('Failed to process document extraction', {
+                documentId,
+                error: err?.message || err,
+              });
             })
         );
       } else {
-        console.log('Document extraction skipped for JSON file', { documentId });
+        logger.info('Document extraction skipped for JSON file', { documentId });
       }
 
       return json(
@@ -184,7 +190,7 @@ export async function filesRouter(req, env, ctx, user, path) {
     } catch (err) {
       const message = err?.message || 'File upload failed';
       const status = String(message).includes('R2 upload timed out') ? 504 : 500;
-      console.error('File upload failed', err);
+      logger.error('File upload failed', { error: err?.message || err });
       return error(req, `File upload failed: ${message}`, status);
     }
   }
@@ -202,7 +208,7 @@ export async function filesRouter(req, env, ctx, user, path) {
       if (isMissingDocumentsTable(err)) {
         return json(req, { documents: [] });
       }
-      console.error('File list failed:', err);
+      logger.error('File list failed', { error: err?.message || err });
       return error(req, 'Failed to list documents', 500);
     }
   }
@@ -218,7 +224,7 @@ export async function filesRouter(req, env, ctx, user, path) {
 
       return json(req, owned.doc);
     } catch (err) {
-      console.error('Get document failed:', err);
+      logger.error('Get document failed', { error: err?.message || err });
       return error(req, 'Failed to get document', 500);
     }
   }
@@ -252,7 +258,7 @@ export async function filesRouter(req, env, ctx, user, path) {
 
       return json(req, { success: true });
     } catch (err) {
-      console.error('Delete document failed:', err);
+      logger.error('Delete document failed', { error: err?.message || err });
 
       if (err.message === 'Document not found') {
         return error(req, 'Not found', 404);
@@ -292,7 +298,7 @@ export async function filesRouter(req, env, ctx, user, path) {
       if (isMissingDocumentsTable(err)) {
         return json(req, { documents: [], query: q, limit, offset });
       }
-      console.error('Document search failed:', err);
+      logger.error('Document search failed', { error: err?.message || err });
       return error(req, 'Search failed', 500);
     }
   }
@@ -327,7 +333,7 @@ export async function filesRouter(req, env, ctx, user, path) {
 
       return new Response(object.body, { status: 200, headers });
     } catch (err) {
-      console.error('Get file blob failed:', err);
+      logger.error('Get file blob failed', { error: err?.message || err });
       return error(req, 'Failed to fetch file', 500);
     }
   }
@@ -358,7 +364,7 @@ export async function filesRouter(req, env, ctx, user, path) {
         updated_at: doc.updated_at,
       });
     } catch (err) {
-      console.error('Get process status failed:', err);
+      logger.error('Get process status failed', { error: err?.message || err });
       return error(req, 'Failed to get status', 500);
     }
   }
@@ -404,7 +410,7 @@ export async function filesRouter(req, env, ctx, user, path) {
         extracted: doc.extraction_status === 1,
       });
     } catch (err) {
-      console.error('Get file content failed:', err);
+      logger.error('Get file content failed', { error: err?.message || err });
       return error(req, 'Failed to get content', 500);
     }
   }

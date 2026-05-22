@@ -1,5 +1,7 @@
 import { getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { APP_LIMITS } from '../config/app.js';
+import { createRootLogger } from '../utils/logger.js';
+const logger = createRootLogger({});
 
 export const MAX_ATTACHMENTS = APP_LIMITS.maxAttachments;
 export const MAX_ATTACHMENT_BYTES = APP_LIMITS.maxAttachmentBytes;
@@ -101,7 +103,7 @@ export async function saveModelAttachmentCaps(db, caps) {
   try {
     await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(caps || {}));
   } catch (err) {
-    console.warn('Failed to save attachment caps:', String(err?.message || err));
+    logger.warn('Failed to save attachment caps', { error: String(err?.message || err) });
   }
 }
 
