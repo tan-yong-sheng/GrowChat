@@ -44,7 +44,6 @@
     "src/async-session-processor.js",
     "src/realtime.js",
     "src/routers/workspace-settings.js",
-    "src/test-file.js",
     "src/utils/admin.js",
     "src/utils/jwt-secret.js",
     "src/utils/rbac.js",
