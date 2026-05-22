@@ -1,4 +1,4 @@
-# Git Worktree Specification: Quality Gates - Tier 1
+# Tier 1 Quality Gates: Implementation Specification
 
 - **Source Reference**: https://github.com/tan-yong-sheng/GrowChat/issues/72
 - **Goal**: Implement low-effort, high-signal quality gates (Dead code, Types, Security, Dependencies).
@@ -12,6 +12,6 @@
   - [x] Add `knip` config, `tsc --noEmit` script.
   - [x] Setup `gitleaks` config.
   - [x] Setup `Renovate` and `Changesets`.
-- **Acceptance Criteria**: All five gates active and blocking on CI.
+- **Acceptance Criteria**: All five gates must execute in CI and fail the build when violations are detected.
 - **Technical Constraints**: CI environment configuration, consistent with project stack (Node.js/TS).
 - **Cross-branch Notes**: Foundation layer. Must be merged first.

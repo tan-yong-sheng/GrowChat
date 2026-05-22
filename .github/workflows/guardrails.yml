@@ -46,8 +46,7 @@ jobs:
 
       - name: Setup Gitleaks
         run: |
-          docker pull zricethezav/gitleaks:latest
-          docker run -v .:/path zricethezav/gitleaks:latest detect --source /path --verbose
+          docker run -v .:/path ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --verbose
 
       - name: Pre-push gate
         run: pnpm run prepush
