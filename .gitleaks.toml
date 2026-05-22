@@ -1,0 +1,12 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Allow test fixtures, skill docs, and scripts with mock secrets only"
+paths = [
+  'tests/e2e/fixtures/.*',
+  '\.claude/skills/api-design/SKILL\.md',
+  'src/routers/auth\.test\.js',
+  'scripts/backend_smoke_matrix\.sh',
+  'scripts/secret-scan\.cjs'
+]

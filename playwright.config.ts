@@ -8,7 +8,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : 2,
   reporter: 'list',
   use: {
-    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:8788',
+    baseURL:
+      process.env.TEST_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:8787',
     trace: 'on-first-retry',
     screenshot: 'on',
     video: 'on-first-retry',
@@ -17,7 +18,12 @@ export default defineConfig({
     {
       name: 'chromium-guest',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: [/auth\.spec\.ts/, /bootstrap\.spec\.ts/, /auth-workflows\.spec\.ts/],
+      testMatch: [
+        /auth\.spec\.ts/,
+        /bootstrap\.spec\.ts/,
+        /auth-workflows\.spec\.ts/,
+        /accessibility\.spec\.ts/,
+      ],
     },
     {
       name: 'chromium-auth',
@@ -27,5 +33,5 @@ export default defineConfig({
       },
       testMatch: [/chat\.spec\.ts/, /admin-settings\.spec\.ts/],
     },
-  ]
+  ],
 });

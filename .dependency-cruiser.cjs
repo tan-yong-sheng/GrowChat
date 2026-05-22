@@ -52,8 +52,8 @@ module.exports = {
       name: 'no-frontend-to-src',
       comment: 'Browser code must not depend on server modules',
       severity: 'error',
-      from: { path: '(^|[\\/])public[\\/]js[\\/]' },
-      to: { path: '(^|[\\/])src[\\/]' },
+      from: { path: '(^|[\\\\/])public[\\\\/]js[\\\\/]' },
+      to: { path: '(^|[\\\\/])src[\\\\/]' },
     },
     // === Frontend: cross-feature coupling is legacy debt, warn only ===
     {
@@ -65,8 +65,14 @@ module.exports = {
     },
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
-    exclude: { path: '\\.test\\.js$' },
-    tsPreCompilationDeps: true,
+    doNotFollow: {
+      path: 'node_modules',
+    },
+    includeOnly: ['src', 'public/js'],
+    reporterOptions: {
+      archi: {
+        collapsePattern: '^node_modules',
+      },
+    },
   },
 };
