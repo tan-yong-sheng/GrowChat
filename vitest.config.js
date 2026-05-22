@@ -15,8 +15,16 @@ export default defineConfig({
     include: ['src/**/*.test.js', 'tests/unit/**/*.test.js'],
     exclude: ['tests/e2e/**', '.worktrees/**', 'node_modules/**', '.wrangler/**'],
     coverage: {
-      all: false,
+      all: true,
       provider: 'v8',
+      // Tier 2: Intentionally lowered to pass on existing code.
+      // Tier 4 (#102): Raise incrementally to 80% as coverage improves.
+      thresholds: {
+        lines: 50,
+        branches: 40,
+        functions: 50,
+        statements: 50,
+      },
       include: [
         'public/js/bootstrap/**/*.js',
         'public/js/features/chat/**/*.js',
