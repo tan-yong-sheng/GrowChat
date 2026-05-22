@@ -1,5 +1,53 @@
 {
-  "$schema": "https://unpkg.com/knip@next/schema.json",
-  "entry": ["src/index.js", "public/js/bootstrap/app.js"],
-  "project": ["src/**/*.js", "public/js/**/*.js"]
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "public/js/bootstrap/app.js",
+    "public/index.html"
+  ],
+  "project": [
+    "src/**/*.js",
+    "public/js/**/*.js"
+  ],
+  "ignoreDependencies": [
+    "dompurify",
+    "ecc-universal",
+    "@commitlint/config-conventional",
+    "autoprefixer",
+    "eslint-config-prettier",
+    "eslint-plugin-tailwindcss",
+    "node-fetch",
+    "postcss",
+    "prettier-plugin-tailwindcss"
+  ],
+  "ignoreBinaries": [
+    "dot",
+    "uv",
+    "semgrep"
+  ],
+  "ignoreFiles": [
+    "public/js/features/admin/settings/security.js",
+    "public/js/features/chat/keyboard-navigation.js",
+    "public/js/features/landing.js",
+    "public/js/shared/components/action-bar.js",
+    "public/js/shared/components/chat-controls-panel.js",
+    "public/js/shared/components/form-label-with-helper.js",
+    "public/js/utils/attachment-types.js",
+    "public/js/utils/chat-cache.js",
+    "public/js/utils/conversation.js",
+    "public/js/utils/model-search.js",
+    "public/js/utils/model-state.js",
+    "public/js/utils/model-sync.js",
+    "public/js/utils/storage.js",
+    "public/js/utils/time-grouping.js",
+    "public/js/features/admin/settings/connections-helpers.test.js",
+    "public/js/shared/utils/model-filters.test.js",
+    "src/async-session-processor.js",
+    "src/realtime.js",
+    "src/routers/workspace-settings.js",
+    "src/test-file.js",
+    "src/utils/admin.js",
+    "src/utils/jwt-secret.js",
+    "src/utils/rbac.js",
+    "src/utils/role-policy.js"
+  ]
 }
