@@ -2,8 +2,13 @@
 useDefault = true
 
 [[allowlists]]
-description = "Allow known public keys"
-paths = ["public/.*"]
+description = "Allow test fixtures, skill docs, and public keys — contain mock secrets only"
+paths = [
+  'public/.*',
+  'tests/e2e/fixtures/.*',
+  '\.claude/skills/.*',
+  'src/routers/auth\.test\.js'
+]
 
 [secrets]
 whitelist = ["scripts/secret-scan.cjs"]
