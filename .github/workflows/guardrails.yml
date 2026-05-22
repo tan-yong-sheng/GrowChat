@@ -66,6 +66,7 @@ jobs:
         run: pnpm exec danger ci
 
   # Tier 2: E2E accessibility gate (axe-core)
+  # Uses a lightweight static server instead of wrangler dev (which requires D1 bindings)
   e2e-accessibility:
     name: E2E accessibility
     runs-on: ubuntu-latest
@@ -91,12 +92,11 @@ jobs:
       - name: Build CSS
         run: pnpm run build:css
 
-      - name: Start dev server
-        run: pnpm run dev:db && pnpm exec wrangler dev --port 8787 &
-        env:
-          CLOUDFLARE_ENV: development
+      # Serve static assets on :8787 — no D1/KV bindings needed for a11y scans
+      - name: Start static file server
+        run: npx serve public -l 8787 &
 
-      - name: Wait for dev server
+      - name: Wait for server
         run: npx wait-on http://localhost:8787 --timeout 30000
 
       - name: Run accessibility tests

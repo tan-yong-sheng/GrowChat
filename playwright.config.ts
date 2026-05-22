@@ -17,7 +17,12 @@ export default defineConfig({
     {
       name: 'chromium-guest',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: [/auth\.spec\.ts/, /bootstrap\.spec\.ts/, /auth-workflows\.spec\.ts/, /accessibility\.spec\.ts/],
+      testMatch: [
+        /auth\.spec\.ts/,
+        /bootstrap\.spec\.ts/,
+        /auth-workflows\.spec\.ts/,
+        /accessibility\.spec\.ts/,
+      ],
     },
     {
       name: 'chromium-auth',
@@ -27,5 +32,5 @@ export default defineConfig({
       },
       testMatch: [/chat\.spec\.ts/, /admin-settings\.spec\.ts/],
     },
-  ]
+  ],
 });
