@@ -47,7 +47,7 @@ jobs:
 
       - name: Setup Gitleaks
         run: |
-          docker run -v .:/path ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --verbose
+          docker run --rm -v $PWD:/path ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --no-git --verbose
 
       - name: Pre-push gate
         run: pnpm run prepush
