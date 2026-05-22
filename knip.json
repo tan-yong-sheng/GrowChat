@@ -1,34 +1,5 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema-json",
-  "entry": ["public/js/bootstrap/app.js", "scripts/**/*.js"],
-  "project": [
-    "src/bootstrap/**/*.js",
-    "public/js/bootstrap/**/*.js",
-    "public/js/shared/**/*.js",
-    "public/js/features/**/*.js",
-    "scripts/**/*.js",
-    "tests/shared/**/*.js",
-    "tests/e2e/frontend/**/*.ts"
-  ],
-  "include": ["files", "dependencies", "binaries"],
-  "ignoreFiles": [
-    "public/js/features/chat/keyboard-navigation.js",
-    "public/js/features/landing.js",
-    "public/js/features/admin/settings/connections-helpers.test.js",
-    "public/js/shared/components/action-bar.js",
-    "public/js/shared/components/chat-controls-panel.js",
-    "public/js/shared/components/form-label-with-helper.js",
-    "public/js/shared/components/status-badge.js",
-    "public/js/shared/utils/model-filters.test.js",
-    "public/js/features/admin/settings/security.js",
-    "tests/e2e/frontend/admin-test-helpers.ts",
-    "tests/shared/playwright-global-setup.js",
-    "tests/shared/test-env.js"
-  ],
-  "ignoreDependencies": ["dompurify", "ecc-universal", "zod"],
-  "ignoreBinaries": ["dot", "uv", "semgrep"],
-  "ignoreIssues": {
-    "package.json": ["devDependencies"],
-    ".husky/pre-commit": ["binaries"]
-  }
+  "$schema": "https://unpkg.com/knip@next/schema.json",
+  "entry": ["src/index.js", "public/js/bootstrap/app.js"],
+  "project": ["src/**/*.js", "public/js/**/*.js"]
 }

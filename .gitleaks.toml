@@ -1,0 +1,6 @@
+[secrets]
+whitelist = ["scripts/secret-scan.cjs"]
+
+[allowlist]
+description = "Allow known public keys"
+paths = ["public/.*"]

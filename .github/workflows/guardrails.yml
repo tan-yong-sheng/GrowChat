@@ -44,5 +44,10 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           pnpm run setup:semgrep
 
+      - name: Setup Gitleaks
+        run: |
+          docker pull zricethezav/gitleaks:latest
+          docker run -v .:/path zricethezav/gitleaks:latest detect --source /path --verbose
+
       - name: Pre-push gate
         run: pnpm run prepush

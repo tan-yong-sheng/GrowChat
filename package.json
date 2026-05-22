@@ -39,6 +39,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
