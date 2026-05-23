@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
+  "entry": ["src/index.js", "public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
   "project": ["src/**/*.js", "public/js/**/*.js", "scripts/**/*.js", "tests/**/*.{js,ts}", "*.ts"],
   "ignoreDependencies": [
     "dompurify",
@@ -14,6 +14,7 @@
     "prettier-plugin-tailwindcss",
     "@lhci/cli",
     "@stryker-mutator/core",
+    "danger",
     "serve",
     "wait-on"
   ],
