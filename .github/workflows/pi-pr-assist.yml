@@ -1,0 +1,116 @@
+# Pi Coding Agent - Interactive PR assistance
+# Trigger: comment "/pi <prompt>" on a PR to get agent help
+# See: https://github.com/shaftoe/pi-coding-agent-action
+#
+# When you type "/pi <your prompt>" on a PR comment or review comment,
+# the agent reads the diff + context and responds inline.
+# It can also apply code changes via create_pull_request if needed.
+#
+# NOTE: Only repo collaborators can trigger this (gated by github.actor).
+# Uses pull_request_target so repo secrets are available for internal PRs.
+#
+# Required secrets (set in repo Settings > Secrets and variables > Actions):
+#   PI_API_KEY   - Your OpenAI-compatible provider API key
+#
+# Required variables (set in the same repo-level location):
+#   PI_PROVIDER      - Custom provider name (must match models.json key)
+#   PI_MODEL         - Model ID your endpoint serves
+#   PI_BASE_URL      - Base URL of your OpenAI-compatible endpoint
+#   PI_THINKING_LEVEL - (optional) "off" | "low" | "medium" | "high"
+
+name: Pi PR Assist
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  pi-assist:
+    # Only run on PR comments (not plain issues) that contain "/pi"
+    if: >
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/pi')
+    runs-on: ubuntu-latest
+    steps:
+      # issue_comment events don't include PR head SHA directly,
+      # so we resolve it from the PR API before checkout.
+      - name: Resolve PR head ref
+        id: pr
+        run: |
+          PR_DATA=$(gh api "${{ github.event.issue.pull_request.url }}" \
+            --jq '{repo: .head.repo.full_name, sha: .head.sha, ref: .head.ref}')
+          echo "repo=$(echo "$PR_DATA" | jq -r '.repo')" >> "$GITHUB_OUTPUT"
+          echo "sha=$(echo "$PR_DATA" | jq -r '.sha')" >> "$GITHUB_OUTPUT"
+          echo "ref=$(echo "$PR_DATA" | jq -r '.ref')" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout PR head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ steps.pr.outputs.repo }}
+          ref: ${{ steps.pr.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      # Register custom OpenAI-compatible provider via models.json
+      - name: Configure custom LLM provider
+        env:
+          PI_PROVIDER: ${{ vars.PI_PROVIDER }}
+          PI_BASE_URL: ${{ vars.PI_BASE_URL }}
+          PI_MODEL: ${{ vars.PI_MODEL }}
+          PI_API_KEY: ${{ secrets.PI_API_KEY }}
+        run: |
+          mkdir -p ~/.pi/agent
+          jq -n \
+            --arg provider "$PI_PROVIDER" \
+            --arg baseUrl "$PI_BASE_URL" \
+            --arg model "$PI_MODEL" \
+            --arg apiKey "$PI_API_KEY" \
+            '{
+              providers: {
+                ($provider): {
+                  baseUrl: $baseUrl,
+                  apiKey: $apiKey,
+                  models: [{
+                    id: $model,
+                    name: $model,
+                    api: "openai-completions",
+                    reasoning: false,
+                    input: ["text"],
+                    contextWindow: 128000,
+                    maxTokens: 4096
+                  }]
+                }
+              }
+            }' > ~/.pi/agent/models.json
+
+      - name: Run Pi agent
+        id: pi
+        uses: shaftoe/pi-coding-agent-action@1137ab916a28ad52bbac0a8bfea72bef1e516749 # v2.17.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          provider: ${{ vars.PI_PROVIDER }}
+          model: ${{ vars.PI_MODEL }}
+          token: ${{ secrets.PI_API_KEY }}
+          thinking_level: ${{ vars.PI_THINKING_LEVEL || 'off' }}
+          export_session_html: 'true'
+          diff_ignore_patterns: 'dist/ node_modules/ public/styles.css coverage/'
+
+      - name: Upload Pi session HTML
+        if: always() && steps.pi.outputs.session_html_path
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pi-session-html
+          path: ${{ steps.pi.outputs.session_html_path }}
+          retention-days: 7
