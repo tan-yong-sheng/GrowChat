@@ -2,13 +2,14 @@
 # Trigger: comment "/pi <prompt>" on a PR to get agent help
 # See: https://github.com/shaftoe/pi-coding-agent-action
 #
-# When you type "/pi <your prompt>" on a PR comment or review comment,
+# When you type "/pi" or "/pi <prompt>" on a PR comment or review comment,
 # the agent reads the diff + context and responds inline.
 # It can also apply code changes via create_pull_request if needed.
 #
 # NOTE: Only repo collaborators can trigger this (gated by author_association).
 # Fork PRs are rejected — issue_comment runs in base repo context so secrets
 # would be available even for forks, making untrusted code checkout unsafe.
+# Only triggers on exact "/pi" or "/pi <prompt>" (not /pizza, /pilot, etc.).
 #
 # Required secrets (set in repo Settings > Secrets and variables > Actions):
 #   PI_API_KEY   - Your OpenAI-compatible provider API key
@@ -24,6 +25,8 @@ name: Pi PR Assist
 on:
   issue_comment:
     types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -32,12 +35,14 @@ permissions:
 
 jobs:
   pi-assist:
-    # Only run on PR comments (not plain issues) that start with "/pi"
+    # Only run on PR comments containing exact "/pi" command
     # and only from repo collaborators (not arbitrary external commenters)
-    # Uses startsWith to avoid false triggers from /pizza, code snippets, etc.
+    # Matches: "/pi" (standalone) or "/pi <prompt>" but NOT /pizza, /pilot, etc.
     if: >-
-      github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/pi') &&
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request ||
+       github.event_name == 'pull_request_review_comment') &&
+      (github.event.comment.body == '/pi' ||
+       startsWith(github.event.comment.body, '/pi ')) &&
       (github.event.comment.author_association == 'COLLABORATOR' ||
        github.event.comment.author_association == 'MEMBER' ||
        github.event.comment.author_association == 'OWNER')
@@ -46,10 +51,16 @@ jobs:
       # issue_comment events don't include PR head SHA directly,
       # so we resolve it from the PR API before checkout.
       # Also enforces same-repo guard — fork PRs are rejected.
+      # Handles both issue_comment and pull_request_review_comment events.
       - name: Resolve PR head ref
         id: pr
         run: |
-          PR_DATA=$(gh api "${{ github.event.issue.pull_request.url }}" \
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_URL="${{ github.event.issue.pull_request.url }}"
+          else
+            PR_URL="${{ github.event.pull_request.url }}"
+          fi
+          PR_DATA=$(gh api "$PR_URL" \
             --jq '{repo: .head.repo.full_name, sha: .head.sha, ref: .head.ref}')
 
           # Same-repo guard: issue_comment runs in base repo context,
