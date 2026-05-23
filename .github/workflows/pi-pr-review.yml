@@ -1,10 +1,11 @@
 # Pi Coding Agent - Automatic PR review
-# Trigger: every new or updated pull request (including forks)
+# Trigger: every new or updated pull request from same-repo branches
 # See: https://github.com/shaftoe/pi-coding-agent-action
 #
-# Uses repo-level secrets/vars (not environment-scoped) so they are
-# available to fork PRs running under the pull_request event.
-# The checkout is fork-safe: pinned head.sha + persist-credentials: false.
+# NOTE: This workflow does NOT support forked PRs. The pull_request event
+# does not expose repo secrets to forks, so the Pi step would fail.
+# For internal PRs only (solo-dev / trusted contributor model).
+# The checkout uses head.sha + persist-credentials: false for safety.
 #
 # Required secrets (set in repo Settings > Secrets and variables > Actions):
 #   PI_API_KEY   - Your OpenAI-compatible provider API key
@@ -22,7 +23,7 @@ on:
     types: [opened, synchronize, ready_for_review, reopened]
 
 permissions:
-  contents: write
+  contents: read
   issues: write
   pull-requests: write
 
