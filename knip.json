@@ -11,9 +11,14 @@
     "eslint-plugin-tailwindcss",
     "node-fetch",
     "postcss",
-    "prettier-plugin-tailwindcss"
+    "prettier-plugin-tailwindcss",
+    "@lhci/cli",
+    "@stryker-mutator/core",
+    "danger",
+    "serve",
+    "wait-on"
   ],
-  "ignoreBinaries": ["dot", "uv", "semgrep"],
+  "ignoreBinaries": ["dot", "uv", "semgrep", "danger", "lhci", "serve", "stryker", "wait-on"],
   "ignoreFiles": [
     "public/js/features/admin/settings/security.js",
     "public/js/features/chat/keyboard-navigation.js",
