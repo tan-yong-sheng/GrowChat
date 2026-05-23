@@ -31,11 +31,12 @@ permissions:
 
 jobs:
   pi-assist:
-    # Only run on PR comments (not plain issues) that contain "/pi"
+    # Only run on PR comments (not plain issues) that start with "/pi"
     # and only from repo collaborators (not arbitrary external commenters)
+    # Uses startsWith to avoid false triggers from /pizza, code snippets, etc.
     if: >-
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/pi') &&
+      startsWith(github.event.comment.body, '/pi') &&
       (github.event.comment.author_association == 'COLLABORATOR' ||
        github.event.comment.author_association == 'MEMBER' ||
        github.event.comment.author_association == 'OWNER')
