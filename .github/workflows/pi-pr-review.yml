@@ -2,15 +2,14 @@
 # Trigger: every new or updated pull request (including forks)
 # See: https://github.com/shaftoe/pi-coding-agent-action
 #
-# Uses pull_request_target so environment-scoped secrets/vars are available
-# even for fork PRs (pull_request events hide env secrets from forks).
+# Uses repo-level secrets/vars (not environment-scoped) so they are
+# available to fork PRs running under the pull_request event.
 # The checkout is fork-safe: pinned head.sha + persist-credentials: false.
 #
-# Required secrets (set in repo Settings > Secrets and variables > Actions
-# under the "main" environment):
+# Required secrets (set in repo Settings > Secrets and variables > Actions):
 #   PI_API_KEY   - Your OpenAI-compatible provider API key
 #
-# Required variables (set in the same "main" environment):
+# Required variables (set in the same repo-level location):
 #   PI_PROVIDER      - Custom provider name (must match models.json key)
 #   PI_MODEL         - Model ID your endpoint serves
 #   PI_BASE_URL      - Base URL of your OpenAI-compatible endpoint
@@ -19,7 +18,7 @@
 name: Pi PR Review
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
 
 permissions:
@@ -30,7 +29,6 @@ permissions:
 jobs:
   pi-review:
     runs-on: ubuntu-latest
-    environment: main
 
     steps:
       - name: Checkout repository
