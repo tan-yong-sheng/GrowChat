@@ -3,7 +3,7 @@
 # See: https://github.com/shaftoe/pi-coding-agent-action
 #
 # Required secrets (set in repo Settings > Secrets > Actions):
-#   PI_API_KEY        - Your OpenAI-compatible provider API key
+#   PI_API_KEY    - Your OpenAI-compatible provider API key
 #
 # Required variables (set in repo Settings > Variables > Actions):
 #   PI_PROVIDER       - Custom provider name (must match models.json key)
@@ -15,7 +15,7 @@ name: Pi PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, synchronize, ready_for_review, reopened]
 
 permissions:
   contents: write
@@ -30,7 +30,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -42,37 +43,46 @@ jobs:
       # Register custom OpenAI-compatible provider via models.json
       # Edit the values below to match your endpoint's actual specs
       - name: Configure custom LLM provider
+        env:
+          PI_PROVIDER: ${{ vars.PI_PROVIDER }}
+          PI_BASE_URL: ${{ vars.PI_BASE_URL }}
+          PI_MODEL: ${{ vars.PI_MODEL }}
+          PI_API_KEY: ${{ secrets.PI_API_KEY }}
         run: |
           mkdir -p ~/.pi/agent
-          cat > ~/.pi/agent/models.json << EOF
-          {
-            "providers": {
-              "${{ vars.PI_PROVIDER }}": {
-                "baseUrl": "${{ vars.PI_BASE_URL }}",
-                "apiKey": "${{ secrets.PI_API_KEY }}",
-                "models": [{
-                  "id": "${{ vars.PI_MODEL }}",
-                  "name": "${{ vars.PI_MODEL }}",
-                  "api": "openai-completions",
-                  "reasoning": false,
-                  "input": ["text"],
-                  "contextWindow": 128000,
-                  "maxTokens": 4096
-                }]
+          jq -n \
+            --arg provider "$PI_PROVIDER" \
+            --arg baseUrl "$PI_BASE_URL" \
+            --arg model "$PI_MODEL" \
+            --arg apiKey "$PI_API_KEY" \
+            '{
+              providers: {
+                ($provider): {
+                  baseUrl: $baseUrl,
+                  apiKey: $apiKey,
+                  models: [{
+                    id: $model,
+                    name: $model,
+                    api: "openai-completions",
+                    reasoning: false,
+                    input: ["text"],
+                    contextWindow: 128000,
+                    maxTokens: 4096
+                  }]
+                }
               }
-            }
-          }
-          EOF
+            }' > ~/.pi/agent/models.json
 
       - name: Run Pi agent
         id: pi
-        uses: shaftoe/pi-coding-agent-action@v2.17.0
+        uses: shaftoe/pi-coding-agent-action@1137ab916a28ad52bbac0a8bfea72bef1e516749 # v2.17.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: ${{ vars.PI_PROVIDER }}
           model: ${{ vars.PI_MODEL }}
           token: ${{ secrets.PI_API_KEY }}
           thinking_level: ${{ vars.PI_THINKING_LEVEL || 'off' }}
+          export_session_html: 'true'
           diff_ignore_patterns: 'dist/ node_modules/ public/styles.css pnpm-lock.yaml coverage/'
           prompt: |
             REPO: ${{ github.repository }}
@@ -95,3 +105,11 @@ jobs:
             - Use inline comments for specific code-level issues
             - Use `create_pull_request_review` for overall feedback
             - Only post GitHub review comments (do not return review text in messages)
+
+      - name: Upload Pi session HTML
+        if: always() && steps.pi.outputs.session_html_path
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pi-session-html
+          path: ${{ steps.pi.outputs.session_html_path }}
+          retention-days: 7
