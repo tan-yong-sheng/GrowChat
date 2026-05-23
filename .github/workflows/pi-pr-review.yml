@@ -1,21 +1,25 @@
 # Pi Coding Agent - Automatic PR review
-# Trigger: every new or updated pull request
+# Trigger: every new or updated pull request (including forks)
 # See: https://github.com/shaftoe/pi-coding-agent-action
+#
+# Uses pull_request_target so environment-scoped secrets/vars are available
+# even for fork PRs (pull_request events hide env secrets from forks).
+# The checkout is fork-safe: pinned head.sha + persist-credentials: false.
 #
 # Required secrets (set in repo Settings > Secrets and variables > Actions
 # under the "main" environment):
-#   PI_API_KEY    - Your OpenAI-compatible provider API key
+#   PI_API_KEY   - Your OpenAI-compatible provider API key
 #
 # Required variables (set in the same "main" environment):
-#   PI_PROVIDER       - Custom provider name (must match models.json key)
-#   PI_MODEL          - Model ID your endpoint serves
-#   PI_BASE_URL       - Base URL of your OpenAI-compatible endpoint
+#   PI_PROVIDER      - Custom provider name (must match models.json key)
+#   PI_MODEL         - Model ID your endpoint serves
+#   PI_BASE_URL      - Base URL of your OpenAI-compatible endpoint
 #   PI_THINKING_LEVEL - (optional) "off" | "low" | "medium" | "high"
 
 name: Pi PR Review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, ready_for_review, reopened]
 
 permissions:
@@ -85,17 +89,18 @@ jobs:
           token: ${{ secrets.PI_API_KEY }}
           thinking_level: ${{ vars.PI_THINKING_LEVEL || 'off' }}
           export_session_html: 'true'
-          diff_ignore_patterns: 'dist/ node_modules/ public/styles.css pnpm-lock.yaml coverage/'
+          diff_ignore_patterns: 'dist/ node_modules/ public/styles.css coverage/'
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             Please review this pull request with focus on:
-            - Code quality and best practices
-            - Potential bugs or logic errors
-            - Security concerns (SQL injection, XSS, auth issues, supply chain attack, etc)
-            - Performance considerations
-            - Maintainability risks
+             - Code quality and best practices
+             - Potential bugs or logic errors
+             - Security concerns (SQL injection, XSS, auth issues, supply chain attack, etc)
+             - Performance considerations
+             - Maintainability risks
+             - Test coverage gaps and missing regression tests
 
             Workflow:
             1. Use `get_pr_diff` to analyze actual code changes and identify risky areas
