@@ -760,7 +760,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     const oauthStartLimit = await checkRateLimit(env.CACHE, {
       action: 'auth-google',
       subject: resolveRateLimitSubject(req),
-      ...RATE_LIMITS.authLogin,
+      ...RATE_LIMITS.authGoogle,
     });
     if (!oauthStartLimit.allowed) {
       return error(req, 'Too many Google OAuth attempts', 429, {
@@ -833,7 +833,7 @@ export async function authRouter(req, env, _ctx, authUser, path) {
     const oauthLimit = await checkRateLimit(env.CACHE, {
       action: 'auth-google-callback',
       subject: resolveRateLimitSubject(req),
-      ...RATE_LIMITS.authLogin, // Reuse login rate limits for callback
+      ...RATE_LIMITS.authGoogleCallback,
     });
     if (!oauthLimit.allowed) {
       return Response.redirect(

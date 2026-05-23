@@ -96,7 +96,7 @@ function handleOAuthError() {
   // Clean up the URL
   const cleanUrl = new URL(window.location);
   cleanUrl.searchParams.delete('oauth_error');
-  history.replaceState(null, '', cleanUrl.pathname);
+  history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search);
 
   const errorMessages = {
     access_denied: 'Google sign-in was cancelled or denied.',

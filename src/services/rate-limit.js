@@ -82,6 +82,14 @@ export const RATE_LIMITS = {
     limit: APP_LIMITS.maxLoginPerTenMinutes,
     windowSeconds: 600,
   },
+  authGoogle: {
+    limit: APP_LIMITS.maxLoginPerTenMinutes,
+    windowSeconds: 600,
+  },
+  authGoogleCallback: {
+    limit: APP_LIMITS.maxLoginPerTenMinutes,
+    windowSeconds: 600,
+  },
   authForgotPassword: {
     limit: 5,
     windowSeconds: 3600,
