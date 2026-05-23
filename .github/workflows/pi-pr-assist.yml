@@ -6,8 +6,9 @@
 # the agent reads the diff + context and responds inline.
 # It can also apply code changes via create_pull_request if needed.
 #
-# NOTE: Only repo collaborators can trigger this (gated by github.actor).
-# Uses pull_request_target so repo secrets are available for internal PRs.
+# NOTE: Only repo collaborators can trigger this (gated by author_association).
+# Fork PRs are rejected — issue_comment runs in base repo context so secrets
+# would be available even for forks, making untrusted code checkout unsafe.
 #
 # Required secrets (set in repo Settings > Secrets and variables > Actions):
 #   PI_API_KEY   - Your OpenAI-compatible provider API key
@@ -44,12 +45,22 @@ jobs:
     steps:
       # issue_comment events don't include PR head SHA directly,
       # so we resolve it from the PR API before checkout.
+      # Also enforces same-repo guard — fork PRs are rejected.
       - name: Resolve PR head ref
         id: pr
         run: |
           PR_DATA=$(gh api "${{ github.event.issue.pull_request.url }}" \
             --jq '{repo: .head.repo.full_name, sha: .head.sha, ref: .head.ref}')
-          echo "repo=$(echo "$PR_DATA" | jq -r '.repo')" >> "$GITHUB_OUTPUT"
+
+          # Same-repo guard: issue_comment runs in base repo context,
+          # so secrets are available even for forks — don't checkout untrusted code.
+          HEAD_REPO=$(echo "$PR_DATA" | jq -r '.repo')
+          if [ "$HEAD_REPO" != "${{ github.repository }}" ]; then
+            echo "::error::Fork PRs are not supported (head: $HEAD_REPO)"
+            exit 1
+          fi
+
+          echo "repo=$HEAD_REPO" >> "$GITHUB_OUTPUT"
           echo "sha=$(echo "$PR_DATA" | jq -r '.sha')" >> "$GITHUB_OUTPUT"
           echo "ref=$(echo "$PR_DATA" | jq -r '.ref')" >> "$GITHUB_OUTPUT"
         env:
