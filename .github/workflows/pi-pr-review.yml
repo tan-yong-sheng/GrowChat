@@ -2,10 +2,11 @@
 # Trigger: every new or updated pull request
 # See: https://github.com/shaftoe/pi-coding-agent-action
 #
-# Required secrets (set in repo Settings > Secrets > Actions):
+# Required secrets (set in repo Settings > Secrets and variables > Actions
+# under the "main" environment):
 #   PI_API_KEY    - Your OpenAI-compatible provider API key
 #
-# Required variables (set in repo Settings > Variables > Actions):
+# Required variables (set in the same "main" environment):
 #   PI_PROVIDER       - Custom provider name (must match models.json key)
 #   PI_MODEL          - Model ID your endpoint serves
 #   PI_BASE_URL       - Base URL of your OpenAI-compatible endpoint
@@ -25,6 +26,7 @@ permissions:
 jobs:
   pi-review:
     runs-on: ubuntu-latest
+    environment: main
 
     steps:
       - name: Checkout repository
