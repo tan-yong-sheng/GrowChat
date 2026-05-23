@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/index.js", "public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
+  "entry": ["public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
   "project": ["src/**/*.js", "public/js/**/*.js", "scripts/**/*.js", "tests/**/*.{js,ts}", "*.ts"],
   "ignoreDependencies": [
     "dompurify",
@@ -11,9 +11,13 @@
     "eslint-plugin-tailwindcss",
     "node-fetch",
     "postcss",
-    "prettier-plugin-tailwindcss"
+    "prettier-plugin-tailwindcss",
+    "@lhci/cli",
+    "@stryker-mutator/core",
+    "serve",
+    "wait-on"
   ],
-  "ignoreBinaries": ["dot", "uv", "semgrep"],
+  "ignoreBinaries": ["dot", "uv", "semgrep", "danger", "lhci", "serve", "stryker", "wait-on"],
   "ignoreFiles": [
     "public/js/features/admin/settings/security.js",
     "public/js/features/chat/keyboard-navigation.js",
