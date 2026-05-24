@@ -21,6 +21,8 @@ name: Pi PR Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
+    paths-ignore:
+      - '**/*.md'
 
 concurrency:
   group: pi-review-${{ github.event.pull_request.number }}
