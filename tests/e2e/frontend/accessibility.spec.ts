@@ -10,6 +10,8 @@ test.describe('Accessibility audit', () => {
   };
   const Builder = AxeBuilder as unknown as AxeCtor;
 
+  // 'serve' maps /auth → auth.html via clean URLs; /auth.html redirects to /auth.
+  // Chat/admin routes require auth and are not scannable in the guest project.
   const publicRoutes = ['/', '/auth'];
 
   for (const route of publicRoutes) {

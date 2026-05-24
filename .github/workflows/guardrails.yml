@@ -95,7 +95,7 @@ jobs:
         timeout-minutes: 2
         run: pnpm run prepush
 
-      # Tier 2: Vitest coverage thresholds (80% lines/branches/functions/statements)
+      # Tier 2: Vitest coverage thresholds (currently 30% lines/branches/functions/statements; planned to increase)
       - name: Coverage threshold check
         timeout-minutes: 5
         run: pnpm run test:coverage
