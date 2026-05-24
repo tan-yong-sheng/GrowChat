@@ -94,6 +94,7 @@ jobs:
           token: ${{ secrets.PI_API_KEY }}
           thinking_level: ${{ vars.PI_THINKING_LEVEL || 'off' }}
           export_session_html: 'true'
+          load_builtin_extensions: false
           diff_ignore_patterns: 'dist/ node_modules/ public/styles.css coverage/'
           prompt: |
             REPO: ${{ github.repository }}
@@ -109,7 +110,6 @@ jobs:
 
             Workflow:
             1. Use `get_pr_diff` to analyze actual code changes and identify risky areas
-            2. Use `get_issue_or_pr_thread` only if linked issues are needed for context
 
             Guidelines:
             - Focus only on high-confidence, actionable findings
