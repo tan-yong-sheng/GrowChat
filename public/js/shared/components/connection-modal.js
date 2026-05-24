@@ -2,13 +2,7 @@ import { filterModelsBySearch } from '../utils/model-search.js';
 import { renderButton } from './button.js';
 import { sortModelsByActiveThenName } from '../utils/model-state.js';
 import { escapeHtml } from '../utils/dom-escape.js';
-function normalizeProviderType(value) {
-  return (
-    String(value || '')
-      .trim()
-      .toLowerCase() || 'openai'
-  );
-}
+import { normalizeProviderType, connectionApiTypeDetails } from '../utils/connection-types.js';
 
 function isCompatibleProviderType(providerType) {
   const raw = normalizeProviderType(providerType);
@@ -58,31 +52,6 @@ function resolveUrlLabel(providerType) {
 
 function resolveKeyLabel() {
   return 'API Key';
-}
-
-function connectionApiTypeDetails(providerType) {
-  switch (normalizeProviderType(providerType)) {
-    case 'google':
-    case 'gemini-compatible':
-      return {
-        value: 'stream-generate-content',
-        label: 'Gemini Stream Generate Content',
-        endpoint: 'Uses /v1beta/models/:model:streamGenerateContent?alt=sse',
-      };
-    case 'anthropic':
-    case 'claude-compatible':
-      return {
-        value: 'messages',
-        label: 'Messages',
-        endpoint: 'Uses /v1/messages',
-      };
-    default:
-      return {
-        value: 'chat-completions',
-        label: 'Chat Completions',
-        endpoint: 'Uses /v1/chat/completions',
-      };
-  }
 }
 
 const STANDARD_MODAL_PRESET = {

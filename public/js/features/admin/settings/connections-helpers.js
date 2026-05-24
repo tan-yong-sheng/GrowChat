@@ -4,11 +4,11 @@ import {
   resolveConnectionModelSelectionMode,
 } from '../../../shared/utils/connection-model-selection.js';
 
-export function normalizeProviderType(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase();
-}
+import {
+  normalizeProviderType,
+  connectionApiTypeDetails,
+} from '../../shared/utils/connection-types.js';
+export { normalizeProviderType, connectionApiTypeDetails };
 
 export function normalizeProviderFamily(value) {
   switch (normalizeProviderType(value)) {
@@ -100,31 +100,6 @@ function normalizeSavedConnectionModelId(providerId, modelId) {
 
 export function resolveKeyLabel() {
   return 'API Key';
-}
-
-export function connectionApiTypeDetails(providerType) {
-  switch (normalizeProviderType(providerType)) {
-    case 'google':
-    case 'gemini-compatible':
-      return {
-        value: 'stream-generate-content',
-        label: 'Gemini Stream Generate Content',
-        endpoint: 'Uses /v1beta/models/:model:streamGenerateContent?alt=sse',
-      };
-    case 'anthropic':
-    case 'claude-compatible':
-      return {
-        value: 'messages',
-        label: 'Messages',
-        endpoint: 'Uses /v1/messages',
-      };
-    default:
-      return {
-        value: 'chat-completions',
-        label: 'Chat Completions',
-        endpoint: 'Uses /v1/chat/completions',
-      };
-  }
 }
 
 export function normalizeConnectionManualModels(value = []) {
