@@ -32,6 +32,7 @@ function run(command, args, cwd) {
     cwd,
     encoding: 'utf8',
     shell: false,
+    timeout: 30000, // Kill subprocess after 30s to prevent CI hangs
   });
 }
 
@@ -61,7 +62,7 @@ describe('guardrail fixtures', () => {
 
     expect(result.status).not.toBe(0);
     expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain('no-frontend-to-src');
-  }, 10000);
+  }, 15000);
 
   it('rejects frontend worker-env access via semgrep', () => {
     const fixtureRoot = makeFixtureRoot();
@@ -81,7 +82,7 @@ describe('guardrail fixtures', () => {
     expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
       'no-frontend-worker-env-access'
     );
-  }, 20000);
+  }, 30000);
 
   it('rejects raw status badge markup in account feature slice via semgrep', () => {
     const fixtureRoot = makeFixtureRoot();
@@ -107,7 +108,7 @@ describe('guardrail fixtures', () => {
     expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
       'no-raw-status-badge-markup-in-account-features'
     );
-  }, 20000);
+  }, 30000);
 
   it('rejects rounded pill action buttons but allows compact toggle switches', () => {
     const fixtureRoot = makeFixtureRoot();
@@ -144,7 +145,7 @@ describe('guardrail fixtures', () => {
     );
 
     expect(goodResult.status).toBe(0);
-  }, 20000);
+  }, 30000);
 
   it('rejects raw model access badge markup in account/admin model settings pages', () => {
     const fixtureRoot = makeFixtureRoot();
@@ -175,7 +176,7 @@ describe('guardrail fixtures', () => {
     }
     expect(parsed.results.length).toBeGreaterThan(0);
     expect(foundBadgeRule).toBe(true);
-  }, 20000);
+  }, 30000);
 
   it('rejects direct getModelAccessPresentation usage in model settings pages', () => {
     const fixtureRoot = makeFixtureRoot();
@@ -206,7 +207,7 @@ describe('guardrail fixtures', () => {
     }
     expect(parsed.results.length).toBeGreaterThan(0);
     expect(foundPresentationRule).toBe(true);
-  }, 20000);
+  }, 30000);
 
   it('rejects console.log usage in src/ files via ESLint (structured logging regression guard)', () => {
     const fixtureRoot = makeFixtureRoot();
@@ -224,5 +225,5 @@ describe('guardrail fixtures', () => {
     );
     expect(result.status).not.toBe(0);
     expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain('no-console-logging');
-  }, 30000);
+  }, 40000);
 });

@@ -64,7 +64,7 @@ export function renderChatSkeleton(container) {
   container.innerHTML = `
     <div class="h-full w-full bg-white overflow-hidden">
       <div class="flex h-full">
-        <aside class="hidden md:flex w-[260px] flex-shrink-0 border-r border-gray-100 bg-[#f9f9f9] p-4">
+        <aside aria-label="Chat sidebar" class="hidden md:flex w-[260px] flex-shrink-0 border-r border-gray-100 bg-[#f9f9f9] p-4">
           <div class="w-full space-y-4 animate-pulse">
             <div class="h-6 w-32 bg-gray-200 rounded"></div>
             <div class="h-10 w-full bg-gray-200 rounded-xl"></div>

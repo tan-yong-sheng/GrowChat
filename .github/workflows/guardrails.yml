@@ -92,10 +92,12 @@ jobs:
       # Tier 1 + Tier 2 guardrails (unit tests, typecheck, eslint incl. complexity,
       # semgrep, jscpd dupe budgets, depcruise circular deps, prettier, knip hygiene)
       - name: Pre-push gate
+        timeout-minutes: 2
         run: pnpm run prepush
 
       # Tier 2: Vitest coverage thresholds (80% lines/branches/functions/statements)
       - name: Coverage threshold check
+        timeout-minutes: 5
         run: pnpm run test:coverage
 
       # Tier 2: danger.js PR semantic checks
