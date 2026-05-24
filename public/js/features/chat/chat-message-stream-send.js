@@ -1,4 +1,5 @@
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
+import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';
 import {
   prepareOptimisticConversation,
   promoteOptimisticConversation,
@@ -63,46 +64,20 @@ export async function startChatSendMessage({
   const optimisticAutoTitle = optimistic.autoTitle || null;
 
   const branchParentId = currentLeafByChatId.get(chatId) || null;
-  const tempUserId = `temp-user-${Date.now()}`;
-  const tempAssistantId = `temp-assistant-${Date.now()}`;
-  const nowTs = Math.floor(Date.now() / 1000);
-  let localMessages = [...(state.messagesByChat[chatId] || [])];
   const draftAttachments = getDraftAttachments(chatId);
-  const tempUserMessage = {
-    id: tempUserId,
-    role: 'user',
-    content: text,
-    model: state.activeModelId,
-    attachments: draftAttachments,
-    parent_id: branchParentId,
-    created_at: nowTs,
-    done: true,
-  };
-  localMessages.push(tempUserMessage);
-  registerPendingTempMessage(chatId, tempUserMessage);
-  setBranchSelection(chatId, branchParentId, tempUserId);
-  localMessages.push({
-    id: tempAssistantId,
-    role: 'assistant',
-    content: '',
-    model: state.activeModelId,
-    parent_id: tempUserId,
-    created_at: nowTs + 1,
-    done: false,
+  const { tempUserId, tempAssistantId, localMessages } = createOptimisticTempMessages({
+    chatId,
+    branchParentId,
+    userContent: text,
+    userAttachments: draftAttachments,
+    activeModelId: state.activeModelId,
+    state,
+    setState,
+    registerPendingTempMessage,
+    setBranchSelection,
+    currentLeafByChatId,
+    drawMessages,
   });
-  registerPendingTempMessage(chatId, {
-    id: tempAssistantId,
-    role: 'assistant',
-    content: '',
-    parent_id: tempUserId,
-    created_at: nowTs + 1,
-  });
-
-  currentLeafByChatId.set(chatId, tempAssistantId);
-  setState((prev) => ({
-    messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages },
-  }));
-  if (state.activeChatId === chatId) drawMessages(localMessages);
 
   if (tempChatId) {
     const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;

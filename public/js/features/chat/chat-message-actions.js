@@ -1,5 +1,6 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
+import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 
@@ -268,44 +269,19 @@ export function bindChatMessageActions({
       delete newEditing[originalId];
       setState({ ui: { ...state.ui, editingMessages: newEditing } });
 
-      const tempUserId = `temp-user-${Date.now()}`;
-      const tempAssistantId = `temp-assistant-${Date.now()}`;
-      const nowTs = Math.floor(Date.now() / 1000);
-
-      let localMessages = [...(state.messagesByChat[chatId] || [])];
-      const tempUserMessage = {
-        id: tempUserId,
-        role: 'user',
-        content: newContent,
-        model: state.activeModelId,
-        attachments: sourceAttachments,
-        parent_id: branchParentId,
-        created_at: nowTs,
-        done: true,
-      };
-      localMessages.push(tempUserMessage);
-      registerPendingTempMessage(chatId, tempUserMessage);
-      setBranchSelection(chatId, branchParentId, tempUserId);
-      localMessages.push({
-        id: tempAssistantId,
-        role: 'assistant',
-        content: '',
-        model: state.activeModelId,
-        parent_id: tempUserId,
-        created_at: nowTs + 1,
-        done: false,
+      const { tempUserId, tempAssistantId } = createOptimisticTempMessages({
+        chatId,
+        branchParentId,
+        userContent: newContent,
+        userAttachments: sourceAttachments,
+        activeModelId: state.activeModelId,
+        state,
+        setState,
+        registerPendingTempMessage,
+        setBranchSelection,
+        currentLeafByChatId,
+        drawMessages,
       });
-      registerPendingTempMessage(chatId, {
-        id: tempAssistantId,
-        role: 'assistant',
-        content: '',
-        parent_id: tempUserId,
-        created_at: nowTs + 1,
-      });
-
-      currentLeafByChatId.set(chatId, tempAssistantId);
-      setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-      if (state.activeChatId === chatId) drawMessages(localMessages);
 
       const controller = new AbortController();
       setActiveStreamAbort(() => controller.abort());
