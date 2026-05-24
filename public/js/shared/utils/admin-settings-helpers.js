@@ -88,6 +88,7 @@ export function renderSettingsSelectBox(id, optionsHtml, { ariaLabel } = {}) {
  */
 export async function updateAdminConfig({
   apiFetch,
+  endpoint = '/api/admin/config',
   payload,
   successMessage,
   errorPrefix,
@@ -98,7 +99,7 @@ export async function updateAdminConfig({
 }) {
   if (onOptimisticUpdate) onOptimisticUpdate();
   try {
-    const res = await apiFetch('/api/admin/config', {
+    const res = await apiFetch(endpoint, {
       method: 'PUT',
       body: JSON.stringify(payload),
     });

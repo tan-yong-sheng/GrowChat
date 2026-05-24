@@ -172,6 +172,37 @@ export function finalizeStreamThinking({
  * Finalize a completed stream and load messages.
  * @param {Object} ctx
  */
+
+/**
+ * Build a fallback assistant message and load messages.
+ * Shared between finalizeStreamAndLoadMessages and handleStreamCatchError.
+ */
+async function buildFallbackAndLoadMessages({
+  getStreamState,
+  chatId,
+  buildFallbackAssistantMessage,
+  resolveTempMessageId,
+  tempUserId,
+  loadMessages,
+  activeModelId,
+  activeChatId,
+  preferredLeafId,
+}) {
+  const st = getStreamState();
+  const fallback = buildFallbackAssistantMessage(chatId, st.assistantMessageId, {
+    content: st.assistantText,
+    errorActive: st.errorActive,
+    errorMessage: st.errorMessage,
+    model: activeModelId,
+    parentId: resolveTempMessageId(chatId, tempUserId),
+  });
+  await loadMessages(chatId, {
+    draw: activeChatId === chatId,
+    updateActiveModel: activeChatId === chatId,
+    ...(preferredLeafId ? { preferredLeafId } : {}),
+    fallbackMessage: fallback,
+  });
+}
 export async function finalizeStreamAndLoadMessages({
   getStreamState,
   thinkingStartByMessageId,
@@ -211,19 +242,16 @@ export async function finalizeStreamAndLoadMessages({
     streaming,
   });
   streamingOverrideByChat.delete(chatId);
-  const st = getStreamState();
-  const fallback = buildFallbackAssistantMessage(chatId, st.assistantMessageId, {
-    content: st.assistantText,
-    errorActive: st.errorActive,
-    errorMessage: st.errorMessage,
-    model: activeModelId,
-    parentId: resolveTempMessageId(chatId, tempUserId),
-  });
-  await loadMessages(chatId, {
-    draw: activeChatId === chatId,
-    updateActiveModel: activeChatId === chatId,
-    ...(preferredLeafId ? { preferredLeafId } : {}),
-    fallbackMessage: fallback,
+  await buildFallbackAndLoadMessages({
+    getStreamState,
+    chatId,
+    buildFallbackAssistantMessage,
+    resolveTempMessageId,
+    tempUserId,
+    loadMessages,
+    activeModelId,
+    activeChatId,
+    preferredLeafId,
   });
 }
 
@@ -263,18 +291,15 @@ export async function handleStreamCatchError({
       streaming: false,
     });
   }
-  const stCatch = getStreamState();
-  const fallback = buildFallbackAssistantMessage(chatId, stCatch.assistantMessageId, {
-    content: stCatch.assistantText,
-    errorActive: stCatch.errorActive,
-    errorMessage: stCatch.errorMessage,
-    model: activeModelId,
-    parentId: resolveTempMessageId(chatId, tempUserId),
-  });
-  await loadMessages(chatId, {
-    draw: activeChatId === chatId,
-    updateActiveModel: activeChatId === chatId,
-    ...(preferredLeafId ? { preferredLeafId } : {}),
-    fallbackMessage: fallback,
+  await buildFallbackAndLoadMessages({
+    getStreamState,
+    chatId,
+    buildFallbackAssistantMessage,
+    resolveTempMessageId,
+    tempUserId,
+    loadMessages,
+    activeModelId,
+    activeChatId,
+    preferredLeafId,
   });
 }

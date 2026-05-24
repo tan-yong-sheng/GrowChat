@@ -4,6 +4,7 @@ import {
   renderSettingsSelectBox,
   updateSettingsToggle,
   getSettingsToggleState,
+  updateAdminConfig,
 } from '../../../shared/utils/admin-settings-helpers.js';
 
 export function renderRegistrationSettings(container, data) {
@@ -106,46 +107,46 @@ export function renderRegistrationSettings(container, data) {
 
   const updatePublicRegistration = async (newValue) => {
     const prevValue = settingsState.publicRegistration;
-    settingsState.publicRegistration = newValue;
-    updatePublicRegToggle();
-    try {
-      const res = await apiFetch('/api/admin/config', {
-        method: 'PUT',
-        body: JSON.stringify({ public_registration: newValue }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update public registration');
-      }
-      settingsState._initialPublicRegistration = newValue;
-      showFeedback('Public registration updated.');
-    } catch (err) {
-      settingsState.publicRegistration = prevValue;
-      updatePublicRegToggle();
-      showFeedback(err?.message || 'Failed to update public registration.', true);
-    }
+    await updateAdminConfig({
+      apiFetch,
+      payload: { public_registration: newValue },
+      successMessage: 'Public registration updated.',
+      errorPrefix: 'public registration',
+      showFeedback,
+      onOptimisticUpdate: () => {
+        settingsState.publicRegistration = newValue;
+        updatePublicRegToggle();
+      },
+      onRollback: () => {
+        settingsState.publicRegistration = prevValue;
+        updatePublicRegToggle();
+      },
+      onCommit: () => {
+        settingsState._initialPublicRegistration = newValue;
+      },
+    });
   };
 
   const updateRegistrationStatus = async (newValue) => {
     const prevValue = settingsState.registrationStatus;
-    settingsState.registrationStatus = newValue;
-    updateHighlights();
-    try {
-      const res = await apiFetch('/api/admin/config', {
-        method: 'PUT',
-        body: JSON.stringify({ public_registration_status: newValue }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update registration status');
-      }
-      settingsState._initialRegistrationStatus = newValue;
-      showFeedback('Registration status saved.');
-    } catch (err) {
-      settingsState.registrationStatus = prevValue;
-      updateHighlights();
-      showFeedback(err?.message || 'Failed to update registration status.', true);
-    }
+    await updateAdminConfig({
+      apiFetch,
+      payload: { public_registration_status: newValue },
+      successMessage: 'Registration status saved.',
+      errorPrefix: 'registration status',
+      showFeedback,
+      onOptimisticUpdate: () => {
+        settingsState.registrationStatus = newValue;
+        updateHighlights();
+      },
+      onRollback: () => {
+        settingsState.registrationStatus = prevValue;
+        updateHighlights();
+      },
+      onCommit: () => {
+        settingsState._initialRegistrationStatus = newValue;
+      },
+    });
   };
 
   const updateEmailVerification = async (newValue) => {

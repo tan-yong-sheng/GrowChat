@@ -4,6 +4,7 @@ import {
   showSettingsFeedback,
   renderSettingsSelectBox,
   updateSettingsToggle,
+  updateAdminConfig,
 } from '../../../shared/utils/admin-settings-helpers.js';
 import { setState } from '../../../shared/store.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
@@ -124,52 +125,46 @@ export function renderGeneralSettings(container, data) {
 
   const updatePublicRegistration = async (newValue) => {
     const prevValue = settingsState.currentValues.publicRegistration;
-    settingsState.currentValues.publicRegistration = newValue;
-    updatePublicRegToggle();
-
-    try {
-      const res = await apiFetch('/api/admin/config', {
-        method: 'PUT',
-        body: JSON.stringify({ public_registration: newValue }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update public registration');
-      }
-
-      settingsState.initialValues.publicRegistration = newValue;
-      showFeedback('Public registration updated.');
-    } catch (err) {
-      settingsState.currentValues.publicRegistration = prevValue;
-      updatePublicRegToggle();
-      showFeedback(err?.message || 'Failed to update public registration.', true);
-    }
+    await updateAdminConfig({
+      apiFetch,
+      payload: { public_registration: newValue },
+      successMessage: 'Public registration updated.',
+      errorPrefix: 'public registration',
+      showFeedback,
+      onOptimisticUpdate: () => {
+        settingsState.currentValues.publicRegistration = newValue;
+        updatePublicRegToggle();
+      },
+      onRollback: () => {
+        settingsState.currentValues.publicRegistration = prevValue;
+        updatePublicRegToggle();
+      },
+      onCommit: () => {
+        settingsState.initialValues.publicRegistration = newValue;
+      },
+    });
   };
 
   const updateRegistrationStatus = async (newValue) => {
     const prevValue = settingsState.currentValues.registrationStatus;
-    settingsState.currentValues.registrationStatus = newValue;
-    updateModelAndRegistrationHighlight();
-
-    try {
-      const res = await apiFetch('/api/admin/config', {
-        method: 'PUT',
-        body: JSON.stringify({ public_registration_status: newValue }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update registration status');
-      }
-
-      settingsState.initialValues.registrationStatus = newValue;
-      showFeedback('Registration status saved.');
-    } catch (err) {
-      settingsState.currentValues.registrationStatus = prevValue;
-      updateModelAndRegistrationHighlight();
-      showFeedback(err?.message || 'Failed to update registration status.', true);
-    }
+    await updateAdminConfig({
+      apiFetch,
+      payload: { public_registration_status: newValue },
+      successMessage: 'Registration status saved.',
+      errorPrefix: 'registration status',
+      showFeedback,
+      onOptimisticUpdate: () => {
+        settingsState.currentValues.registrationStatus = newValue;
+        updateModelAndRegistrationHighlight();
+      },
+      onRollback: () => {
+        settingsState.currentValues.registrationStatus = prevValue;
+        updateModelAndRegistrationHighlight();
+      },
+      onCommit: () => {
+        settingsState.initialValues.registrationStatus = newValue;
+      },
+    });
   };
 
   const updateDefaultModel = async (newValue) => {
