@@ -135,7 +135,12 @@ export function createModelSelectorController(container) {
               state.defaultModelId,
               state.globalDefaultModelId,
             ]);
-            setState({ models, modelsLoading: false, activeModelId: nextActiveModelId });
+            setState({
+              models,
+              modelCatalogMeta: cached?.visibility || null,
+              modelsLoading: false,
+              activeModelId: nextActiveModelId,
+            });
             return;
           }
         } catch {
