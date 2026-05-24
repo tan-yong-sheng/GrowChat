@@ -7,7 +7,9 @@ on:
       - main
 
 jobs:
-  # Detect which source paths changed — used to skip heavy jobs on doc/workflow-only PRs
+  # Detect which source paths changed — used to skip heavy jobs on doc-only PRs.
+  # Uses inverted logic (paths-ignore pattern) so any NEW file type automatically
+  # triggers the full gate. Only purely-doc PRs skip validation.
   changes:
     name: Detect source changes
     runs-on: ubuntu-latest
@@ -22,18 +24,14 @@ jobs:
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
+          predicate-quantifier: 'every'
           filters: |
             src:
-              - '.github/workflows/**'
-              - 'src/**'
-              - 'public/js/**'
-              - 'public/index.html'
-              - 'pnpm-lock.yaml'
-              - 'package.json'
-              - 'wrangler.jsonc'
-              - 'scripts/**'
-              - 'tests/**'
-              - 'migrations/**'
+              - '**'
+              - '!**/*.md'
+              - '!LICENSE'
+              - '!.gitignore'
+              - '!.editorconfig'
             ui:
               - 'public/**'
               - 'src/input.css'

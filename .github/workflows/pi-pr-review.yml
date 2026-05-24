@@ -63,6 +63,11 @@ jobs:
           PI_API_KEY: ${{ secrets.PI_API_KEY }}
         run: |
           mkdir -p ~/.pi/agent
+          # Guard against empty vars/secrets — fail fast with a clear message
+          if [ -z "$PI_PROVIDER" ] || [ -z "$PI_MODEL" ] || [ -z "$PI_API_KEY" ]; then
+            echo "::error::PI_PROVIDER, PI_MODEL, and PI_API_KEY must all be set (repo Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
           jq -n \
             --arg provider "$PI_PROVIDER" \
             --arg baseUrl "$PI_BASE_URL" \
