@@ -103,13 +103,48 @@ module.exports = [
                 },
               },
             },
-            // Backend permissive baseline — allow all src element types to import
-            // from each other and from f-shared. TODO: tighten incrementally.
-            {
-              from: { type: srcTypes },
-              allow: { to: { type: [...srcTypes, 'f-shared'] } },
-            },
-            // Tests may import from any src or frontend element type
+ // Backend layer isolation — matches dep-cruiser rules from .dependency-cruiser.cjs
+ // Layer hierarchy (top → bottom):
+ // s-router → s-service → s-chat → s-llm → s-repository → leaf layers
+ // Leaf layers (s-utils, s-config, s-errors, s-validation, s-shared, s-middleware,
+ // s-mcp, s-durable, s-feature, s-admin, s-bootstrap) must not import s-router.
+ // Routers must not import legacy role helpers (s-utils admin/rbac).
+ {
+ from: { type: 's-router' },
+ allow: { to: { type: ['s-root', 's-service', 's-chat', 's-llm', 's-repository', 's-shared', 's-utils', 's-config', 's-errors', 's-validation', 's-middleware', 's-mcp', 's-durable', 's-feature', 's-admin', 's-bootstrap', 'f-shared'] } },
+ },
+ {
+ from: { type: 's-service' },
+ allow: { to: { type: ['s-root', 's-llm', 's-repository', 's-shared', 's-utils', 's-config', 's-errors', 's-validation', 's-middleware', 's-mcp', 's-durable', 's-feature', 's-admin', 's-bootstrap', 'f-shared'] } },
+ },
+ {
+ from: { type: 's-chat' },
+ allow: { to: { type: ['s-service', 's-repository', 's-shared', 's-utils', 's-config', 's-errors', 's-validation', 's-middleware', 's-mcp', 's-durable', 's-feature', 's-admin', 's-bootstrap', 'f-shared'] } },
+ },
+ {
+ from: { type: 's-llm' },
+ allow: { to: { type: ['s-root', 's-shared', 's-utils', 's-config', 's-errors', 's-validation', 's-middleware', 's-mcp', 's-durable', 's-feature', 's-admin', 's-bootstrap', 'f-shared'] } },
+ },
+ {
+ from: { type: 's-repository' },
+ allow: { to: { type: ['s-root', 's-shared', 's-utils', 's-config', 's-errors', 's-validation', 's-middleware', 's-mcp', 's-durable', 's-feature', 's-admin', 's-bootstrap', 'f-shared'] } },
+ },
+ // Bootstrap layer: wires up routers (intentional upward dependency for registration)
+ {
+ from: { type: 's-bootstrap' },
+ allow: { to: { type: ['s-router', 's-service', 's-chat', 's-llm', 's-repository', 's-shared', 's-utils', 's-config', 's-errors', 's-validation', 's-middleware', 's-mcp', 's-durable', 's-feature', 's-admin', 's-root', 'f-shared'] } },
+ },
+ // Leaf layers: may import from each other and f-shared, but NOT from s-router
+ {
+ from: { type: ['s-shared', 's-utils', 's-config', 's-errors', 's-validation', 's-middleware', 's-mcp', 's-durable', 's-feature', 's-admin', 's-bootstrap'] },
+ allow: { to: { type: ['s-root', 's-shared', 's-utils', 's-config', 's-errors', 's-validation', 's-middleware', 's-mcp', 's-durable', 's-feature', 's-admin', 's-bootstrap', 'f-shared'] } },
+ },
+ // s-root files (entry points) may import from any src layer
+ {
+ from: { type: 's-root' },
+ allow: { to: { type: [...srcTypes, 'f-shared'] } },
+ },
+ // Tests may import from any src or frontend element type
             {
               from: { type: 'test' },
               allow: { to: { type: [...srcTypes, 'f-feature', 'f-shared'] } },
