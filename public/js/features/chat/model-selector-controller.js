@@ -1,5 +1,5 @@
 import { state, setState, subscribe } from '../../shared/store.js';
-import { fetchModels } from '../../shared/api.js';
+import { fetchModels, readModelsCache } from '../../shared/api.js';
 import {
   filterEnabledModels,
   getPreferredModelId,
@@ -108,6 +108,7 @@ export function createModelSelectorController(container) {
   const ensureModelsLoaded = async () => {
     if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
     loadingPromise = (async () => {
+      setState({ modelsLoading: true });
       try {
         const data = await fetchModels({ cache: 'no-store', scope: 'effective' });
         const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
@@ -124,6 +125,22 @@ export function createModelSelectorController(container) {
         });
       } catch (err) {
         console.error('Failed to load models:', err);
+        // Fallback to cached models when available, matching prefetchModels({ allowCache: true })
+        try {
+          const cached = readModelsCache('effective');
+          if (cached?.models) {
+            const models = filterEnabledModels(cached.models);
+            const nextActiveModelId = getPreferredModelId(models, [
+              state.activeModelId,
+              state.defaultModelId,
+              state.globalDefaultModelId,
+            ]);
+            setState({ models, modelsLoading: false, activeModelId: nextActiveModelId });
+            return;
+          }
+        } catch {
+          /* cache miss — fall through */
+        }
         setState({ modelsLoading: false });
       } finally {
         loadingPromise = null;

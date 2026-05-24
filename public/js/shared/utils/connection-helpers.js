@@ -83,11 +83,8 @@ export function resolveUrlLabel(providerType) {
 
 function normalizeSavedConnectionModelId(providerId, modelId) {
   const safeProvider = String(providerId || '').trim();
-  let raw = String(modelId || '').trim();
+  const raw = stripModelsPrefix(String(modelId || '').trim());
   if (!raw) return '';
-  if (raw.startsWith('models/')) {
-    raw = raw.slice('models/'.length);
-  }
   if (!safeProvider) {
     return raw;
   }
@@ -134,7 +131,7 @@ export function normalizeConnectionManualModels(value = []) {
   value.forEach((item) => {
     const rawId = String(item?.modelId || item?.id || item?.name || item || '').trim();
     if (!rawId) return;
-    const safeId = rawId.startsWith('models/') ? rawId.slice('models/'.length) : rawId;
+    const safeId = stripModelsPrefix(rawId);
     if (seen.has(safeId)) return;
     seen.add(safeId);
     models.push({

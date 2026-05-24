@@ -177,3 +177,14 @@ describe('admin connection helpers', () => {
     ]);
   });
 });
+
+describe('admin connection helpers — compatibility shim', () => {
+  it('re-exports all functions from the legacy admin path', async () => {
+    const shim = await import('../../public/js/features/admin/settings/connections-helpers.js');
+    const canonical = await import('../../public/js/shared/utils/connection-helpers.js');
+    // Every named export from canonical must be available via the shim
+    const canonicalKeys = Object.keys(canonical).sort();
+    const shimKeys = Object.keys(shim).sort();
+    expect(shimKeys).toEqual(canonicalKeys);
+  });
+});
