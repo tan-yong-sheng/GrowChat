@@ -1,5 +1,9 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
+import {
+  createSseStreamHandlers,
+  finalizeStreamThinking,
+} from '../../shared/utils/sse-event-handler.js';
 
 export function bindChatMessageRetryActions({
   messagesList,
@@ -85,25 +89,38 @@ export function bindChatMessageRetryActions({
       setActiveStreamAbort(() => controller.abort());
       setGlobalStreamAbort(getActiveStreamAbort());
 
-      let assistantMessageId = tempAssistantId;
-      let errorMessage = null;
-      let errorActive = false;
-      let assistantText = '';
-
-      function applyText(streaming = true) {
-        applyStreamingAssistantText({
-          state,
-          setState,
-          streamingOverrideByChat,
-          updateMessageContentDom,
-          chatId,
-          messageId: assistantMessageId,
-          assistantText,
-          errorActive,
-          errorMessage,
-          streaming,
-        });
-      }
+      const { onEvent, onDelta, getStreamState, setStreamState } = createSseStreamHandlers({
+        chatId,
+        tempAssistantId,
+        tempUserId: null,
+        replaceTempMessageId,
+        applyAssistantText: (streaming = true) => {
+          const { assistantMessageId, assistantText, errorActive, errorMessage } = getStreamState();
+          applyStreamingAssistantText({
+            state,
+            setState,
+            streamingOverrideByChat,
+            updateMessageContentDom,
+            chatId,
+            messageId: assistantMessageId,
+            assistantText,
+            errorActive,
+            errorMessage,
+            streaming,
+          });
+        },
+        ensureThinkingBlock,
+        appendBlock,
+        updateToolCallState,
+        notePayloadSeq,
+        thinkingStartByMessageId,
+        thinkingDurationByMessageId,
+        thinkingActiveByMessageId,
+        toolCallsByMessageId,
+        messageBlocksById,
+        resolveTempMessageId,
+        errorStrategy: 'reset',
+      });
 
       try {
         setStreamingState(chatId, true);
@@ -120,73 +137,29 @@ export function bindChatMessageRetryActions({
           return;
         }
 
-        await consumeSseTextStream(res.body, {
-          onEvent: (payload) => {
-            if (payload?.event === 'start' && payload?.message_id) {
-              assistantMessageId = String(payload.message_id);
-              replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
-              if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
-                thinkingActiveByMessageId.set(String(assistantMessageId), true);
-              }
-              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-              }
-              applyText(true);
-            }
-            if (payload?.event === 'reasoning_start') {
-              if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-                thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-              }
-              thinkingActiveByMessageId.set(String(assistantMessageId), true);
-              ensureThinkingBlock(messageBlocksById, assistantMessageId);
-              applyText();
-            }
-            if (payload?.event === 'reasoning_delta') {
-              const delta = String(payload.delta || '');
-              if (delta) {
-                appendBlock(messageBlocksById, assistantMessageId, 'thinking', delta);
-                thinkingActiveByMessageId.set(String(assistantMessageId), true);
-                applyText();
-              }
-            }
-            if (payload?.event === 'reasoning_end') {
-              const duration = Number(payload.duration_ms);
-              if (Number.isFinite(duration) && duration > 0) {
-                thinkingDurationByMessageId.set(String(assistantMessageId), duration);
-              }
-              thinkingActiveByMessageId.delete(String(assistantMessageId));
-            }
-            if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-              const targetId = resolveTempMessageId(
-                chatId,
-                payload?.message_id || assistantMessageId
-              );
-              updateToolCallState(toolCallsByMessageId, messageBlocksById, targetId, payload);
-              applyText();
-            }
-            if (payload?.error) {
-              errorMessage = payload.message || payload.error || 'LLM request failed';
-              errorActive = true;
-              assistantText = '';
-              applyText();
-            }
-            notePayloadSeq(payload, assistantMessageId);
-          },
-          onDelta: (delta) => {
-            if (!delta) return;
-            assistantText += delta;
-            appendBlock(messageBlocksById, assistantMessageId, 'text', delta);
-            applyText();
-          },
+        await consumeSseTextStream(res.body, { onEvent, onDelta });
+
+        const { assistantMessageId, assistantText, errorActive, errorMessage } = getStreamState();
+
+        finalizeStreamThinking({
+          assistantMessageId,
+          thinkingStartByMessageId,
+          thinkingDurationByMessageId,
+          thinkingActiveByMessageId,
         });
 
-        const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
-        if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
-          thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
-        }
-        thinkingActiveByMessageId.delete(String(assistantMessageId));
-
-        applyText(false);
+        applyStreamingAssistantText({
+          state,
+          setState,
+          streamingOverrideByChat,
+          updateMessageContentDom,
+          chatId,
+          messageId: assistantMessageId,
+          assistantText,
+          errorActive,
+          errorMessage,
+          streaming: false,
+        });
         streamingOverrideByChat.delete(chatId);
 
         const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
@@ -205,12 +178,29 @@ export function bindChatMessageRetryActions({
       } catch (e) {
         if (e?.name !== 'AbortError') {
           console.error('Regeneration failed', e);
-          if (!errorActive) {
-            errorMessage = String(e?.message || 'LLM request failed');
-            errorActive = true;
-            assistantText = '';
-            applyText(false);
+          const streamState = getStreamState();
+          if (!streamState.errorActive) {
+            setStreamState({
+              errorMessage: String(e?.message || 'LLM request failed'),
+              errorActive: true,
+              assistantText: '',
+            });
+            const { assistantMessageId, assistantText, errorActive, errorMessage } =
+              getStreamState();
+            applyStreamingAssistantText({
+              state,
+              setState,
+              streamingOverrideByChat,
+              updateMessageContentDom,
+              chatId,
+              messageId: assistantMessageId,
+              assistantText,
+              errorActive,
+              errorMessage,
+              streaming: false,
+            });
           }
+          const { assistantMessageId, assistantText, errorActive, errorMessage } = getStreamState();
           const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
             content: assistantText,
             errorActive,
