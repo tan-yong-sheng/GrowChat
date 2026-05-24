@@ -24,7 +24,6 @@ const DEFAULT_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
 function parseArgs(argv) {
   const firstPositional = argv.find((a) => !a.startsWith('--'));
-
   let maxFiles = DEFAULT_MAX_FILES;
   let maxSize = DEFAULT_MAX_SIZE_BYTES;
   let scanDir = firstPositional || '.';
@@ -53,9 +52,10 @@ async function collectSnapshotFiles(dir, files = []) {
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch (err) {
-    if (err.code !== 'ENOENT')
-      console.warn(`Warning: Could not read directory ${dir}: ${err.message}`);
-    return files;
+    if (err?.code === 'ENOENT') return files;
+    throw new Error(`Failed to read directory "${dir}": ${err?.message ?? String(err)}`, {
+      cause: err,
+    });
   }
 
   for (const entry of entries) {
@@ -86,9 +86,10 @@ async function collectAllFiles(dir, files = []) {
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch (err) {
-    if (err.code !== 'ENOENT')
-      console.warn(`Warning: Could not read directory ${dir}: ${err.message}`);
-    return files;
+    if (err?.code === 'ENOENT') return files;
+    throw new Error(`Failed to read directory "${dir}": ${err?.message ?? String(err)}`, {
+      cause: err,
+    });
   }
 
   for (const entry of entries) {

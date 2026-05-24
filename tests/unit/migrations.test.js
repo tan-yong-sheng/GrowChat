@@ -209,4 +209,49 @@ describe('scanDestructiveDDL', () => {
     expect(report.ok).toBe(true);
     expect(report.warnings).toHaveLength(0);
   });
+
+  it('should skip DROP TABLE IF EXISTS (guarded statement)', () => {
+    const fileContents = {
+      '018_guarded_drop.sql': 'DROP TABLE IF EXISTS old_data;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toHaveLength(0);
+  });
+
+  it('should skip DROP INDEX IF EXISTS (guarded statement)', () => {
+    const fileContents = {
+      '019_guarded_index.sql': 'DROP INDEX IF EXISTS old_idx;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toHaveLength(0);
+  });
+
+  it('should warn on unguarded DROP TABLE', () => {
+    const fileContents = {
+      '020_unguarded_drop.sql': 'DROP TABLE old_data;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(false);
+    expect(report.warnings.some((w) => w.description.includes('DROP TABLE'))).toBe(true);
+  });
+
+  it('should detect ALTER TABLE RENAME TO (SQLite/D1 syntax)', () => {
+    const fileContents = {
+      '021_sqlite_rename.sql': 'ALTER TABLE users RENAME TO accounts;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(false);
+    expect(report.warnings.some((w) => w.description.includes('RENAME TO'))).toBe(true);
+  });
+
+  it('should skip ALTER TABLE RENAME TO IF EXISTS (guarded)', () => {
+    const fileContents = {
+      '022_guarded_rename.sql': 'ALTER TABLE IF EXISTS users RENAME TO accounts;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toHaveLength(0);
+  });
 });

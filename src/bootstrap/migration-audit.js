@@ -26,6 +26,10 @@ const DESTRUCTIVE_DDL_PATTERNS = [
     pattern: /\bALTER\s+TABLE\s+\S+\s+RENAME\s+COLUMN\b/gi,
     description: 'ALTER TABLE RENAME COLUMN detected — backward-incompatible schema change',
   },
+  {
+    pattern: /\bALTER\s+TABLE\s+\S+\s+RENAME\s+TO\b/gi,
+    description: 'ALTER TABLE RENAME TO detected — backward-incompatible schema change (SQLite/D1)',
+  },
 ];
 
 export function auditMigrationFiles(fileNames = []) {
@@ -184,8 +188,43 @@ function normalizeMultilineSQL(content) {
 }
 
 /**
+ * Check if a SQL statement contains a safety guard (IF EXISTS / IF NOT EXISTS).
+ * Guarded statements are considered safe and should not produce warnings.
+ *
+ * @param {string} sql - Normalized SQL statement.
+ * @returns {boolean} True if the statement is guarded.
+ */
+function hasSafetyGuard(sql) {
+  return /\bIF\s+(NOT\s+)?EXISTS\b/i.test(sql);
+}
+
+/**
+ * Check a single normalized SQL line against destructive DDL patterns.
+ * Skips lines that are guarded with IF EXISTS / IF NOT EXISTS.
+ *
+ * @param {string} line - Normalized SQL line.
+ * @param {number} originalLine - Original line number.
+ * @returns {Array<{file: string, line: number, pattern: string, description: string}>}
+ */
+function checkLineForDestructivePatterns(line, originalLine) {
+  const result = [];
+  for (const { pattern, description } of DESTRUCTIVE_DDL_PATTERNS) {
+    if (pattern.test(line)) {
+      if (hasSafetyGuard(line)) {
+        pattern.lastIndex = 0;
+        continue;
+      }
+      result.push({ line: originalLine, pattern: pattern.source, description });
+      pattern.lastIndex = 0;
+    }
+  }
+  return result;
+}
+
+/**
  * Scan SQL content for destructive DDL patterns.
  * Handles block comments, inline comments, and multiline statements.
+ * Statements with IF EXISTS / IF NOT EXISTS guards are skipped.
  *
  * @param {Object} fileContents - Map of filename → SQL content string.
  * @returns {{ warnings: Array<{file: string, line: number, pattern: string, description: string}>, ok: boolean }}
@@ -205,17 +244,9 @@ export function scanDestructiveDDL(fileContents = {}) {
 
       if (line.trim().length === 0) continue;
 
-      for (const { pattern, description } of DESTRUCTIVE_DDL_PATTERNS) {
-        if (pattern.test(line)) {
-          warnings.push({
-            file: fileName,
-            line: originalLine,
-            pattern: pattern.source,
-            description,
-          });
-          // Reset lastIndex since we reuse pattern objects with /g flag
-          pattern.lastIndex = 0;
-        }
+      const lineWarnings = checkLineForDestructivePatterns(line, originalLine);
+      for (const w of lineWarnings) {
+        warnings.push({ file: fileName, ...w });
       }
     }
   }
