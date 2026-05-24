@@ -121,9 +121,11 @@ export function detectRemovedMigrations(currentFiles = [], previousFiles = []) {
 }
 
 /**
- * Strip SQL comments from content while preserving line numbers.
- * Removes block comments (/* ... * /) by replacing non-newline chars with spaces,
- * and removes inline comments (-- to end of line).
+ * Strip SQL comments and string literals from content while preserving line numbers.
+ * Removes:
+ * - Block comments (/* ... * /) \u2014 replaces non-newline chars with spaces
+ * - String literals ('...' and "...") \u2014 replaces content with empty placeholder
+ * - Inline comments (-- to end of line)
  *
  * @param {string} content - Raw SQL content.
  * @returns {string} Content with comments stripped, preserving line structure.
@@ -131,6 +133,9 @@ export function detectRemovedMigrations(currentFiles = [], previousFiles = []) {
 function stripSqlComments(content) {
   // Remove block comments, preserving newlines for accurate line numbers
   let result = content.replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '));
+  // Remove string literals (avoid false positives on keywords inside data)
+  result = result.replace(/'(?:[^']|'')*'/g, "''"); // Replace with empty-string literal
+  result = result.replace(/"(?:[^"]|"")*"/g, '""'); // Replace with empty-quoted identifier
   // Remove inline comments (-- to end of line)
   result = result.replace(/--.*$/gm, '');
   return result;

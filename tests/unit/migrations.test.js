@@ -191,4 +191,22 @@ describe('scanDestructiveDDL', () => {
     const report = scanDestructiveDDL(fileContents);
     expect(report.ok).toBe(true);
   });
+
+  it('should ignore destructive keywords inside string literals', () => {
+    const fileContents = {
+      '016_string_literal.sql': "INSERT INTO logs (msg) VALUES ('DROP TABLE users;');",
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toHaveLength(0);
+  });
+
+  it('should ignore destructive keywords inside quoted identifiers', () => {
+    const fileContents = {
+      '017_quoted_identifier.sql': 'CREATE TABLE "DROP TABLE" (id INTEGER PRIMARY KEY);',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toHaveLength(0);
+  });
 });
