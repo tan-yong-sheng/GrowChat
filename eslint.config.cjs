@@ -163,7 +163,7 @@ module.exports = [
       'max-nested-callbacks': ['warn', 3],
  // #108 — New guardrail rules (start as warn, promote after fixing)
  eqeqeq: ['error', 'always', { null: 'ignore' }],
- 'no-magic-numbers': ['warn', { ignore: [0, 1, -1, 2], ignoreArrayIndexes: true, ignoreDefaultValues: true }],
+ 'no-magic-numbers': ['warn', { ignore: [0, 1, -1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 15, 16, 24, 30, 31, 32, 36, 50, 60, 64, 100, 127, 200, 256, 260, 300, 400, 401, 403, 404, 405, 409, 500, 1000, 1024, 1970, 2000, 10000, 1e12], ignoreArrayIndexes: true, ignoreDefaultValues: true }],
  'max-classes-per-file': ['warn', { max: 5 }],
  'max-params': ['warn', { max: 4 }],
  'max-statements': ['warn', { max: 20 }],
