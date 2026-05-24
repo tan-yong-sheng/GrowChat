@@ -1,4 +1,5 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
+import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 
@@ -317,32 +318,18 @@ export function bindChatMessageActions({
         let assistantText = '';
 
         function applyAssistantText(streaming = true) {
-          streamingOverrideByChat.set(chatId, {
-            targetMsgId: assistantMessageId,
-            content: assistantText,
+          applyStreamingAssistantText({
+            state,
+            setState,
+            streamingOverrideByChat,
+            updateMessageContentDom,
+            chatId,
+            messageId: assistantMessageId,
+            assistantText,
+            errorActive,
+            errorMessage,
+            streaming,
           });
-
-          const currentMessages = [...(state.messagesByChat[chatId] || [])];
-          const targetIdx = currentMessages.findIndex(
-            (m) => String(m.id) === String(assistantMessageId)
-          );
-          if (targetIdx >= 0) {
-            currentMessages[targetIdx] = {
-              ...currentMessages[targetIdx],
-              content: assistantText,
-              status: errorActive ? 'error' : currentMessages[targetIdx].status,
-              error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
-            };
-            setState((prev) => ({
-              messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
-            }));
-          }
-          if (state.activeChatId === chatId) {
-            updateMessageContentDom(assistantMessageId, assistantText, {
-              isError: errorActive,
-              isStreaming: streaming,
-            });
-          }
         }
 
         try {

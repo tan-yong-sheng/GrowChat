@@ -1,4 +1,5 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
+import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 
 export function bindChatMessageRetryActions({
   messagesList,
@@ -40,6 +41,7 @@ export function bindChatMessageRetryActions({
   messagesList.querySelectorAll('[data-retry-message]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       let id = btn.getAttribute('data-retry-message');
+
       if (isTempMessageId(id)) {
         const resolved = await waitForResolvedMessageId(state.activeChatId, id);
         if (!resolved) {
@@ -53,12 +55,13 @@ export function bindChatMessageRetryActions({
         getMessageById(chatId, id) ||
         projectedMessages.find((msg) => String(msg.id) === String(id));
       if (!sourceMsg) return;
-      const branchParentId = sourceMsg.parent_id || null;
 
+      const branchParentId = sourceMsg.parent_id || null;
       const tempAssistantId = `temp-assistant-${Date.now()}`;
       const nowTs = Math.floor(Date.now() / 1000);
 
       let localMessages = [...(state.messagesByChat[chatId] || [])];
+
       localMessages.push({
         id: tempAssistantId,
         role: 'assistant',
@@ -71,9 +74,11 @@ export function bindChatMessageRetryActions({
 
       currentLeafByChatId.set(chatId, tempAssistantId);
       setBranchSelection(chatId, branchParentId, tempAssistantId);
+
       setState((prev) => ({
         messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages },
       }));
+
       if (state.activeChatId === chatId) drawMessages(localMessages);
 
       const controller = new AbortController();
@@ -85,40 +90,24 @@ export function bindChatMessageRetryActions({
       let errorActive = false;
       let assistantText = '';
 
-      function applyAssistantText(streaming = true) {
-        streamingOverrideByChat.set(chatId, {
-          targetMsgId: assistantMessageId,
-          content: assistantText,
+      function applyText(streaming = true) {
+        applyStreamingAssistantText({
+          state,
+          setState,
+          streamingOverrideByChat,
+          updateMessageContentDom,
+          chatId,
+          messageId: assistantMessageId,
+          assistantText,
+          errorActive,
+          errorMessage,
+          streaming,
         });
-
-        const currentMessages = [...(state.messagesByChat[chatId] || [])];
-        const targetIdx = currentMessages.findIndex(
-          (m) => String(m.id) === String(assistantMessageId)
-        );
-        if (targetIdx >= 0) {
-          currentMessages[targetIdx] = {
-            ...currentMessages[targetIdx],
-            content: assistantText,
-            status: errorActive ? 'error' : currentMessages[targetIdx].status,
-            error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
-          };
-          setState((prev) => ({
-            messagesByChat: {
-              ...prev.messagesByChat,
-              [chatId]: currentMessages,
-            },
-          }));
-        }
-        if (state.activeChatId === chatId) {
-          updateMessageContentDom(assistantMessageId, assistantText, {
-            isError: errorActive,
-            isStreaming: streaming,
-          });
-        }
       }
 
       try {
         setStreamingState(chatId, true);
+
         const res = await apiFetch(`/api/chats/${chatId}/messages/${id}/regenerate`, {
           method: 'POST',
           signal: controller.signal,
@@ -142,7 +131,7 @@ export function bindChatMessageRetryActions({
               if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
                 thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
               }
-              applyAssistantText(true);
+              applyText(true);
             }
             if (payload?.event === 'reasoning_start') {
               if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
@@ -150,14 +139,14 @@ export function bindChatMessageRetryActions({
               }
               thinkingActiveByMessageId.set(String(assistantMessageId), true);
               ensureThinkingBlock(messageBlocksById, assistantMessageId);
-              applyAssistantText();
+              applyText();
             }
             if (payload?.event === 'reasoning_delta') {
               const delta = String(payload.delta || '');
               if (delta) {
                 appendBlock(messageBlocksById, assistantMessageId, 'thinking', delta);
                 thinkingActiveByMessageId.set(String(assistantMessageId), true);
-                applyAssistantText();
+                applyText();
               }
             }
             if (payload?.event === 'reasoning_end') {
@@ -173,13 +162,13 @@ export function bindChatMessageRetryActions({
                 payload?.message_id || assistantMessageId
               );
               updateToolCallState(toolCallsByMessageId, messageBlocksById, targetId, payload);
-              applyAssistantText();
+              applyText();
             }
             if (payload?.error) {
               errorMessage = payload.message || payload.error || 'LLM request failed';
               errorActive = true;
               assistantText = '';
-              applyAssistantText();
+              applyText();
             }
             notePayloadSeq(payload, assistantMessageId);
           },
@@ -187,7 +176,7 @@ export function bindChatMessageRetryActions({
             if (!delta) return;
             assistantText += delta;
             appendBlock(messageBlocksById, assistantMessageId, 'text', delta);
-            applyAssistantText();
+            applyText();
           },
         });
 
@@ -196,8 +185,10 @@ export function bindChatMessageRetryActions({
           thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
         }
         thinkingActiveByMessageId.delete(String(assistantMessageId));
-        applyAssistantText(false);
+
+        applyText(false);
         streamingOverrideByChat.delete(chatId);
+
         const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
           content: assistantText,
           errorActive,
@@ -218,7 +209,7 @@ export function bindChatMessageRetryActions({
             errorMessage = String(e?.message || 'LLM request failed');
             errorActive = true;
             assistantText = '';
-            applyAssistantText(false);
+            applyText(false);
           }
           const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
             content: assistantText,
