@@ -314,7 +314,7 @@ function renderGroupModal({
   return overlay;
 }
 
-async function openCreateModal({ onRefresh, onCreate, navigationState }) {
+async function fetchInitialUsers() {
   let users = [];
   let usersTotal = 0;
   let usersError = null;
@@ -325,6 +325,11 @@ async function openCreateModal({ onRefresh, onCreate, navigationState }) {
   } catch (err) {
     usersError = err.message || 'Unable to load users.';
   }
+  return { users, usersTotal, usersError };
+}
+
+async function openCreateModal({ onRefresh, onCreate, navigationState }) {
+  const { users, usersTotal, usersError } = await fetchInitialUsers();
 
   renderGroupModal({
     mode: 'create',
@@ -356,16 +361,8 @@ async function openCreateModal({ onRefresh, onCreate, navigationState }) {
 
 async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, navigationState }) {
   const detail = await fetchAdminGroup(groupId);
-  let users = [];
-  let usersTotal = 0;
-  let usersError = null;
-  try {
-    const payload = await fetchAdminUsers({ limit: clampUserLimit(100), offset: 0 });
-    users = payload.users || [];
-    usersTotal = payload.total || users.length;
-  } catch (err) {
-    usersError = err.message || 'Unable to load users.';
-  }
+  const { users, usersTotal, usersError } = await fetchInitialUsers();
+
   renderGroupModal({
     mode: 'edit',
     group: detail.group,

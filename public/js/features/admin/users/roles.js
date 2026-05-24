@@ -219,6 +219,16 @@ function renderErrorState(message) {
   `;
 }
 
+async function loadRolesFromServer(state) {
+  const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
+  const roles =
+    Array.isArray(payload?.roles) && payload.roles.length
+      ? payload.roles.map((role) => normalizeLoadedRole(role))
+      : createInitialRoles();
+  state.roles = roles;
+  state.nextCustomIndex = getNextCustomIndex(state.roles);
+}
+
 async function ensureRolesLoaded(container, state, data) {
   if (state.rolesLoaded || state.rolesLoading) return;
   state.rolesLoading = true;
@@ -226,13 +236,7 @@ async function ensureRolesLoaded(container, state, data) {
   renderRolesPage(container, data);
 
   try {
-    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    const roles =
-      Array.isArray(payload?.roles) && payload.roles.length
-        ? payload.roles.map((role) => normalizeLoadedRole(role))
-        : createInitialRoles();
-    state.roles = roles;
-    state.nextCustomIndex = getNextCustomIndex(state.roles);
+    await loadRolesFromServer(state);
   } catch (err) {
     state.roles = createInitialRoles();
     state.nextCustomIndex = getNextCustomIndex(state.roles);
@@ -254,6 +258,16 @@ function createRoleDraft(role, { isNew = false, sourceRoleId = null, nextCustomI
     cloned.sourceRoleId = sourceRoleId || 'member';
   }
   return cloned;
+}
+
+function createBaseRoleDraft(isNew, sourceRole, state) {
+  return isNew
+    ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
+        isNew: true,
+        sourceRoleId: 'member',
+        nextCustomIndex: state.nextCustomIndex,
+      })
+    : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
 }
 
 function createModalShell({ title, subtitle, showDelete = false } = {}) {
@@ -339,13 +353,7 @@ function openRoleModal(
   { roleId = null, isNew = false, onSaveRole = null, onDeleteRole = null } = {}
 ) {
   const sourceRole = roleId ? state.roles.find((role) => role.id === roleId) || null : null;
-  const baseRole = isNew
-    ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
-        isNew: true,
-        sourceRoleId: 'member',
-        nextCustomIndex: state.nextCustomIndex,
-      })
-    : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+  const baseRole = createBaseRoleDraft(isNew, sourceRole, state);
 
   const modalState = {
     query: '',
@@ -625,13 +633,7 @@ function openRoleModal(
   });
 
   resetBtn.addEventListener('click', () => {
-    modalState.draft = modalState.isNew
-      ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
-          isNew: true,
-          sourceRoleId: 'member',
-          nextCustomIndex: state.nextCustomIndex,
-        })
-      : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+    modalState.draft = createBaseRoleDraft(modalState.isNew, sourceRole, state);
     modalState.query = '';
     modalState.advanced = true;
     modalState.groupCollapsed = { ...DEFAULT_GROUP_COLLAPSE };
@@ -787,13 +789,7 @@ export function renderRolesPage(container, data = {}) {
   };
 
   const reloadRolesFromServer = async () => {
-    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    const roles =
-      Array.isArray(payload?.roles) && payload.roles.length
-        ? payload.roles.map((role) => normalizeLoadedRole(role))
-        : createInitialRoles();
-    state.roles = roles;
-    state.nextCustomIndex = getNextCustomIndex(state.roles);
+    await loadRolesFromServer(state);
     renderRolesPage(container, data);
   };
 
