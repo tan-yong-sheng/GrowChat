@@ -135,4 +135,60 @@ describe('scanDestructiveDDL', () => {
     const report = scanDestructiveDDL({});
     expect(report.ok).toBe(true);
   });
+
+  it('should ignore destructive keywords inside block comments', () => {
+    const fileContents = {
+      '010_block_comment.sql':
+        '/* DROP TABLE old_table; */\nCREATE TABLE users (id INTEGER PRIMARY KEY);',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(true);
+    expect(report.warnings).toHaveLength(0);
+  });
+
+  it('should ignore inline comments after code on the same line', () => {
+    const fileContents = {
+      '011_inline_after_code.sql': 'CREATE TABLE t (id INTEGER); -- DROP TABLE t;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(true);
+  });
+
+  it('should detect destructive DDL in multiline statements', () => {
+    const fileContents = {
+      '012_multiline.sql': 'ALTER TABLE\n  users\n  DROP COLUMN age;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(false);
+    expect(report.warnings.some((w) => w.description.includes('DROP COLUMN'))).toBe(true);
+    // Line should point to the start of the statement
+    expect(report.warnings[0].line).toBe(1);
+  });
+
+  it('should detect destructive DDL with quoted identifiers', () => {
+    const fileContents = {
+      '013_quoted.sql': 'ALTER TABLE "users" DROP COLUMN middle_name;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(false);
+    expect(report.warnings.some((w) => w.description.includes('DROP COLUMN'))).toBe(true);
+  });
+
+  it('should detect destructive DDL with schema-qualified names', () => {
+    const fileContents = {
+      '014_schema_qualified.sql': 'ALTER TABLE public.users DROP COLUMN age;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(false);
+    expect(report.warnings.some((w) => w.description.includes('DROP COLUMN'))).toBe(true);
+  });
+
+  it('should ignore multi-line block comments', () => {
+    const fileContents = {
+      '015_multiline_comment.sql':
+        '/* This migration\n   DROP TABLE old_data;\n   was already applied */\nCREATE TABLE new_data (id INTEGER);',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(true);
+  });
 });

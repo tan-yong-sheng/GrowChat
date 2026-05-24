@@ -31,9 +31,13 @@ function parseArgs(argv) {
 
   for (const arg of argv) {
     if (arg.startsWith('--max-files=')) {
-      maxFiles = Number(arg.split('=')[1]);
+      const val = Number(arg.split('=')[1]);
+      if (Number.isFinite(val) && val > 0) maxFiles = Math.floor(val);
+      else console.warn(`Warning: Invalid --max-files value ignored: ${arg}`);
     } else if (arg.startsWith('--max-size=')) {
-      maxSize = Number(arg.split('=')[1]);
+      const val = Number(arg.split('=')[1]);
+      if (Number.isFinite(val) && val > 0) maxSize = val;
+      else console.warn(`Warning: Invalid --max-size value ignored: ${arg}`);
     }
   }
 
@@ -48,7 +52,9 @@ async function collectSnapshotFiles(dir, files = []) {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    if (err.code !== 'ENOENT')
+      console.warn(`Warning: Could not read directory ${dir}: ${err.message}`);
     return files;
   }
 
@@ -79,7 +85,9 @@ async function collectAllFiles(dir, files = []) {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    if (err.code !== 'ENOENT')
+      console.warn(`Warning: Could not read directory ${dir}: ${err.message}`);
     return files;
   }
 

@@ -7,7 +7,7 @@ const MIGRATION_FILE_PATTERN = /^(\d{3})_(.+)\.sql$/i;
 const DESTRUCTIVE_DDL_PATTERNS = [
   { pattern: /\bDROP\s+TABLE\b/gi, description: 'DROP TABLE detected — may cause data loss' },
   {
-    pattern: /\bALTER\s+TABLE\s+\w+\s+DROP\s+COLUMN\b/gi,
+    pattern: /\bALTER\s+TABLE\s+\S+\s+DROP\s+COLUMN\b/gi,
     description: 'ALTER TABLE DROP COLUMN detected — backward-incompatible schema change',
   },
   {
@@ -23,7 +23,7 @@ const DESTRUCTIVE_DDL_PATTERNS = [
     description: 'RENAME TABLE detected — may break existing queries',
   },
   {
-    pattern: /\bALTER\s+TABLE\s+\w+\s+RENAME\s+COLUMN\b/gi,
+    pattern: /\bALTER\s+TABLE\s+\S+\s+RENAME\s+COLUMN\b/gi,
     description: 'ALTER TABLE RENAME COLUMN detected — backward-incompatible schema change',
   },
 ];
@@ -121,7 +121,67 @@ export function detectRemovedMigrations(currentFiles = [], previousFiles = []) {
 }
 
 /**
+ * Strip SQL comments from content while preserving line numbers.
+ * Removes block comments (/* ... * /) by replacing non-newline chars with spaces,
+ * and removes inline comments (-- to end of line).
+ *
+ * @param {string} content - Raw SQL content.
+ * @returns {string} Content with comments stripped, preserving line structure.
+ */
+function stripSqlComments(content) {
+  // Remove block comments, preserving newlines for accurate line numbers
+  let result = content.replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '));
+  // Remove inline comments (-- to end of line)
+  result = result.replace(/--.*$/gm, '');
+  return result;
+}
+
+/**
+ * Normalize multiline SQL statements into single lines for pattern matching.
+ * Collapses consecutive whitespace (including newlines) into single spaces
+ * within each statement (delimited by semicolons).
+ *
+ * @param {string} content - SQL content (ideally comment-stripped).
+ * @returns {{ lines: string[], lineMap: number[] }} Normalized lines and their original line numbers.
+ */
+function normalizeMultilineSQL(content) {
+  const originalLines = content.split('\n');
+  const lineMap = []; // maps normalized line index → original line number
+  const normalizedLines = [];
+
+  let buffer = '';
+  let startLine = 0;
+
+  for (let i = 0; i < originalLines.length; i++) {
+    const line = originalLines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.length === 0) continue;
+
+    if (buffer.length === 0) startLine = i + 1; // 1-indexed
+
+    buffer += (buffer.length > 0 ? ' ' : '') + trimmed.replace(/\s+/g, ' ');
+
+    if (trimmed.endsWith(';')) {
+      normalizedLines.push(buffer);
+      lineMap.push(startLine);
+      buffer = '';
+    }
+  }
+
+  // Handle trailing statement without semicolon
+  if (buffer.trim().length > 0) {
+    normalizedLines.push(buffer.trim());
+    lineMap.push(startLine);
+  }
+
+  return { lines: normalizedLines, lineMap };
+}
+
+/**
  * Scan SQL content for destructive DDL patterns.
+ * Handles block comments, inline comments, and multiline statements.
+ *
  * @param {Object} fileContents - Map of filename → SQL content string.
  * @returns {{ warnings: Array<{file: string, line: number, pattern: string, description: string}>, ok: boolean }}
  */
@@ -131,18 +191,20 @@ export function scanDestructiveDDL(fileContents = {}) {
   for (const [fileName, content] of Object.entries(fileContents)) {
     if (typeof content !== 'string') continue;
 
-    const lines = content.split('\n');
+    const stripped = stripSqlComments(content);
+    const { lines, lineMap } = normalizeMultilineSQL(stripped);
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      // Skip comment-only lines
-      const stripped = line.trim();
-      if (stripped.startsWith('--') || stripped.length === 0) continue;
+      const originalLine = lineMap[i];
+
+      if (line.trim().length === 0) continue;
 
       for (const { pattern, description } of DESTRUCTIVE_DDL_PATTERNS) {
         if (pattern.test(line)) {
           warnings.push({
             file: fileName,
-            line: i + 1,
+            line: originalLine,
             pattern: pattern.source,
             description,
           });

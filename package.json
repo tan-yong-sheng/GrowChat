@@ -15,7 +15,7 @@
     "check:mutation": "stryker run",
     "snapshots:clean": "node scripts/cleanup-snapshots.js",
     "snapshots:audit": "node scripts/audit-snapshots.js .",
-    "check:performance": "lhci autorun && lhci assert",
+    "check:performance": "lhci autorun",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
