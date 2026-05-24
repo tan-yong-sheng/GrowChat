@@ -161,8 +161,14 @@ module.exports = [
       'max-lines-per-function': ['warn', { max: 120, skipBlankLines: true, skipComments: true }],
       'max-depth': ['warn', 4],
       'max-nested-callbacks': ['warn', 3],
-    },
-  },
+ // #108 — New guardrail rules (start as warn, promote after fixing)
+ eqeqeq: ['error', 'always', { null: 'ignore' }],
+ 'no-magic-numbers': ['warn', { ignore: [0, 1, -1, 2], ignoreArrayIndexes: true, ignoreDefaultValues: true }],
+ 'max-classes-per-file': ['warn', { max: 5 }],
+ 'max-params': ['warn', { max: 4 }],
+ 'max-statements': ['warn', { max: 20 }],
+ },
+ },
 
   // Test files — relaxed limits for nesting, depth, and function length
   {
@@ -172,6 +178,10 @@ module.exports = [
       'max-nested-callbacks': 'off',
       'max-depth': 'off',
       complexity: 'off',
+ 'no-magic-numbers': 'off',
+ 'max-params': 'off',
+ 'max-statements': 'off',
+ 'max-classes-per-file': 'off',
     },
   },
 
@@ -294,6 +304,10 @@ module.exports = [
       complexity: 'off',
       'max-lines-per-function': 'off',
       'max-depth': 'off',
+ 'no-magic-numbers': 'off',
+ 'max-params': 'off',
+ 'max-statements': 'off',
+ 'max-classes-per-file': 'off',
     },
   },
 ];
