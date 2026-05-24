@@ -1049,11 +1049,15 @@ export function renderPoliciesSettings(container, _data = {}) {
           signal: controller.signal,
         });
       } else if (familyKey === 'connections') {
-        const res = await apiFetch('/api/admin/openai/connections', { signal: controller.signal });
+        const res = await apiFetch('/api/admin/openai/connections?include_disabled=1', {
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error('Failed to load connections');
         payload = await res.json();
       } else {
-        const res = await apiFetch('/api/admin/tool-servers', { signal: controller.signal });
+        const res = await apiFetch('/api/admin/tool-servers?include_disabled=1', {
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error('Failed to load MCP servers');
         payload = await res.json();
       }
@@ -1061,18 +1065,13 @@ export function renderPoliciesSettings(container, _data = {}) {
       if (controller.signal.aborted) return;
       if (familyLoadSeq[familyKey] !== seq) return;
 
-      const resources =
+      const rawResources =
         familyKey === 'models'
-          ? Array.isArray(payload.models)
-            ? payload.models
-            : []
+          ? payload.models
           : familyKey === 'connections'
-            ? Array.isArray(payload.connections)
-              ? payload.connections
-              : []
-            : Array.isArray(payload.servers)
-              ? payload.servers
-              : [];
+            ? payload.connections
+            : payload.servers;
+      const resources = Array.isArray(rawResources) ? rawResources : [];
       const ids = resources.map((resource) => resource.id).filter(Boolean);
       let accessRules = [];
       let connectionAccessRules = [];

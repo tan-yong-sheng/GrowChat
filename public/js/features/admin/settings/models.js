@@ -331,9 +331,9 @@ export function renderModelsSettings(container, data) {
               .map((model) => {
                 const _isDisabled = modelsState.disabledModels.has(model.id);
                 return `
-                    <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${_isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
+                    <tr data-model-row="${model.id}" class="text-xs hover:bg-gray-50/50 transition-colors ${_isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 text-gray-400 font-mono truncate ${_isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
+                      <td class="px-4 py-4 font-mono truncate ${_isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
                           ${renderModelAccessBadgeForModel(model)}
@@ -674,9 +674,7 @@ export function renderModelsSettings(container, data) {
           action: 'use',
         }));
         const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
-        if (sameAsBase) {
-          // No changes — skip API call to avoid wiping ACLs with null payload
-        } else if (typeof onApply === 'function') {
+        if (!sameAsBase && typeof onApply === 'function') {
           await onApply(cloneAclRules(rules), model);
         }
         close();
@@ -744,9 +742,9 @@ export function renderModelsSettings(container, data) {
             .map((model) => {
               const isDisabled = modelsState.disabledModels.has(model.id);
               return `
-                    <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
+                    <tr data-model-row="${model.id}" class="text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
+                      <td class="px-4 py-4 font-mono truncate ${isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
                           ${renderModelAccessBadgeForModel(model)}

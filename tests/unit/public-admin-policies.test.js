@@ -80,7 +80,7 @@ describe('admin policies settings', () => {
 
     mocks.apiFetch.mockImplementation(async (url, _init = {}) => {
       const path = String(url);
-      if (path === '/api/admin/openai/connections') {
+      if (path.split('?')[0] === '/api/admin/openai/connections') {
         return new Response(
           JSON.stringify({
             connections: [
@@ -104,7 +104,7 @@ describe('admin policies settings', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }
-      if (path === '/api/admin/tool-servers') {
+      if (path.split('?')[0] === '/api/admin/tool-servers') {
         return new Response(
           JSON.stringify({
             servers: [
@@ -205,7 +205,7 @@ describe('admin policies settings', () => {
     });
     mocks.apiFetch.mockImplementationOnce(async (url, _init = {}) => {
       const path = String(url);
-      if (path === '/api/admin/openai/connections') {
+      if (path.split('?')[0] === '/api/admin/openai/connections') {
         return new Response(
           JSON.stringify({
             connections: [
@@ -261,7 +261,7 @@ describe('admin policies settings', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }
-      if (path === '/api/admin/tool-servers') {
+      if (path.split('?')[0] === '/api/admin/tool-servers') {
         return new Response(JSON.stringify({ servers: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -307,7 +307,7 @@ describe('admin policies settings', () => {
     });
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       const path = String(url);
-      if (path === '/api/admin/openai/connections') {
+      if (path.split('?')[0] === '/api/admin/openai/connections') {
         return new Response(
           JSON.stringify({
             connections: [
@@ -349,7 +349,7 @@ describe('admin policies settings', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }
-      if (path === '/api/admin/tool-servers') {
+      if (path.split('?')[0] === '/api/admin/tool-servers') {
         return new Response(JSON.stringify({ servers: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -389,7 +389,7 @@ describe('admin policies settings', () => {
     });
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       const path = String(url);
-      if (path === '/api/admin/openai/connections') {
+      if (path.split('?')[0] === '/api/admin/openai/connections') {
         return new Response(
           JSON.stringify({
             connections: [
@@ -442,7 +442,7 @@ describe('admin policies settings', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }
-      if (path === '/api/admin/tool-servers') {
+      if (path.split('?')[0] === '/api/admin/tool-servers') {
         return new Response(JSON.stringify({ servers: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -487,7 +487,7 @@ describe('admin policies settings', () => {
     });
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       const path = String(url);
-      if (path === '/api/admin/openai/connections') {
+      if (path.split('?')[0] === '/api/admin/openai/connections') {
         return new Response(
           JSON.stringify({
             connections: [
@@ -529,7 +529,7 @@ describe('admin policies settings', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }
-      if (path === '/api/admin/tool-servers') {
+      if (path.split('?')[0] === '/api/admin/tool-servers') {
         return new Response(JSON.stringify({ servers: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -663,7 +663,7 @@ describe('admin policies settings', () => {
     });
     mocks.apiFetch.mockImplementationOnce(async (url, _init = {}) => {
       const path = String(url);
-      if (path === '/api/admin/openai/connections') {
+      if (path.split('?')[0] === '/api/admin/openai/connections') {
         return new Response(JSON.stringify({ connections: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -686,7 +686,7 @@ describe('admin policies settings', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }
-      if (path === '/api/admin/tool-servers') {
+      if (path.split('?')[0] === '/api/admin/tool-servers') {
         return new Response(JSON.stringify({ servers: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -876,7 +876,7 @@ describe('admin policies settings', () => {
 
     mocks.apiFetch.mockImplementation(async (url, _init = {}) => {
       const path = String(url);
-      if (path === '/api/admin/openai/connections') {
+      if (path.split('?')[0] === '/api/admin/openai/connections') {
         return new Response(
           JSON.stringify({
             connections: [
@@ -892,7 +892,7 @@ describe('admin policies settings', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }
-      if (path === '/api/admin/tool-servers') {
+      if (path.split('?')[0] === '/api/admin/tool-servers') {
         return new Response(JSON.stringify({ servers: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -977,7 +977,7 @@ describe('admin policies settings', () => {
 
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       const path = String(url);
-      if (path === '/api/admin/openai/connections') {
+      if (path.split('?')[0] === '/api/admin/openai/connections') {
         return new Response(
           JSON.stringify({
             connections: [
@@ -1040,7 +1040,7 @@ describe('admin policies settings', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }
-      if (path === '/api/admin/tool-servers') {
+      if (path.split('?')[0] === '/api/admin/tool-servers') {
         return new Response(JSON.stringify({ servers: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
