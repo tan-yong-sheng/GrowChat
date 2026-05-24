@@ -202,6 +202,7 @@ module.exports = [
  'max-classes-per-file': ['warn', { max: 5 }],
  'max-params': ['warn', { max: 4 }],
  'max-statements': ['warn', { max: 20 }],
+ 'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
  },
  },
 
@@ -216,6 +217,7 @@ module.exports = [
  'no-magic-numbers': 'off',
  'max-params': 'off',
  'max-statements': 'off',
+ 'max-lines': 'off',
  'max-classes-per-file': 'off',
     },
   },
@@ -224,7 +226,6 @@ module.exports = [
   // TODO: Refactor these into sub-handlers and remove this override.
   {
     files: [
-      'src/routers/admin.js',
  'src/routers/admin/admin-connections-access.js',
  'src/routers/admin/admin-connections-list.js',
  'src/routers/admin/admin-connections-save.js',
@@ -233,7 +234,6 @@ module.exports = [
  'src/routers/admin/admin-tool-servers-access.js',
  'src/routers/admin/admin-tool-servers-crud.js',
  'src/routers/admin/admin-tool-servers-oauth.js',
-      'src/routers/users.js',
  'src/routers/users/users-admin-access.js',
  'src/routers/users/users-admin-by-id.js',
  'src/routers/users/users-admin-crud.js',
@@ -242,7 +242,6 @@ module.exports = [
  'src/routers/users/users-helpers.js',
  'src/routers/users/users-mcp.js',
  'src/routers/users/users-me.js',
-      'src/routers/models.js',
  'src/routers/models/models-admin-access.js',
  'src/routers/models/models-admin-settings.js',
  'src/routers/models/models-discovery.js',
@@ -364,6 +363,7 @@ module.exports = [
  'no-magic-numbers': 'off',
  'max-params': 'off',
  'max-statements': 'off',
+ 'max-lines': 'off',
  'max-classes-per-file': 'off',
     },
   },
