@@ -1,4 +1,5 @@
 import { state, setState, subscribe } from '../../shared/store.js';
+import { fetchModels } from '../../shared/api.js';
 import {
   filterEnabledModels,
   getPreferredModelId,
@@ -108,8 +109,19 @@ export function createModelSelectorController(container) {
     if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
     loadingPromise = (async () => {
       try {
-        const { prefetchModels } = await import('../../bootstrap/session-bootstrap.js');
-        await prefetchModels({ allowCache: true });
+        const data = await fetchModels({ cache: 'no-store', scope: 'effective' });
+        const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
+        const nextActiveModelId = getPreferredModelId(models, [
+          state.activeModelId,
+          state.defaultModelId,
+          state.globalDefaultModelId,
+        ]);
+        setState({
+          models,
+          modelCatalogMeta: data?.visibility || null,
+          modelsLoading: false,
+          activeModelId: nextActiveModelId,
+        });
       } catch (err) {
         console.error('Failed to load models:', err);
         setState({ modelsLoading: false });
