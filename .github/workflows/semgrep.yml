@@ -2,6 +2,10 @@ name: Semgrep
 
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - 'docs/'
   push:
     branches: [main]
 
