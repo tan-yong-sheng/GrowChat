@@ -93,7 +93,7 @@ module.exports = [
             },
             {
               from: { type: 'scripts' },
- allow: { to: { type: ['scripts', 's-bootstrap'] } },
+              allow: { to: { type: ['scripts', 's-bootstrap'] } },
             },
             {
               from: { type: 'test' },
