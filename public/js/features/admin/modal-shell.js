@@ -269,7 +269,15 @@ export function buildAdminModalShellMarkup({
     closeAttr,
     rootAttrs,
   });
-  const zIndexClass = typeof config.zIndex === 'number' ? Z_INDEX_CLASSES[config.zIndex] || '' : '';
+  let zIndexClass = '';
+  if (typeof config.zIndex === 'number') {
+    zIndexClass = Z_INDEX_CLASSES[config.zIndex] || '';
+    if (!zIndexClass) {
+      console.warn(
+        `[modal-shell] Unsupported z-index value ${config.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT can generate the CSS.`
+      );
+    }
+  }
   return `
     <div class="${config.outerClass} ${zIndexClass}" ${config.rootAttrs}>
       <div class="${config.overlayClass}"></div>
