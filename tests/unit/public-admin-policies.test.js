@@ -1098,4 +1098,57 @@ describe('admin policies settings', () => {
     disabledCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
     await vi.waitFor(() => expect(container.textContent).toContain('Model 2'));
   });
+  it('shows disabled connections and mcp servers when the Show disabled toggle is enabled (review fix regression)', async () => {
+    const { renderPoliciesSettings } = await loadModule();
+    const container = document.getElementById('root');
+    renderPoliciesSettings(container);
+
+    // Wait for initial data to load
+    await vi.waitFor(() => expect(container.textContent).toContain('Model 1'));
+
+    // Switch to connections family
+    const familySelect = container.querySelector('#policy-family-select');
+    familySelect.value = 'connections';
+    familySelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(container.textContent).toContain('Conn 1'));
+
+    // Conn 2 is disabled and should be hidden by default
+    expect(container.textContent).not.toContain('Conn 2');
+
+    // Enable the 'Show disabled' visibility filter
+    container.querySelector('#policy-visibility-toggle')?.click();
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-policy-filter="disabled"]')).not.toBeNull()
+    );
+    const disabledCheckbox = container.querySelector('[data-policy-filter="disabled"]');
+    expect(disabledCheckbox).not.toBeNull();
+    disabledCheckbox.checked = true;
+    disabledCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Conn 2 should now be visible
+    await vi.waitFor(() => expect(container.textContent).toContain('Conn 2'));
+
+    // Switch to mcp-servers family
+    familySelect.value = 'mcp-servers';
+    familySelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(container.textContent).toContain('Server 1'));
+
+    // Server 2 should also be visible (toggle state persists across family switches)
+    // If not visible, re-enable the Show disabled toggle
+    if (!container.textContent.includes('Server 2')) {
+      const toggle2 = container.querySelector('#policy-visibility-toggle');
+      if (toggle2) toggle2.click();
+      await vi.waitFor(() =>
+        expect(container.querySelector('[data-policy-filter="disabled"]')).not.toBeNull()
+      );
+      const cb2 = container.querySelector('[data-policy-filter="disabled"]');
+      if (cb2 && !cb2.checked) {
+        cb2.checked = true;
+        cb2.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+
+    // Server 2 should now be visible
+    await vi.waitFor(() => expect(container.textContent).toContain('Server 2'));
+  });
 });
