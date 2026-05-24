@@ -412,4 +412,83 @@ describe('admin models settings', () => {
     expect(rowAfter.classList.contains('opacity-70')).toBe(true);
     expect(rowAfter.classList.contains('bg-gray-50/80')).toBe(true);
   });
+
+  it('broadcasts models invalidation on no-op ACL save (#70 review fix)', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    mocks.apiFetch.mockImplementation(async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl.startsWith('/api/admin/models?')) {
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'openai/env-openai-0:gemini-2.5-flash',
+                name: 'Test Model',
+                enabled: true,
+                access_label: 'Admin',
+                access_variant: 'admin',
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 1,
+            active_total: 1,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      if (
+        requestUrl === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' &&
+        (!options.method || options.method === 'GET')
+      ) {
+        return new Response(
+          JSON.stringify({
+            model_id: 'openai/env-openai-0:gemini-2.5-flash',
+            groups: [{ id: 'group-1', name: 'test1', description: 'Test Group', is_system: false }],
+            rules: [
+              {
+                model_id: 'openai/env-openai-0:gemini-2.5-flash',
+                principal_type: 'group',
+                principal_id: 'group-1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    renderModelsSettings(container, data);
+
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]')
+      ).not.toBeNull()
+    );
+    container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]').click();
+
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Test Group'));
+
+    // Clear any prior calls
+    mocks.broadcastModelsInvalidation.mockClear();
+
+    // Click save without changing rules (no-op path — sameAsBase will be true)
+    const saveBtn = document.querySelector('#model-acl-save-btn');
+    expect(saveBtn).not.toBeNull();
+    saveBtn.click();
+
+    // Wait for modal to close
+    await vi.waitFor(() => {
+      const btn = document.querySelector('#model-acl-save-btn');
+      expect(btn).toBeNull();
+    });
+
+    // Verify broadcastModelsInvalidation was called on the no-op sameAsBase path
+    expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled();
+  });
 });
