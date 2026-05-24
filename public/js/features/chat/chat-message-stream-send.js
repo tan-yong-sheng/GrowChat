@@ -2,7 +2,8 @@ import { applyStreamingAssistantText } from './chat-message-stream-assistant.js'
 import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';
 import {
   createSseStreamHandlers,
-  finalizeStreamThinking,
+  finalizeStreamAndLoadMessages,
+  handleStreamCatchError,
 } from '../../shared/utils/sse-event-handler.js';
 import {
   prepareOptimisticConversation,
@@ -239,68 +240,42 @@ export async function startChatSendMessage({
   await consumeSseTextStream(res.body, { onEvent, onDelta });
 
   try {
-    finalizeStreamThinking({
-      assistantMessageId: getStreamState().assistantMessageId,
+    await finalizeStreamAndLoadMessages({
+      getStreamState,
       thinkingStartByMessageId,
       thinkingDurationByMessageId,
       thinkingActiveByMessageId,
-    });
-    applyStreamingAssistantText({
+      applyStreamingAssistantText,
       state,
       setState,
       streamingOverrideByChat,
       updateMessageContentDom,
       chatId,
-      messageId: getStreamState().assistantMessageId,
-      assistantText: getStreamState().assistantText,
-      errorActive: getStreamState().errorActive,
-      errorMessage: getStreamState().errorMessage,
-      streaming: false,
-    });
-    streamingOverrideByChat.delete(chatId);
-    const st = getStreamState();
-    const fallback = buildFallbackAssistantMessage(chatId, st.assistantMessageId, {
-      content: st.assistantText,
-      errorActive: st.errorActive,
-      errorMessage: st.errorMessage,
-      model: state.activeModelId,
-      parentId: resolveTempMessageId(chatId, tempUserId),
-    });
-    await loadMessages(chatId, {
-      draw: state.activeChatId === chatId,
-      updateActiveModel: state.activeChatId === chatId,
-      fallbackMessage: fallback,
+      buildFallbackAssistantMessage,
+      resolveTempMessageId,
+      tempUserId,
+      loadMessages,
+      activeModelId: state.activeModelId,
+      activeChatId: state.activeChatId,
     });
   } catch (err) {
     if (err?.name !== 'AbortError') {
       console.error('Stream error:', err);
-      const st = getStreamState();
-      if (!st.errorActive) {
-        applyStreamingAssistantText({
-          state,
-          setState,
-          streamingOverrideByChat,
-          updateMessageContentDom,
-          chatId,
-          messageId: st.assistantMessageId,
-          assistantText: '',
-          errorActive: true,
-          errorMessage: String(err?.message || 'LLM request failed'),
-          streaming: false,
-        });
-      }
-      const stCatch = getStreamState();
-      const fallback = buildFallbackAssistantMessage(chatId, stCatch.assistantMessageId, {
-        content: stCatch.assistantText,
-        errorActive: stCatch.errorActive,
-        errorMessage: stCatch.errorMessage,
-        model: state.activeModelId,
-        parentId: resolveTempMessageId(chatId, tempUserId),
-      });
-      await loadMessages(chatId, {
-        draw: state.activeChatId === chatId,
-        updateActiveModel: state.activeChatId === chatId,
-        fallbackMessage: fallback,
+      await handleStreamCatchError({
+        error: err,
+        getStreamState,
+        applyStreamingAssistantText,
+        state,
+        setState,
+        streamingOverrideByChat,
+        updateMessageContentDom,
+        chatId,
+        buildFallbackAssistantMessage,
+        resolveTempMessageId,
+        tempUserId,
+        loadMessages,
+        activeModelId: state.activeModelId,
+        activeChatId: state.activeChatId,
       });
     }
   } finally {

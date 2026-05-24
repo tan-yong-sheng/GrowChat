@@ -167,3 +167,114 @@ export function finalizeStreamThinking({
   }
   thinkingActiveByMessageId.delete(String(assistantMessageId));
 }
+
+/**
+ * Finalize a completed stream and load messages.
+ * @param {Object} ctx
+ */
+export async function finalizeStreamAndLoadMessages({
+  getStreamState,
+  thinkingStartByMessageId,
+  thinkingDurationByMessageId,
+  thinkingActiveByMessageId,
+  applyStreamingAssistantText,
+  state,
+  setState,
+  streamingOverrideByChat,
+  updateMessageContentDom,
+  chatId,
+  buildFallbackAssistantMessage,
+  resolveTempMessageId,
+  tempUserId,
+  loadMessages,
+  activeModelId,
+  activeChatId,
+  preferredLeafId,
+  streaming = false,
+}) {
+  finalizeStreamThinking({
+    assistantMessageId: getStreamState().assistantMessageId,
+    thinkingStartByMessageId,
+    thinkingDurationByMessageId,
+    thinkingActiveByMessageId,
+  });
+  applyStreamingAssistantText({
+    state,
+    setState,
+    streamingOverrideByChat,
+    updateMessageContentDom,
+    chatId,
+    messageId: getStreamState().assistantMessageId,
+    assistantText: getStreamState().assistantText,
+    errorActive: getStreamState().errorActive,
+    errorMessage: getStreamState().errorMessage,
+    streaming,
+  });
+  streamingOverrideByChat.delete(chatId);
+  const st = getStreamState();
+  const fallback = buildFallbackAssistantMessage(chatId, st.assistantMessageId, {
+    content: st.assistantText,
+    errorActive: st.errorActive,
+    errorMessage: st.errorMessage,
+    model: activeModelId,
+    parentId: resolveTempMessageId(chatId, tempUserId),
+  });
+  await loadMessages(chatId, {
+    draw: activeChatId === chatId,
+    updateActiveModel: activeChatId === chatId,
+    ...(preferredLeafId ? { preferredLeafId } : {}),
+    fallbackMessage: fallback,
+  });
+}
+
+/**
+ * Handle a catch-block error during streaming.
+ * @param {Object} ctx
+ */
+export async function handleStreamCatchError({
+  error,
+  getStreamState,
+  applyStreamingAssistantText,
+  state,
+  setState,
+  streamingOverrideByChat,
+  updateMessageContentDom,
+  chatId,
+  buildFallbackAssistantMessage,
+  resolveTempMessageId,
+  tempUserId,
+  loadMessages,
+  activeModelId,
+  activeChatId,
+  preferredLeafId,
+}) {
+  const st = getStreamState();
+  if (!st.errorActive) {
+    applyStreamingAssistantText({
+      state,
+      setState,
+      streamingOverrideByChat,
+      updateMessageContentDom,
+      chatId,
+      messageId: st.assistantMessageId,
+      assistantText: '',
+      errorActive: true,
+      errorMessage: String(error?.message || 'LLM request failed'),
+      streaming: false,
+    });
+  }
+  const stCatch = getStreamState();
+  const fallback = buildFallbackAssistantMessage(chatId, stCatch.assistantMessageId, {
+    content: stCatch.assistantText,
+    errorActive: stCatch.errorActive,
+    errorMessage: stCatch.errorMessage,
+    model: activeModelId,
+    parentId: resolveTempMessageId(chatId, tempUserId),
+  });
+  await loadMessages(chatId, {
+    draw: activeChatId === chatId,
+    updateActiveModel: activeChatId === chatId,
+    ...(preferredLeafId ? { preferredLeafId } : {}),
+    fallbackMessage: fallback,
+  });
+}

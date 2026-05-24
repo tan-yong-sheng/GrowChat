@@ -3,7 +3,8 @@ import { applyStreamingAssistantText } from './chat-message-stream-assistant.js'
 import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';
 import {
   createSseStreamHandlers,
-  finalizeStreamThinking,
+  finalizeStreamAndLoadMessages,
+  handleStreamCatchError,
 } from '../../shared/utils/sse-event-handler.js';
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
@@ -343,70 +344,44 @@ export function bindChatMessageActions({
             return;
           }
           await consumeSseTextStream(res.body, { onEvent, onDelta });
-          finalizeStreamThinking({
-            assistantMessageId: getStreamState().assistantMessageId,
+          await finalizeStreamAndLoadMessages({
+            getStreamState,
             thinkingStartByMessageId,
             thinkingDurationByMessageId,
             thinkingActiveByMessageId,
-          });
-          applyStreamingAssistantText({
+            applyStreamingAssistantText,
             state,
             setState,
             streamingOverrideByChat,
             updateMessageContentDom,
             chatId,
-            messageId: getStreamState().assistantMessageId,
-            assistantText: getStreamState().assistantText,
-            errorActive: getStreamState().errorActive,
-            errorMessage: getStreamState().errorMessage,
-            streaming: false,
-          });
-          streamingOverrideByChat.delete(chatId);
-          const st = getStreamState();
-          const fallback = buildFallbackAssistantMessage(chatId, st.assistantMessageId, {
-            content: st.assistantText,
-            errorActive: st.errorActive,
-            errorMessage: st.errorMessage,
-            model: state.activeModelId,
-            parentId: resolveTempMessageId(chatId, tempUserId),
-          });
-          await loadMessages(chatId, {
-            draw: state.activeChatId === chatId,
-            updateActiveModel: state.activeChatId === chatId,
-            preferredLeafId: st.assistantMessageId,
-            fallbackMessage: fallback,
+            buildFallbackAssistantMessage,
+            resolveTempMessageId,
+            tempUserId,
+            loadMessages,
+            activeModelId: state.activeModelId,
+            activeChatId: state.activeChatId,
+            preferredLeafId: getStreamState().assistantMessageId,
           });
         } catch (e) {
           if (e?.name !== 'AbortError') {
             console.error('Branching failed', e);
-            const st = getStreamState();
-            if (!st.errorActive) {
-              applyStreamingAssistantText({
-                state,
-                setState,
-                streamingOverrideByChat,
-                updateMessageContentDom,
-                chatId,
-                messageId: st.assistantMessageId,
-                assistantText: '',
-                errorActive: true,
-                errorMessage: String(e?.message || 'LLM request failed'),
-                streaming: false,
-              });
-            }
-            const stCatch = getStreamState();
-            const fallback = buildFallbackAssistantMessage(chatId, stCatch.assistantMessageId, {
-              content: stCatch.assistantText,
-              errorActive: stCatch.errorActive,
-              errorMessage: stCatch.errorMessage,
-              model: state.activeModelId,
-              parentId: resolveTempMessageId(chatId, tempUserId),
-            });
-            await loadMessages(chatId, {
-              draw: state.activeChatId === chatId,
-              updateActiveModel: state.activeChatId === chatId,
-              preferredLeafId: stCatch.assistantMessageId,
-              fallbackMessage: fallback,
+            await handleStreamCatchError({
+              error: e,
+              getStreamState,
+              applyStreamingAssistantText,
+              state,
+              setState,
+              streamingOverrideByChat,
+              updateMessageContentDom,
+              chatId,
+              buildFallbackAssistantMessage,
+              resolveTempMessageId,
+              tempUserId,
+              loadMessages,
+              activeModelId: state.activeModelId,
+              activeChatId: state.activeChatId,
+              preferredLeafId: getStreamState().assistantMessageId,
             });
           }
         } finally {
