@@ -254,4 +254,35 @@ describe('scanDestructiveDDL', () => {
     expect(report.ok).toBe(true);
     expect(report.warnings).toHaveLength(0);
   });
+
+  it('should warn on unguarded DROP TABLE mixed with IF NOT EXISTS on same line', () => {
+    const fileContents = {
+      '023_mixed_guard.sql':
+        'DROP TABLE old_data; ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(false);
+    expect(report.warnings.some((w) => w.description.includes('DROP TABLE'))).toBe(true);
+    // Only the unguarded DROP TABLE should warn, not the IF NOT EXISTS statement
+    expect(report.warnings).toHaveLength(1);
+  });
+
+  it('should split multiple statements on same line and check each independently', () => {
+    const fileContents = {
+      '024_multi_stmt.sql': 'DROP TABLE a; DROP TABLE b;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(false);
+    expect(report.warnings).toHaveLength(2);
+  });
+
+  it('should warn only on unguarded DROP when guarded DROP is on same line', () => {
+    const fileContents = {
+      '025_guarded_plus_unguarded.sql': 'DROP TABLE IF EXISTS a; DROP TABLE b;',
+    };
+    const report = scanDestructiveDDL(fileContents);
+    expect(report.ok).toBe(false);
+    expect(report.warnings).toHaveLength(1);
+    expect(report.warnings[0].description).toContain('DROP TABLE');
+  });
 });

@@ -171,10 +171,18 @@ function normalizeMultilineSQL(content) {
 
     buffer += (buffer.length > 0 ? ' ' : '') + trimmed.replace(/\s+/g, ' ');
 
-    if (trimmed.endsWith(';')) {
-      normalizedLines.push(buffer);
-      lineMap.push(startLine);
-      buffer = '';
+    // Split on every semicolon, not just the line-ending one.
+    // This handles multiple statements on one physical line.
+    while (buffer.includes(';')) {
+      const semiIdx = buffer.indexOf(';');
+      const stmt = buffer.substring(0, semiIdx + 1).trim();
+      if (stmt.length > 0) {
+        normalizedLines.push(stmt);
+        lineMap.push(startLine);
+      }
+      buffer = buffer.substring(semiIdx + 1).trim();
+      // Next statement starts on the same original line
+      if (buffer.length > 0) startLine = i + 1;
     }
   }
 
