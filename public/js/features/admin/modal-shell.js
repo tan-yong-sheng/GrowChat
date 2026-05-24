@@ -271,10 +271,10 @@ export function buildAdminModalShellMarkup({
   });
   let zIndexClass = '';
   if (typeof config.zIndex === 'number') {
-    zIndexClass = Z_INDEX_CLASSES[config.zIndex] || '';
+    zIndexClass = Z_INDEX_CLASSES[config.zIndex];
     if (!zIndexClass) {
-      console.warn(
-        `[modal-shell] Unsupported z-index value ${config.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT can generate the CSS.`
+      throw new Error(
+        `Unsupported admin modal z-index: ${config.zIndex}. Add it to Z_INDEX_CLASSES so Tailwind JIT can generate the CSS.`
       );
     }
   }

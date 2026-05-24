@@ -47,17 +47,15 @@ describe('Z_INDEX_CLASSES static mapping', () => {
     }
   });
 
-  it('warns when an unmapped z-index value is used', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const markup = buildAdminModalShellMarkup({
-      preset: 'standard',
-      zIndex: 999,
-      title: 'Unmapped Z',
-      body: '<div>Body</div>',
-    });
-    expect(markup).not.toContain('z-[999]');
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Unsupported z-index value 999'));
-    warnSpy.mockRestore();
+  it('throws when an unmapped z-index value is used', () => {
+    expect(() =>
+      buildAdminModalShellMarkup({
+        preset: 'standard',
+        zIndex: 999,
+        title: 'Unmapped Z',
+        body: '<div>Body</div>',
+      })
+    ).toThrow(/Unsupported admin modal z-index: 999/);
   });
 });
 
