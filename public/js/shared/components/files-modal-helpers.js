@@ -1,13 +1,5 @@
+import { escapeHtml } from '../utils/dom-escape.js';
 import { formatBytes, formatDate } from '../utils.js';
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 export function getFileStatus(file) {
   return file.extraction_status === 1

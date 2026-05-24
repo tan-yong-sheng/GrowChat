@@ -1,12 +1,4 @@
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
+import { escapeHtml } from '../utils/dom-escape.js';
 export const DEFAULT_SETTINGS_BODY_PADDING_CLASS = 'px-2 sm:px-3 md:px-0';
 export const DEFAULT_SETTINGS_FOOTER_PADDING_CLASS = 'px-2 md:px-0';
 

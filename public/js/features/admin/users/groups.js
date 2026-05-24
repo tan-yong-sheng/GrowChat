@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import {
   createAdminGroup,
   deleteAdminGroup,
@@ -11,15 +12,6 @@ import { createAdminModalShell } from '../modal-shell.js';
 import { buildMemberSet, clampUserLimit, filterUsers } from './groups-members-helpers.js';
 import { sortGroups } from './groups-list-helpers.js';
 import { renderButton } from '../../../shared/components/button.js';
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 export function getGroupModalTheme() {
   return {

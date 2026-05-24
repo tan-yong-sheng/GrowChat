@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { apiFetch, fetchAdminGroups, fetchAdminModels } from '../../../shared/api.js';
 import {
   broadcastModelsInvalidation,
@@ -45,15 +46,6 @@ const VISIBILITY_SORT_ORDER = {
   denied: 2,
   disabled: 3,
 };
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function resourceBadge(label, kind = 'neutral', compact = false) {
   const map = {

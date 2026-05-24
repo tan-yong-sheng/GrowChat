@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import {
   createAdminRbacRole,
   deleteAdminRbacRole,
@@ -84,15 +85,6 @@ const DEFAULT_GROUP_COLLAPSE = {
   models: false,
   admin: false,
 };
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function clonePermissions(source) {
   return new Set(Array.from(source || []));

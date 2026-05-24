@@ -1,3 +1,4 @@
+import { escapeHtml } from '../utils/dom-escape.js';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs';
 
 const MARKDOWN_CACHE_LIMIT = 200;
@@ -13,15 +14,6 @@ const externalScriptPromises = new Map();
 const externalStylesheetPromises = new Map();
 let specialBlockScopeKey = '';
 let specialBlockMode = 'preview';
-
-function escapeHtml(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function decodeHtmlEntities(content) {
   if (typeof document === 'undefined') return String(content ?? '');

@@ -1,17 +1,9 @@
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import {
   filterModelsBySearch,
   normalizeModelSearchQuery,
 } from '../../shared/utils/model-search.js';
 import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 export function getModelDisplayLabel(model) {
   return String(model?.name || model?.id || '').trim();

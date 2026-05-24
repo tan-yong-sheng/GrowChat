@@ -1,6 +1,7 @@
 import { filterModelsBySearch } from '../utils/model-search.js';
 import { renderButton } from './button.js';
 import { sortModelsByActiveThenName } from '../utils/model-state.js';
+import { escapeHtml } from '../utils/dom-escape.js';
 function normalizeProviderType(value) {
   return (
     String(value || '')
@@ -89,15 +90,6 @@ const STANDARD_MODAL_PRESET = {
   overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
   zIndex: 150,
 };
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 function formatHeadersValue(headers) {
   if (
