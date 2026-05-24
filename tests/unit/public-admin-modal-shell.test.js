@@ -47,15 +47,19 @@ describe('Z_INDEX_CLASSES static mapping', () => {
     }
   });
 
-  it('throws when an unmapped z-index value is used', () => {
-    expect(() =>
-      buildAdminModalShellMarkup({
-        preset: 'standard',
-        zIndex: 999,
-        title: 'Unmapped Z',
-        body: '<div>Body</div>',
-      })
-    ).toThrow(/Unsupported admin modal z-index: 999/);
+  it('falls back to z-[N] class with console.error when an unmapped z-index value is used', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const markup = buildAdminModalShellMarkup({
+      preset: 'standard',
+      zIndex: 999,
+      title: 'Unmapped Z',
+      body: '<div>Body</div>',
+    });
+    // Fallback class is still emitted so modal gets a z-index
+    expect(markup).toContain('z-[999]');
+    // Developer is warned via console.error
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Unmapped z-index 999'));
+    errorSpy.mockRestore();
   });
 });
 

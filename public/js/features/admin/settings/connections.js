@@ -462,10 +462,11 @@ export function renderConnectionsSettings(container, data) {
   const render = () => {
     if (!isActiveTab()) return;
     const isReadOnlyConnection = Boolean(connectionsState.selectedConnection?.readOnly);
-    const standardModalZIndexClass = Z_INDEX_CLASSES[STANDARD_MODAL_PRESET.zIndex];
-    if (!standardModalZIndexClass) {
-      throw new Error(
-        `Unsupported admin modal z-index: ${STANDARD_MODAL_PRESET.zIndex}. Add it to Z_INDEX_CLASSES so Tailwind JIT can generate the CSS.`
+    const standardModalZIndexClass =
+      Z_INDEX_CLASSES[STANDARD_MODAL_PRESET.zIndex] || `z-[${STANDARD_MODAL_PRESET.zIndex}]`;
+    if (!Z_INDEX_CLASSES[STANDARD_MODAL_PRESET.zIndex]) {
+      console.error(
+        `[connections] Unmapped z-index ${STANDARD_MODAL_PRESET.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT generates the CSS. Falling back to z-[${STANDARD_MODAL_PRESET.zIndex}].`
       );
     }
     container.innerHTML = `

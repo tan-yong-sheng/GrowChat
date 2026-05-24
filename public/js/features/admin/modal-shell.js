@@ -273,9 +273,10 @@ export function buildAdminModalShellMarkup({
   if (typeof config.zIndex === 'number') {
     zIndexClass = Z_INDEX_CLASSES[config.zIndex];
     if (!zIndexClass) {
-      throw new Error(
-        `Unsupported admin modal z-index: ${config.zIndex}. Add it to Z_INDEX_CLASSES so Tailwind JIT can generate the CSS.`
+      console.error(
+        `[modal-shell] Unmapped z-index ${config.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT generates the CSS. Falling back to z-[${config.zIndex}].`
       );
+      zIndexClass = `z-[${config.zIndex}]`;
     }
   }
   return `
