@@ -4,7 +4,7 @@ export function renderSharedChatPage(container, data) {
   const chat = data?.chat || {};
   const messages = data?.messages || [];
   container.innerHTML = `
-    <div class="min-h-screen bg-[#fafafa] text-gray-900">
+    <main id="main" class="min-h-screen bg-[#fafafa] text-gray-900">
       <div class="max-w-3xl mx-auto px-4 py-6">
         <div class="flex items-center justify-between mb-6">
           <a href="/" class="text-sm text-gray-600 hover:text-gray-800">← GrowChat</a>
@@ -27,13 +27,13 @@ export function renderSharedChatPage(container, data) {
             .join('')}
         </div>
       </div>
-    </div>
+    </main>
   `;
 }
 
 export function renderAdminSkeleton(container) {
   container.innerHTML = `
-    <div class="min-h-screen bg-[#fafafa] text-gray-900">
+    <main id="main" class="min-h-screen bg-[#fafafa] text-gray-900">
       <div class="max-w-6xl mx-auto px-4 py-6">
         <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
           <div class="bg-white border border-gray-100 rounded-2xl p-4 animate-pulse">
@@ -56,7 +56,7 @@ export function renderAdminSkeleton(container) {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   `;
 }
 
@@ -77,7 +77,7 @@ export function renderChatSkeleton(container) {
             </div>
           </div>
         </aside>
-        <main class="flex-1 flex flex-col min-w-0">
+        <main id="main" class="flex-1 flex flex-col min-w-0">
           <div class="h-[58px] border-b border-gray-100 bg-white/95 flex items-center px-4">
             <div class="h-6 w-40 bg-gray-200 rounded animate-pulse"></div>
           </div>

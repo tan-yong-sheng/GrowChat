@@ -13,7 +13,7 @@ export default defineConfig({
     fileParallelism: true,
     // Cap concurrent workers to avoid overwhelming jsdom env startup
     // on high-core machines. CI typically 4-8 cores; I/O bandwidth is the bottleneck.
-    maxWorkers: Math.min(Math.max(typeof process !== 'undefined' && process.env.CI ? 4 : 6, 2), 8),
+    maxWorkers: process.env.CI ? 4 : 6,
     testTimeout: 10000,
     include: ['src/**/*.test.js', 'tests/unit/**/*.test.js'],
     exclude: ['tests/e2e/**', '.worktrees/**', 'node_modules/**', '.wrangler/**'],
