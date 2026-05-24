@@ -10,9 +10,10 @@ test.describe('Accessibility audit', () => {
   };
   const Builder = AxeBuilder as unknown as AxeCtor;
 
-  // 'serve' maps /auth → auth.html via clean URLs; /auth.html redirects to /auth.
+  // Use .html extension for server-agnostic compatibility (Python http.server
+  // and similar static servers don't support clean URLs; npx serve does).
   // Chat/admin routes require auth and are not scannable in the guest project.
-  const publicRoutes = ['/', '/auth'];
+  const publicRoutes = ['/', '/auth.html'];
 
   for (const route of publicRoutes) {
     test(`should not have any automatically detectable accessibility issues on ${route === '/' ? 'home page' : route}`, async ({
