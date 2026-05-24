@@ -71,6 +71,9 @@ importers:
       eslint-plugin-tailwindcss:
         specifier: ^3.18.0
         version: 3.18.3(tailwindcss@3.4.19(yaml@2.9.0))
+      github-actionlint:
+        specifier: ^1.7.12
+        version: 1.7.12
       globals:
         specifier: ^17.5.0
         version: 17.6.0
@@ -1698,6 +1701,13 @@ packages:
       '@types/node':
         optional: true
 
+  '@isaacs/fs-minipass@4.0.1':
+    resolution:
+      {
+        integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==,
+      }
+    engines: { node: '>=18.0.0' }
+
   '@jridgewell/gen-mapping@0.3.13':
     resolution:
       {
@@ -2592,6 +2602,13 @@ packages:
     engines: { node: '>=0.4.0' }
     hasBin: true
 
+  adm-zip@0.5.17:
+    resolution:
+      {
+        integrity: sha512-+Ut8d9LLqwEvHHJl1+PIHqoyDxFgVN847JTVM3Izi3xHDWPE4UtzzXysMZQs64DMcrJfBeS/uoEP4AD3HQHnQQ==,
+      }
+    engines: { node: '>=12.0' }
+
   agent-base@6.0.2:
     resolution:
       {
@@ -3162,6 +3179,13 @@ packages:
         integrity: sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==,
       }
     engines: { node: '>= 8.10.0' }
+
+  chownr@3.0.0:
+    resolution:
+      {
+        integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==,
+      }
+    engines: { node: '>=18' }
 
   chrome-launcher@0.13.4:
     resolution:
@@ -4464,6 +4488,14 @@ packages:
         integrity: sha512-Y+csSm2GD/PCSh6Isd/WiMjNAydu0VBiG9J7EdQsNA5P9uXvLayqjmTsNlK5Gs9IhblFZqOU0yid5Il5JPoLiQ==,
       }
     engines: { node: '>=18' }
+    hasBin: true
+
+  github-actionlint@1.7.12:
+    resolution:
+      {
+        integrity: sha512-kSVz5clt9voatp2Tdh1BETKNooT358/nPChYseaDC4M6f9Hc/sBRMbhagx2FTu2F/WHzDoxlNPh2EqwBngTYQg==,
+      }
+    engines: { node: '>=18.0.0' }
     hasBin: true
 
   glob-parent@5.1.2:
@@ -5771,6 +5803,20 @@ packages:
       {
         integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==,
       }
+
+  minipass@7.1.3:
+    resolution:
+      {
+        integrity: sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==,
+      }
+    engines: { node: '>=16 || 14 >=14.17' }
+
+  minizlib@3.1.0:
+    resolution:
+      {
+        integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==,
+      }
+    engines: { node: '>= 18' }
 
   mitt@3.0.1:
     resolution:
@@ -7389,6 +7435,13 @@ packages:
         integrity: sha512-ojzvCvVaNp6aOTFmG7jaRD0meowIAuPc3cMMhSgKiVWws1GyHbGd/xvnyuRKcKlMpt3qvxx6r0hreCNITP9hIg==,
       }
 
+  tar@7.5.15:
+    resolution:
+      {
+        integrity: sha512-dzGK0boVlC4W5QFuQN1EFSl3bIDYsk7Tj40U6eIBnK2k/8ml7TZ5agbI5j5+qnoVcAA+rNtBml8SEiLxZpNqRQ==,
+      }
+    engines: { node: '>=18' }
+
   teex@1.0.1:
     resolution:
       {
@@ -8173,6 +8226,13 @@ packages:
       {
         integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==,
       }
+
+  yallist@5.0.0:
+    resolution:
+      {
+        integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==,
+      }
+    engines: { node: '>=18' }
 
   yaml@2.9.0:
     resolution:
@@ -9269,6 +9329,10 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.8.0
 
+  '@isaacs/fs-minipass@4.0.1':
+    dependencies:
+      minipass: 7.1.3
+
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -9854,6 +9918,8 @@ snapshots:
 
   acorn@8.16.0: {}
 
+  adm-zip@0.5.17: {}
+
   agent-base@6.0.2:
     dependencies:
       debug: 4.4.3
@@ -10165,6 +10231,8 @@ snapshots:
       readdirp: 3.6.0
     optionalDependencies:
       fsevents: 2.3.3
+
+  chownr@3.0.0: {}
 
   chrome-launcher@0.13.4:
     dependencies:
@@ -11049,6 +11117,11 @@ snapshots:
       - conventional-commits-filter
       - conventional-commits-parser
 
+  github-actionlint@1.7.12:
+    dependencies:
+      adm-zip: 0.5.17
+      tar: 7.5.15
+
   glob-parent@5.1.2:
     dependencies:
       is-glob: 4.0.3
@@ -11792,6 +11865,12 @@ snapshots:
       brace-expansion: 1.1.14
 
   minimist@1.2.8: {}
+
+  minipass@7.1.3: {}
+
+  minizlib@3.1.0:
+    dependencies:
+      minipass: 7.1.3
 
   mitt@3.0.1: {}
 
@@ -12776,6 +12855,14 @@ snapshots:
       - bare-buffer
       - react-native-b4a
 
+  tar@7.5.15:
+    dependencies:
+      '@isaacs/fs-minipass': 4.0.1
+      chownr: 3.0.0
+      minipass: 7.1.3
+      minizlib: 3.1.0
+      yallist: 5.0.0
+
   teex@1.0.1:
     dependencies:
       streamx: 2.25.0
@@ -13155,6 +13242,8 @@ snapshots:
   y18n@5.0.8: {}
 
   yallist@3.1.1: {}
+
+  yallist@5.0.0: {}
 
   yaml@2.9.0: {}
 

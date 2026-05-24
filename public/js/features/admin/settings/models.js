@@ -331,9 +331,9 @@ export function renderModelsSettings(container, data) {
               .map((model) => {
                 const _isDisabled = modelsState.disabledModels.has(model.id);
                 return `
-                    <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors">
+                    <tr data-model-row="${model.id}" class="text-xs hover:bg-gray-50/50 transition-colors ${_isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 text-gray-400 font-mono truncate" title="${model.id}">${model.id}</td>
+                      <td class="px-4 py-4 font-mono truncate ${_isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
                           ${renderModelAccessBadgeForModel(model)}
@@ -343,11 +343,11 @@ export function renderModelsSettings(container, data) {
                         <div class="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${!canManageAcls ? 'hidden' : ''}"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${_isDisabled || !canManageAcls ? 'hidden' : ''}"
                             data-model-acl="${model.id}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
-                            ${!canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
+                            ${_isDisabled || !canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-5">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
@@ -674,8 +674,10 @@ export function renderModelsSettings(container, data) {
           action: 'use',
         }));
         const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
-        if (typeof onApply === 'function') {
-          await onApply(sameAsBase ? null : cloneAclRules(rules), model);
+        if (!sameAsBase && typeof onApply === 'function') {
+          await onApply(cloneAclRules(rules), model);
+        } else if (sameAsBase) {
+          broadcastModelsInvalidation();
         }
         close();
       } catch (err) {
@@ -742,9 +744,9 @@ export function renderModelsSettings(container, data) {
             .map((model) => {
               const isDisabled = modelsState.disabledModels.has(model.id);
               return `
-                    <tr data-model-row="${model.id}" class="bg-white text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : ''}">
+                    <tr data-model-row="${model.id}" class="text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
                       <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 text-gray-400 font-mono truncate ${isDisabled ? 'text-gray-300' : ''}" title="${model.id}">${model.id}</td>
+                      <td class="px-4 py-4 font-mono truncate ${isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${model.id}">${model.id}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
                           ${renderModelAccessBadgeForModel(model)}
