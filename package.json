@@ -37,6 +37,7 @@
     "lint:dupes:budget": "node scripts/check-jscpd-budgets.js",
     "lint:dupes:scoped": "node scripts/run-scoped-guardrails.js --jscpd",
     "lint:hygiene": "pnpm exec knip --include files,dependencies,binaries",
+    "lint:workflows": "github-actionlint",
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
     "prepush": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene",
     "prepare": "husky"
@@ -60,6 +61,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-boundaries": "^6.0.2",
     "eslint-plugin-tailwindcss": "^3.18.0",
+    "github-actionlint": "^1.7.12",
     "globals": "^17.5.0",
     "husky": "^9.1.7",
     "jscpd": "^4.0.9",
