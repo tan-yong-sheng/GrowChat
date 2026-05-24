@@ -90,23 +90,30 @@ describe('guardrail fixtures', () => {
       'public/js/features/account/account-connections.js',
       'export const view = `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border-gray-200 bg-gray-50 text-gray-500">Shared</span>`;\n'
     );
-
+    // Single --json run: avoids terminal line-wrapping issues with long rule IDs
     const result = run(
       'semgrep',
       [
         'scan',
         '--config',
         semgrepConfig,
-        '--error',
+        '--json',
         'public/js/features/account/account-connections.js',
       ],
       fixtureRoot
     );
-
-    expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-raw-status-badge-markup-in-account-features'
-    );
+    let foundBadgeRule = false;
+    let parsed = { results: [] };
+    try {
+      parsed = JSON.parse(result.stdout);
+      foundBadgeRule = (parsed.results ?? []).some((r) =>
+        r.check_id?.includes('no-raw-status-badge-markup-in-account-features')
+      );
+    } catch {
+      /* ignore parse errors */
+    }
+    expect(parsed.results.length).toBeGreaterThan(0);
+    expect(foundBadgeRule).toBe(true);
   }, 20000);
 
   it('rejects rounded pill action buttons but allows compact toggle switches', () => {
