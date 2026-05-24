@@ -225,6 +225,14 @@ module.exports = [
   {
     files: [
       'src/routers/admin.js',
+ 'src/routers/admin/admin-connections-access.js',
+ 'src/routers/admin/admin-connections-list.js',
+ 'src/routers/admin/admin-connections-save.js',
+ 'src/routers/admin/admin-config.js',
+ 'src/routers/admin/admin-email-security.js',
+ 'src/routers/admin/admin-tool-servers-access.js',
+ 'src/routers/admin/admin-tool-servers-crud.js',
+ 'src/routers/admin/admin-tool-servers-oauth.js',
       'src/routers/users.js',
       'src/routers/models.js',
       'src/routers/chat-message.js',
