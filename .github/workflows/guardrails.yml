@@ -66,7 +66,7 @@ jobs:
 
       - name: Get pnpm store directory
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
       - name: Setup pnpm cache
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
@@ -87,7 +87,7 @@ jobs:
 
       - name: Setup Gitleaks
         run: |
-          docker run --rm -v $PWD:/path ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --no-git --verbose
+          docker run --rm -v "$PWD:/path" ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --no-git --verbose
 
       # Tier 1 + Tier 2 guardrails (unit tests, typecheck, eslint incl. complexity,
       # semgrep, jscpd dupe budgets, depcruise circular deps, prettier, knip hygiene)
