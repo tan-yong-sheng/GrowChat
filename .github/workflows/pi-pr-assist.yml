@@ -136,6 +136,7 @@ jobs:
           token: ${{ secrets.PI_API_KEY }}
           thinking_level: ${{ vars.PI_THINKING_LEVEL || 'off' }}
           export_session_html: 'true'
+          load_builtin_extensions: true
           diff_ignore_patterns: 'dist/ node_modules/ public/styles.css coverage/'
 
       - name: Upload Pi session HTML

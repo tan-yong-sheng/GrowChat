@@ -19,7 +19,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210aca1a50c8c9833a # v3.0.2
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           filters: |
@@ -29,6 +29,9 @@ jobs:
               - 'public/index.html'
               - 'pnpm-lock.yaml'
               - 'package.json'
+              - 'wrangler.jsonc'
+              - 'scripts/**'
+              - 'tests/**'
               - 'migrations/**'
             ui:
               - 'public/**'
