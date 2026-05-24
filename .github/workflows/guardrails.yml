@@ -1,4 +1,5 @@
 name: Main branch gate
+
 on:
   pull_request:
   push:
@@ -6,10 +7,41 @@ on:
       - main
 
 jobs:
+  # Detect which source paths changed — used to skip heavy jobs on doc-only PRs.
+  # Uses inverted logic (paths-ignore pattern) so any NEW file type automatically
+  # triggers the full gate. Only purely-doc PRs skip validation.
+  changes:
+    name: Detect source changes
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+      ui: ${{ steps.filter.outputs.ui }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            src:
+              - '**'
+              - '!**/*.md'
+              - '!LICENSE'
+              - '!.gitignore'
+              - '!.editorconfig'
+            ui:
+              - 'public/**'
+              - 'src/input.css'
+
   checks:
     name: Local + CI guardrails
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -81,12 +113,25 @@ jobs:
       - name: Migration validation
         run: pnpm run validate:migrations
 
+  # Placeholder that reports success when guardrails are skipped.
+  # Required because "Local + CI guardrails" is a required status check —
+  # if the real job is skipped, GitHub won't see a passing status and blocks merge.
+  guardrails-skip:
+    name: Local + CI guardrails
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'false' && github.event_name == 'pull_request'
+    steps:
+      - run: echo "No source changes detected — skipping guardrails."
+
   # Tier 2: E2E accessibility gate (axe-core)
   # Uses a lightweight static server instead of wrangler dev (which requires D1 bindings)
   e2e-accessibility:
     name: E2E accessibility
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: changes
+    if: needs.changes.outputs.ui == 'true' || github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -122,3 +167,12 @@ jobs:
         env:
           TEST_URL: http://localhost:8787
           PLAYWRIGHT_TEST_BASE_URL: http://localhost:8787
+
+  # Placeholder for E2E accessibility when skipped
+  e2e-accessibility-skip:
+    name: E2E accessibility
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.ui == 'false' && github.event_name == 'pull_request'
+    steps:
+      - run: echo "No UI changes detected — skipping E2E accessibility."
