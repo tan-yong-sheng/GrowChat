@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-  const mocks = vi.hoisted(() => ({
-    apiFetch: vi.fn(),
-    fetchAdminGroups: vi.fn(),
-    fetchAdminModels: vi.fn(),
-    broadcastConnectionsInvalidation: vi.fn(),
-    broadcastModelsInvalidation: vi.fn(),
-    broadcastToolServersInvalidation: vi.fn(),
-  }));
+const mocks = vi.hoisted(() => ({
+  apiFetch: vi.fn(),
+  fetchAdminGroups: vi.fn(),
+  fetchAdminModels: vi.fn(),
+  broadcastConnectionsInvalidation: vi.fn(),
+  broadcastModelsInvalidation: vi.fn(),
+  broadcastToolServersInvalidation: vi.fn(),
+}));
 
 vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: (...args) => mocks.apiFetch(...args),
@@ -58,93 +58,219 @@ describe('admin policies settings', () => {
 
     mocks.fetchAdminModels.mockResolvedValue({
       models: [
-        { id: 'm1', name: 'Model 1', provider: 'openai', enabled: true, connection_id: 'c1', connection_name: 'Conn 1' },
+        {
+          id: 'm1',
+          name: 'Model 1',
+          provider: 'openai',
+          enabled: true,
+          connection_id: 'c1',
+          connection_name: 'Conn 1',
+        },
         { id: 'm2', name: 'Model 2', provider: 'openai', enabled: false },
-        { id: 'm3', name: 'Model 3', provider: 'openai', enabled: true, connection_id: 'c2', connection_name: 'Conn 2' },
+        {
+          id: 'm3',
+          name: 'Model 3',
+          provider: 'openai',
+          enabled: true,
+          connection_id: 'c2',
+          connection_name: 'Conn 2',
+        },
       ],
     });
 
-    mocks.apiFetch.mockImplementation(async (url, init = {}) => {
+    mocks.apiFetch.mockImplementation(async (url, _init = {}) => {
       const path = String(url);
       if (path === '/api/admin/openai/connections') {
-        return new Response(JSON.stringify({
-          connections: [
-            { id: 'c1', name: 'Conn 1', providerType: 'openai-compatible', baseUrl: 'https://example.com', source: 'config' },
-            { id: 'c2', name: 'Conn 2', providerType: 'openai-compatible', baseUrl: 'https://disabled.example.com', source: 'config', enabled: false },
-          ],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            connections: [
+              {
+                id: 'c1',
+                name: 'Conn 1',
+                providerType: 'openai-compatible',
+                baseUrl: 'https://example.com',
+                source: 'config',
+              },
+              {
+                id: 'c2',
+                name: 'Conn 2',
+                providerType: 'openai-compatible',
+                baseUrl: 'https://disabled.example.com',
+                source: 'config',
+                enabled: false,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/tool-servers') {
-        return new Response(JSON.stringify({
-          servers: [
-            { id: 's1', name: 'Server 1', url: 'https://mcp.example.com', source: 'config' },
-            { id: 's2', name: 'Server 2', url: 'https://disabled-mcp.example.com', source: 'config', enabled: false },
-          ],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            servers: [
+              { id: 's1', name: 'Server 1', url: 'https://mcp.example.com', source: 'config' },
+              {
+                id: 's2',
+                name: 'Server 2',
+                url: 'https://disabled-mcp.example.com',
+                source: 'config',
+                enabled: false,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      if (path.includes('/access') && (!init.method || init.method === 'GET')) {
+      if (path.includes('/access') && (!_init.method || _init.method === 'GET')) {
         const rules = [];
         if (path.includes('/models/')) {
-          rules.push({ model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' });
+          rules.push({
+            model_id: 'm1',
+            principal_type: 'group',
+            principal_id: 'g1',
+            effect: 'allow',
+            action: 'use',
+          });
         } else if (path.includes('/connections/access')) {
-          rules.push({ connection_id: 'c1', principal_type: 'group', principal_id: 'g2', effect: 'allow', action: 'use' });
+          rules.push({
+            connection_id: 'c1',
+            principal_type: 'group',
+            principal_id: 'g2',
+            effect: 'allow',
+            action: 'use',
+          });
         } else if (path.includes('/openai/connections/')) {
-          rules.push({ connection_id: 'c1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' });
+          rules.push({
+            connection_id: 'c1',
+            principal_type: 'group',
+            principal_id: 'g1',
+            effect: 'allow',
+            action: 'use',
+          });
         } else if (path.includes('/tool-servers/')) {
-          rules.push({ tool_server_id: 's1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' });
+          rules.push({
+            tool_server_id: 's1',
+            principal_type: 'group',
+            principal_id: 'g1',
+            effect: 'allow',
+            action: 'use',
+          });
         } else if (path.includes('/models/access')) {
-          rules.push({ model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' });
+          rules.push({
+            model_id: 'm1',
+            principal_type: 'group',
+            principal_id: 'g1',
+            effect: 'allow',
+            action: 'use',
+          });
         }
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-            { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
-          ],
-          rules,
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [
+              { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
+              { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
+            ],
+            rules,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      if (path.includes('/access') && init.method === 'PUT') {
-        return new Response(JSON.stringify({
-          ok: true,
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (path.includes('/access') && _init.method === 'PUT') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
   });
 
   it('shows a dependency warning when a model connection is not allowed for the selected group', async () => {
     mocks.fetchAdminModels.mockResolvedValueOnce({
       models: [
-        { id: 'm1', name: 'Model 1', provider: 'openai', enabled: true, connection_id: 'c1', connection_name: 'Conn 1' },
+        {
+          id: 'm1',
+          name: 'Model 1',
+          provider: 'openai',
+          enabled: true,
+          connection_id: 'c1',
+          connection_name: 'Conn 1',
+        },
       ],
     });
-    mocks.apiFetch.mockImplementationOnce(async (url, init = {}) => {
+    mocks.apiFetch.mockImplementationOnce(async (url, _init = {}) => {
       const path = String(url);
       if (path === '/api/admin/openai/connections') {
-        return new Response(JSON.stringify({ connections: [{ id: 'c1', name: 'Conn 1', providerType: 'openai-compatible', baseUrl: 'https://example.com', source: 'config' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            connections: [
+              {
+                id: 'c1',
+                name: 'Conn 1',
+                providerType: 'openai-compatible',
+                baseUrl: 'https://example.com',
+                source: 'config',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/models/access?ids=m1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-            { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
-          ],
-          rules: [{ model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [
+              { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
+              { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
+            ],
+            rules: [
+              {
+                model_id: 'm1',
+                principal_type: 'group',
+                principal_id: 'g1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/openai/connections/access?ids=c1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-            { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
-          ],
-          rules: [{ connection_id: 'c1', principal_type: 'group', principal_id: 'g2', effect: 'allow', action: 'use' }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [
+              { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
+              { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
+            ],
+            rules: [
+              {
+                connection_id: 'c1',
+                principal_type: 'group',
+                principal_id: 'g2',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/tool-servers') {
-        return new Response(JSON.stringify({ servers: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ servers: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     const { renderPoliciesSettings } = await loadModule();
@@ -161,40 +287,78 @@ describe('admin policies settings', () => {
     expect(container.querySelector('[data-edit-resource="m1"]')).not.toBeNull();
     const warningLink = container.querySelector('a[href*="family=connections"]');
     expect(warningLink).not.toBeNull();
-    expect(warningLink.getAttribute('href')).toContain('/admin/users/policies?group=g1&family=connections&resource=c1&open=access');
+    expect(warningLink.getAttribute('href')).toContain(
+      '/admin/users/policies?group=g1&family=connections&resource=c1&open=access'
+    );
   });
 
   it('shows a dependency warning when a model connection has no ACL rules for the selected group', async () => {
     mocks.fetchAdminModels.mockResolvedValueOnce({
       models: [
-        { id: 'm1', name: 'Model 1', provider: 'openai', enabled: true, connection_id: 'c1', connection_name: 'Conn 1' },
+        {
+          id: 'm1',
+          name: 'Model 1',
+          provider: 'openai',
+          enabled: true,
+          connection_id: 'c1',
+          connection_name: 'Conn 1',
+        },
       ],
     });
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       const path = String(url);
       if (path === '/api/admin/openai/connections') {
-        return new Response(JSON.stringify({ connections: [{ id: 'c1', name: 'Conn 1', providerType: 'openai-compatible', baseUrl: 'https://example.com', source: 'config' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            connections: [
+              {
+                id: 'c1',
+                name: 'Conn 1',
+                providerType: 'openai-compatible',
+                baseUrl: 'https://example.com',
+                source: 'config',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/models/access?ids=m1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-          ],
-          rules: [{ model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }],
+            rules: [
+              {
+                model_id: 'm1',
+                principal_type: 'group',
+                principal_id: 'g1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/openai/connections/access?ids=c1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-          ],
-          rules: [],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }],
+            rules: [],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/tool-servers') {
-        return new Response(JSON.stringify({ servers: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ servers: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     const { renderPoliciesSettings } = await loadModule();
@@ -213,35 +377,81 @@ describe('admin policies settings', () => {
   it('shows a dependency warning inside the model access modal when the selected group lacks the underlying connection', async () => {
     mocks.fetchAdminModels.mockResolvedValueOnce({
       models: [
-        { id: 'm1', name: 'Model 1', provider: 'openai', enabled: true, connection_id: 'c1', connection_name: 'Conn 1' },
+        {
+          id: 'm1',
+          name: 'Model 1',
+          provider: 'openai',
+          enabled: true,
+          connection_id: 'c1',
+          connection_name: 'Conn 1',
+        },
       ],
     });
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       const path = String(url);
       if (path === '/api/admin/openai/connections') {
-        return new Response(JSON.stringify({ connections: [{ id: 'c1', name: 'Conn 1', providerType: 'openai-compatible', baseUrl: 'https://example.com', source: 'config' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            connections: [
+              {
+                id: 'c1',
+                name: 'Conn 1',
+                providerType: 'openai-compatible',
+                baseUrl: 'https://example.com',
+                source: 'config',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/models/access?ids=m1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-          ],
-          rules: [{ model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }],
+            rules: [
+              {
+                model_id: 'm1',
+                principal_type: 'group',
+                principal_id: 'g1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/openai/connections/access?ids=c1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-            { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
-          ],
-          rules: [{ connection_id: 'c1', principal_type: 'group', principal_id: 'g2', effect: 'allow', action: 'use' }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [
+              { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
+              { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
+            ],
+            rules: [
+              {
+                connection_id: 'c1',
+                principal_type: 'group',
+                principal_id: 'g2',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/tool-servers') {
-        return new Response(JSON.stringify({ servers: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ servers: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     const { renderPoliciesSettings } = await loadModule();
@@ -265,34 +475,70 @@ describe('admin policies settings', () => {
   it('hides the dependency warning inside the model access modal when the model itself is not allowed', async () => {
     mocks.fetchAdminModels.mockResolvedValueOnce({
       models: [
-        { id: 'm1', name: 'Model 1', provider: 'openai', enabled: true, connection_id: 'c1', connection_name: 'Conn 1' },
+        {
+          id: 'm1',
+          name: 'Model 1',
+          provider: 'openai',
+          enabled: true,
+          connection_id: 'c1',
+          connection_name: 'Conn 1',
+        },
       ],
     });
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       const path = String(url);
       if (path === '/api/admin/openai/connections') {
-        return new Response(JSON.stringify({ connections: [{ id: 'c1', name: 'Conn 1', providerType: 'openai-compatible', baseUrl: 'https://example.com', source: 'config' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            connections: [
+              {
+                id: 'c1',
+                name: 'Conn 1',
+                providerType: 'openai-compatible',
+                baseUrl: 'https://example.com',
+                source: 'config',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/models/access?ids=m1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-          ],
-          rules: [],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }],
+            rules: [],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/openai/connections/access?ids=c1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-          ],
-          rules: [{ connection_id: 'c1', principal_type: 'group', principal_id: 'g2', effect: 'allow', action: 'use' }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }],
+            rules: [
+              {
+                connection_id: 'c1',
+                principal_type: 'group',
+                principal_id: 'g2',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/tool-servers') {
-        return new Response(JSON.stringify({ servers: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ servers: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     const { renderPoliciesSettings } = await loadModule();
@@ -313,7 +559,11 @@ describe('admin policies settings', () => {
   });
 
   it('auto-opens the target ACL modal from a deep-link url', async () => {
-    history.pushState({}, '', '/admin/settings/policies?group=g1&family=connections&resource=c1&open=access');
+    history.pushState(
+      {},
+      '',
+      '/admin/settings/policies?group=g1&family=connections&resource=c1&open=access'
+    );
 
     const { renderPoliciesSettings } = await loadModule();
     const container = document.getElementById('root');
@@ -335,7 +585,9 @@ describe('admin policies settings', () => {
 
     await vi.waitFor(() => expect(container.querySelector('#policy-family-select')).not.toBeNull());
     expect(container.textContent).toContain('Access Policies');
-    expect(container.textContent).toContain('Slim policy review view. Disabled resources stay hidden by default.');
+    expect(container.textContent).toContain(
+      'Slim policy review view. Disabled resources stay hidden by default.'
+    );
     expect(container.textContent).toContain('Models');
   });
 
@@ -346,13 +598,11 @@ describe('admin policies settings', () => {
     renderPoliciesSettings(container);
 
     await vi.waitFor(() => expect(container.querySelector('#policy-family-select')).not.toBeNull());
-    const labels = Array.from(container.querySelectorAll('#policy-family-select option')).map((option) => option.textContent.trim());
+    const labels = Array.from(container.querySelectorAll('#policy-family-select option')).map(
+      (option) => option.textContent.trim()
+    );
 
-    expect(labels).toEqual([
-      'Connections',
-      'Models',
-      'Integrations - MCP Servers',
-    ]);
+    expect(labels).toEqual(['Connections', 'Models', 'Integrations - MCP Servers']);
   });
 
   it('allows bulk ACL editing for visible models', async () => {
@@ -362,11 +612,17 @@ describe('admin policies settings', () => {
     renderPoliciesSettings(container);
 
     await vi.waitFor(() => expect(container.textContent).toContain('Models'));
-    await vi.waitFor(() => expect(container.querySelector('[data-select-visible-family="models"]')).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelector('[data-page-size-family="models"]')).not.toBeNull());
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-select-visible-family="models"]')).not.toBeNull()
+    );
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-page-size-family="models"]')).not.toBeNull()
+    );
 
     container.querySelector('[data-select-visible-family="models"]').click();
-    await vi.waitFor(() => expect(container.querySelector('[data-bulk-edit-family="models"]')?.disabled).toBe(false));
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-bulk-edit-family="models"]')?.disabled).toBe(false)
+    );
 
     container.querySelector('[data-bulk-edit-family="models"]').click();
     await vi.waitFor(() => expect(document.querySelector('#policy-acl-save')).not.toBeNull());
@@ -381,7 +637,9 @@ describe('admin policies settings', () => {
     renderPoliciesSettings(container);
 
     await vi.waitFor(() => expect(container.textContent).toContain('Model 1'));
-    expect(mocks.fetchAdminModels).toHaveBeenCalledWith(expect.objectContaining({ includeDisabled: false }));
+    expect(mocks.fetchAdminModels).toHaveBeenCalledWith(
+      expect.objectContaining({ includeDisabled: true })
+    );
     expect(container.textContent).not.toContain('Model 2');
 
     const familySelect = container.querySelector('#policy-family-select');
@@ -403,25 +661,41 @@ describe('admin policies settings', () => {
         { id: 'a-model', name: 'Alpha Model', provider: 'openai', enabled: true },
       ],
     });
-    mocks.apiFetch.mockImplementationOnce(async (url, init = {}) => {
+    mocks.apiFetch.mockImplementationOnce(async (url, _init = {}) => {
       const path = String(url);
       if (path === '/api/admin/openai/connections') {
-        return new Response(JSON.stringify({ connections: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ connections: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
       if (path.startsWith('/api/admin/models/access?ids=')) {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-          ],
-          rules: [
-            { model_id: 'z-model', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
-          ],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }],
+            rules: [
+              {
+                model_id: 'z-model',
+                principal_type: 'group',
+                principal_id: 'g1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/tool-servers') {
-        return new Response(JSON.stringify({ servers: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ servers: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     const { renderPoliciesSettings } = await loadModule();
@@ -429,7 +703,9 @@ describe('admin policies settings', () => {
 
     renderPoliciesSettings(container);
     await vi.waitFor(() => expect(container.textContent).toContain('Alpha Model'));
-    const initialRows = Array.from(container.querySelectorAll('[data-family-panel="models"] .group.flex'));
+    const initialRows = Array.from(
+      container.querySelectorAll('[data-family-panel="models"] .group.flex')
+    );
     expect(initialRows[0].textContent).toContain('Alpha Model');
     expect(initialRows[1].textContent).toContain('Zulu Model');
     expect(container.textContent).toContain('Alpha Model');
@@ -440,7 +716,9 @@ describe('admin policies settings', () => {
     groupSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
     await vi.waitFor(() => expect(container.textContent).toContain('Zulu Model'));
-    const afterRows = Array.from(container.querySelectorAll('[data-family-panel="models"] .group.flex'));
+    const afterRows = Array.from(
+      container.querySelectorAll('[data-family-panel="models"] .group.flex')
+    );
     expect(afterRows[0].textContent).toContain('Zulu Model');
     expect(afterRows[1].textContent).toContain('Alpha Model');
     expect(container.textContent).toContain('Alpha Model');
@@ -489,7 +767,9 @@ describe('admin policies settings', () => {
 
     renderPoliciesSettings(container);
 
-    await vi.waitFor(() => expect(container.querySelector('#policy-visibility-toggle')).not.toBeNull());
+    await vi.waitFor(() =>
+      expect(container.querySelector('#policy-visibility-toggle')).not.toBeNull()
+    );
     container.querySelector('#policy-visibility-toggle')?.click();
 
     expect(container.querySelector('[data-policy-filter="disabled"]')).toBeNull();
@@ -546,17 +826,41 @@ describe('admin policies settings', () => {
     document.querySelector('#policy-acl-save')?.click();
 
     // With immediate-save, the API call happens immediately after modal save
-    await vi.waitFor(() => expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url) === '/api/admin/models/access' && String(options?.method || '').toUpperCase() === 'PUT')
-    ).toBe(true));
+    await vi.waitFor(() =>
+      expect(
+        mocks.apiFetch.mock.calls.some(
+          ([url, options]) =>
+            String(url) === '/api/admin/models/access' &&
+            String(options?.method || '').toUpperCase() === 'PUT'
+        )
+      ).toBe(true)
+    );
     expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/models/') && String(url).endsWith('/access') && String(url) !== '/api/admin/models/access' && String(options?.method || '').toUpperCase() === 'PUT')
+      mocks.apiFetch.mock.calls.some(
+        ([url, options]) =>
+          String(url).includes('/api/admin/models/') &&
+          String(url).endsWith('/access') &&
+          String(url) !== '/api/admin/models/access' &&
+          String(options?.method || '').toUpperCase() === 'PUT'
+      )
     ).toBe(false);
     expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/openai/connections/') && String(url).endsWith('/access') && String(url) !== '/api/admin/openai/connections/access' && String(options?.method || '').toUpperCase() === 'PUT')
+      mocks.apiFetch.mock.calls.some(
+        ([url, options]) =>
+          String(url).includes('/api/admin/openai/connections/') &&
+          String(url).endsWith('/access') &&
+          String(url) !== '/api/admin/openai/connections/access' &&
+          String(options?.method || '').toUpperCase() === 'PUT'
+      )
     ).toBe(false);
     expect(
-      mocks.apiFetch.mock.calls.some(([url, options]) => String(url).includes('/api/admin/tool-servers/') && String(url).endsWith('/access') && String(url) !== '/api/admin/tool-servers/access' && String(options?.method || '').toUpperCase() === 'PUT')
+      mocks.apiFetch.mock.calls.some(
+        ([url, options]) =>
+          String(url).includes('/api/admin/tool-servers/') &&
+          String(url).endsWith('/access') &&
+          String(url) !== '/api/admin/tool-servers/access' &&
+          String(options?.method || '').toUpperCase() === 'PUT'
+      )
     ).toBe(false);
 
     await vi.waitFor(() => expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled());
@@ -570,32 +874,54 @@ describe('admin policies settings', () => {
       resolveSave = resolve;
     });
 
-    mocks.apiFetch.mockImplementation(async (url, init = {}) => {
+    mocks.apiFetch.mockImplementation(async (url, _init = {}) => {
       const path = String(url);
       if (path === '/api/admin/openai/connections') {
-        return new Response(JSON.stringify({
-          connections: [
-            { id: 'c1', name: 'Conn 1', providerType: 'openai-compatible', baseUrl: 'https://example.com', source: 'config' },
-          ],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            connections: [
+              {
+                id: 'c1',
+                name: 'Conn 1',
+                providerType: 'openai-compatible',
+                baseUrl: 'https://example.com',
+                source: 'config',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/tool-servers') {
-        return new Response(JSON.stringify({ servers: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ servers: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
       if (path === '/api/admin/models/access?ids=m1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-          ],
-          rules: [
-            { model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
-          ],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }],
+            rules: [
+              {
+                model_id: 'm1',
+                principal_type: 'group',
+                principal_id: 'g1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      if (path.includes('/access') && init.method === 'PUT') {
+      if (path.includes('/access') && _init.method === 'PUT') {
         return saveResponse;
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     const { renderPoliciesSettings } = await loadModule();
@@ -617,10 +943,12 @@ describe('admin policies settings', () => {
     saveBtn?.click();
     expect(saveBtn?.disabled).toBe(true);
 
-    resolveSave(new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    }));
+    resolveSave(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
 
     await vi.waitFor(() => expect(document.querySelector('#policy-acl-save')).toBeNull());
   });
@@ -628,41 +956,100 @@ describe('admin policies settings', () => {
   it('re-sorts policy rows when the selected group changes', async () => {
     mocks.fetchAdminModels.mockResolvedValueOnce({
       models: [
-        { id: 'm1', name: 'Alpha Model', provider: 'openai', enabled: true, connection_id: 'c1', connection_name: 'Conn 1' },
-        { id: 'm2', name: 'Zulu Model', provider: 'openai', enabled: true, connection_id: 'c1', connection_name: 'Conn 1' },
+        {
+          id: 'm1',
+          name: 'Alpha Model',
+          provider: 'openai',
+          enabled: true,
+          connection_id: 'c1',
+          connection_name: 'Conn 1',
+        },
+        {
+          id: 'm2',
+          name: 'Zulu Model',
+          provider: 'openai',
+          enabled: true,
+          connection_id: 'c1',
+          connection_name: 'Conn 1',
+        },
       ],
     });
 
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       const path = String(url);
       if (path === '/api/admin/openai/connections') {
-        return new Response(JSON.stringify({ connections: [{ id: 'c1', name: 'Conn 1', providerType: 'openai-compatible', baseUrl: 'https://example.com', source: 'config' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            connections: [
+              {
+                id: 'c1',
+                name: 'Conn 1',
+                providerType: 'openai-compatible',
+                baseUrl: 'https://example.com',
+                source: 'config',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/models/access?ids=m1%2Cm2') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-            { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
-          ],
-          rules: [
-            { model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
-            { model_id: 'm2', principal_type: 'group', principal_id: 'g2', effect: 'allow', action: 'use' },
-          ],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [
+              { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
+              { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
+            ],
+            rules: [
+              {
+                model_id: 'm1',
+                principal_type: 'group',
+                principal_id: 'g1',
+                effect: 'allow',
+                action: 'use',
+              },
+              {
+                model_id: 'm2',
+                principal_type: 'group',
+                principal_id: 'g2',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/openai/connections/access?ids=c1') {
-        return new Response(JSON.stringify({
-          groups: [
-            { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
-            { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
-          ],
-          rules: [{ connection_id: 'c1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            groups: [
+              { id: 'g1', name: 'Core', description: 'Core team', is_system: 0 },
+              { id: 'g2', name: 'Ops', description: 'Ops team', is_system: 0 },
+            ],
+            rules: [
+              {
+                connection_id: 'c1',
+                principal_type: 'group',
+                principal_id: 'g1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
       if (path === '/api/admin/tool-servers') {
-        return new Response(JSON.stringify({ servers: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ servers: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     const { renderPoliciesSettings } = await loadModule();
@@ -670,9 +1057,13 @@ describe('admin policies settings', () => {
 
     renderPoliciesSettings(container);
     await vi.waitFor(() => expect(container.querySelector('#policy-group-filter')).not.toBeNull());
-    await vi.waitFor(() => expect(container.querySelectorAll('[data-family-panel="models"] .group').length).toBe(2));
+    await vi.waitFor(() =>
+      expect(container.querySelectorAll('[data-family-panel="models"] .group').length).toBe(2)
+    );
 
-    const initialRows = Array.from(container.querySelectorAll('[data-family-panel="models"] .group')).map((row) => row.textContent.trim());
+    const initialRows = Array.from(
+      container.querySelectorAll('[data-family-panel="models"] .group')
+    ).map((row) => row.textContent.trim());
     expect(initialRows[0]).toContain('Alpha Model');
     expect(initialRows[1]).toContain('Zulu Model');
 
@@ -681,9 +1072,30 @@ describe('admin policies settings', () => {
     groupSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
     await vi.waitFor(() => {
-      const rows = Array.from(container.querySelectorAll('[data-family-panel="models"] .group')).map((row) => row.textContent.trim());
+      const rows = Array.from(
+        container.querySelectorAll('[data-family-panel="models"] .group')
+      ).map((row) => row.textContent.trim());
       expect(rows[0]).toContain('Zulu Model');
       expect(rows[1]).toContain('Alpha Model');
     });
+  });
+
+  it('shows disabled resources when the Show disabled toggle is enabled (#71 regression)', async () => {
+    const { renderPoliciesSettings } = await loadModule();
+    const container = document.getElementById('root');
+    renderPoliciesSettings(container);
+    await vi.waitFor(() => expect(container.textContent).toContain('Model 1'));
+    // Model 2 is disabled and should be hidden by default
+    expect(container.textContent).not.toContain('Model 2');
+    // Enable the "Show disabled" visibility filter
+    container.querySelector('#policy-visibility-toggle')?.click();
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-policy-filter="disabled"]')).not.toBeNull()
+    );
+    const disabledCheckbox = container.querySelector('[data-policy-filter="disabled"]');
+    expect(disabledCheckbox).not.toBeNull();
+    disabledCheckbox.checked = true;
+    disabledCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(container.textContent).toContain('Model 2'));
   });
 });

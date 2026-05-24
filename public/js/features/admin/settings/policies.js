@@ -186,12 +186,6 @@ function getFamilyBulkSummary(familyKey, count) {
   return count === 1 ? label : `${label}s`;
 }
 
-function filterEnabledResources(resources = []) {
-  return (Array.isArray(resources) ? resources : []).filter(
-    (resource) => resource?.enabled !== false
-  );
-}
-
 function sortResourcesByVisibility(resources = [], groupId = '') {
   const normalizedGroupId = String(groupId || '').trim();
   return (Array.isArray(resources) ? resources : []).slice().sort((a, b) => {
@@ -1051,7 +1045,7 @@ export function renderPoliciesSettings(container, _data = {}) {
         payload = await fetchAdminModels({
           limit: 1000,
           offset: 0,
-          includeDisabled: false,
+          includeDisabled: true,
           signal: controller.signal,
         });
       } else if (familyKey === 'connections') {
@@ -1069,10 +1063,16 @@ export function renderPoliciesSettings(container, _data = {}) {
 
       const resources =
         familyKey === 'models'
-          ? filterEnabledResources(payload.models)
+          ? Array.isArray(payload.models)
+            ? payload.models
+            : []
           : familyKey === 'connections'
-            ? filterEnabledResources(payload.connections)
-            : filterEnabledResources(payload.servers);
+            ? Array.isArray(payload.connections)
+              ? payload.connections
+              : []
+            : Array.isArray(payload.servers)
+              ? payload.servers
+              : [];
       const ids = resources.map((resource) => resource.id).filter(Boolean);
       let accessRules = [];
       let connectionAccessRules = [];
