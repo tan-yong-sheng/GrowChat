@@ -107,6 +107,17 @@ const ADMIN_MODAL_PRESETS = {
   },
 };
 
+/**
+ * Static z-index class mapping so Tailwind JIT can detect and generate
+ * the corresponding CSS. Template-literal arbitrary values like
+ * `z-[${value}]` are invisible to Tailwind's content scanner.
+ */
+const Z_INDEX_CLASSES = {
+  140: 'z-[140]',
+  150: 'z-[150]',
+  250: 'z-[250]',
+};
+
 function resolveAdminModalPreset(preset = 'standard', overrides = {}) {
   const resolved = {
     ...ADMIN_MODAL_PRESETS.standard,
@@ -258,7 +269,16 @@ export function buildAdminModalShellMarkup({
     closeAttr,
     rootAttrs,
   });
-  const zIndexClass = typeof config.zIndex === 'number' ? `z-[${config.zIndex}]` : '';
+  let zIndexClass = '';
+  if (typeof config.zIndex === 'number') {
+    zIndexClass = Z_INDEX_CLASSES[config.zIndex];
+    if (!zIndexClass) {
+      console.error(
+        `[modal-shell] Unmapped z-index ${config.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT generates the CSS. Falling back to z-[${config.zIndex}].`
+      );
+      zIndexClass = `z-[${config.zIndex}]`;
+    }
+  }
   return `
     <div class="${config.outerClass} ${zIndexClass}" ${config.rootAttrs}>
       <div class="${config.overlayClass}"></div>
@@ -284,6 +304,8 @@ export function buildAdminModalShellMarkup({
     </div>
   `;
 }
+
+export { Z_INDEX_CLASSES };
 
 export function getAdminModalPreset(name = 'standard') {
   return resolveAdminModalPreset(name);
