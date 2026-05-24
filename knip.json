@@ -16,9 +16,20 @@
     "@stryker-mutator/core",
     "danger",
     "serve",
-    "wait-on"
+    "wait-on",
+    "github-actionlint"
   ],
-  "ignoreBinaries": ["dot", "uv", "semgrep", "danger", "lhci", "serve", "stryker", "wait-on"],
+  "ignoreBinaries": [
+    "dot",
+    "uv",
+    "semgrep",
+    "danger",
+    "lhci",
+    "serve",
+    "stryker",
+    "wait-on",
+    "github-actionlint"
+  ],
   "ignoreFiles": [
     "public/js/features/admin/settings/security.js",
     "public/js/features/chat/keyboard-navigation.js",

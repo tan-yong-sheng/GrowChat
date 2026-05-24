@@ -186,12 +186,6 @@ function getFamilyBulkSummary(familyKey, count) {
   return count === 1 ? label : `${label}s`;
 }
 
-function filterEnabledResources(resources = []) {
-  return (Array.isArray(resources) ? resources : []).filter(
-    (resource) => resource?.enabled !== false
-  );
-}
-
 function sortResourcesByVisibility(resources = [], groupId = '') {
   const normalizedGroupId = String(groupId || '').trim();
   return (Array.isArray(resources) ? resources : []).slice().sort((a, b) => {
@@ -1051,15 +1045,19 @@ export function renderPoliciesSettings(container, _data = {}) {
         payload = await fetchAdminModels({
           limit: 1000,
           offset: 0,
-          includeDisabled: false,
+          includeDisabled: true,
           signal: controller.signal,
         });
       } else if (familyKey === 'connections') {
-        const res = await apiFetch('/api/admin/openai/connections', { signal: controller.signal });
+        const res = await apiFetch('/api/admin/openai/connections?include_disabled=1', {
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error('Failed to load connections');
         payload = await res.json();
       } else {
-        const res = await apiFetch('/api/admin/tool-servers', { signal: controller.signal });
+        const res = await apiFetch('/api/admin/tool-servers?include_disabled=1', {
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error('Failed to load MCP servers');
         payload = await res.json();
       }
@@ -1067,12 +1065,13 @@ export function renderPoliciesSettings(container, _data = {}) {
       if (controller.signal.aborted) return;
       if (familyLoadSeq[familyKey] !== seq) return;
 
-      const resources =
+      const rawResources =
         familyKey === 'models'
-          ? filterEnabledResources(payload.models)
+          ? payload.models
           : familyKey === 'connections'
-            ? filterEnabledResources(payload.connections)
-            : filterEnabledResources(payload.servers);
+            ? payload.connections
+            : payload.servers;
+      const resources = Array.isArray(rawResources) ? rawResources : [];
       const ids = resources.map((resource) => resource.id).filter(Boolean);
       let accessRules = [];
       let connectionAccessRules = [];

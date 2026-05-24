@@ -25,19 +25,45 @@ describe('admin models settings', () => {
     vi.clearAllMocks();
     mocks.apiFetch.mockImplementation(async (url, options = {}) => {
       if (String(url).startsWith('/api/admin/models?')) {
-        return new Response(JSON.stringify({
-          models: [
-            { id: 'model-a', name: 'Model A', enabled: true, access_label: 'Admin', access_variant: 'admin', attachments: { image: false, pdf: false } },
-            { id: 'model-b', name: 'Model B', enabled: false, access_label: 'Shared', access_variant: 'shared', attachments: { image: false, pdf: false } },
-          ],
-          total: 2,
-          active_total: 1,
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'model-a',
+                name: 'Model A',
+                enabled: true,
+                access_label: 'Admin',
+                access_variant: 'admin',
+                attachments: { image: false, pdf: false },
+              },
+              {
+                id: 'model-b',
+                name: 'Model B',
+                enabled: false,
+                access_label: 'Shared',
+                access_variant: 'shared',
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 2,
+            active_total: 1,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      if (String(url) === '/api/admin/models' && String(options.method || 'GET').toUpperCase() === 'PUT') {
-        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (
+        String(url) === '/api/admin/models' &&
+        String(options.method || 'GET').toUpperCase() === 'PUT'
+      ) {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
   });
 
@@ -47,7 +73,9 @@ describe('admin models settings', () => {
     const data = {};
 
     renderModelsSettings(container, data);
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/models?limit=0&offset=0'));
+    await vi.waitFor(() =>
+      expect(mocks.apiFetch).toHaveBeenCalledWith('/api/admin/models?limit=0&offset=0')
+    );
     await vi.waitFor(() => expect(data.modelsSettings.loading).toBe(false));
 
     expect(container.querySelector('.model-toggle')).toBeNull();
@@ -57,7 +85,9 @@ describe('admin models settings', () => {
     expect(container.textContent).not.toContain('Model B');
     expect(container.querySelector('thead')?.textContent).toContain('Access');
     expect(container.querySelector('thead')?.textContent).not.toContain('Input');
-    expect(container.querySelector('[data-model-access="model-a"]')?.textContent).toContain('Admin');
+    expect(container.querySelector('[data-model-access="model-a"]')?.textContent).toContain(
+      'Admin'
+    );
   });
 
   it('filters provider options from the selected set only', async () => {
@@ -67,28 +97,52 @@ describe('admin models settings', () => {
 
     mocks.apiFetch.mockImplementation(async (url) => {
       if (String(url).startsWith('/api/admin/models?')) {
-        return new Response(JSON.stringify({
-          models: [
-            { id: 'model-a', name: 'Model A', provider_family: 'openai', provider_type: 'openai', enabled: true, attachments: { image: false, pdf: false } },
-            { id: 'model-b', name: 'Model B', provider_family: 'anthropic', provider_type: 'anthropic', enabled: false, attachments: { image: false, pdf: false } },
-          ],
-          total: 2,
-          active_total: 1,
-          providers: [
-            { value: 'openai', label: 'OpenAI', active: 1, total: 1 },
-            { value: 'claude', label: 'Claude', active: 0, total: 1 },
-          ],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'model-a',
+                name: 'Model A',
+                provider_family: 'openai',
+                provider_type: 'openai',
+                enabled: true,
+                attachments: { image: false, pdf: false },
+              },
+              {
+                id: 'model-b',
+                name: 'Model B',
+                provider_family: 'anthropic',
+                provider_type: 'anthropic',
+                enabled: false,
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 2,
+            active_total: 1,
+            providers: [
+              { value: 'openai', label: 'OpenAI', active: 1, total: 1 },
+              { value: 'claude', label: 'Claude', active: 0, total: 1 },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     renderModelsSettings(container, data);
-    await vi.waitFor(() => expect(container.querySelector('#model-provider-select')).not.toBeNull());
+    await vi.waitFor(() =>
+      expect(container.querySelector('#model-provider-select')).not.toBeNull()
+    );
     await vi.waitFor(() => expect(container.textContent).toContain('Model A'));
 
     const providerSelect = container.querySelector('#model-provider-select');
-    const options = Array.from(providerSelect.options).map((option) => option.textContent.trim()).join(' ');
+    const options = Array.from(providerSelect.options)
+      .map((option) => option.textContent.trim())
+      .join(' ');
     expect(options).toContain('All Providers');
     expect(options.toLowerCase()).toContain('openai');
     expect(options.toLowerCase()).not.toContain('anthropic');
@@ -100,8 +154,12 @@ describe('admin models settings', () => {
     const data = {};
 
     renderModelsSettings(container, data);
-    await vi.waitFor(() => expect(container.querySelector('[data-model-acl="model-a"]')).not.toBeNull());
-    expect(container.querySelector('[data-model-acl="model-a"]')?.classList.contains('hidden')).toBe(false);
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-model-acl="model-a"]')).not.toBeNull()
+    );
+    expect(
+      container.querySelector('[data-model-acl="model-a"]')?.classList.contains('hidden')
+    ).toBe(false);
     expect(container.querySelector('[data-model-acl="model-b"]')).toBeNull();
   });
 
@@ -113,52 +171,77 @@ describe('admin models settings', () => {
     mocks.apiFetch.mockImplementation(async (url, options = {}) => {
       const requestUrl = String(url);
       if (requestUrl.startsWith('/api/admin/models?')) {
-        return new Response(JSON.stringify({
-          models: [
-            {
-              id: 'openai/env-openai-0:gemini-2.5-flash',
-              name: 'gemini-2.5-flash',
-              provider: 'openai',
-              enabled: true,
-              attachments: { image: false, pdf: false },
-            },
-          ],
-          total: 1,
-          active_total: 1,
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'openai/env-openai-0:gemini-2.5-flash',
+                name: 'gemini-2.5-flash',
+                provider: 'openai',
+                enabled: true,
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 1,
+            active_total: 1,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      if (requestUrl === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' && (!options.method || options.method === 'GET')) {
-        return new Response(JSON.stringify({
-          model_id: 'openai/env-openai-0:gemini-2.5-flash',
-          groups: [
-            { id: 'group-1', name: 'test1', description: 'Test Group', is_system: false },
-          ],
-          rules: [
-            {
-              model_id: 'openai/env-openai-0:gemini-2.5-flash',
-              principal_type: 'group',
-              principal_id: 'group-1',
-              effect: 'allow',
-              action: 'use',
-            },
-          ],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (
+        requestUrl === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' &&
+        (!options.method || options.method === 'GET')
+      ) {
+        return new Response(
+          JSON.stringify({
+            model_id: 'openai/env-openai-0:gemini-2.5-flash',
+            groups: [{ id: 'group-1', name: 'test1', description: 'Test Group', is_system: false }],
+            rules: [
+              {
+                model_id: 'openai/env-openai-0:gemini-2.5-flash',
+                principal_type: 'group',
+                principal_id: 'group-1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      if (requestUrl === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' && options.method === 'PUT') {
-        return new Response(JSON.stringify({
-          model_id: 'openai/env-openai-0:gemini-2.5-flash',
-          rules: [],
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (
+        requestUrl === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' &&
+        options.method === 'PUT'
+      ) {
+        return new Response(
+          JSON.stringify({
+            model_id: 'openai/env-openai-0:gemini-2.5-flash',
+            rules: [],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
       }
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     });
 
     renderModelsSettings(container, data);
-    await vi.waitFor(() => expect(container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]')).not.toBeNull());
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]')
+      ).not.toBeNull()
+    );
 
     container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]').click();
     await vi.waitFor(() => {
-      expect(mocks.apiFetch.mock.calls.some(([url]) => String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access')).toBe(true);
+      expect(
+        mocks.apiFetch.mock.calls.some(
+          ([url]) =>
+            String(url) === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access'
+        )
+      ).toBe(true);
     });
     await vi.waitFor(() => expect(document.body.textContent).toContain('Test Group'));
 
@@ -168,16 +251,22 @@ describe('admin models settings', () => {
     select.dispatchEvent(new Event('change', { bubbles: true }));
 
     document.querySelector('#model-acl-save-btn').click();
-    await vi.waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
-      '/api/admin/models',
-      expect.objectContaining({
-        method: 'PUT',
-        body: expect.any(String),
-      })
-    ));
+    await vi.waitFor(() =>
+      expect(mocks.apiFetch).toHaveBeenCalledWith(
+        '/api/admin/models',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.any(String),
+        })
+      )
+    );
 
     const aclCall = mocks.apiFetch.mock.calls.find(([url, options]) => {
-      if (String(url) !== '/api/admin/models' || String(options?.method || 'GET').toUpperCase() !== 'PUT') return false;
+      if (
+        String(url) !== '/api/admin/models' ||
+        String(options?.method || 'GET').toUpperCase() !== 'PUT'
+      )
+        return false;
       const body = JSON.parse(options.body);
       return body.access_updates && body.access_updates.length > 0;
     });
@@ -189,5 +278,217 @@ describe('admin models settings', () => {
         rules: [],
       },
     ]);
+  });
+  it('skips API call when ACL rules are unchanged (#70 regression)', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    mocks.apiFetch.mockImplementation(async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl.startsWith('/api/admin/models?')) {
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'model-a',
+                name: 'Model A',
+                enabled: true,
+                access_label: 'Admin',
+                access_variant: 'admin',
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 1,
+            active_total: 1,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      if (requestUrl.includes('/access') && (!options.method || options.method === 'GET')) {
+        return new Response(
+          JSON.stringify({
+            model_id: 'model-a',
+            groups: [
+              { id: 'group-1', name: 'TestGroup', description: 'A test group', is_system: false },
+            ],
+            rules: [
+              {
+                model_id: 'model-a',
+                principal_type: 'group',
+                principal_id: 'group-1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    renderModelsSettings(container, data);
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-model-acl="model-a"]')).not.toBeNull()
+    );
+    container.querySelector('[data-model-acl="model-a"]').click();
+    await vi.waitFor(() => expect(document.querySelector('#model-acl-save-btn')).not.toBeNull());
+    await vi.waitFor(() => expect(document.body.textContent).toContain('TestGroup'));
+    const putCallsBefore = mocks.apiFetch.mock.calls.filter(
+      ([url, opts]) =>
+        String(url) === '/api/admin/models' && String(opts?.method || 'GET').toUpperCase() === 'PUT'
+    ).length;
+    document.querySelector('#model-acl-save-btn').click();
+    await vi.waitFor(() => expect(document.querySelector('#model-acl-save-btn')).toBeNull());
+    const putCallsAfter = mocks.apiFetch.mock.calls.filter(
+      ([url, opts]) =>
+        String(url) === '/api/admin/models' && String(opts?.method || 'GET').toUpperCase() === 'PUT'
+    ).length;
+    expect(putCallsAfter - putCallsBefore).toBe(0);
+  });
+
+  it('applies disabled-row styling in syncUi re-render (#69 regression)', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    mocks.apiFetch.mockImplementation(async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl.startsWith('/api/admin/models?')) {
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'model-a',
+                name: 'Model A',
+                enabled: true,
+                access_label: 'Admin',
+                access_variant: 'admin',
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 1,
+            active_total: 1,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      if (
+        requestUrl === '/api/admin/models' &&
+        String(options.method || 'GET').toUpperCase() === 'PUT'
+      ) {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    renderModelsSettings(container, data);
+    await vi.waitFor(() => expect(container.textContent).toContain('Model A'));
+    // Initially, model-a is enabled — no disabled styling
+    const rowA = container.querySelector('[data-model-row="model-a"]');
+    expect(rowA).not.toBeNull();
+    expect(rowA.classList.contains('opacity-70')).toBe(false);
+    expect(rowA.classList.contains('bg-gray-50/80')).toBe(false);
+    // Simulate disabling the model through the internal state
+    // The syncUi function reads from modelsState.disabledModels
+    // After toggling, the row should get the disabled styling
+    const ms = data.modelsSettings;
+    ms.disabledModels.add('model-a');
+    ms.activeTotal = Math.max(0, (ms.activeTotal || 1) - 1);
+    // Re-render via syncUi (the ensureMounted branch)
+    // Trigger syncUi by calling renderModelsSettings again (it should go through syncUi when already mounted)
+    const { renderModelsSettings: rerender } =
+      await import('../../public/js/features/admin/settings/models.js');
+    rerender(container, data);
+    // After re-render, the row should have disabled styling
+    const rowAfter = container.querySelector('[data-model-row="model-a"]');
+    expect(rowAfter).not.toBeNull();
+    expect(rowAfter.classList.contains('opacity-70')).toBe(true);
+    expect(rowAfter.classList.contains('bg-gray-50/80')).toBe(true);
+  });
+
+  it('broadcasts models invalidation on no-op ACL save (#70 review fix)', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    mocks.apiFetch.mockImplementation(async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl.startsWith('/api/admin/models?')) {
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'openai/env-openai-0:gemini-2.5-flash',
+                name: 'Test Model',
+                enabled: true,
+                access_label: 'Admin',
+                access_variant: 'admin',
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 1,
+            active_total: 1,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      if (
+        requestUrl === '/api/admin/models/openai%2Fenv-openai-0%3Agemini-2.5-flash/access' &&
+        (!options.method || options.method === 'GET')
+      ) {
+        return new Response(
+          JSON.stringify({
+            model_id: 'openai/env-openai-0:gemini-2.5-flash',
+            groups: [{ id: 'group-1', name: 'test1', description: 'Test Group', is_system: false }],
+            rules: [
+              {
+                model_id: 'openai/env-openai-0:gemini-2.5-flash',
+                principal_type: 'group',
+                principal_id: 'group-1',
+                effect: 'allow',
+                action: 'use',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    renderModelsSettings(container, data);
+
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]')
+      ).not.toBeNull()
+    );
+    container.querySelector('[data-model-acl="openai/env-openai-0:gemini-2.5-flash"]').click();
+
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Test Group'));
+
+    // Clear any prior calls
+    mocks.broadcastModelsInvalidation.mockClear();
+
+    // Click save without changing rules (no-op path — sameAsBase will be true)
+    const saveBtn = document.querySelector('#model-acl-save-btn');
+    expect(saveBtn).not.toBeNull();
+    saveBtn.click();
+
+    // Wait for modal to close
+    await vi.waitFor(() => {
+      const btn = document.querySelector('#model-acl-save-btn');
+      expect(btn).toBeNull();
+    });
+
+    // Verify broadcastModelsInvalidation was called on the no-op sameAsBase path
+    expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled();
   });
 });
