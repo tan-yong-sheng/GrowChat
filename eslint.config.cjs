@@ -192,9 +192,9 @@ module.exports = [
       'no-console': 'off',
       'growchat-logging/no-console-logging': 'error',
       'no-duplicate-imports': 'warn',
-      complexity: ['warn', { max: 15 }],
-      'max-lines-per-function': ['warn', { max: 120, skipBlankLines: true, skipComments: true }],
-      'max-depth': ['warn', 4],
+      complexity: ['warn', { max: 10 }],
+      'max-lines-per-function': ['warn', { max: 80, skipBlankLines: true, skipComments: true }],
+      'max-depth': ['error', 4],
       'max-nested-callbacks': ['warn', 3],
  // #108 — New guardrail rules (start as warn, promote after fixing)
  eqeqeq: ['error', 'always', { null: 'ignore' }],
