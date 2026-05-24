@@ -1,4 +1,4 @@
-name: Weekly Mutation Testing
+name: Mutation Testing
 on:
   schedule:
     - cron: '0 0 * * 0' # Every Sunday at midnight
