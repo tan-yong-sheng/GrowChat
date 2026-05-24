@@ -20,7 +20,7 @@ name: Pi PR Review
 
 on:
   pull_request:
-    types: [synchronize, ready_for_review, reopened]
+    types: [opened, synchronize, ready_for_review, reopened]
 
 concurrency:
   group: pi-review-${{ github.event.pull_request.number }}
@@ -115,6 +115,10 @@ jobs:
             - Focus only on high-confidence, actionable findings
             - Avoid style-only or trivial nitpicks
             - Use inline comments for specific code-level issues
+            - When suggesting a code fix, wrap the replacement code in a
+              GitHub "suggestion" fenced block (triple-backtick suggestion)
+              so the reviewer can apply it with a single click
+            - Prefer suggestion blocks over prose descriptions when a concrete fix exists
             - Use `create_pull_request_review` for overall feedback
             - Only post GitHub review comments (do not return review text in messages)
 
