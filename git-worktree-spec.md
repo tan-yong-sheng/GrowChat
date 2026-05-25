@@ -44,7 +44,7 @@ After #88 lands (WT3 handles the 3 largest routers), these `src/` files still ex
 
 1. All `src/` files are ≤ 400 lines
 2. `pnpm run lint` passes with `max-lines: 400` rule
-3. No file in legacy override block for these files
+3. Files remain in legacy override block for complexity/max-lines-per-function warnings (22 warnings break --max-warnings=0); override removal deferred until WT3 (eslint-guardrails) merges and these are addressed as a separate refactor pass
 4. All existing tests pass
 5. No circular dependencies introduced by the splits
 
