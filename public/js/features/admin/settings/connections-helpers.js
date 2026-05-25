@@ -387,3 +387,17 @@ export function updateApiTypeDisplay(scope, providerType) {
   if (label) label.textContent = details.label;
   if (hint) hint.textContent = details.endpoint;
 }
+
+export function buildModalConnectionPayload(scope = null, selectedConnection = null) {
+  const root = scope || document;
+  return {
+    id: selectedConnection?.id || '',
+    name: root.querySelector('#modal-conn-name')?.value || '',
+    url: root.querySelector('#modal-conn-url')?.value || '',
+    key: root.querySelector('#modal-conn-key')?.value || '',
+    headers: root.querySelector('#modal-conn-headers')?.value || '',
+    providerType: root.querySelector('#modal-conn-provider')?.value || 'openai',
+    providerFamily: root.querySelector('#modal-conn-provider')?.value || 'openai',
+    authType: selectedConnection?.authType || selectedConnection?.auth_type || '',
+  };
+}
