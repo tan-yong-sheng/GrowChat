@@ -220,6 +220,8 @@ module.exports = [
       'public/js/features/chat/chat-data-controller.js',
       'public/js/features/chat/model-selector-controller.js',
       'src/chat/assistant-runner.js',
+        'src/chat/assistant-stream-utils.js',
+        'src/chat/assistant-tool-executor.js',
       'src/llm/connections.js',
         'src/llm/connections-utils.js',
         'src/llm/connections-user.js',
