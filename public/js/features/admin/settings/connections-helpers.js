@@ -7,7 +7,7 @@ import {
 import {
   normalizeProviderType,
   connectionApiTypeDetails,
-} from '../../shared/utils/connection-types.js';
+} from '../../../shared/utils/connection-types.js';
 export { normalizeProviderType, connectionApiTypeDetails };
 
 export function normalizeProviderFamily(value) {
