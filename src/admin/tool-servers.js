@@ -43,8 +43,8 @@ export {
 
 export async function loadToolServers(db, options = {}) {
   const includeHiddenForUser = options.includeHiddenForUser === true;
-  const raw = await getConfigValue(db, 'tool_servers', '[]');
   try {
+    const raw = await getConfigValue(db, 'tool_servers', '[]');
     const parsed = JSON.parse(raw);
     const configServers = Array.isArray(parsed) ? parsed : [];
     const userId = String(options.userId || '').trim();
@@ -113,7 +113,13 @@ export async function loadToolServers(db, options = {}) {
     return filtered.map(({ allowed: _allowed, ...server }) => server);
   } catch (err) {
     logger.warn('Failed to load tool servers', { error: err?.message || err });
-    return [];
+    const userId = String(options.userId || '').trim();
+    if (!userId) return [];
+    try {
+      return await loadUserToolServers(db, userId);
+    } catch {
+      return [];
+    }
   }
 }
 

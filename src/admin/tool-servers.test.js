@@ -350,4 +350,38 @@ describe('admin tool server helpers', () => {
       expect(server).not.toHaveProperty('allowed');
     }
   });
+
+  it('falls back to user-owned servers when config loading fails', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM user_tool_servers')) {
+          return [
+            {
+              id: 'mcp-user',
+              user_id: 'u1',
+              server_json: JSON.stringify({
+                id: 'mcp-user',
+                name: 'My MCP',
+                url: 'https://mcp.example.com',
+                enabled: true,
+              }),
+            },
+          ];
+        }
+        return [];
+      }),
+      first: vi.fn(),
+    };
+    // Make config loading throw to trigger the fallback
+    mocks.getConfigValue.mockRejectedValueOnce(new Error('Config DB error'));
+    const servers = await loadToolServers(db, { userId: 'u1' });
+    expect(servers).toEqual([
+      expect.objectContaining({
+        id: 'mcp-user',
+        source: 'user',
+        personal: true,
+      }),
+    ]);
+  });
 });
