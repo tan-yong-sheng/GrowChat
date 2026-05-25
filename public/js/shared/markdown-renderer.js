@@ -1,4 +1,4 @@
-import { escapeHtml } from '../utils/dom-escape.js';
+import { escapeHtml } from './utils/dom-escape.js';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs';
 
 const MARKDOWN_CACHE_LIMIT = 200;
