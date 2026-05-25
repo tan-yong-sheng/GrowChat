@@ -40,7 +40,12 @@ After WT3 and WT11 land, these frontend files still exceed 400 lines:
 
 ## Implementation Scope
 
-- [ ] Admin settings files (6 files) — extract modal handlers, ACL logic, UI rendering
+- [x] Admin settings files — policies.js (1707→353) split into 7 sub-modules
+- [ ] Admin settings files — connections.js (1401→≤400)
+- [ ] Admin settings files — integrations.js (1092→≤400)
+- [ ] Admin settings files — models.js (866→≤400)
+- [ ] Admin users files — overview.js (1130→≤400), roles.js (939→≤400), groups.js (608→≤400)
+- [ ] Admin files — admin.js (737→≤400)
 - [ ] Chat UI files (4 files) — extract message handling, model selection, input controller
 - [ ] Account files (3 files) — extract connection/integration/model sub-modules
 - [ ] Shared modules (4 files) — extract markdown parsing, session init, realtime events, store slices
