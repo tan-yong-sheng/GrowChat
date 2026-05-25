@@ -234,6 +234,7 @@ module.exports = [
       'src/llm/connections.js',
       'src/llm/provider-adapters.js',
       'public/js/features/admin/admin.js',
+    'public/js/features/admin/admin-controller.js',
       'public/js/features/admin/settings/models.js',
 'public/js/features/admin/settings/models-sync-ui.js',
 'public/js/features/admin/settings/models-render.js',
