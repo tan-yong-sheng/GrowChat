@@ -135,6 +135,9 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
     }
     await users.touchLastActive(user.id);
     const freshUser = await users.findById(user.id);
+    if (!freshUser) {
+      return error(req, 'User not found', 404);
+    }
     const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
     const accessToken = await signJWT(
       {

@@ -267,23 +267,6 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
 
       return reloadAndPublishChat(req, db, env, user, chatId, originSessionId);
     }
-
-    async function reloadAndPublishChat(req, db, env, user, chatId, originSessionId) {
-      const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
-      const updated = updatedOwned.chat || null;
-      await publishRealtimeNow(
-        env,
-        createRealtimeEvent({
-          type: 'chat.updated',
-          userId: user.sub,
-          chatId,
-          originSessionId,
-          data: { chat: updated },
-        })
-      );
-      return json(req, { chat: updated });
-    }
-
     if (req.method === 'DELETE') {
       const authDecision = await authorize(env, user, {
         action: 'chat.delete',

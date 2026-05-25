@@ -36,6 +36,9 @@ async function parseGroupUserIds(req) {
   } catch {
     return { error: error(req, 'Invalid JSON', 400) };
   }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: error(req, 'Invalid JSON payload', 400) };
+  }
   const userIds = normalizePermissionsList(body.user_ids || (body.user_id ? [body.user_id] : []));
   if (!userIds.length) return { error: error(req, 'user_id required', 400) };
   return { userIds };

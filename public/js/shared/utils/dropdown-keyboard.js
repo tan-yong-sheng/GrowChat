@@ -43,7 +43,6 @@ export function setupDropdownKeyboard(dropdown, selector = '[data-action]', opti
           dropdown.classList.add('hidden');
           break;
         case 'Tab':
-          e.preventDefault();
           dropdown.classList.add('hidden');
           break;
       }
