@@ -29,6 +29,18 @@ function normalizePermissionsList(value) {
   return Array.from(new Set(cleaned));
 }
 
+async function parseGroupUserIds(req) {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return { error: error(req, 'Invalid JSON', 400) };
+  }
+  const userIds = normalizePermissionsList(body.user_ids || (body.user_id ? [body.user_id] : []));
+  if (!userIds.length) return { error: error(req, 'user_id required', 400) };
+  return { userIds };
+}
+
 export async function groupsRouter(req, env, _ctx, user, path, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
@@ -281,15 +293,9 @@ export async function groupsRouter(req, env, _ctx, user, path, requestContext = 
   const groupUsersMatch = path.match(/^\/api\/admin\/groups\/([^/]+)\/users$/);
   if (groupUsersMatch && req.method === 'POST') {
     const groupId = groupUsersMatch[1];
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON', 400);
-    }
-
-    const userIds = normalizePermissionsList(body.user_ids || (body.user_id ? [body.user_id] : []));
-    if (!userIds.length) return error(req, 'user_id required', 400);
+    const parsed = await parseGroupUserIds(req);
+    if (parsed.error) return parsed.error;
+    const { userIds } = parsed;
 
     try {
       const group = await db.first('SELECT id FROM groups WHERE id = ?', [groupId]);
@@ -325,15 +331,9 @@ export async function groupsRouter(req, env, _ctx, user, path, requestContext = 
   // DELETE /api/admin/groups/:id/users
   if (groupUsersMatch && req.method === 'DELETE') {
     const groupId = groupUsersMatch[1];
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON', 400);
-    }
-
-    const userIds = normalizePermissionsList(body.user_ids || (body.user_id ? [body.user_id] : []));
-    if (!userIds.length) return error(req, 'user_id required', 400);
+    const parsed = await parseGroupUserIds(req);
+    if (parsed.error) return parsed.error;
+    const { userIds } = parsed;
 
     try {
       const group = await db.first('SELECT id FROM groups WHERE id = ?', [groupId]);

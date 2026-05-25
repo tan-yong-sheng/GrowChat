@@ -1,11 +1,10 @@
-function normalizeModelLabel(model = {}) {
-  return String(model?.name || model?.id || model?.connection_name || model?.connection_id || '')
-    .trim()
-    .toLowerCase();
-}
-
 function isModelEnabled(model = {}) {
   return model?.enabled !== false;
+}
+
+function normalizeModelLabel(model = {}) {
+  const raw = model?.name || model?.id || model?.connection_name || model?.connection_id || '';
+  return String(raw).trim().toLowerCase();
 }
 
 export function countEnabledModels(models = []) {

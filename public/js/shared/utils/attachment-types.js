@@ -33,34 +33,36 @@ export const TEXT_LIKE_ACCEPT_TYPES = [
   'application/typescript',
 ];
 
-const MIME_MAP = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  webp: 'image/webp',
-  gif: 'image/gif',
-  pdf: 'application/pdf',
-  txt: 'text/plain',
-  md: 'text/markdown',
-  csv: 'text/csv',
-  tsv: 'text/tsv',
-  json: 'application/json',
-  json5: 'application/json5',
-  ndjson: 'application/x-ndjson',
-  yml: 'application/yaml',
-  yaml: 'application/yaml',
-  xml: 'application/xml',
-  js: 'application/javascript',
-  ts: 'application/typescript',
-  html: 'text/html',
-  css: 'text/css',
-  py: 'text/x-python',
-};
+const MIME_ENTRIES = [
+  ['css', 'text/css'],
+  ['csv', 'text/csv'],
+  ['gif', 'image/gif'],
+  ['html', 'text/html'],
+  ['jpeg', 'image/jpeg'],
+  ['jpg', 'image/jpeg'],
+  ['js', 'application/javascript'],
+  ['json', 'application/json'],
+  ['json5', 'application/json5'],
+  ['md', 'text/markdown'],
+  ['ndjson', 'application/x-ndjson'],
+  ['pdf', 'application/pdf'],
+  ['png', 'image/png'],
+  ['py', 'text/x-python'],
+  ['ts', 'application/typescript'],
+  ['tsv', 'text/tsv'],
+  ['txt', 'text/plain'],
+  ['webp', 'image/webp'],
+  ['xml', 'application/xml'],
+  ['yaml', 'application/yaml'],
+  ['yml', 'application/yaml'],
+];
+
+const extToMime = new Map(MIME_ENTRIES);
 
 export function inferContentTypeFromName(name) {
   const lower = String(name || '').toLowerCase();
   const ext = lower.includes('.') ? lower.split('.').pop() : lower;
-  return MIME_MAP[ext] || '';
+  return extToMime.get(ext) || '';
 }
 
 export function getFileContentType(file) {
