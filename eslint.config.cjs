@@ -196,6 +196,8 @@ module.exports = [
       'src/routers/groups.js',
       'src/llm/stream-parser.js',
       'src/admin/tool-servers.js',
+        'src/admin/tool-servers-utils.js',
+        'src/admin/tool-servers-user.js',
       'src/index.js',
       'public/js/features/chat/chat.js',
       'public/js/features/chat/chat-realtime-controller.js',
