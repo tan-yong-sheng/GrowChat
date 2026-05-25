@@ -10,23 +10,37 @@ test.describe('Accessibility audit', () => {
   };
   const Builder = AxeBuilder as unknown as AxeCtor;
 
-  // Use .html extension for server-agnostic compatibility (Python http.server
-  // and similar static servers don't support clean URLs; npx serve does).
-  // Chat/admin routes require auth and are not scannable in the guest project.
-  const publicRoutes = ['/', '/auth.html'];
+  // The SPA at / redirects unauthenticated users to /auth.html, so the home
+  // page test waits for that redirect before scanning. Chat/admin routes
+  // require auth and are not scannable in the guest project (see issue #123).
+  // landing.html has pre-existing color-contrast violations (see issue #131).
 
-  for (const route of publicRoutes) {
-    test(`should not have any automatically detectable accessibility issues on ${route === '/' ? 'home page' : route}`, async ({
+  test('should not have any automatically detectable accessibility issues on home page', async ({
+    page,
+  }) => {
+    // The SPA at / redirects to /auth.html when no auth token is present.
+    // Wait for the redirect to complete before scanning.
+    await page.goto('/');
+    await page.waitForURL(/\/auth(\.html)?$/, { timeout: 5000 });
+
+    const accessibilityScanResults = await new Builder({
       page,
-    }) => {
-      await page.goto(route);
+    }).analyze();
 
-      const accessibilityScanResults = await new Builder({
-        page,
-      }).analyze();
+    // Blocking: any axe-core violation fails the test.
+    expect(accessibilityScanResults.violations).toEqual([]);
+  });
 
-      // Blocking: any axe-core violation fails the test.
-      expect(accessibilityScanResults.violations).toEqual([]);
-    });
-  }
+  test('should not have any automatically detectable accessibility issues on /auth.html', async ({
+    page,
+  }) => {
+    await page.goto('/auth.html');
+
+    const accessibilityScanResults = await new Builder({
+      page,
+    }).analyze();
+
+    // Blocking: any axe-core violation fails the test.
+    expect(accessibilityScanResults.violations).toEqual([]);
+  });
 });
