@@ -14,8 +14,7 @@ import {
 } from '../../shared/components/models-section.js';
 import { normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
-import { cloneAttachmentCaps } from '../../shared/utils/attachment-caps.js';
-import { ATTACHMENT_CAP_TYPES } from '../admin/settings/models-helpers.js';
+import { ATTACHMENT_CAP_TYPES, cloneAttachmentCaps } from '../../shared/utils/attachment-caps.js';
 
 function normalizeAttachmentCaps(attachments = {}) {
   const next = {};

@@ -35,6 +35,10 @@ jobs:
             ui:
               - 'public/**'
               - 'src/input.css'
+              - 'tests/e2e/**'
+              - 'tests/shared/**'
+              - 'playwright.config.ts'
+              - 'tailwind.config.js'
 
   checks:
     name: Local + CI guardrails
@@ -49,6 +53,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Run actionlint
+        uses: raven-actions/actionlint@205b530c5d9fa8f44ae9ed59f341a0db994aa6f8 # v2.1.2
+
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -59,7 +66,7 @@ jobs:
 
       - name: Get pnpm store directory
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
       - name: Setup pnpm cache
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
@@ -80,7 +87,7 @@ jobs:
 
       - name: Setup Gitleaks
         run: |
-          docker run --rm -v $PWD:/path ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --no-git --verbose
+          docker run --rm -v "$PWD:/path" ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --no-git --verbose
 
       # Tier 1 + Tier 2 guardrails (unit tests, typecheck, eslint incl. complexity,
       # semgrep, jscpd dupe budgets, depcruise circular deps, prettier, knip hygiene)
