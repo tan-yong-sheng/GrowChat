@@ -31,6 +31,14 @@ The ~50-200ms window at T2 shows stale models. It self-corrects but causes a vis
 
 - [x] `public/js/features/chat/model-selector-controller.js` — add `modelsCacheGeneration` check to `ensureModelsLoaded()`
 - [x] Test for race condition (verify stale response is discarded)
+- [x] Move dynamic `import()` inside `try/catch` (Gemini Code Assist review)
+- [x] Test for `loadingPromise` reset on import failure
+
+## Post-Implementation Review Fixes
+
+- **Gemini Code Assist** (PR #124): High-severity — `import()` was outside `try/catch`, causing `loadingPromise` to stay stuck on import failure. Fixed by moving import inside `try` with `getGen`/`reqGen` variable pattern.
+- **CodeRabbit**: Rate-limited, no review content.
+- **Pi bot**: No review posted.
 
 ## Acceptance Criteria
 
