@@ -428,4 +428,57 @@ describe('admin integrations settings', () => {
     const row = container.querySelector('[data-tool-server-row]');
     expect(row?.getAttribute('data-tool-server-row')).toBe('xss-server');
   });
+  it('escapes IDs and tool names with quote-bearing payloads in data attributes (#121 XSS attr)', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/tool-servers')) {
+        return new Response(
+          JSON.stringify({
+            servers: [
+              {
+                id: 'xss" data-pwned="1',
+                name: 'safe-name',
+                url: 'https://safe.example.com',
+                enabled: true,
+                toolsExpanded: true,
+                tools: [
+                  {
+                    name: 'tool" onclick="pwn()',
+                    title: 'Safe Tool Title',
+                    description: 'Safe description',
+                    enabled: true,
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const { renderIntegrationsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    renderIntegrationsSettings(container, data);
+
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-tool-server-row]')).not.toBeNull()
+    );
+
+    // No injected attributes from quote-bearing id/tool.name
+    expect(container.querySelector('[data-pwned]')).toBeNull();
+    expect(container.querySelector('[onclick]')).toBeNull();
+
+    // The data-tool-server-row attribute should be the escaped server.id
+    const row = container.querySelector('[data-tool-server-row]');
+    expect(row?.getAttribute('data-tool-server-row')).toBe('xss" data-pwned="1');
+
+    // The data-tool-name attribute on tool-toggle should be the escaped tool.name
+    const toolToggle = container.querySelector('.tool-toggle');
+    expect(toolToggle?.getAttribute('data-tool-name')).toBe('tool" onclick="pwn()');
+  });
 });

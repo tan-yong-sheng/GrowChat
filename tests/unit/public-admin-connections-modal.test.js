@@ -461,4 +461,50 @@ describe('admin connections modal', () => {
     expect(row).not.toBeNull();
     expect(row.getAttribute('data-connection-row')).toBe('xss-conn');
   });
+  it('escapes connection IDs with quote-bearing payloads in data attributes (#121 XSS attr)', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/openai/connections')) {
+        return new Response(
+          JSON.stringify({
+            enabled: true,
+            connections: [
+              {
+                id: 'xss" data-pwned="1',
+                name: 'safe-conn-name',
+                url: 'https://safe.example.com',
+                providerType: 'openai',
+                enabled: true,
+                readOnly: false,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    renderConnectionsSettings(container, data);
+
+    await vi.waitFor(() =>
+      expect(mocks.apiFetch).toHaveBeenCalledWith(
+        '/api/admin/openai/connections?include_disabled=1'
+      )
+    );
+    await vi.waitFor(() => expect(container.querySelector('[data-connection-row]')).not.toBeNull());
+
+    // No injected attributes from quote-bearing id
+    expect(container.querySelector('[data-pwned]')).toBeNull();
+    expect(container.querySelector('[onerror]')).toBeNull();
+
+    // The data-connection-row attribute should be the escaped connection.id
+    const row = container.querySelector('[data-connection-row]');
+    expect(row?.getAttribute('data-connection-row')).toBe('xss" data-pwned="1');
+  });
 });

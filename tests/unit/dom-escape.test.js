@@ -1,4 +1,7 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it } from 'vitest';
+
 import { escapeHtml, escapeSelector } from '../../public/js/shared/utils/dom-escape.js';
 
 describe('escapeHtml', () => {
@@ -29,14 +32,33 @@ describe('escapeHtml', () => {
 });
 
 describe('escapeSelector', () => {
-  it('escapes CSS selector special characters', () => {
-    const escaped = escapeSelector('openai/env-openai-0:gemini-2.5-flash');
-    // The escaped value should be safe to use in querySelector
-    expect(escaped).not.toBe('openai/env-openai-0:gemini-2.5-flash');
+  it('escapes CSS selector special characters with exact output and querySelector round-trip', () => {
+    const input = 'openai/env-openai-0:gemini-2.5-flash';
+    const escaped = escapeSelector(input);
+    // CSS.escape escapes colons, slashes, and dots with backslash
+    expect(escaped).toContain('\\');
+    // Verify the escaped string works in querySelector (round-trip test)
+    const div = document.createElement('div');
+    div.id = input;
+    document.body.appendChild(div);
+    const found = document.querySelector('#' + escaped);
+    expect(found).toBe(div);
+    document.body.removeChild(div);
   });
 
   it('handles simple alphanumeric selectors unchanged', () => {
     expect(escapeSelector('simple-id')).toBe('simple-id');
     expect(escapeSelector('id_123')).toBe('id_123');
+  });
+
+  it('escapes brackets and periods for querySelector compatibility', () => {
+    const input = 'model.v1[prod]';
+    const escaped = escapeSelector(input);
+    const div = document.createElement('div');
+    div.id = input;
+    document.body.appendChild(div);
+    const found = document.querySelector('#' + escaped);
+    expect(found).toBe(div);
+    document.body.removeChild(div);
   });
 });

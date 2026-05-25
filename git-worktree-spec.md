@@ -38,7 +38,7 @@ Model/connection/server `id`, `name`, and other metadata fields interpolated dir
 - `public/js/features/admin/settings/connections.js` — connection metadata
 - `public/js/features/admin/settings/integrations.js` — server metadata
 
-Fix: Use `DOMPurify.sanitize()` or `textContent`/`setAttribute` instead of `innerHTML` interpolation for all user-controlled metadata. Add a shared `escapeHtml()` utility if one doesn't exist.
+Fix: Use the shared `escapeHtml()` utility from `shared/utils/dom-escape.js` for all user-controlled metadata rendered via `innerHTML`. If `escapeHtml()` does not exist, it must be added to the shared utilities and imported wherever metadata is rendered.
 
 ## Implementation Scope
 
@@ -59,8 +59,8 @@ Fix: Use `DOMPurify.sanitize()` or `textContent`/`setAttribute` instead of `inne
 ## Technical Constraints
 
 - Follow same fix pattern as PR #116 (which fixed #70 for models.js)
-- DOMPurify is already available in the project (CDN import in index.html)
-- Prefer `textContent`/`setAttribute` over `innerHTML` + sanitize where possible
+- Use shared `escapeHtml()` from `shared/utils/dom-escape.js` for all user-controlled metadata in HTML attribute and text contexts
+- DOMPurify is available for sanitizing full HTML blobs (not used for metadata escaping)
 - Keep changes minimal — don't refactor surrounding code
 
 ## Cross-branch Notes
