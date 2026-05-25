@@ -28,15 +28,7 @@ export async function apiFetch(path, options = {}) {
     headers,
   });
 
-  if (response.status === 401 && auth?.refresh_token) {
-    const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
-    if (refreshed) {
-      headers.set('Authorization', `Bearer ${refreshed.access_token}`);
-      return fetch(path, { ...options, headers });
-    }
-  }
-
-  if (response.status === 403 && auth?.refresh_token) {
+  if ((response.status === 401 || response.status === 403) && auth?.refresh_token) {
     const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
     if (refreshed) {
       headers.set('Authorization', `Bearer ${refreshed.access_token}`);

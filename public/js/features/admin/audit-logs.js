@@ -4,20 +4,12 @@
  * Located in Admin Settings > Audit (full-page workspace)
  */
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 /**
  * Format absolute timestamp
  * @param {number} timestamp - Unix timestamp (seconds)
  * @returns {string} Formatted datetime string
  */
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 function formatTimestamp(timestamp) {
   if (!timestamp) return 'Unknown';
   return new Date(timestamp * 1000).toLocaleString();

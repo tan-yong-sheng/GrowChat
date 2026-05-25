@@ -132,7 +132,7 @@ export function formatThoughtDuration(ms) {
   return `Thought for ${seconds} seconds`;
 }
 
-export function normalizeToolCalls(raw) {
+function normalizeJsonArray(raw) {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
   if (typeof raw === 'string') {
@@ -146,18 +146,12 @@ export function normalizeToolCalls(raw) {
   return [];
 }
 
+export function normalizeToolCalls(raw) {
+  return normalizeJsonArray(raw);
+}
+
 export function normalizeMessageBlocks(raw) {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
+  return normalizeJsonArray(raw);
 }
 
 export function normalizeMessageBlockRecord(raw, index = 0) {

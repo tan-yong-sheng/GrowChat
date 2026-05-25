@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import {
   TEXT_LIKE_ACCEPT_TYPES,
   getAllowedAttachmentKinds,
@@ -42,12 +43,6 @@ export function promoteQueueItem(queue, id) {
 
 export function removeQueueItem(queue, id) {
   return (Array.isArray(queue) ? queue : []).filter((item) => item.id !== id);
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
 }
 
 export function renderAttachmentListMarkup(list = []) {

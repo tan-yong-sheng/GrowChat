@@ -1,3 +1,4 @@
+import { escapeHtml } from '../utils/dom-escape.js';
 import { renderButton } from './button.js';
 
 const STANDARD_MODAL_PRESET = {
@@ -12,15 +13,6 @@ const AUTH_TYPE_OPTIONS = [
   { value: 'basic', label: 'Basic Auth' },
   { value: 'oauth', label: 'OAuth 2.0 (PKCE)' },
 ];
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 function formatHeadersValue(headers) {
   if (!headers) return '';

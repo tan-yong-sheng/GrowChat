@@ -83,6 +83,25 @@ export function toAccessibleConnectionSummary(connection, accessVariant = 'admin
   };
 }
 
+function normalizeTool(tool) {
+  return {
+    name: String(tool?.name || '').trim(),
+    title: String(tool?.title || '').trim(),
+    description: String(tool?.description || '').trim(),
+    enabled: tool?.enabled !== false,
+    visible_for_user: tool?.visible_for_user !== false,
+    hidden_for_user: tool?.hidden_for_user === true,
+    parameters:
+      tool?.parameters && typeof tool.parameters === 'object' && !Array.isArray(tool.parameters)
+        ? tool.parameters
+        : undefined,
+  };
+}
+
+function normalizeTools(tools) {
+  return Array.isArray(tools) ? tools.map(normalizeTool).filter((t) => t.name) : [];
+}
+
 export function toPersonalToolServerSummary(server) {
   return {
     id: server.id,
@@ -105,24 +124,7 @@ export function toPersonalToolServerSummary(server) {
     note: server.note || server.url || '',
     oauth_connected: Boolean(server.oauth_connected),
     oauth_connected_at: server.oauth_connected_at || null,
-    tools: Array.isArray(server.tools)
-      ? server.tools
-          .map((tool) => ({
-            name: String(tool?.name || '').trim(),
-            title: String(tool?.title || '').trim(),
-            description: String(tool?.description || '').trim(),
-            enabled: tool?.enabled !== false,
-            visible_for_user: tool?.visible_for_user !== false,
-            hidden_for_user: tool?.hidden_for_user === true,
-            parameters:
-              tool?.parameters &&
-              typeof tool.parameters === 'object' &&
-              !Array.isArray(tool.parameters)
-                ? tool.parameters
-                : undefined,
-          }))
-          .filter((tool) => tool.name)
-      : [],
+    tools: normalizeTools(server.tools),
   };
 }
 
@@ -138,24 +140,7 @@ export function toAccessibleToolServerSummary(server) {
     access_variant: server.access_variant || (server.source === 'user' ? 'personal' : 'admin'),
     enabled: server.enabled !== false,
     note: visibleTools.length ? `${visibleTools.length} tools available` : server.url || '',
-    tools: Array.isArray(server.tools)
-      ? server.tools
-          .map((tool) => ({
-            name: String(tool?.name || '').trim(),
-            title: String(tool?.title || '').trim(),
-            description: String(tool?.description || '').trim(),
-            enabled: tool?.enabled !== false,
-            visible_for_user: tool?.visible_for_user !== false,
-            hidden_for_user: tool?.hidden_for_user === true,
-            parameters:
-              tool?.parameters &&
-              typeof tool.parameters === 'object' &&
-              !Array.isArray(tool.parameters)
-                ? tool.parameters
-                : undefined,
-          }))
-          .filter((tool) => tool.name)
-      : [],
+    tools: normalizeTools(server.tools),
   };
 }
 
