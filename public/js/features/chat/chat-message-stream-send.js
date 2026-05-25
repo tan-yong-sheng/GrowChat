@@ -237,9 +237,8 @@ export async function startChatSendMessage({
     errorStrategy: 'append',
   });
 
-  await consumeSseTextStream(res.body, { onEvent, onDelta });
-
   try {
+    await consumeSseTextStream(res.body, { onEvent, onDelta });
     await finalizeStreamAndLoadMessages({
       getStreamState,
       thinkingStartByMessageId,
