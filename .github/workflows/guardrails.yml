@@ -110,13 +110,13 @@ jobs:
       - name: Code duplication audit
         run: pnpm run lint:dupes:budget
 
-      # Tier 3: Performance regression audit
+      # Tier 3: Performance regression audit (with Lighthouse CI budget assertions)
       - name: Performance regression audit
         run: pnpm run check:performance
 
-      # Tier 3: Snapshot cleanup
-      - name: Snapshot cleanup
-        run: pnpm run snapshots:clean
+      # Tier 3: Snapshot budget audit (replaces cleanup-only step)
+      - name: Snapshot budget audit
+        run: pnpm run snapshots:audit
 
       # Tier 3: Migration validation
       - name: Migration validation

@@ -1,18 +1,10 @@
-export const ATTACHMENT_CAP_TYPES = [
-  { key: 'image', label: 'Image', short: 'Img' },
-  { key: 'pdf', label: 'PDF', short: 'PDF' },
-];
+import {
+  ATTACHMENT_CAP_TYPES,
+  ATTACHMENT_CAP_TOOLTIPS,
+  cloneAttachmentCaps,
+} from '../../../shared/utils/attachment-caps.js';
 
-export const ATTACHMENT_CAP_TOOLTIPS = {
-  image: {
-    exts: '.png .jpg .jpeg .webp .gif',
-    mimes: 'image/*',
-  },
-  pdf: {
-    exts: '.pdf',
-    mimes: 'application/pdf',
-  },
-};
+export { ATTACHMENT_CAP_TYPES, ATTACHMENT_CAP_TOOLTIPS, cloneAttachmentCaps };
 
 export function extractAttachmentCapsFromModels(models = []) {
   const caps = {};
@@ -35,8 +27,6 @@ export function extractAttachmentCapsFromModels(models = []) {
   });
   return caps;
 }
-
-export { cloneAttachmentCaps } from '../../../shared/utils/attachment-caps.js';
 
 export function getAttachmentCapValue(capsMap, modelId, kind) {
   return Boolean(capsMap?.[modelId]?.[kind]);
