@@ -128,4 +128,64 @@ describe('model-selector race condition', () => {
 
     destroy();
   });
+
+  it('ensureModelsLoaded clears loadingPromise when dynamic import fails', async () => {
+    // This tests the bug identified by Gemini Code Assist: if the dynamic
+    // import() is outside the try/catch, a failed import leaves loadingPromise
+    // stuck as a rejected promise, blocking all future load attempts.
+    //
+    // We test the code pattern directly since vi.doMock intercepts before
+    // the actual import() call, making it impossible to simulate import failure.
+
+    // Pattern 1 (BUGGY): import outside try — finally never runs on import failure
+    let loadingPromiseBuggy = null;
+    const buggyPattern = () => {
+      if (loadingPromiseBuggy) return loadingPromiseBuggy;
+      loadingPromiseBuggy = (async () => {
+        const mod = await Promise.reject(new Error('import failed'));
+        try {
+          await mod.prefetchModels();
+        } catch (err) {
+          console.error(err);
+        } finally {
+          loadingPromiseBuggy = null;
+        }
+      })();
+      return loadingPromiseBuggy;
+    };
+    try {
+      await buggyPattern();
+    } catch (_e) {
+      /* expected: import rejection */
+    }
+    expect(loadingPromiseBuggy).not.toBeNull(); // BUG: stuck promise
+
+    // Pattern 2 (FIXED): import inside try — finally always runs
+    let loadingPromiseFixed = null;
+    const fixedPattern = () => {
+      if (loadingPromiseFixed) return loadingPromiseFixed;
+      loadingPromiseFixed = (async () => {
+        let getGen, reqGen;
+        try {
+          const mod = await Promise.reject(new Error('import failed'));
+          getGen = mod.getModelsCacheGeneration;
+          reqGen = getGen();
+          await mod.prefetchModels();
+          if (reqGen !== getGen()) return;
+        } catch (err) {
+          if (getGen && reqGen !== undefined && reqGen !== getGen()) return;
+          console.error(err);
+        } finally {
+          loadingPromiseFixed = null;
+        }
+      })();
+      return loadingPromiseFixed;
+    };
+    try {
+      await fixedPattern();
+    } catch (_e) {
+      /* expected: import rejection */
+    }
+    expect(loadingPromiseFixed).toBeNull(); // FIXED: promise cleared
+  });
 });

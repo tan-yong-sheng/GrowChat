@@ -107,14 +107,16 @@ export function createModelSelectorController(container) {
   const ensureModelsLoaded = async () => {
     if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
     loadingPromise = (async () => {
-      const { prefetchModels, getModelsCacheGeneration } =
-        await import('../../bootstrap/session-bootstrap.js');
-      const requestGeneration = getModelsCacheGeneration();
+      let getGen, reqGen;
       try {
+        const { prefetchModels, getModelsCacheGeneration } =
+          await import('../../bootstrap/session-bootstrap.js');
+        getGen = getModelsCacheGeneration;
+        reqGen = getGen();
         await prefetchModels({ allowCache: true });
-        if (requestGeneration !== getModelsCacheGeneration()) return;
+        if (reqGen !== getGen()) return;
       } catch (err) {
-        if (requestGeneration !== getModelsCacheGeneration()) return;
+        if (getGen && reqGen !== undefined && reqGen !== getGen()) return;
         console.error('Failed to load models:', err);
         setState({ modelsLoading: false });
       } finally {
