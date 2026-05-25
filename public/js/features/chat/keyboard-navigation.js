@@ -3,6 +3,7 @@
  * Provides keyboard accessibility for chat list items and interactive elements
  * WCAG 2.1 AA Compliant
  */
+import { setupDropdownKeyboard } from '../../shared/utils/dropdown-keyboard.js';
 
 export function initializeChatKeyboardNavigation(chatListElement) {
   if (!chatListElement) return;
@@ -155,39 +156,8 @@ export function initializeChatMenuKeyboardItems(dropdown) {
   if (!dropdown) return;
 
   // Set dropdown role
-  dropdown.setAttribute('role', 'menu');
-
-  const menuItems = dropdown.querySelectorAll('[data-action]');
-  menuItems.forEach((item) => {
-    item.setAttribute('role', 'menuitem');
-    item.setAttribute('tabindex', '-1');
-
-    item.addEventListener('keydown', (e) => {
-      switch (e.key) {
-        case 'ArrowDown': {
-          e.preventDefault();
-          const nextItem = item.nextElementSibling?.closest('[data-action]');
-          if (nextItem) nextItem.focus();
-          break;
-        }
-
-        case 'ArrowUp': {
-          e.preventDefault();
-          const prevItem = item.previousElementSibling?.closest('[data-action]');
-          if (prevItem) prevItem.focus();
-          break;
-        }
-
-        case 'Escape':
-          e.preventDefault();
-          dropdown.classList.add('hidden');
-          break;
-
-        case 'Tab':
-          e.preventDefault();
-          dropdown.classList.add('hidden');
-          break;
-      }
-    });
+  setupDropdownKeyboard(dropdown, '[data-action]', {
+    getNextItem: (item) => item.nextElementSibling?.closest('[data-action]'),
+    getPrevItem: (item) => item.previousElementSibling?.closest('[data-action]'),
   });
 }

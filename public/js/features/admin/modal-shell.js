@@ -1,4 +1,5 @@
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 
 const DEFAULT_OUTER_CLASS =
   'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
@@ -129,15 +130,6 @@ function resolveAdminModalPreset(preset = 'standard', overrides = {}) {
     }
   }
   return resolved;
-}
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function normalizeModalHashSource(value) {

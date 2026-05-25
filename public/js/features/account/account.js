@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { apiFetch } from '../../shared/api.js';
 import { ensureMarkedReady, showToast } from '../../shared/utils.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
@@ -90,15 +91,6 @@ function getAccountSectionPath(section) {
     default:
       return '/account/settings/connections';
   }
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }
 
 async function loadAccountState() {

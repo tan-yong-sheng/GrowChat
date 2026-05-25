@@ -1,7 +1,7 @@
 import { filterModelsBySearch, normalizeModelSearchQuery } from './model-search.js';
 
-export function getModelProviderKey(model = {}) {
-  const raw =
+function getRawProviderName(model = {}) {
+  return (
     model?.connection_name ||
     model?.connectionName ||
     model?.provider_id ||
@@ -11,26 +11,19 @@ export function getModelProviderKey(model = {}) {
     model?.provider_type ||
     model?.providerType ||
     model?.provider ||
-    '';
-  const normalized = String(raw || '')
+    ''
+  );
+}
+
+export function getModelProviderKey(model = {}) {
+  const normalized = String(getRawProviderName(model) || '')
     .trim()
     .toLowerCase();
   return normalized || 'unknown';
 }
 
 export function getModelProviderLabel(model = {}) {
-  const raw =
-    model?.connection_name ||
-    model?.connectionName ||
-    model?.provider_id ||
-    model?.providerId ||
-    model?.provider_family ||
-    model?.providerFamily ||
-    model?.provider_type ||
-    model?.providerType ||
-    model?.provider ||
-    '';
-  const trimmed = String(raw || '').trim();
+  const trimmed = String(getRawProviderName(model) || '').trim();
   return trimmed || 'unknown';
 }
 
