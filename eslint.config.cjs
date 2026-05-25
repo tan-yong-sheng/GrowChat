@@ -222,6 +222,8 @@ module.exports = [
         'src/llm/connections-utils.js',
         'src/llm/connections-user.js',
       'src/llm/provider-adapters.js',
+        'src/llm/provider-adapters-utils.js',
+        'src/llm/provider-adapters-google.js',
       'public/js/features/admin/admin.js',
       'public/js/features/admin/settings/models.js',
       // Additional legacy files with existing complexity/line/depth exceedances
