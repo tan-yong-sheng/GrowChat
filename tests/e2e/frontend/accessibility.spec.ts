@@ -22,6 +22,7 @@ test.describe('Accessibility audit', () => {
     // Wait for the redirect to complete before scanning.
     await page.goto('/');
     await page.waitForURL(/\/auth(\.html)?$/, { timeout: 5000 });
+    await page.waitForLoadState('networkidle');
 
     const accessibilityScanResults = await new Builder({
       page,
@@ -35,6 +36,7 @@ test.describe('Accessibility audit', () => {
     page,
   }) => {
     await page.goto('/auth.html');
+    await page.waitForLoadState('networkidle');
 
     const accessibilityScanResults = await new Builder({
       page,
