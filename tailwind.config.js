@@ -36,13 +36,45 @@ export default {
     'text-status-success',
     'text-status-warning',
     'text-status-info',
-        'scrollbar-thin-auto',
-        'scrollbar-hidden',
+    'scrollbar-thin-auto',
+    'scrollbar-hidden',
   ],
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        primary: ['Inter', 'sans-serif'],
+        display: ['Archivo', 'sans-serif'],
+        mono: [
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          'Liberation Mono',
+          'monospace',
+        ],
+      },
       colors: {
+        // Design tokens — sourced from DESIGN.md (run `npx @google/design.md lint DESIGN.md`)
+        // NOTE: `neutral` is namespaced as `neutral-bg` to avoid conflict
+        //       with Tailwind's built-in `neutral-*` grey scale.
+        primary: '#171717',
+        'primary-hover': '#262626',
+        secondary: '#737373',
+        tertiary: '#525252',
+        'neutral-bg': '#fafafa',
+        surface: '#ffffff',
+        'surface-container': '#f5f5f5',
+        'on-surface': '#171717',
+        'on-surface-variant': '#525252',
+        outline: '#e5e5e5',
+        'outline-variant': '#f3f4f6',
+        error: '#dc2626',
+        success: '#16a34a',
+        warning: '#ea580c',
+        info: '#0284c7',
+        // Legacy status aliases (for backward compat during migration)
         status: {
           error: '#dc2626',
           success: '#16a34a',
@@ -50,10 +82,19 @@ export default {
           info: '#0284c7',
         },
       },
+      borderRadius: {
+        // Override Tailwind defaults to match DESIGN.md spec
+        sm: '6px',
+        md: '12px',
+        lg: '16px',
+        xl: '12px', // alias for md — migration helper
+        '2xl': '16px', // alias for lg — migration helper
+        '3xl': '16px', // alias for lg — migration helper
+      },
     },
   },
   plugins: [
-    function ({ addBase, addComponents, theme }) {
+    function ({ addBase, addComponents }) {
       addBase({
         'button:disabled': {
           opacity: '0.5',

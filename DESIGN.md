@@ -1,237 +1,247 @@
-# Settings UX Design
+---
+version: alpha
+name: GrowChat
+description: Self-hosted multi-user Cloudflare Workers chat application with monochrome architectural minimalism.
 
-## Summary
+colors:
+  primary: '#171717'
+  primary-hover: '#262626'
+  secondary: '#737373'
+  tertiary: '#525252'
+  neutral: '#fafafa'
+  surface: '#ffffff'
+  surface-container: '#f5f5f5'
+  on-surface: '#171717'
+  on-surface-variant: '#525252'
+  outline: '#e5e5e5'
+  outline-variant: '#f3f4f6'
+  error: '#dc2626'
+  success: '#16a34a'
+  warning: '#ea580c'
+  info: '#0284c7'
 
-This design keeps one shared settings engine underneath, but presents two different user experiences:
+typography:
+  headline-lg:
+    fontFamily: Inter
+    fontSize: 24px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.01em
+  headline-md:
+    fontFamily: Inter
+    fontSize: 20px
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: -0.01em
+  headline-sm:
+    fontFamily: Inter
+    fontSize: 16px
+    fontWeight: 600
+    lineHeight: 1.4
+  body-lg:
+    fontFamily: Inter
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.6
+  body-md:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
+  body-sm:
+    fontFamily: Inter
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.4
+  label-lg:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: 500
+    lineHeight: 1.4
+  label-md:
+    fontFamily: Inter
+    fontSize: 12px
+    fontWeight: 500
+    lineHeight: 1.3
+  label-sm:
+    fontFamily: Inter
+    fontSize: 11px
+    fontWeight: 500
+    lineHeight: 1.2
+  label-xs:
+    fontFamily: Inter
+    fontSize: 9px
+    fontWeight: 500
+    lineHeight: 1.2
+  display:
+    fontFamily: Archivo
+    fontSize: 36px
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: -0.02em
 
-- `My Settings` becomes a route-backed drawer/sheet
-- `Admin Settings` stays a full-page workspace management area
+rounded:
+  none: 0px
+  sm: 6px
+  md: 12px
+  lg: 16px
+  full: 9999px
 
-The goal is to make the scope obvious to a new admin user.
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 12px
+  md2: 16px
+  lg: 20px
+  lg2: 24px
+  xl: 32px
+  gutter: 24px
+  margin: 32px
 
-## Route Map
+components:
+  button-primary:
+    backgroundColor: '{colors.primary}'
+    textColor: '#ffffff'
+    rounded: '{rounded.full}'
+    padding: '14px 32px'
+  button-primary-hover:
+    backgroundColor: '{colors.primary-hover}'
+  button-secondary:
+    backgroundColor: 'transparent'
+    textColor: '{colors.on-surface}'
+    rounded: '{rounded.md}'
+    padding: '12px 16px'
+  input:
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.on-surface}'
+    rounded: '{rounded.md}'
+  badge:
+    backgroundColor: '{colors.neutral}'
+    textColor: '{colors.on-surface}'
+    rounded: '{rounded.full}'
+    padding: '4px 8px'
+  toggle-on:
+    backgroundColor: '{colors.primary}'
+  toggle-off:
+    backgroundColor: '{colors.outline}'
+---
 
-```text
-/account
-  /settings
-    -> opens as a drawer/sheet over the main app
-    -> personal scope
+## Overview
 
-/admin
-  /settings
-    -> full-page workspace management
-    -> admin scope
-```
+GrowChat embodies **Architectural Minimalism** — a monochrome design system where restraint is the aesthetic. The UI evokes a premium matte finish: high-contrast ink on limestone, with zero chromatic distraction. Every surface, every weight, every radius is deliberate. Nothing decorates. Everything serves.
 
-## Page and Surface Map
+The monochrome palette makes the interface recede so the content — conversations, code, model outputs — commands full attention. Inter provides institutional clarity for UI chrome. Archivo lands with impact only on hero surfaces. The pill geometry (full-radius buttons, pill-shaped composer) signals approachability without softness.
 
-```text
-MAIN APP
-  |
-  +-- My Settings (drawer/sheet)
-  |     +-- Overview
-  |     +-- Profile
-  |     +-- Security
-  |     +-- Notifications
-  |     +-- Personal Connections
-  |     +-- Personal Integrations
-  |     +-- Personal Models
-  |
-  +-- Admin Settings (full page)
-        +-- Overview
-        +-- Connections
-        +-- Models
-        +-- Integrations
-        +-- Users
-        +-- Policies
-        +-- Audit
-```
+Dark mode is not currently supported. A future update may define inverted token values when dark mode is implemented.
 
-## Navigation Structure
+## Colors
 
-```text
-Top-Level Nav
-  - Home
-  - My Settings
-  - Admin Settings
-  - Users
-  - Audit / Policies
+The palette is strictly monochrome — a single greyscale progression from near-black to warm off-white, with no accent hue. Interaction is conveyed through weight, position, and contrast, not color.
 
-My Settings Nav
-  - Overview
-  - Profile
-  - Security
-  - Notifications
-  - Personal Connections
-  - Personal Integrations
-  - Personal Models
+- **Primary (#171717):** Deep ink for headlines, primary CTAs, active states, and all high-emphasis interactive elements. This is the sole driver for action.
+- **Primary Hover (#262626):** The responsive hover state of primary — slightly lifted from pure black to provide tactile feedback on buttons and toggles.
+- **Secondary (#737373):** Medium grey for muted labels, captions, secondary text, and de-emphasized metadata.
+- **Tertiary (#525252):** Dark grey for body text variants and on-surface-variant elements that need more emphasis than secondary but less than primary.
+- **Neutral (#fafafa):** Warm off-white foundation for app backgrounds, sidebars, and structural surfaces. Softer than pure white, providing visual breathing room.
+- **Surface (#ffffff):** Pure white for content cards, elevated panels, and primary reading areas.
+- **Surface Container (#f5f5f5):** Light grey wells for inset areas — input composers, user message bubbles, edit fields. Signals "recessed" or "editable."
+- **On Surface (#171717):** Primary text color on surfaces. Same value as primary — used for semantic clarity in component tokens.
+- **On Surface Variant (#525252):** Secondary text on surfaces — body copy, descriptions, helper text. Less assertive than on-surface.
+- **Outline (#e5e5e5):** Hairline borders, input borders, structural dividers. Visible but never heavy.
+- **Outline Variant (#f3f4f6):** The lightest structural lines — card edges, subtle separators, the boundary between adjacent surfaces.
 
-Admin Settings Nav
-  - Overview
-  - Connections
-  - Models
-  - Integrations
-  - Users
-  - Policies
-  - Audit
-```
+### Status Colors
 
-## Layout Diagram
+Status colors are semantic, not brand. They follow universal convention for feedback states:
 
-### My Settings Drawer
+- **Error (#dc2626):** Validation failures, destructive actions, critical alerts.
+- **Success (#16a34a):** Confirmations, completed operations, positive states.
+- **Warning (#ea580c):** Caution states, pending actions, non-critical issues.
+- **Info (#0284c7):** Informational notes, tips, neutral status indicators.
 
-```text
--------------------------------------------------- app behind
-|                                                |
-|  dimmed backdrop                               |
-|                                   ------------ |
-|                                  |  Header   | |
-|                                  | Personal  | |
-|                                  |-----------| |
-|                                  | Overview  | |
-|                                  | Profile   | |
-|                                  | Security  | |
-|                                  | ...       | |
-|                                  |-----------| |
-|                                  | Save/Cancel| |
-|                                  ------------ |
---------------------------------------------------
-```
+## Typography
 
-### Admin Settings Page
+The typography strategy uses two font families with distinct roles:
 
-```text
---------------------------------------------------------------
-| Top nav                                                    |
-|------------------------------------------------------------|
-| Admin overview or section nav                              |
-|------------------------------------------------------------|
-| Main workspace content                                      |
-|                                                            |
-|   task cards, tables, forms, and shared settings sections   |
-|                                                            |
-|------------------------------------------------------------|
-| Sticky save footer                                           |
---------------------------------------------------------------
-```
+- **Inter** is the primary voice — used for all UI chrome, navigation, buttons, labels, body text, and chat messages. Its humanist geometry provides institutional clarity and long-form readability. Four weights (400, 500, 600, 700) cover the full range from body to headline.
+- **Archivo** is the impact font — reserved exclusively for hero display text, splash screens, and large numerical data. Its geometric construction provides punch at display scale. Never used below 36px.
+- **System monospace** handles technical data: code blocks, tool outputs, model IDs, URLs, and timestamps.
 
-## Shared Components
+### Scale
 
-These should remain shared underneath both surfaces:
+The 11-level scale eliminates all arbitrary pixel values. Every text size in the codebase maps to a named token:
 
-- settings shell
-- settings top nav
-- settings subnav
-- shared action footer
-- modal and drawer form primitives
-- workspace capability resolver
-- backend workspace settings service
+- **headline-lg (24px/600):** Page titles, hero headings.
+- **headline-md (20px/600):** Section headings, drawer titles.
+- **headline-sm (16px/600):** Subsection headings, card titles.
+- **body-lg (16px/400):** Primary body text, chat messages.
+- **body-md (14px/400):** Standard UI text, descriptions, settings labels.
+- **body-sm (12px/400):** Small body text, captions, secondary descriptions.
+- **label-lg (14px/500):** Button labels, form labels.
+- **label-md (12px/500):** Badges, tags, status indicators.
+- **label-sm (11px/500):** Micro-labels, timestamps, metadata.
+- **label-xs (9px/500):** The absolute smallest readable text — rare, for dense data only.
+- **display (36px/700, Archivo):** Hero splash text, large numbers. Sparingly.
 
-## Components To Create Or Modify
+## Layout
 
-### Create
+The layout follows a **Fixed-Max-Width Sidebar + Fluid Content** model. The sidebar is 260px fixed-width on desktop, collapsible on mobile. Content fills the remaining viewport.
 
-- `My Settings` drawer/sheet host
-- `Admin Settings Overview` landing page
-- scope badge component, if not already present
-- drawer route state helper
+A de-facto 8-point spacing scale (with 4px half-step for micro-adjustments and 12px/20px for tight internal padding) maintains consistent rhythm. The scale is honest — it includes the 12px and 20px values that the codebase uses heavily, rather than forcing a strict 8px-only grid that would require migrating hundreds of instances.
 
-### Modify
+Components are grouped using **containment principles**: related items sit on white cards (`surface`) against the off-white app background (`neutral`), with inset areas (`surface-container`) for editable or recessed content.
 
-- `public/js/features/account/account.js`
-  - render `My Settings` as a drawer-backed surface
-- `public/js/features/admin/admin.js`
-  - keep `Admin Settings` as a page
-- shared settings shell components
-  - reuse the same form and save logic in both places
-- permission/capability helpers
-  - keep the UI aware of `read`, `manage`, and `manage access`
+## Elevation & Depth
 
-## Visual Rules
+Depth is achieved through **tonal layers** rather than shadows. The background uses warm off-white (`neutral`), primary content sits on pure white cards (`surface`), and inset areas use a light grey well (`surface-container`). This three-layer tonal system provides clear visual hierarchy without heaviness.
 
-### My Settings
+Shadows are reserved exclusively for **floating surfaces** — elements that physically detach from the page plane:
 
-- lighter density
-- personal language
-- shorter helper copy
-- default to fewer actions
-- no ACL controls unless explicitly allowed
+- `shadow-sm` — dropdowns and popovers
+- `shadow-xl` / `shadow-2xl` — modals and overlay dialogs
 
-### Admin Settings
+No other elements use shadows. Cards, buttons, inputs, and badges are entirely flat — relying on background color differentiation and 1px borders for structure.
 
-- denser and more operational
-- workspace language
-- clear impact statements
-- task-oriented overview first
-- advanced access controls visible only by capability
+## Shapes
 
-## Visual Identity
+The shape language is defined by **Pill Geometry** — the full-radius (9999px) rounded corner is the signature motif. Primary buttons, the chat composer, avatars, and badges all use the pill form. This provides approachability without sacrificing the monochrome system's architectural precision.
 
-### Color Palette (Monochrome)
-- **Primary:** `#171717` (Neutral Black) - Used for primary CTA buttons, active states, and headings.
-- **Surface:** `#ffffff` (Pure White) - Main content areas and cards.
-- **Background:** `#f5f5f5` / `#fafafa` (Light Greys) - App background, sidebars, and structural secondary surfaces.
-- **Borders:** `#e5e5e5` (Light Grey) - Hair-line dividers and input borders.
-- **Muted:** `#737373` (Medium Grey) - Muted labels and secondary text.
+Secondary shapes follow a clean hierarchy:
 
-### Spacing & Grid
-- **Scale:** Strict 8-point grid (8px, 16px, 24px, 32px, 48px, 64px).
-- **Rounding:** 4px (Soft) for most components; 8px for large containers.
+- **sm (6px):** Tags, inline chips, small badges
+- **md (12px):** Cards, inputs, dropdowns, chat rows
+- **lg (16px):** Message bubbles, modals, panels
+- **full (9999px):** Pills — buttons, avatars, composer, primary CTAs
 
-## Interaction Rules
+## Components
 
-### Drawer Behavior
+### Buttons
 
-- Open with a route change
-- Close with browser back or explicit close button
-- Preserve refresh state
-- Trap focus inside the drawer
-- Restore focus to the opener on close
+Primary buttons use the pill form with near-black fill and white text. Hover lifts to `primary-hover` (#262626). Active state applies `scale(0.95)` for tactile feedback. Secondary buttons are transparent with dark text and `md` rounding.
 
-### Save Behavior
+### Inputs
 
-- Save should not force a full page reload
-- Use optimistic updates when safe
-- Keep the drawer open after save unless the user exits
+Text inputs and textareas sit on `surface` (#ffffff) with `outline` (#e5e5e5) borders and `md` (12px) rounding. Edit fields and the chat composer use `surface-container` (#f5f5f5) to signal "recessed/editable." Focus rings use `primary` at 20% opacity.
 
-### Mobile Behavior
+### Badges
 
-- Drawer becomes a full-screen sheet on small screens
-- Header and primary actions stay sticky
-- Use single-column layouts
+Badges use the pill form (`full` rounding) with `neutral` (#fafafa) background and `on-surface` (#171717) text. No colored badges except for semantic status (error, success, warning, info).
 
-## ASCII Decision Tree
+### Toggles
 
-```text
-User opens settings
-  |
-  +-- Personal account change?
-  |     +-- Yes -> My Settings drawer
-  |     +-- No  -> Admin Settings page
-  |
-  +-- Needs workspace-wide impact?
-        +-- Yes -> Admin Settings page
-        +-- No  -> My Settings drawer
-```
+Toggle switches use `primary` (#171717) when on, `outline` (#e5e5e5) when off. The pill form with a circular thumb maintains consistency with the button system.
 
-## Learning Model
+## Do's and Don'ts
 
-The user should understand the app through scope:
-
-- `Personal` means only my account
-- `Workspace` means shared settings
-- `Admin` means elevated operational control
-
-That scope should be visible in the page chrome, not hidden in route names.
-
-## Maintenance Goal
-
-The code should remain shared underneath, but the UX should not feel duplicated.
-
-That means:
-
-- one backend service
-- one capability matrix
-- one shared component set
-- two intentionally different surface patterns
-
+- Do use `#171717` (primary) for all primary CTAs and interactive highlights
+- Do use `{rounded.full}` for pill-shaped elements — buttons, avatars, composer, badges
+- Do use `{rounded.md}` (12px) for cards, inputs, and dropdowns
+- Do use `surface-container` (#f5f5f5) for inset/well areas — edit fields, user message bubbles
+- Do maintain WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text)
+- Do use Inter for all UI text; Archivo only for display/hero surfaces at 36px+
+- Don't use arbitrary hex colors — reference design tokens instead
+- Don't use `#0066cc` (Action Blue) — it has been retired from the palette
+- Don't mix more than 2 font weights on a single surface
+- Don't use `rounded-2xl`, `rounded-3xl`, or arbitrary pixel radii — use the 5 named tokens
+- Don't use colored shadows (`shadow-blue-*`, `shadow-` + any color)
+- Don't introduce new background greys — use `neutral`, `surface`, or `surface-container`
