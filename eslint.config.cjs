@@ -195,6 +195,8 @@ module.exports = [
       'src/routers/rbac.js',
       'src/routers/groups.js',
       'src/llm/stream-parser.js',
+        'src/llm/stream-parser-utils.js',
+        'src/llm/stream-parser-handler.js',
       'src/admin/tool-servers.js',
         'src/admin/tool-servers-utils.js',
         'src/admin/tool-servers-user.js',
