@@ -12,179 +12,37 @@ import {
 } from './provider-registry.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
-import { createLogger, createRootLogger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+import {
+  normalizeBaseUrl,
+  ensureConnectionId,
+  labelFromFamily,
+  normalizeAuthType,
+  safeParseHeaders,
+  normalizeConnectionManualModels,
+  getConnectionApiType,
+} from './connections-utils.js';
+import { loadUserOpenAIConnectionConfigs } from './connections-user.js';
 
-function normalizeUrl(url) {
-  if (!url) return '';
-  return String(url).trim().replace(/\/$/, '');
-}
+// Re-export everything from sub-modules for backward compatibility
+export {
+  getConnectionApiType,
+  getConnectionApiTypeLabel,
+  getConnectionDefaultBaseUrl,
+  isConnectionUrlRequired,
+  normalizeConnectionManualModels,
+  extractConnectionModelId,
+  dedupeConnectionConfigs,
+  ensureConnectionId,
+} from './connections-utils.js';
 
-function normalizeBaseUrl(url) {
-  return normalizeUrl(url);
-}
-
-export function getConnectionApiType(providerType) {
-  switch (
-    normalizeProviderFamily(providerType) ||
-    String(providerType || '')
-      .trim()
-      .toLowerCase()
-  ) {
-    case 'google':
-      return 'stream-generate-content';
-    case 'anthropic':
-      return 'messages';
-    default:
-      return 'chat-completions';
-  }
-}
-
-export function getConnectionApiTypeLabel(providerType) {
-  switch (
-    normalizeProviderFamily(providerType) ||
-    String(providerType || '')
-      .trim()
-      .toLowerCase()
-  ) {
-    case 'google':
-      return 'Gemini Stream Generate Content';
-    case 'anthropic':
-      return 'Messages';
-    default:
-      return 'Chat Completions';
-  }
-}
-
-export function getConnectionDefaultBaseUrl(providerType) {
-  switch (
-    normalizeProviderFamily(providerType) ||
-    String(providerType || '')
-      .trim()
-      .toLowerCase()
-  ) {
-    case 'google':
-      return 'https://generativelanguage.googleapis.com/v1beta';
-    case 'anthropic':
-      return 'https://api.anthropic.com/v1';
-    default:
-      return 'https://api.openai.com/v1';
-  }
-}
-
-export function isConnectionUrlRequired(providerType) {
-  const raw = String(providerType || '')
-    .trim()
-    .toLowerCase();
-  return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible';
-}
-
-function labelFromFamily(family) {
-  switch (normalizeProviderFamily(family)) {
-    case 'google':
-      return 'Gemini';
-    case 'anthropic':
-      return 'Claude';
-    default:
-      return 'OpenAI';
-  }
-}
-
-export function dedupeConnectionConfigs(connections = []) {
-  const deduped = [];
-  const indexBySignature = new Map();
-  for (const conn of Array.isArray(connections) ? connections : []) {
-    const providerType = String(conn?.providerType || conn?.providerFamily || '')
-      .trim()
-      .toLowerCase();
-    const apiType = String(conn?.apiType || getConnectionApiType(providerType) || '')
-      .trim()
-      .toLowerCase();
-    const baseUrl = normalizeBaseUrl(conn?.baseUrl || conn?.url || '');
-    const signature = `${providerType}::${apiType}::${baseUrl}`;
-    const existingIndex = indexBySignature.get(signature);
-    if (existingIndex === undefined) {
-      indexBySignature.set(signature, deduped.length);
-      deduped.push(conn);
-      continue;
-    }
-
-    const existing = deduped[existingIndex];
-    const existingIsConfig = existing?.source === 'config';
-    const incomingIsConfig = conn?.source === 'config';
-    const existingIsUser = existing?.source === 'user';
-    const incomingIsUser = conn?.source === 'user';
-    const existingPriority = existingIsUser ? 2 : existingIsConfig ? 1 : 0;
-    const incomingPriority = incomingIsUser ? 2 : incomingIsConfig ? 1 : 0;
-    if (incomingPriority > existingPriority) {
-      deduped[existingIndex] = conn;
-    }
-  }
-  return deduped;
-}
-
-function normalizeAuthType(value) {
-  const raw = String(value || '')
-    .trim()
-    .toLowerCase();
-  if (['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(raw)) {
-    return raw;
-  }
-  return '';
-}
-
-function hashString(value) {
-  let hash = 5381;
-  const str = String(value || '');
-  for (let i = 0; i < str.length; i += 1) {
-    hash = (hash << 5) + hash + str.charCodeAt(i);
-  }
-  return (hash >>> 0).toString(36);
-}
-
-function stableConnectionId(conn, index = 0) {
-  const seed = [
-    conn?.providerFamily || conn?.providerType || '',
-    conn?.url || conn?.baseUrl || '',
-    conn?.key || '',
-    conn?.headers || '',
-    index,
-  ].join('|');
-  return `conn-${hashString(seed)}`;
-}
-
-export function ensureConnectionId(conn, index = 0) {
-  return conn?.id || stableConnectionId(conn, index);
-}
-
-function safeParseHeaders(raw) {
-  if (!raw) return {};
-  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
-  try {
-    const parsed = JSON.parse(String(raw));
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return parsed;
-  } catch {
-    return {};
-  }
-}
-
-export function normalizeConnectionManualModels(value = []) {
-  if (!Array.isArray(value)) return [];
-  const deduped = [];
-  const seen = new Set();
-  for (const item of value) {
-    const rawId = String(item?.modelId || item?.id || item?.name || item || '').trim();
-    if (!rawId) continue;
-    const safeId = rawId.startsWith('models/') ? rawId.slice('models/'.length) : rawId;
-    if (seen.has(safeId)) continue;
-    seen.add(safeId);
-    deduped.push({
-      modelId: safeId,
-      name: String(item?.name || safeId).trim() || safeId,
-    });
-  }
-  return deduped;
-}
+export {
+  loadUserOpenAIConnectionConfigs,
+  getUserOpenAIConnectionConfig,
+  createUserOpenAIConnection,
+  updateUserOpenAIConnection,
+  deleteUserOpenAIConnection,
+} from './connections-user.js';
 
 function getConnectionAuthHeaderName(connection) {
   const family = getConnectionProviderFamily(connection);
@@ -224,7 +82,6 @@ export function buildConnectionHeaders(connection = {}) {
     }
     return headers;
   }
-
   if (!headers[headerName]) {
     headers[headerName] = key;
   }
@@ -237,14 +94,6 @@ function normalizeConnectionModelItems(payload) {
   if (Array.isArray(payload.models)) return payload.models;
   if (Array.isArray(payload.items)) return payload.items;
   return [];
-}
-
-export function extractConnectionModelId(item) {
-  const raw = String(
-    item?.id || item?.modelId || item?.model_id || item?.name || item?.model || ''
-  ).trim();
-  if (!raw) return '';
-  return raw.startsWith('models/') ? raw.slice('models/'.length) : raw;
 }
 
 function appendDiscoveryCandidate(urls, candidate) {
@@ -273,7 +122,6 @@ function maybeUpgradeDiscoveryBaseUrl(url) {
 export function getConnectionModelDiscoveryUrls(connection = {}) {
   const baseUrl = normalizeBaseUrl(connection.baseUrl || connection.url || '');
   if (!baseUrl) return [];
-
   const family = getConnectionProviderFamily(connection);
   const urls = [];
   const upgradedBaseUrl = maybeUpgradeDiscoveryBaseUrl(baseUrl);
@@ -312,7 +160,6 @@ export function getConnectionModelDiscoveryUrls(connection = {}) {
         break;
     }
   }
-
   return urls;
 }
 
@@ -327,55 +174,34 @@ export async function discoverConnectionModels(connection = {}, options = {}) {
       const res = await fetchImpl(url, { headers });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        lastError = {
-          url,
-          status: res.status,
-          message: body.slice(0, 200),
-        };
+        lastError = { url, status: res.status, message: body.slice(0, 200) };
         continue;
       }
-
       const payload = await res.json().catch(() => ({}));
       const items = normalizeConnectionModelItems(payload);
       if (items.length === 0) {
-        lastError = {
-          url,
-          status: res.status,
-          message: 'No models returned',
-        };
+        lastError = { url, status: res.status, message: 'No models returned' };
         continue;
       }
-
-      return {
-        url,
-        items,
-        payload,
-      };
+      return { url, items, payload };
     } catch (err) {
-      lastError = {
-        url,
-        message: err?.message || String(err),
-      };
+      lastError = { url, message: err?.message || String(err) };
     }
   }
-
-  return {
-    url: null,
-    items: [],
-    payload: null,
-    error: lastError,
-  };
+  return { url: null, items: [], payload: null, error: lastError };
 }
 
 export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
   const logger = createLogger(env);
   const includeDisabled = options.includeDisabled === true;
   if (!env?.DB) return [];
+
   try {
     const db = createDB(env.DB);
     const raw = await getConfigValue(db, 'openai_connections', '[]');
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
+
     const normalized = parsed
       .map((conn, index) => {
         const url = normalizeBaseUrl(conn.url || '');
@@ -415,278 +241,13 @@ export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
         };
       })
       .filter(Boolean);
+
     if (includeDisabled) return normalized;
     return normalized.filter((conn) => conn.enabled !== false);
   } catch (err) {
     logger.warn('Failed to load stored connections', { error: err?.message || err });
     return [];
   }
-}
-
-async function ensureUserConnectionsTable(db) {
-  if (!db) return;
-  await db.run(
-    `CREATE TABLE IF NOT EXISTS user_connections (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      provider_type TEXT NOT NULL DEFAULT 'openai-compatible',
-      base_url TEXT NOT NULL,
-      key TEXT NOT NULL DEFAULT '',
-      headers TEXT NOT NULL DEFAULT '{}',
-      auth_type TEXT NOT NULL DEFAULT '',
-      enabled INTEGER NOT NULL DEFAULT 1,
-      manual_models TEXT NOT NULL DEFAULT '[]',
-      manual_models_mode TEXT NOT NULL DEFAULT 'all',
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      UNIQUE(user_id, id)
-    )`
-  );
-  await db.run(
-    'CREATE INDEX IF NOT EXISTS idx_user_connections_user_id ON user_connections(user_id)'
-  );
-  await db.run(
-    'CREATE INDEX IF NOT EXISTS idx_user_connections_enabled ON user_connections(enabled)'
-  );
-  try {
-    const columns = await db.all('PRAGMA table_info(user_connections)');
-    const hasModeColumn =
-      Array.isArray(columns) &&
-      columns.some((column) => String(column.name || '') === 'manual_models_mode');
-    if (!hasModeColumn) {
-      await db.run(
-        "ALTER TABLE user_connections ADD COLUMN manual_models_mode TEXT NOT NULL DEFAULT 'all'"
-      );
-    }
-  } catch (err) {
-    if (!/duplicate column name/i.test(String(err?.message || ''))) {
-      throw err;
-    }
-  }
-}
-
-function parseUserConnectionHeaders(raw) {
-  return safeParseHeaders(raw);
-}
-
-function parseUserConnectionManualModels(raw) {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return normalizeConnectionManualModels(raw);
-  try {
-    const parsed = JSON.parse(String(raw));
-    return normalizeConnectionManualModels(parsed);
-  } catch {
-    return [];
-  }
-}
-
-function normalizeUserConnectionRow(row, index = 0) {
-  if (!row) return null;
-  const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
-  if (!baseUrl) return null;
-  const providerType =
-    String(row.provider_type || row.providerType || 'openai-compatible')
-      .trim()
-      .toLowerCase() || 'openai-compatible';
-  const providerFamily =
-    normalizeProviderFamily(row.provider_family || row.providerFamily || providerType) || 'openai';
-  const id = ensureConnectionId(
-    {
-      id: row.id,
-      providerType,
-      providerFamily,
-      baseUrl,
-      key: row.key || '',
-      headers: row.headers || '{}',
-    },
-    index
-  );
-  return {
-    id,
-    name: String(row.name || `${labelFromFamily(providerFamily)} Personal`).slice(0, 120),
-    baseUrl,
-    url: baseUrl,
-    key: String(row.key || '').trim(),
-    headers: parseUserConnectionHeaders(row.headers),
-    source: 'user',
-    enabled: row.enabled !== 0 && row.enabled !== false,
-    providerType,
-    providerFamily,
-    providerId: buildProviderId({ id, providerType, providerFamily }),
-    authType: normalizeAuthType(row.auth_type || row.authType),
-    apiType: getConnectionApiType(providerType),
-    manualModels: parseUserConnectionManualModels(row.manual_models || row.manualModels),
-    manualModelsMode:
-      normalizeConnectionModelSelectionMode(row.manual_models_mode || row.manualModelsMode) ||
-      'all',
-    ownerUserId: row.user_id || row.userId || null,
-    personal: true,
-  };
-}
-
-export async function loadUserOpenAIConnectionConfigs(
-  db,
-  userId,
-  options = {},
-  logger = createRootLogger({})
-) {
-  const includeDisabled = options.includeDisabled === true;
-  if (!db || !userId) return [];
-  try {
-    await ensureUserConnectionsTable(db);
-    const rawRows = await db.all(
-      `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, manual_models_mode, created_at, updated_at
-       FROM user_connections
-       WHERE user_id = ?
-       ORDER BY updated_at DESC, created_at DESC, name ASC`,
-      [userId]
-    );
-    const rows = Array.isArray(rawRows) ? rawRows : [];
-    const normalized = rows
-      .map((row, index) => normalizeUserConnectionRow(row, index))
-      .filter(Boolean);
-    if (includeDisabled) return normalized;
-    return normalized.filter((conn) => conn.enabled !== false);
-  } catch (err) {
-    logger.warn('Failed to load user connections', { error: err?.message || err });
-    return [];
-  }
-}
-
-export async function getUserOpenAIConnectionConfig(
-  db,
-  userId,
-  connectionId,
-  logger = createRootLogger({})
-) {
-  if (!db || !userId || !connectionId) return null;
-  try {
-    await ensureUserConnectionsTable(db);
-    const row = await db.first(
-      `SELECT id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, manual_models_mode, created_at, updated_at
-       FROM user_connections
-       WHERE user_id = ? AND id = ?`,
-      [userId, connectionId]
-    );
-    return normalizeUserConnectionRow(row);
-  } catch (err) {
-    logger.warn('Failed to load user connection', { error: err?.message || err });
-    return null;
-  }
-}
-
-function normalizeUserConnectionInput(input = {}, existing = null) {
-  const name = String(input.name || existing?.name || '').trim();
-  const providerType =
-    String(
-      input.provider_type || input.providerType || existing?.providerType || 'openai-compatible'
-    )
-      .trim()
-      .toLowerCase() || 'openai-compatible';
-  const providerFamily =
-    normalizeProviderFamily(
-      input.provider_family || input.providerFamily || existing?.providerFamily || providerType
-    ) || 'openai';
-  const baseUrlRaw = input.base_url !== undefined ? input.base_url : input.baseUrl;
-  const resolvedBaseUrl = normalizeBaseUrl(
-    baseUrlRaw || existing?.baseUrl || getConnectionDefaultBaseUrl(providerType)
-  );
-  const keyRaw = input.key;
-  const headersRaw = input.headers !== undefined ? input.headers : existing?.headers;
-  const authType = normalizeAuthType(input.auth_type || input.authType || existing?.authType || '');
-  const enabled =
-    input.enabled !== undefined ? input.enabled !== false : existing?.enabled !== false;
-  const manualModels = normalizeConnectionManualModels(
-    Array.isArray(input.manual_models)
-      ? input.manual_models
-      : Array.isArray(input.manualModels)
-        ? input.manualModels
-        : existing?.manualModels || []
-  );
-  const manualModelsMode =
-    normalizeConnectionModelSelectionMode(
-      input.manual_models_mode || input.manualModelsMode || existing?.manualModelsMode
-    ) || 'all';
-  return {
-    name,
-    providerType,
-    providerFamily,
-    baseUrl: resolvedBaseUrl,
-    key: keyRaw !== undefined ? String(keyRaw || '').trim() : String(existing?.key || '').trim(),
-    headers:
-      headersRaw !== undefined ? safeParseHeaders(headersRaw) : safeParseHeaders(existing?.headers),
-    authType,
-    enabled,
-    manualModels,
-    manualModelsMode,
-  };
-}
-
-export async function createUserOpenAIConnection(db, userId, input = {}) {
-  if (!db || !userId) throw new Error('User id is required');
-  await ensureUserConnectionsTable(db);
-  const connection = normalizeUserConnectionInput(input);
-  if (!connection.name) throw new Error('name is required');
-  if (!connection.baseUrl) throw new Error('base_url is required');
-  const id = crypto.randomUUID();
-  await db.run(
-    `INSERT INTO user_connections (
-      id, user_id, name, provider_type, base_url, key, headers, auth_type, enabled, manual_models, manual_models_mode, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
-    [
-      id,
-      userId,
-      connection.name,
-      connection.providerType,
-      connection.baseUrl,
-      connection.key,
-      JSON.stringify(connection.headers || {}),
-      connection.authType,
-      connection.enabled ? 1 : 0,
-      JSON.stringify(connection.manualModels || []),
-      connection.manualModelsMode || 'all',
-    ]
-  );
-  return getUserOpenAIConnectionConfig(db, userId, id);
-}
-
-export async function updateUserOpenAIConnection(db, userId, connectionId, input = {}) {
-  if (!db || !userId || !connectionId) throw new Error('Connection id is required');
-  await ensureUserConnectionsTable(db);
-  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
-  if (!existing) return null;
-  const connection = normalizeUserConnectionInput(input, existing);
-  if (!connection.name) throw new Error('name is required');
-  if (!connection.baseUrl) throw new Error('base_url is required');
-  await db.run(
-    `UPDATE user_connections
-     SET name = ?, provider_type = ?, base_url = ?, key = ?, headers = ?, auth_type = ?, enabled = ?, manual_models = ?, manual_models_mode = ?, updated_at = unixepoch()
-     WHERE user_id = ? AND id = ?`,
-    [
-      connection.name,
-      connection.providerType,
-      connection.baseUrl,
-      connection.key,
-      JSON.stringify(connection.headers || {}),
-      connection.authType,
-      connection.enabled ? 1 : 0,
-      JSON.stringify(connection.manualModels || []),
-      connection.manualModelsMode || 'all',
-      userId,
-      connectionId,
-    ]
-  );
-  return getUserOpenAIConnectionConfig(db, userId, connectionId);
-}
-
-export async function deleteUserOpenAIConnection(db, userId, connectionId) {
-  if (!db || !userId || !connectionId) throw new Error('Connection id is required');
-  await ensureUserConnectionsTable(db);
-  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
-  if (!existing) return false;
-  await db.run('DELETE FROM user_connections WHERE user_id = ? AND id = ?', [userId, connectionId]);
-  return true;
 }
 
 export async function getAllOpenAIConnectionConfigs(env, options = {}) {
@@ -698,6 +259,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     String(options.userRole || 'member')
       .trim()
       .toLowerCase() || 'member';
+
   const providedUserGroupIds = (() => {
     if (options.userGroupIds instanceof Set) {
       return new Set(
@@ -713,19 +275,24 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     }
     return null;
   })();
+
   const storedConnections = await getStoredOpenAIConnectionConfigs(env, { includeDisabled });
   let userConnections = [];
   if (userId && env?.DB) {
     try {
       const db = createDB(env.DB);
-      userConnections = await loadUserOpenAIConnectionConfigs(db, userId, { includeDisabled });
+      userConnections = await loadUserOpenAIConnectionConfigs(db, userId, {
+        includeDisabled,
+      });
     } catch (err) {
-      logger.warn('Failed to load user-owned connections', { error: err?.message || err });
+      logger.warn('Failed to load user-owned connections', {
+        error: err?.message || err,
+      });
       userConnections = [];
     }
   }
-  const combined = [...storedConnections, ...userConnections];
 
+  const combined = [...storedConnections, ...userConnections];
   if (!env?.DB || !userId) {
     if (includeDisabled) return combined;
     return combined.filter((conn) => conn.enabled !== false);
@@ -735,6 +302,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     const db = createDB(env.DB);
     const userOverrides = await loadUserResourceOverrides(db, userId);
     const hiddenConnectionIds = new Set(userOverrides.connections.hidden_ids || []);
+
     let userGroupIds = providedUserGroupIds;
     if (!userGroupIds) {
       const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [
@@ -744,6 +312,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
         (Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean)
       );
     }
+
     const aclRules = await loadConnectionAclRules(db);
     const aclIndex = buildConnectionAclIndex(aclRules);
 
@@ -780,7 +349,9 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
     if (includeDisabled) return filtered;
     return filtered.filter((conn) => conn.enabled !== false);
   } catch (err) {
-    logger.warn('Failed to apply connection ACL filtering', { error: err?.message || err });
+    logger.warn('Failed to apply connection ACL filtering', {
+      error: err?.message || err,
+    });
     if (includeDisabled) return combined;
     return combined.filter((conn) => conn.enabled !== false);
   }

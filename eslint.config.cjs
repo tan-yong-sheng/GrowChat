@@ -219,6 +219,8 @@ module.exports = [
       'public/js/features/chat/model-selector-controller.js',
       'src/chat/assistant-runner.js',
       'src/llm/connections.js',
+        'src/llm/connections-utils.js',
+        'src/llm/connections-user.js',
       'src/llm/provider-adapters.js',
       'public/js/features/admin/admin.js',
       'public/js/features/admin/settings/models.js',
