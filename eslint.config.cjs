@@ -253,6 +253,7 @@ module.exports = [
       'public/js/features/admin/admin-route-state.js',
       'public/js/features/admin/audit-logs.js',
       'public/js/features/admin/settings/connections-helpers.js',
+    'public/js/features/admin/settings/connections-helpers-modal-models.js',
       'public/js/features/admin/settings/email-delivery.js',
 'public/js/features/admin/settings/models-view.js',
 'public/js/features/admin/settings/models-utils.js',

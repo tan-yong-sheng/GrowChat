@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyModalModelPreview } from './connections-helpers.js';
+import { applyModalModelPreview } from './connections-helpers-modal-models.js';
 
 function createModalState(connection) {
   return {

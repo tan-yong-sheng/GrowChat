@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import {
-  applyModalModelPreview,
   connectionApiTypeDetails,
-  buildSelectedConnectionModels,
   formatConnectionModelId,
   getConnectionProviderId,
   normalizeConnectionManualModels,
@@ -11,10 +9,14 @@ import {
   normalizeProviderFamily,
   providerDisplayLabel,
   providerUrlPlaceholder,
-  previewConnectionModalModels,
   resolveModalUrl,
   resolveUrlLabel,
 } from '../../public/js/features/admin/settings/connections-helpers.js';
+import {
+  applyModalModelPreview,
+  buildSelectedConnectionModels,
+  previewConnectionModalModels,
+} from '../../public/js/features/admin/settings/connections-helpers-modal-models.js';
 
 describe('admin connection helpers', () => {
   it('normalizes provider labels and types', () => {
@@ -27,20 +29,24 @@ describe('admin connection helpers', () => {
   });
 
   it('normalizes records and manual model lists', () => {
-    expect(normalizeConnectionManualModels([
-      { modelId: 'models/a', name: 'Alpha' },
-      { id: 'a', name: 'Duplicate' },
-      'models/b',
-      '',
-    ])).toEqual([
+    expect(
+      normalizeConnectionManualModels([
+        { modelId: 'models/a', name: 'Alpha' },
+        { id: 'a', name: 'Duplicate' },
+        'models/b',
+        '',
+      ])
+    ).toEqual([
       { modelId: 'a', name: 'Alpha' },
       { modelId: 'b', name: 'b' },
     ]);
 
-    expect(normalizeConnectionRecord({
-      providerType: 'claude-compatible',
-      manualModels: [{ name: 'x' }],
-    })).toMatchObject({
+    expect(
+      normalizeConnectionRecord({
+        providerType: 'claude-compatible',
+        manualModels: [{ name: 'x' }],
+      })
+    ).toMatchObject({
       providerType: 'claude-compatible',
       providerFamily: 'anthropic',
       apiType: 'messages',
@@ -49,7 +55,9 @@ describe('admin connection helpers', () => {
   });
 
   it('creates stable connection model ids', () => {
-    expect(getConnectionProviderId({ id: 'conn-1', providerType: 'openai-compatible' })).toBe('openai/conn-1');
+    expect(getConnectionProviderId({ id: 'conn-1', providerType: 'openai-compatible' })).toBe(
+      'openai/conn-1'
+    );
     expect(formatConnectionModelId('openai/conn-1', 'gpt-4')).toBe('openai/conn-1:gpt-4');
   });
 
@@ -61,13 +69,21 @@ describe('admin connection helpers', () => {
     };
     const renderModels = vi.fn();
 
-    applyModalModelPreview(state, [
-      { id: 'new', name: 'New' },
-      { id: 'old', name: 'Old' },
-    ], document, renderModels);
+    applyModalModelPreview(
+      state,
+      [
+        { id: 'new', name: 'New' },
+        { id: 'old', name: 'Old' },
+      ],
+      document,
+      renderModels
+    );
 
     expect(renderModels).toHaveBeenCalledTimes(1);
-    expect(state.modalModels.map((model) => model.id)).toEqual(['openai/conn-1:new', 'openai/conn-1:old']);
+    expect(state.modalModels.map((model) => model.id)).toEqual([
+      'openai/conn-1:new',
+      'openai/conn-1:old',
+    ]);
     expect(Array.from(state.modalModelsSelection)).toEqual(['openai/conn-1:old']);
     expect(Array.from(state.modalModelsOriginal)).toEqual(['openai/conn-1:old']);
   });
@@ -84,7 +100,7 @@ describe('admin connection helpers', () => {
         { id: 'old-b', name: 'Old B' },
         { id: 'new-c', name: 'New C' },
       ],
-      { id: 'conn-1' },
+      { id: 'conn-1' }
     );
 
     expect(preview.models.map((model) => model.id)).toEqual([
@@ -92,12 +108,8 @@ describe('admin connection helpers', () => {
       'openai/conn-1:old-a',
       'openai/conn-1:old-b',
     ]);
-    expect(Array.from(preview.selection)).toEqual([
-      'openai/conn-1:old-a',
-    ]);
-    expect(Array.from(preview.original)).toEqual([
-      'openai/conn-1:old-a',
-    ]);
+    expect(Array.from(preview.selection)).toEqual(['openai/conn-1:old-a']);
+    expect(Array.from(preview.original)).toEqual(['openai/conn-1:old-a']);
   });
 
   it('preserves an explicit all-off selection mode on preview', () => {
@@ -108,7 +120,7 @@ describe('admin connection helpers', () => {
         { id: 'old-a', name: 'Old A' },
         { id: 'old-b', name: 'Old B' },
       ],
-      { id: 'conn-1', manual_models_mode: 'none' },
+      { id: 'conn-1', manual_models_mode: 'none' }
     );
 
     expect(preview.models.map((model) => model.id)).toEqual([
@@ -127,13 +139,10 @@ describe('admin connection helpers', () => {
         { id: 'old-a', name: 'Old A' },
         { id: 'old-b', name: 'Old B' },
       ],
-      { id: 'conn-1', manual_models_mode: 'all' },
+      { id: 'conn-1', manual_models_mode: 'all' }
     );
 
-    expect(Array.from(preview.selection)).toEqual([
-      'openai/conn-1:old-a',
-      'openai/conn-1:old-b',
-    ]);
+    expect(Array.from(preview.selection)).toEqual(['openai/conn-1:old-a', 'openai/conn-1:old-b']);
   });
 
   it('defaults a fresh preview to all enabled when there is no saved selection context', () => {
@@ -144,13 +153,10 @@ describe('admin connection helpers', () => {
         { id: 'old-a', name: 'Old A' },
         { id: 'new-c', name: 'New C' },
       ],
-      { id: 'conn-1' },
+      { id: 'conn-1' }
     );
 
-    expect(Array.from(preview.selection)).toEqual([
-      'openai/conn-1:new-c',
-      'openai/conn-1:old-a',
-    ]);
+    expect(Array.from(preview.selection)).toEqual(['openai/conn-1:new-c', 'openai/conn-1:old-a']);
   });
 
   it('builds selected manual models from mixed discovered and manual rows', () => {
@@ -160,16 +166,16 @@ describe('admin connection helpers', () => {
       { id: 'openai/conn-1:gamma', name: 'Gamma' },
     ];
 
-    const selected = new Set([
-      'openai/conn-1:alpha',
-      'openai/conn-1:beta',
-    ]);
+    const selected = new Set(['openai/conn-1:alpha', 'openai/conn-1:beta']);
 
-    expect(buildSelectedConnectionModels(models, selected, { id: 'conn-1', providerType: 'openai-compatible' })).toEqual([
+    expect(
+      buildSelectedConnectionModels(models, selected, {
+        id: 'conn-1',
+        providerType: 'openai-compatible',
+      })
+    ).toEqual([
       { modelId: 'alpha', name: 'Alpha' },
       { modelId: 'beta', name: 'Beta' },
     ]);
   });
 });
-
-

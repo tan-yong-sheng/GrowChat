@@ -15,13 +15,15 @@ import {
   normalizeProviderFamily,
   isCompatibleProviderType,
   connectionApiTypeDetails,
-  buildSelectedConnectionModels,
   providerDisplayLabel,
   resolveUrlLabel,
   providerUrlPlaceholder,
   resolveKeyLabel,
-  updateApiTypeDisplay,
 } from './connections-helpers.js';
+import {
+  buildSelectedConnectionModels,
+  updateApiTypeDisplay,
+} from './connections-helpers-modal-models.js';
 
 export function createConnectionsEventHandlers(deps) {
   const {

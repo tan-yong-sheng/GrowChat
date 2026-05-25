@@ -14,14 +14,16 @@ import {
   isCompatibleProviderType,
   resolveUrlLabel,
   resolveKeyLabel,
-  updateApiTypeDisplay,
   cloneModelSelection,
   inflateManualConnectionModels,
+  resolveModalUrl,
+} from './connections-helpers.js';
+import {
+  updateApiTypeDisplay,
   resolveConnectionModalSelectionMode,
   previewConnectionModalModels,
   buildModalConnectionPayload,
-  resolveModalUrl,
-} from './connections-helpers.js';
+} from './connections-helpers-modal-models.js';
 import { buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 
