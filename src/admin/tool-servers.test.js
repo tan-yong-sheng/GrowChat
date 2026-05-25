@@ -320,4 +320,34 @@ describe('admin tool server helpers', () => {
     const metadata = await discoverAuthorizationMetadata('https://auth.example.com');
     expect(metadata.authorization_endpoint).toBe('https://auth.example.com/authorize');
   });
+
+  it('strips internal allowed property from loadToolServers results', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM group_members')) return [];
+        if (String(sql).includes('FROM tool_server_acl_rules')) return [];
+        if (String(sql).includes('FROM user_tool_servers')) return [];
+        return [];
+      }),
+      first: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM users')) return { primary_role: 'member' };
+        return null;
+      }),
+    };
+    mocks.getConfigValue.mockResolvedValueOnce(
+      JSON.stringify([
+        {
+          id: 's1',
+          name: 'Test',
+          url: 'https://example.com',
+          tools: [{ name: 't1', title: 'T1', description: '', enabled: true }],
+        },
+      ])
+    );
+    const result = await loadToolServers(db, { userId: 'u1' });
+    for (const server of result) {
+      expect(server).not.toHaveProperty('allowed');
+    }
+  });
 });

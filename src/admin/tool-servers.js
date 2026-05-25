@@ -8,7 +8,11 @@ import { loadPrimaryRole } from '../utils/user-role.js';
 import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../mcp/client.js';
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { createRootLogger } from '../utils/logger.js';
-import { normalizeBaseUrl, applyToolVisibility } from './tool-servers-utils.js';
+import {
+  applyToolVisibility,
+  parseHeadersForRequest,
+  normalizeAuthType,
+} from './tool-servers-utils.js';
 import { loadUserToolServers } from './tool-servers-user.js';
 
 const logger = createRootLogger({});
@@ -64,8 +68,14 @@ export async function loadToolServers(db, options = {}) {
     } catch {
       userGroupIds = new Set();
     }
-    const aclRules = await loadToolServerAclRules(db);
-    const aclIndex = buildToolServerAclIndex(aclRules);
+    let aclIndex = new Map();
+    try {
+      const aclRules = await loadToolServerAclRules(db);
+      aclIndex = buildToolServerAclIndex(aclRules);
+    } catch (err) {
+      logger.warn('Failed to load tool server ACL rules', { error: err?.message || err });
+    }
+
     const userRole =
       String(options.userRole || 'member')
         .trim()
@@ -100,7 +110,7 @@ export async function loadToolServers(db, options = {}) {
       .filter(
         (server) => includeHiddenForUser || server.source === 'user' || server.visible_for_user
       );
-    return filtered;
+    return filtered.map(({ allowed: _allowed, ...server }) => server);
   } catch (err) {
     logger.warn('Failed to load tool servers', { error: err?.message || err });
     return [];
@@ -112,96 +122,70 @@ export async function saveToolServers(db, servers) {
 }
 
 export async function testToolServerConnection(server, options = {}) {
-  const fetchImpl = options.fetch || fetch;
-  const url = normalizeBaseUrl(server.url);
-  if (!url) {
-    return { ok: false, error: 'No URL configured', tools: [] };
+  const url = String(server?.url || '').trim();
+  if (!url) throw new Error('url is required');
+
+  const headers = options.headers || parseHeadersForRequest(server.headers);
+  const authType = normalizeAuthType(server.auth_type);
+
+  if (authType === 'bearer') {
+    const token = String(server.auth_bearer_token || '').trim();
+    if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
   }
-  const headers = {};
-  if (server.auth_type === 'bearer' && server.auth_bearer_token) {
-    headers['Authorization'] = `Bearer ${server.auth_bearer_token}`;
-  } else if (server.auth_type === 'basic' && server.auth_basic_username) {
-    const credentials = btoa(`${server.auth_basic_username}:${server.auth_basic_password || ''}`);
-    headers['Authorization'] = `Basic ${credentials}`;
+  if (authType === 'basic') {
+    const user = String(server.auth_basic_username || '').trim();
+    const pass = String(server.auth_basic_password || '');
+    if (user && !headers.Authorization) headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`;
   }
-  const requestHeaders = {
-    ...headers,
-    'Content-Type': 'application/json',
-    Accept: 'application/json, text/event-stream',
+
+  let sessionId;
+  const init = await mcpRequest({
+    url,
+    headers,
+    sessionId,
+    id: 0,
+    method: 'initialize',
+    params: {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: { name: 'GrowChat', version: '1.0.0' },
+    },
+  });
+  sessionId = init.sessionId;
+
+  const notified = await mcpNotify({
+    url,
+    headers,
+    sessionId,
+    method: 'notifications/initialized',
+  });
+  sessionId = notified.sessionId;
+
+  const toolsResult = await mcpRequest({
+    url,
+    headers,
+    sessionId,
+    id: 2,
+    method: 'tools/list',
+  });
+
+  const tools = Array.isArray(toolsResult.result?.tools) ? toolsResult.result.tools : [];
+  return {
+    tools: tools
+      .map((tool) => ({
+        name: String(tool?.name || '').trim(),
+        title: String(tool?.title || '').trim(),
+        description: String(tool?.description || '').trim(),
+        parameters:
+          tool?.inputSchema && typeof tool.inputSchema === 'object'
+            ? tool.inputSchema
+            : tool?.parameters && typeof tool.parameters === 'object'
+              ? tool.parameters
+              : {},
+      }))
+      .filter((tool) => tool.name),
+    sessionId,
   };
-  if (server.headers) {
-    try {
-      const parsed = JSON.parse(server.headers);
-      Object.entries(parsed).forEach(([key, value]) => {
-        requestHeaders[key] = String(value);
-      });
-    } catch {
-      // ignore malformed headers
-    }
-  }
-  try {
-    const initRequest = {
-      method: 'POST',
-      headers: {
-        ...requestHeaders,
-        'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
-      },
-      body: JSON.stringify(
-        mcpRequest('initialize', {
-          protocolVersion: MCP_PROTOCOL_VERSION,
-          capabilities: {},
-          clientInfo: { name: 'GrowChat', version: '1.0.0' },
-        })
-      ),
-    };
-    const initRes = await fetchImpl(url, initRequest);
-    if (!initRes.ok) {
-      const errorBody = await initRes.text().catch(() => '');
-      return { ok: false, error: `HTTP ${initRes.status}: ${errorBody.slice(0, 200)}`, tools: [] };
-    }
-    const sessionId = initRes.headers.get('mcp-session-id');
-    const initializedNotification = {
-      method: 'notifications/initialized',
-    };
-    await fetchImpl(url, {
-      method: 'POST',
-      headers: {
-        ...requestHeaders,
-        'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
-        ...(sessionId ? { 'mcp-session-id': sessionId } : {}),
-      },
-      body: JSON.stringify(mcpNotify(initializedNotification)),
-    });
-    const toolsRequest = {
-      method: 'tools/list',
-      params: {},
-    };
-    const toolsRes = await fetchImpl(url, {
-      method: 'POST',
-      headers: {
-        ...requestHeaders,
-        'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
-        ...(sessionId ? { 'mcp-session-id': sessionId } : {}),
-      },
-      body: JSON.stringify(mcpRequest(toolsRequest.method, toolsRequest.params)),
-    });
-    if (!toolsRes.ok) {
-      return { ok: true, tools: [], warning: `Tools list failed: HTTP ${toolsRes.status}` };
-    }
-    const toolsBody = await toolsRes.json().catch(() => ({}));
-    const discoveredTools = Array.isArray(toolsBody?.result?.tools)
-      ? toolsBody.result.tools.map((tool) => ({
-          name: String(tool.name || '').trim(),
-          title: String(tool.title || tool.name || '').trim(),
-          description: String(tool.description || '').trim(),
-          parameters: tool.inputSchema || tool.parameters || undefined,
-          enabled: true,
-        }))
-      : [];
-    return { ok: true, tools: discoveredTools };
-  } catch (err) {
-    return { ok: false, error: err?.message || String(err), tools: [] };
-  }
 }
 
 export function redactToolServer(server) {
