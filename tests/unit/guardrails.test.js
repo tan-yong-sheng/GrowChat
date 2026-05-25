@@ -27,12 +27,12 @@ function writeFixture(root, relativePath, content) {
   writeFileSync(fullPath, content);
 }
 
-function run(command, args, cwd, timeout = 30000) {
+function run(command, args, cwd, timeout = 25000) {
   return spawnSync(command, args, {
     cwd,
     encoding: 'utf8',
     shell: false,
-    timeout, // Kill subprocess after timeout to prevent CI hangs
+    timeout, // Must be below vitest timeout so the outer test limit remains effective
   });
 }
 
@@ -229,7 +229,7 @@ describe('guardrail fixtures', () => {
       eslintBin,
       ['src/utils/example.js', '--config', eslintConfig, '--no-ignore'],
       fixtureRoot,
-      45000 // ESLint can be slow; must exceed test-level timeout (40s)
+      35000 // Must be below vitest timeout (40s) so vitest remains the effective guard
     );
     expect(result.status).not.toBe(0);
     expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain('no-console-logging');
