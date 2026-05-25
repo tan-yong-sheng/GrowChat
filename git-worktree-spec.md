@@ -1,75 +1,63 @@
-# Git Worktree Spec: fix/ci-workflow-paths
+# Git Worktree Spec: refactor/src-files-400
 
 | Field | Value |
 |---|---|
-| **Source Reference** | https://github.com/tan-yong-sheng/GrowChat/issues/113 |
-| **Branch** | `fix/ci-workflow-paths` |
+| **Source Reference** | https://github.com/tan-yong-sheng/GrowChat/issues/111 |
+| **Branch** | `refactor/src-files-400` |
 | **Parent** | #72 (quality gates roadmap) |
-| **Merge Priority** | Anytime (isolated — no source code changes) |
+| **Merge Priority** | Phase 5 — AFTER WT3 (eslint-guardrails) lands |
 
 ## Goal
 
-Fix CI workflow path detection gaps and efficiency issues: expand the `ui` filter to catch E2E-affecting changes, add `paths-ignore` to expensive workflows for doc-only PRs, add nightly mutation testing schedule, and add actionlint for workflow YAML validation.
+Refactor remaining `src/` backend files that exceed the 400-line `max-lines` ESLint threshold. Continues the work started in #88 and #109 (WT3).
 
 ## Requirements
 
-### Bug: `ui` filter too narrow in `guardrails.yml`
-The `ui` filter only matches `public/**` and `src/input.css`, missing paths that affect E2E accessibility tests:
-- `tests/e2e/**` — test logic changes
-- `tests/shared/**` — shared Playwright setup
-- `playwright.config.ts` — test config
-- `tailwind.config.js` — utility changes affect rendering → a11y
+### #111 — Refactor remaining src/ files under 400 lines
 
-**Failure scenario:** PR changes only `tests/e2e/frontend/accessibility.spec.ts` → `ui=false` → e2e-accessibility SKIPPED.
+After #88 lands (WT3 handles the 3 largest routers), these `src/` files still exceed 400 lines:
 
-### Efficiency: `codeql.yml` runs on ALL PRs
-CodeQL is the slowest workflow (5-10 min). Runs even on `.md`-only PRs. Add `paths-ignore`.
-
-### Efficiency: `semgrep.yml` runs on ALL PRs
-Semgrep runs on every PR/push including doc-only changes. Add `paths-ignore`.
-
-### Efficiency: `mutation-testing.yml` only runs weekly
-Mutation regressions can sit in main for up to 7 days. Add nightly schedule.
-
-### Missing: No actionlint / workflow YAML validation
-No linter validates `.github/workflows/` YAML syntax. A typo could silently break CI.
+| File | Current lines | Target |
+|---|---|---|
+| `src/routers/chat-message.js` | 974 | ≤400 |
+| `src/routers/auth.js` | 698 | ≤400 |
+| `src/routers/chat-collection.js` | 544 | ≤400 |
+| `src/llm/connections.js` | 792 | ≤400 |
+| `src/llm/provider-adapters.js` | 650 | ≤400 |
+| `src/mcp/tool-servers.js` | 632 | ≤400 |
+| `src/chat/assistant-runner.js` | 615 | ≤400 |
+| `src/chat/stream-parser.js` | 488 | ≤400 |
 
 ## Implementation Scope
 
-- [x] `.github/workflows/guardrails.yml` — expand `ui` filter:
-  ```yaml
-  ui:
-    - 'public/**'
-    - 'src/input.css'
-    - 'tests/e2e/**'
-    - 'tests/shared/**'
-    - 'playwright.config.ts'
-    - 'tailwind.config.js'
-  ```
-- [x] `.github/workflows/codeql.yml` — add `paths-ignore` for doc-only PRs
-- [x] `.github/workflows/semgrep.yml` — add `paths-ignore` for doc-only PRs
-- [x] `.github/workflows/mutation-testing.yml` — add nightly schedule (`0 2 * * *`)
-- [x] `.github/workflows/guardrails.yml` — add actionlint step for workflow YAML validation
-- [x] `package.json` — add `lint:workflows` script if actionlint is installed
+- [ ] `src/routers/chat-message.js` — split into sub-handlers (947 lines to remove)
+- [ ] `src/routers/auth.js` — split auth routes into sub-modules
+- [ ] `src/routers/chat-collection.js` — extract collection operations
+- [ ] `src/llm/connections.js` — extract connection management from provider logic
+- [ ] `src/llm/provider-adapters.js` — split per-provider adapter logic
+- [ ] `src/mcp/tool-servers.js` — extract ACL/sync/visibility sub-modules
+- [ ] `src/chat/assistant-runner.js` — extract streaming/persistence sub-handlers
+- [ ] `src/chat/stream-parser.js` — extract parser sub-modules
+- [ ] Remove these files from `eslint.config.cjs` legacy override block (if still present)
 
 ## Acceptance Criteria
 
-1. PR that changes only `tests/e2e/frontend/accessibility.spec.ts` → `ui=true` → e2e-accessibility runs
-2. PR that changes only `.md` files → codeql + semgrep workflows skip
-3. PR that changes `tailwind.config.js` → `ui=true` → e2e-accessibility runs
-4. Nightly mutation test runs at 02:00 UTC in addition to weekly Sunday
-5. Malformed workflow YAML caught by actionlint step in guardrails
-6. All existing tests pass (no source code changes in this branch)
+1. All `src/` files are ≤ 400 lines
+2. `pnpm run lint` passes with `max-lines: 400` rule
+3. No file in legacy override block for these files
+4. All existing tests pass
+5. No circular dependencies introduced by the splits
 
 ## Technical Constraints
 
-- All changes are workflow YAML + CI config only — no source code changes
-- `paths-ignore` patterns must match the same convention as `guardrails.yml` (`**/*.md`, `LICENSE`, `docs/`)
-- actionlint should run early in the guardrails job (fast, catches config errors before expensive steps)
-- Keep `push: branches: [main]` triggers without `paths-ignore` — main branch should always run full gate
+- Follow existing module split patterns (see how `chat-core.js` was extracted from `chat.js`)
+- Each router split should extract sub-handlers that the main router re-exports
+- Keep public API surface identical — no import changes needed from callers
+- Each file split should be a separate commit for easy review
 
 ## Cross-branch Notes
 
-- **Isolated** — no file overlap with any other worktree
-- Can merge anytime, even alongside WT1 (admin-models-bugs)
-- No source code changes means no risk of merge conflicts with other branches
+- **CRITICAL: Must merge AFTER WT3** (eslint-guardrails) — WT3's #88 and #109 handle the 3 largest routers + set up the max-lines rule
+- #111 was split out from #109's original scope
+- No overlap with WT12 (frontend-files-400) — this is backend only
+- May overlap with WT6 (ci-thresholds) if src/ test coverage changes, but low risk
