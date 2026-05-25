@@ -65,3 +65,49 @@ export async function readStreamChunkWithHeartbeat(
     if (timeoutId) clearTimeout(timeoutId);
   }
 }
+export function createStreamHelpers({ db, assistantMsgId, encoder, sseData }) {
+  const state = { deltaSeq: 0, streamController: null };
+  const messageBlocks = [];
+
+  const persistDelta = async (payload) => {
+    if (!payload || typeof payload !== 'object') return payload;
+    state.deltaSeq += 1;
+    const payloadWithSeq = { ...payload, seq: state.deltaSeq };
+    try {
+      await db.run(
+        'INSERT INTO message_deltas (message_id, seq, payload, created_at) VALUES (?, ?, ?, unixepoch())',
+        [assistantMsgId, state.deltaSeq, JSON.stringify(payloadWithSeq)]
+      );
+    } catch {
+      // ignore delta persistence failure
+    }
+    return payloadWithSeq;
+  };
+
+  const emitSse = async (payload, { persist = false } = {}) => {
+    const outgoing = persist ? await persistDelta(payload) : payload;
+    if (!state.streamController) return outgoing;
+    state.streamController.enqueue(encoder.encode(sseData(outgoing)));
+    return outgoing;
+  };
+
+  const appendMessageBlock = (type, content = '', toolCallId = null) => {
+    if (!type) return;
+    const last = messageBlocks.length ? messageBlocks[messageBlocks.length - 1] : null;
+    if (type === 'tool') {
+      const existing = messageBlocks.find(
+        (block) => block.type === 'tool' && block.tool_call_id === toolCallId
+      );
+      if (existing) return;
+      messageBlocks.push({ type: 'tool', tool_call_id: String(toolCallId || '') });
+      return;
+    }
+    if (last && last.type === type && !last.tool_call_id) {
+      last.content = `${last.content || ''}${content}`;
+      return;
+    }
+    messageBlocks.push({ type, content: String(content || '') });
+  };
+
+  return { persistDelta, emitSse, appendMessageBlock, messageBlocks, state };
+}

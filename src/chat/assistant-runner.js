@@ -4,6 +4,7 @@ import {
   FOLLOW_UP_PROMPT,
   STREAM_STATUS_STALE_MS,
   readStreamChunkWithHeartbeat,
+  createStreamHelpers,
 } from './assistant-stream-utils.js';
 import { executeToolCalls } from './assistant-tool-executor.js';
 
@@ -73,50 +74,14 @@ export function createAssistantRunner(deps) {
     let fullText = '';
     let fullReasoning = '';
     let reasoningStartedAt = null;
-    let deltaSeq = 0;
     const toolCallRecords = [];
-    const messageBlocks = [];
-    let streamController = null;
-
-    const persistDelta = async (payload) => {
-      if (!payload || typeof payload !== 'object') return payload;
-      deltaSeq += 1;
-      const payloadWithSeq = { ...payload, seq: deltaSeq };
-      try {
-        await db.run(
-          'INSERT INTO message_deltas (message_id, seq, payload, created_at) VALUES (?, ?, ?, unixepoch())',
-          [assistantMsgId, deltaSeq, JSON.stringify(payloadWithSeq)]
-        );
-      } catch {
-        // ignore delta persistence failure
-      }
-      return payloadWithSeq;
-    };
-
-    const emitSse = async (payload, { persist = false } = {}) => {
-      const outgoing = persist ? await persistDelta(payload) : payload;
-      if (!streamController) return outgoing;
-      streamController.enqueue(encoder.encode(sseData(outgoing)));
-      return outgoing;
-    };
-
-    const appendMessageBlock = (type, content = '', toolCallId = null) => {
-      if (!type) return;
-      const last = messageBlocks.length ? messageBlocks[messageBlocks.length - 1] : null;
-      if (type === 'tool') {
-        const existing = messageBlocks.find(
-          (block) => block.type === 'tool' && block.tool_call_id === toolCallId
-        );
-        if (existing) return;
-        messageBlocks.push({ type: 'tool', tool_call_id: String(toolCallId || '') });
-        return;
-      }
-      if (last && last.type === type && !last.tool_call_id) {
-        last.content = `${last.content || ''}${content}`;
-        return;
-      }
-      messageBlocks.push({ type, content: String(content || '') });
-    };
+    const {
+      _persistDelta,
+      emitSse,
+      appendMessageBlock,
+      messageBlocks,
+      state: streamState,
+    } = createStreamHelpers({ db, assistantMsgId, encoder, sseData });
 
     const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : citations || null;
     const lifecycle = createAssistantStreamLifecycle({
@@ -139,7 +104,7 @@ export function createAssistantRunner(deps) {
 
     const readable = new ReadableStream({
       async start(controller) {
-        streamController = controller;
+        streamState.streamController = controller;
         await lifecycle.ensureAssistantRow();
 
         if (ctx?.waitUntil) {

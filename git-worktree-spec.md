@@ -30,15 +30,15 @@ After #88 lands (WT3 handles the 3 largest routers), these `src/` files still ex
 
 ## Implementation Scope
 
-- [ ] `src/routers/chat-message.js` — split into sub-handlers (947 lines to remove)
-- [ ] `src/routers/auth.js` — split auth routes into sub-modules
-- [ ] `src/routers/chat-collection.js` — extract collection operations
-- [ ] `src/llm/connections.js` — extract connection management from provider logic
-- [ ] `src/llm/provider-adapters.js` — split per-provider adapter logic
-- [ ] `src/mcp/tool-servers.js` — extract ACL/sync/visibility sub-modules
-- [ ] `src/chat/assistant-runner.js` — extract streaming/persistence sub-handlers
-- [ ] `src/chat/stream-parser.js` — extract parser sub-modules
-- [ ] Remove these files from `eslint.config.cjs` legacy override block (if still present)
+- [x] `src/routers/chat-message.js` — split into sub-handlers (974→391 lines)
+- [x] `src/routers/auth.js` — split auth routes into sub-modules (698→358 lines)
+- [x] `src/routers/chat-collection.js` — extract collection operations (544→350 lines)
+- [x] `src/llm/connections.js` — extract connection management from provider logic (792→346 lines)
+- [x] `src/llm/provider-adapters.js` — split per-provider adapter logic (650→247 lines)
+- [x] `src/admin/tool-servers.js` — extract ACL/sync/visibility sub-modules (632→242 lines)
+- [x] `src/chat/assistant-runner.js` — extract streaming/persistence sub-handlers (615→390 lines)
+- [x] `src/llm/stream-parser.js` — extract parser sub-modules (488→232 lines)
+- [x] Remove these files from `eslint.config.cjs` legacy override block — kept in override due to inherited complexity/max-lines-per-function warnings (22 warnings would break --max-warnings=0 pre-commit hook). Override removal deferred until WT3 (eslint-guardrails) merges and complexity rules are addressed separately.
 
 ## Acceptance Criteria
 
