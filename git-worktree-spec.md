@@ -1,75 +1,69 @@
-# Git Worktree Spec: fix/ci-workflow-paths
+# Git Worktree Spec: refactor/frontend-files-400
 
 | Field | Value |
 |---|---|
-| **Source Reference** | https://github.com/tan-yong-sheng/GrowChat/issues/113 |
-| **Branch** | `fix/ci-workflow-paths` |
+| **Source Reference** | https://github.com/tan-yong-sheng/GrowChat/issues/112 |
+| **Branch** | `refactor/frontend-files-400` |
 | **Parent** | #72 (quality gates roadmap) |
-| **Merge Priority** | Anytime (isolated — no source code changes) |
+| **Merge Priority** | Phase 6 — AFTER WT3 + WT4 land |
 
 ## Goal
 
-Fix CI workflow path detection gaps and efficiency issues: expand the `ui` filter to catch E2E-affecting changes, add `paths-ignore` to expensive workflows for doc-only PRs, add nightly mutation testing schedule, and add actionlint for workflow YAML validation.
+Refactor `public/js/` frontend files that exceed the 400-line `max-lines` ESLint threshold. Continues from #88, #109 (WT3), and #111 (WT11).
 
 ## Requirements
 
-### Bug: `ui` filter too narrow in `guardrails.yml`
-The `ui` filter only matches `public/**` and `src/input.css`, missing paths that affect E2E accessibility tests:
-- `tests/e2e/**` — test logic changes
-- `tests/shared/**` — shared Playwright setup
-- `playwright.config.ts` — test config
-- `tailwind.config.js` — utility changes affect rendering → a11y
+### #112 — Refactor public/js/ frontend files under 400 lines
 
-**Failure scenario:** PR changes only `tests/e2e/frontend/accessibility.spec.ts` → `ui=false` → e2e-accessibility SKIPPED.
+After WT3 and WT11 land, these frontend files still exceed 400 lines:
 
-### Efficiency: `codeql.yml` runs on ALL PRs
-CodeQL is the slowest workflow (5-10 min). Runs even on `.md`-only PRs. Add `paths-ignore`.
-
-### Efficiency: `semgrep.yml` runs on ALL PRs
-Semgrep runs on every PR/push including doc-only changes. Add `paths-ignore`.
-
-### Efficiency: `mutation-testing.yml` only runs weekly
-Mutation regressions can sit in main for up to 7 days. Add nightly schedule.
-
-### Missing: No actionlint / workflow YAML validation
-No linter validates `.github/workflows/` YAML syntax. A typo could silently break CI.
+| File | Current lines | Target |
+|---|---|---|
+| `public/js/features/admin/settings/policies.js` | 1,708 | ≤400 |
+| `public/js/features/admin/settings/connections.js` | 1,401 | ≤400 |
+| `public/js/features/admin/settings/overview.js` | 1,130 | ≤400 |
+| `public/js/features/admin/settings/integrations.js` | 1,092 | ≤400 |
+| `public/js/features/admin/settings/roles.js` | 939 | ≤400 |
+| `public/js/features/admin/settings/models.js` | 864 | ≤400 |
+| `public/js/features/admin/settings/admin.js` | 737 | ≤400 |
+| `public/js/features/chat/chat.js` | 1,252 | ≤400 |
+| `public/js/features/chat/message-input-controller.js` | 960 | ≤400 |
+| `public/js/features/chat/chat-message-actions.js` | 558 | ≤400 |
+| `public/js/features/chat/model-selector-controller.js` | 460 | ≤400 |
+| `public/js/features/account/account-integrations.js` | 1,201 | ≤400 |
+| `public/js/features/account/account-connections.js` | 1,009 | ≤400 |
+| `public/js/features/account/account-models.js` | 587 | ≤400 |
+| `public/js/shared/markdown-renderer.js` | 1,153 | ≤400 |
+| `public/js/shared/session-bootstrap.js` | 504 | ≤400 |
+| `public/js/shared/realtime.js` | 414 | ≤400 |
+| `public/js/shared/store.js` | 400 | ≤400 |
 
 ## Implementation Scope
 
-- [x] `.github/workflows/guardrails.yml` — expand `ui` filter:
-  ```yaml
-  ui:
-    - 'public/**'
-    - 'src/input.css'
-    - 'tests/e2e/**'
-    - 'tests/shared/**'
-    - 'playwright.config.ts'
-    - 'tailwind.config.js'
-  ```
-- [x] `.github/workflows/codeql.yml` — add `paths-ignore` for doc-only PRs
-- [x] `.github/workflows/semgrep.yml` — add `paths-ignore` for doc-only PRs
-- [x] `.github/workflows/mutation-testing.yml` — add nightly schedule (`0 2 * * *`)
-- [x] `.github/workflows/guardrails.yml` — add actionlint step for workflow YAML validation
-- [x] `package.json` — add `lint:workflows` script if actionlint is installed
+- [ ] Admin settings files (6 files) — extract modal handlers, ACL logic, UI rendering
+- [ ] Chat UI files (4 files) — extract message handling, model selection, input controller
+- [ ] Account files (3 files) — extract connection/integration/model sub-modules
+- [ ] Shared modules (4 files) — extract markdown parsing, session init, realtime events, store slices
+- [ ] Remove these files from `eslint.config.cjs` legacy override block
 
 ## Acceptance Criteria
 
-1. PR that changes only `tests/e2e/frontend/accessibility.spec.ts` → `ui=true` → e2e-accessibility runs
-2. PR that changes only `.md` files → codeql + semgrep workflows skip
-3. PR that changes `tailwind.config.js` → `ui=true` → e2e-accessibility runs
-4. Nightly mutation test runs at 02:00 UTC in addition to weekly Sunday
-5. Malformed workflow YAML caught by actionlint step in guardrails
-6. All existing tests pass (no source code changes in this branch)
+1. All `public/js/` files are ≤ 400 lines
+2. `pnpm run lint` passes with `max-lines: 400` rule
+3. No file in legacy override block for these files
+4. All existing tests pass
+5. No circular dependencies or cross-feature boundary violations introduced
 
 ## Technical Constraints
 
-- All changes are workflow YAML + CI config only — no source code changes
-- `paths-ignore` patterns must match the same convention as `guardrails.yml` (`**/*.md`, `LICENSE`, `docs/`)
-- actionlint should run early in the guardrails job (fast, catches config errors before expensive steps)
-- Keep `push: branches: [main]` triggers without `paths-ignore` — main branch should always run full gate
+- Follow existing `f-shared` boundary rules — extracted modules go to `public/js/shared/`
+- Each extraction should preserve the existing public API surface
+- `markdown-renderer.js` may need a case-by-case exemption evaluation (single-purpose module)
+- Each file split should be a separate commit for easy review
 
 ## Cross-branch Notes
 
-- **Isolated** — no file overlap with any other worktree
-- Can merge anytime, even alongside WT1 (admin-models-bugs)
-- No source code changes means no risk of merge conflicts with other branches
+- **CRITICAL: Must merge AFTER WT3** (eslint-guardrails) — WT3's #109 sets up max-lines rule and does initial refactoring
+- **CRITICAL: Must merge AFTER WT4** (jscpd-duplication) — WT4 extracts shared code from same admin/chat files
+- **Must merge AFTER WT9** (admin-acl-xss) — WT9 fixes bugs in models.js, connections.js, integrations.js before this refactors them
+- No overlap with WT11 (src-files-400) — this is frontend only
