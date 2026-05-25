@@ -256,3 +256,45 @@ export function buildAclRows(groups, rules = []) {
     })
     .join('');
 }
+
+/**
+ * Build the selection toolbar HTML for the active family panel.
+ */
+export function buildFamilyToolbarHtml(ctx) {
+  const {
+    escapeHtml,
+    renderButton,
+    activeFamily,
+    activeSelectionCount,
+    activeAllVisibleSelected,
+    activeVisibleIds,
+    activeVisibleSelectedCount,
+  } = ctx;
+  return `<div class="flex items-center justify-between gap-3 rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-sm"><div class="flex items-center gap-2 min-w-0 flex-wrap"><span class="text-xs text-gray-500 truncate">${escapeHtml(activeSelectionCount ? `${activeSelectionCount} selected` : 'No selection')}</span>${activeAllVisibleSelected ? '' : renderButton({ label: 'Select visible', variant: 'secondary', className: 'px-3 py-1.5 text-[11px]', dataAttrs: { 'select-visible-family': activeFamily.key } })}${activeSelectionCount ? renderButton({ label: 'Clear', variant: 'secondary', className: 'px-3 py-1.5 text-[11px]', dataAttrs: { 'clear-selection-family': activeFamily.key } }) : ''}${renderButton({ label: 'Bulk ACL', variant: 'primary', className: 'px-3 py-1.5 text-[11px]', disabled: !activeSelectionCount, dataAttrs: { 'bulk-edit-family': activeFamily.key } })}</div><div class="text-xs text-gray-400">${activeVisibleIds.length ? `${activeVisibleSelectedCount}/${activeVisibleIds.length} visible selected` : 'No visible rows'}</div></div>`;
+}
+
+/**
+ * Build the pagination footer HTML for the active family panel.
+ */
+export function buildFamilyFooterHtml(ctx) {
+  const { activeFamily, activePaged, PAGE_SIZES } = ctx;
+  return `<div class="flex items-center justify-between gap-4 py-4 px-0.5 text-sm text-gray-500 border-t border-gray-100"><div class="flex items-center gap-4"><div class="flex items-center gap-3"><span>Show</span><select data-page-size-family="${activeFamily.key}" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">${PAGE_SIZES.map((s) => `<option value="${s}" ${activePaged.pageSize === s ? 'selected' : ''}>${s}</option>`).join('')}</select><span>per page</span></div><div class="flex items-center gap-4"><div class="text-xs text-gray-400">${activePaged.total ? `${activePaged.start + 1}-${activePaged.end} of ${activePaged.total}` : '0 of 0'}</div><div class="flex items-center gap-2"><button type="button" data-prev-page-family="${activeFamily.key}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50" ${activePaged.page <= 1 ? 'disabled' : ''}>Prev</button><div class="text-sm text-gray-600">Page ${activePaged.page} / ${activePaged.totalPages}</div><button type="button" data-next-page-family="${activeFamily.key}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50" ${activePaged.page >= activePaged.totalPages ? 'disabled' : ''}>Next</button></div></div></div></div>`;
+}
+
+/**
+ * Build the family panel HTML (error, loaded list, or skeleton).
+ */
+export function buildFamilyPanelHtml(ctx) {
+  const {
+    escapeHtml,
+    activeFamily,
+    activeFamilyStatus,
+    activeFamilyError,
+    activePaged,
+    state,
+    getConnectionRulesByIdForWarnings,
+    renderResourceList,
+    renderFamilySkeleton,
+  } = ctx;
+  return `<div data-family-panel="${activeFamily.key}" class="space-y-4">${activeFamilyStatus === 'error' ? `<div class="rounded-3xl border border-red-100 bg-red-50/70 p-5 text-sm text-red-700"><div class="font-semibold">Unable to load ${escapeHtml(activeFamily.label.toLowerCase())}</div><div class="mt-1 text-red-600">${escapeHtml(activeFamilyError || 'Please try again.')}</div></div>` : activeFamilyStatus === 'loaded' ? renderResourceList({ title: activeFamily.label, familyKey: activeFamily.key, resources: activePaged.items, groupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId, selectedIds: ctx.activeSelectedIds, connectionRulesById: activeFamily.key === 'models' ? getConnectionRulesByIdForWarnings() : new Map(), onToggleSelection: true, onEdit: null }) : renderFamilySkeleton()}</div>`;
+}

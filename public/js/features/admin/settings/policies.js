@@ -1,35 +1,28 @@
 import { apiFetch, fetchAdminGroups, fetchAdminModels } from '../../../shared/api.js';
-import {
-  broadcastModelsInvalidation,
-  consumeModelsInvalidation,
-} from '../../../shared/utils/model-sync.js';
-import {
-  consumeConnectionsInvalidation,
-  broadcastConnectionsInvalidation,
-} from '../../../shared/utils/connection-sync.js';
-import {
-  broadcastToolServersInvalidation,
-  consumeToolServersInvalidation,
-} from '../../../shared/utils/tool-server-sync.js';
+import { consumeModelsInvalidation } from '../../../shared/utils/model-sync.js';
+import { consumeConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
+import { consumeToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import { captureRenderState, restoreRenderState } from '../../../shared/components/search-bar.js';
 import { renderButton } from '../../../shared/components/button.js';
 import {
   cloneAclRules,
   normalizeAclRule,
-  getResourceAccessState,
   sortResourcesByVisibility,
-  buildModelAccessModalWarning,
 } from './policies-acl-helpers.js';
 import {
   escapeHtml,
   renderSkeleton,
   renderFamilySkeleton,
   renderResourceList,
+  buildFamilyToolbarHtml,
+  buildFamilyFooterHtml,
+  buildFamilyPanelHtml,
 } from './policies-rendering.js';
-import { loadFamilyAccess, saveFamilyAccess, openAccessModal } from './policies-acl-modal.js';
+import { loadFamilyAccess } from './policies-acl-modal.js';
 import { buildStickyHeaderHtml } from './policies-sticky-header.js';
 import { bindPolicyEventListeners } from './policies-event-handlers.js';
 import { createLoadFamilyResources } from './policies-load-family.js';
+import { createPoliciesStateOps } from './policies-state-ops.js';
 
 const FAMILIES = [
   { key: 'connections', label: 'Connections' },
@@ -187,153 +180,24 @@ export function renderPoliciesSettings(container, _data = {}) {
     render();
   };
 
-  const getSelectedSet = (familyKey) => state.selectionByFamily[familyKey] || DEFAULT_SELECTION();
-  const setSelectedSet = (familyKey, values) => {
-    state.selectionByFamily[familyKey] = new Set(
-      Array.isArray(values) ? values : Array.from(values || [])
-    );
-  };
-  const getPagination = (familyKey) =>
-    state.paginationByFamily[familyKey] || { page: 1, pageSize: 20 };
-  const setPagination = (familyKey, next) => {
-    state.paginationByFamily[familyKey] = {
-      page: Math.max(1, Number.parseInt(next?.page || 1, 10) || 1),
-      pageSize: PAGE_SIZES.includes(Number.parseInt(next?.pageSize, 10))
-        ? Number.parseInt(next.pageSize, 10)
-        : 20,
-    };
-  };
-
-  const applyResourceRulesImmediate = async (familyKey, resourceIds, nextRules) => {
-    const ids = new Set(
-      (Array.isArray(resourceIds) ? resourceIds : [resourceIds])
-        .map((id) => String(id || '').trim())
-        .filter(Boolean)
-    );
-    if (!ids.size) return;
-    const targetResources = (state.resources[familyKey] || []).filter((r) =>
-      ids.has(String(r.id || '').trim())
-    );
-    if (!targetResources.length) return;
-    const previousState = targetResources.map((r) => ({
-      id: r.id,
-      rules: cloneAclRules(r.rules || [], normalizeAclRule),
-    }));
-    state.resources[familyKey] = (state.resources[familyKey] || []).map((r) => {
-      if (!ids.has(String(r.id || '').trim())) return r;
-      return { ...r, rules: cloneAclRules(nextRules, normalizeAclRule) };
-    });
-    render();
-    try {
-      const updates = targetResources.map((r) => ({
-        [familyKey === 'models'
-          ? 'model_id'
-          : familyKey === 'connections'
-            ? 'connection_id'
-            : 'tool_server_id']: r.id,
-        rules: cloneAclRules(nextRules, normalizeAclRule),
-      }));
-      await saveFamilyAccess({ familyKey, updates });
-      broadcastModelsInvalidation();
-      broadcastConnectionsInvalidation();
-      broadcastToolServersInvalidation();
-    } catch (err) {
-      state.resources[familyKey] = (state.resources[familyKey] || []).map((r) => {
-        const prev = previousState.find((p) => p.id === r.id);
-        return prev ? { ...r, rules: cloneAclRules(prev.rules, normalizeAclRule) } : r;
-      });
-      render();
-      const banner = container.querySelector('[data-policy-error-banner]');
-      if (banner) {
-        banner.textContent = err?.message || 'Failed to save policy changes';
-        banner.classList.remove('hidden');
-        setTimeout(() => banner.classList.add('hidden'), 5000);
-      }
-      throw err;
-    }
-  };
-
-  const filterResources = (familyKey, resources = []) => {
-    const query = state.query.trim().toLowerCase();
-    return (Array.isArray(resources) ? resources : []).filter((resource) => {
-      if (resource?.enabled === false && !state.visibilityFilters.disabled) return false;
-      const text = [
-        resource.id,
-        resource.name,
-        resource.title,
-        resource.provider,
-        resource.providerType,
-        resource.base_url,
-        resource.url,
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (query && !text.includes(query)) return false;
-      const category = getResourceAccessState(
-        resource,
-        state.selectedGroupId === 'all' ? '' : state.selectedGroupId
-      );
-      return Boolean(state.visibilityFilters[category]);
-    });
-  };
-
-  const getPagedResources = (familyKey) => {
-    const list = state.resources[familyKey] || [];
-    const filtered = filterResources(familyKey, list);
-    const pagination = getPagination(familyKey);
-    const pageSize = pagination.pageSize || 20;
-    const total = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const page = Math.min(Math.max(pagination.page || 1, 1), totalPages);
-    const start = total === 0 ? 0 : (page - 1) * pageSize;
-    const items = filtered.slice(start, start + pageSize);
-    return {
-      filtered,
-      items,
-      total,
-      totalPages,
-      page,
-      pageSize,
-      start,
-      end: Math.min(start + pageSize, total),
-    };
-  };
-
-  const openDeepLinkedAccessModal = async (familyKey) => {
-    if (
-      state.deepLinkOpened ||
-      !state.pendingDeepLink ||
-      state.pendingDeepLink.familyKey !== familyKey
-    )
-      return;
-    const targetResource = (state.resources[familyKey] || []).find(
-      (r) => String(r.id || '').trim() === state.pendingDeepLink.resourceId
-    );
-    if (!targetResource) return;
-    state.deepLinkOpened = true;
-    const connectionRulesById = getConnectionRulesByIdForWarnings();
-    await openAccessModal({
-      familyKey,
-      resource: targetResource,
-      groups: state.groups,
-      selectedGroupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
-      resourceWarning:
-        familyKey === 'models'
-          ? buildModelAccessModalWarning(
-              [targetResource],
-              state.selectedGroupId === 'all' ? '' : state.selectedGroupId,
-              connectionRulesById
-            )
-          : null,
-      onSaved: async (nextRules, targetResources) => {
-        await applyResourceRulesImmediate(
-          familyKey,
-          targetResources.map((item) => item.id),
-          nextRules
-        );
-      },
-    });
-  };
+  const {
+    getSelectedSet,
+    setSelectedSet,
+    getPagination,
+    setPagination,
+    applyResourceRulesImmediate,
+    getPagedResources,
+    openDeepLinkedAccessModal,
+  } = createPoliciesStateOps({
+    state,
+    DEFAULT_SELECTION,
+    PAGE_SIZES,
+    container,
+    render,
+    cloneAclRules,
+    normalizeAclRule,
+    getConnectionRulesByIdForWarnings,
+  });
 
   const loadFamilyResources = createLoadFamilyResources({
     state,
@@ -404,11 +268,30 @@ export function renderPoliciesSettings(container, _data = {}) {
       activeVisibilityCount,
     });
 
-    const toolbar = `<div class="flex items-center justify-between gap-3 rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-sm"><div class="flex items-center gap-2 min-w-0 flex-wrap"><span class="text-xs text-gray-500 truncate">${escapeHtml(activeSelectionCount ? `${activeSelectionCount} selected` : 'No selection')}</span>${activeAllVisibleSelected ? '' : renderButton({ label: 'Select visible', variant: 'secondary', className: 'px-3 py-1.5 text-[11px]', dataAttrs: { 'select-visible-family': activeFamily.key } })}${activeSelectionCount ? renderButton({ label: 'Clear', variant: 'secondary', className: 'px-3 py-1.5 text-[11px]', dataAttrs: { 'clear-selection-family': activeFamily.key } }) : ''}${renderButton({ label: 'Bulk ACL', variant: 'primary', className: 'px-3 py-1.5 text-[11px]', disabled: !activeSelectionCount, dataAttrs: { 'bulk-edit-family': activeFamily.key } })}</div><div class="text-xs text-gray-400">${activeVisibleIds.length ? `${activeVisibleSelectedCount}/${activeVisibleIds.length} visible selected` : 'No visible rows'}</div></div>`;
+    const toolbar = buildFamilyToolbarHtml({
+      escapeHtml,
+      renderButton,
+      activeFamily,
+      activeSelectionCount,
+      activeAllVisibleSelected,
+      activeVisibleIds,
+      activeVisibleSelectedCount,
+    });
 
-    const footer = `<div class="flex items-center justify-between gap-4 py-4 px-0.5 text-sm text-gray-500 border-t border-gray-100"><div class="flex items-center gap-4"><div class="flex items-center gap-3"><span>Show</span><select data-page-size-family="${activeFamily.key}" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">${PAGE_SIZES.map((s) => `<option value="${s}" ${activePaged.pageSize === s ? 'selected' : ''}>${s}</option>`).join('')}</select><span>per page</span></div><div class="flex items-center gap-4"><div class="text-xs text-gray-400">${activePaged.total ? `${activePaged.start + 1}-${activePaged.end} of ${activePaged.total}` : '0 of 0'}</div><div class="flex items-center gap-2"><button type="button" data-prev-page-family="${activeFamily.key}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50" ${activePaged.page <= 1 ? 'disabled' : ''}>Prev</button><div class="text-sm text-gray-600">Page ${activePaged.page} / ${activePaged.totalPages}</div><button type="button" data-next-page-family="${activeFamily.key}" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50" ${activePaged.page >= activePaged.totalPages ? 'disabled' : ''}>Next</button></div></div></div></div>`;
+    const footer = buildFamilyFooterHtml({ activeFamily, activePaged, PAGE_SIZES });
 
-    const panel = `<div data-family-panel="${activeFamily.key}" class="space-y-4">${activeFamilyStatus === 'error' ? `<div class="rounded-3xl border border-red-100 bg-red-50/70 p-5 text-sm text-red-700"><div class="font-semibold">Unable to load ${escapeHtml(activeFamily.label.toLowerCase())}</div><div class="mt-1 text-red-600">${escapeHtml(activeFamilyError || 'Please try again.')}</div></div>` : activeFamilyStatus === 'loaded' ? renderResourceList({ title: activeFamily.label, familyKey: activeFamily.key, resources: activePaged.items, groupId: state.selectedGroupId === 'all' ? '' : state.selectedGroupId, selectedIds: activeSelectedIds, connectionRulesById: activeFamily.key === 'models' ? getConnectionRulesByIdForWarnings() : new Map(), onToggleSelection: true, onEdit: null }) : renderFamilySkeleton()}</div>`;
+    const panel = buildFamilyPanelHtml({
+      escapeHtml,
+      activeFamily,
+      activeFamilyStatus,
+      activeFamilyError,
+      activePaged,
+      activeSelectedIds,
+      state,
+      getConnectionRulesByIdForWarnings,
+      renderResourceList,
+      renderFamilySkeleton,
+    });
 
     container.innerHTML = `<div class="flex flex-col min-h-0 animate-in fade-in duration-300">${stickyHeader}${activeFamilyStatus === 'loaded' ? `<div class="shrink-0 bg-white border-b border-gray-100"><div class="max-w-6xl mx-auto w-full px-0.5 py-3">${toolbar}</div></div>` : ''}<div class="flex-1 min-h-0" data-policies-scroll="1"><div class="max-w-6xl mx-auto w-full space-y-4 pb-6 pt-4"><section class="space-y-4">${panel}</section></div></div><div class="shrink-0 bg-white border-t border-gray-100"><div class="max-w-6xl mx-auto w-full space-y-0.5">${footer}</div></div></div>`;
 
