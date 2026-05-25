@@ -8,5 +8,10 @@
   "reporters": ["html", "clear-text", "progress"],
   "coverageAnalysis": "perTest",
   "mutate": ["src/**/*.js"],
-  "ignoreStatic": true
+  "ignoreStatic": true,
+  "thresholds": {
+    "high": 60,
+    "low": 50,
+    "break": 40
+  }
 }
