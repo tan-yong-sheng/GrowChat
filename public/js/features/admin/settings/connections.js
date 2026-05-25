@@ -11,6 +11,7 @@ import { broadcastConnectionsInvalidation } from '../../../shared/utils/connecti
 import { createAdminAclModalShell } from '../acl-modal.js';
 import { renderButton } from '../../../shared/components/button.js';
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { getAdminModalPreset, Z_INDEX_CLASSES } from '../modal-shell.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
@@ -37,14 +38,6 @@ import {
   buildSelectedConnectionModels,
   updateApiTypeDisplay,
 } from './connections-helpers.js';
-
-const escapeHtml = (value) =>
-  String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 function cloneAclRules(rules = [], normalizer = (rule) => rule) {
   if (!Array.isArray(rules)) return [];

@@ -1,75 +1,70 @@
-# Git Worktree Spec: fix/ci-workflow-paths
+# Git Worktree Spec: fix/admin-acl-xss
 
 | Field | Value |
 |---|---|
-| **Source Reference** | https://github.com/tan-yong-sheng/GrowChat/issues/113 |
-| **Branch** | `fix/ci-workflow-paths` |
+| **Source Reference** | https://github.com/tan-yong-sheng/GrowChat/issues/117, https://github.com/tan-yong-sheng/GrowChat/issues/121 |
+| **Branch** | `fix/admin-acl-xss` |
 | **Parent** | #72 (quality gates roadmap) |
-| **Merge Priority** | Anytime (isolated — no source code changes) |
+| **Merge Priority** | **1st — CRITICAL (#117 data-loss) + Security (#121 XSS)** |
 
 ## Goal
 
-Fix CI workflow path detection gaps and efficiency issues: expand the `ui` filter to catch E2E-affecting changes, add `paths-ignore` to expensive workflows for doc-only PRs, add nightly mutation testing schedule, and add actionlint for workflow YAML validation.
+Fix two high-priority issues in admin settings: the sameAsBase ACL data-loss bug in integrations.js (#117, same pattern as the fixed #70), and XSS vulnerability from unescaped metadata interpolation in admin templates (#121).
 
 ## Requirements
 
-### Bug: `ui` filter too narrow in `guardrails.yml`
-The `ui` filter only matches `public/**` and `src/input.css`, missing paths that affect E2E accessibility tests:
-- `tests/e2e/**` — test logic changes
-- `tests/shared/**` — shared Playwright setup
-- `playwright.config.ts` — test config
-- `tailwind.config.js` — utility changes affect rendering → a11y
+### #117 — CRITICAL: ACL data-loss in integrations.js
+Exact same bug as #70 (fixed in PR #116): `sameAsBase` passes `null` to `onApply`, causing `saveAclChanges` to wipe all ACL rules for the tool server.
 
-**Failure scenario:** PR changes only `tests/e2e/frontend/accessibility.spec.ts` → `ui=false` → e2e-accessibility SKIPPED.
+```javascript
+// integrations.js ~line 378
+await onApply(sameAsBase ? null : cloneAclRules(rules), server);
+```
 
-### Efficiency: `codeql.yml` runs on ALL PRs
-CodeQL is the slowest workflow (5-10 min). Runs even on `.md`-only PRs. Add `paths-ignore`.
+Fix: skip `onApply` entirely when `sameAsBase === true`:
+```javascript
+if (sameAsBase) {
+  // No changes — skip save entirely to avoid wiping ACLs
+  return;
+}
+await onApply(cloneAclRules(rules), server);
+```
 
-### Efficiency: `semgrep.yml` runs on ALL PRs
-Semgrep runs on every PR/push including doc-only changes. Add `paths-ignore`.
+### #121 — Security: XSS via unescaped metadata in admin templates
+Model/connection/server `id`, `name`, and other metadata fields interpolated directly into HTML attributes and text content without escaping. A malicious model name like `<img onerror=alert(1) src=x>` would execute when rendered.
 
-### Efficiency: `mutation-testing.yml` only runs weekly
-Mutation regressions can sit in main for up to 7 days. Add nightly schedule.
+**Affected files:**
+- `public/js/features/admin/settings/models.js` — `model.id`, `model.name` in `syncUi()`
+- `public/js/features/admin/settings/connections.js` — connection metadata
+- `public/js/features/admin/settings/integrations.js` — server metadata
 
-### Missing: No actionlint / workflow YAML validation
-No linter validates `.github/workflows/` YAML syntax. A typo could silently break CI.
+Fix: Use the shared `escapeHtml()` utility from `shared/utils/dom-escape.js` for all user-controlled metadata rendered via `innerHTML`. If `escapeHtml()` does not exist, it must be added to the shared utilities and imported wherever metadata is rendered.
 
 ## Implementation Scope
 
-- [x] `.github/workflows/guardrails.yml` — expand `ui` filter:
-  ```yaml
-  ui:
-    - 'public/**'
-    - 'src/input.css'
-    - 'tests/e2e/**'
-    - 'tests/shared/**'
-    - 'playwright.config.ts'
-    - 'tailwind.config.js'
-  ```
-- [x] `.github/workflows/codeql.yml` — add `paths-ignore` for doc-only PRs
-- [x] `.github/workflows/semgrep.yml` — add `paths-ignore` for doc-only PRs
-- [x] `.github/workflows/mutation-testing.yml` — add nightly schedule (`0 2 * * *`)
-- [x] `.github/workflows/guardrails.yml` — add actionlint step for workflow YAML validation
-- [x] `package.json` — add `lint:workflows` script if actionlint is installed
+- [x] `public/js/features/admin/settings/integrations.js` — fix #117: skip onApply when sameAsBase
+- [x] `public/js/features/admin/settings/integrations.js` — fix #121: escape server metadata
+- [x] `public/js/features/admin/settings/models.js` — fix #121: escape model metadata
+- [x] `public/js/features/admin/settings/connections.js` — fix #121: escape connection metadata
+- [x] `public/js/shared/utils/dom-escape.js` — `escapeHtml()` utility already exists
+- [x] Tests for ACL no-op and XSS escaping
 
 ## Acceptance Criteria
 
-1. PR that changes only `tests/e2e/frontend/accessibility.spec.ts` → `ui=true` → e2e-accessibility runs
-2. PR that changes only `.md` files → codeql + semgrep workflows skip
-3. PR that changes `tailwind.config.js` → `ui=true` → e2e-accessibility runs
-4. Nightly mutation test runs at 02:00 UTC in addition to weekly Sunday
-5. Malformed workflow YAML caught by actionlint step in guardrails
-6. All existing tests pass (no source code changes in this branch)
+1. Toggling tool server ACL rules with no changes is a no-op (no API call, ACLs preserved)
+2. Model/connection/server names containing HTML special characters render as text, not as HTML
+3. No `innerHTML` interpolation of user-controlled metadata without escaping
+4. All existing tests pass
 
 ## Technical Constraints
 
-- All changes are workflow YAML + CI config only — no source code changes
-- `paths-ignore` patterns must match the same convention as `guardrails.yml` (`**/*.md`, `LICENSE`, `docs/`)
-- actionlint should run early in the guardrails job (fast, catches config errors before expensive steps)
-- Keep `push: branches: [main]` triggers without `paths-ignore` — main branch should always run full gate
+- Follow same fix pattern as PR #116 (which fixed #70 for models.js)
+- Use shared `escapeHtml()` from `shared/utils/dom-escape.js` for all user-controlled metadata in HTML attribute and text contexts
+- DOMPurify is available for sanitizing full HTML blobs (not used for metadata escaping)
+- Keep changes minimal — don't refactor surrounding code
 
 ## Cross-branch Notes
 
-- **Isolated** — no file overlap with any other worktree
-- Can merge anytime, even alongside WT1 (admin-models-bugs)
-- No source code changes means no risk of merge conflicts with other branches
+- **Must merge BEFORE WT3** (eslint-guardrails) — same admin files refactored later
+- No overlap with WT10 (model-selector-race) — different file scope
+- #69/#70/#71 were fixed in PR #116 but this is a NEW bug (#117) in a DIFFERENT file
