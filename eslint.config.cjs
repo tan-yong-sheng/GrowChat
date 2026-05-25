@@ -188,6 +188,8 @@ module.exports = [
         'src/routers/chat-message-branch.js',
       'src/routers/chat-collection.js',
       'src/routers/auth.js',
+        'src/routers/auth-password-reset.js',
+        'src/routers/auth-register.js',
       'src/routers/files.js',
       'src/routers/rbac.js',
       'src/routers/groups.js',
