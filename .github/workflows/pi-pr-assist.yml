@@ -75,9 +75,11 @@ jobs:
             exit 1
           fi
 
-          echo "repo=$HEAD_REPO" >> "$GITHUB_OUTPUT"
-          echo "sha=$(echo "$PR_DATA" | jq -r '.sha')" >> "$GITHUB_OUTPUT"
-          echo "ref=$(echo "$PR_DATA" | jq -r '.ref')" >> "$GITHUB_OUTPUT"
+          {
+            echo "repo=$HEAD_REPO"
+            echo "sha=$(echo "$PR_DATA" | jq -r '.sha')"
+            echo "ref=$(echo "$PR_DATA" | jq -r '.ref')"
+          } >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

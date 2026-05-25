@@ -2,7 +2,7 @@ import { filterModelsBySearch } from '../utils/model-search.js';
 import { renderButton } from './button.js';
 import { sortModelsByActiveThenName } from '../utils/model-state.js';
 import { escapeHtml } from '../utils/dom-escape.js';
-import { normalizeProviderType, connectionApiTypeDetails } from '../utils/connection-types.js';
+import { normalizeProviderType, connectionApiTypeDetails } from '../utils/connection-helpers.js';
 
 function isCompatibleProviderType(providerType) {
   const raw = normalizeProviderType(providerType);
