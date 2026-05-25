@@ -187,6 +187,7 @@ module.exports = [
         'src/routers/chat-message-send.js',
         'src/routers/chat-message-branch.js',
       'src/routers/chat-collection.js',
+        'src/routers/chat-collection-ops.js',
       'src/routers/auth.js',
         'src/routers/auth-password-reset.js',
         'src/routers/auth-register.js',
