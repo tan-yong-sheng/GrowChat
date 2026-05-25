@@ -12,7 +12,7 @@ import { createAdminAclModalShell } from '../acl-modal.js';
 import { renderButton } from '../../../shared/components/button.js';
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
 import { escapeHtml } from '../../../shared/utils/dom-escape.js';
-import { getAdminModalPreset } from '../modal-shell.js';
+import { getAdminModalPreset, Z_INDEX_CLASSES } from '../modal-shell.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
   normalizeConnectionModelSelectionMode,
@@ -455,6 +455,13 @@ export function renderConnectionsSettings(container, data) {
   const render = () => {
     if (!isActiveTab()) return;
     const isReadOnlyConnection = Boolean(connectionsState.selectedConnection?.readOnly);
+    const standardModalZIndexClass =
+      Z_INDEX_CLASSES[STANDARD_MODAL_PRESET.zIndex] || `z-[${STANDARD_MODAL_PRESET.zIndex}]`;
+    if (!Z_INDEX_CLASSES[STANDARD_MODAL_PRESET.zIndex]) {
+      console.error(
+        `[connections] Unmapped z-index ${STANDARD_MODAL_PRESET.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT generates the CSS. Falling back to z-[${STANDARD_MODAL_PRESET.zIndex}].`
+      );
+    }
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div class="pt-0.5 pb-6 bg-white">
@@ -498,7 +505,7 @@ export function renderConnectionsSettings(container, data) {
       </div>
 
       <!-- Edit Connection Modal -->
-      <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} z-[${STANDARD_MODAL_PRESET.zIndex}] ${connectionsState.showModal ? '' : 'hidden'}">
+      <div id="edit-connection-modal" class="${STANDARD_MODAL_PRESET.outerClass} ${standardModalZIndexClass} ${connectionsState.showModal ? '' : 'hidden'}">
         <div class="${STANDARD_MODAL_PRESET.overlayClass}"></div>
         <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
           <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-gray-50">

@@ -1,5 +1,6 @@
 import { formatRelativeTime } from '../utils/time-grouping.js';
 import { escapeHtml } from '../utils.js';
+import { setupDropdownKeyboard } from '../utils/dropdown-keyboard.js';
 
 export function createChatRow(chat, handlers) {
   const isPinned = Number(chat.pinned) === 1;
@@ -170,40 +171,7 @@ export function createChatRow(chat, handlers) {
     dropdown.classList.add('hidden');
   });
 
-  // Add keyboard navigation to menu items
-  const menuItemElements = dropdown.querySelectorAll('button[data-action]');
-  menuItemElements.forEach((item, index) => {
-    item.setAttribute('role', 'menuitem');
-    item.setAttribute('tabindex', '-1');
-
-    item.addEventListener('keydown', (e) => {
-      switch (e.key) {
-        case 'ArrowDown': {
-          e.preventDefault();
-          const nextItem = menuItemElements[index + 1];
-          if (nextItem) nextItem.focus();
-          break;
-        }
-
-        case 'ArrowUp': {
-          e.preventDefault();
-          const prevItem = menuItemElements[index - 1];
-          if (prevItem) prevItem.focus();
-          break;
-        }
-
-        case 'Escape':
-          e.preventDefault();
-          dropdown.classList.add('hidden');
-          break;
-
-        case 'Tab':
-          e.preventDefault();
-          dropdown.classList.add('hidden');
-          break;
-      }
-    });
-  });
+  setupDropdownKeyboard(dropdown, 'button[data-action]');
 
   return element;
 }

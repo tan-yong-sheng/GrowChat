@@ -3,21 +3,13 @@
  * Shown when user clicks verification link in email
  */
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 /**
  * Render verification success page
  * @param {Object} options - Options
  * @param {Function} options.onContinue - Called when user clicks continue
  * @returns {HTMLElement} Container element
  */
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 export function renderVerificationSuccess({ onContinue }) {
   const container = document.createElement('div');
   container.className = 'min-h-screen flex items-center justify-center bg-gray-50';

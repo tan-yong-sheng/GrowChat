@@ -14,6 +14,7 @@
     "validate:migrations": "node scripts/validate-migrations.js",
     "check:mutation": "stryker run",
     "snapshots:clean": "node scripts/cleanup-snapshots.js",
+    "snapshots:audit": "node scripts/audit-snapshots.js .",
     "check:performance": "lhci autorun",
     "test": "vitest run",
     "test:watch": "vitest",

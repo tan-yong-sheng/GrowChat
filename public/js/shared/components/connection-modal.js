@@ -1,13 +1,8 @@
 import { filterModelsBySearch } from '../utils/model-search.js';
 import { renderButton } from './button.js';
 import { sortModelsByActiveThenName } from '../utils/model-state.js';
-function normalizeProviderType(value) {
-  return (
-    String(value || '')
-      .trim()
-      .toLowerCase() || 'openai'
-  );
-}
+import { escapeHtml } from '../utils/dom-escape.js';
+import { normalizeProviderType, connectionApiTypeDetails } from '../utils/connection-helpers.js';
 
 function isCompatibleProviderType(providerType) {
   const raw = normalizeProviderType(providerType);
@@ -59,45 +54,11 @@ function resolveKeyLabel() {
   return 'API Key';
 }
 
-function connectionApiTypeDetails(providerType) {
-  switch (normalizeProviderType(providerType)) {
-    case 'google':
-    case 'gemini-compatible':
-      return {
-        value: 'stream-generate-content',
-        label: 'Gemini Stream Generate Content',
-        endpoint: 'Uses /v1beta/models/:model:streamGenerateContent?alt=sse',
-      };
-    case 'anthropic':
-    case 'claude-compatible':
-      return {
-        value: 'messages',
-        label: 'Messages',
-        endpoint: 'Uses /v1/messages',
-      };
-    default:
-      return {
-        value: 'chat-completions',
-        label: 'Chat Completions',
-        endpoint: 'Uses /v1/chat/completions',
-      };
-  }
-}
-
 const STANDARD_MODAL_PRESET = {
   outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
   overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
   zIndex: 150,
 };
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 function formatHeadersValue(headers) {
   if (

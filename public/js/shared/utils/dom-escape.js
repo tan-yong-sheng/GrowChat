@@ -32,3 +32,23 @@ export function escapeHtml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
+
+/**
+ * Escape HTML special characters except single quotes.
+ *
+ * Use this in markdown/content rendering pipelines where
+ * DOMPurify handles the final output and apostrophes must
+ * remain as literal characters (e.g. after decodeHtmlEntities).
+ * The full escapeHtml would re-encode decoded apostrophes
+ * back to &#39;, breaking the decode-then-render flow.
+ *
+ * @param {string} value - The string to escape
+ * @returns {string} The escaped string (apostrophes preserved)
+ */
+export function escapeHtmlLoose(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}

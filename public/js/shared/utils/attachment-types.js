@@ -33,53 +33,36 @@ export const TEXT_LIKE_ACCEPT_TYPES = [
   'application/typescript',
 ];
 
+const MIME_ENTRIES = [
+  ['css', 'text/css'],
+  ['csv', 'text/csv'],
+  ['gif', 'image/gif'],
+  ['html', 'text/html'],
+  ['jpeg', 'image/jpeg'],
+  ['jpg', 'image/jpeg'],
+  ['js', 'application/javascript'],
+  ['json', 'application/json'],
+  ['json5', 'application/json5'],
+  ['md', 'text/markdown'],
+  ['ndjson', 'application/x-ndjson'],
+  ['pdf', 'application/pdf'],
+  ['png', 'image/png'],
+  ['py', 'text/x-python'],
+  ['ts', 'application/typescript'],
+  ['tsv', 'text/tsv'],
+  ['txt', 'text/plain'],
+  ['webp', 'image/webp'],
+  ['xml', 'application/xml'],
+  ['yaml', 'application/yaml'],
+  ['yml', 'application/yaml'],
+];
+
+const extToMime = new Map(MIME_ENTRIES);
+
 export function inferContentTypeFromName(name) {
   const lower = String(name || '').toLowerCase();
-  const ext = lower.includes('.') ? lower.split('.').pop() : '';
-  switch (ext) {
-    case 'png':
-      return 'image/png';
-    case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg';
-    case 'webp':
-      return 'image/webp';
-    case 'gif':
-      return 'image/gif';
-    case 'pdf':
-      return 'application/pdf';
-    case 'txt':
-      return 'text/plain';
-    case 'md':
-      return 'text/markdown';
-    case 'csv':
-      return 'text/csv';
-    case 'tsv':
-      return 'text/tsv';
-    case 'json':
-      return 'application/json';
-    case 'json5':
-      return 'application/json5';
-    case 'ndjson':
-      return 'application/x-ndjson';
-    case 'yml':
-    case 'yaml':
-      return 'application/yaml';
-    case 'xml':
-      return 'application/xml';
-    case 'js':
-      return 'application/javascript';
-    case 'ts':
-      return 'application/typescript';
-    case 'html':
-      return 'text/html';
-    case 'css':
-      return 'text/css';
-    case 'py':
-      return 'text/x-python';
-    default:
-      return '';
-  }
+  const ext = lower.includes('.') ? lower.split('.').pop() : lower;
+  return extToMime.get(ext) || '';
 }
 
 export function getFileContentType(file) {

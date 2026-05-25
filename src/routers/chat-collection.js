@@ -20,6 +20,22 @@ async function publishRealtimeNow(env, event) {
   }
 }
 
+async function reloadAndPublishChat(req, db, env, user, chatId, originSessionId) {
+  const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
+  const updated = updatedOwned.chat || null;
+  await publishRealtimeNow(
+    env,
+    createRealtimeEvent({
+      type: 'chat.updated',
+      userId: user.sub,
+      chatId,
+      originSessionId,
+      data: { chat: updated },
+    })
+  );
+  return json(req, { chat: updated });
+}
+
 export async function chatCollectionRouter(req, env, user, path, originSessionId) {
   const db = createDB(env.DB);
 
@@ -249,21 +265,8 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         [title || 'New Chat', pinned, chatId, user.sub]
       );
 
-      const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
-      const updated = updatedOwned.chat || null;
-      await publishRealtimeNow(
-        env,
-        createRealtimeEvent({
-          type: 'chat.updated',
-          userId: user.sub,
-          chatId,
-          originSessionId,
-          data: { chat: updated },
-        })
-      );
-      return json(req, { chat: updated });
+      return reloadAndPublishChat(req, db, env, user, chatId, originSessionId);
     }
-
     if (req.method === 'DELETE') {
       const authDecision = await authorize(env, user, {
         action: 'chat.delete',
@@ -324,20 +327,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       [nextPinned, chatId, user.sub]
     );
 
-    const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
-    const updated = updatedOwned.chat || null;
-    await publishRealtimeNow(
-      env,
-      createRealtimeEvent({
-        type: 'chat.updated',
-        userId: user.sub,
-        chatId,
-        originSessionId,
-        data: { chat: updated },
-      })
-    );
-
-    return json(req, { chat: updated });
+    return reloadAndPublishChat(req, db, env, user, chatId, originSessionId);
   }
 
   const cloneMatch = path.match(/^\/api\/chats\/([^/]+)\/clone$/);

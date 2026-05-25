@@ -360,6 +360,22 @@ describe('admin connections modal', () => {
     expect(lastPutBody.access_updates).toEqual([]);
   });
 
+  it('renders the edit-connection modal with a z-index class from Z_INDEX_CLASSES', async () => {
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    renderConnectionsSettings(container, {});
+    await vi.waitFor(() =>
+      expect(mocks.apiFetch).toHaveBeenCalledWith(
+        '/api/admin/openai/connections?include_disabled=1'
+      )
+    );
+    container.querySelector('#add-connection')?.click();
+    const modal = container.querySelector('#edit-connection-modal');
+    expect(modal).not.toBeNull();
+    // STANDARD_MODAL_PRESET.zIndex is 150; the resolved class should be z-[150]
+    expect(modal.className).toContain('z-[150]');
+  });
+
   it('keeps disabled connections visible on reload', async () => {
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       if (String(url).includes('/api/admin/openai/connections')) {
