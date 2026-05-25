@@ -1,75 +1,52 @@
-# Git Worktree Spec: fix/ci-workflow-paths
+# Git Worktree Spec: fix/model-selector-race
 
 | Field | Value |
 |---|---|
-| **Source Reference** | https://github.com/tan-yong-sheng/GrowChat/issues/113 |
-| **Branch** | `fix/ci-workflow-paths` |
+| **Source Reference** | https://github.com/tan-yong-sheng/GrowChat/issues/122 |
+| **Branch** | `fix/model-selector-race` |
 | **Parent** | #72 (quality gates roadmap) |
-| **Merge Priority** | Anytime (isolated — no source code changes) |
+| **Merge Priority** | Anytime (low-severity race, self-correcting) |
 
 ## Goal
 
-Fix CI workflow path detection gaps and efficiency issues: expand the `ui` filter to catch E2E-affecting changes, add `paths-ignore` to expensive workflows for doc-only PRs, add nightly mutation testing schedule, and add actionlint for workflow YAML validation.
+Fix the race condition in `model-selector-controller.js` where `ensureModelsLoaded()` bypasses the `modelsCacheGeneration` staleness guard, allowing a stale fetch response to briefly overwrite an invalidation reset.
 
 ## Requirements
 
-### Bug: `ui` filter too narrow in `guardrails.yml`
-The `ui` filter only matches `public/**` and `src/input.css`, missing paths that affect E2E accessibility tests:
-- `tests/e2e/**` — test logic changes
-- `tests/shared/**` — shared Playwright setup
-- `playwright.config.ts` — test config
-- `tailwind.config.js` — utility changes affect rendering → a11y
+### #122 — Model-selector race condition
 
-**Failure scenario:** PR changes only `tests/e2e/frontend/accessibility.spec.ts` → `ui=false` → e2e-accessibility SKIPPED.
+`chat/model-selector-controller.js`'s `ensureModelsLoaded()` fires `fetchModels()` directly without the `modelsCacheGeneration` guard used by `session-bootstrap.js`'s `prefetchModels()`.
 
-### Efficiency: `codeql.yml` runs on ALL PRs
-CodeQL is the slowest workflow (5-10 min). Runs even on `.md`-only PRs. Add `paths-ignore`.
+**Race scenario:**
+1. T0: User opens dropdown → `ensureModelsLoaded()` fires `fetchModels()` — Request A
+2. T1: Model invalidation fires → `modelsCacheGeneration` incremented → `prefetchModels({force:true})` fires — Request B
+3. T2: Request A returns (stale) → overwrites the reset state
+4. T3: Request B returns (fresh) → corrects the state
 
-### Efficiency: `semgrep.yml` runs on ALL PRs
-Semgrep runs on every PR/push including doc-only changes. Add `paths-ignore`.
+The ~50-200ms window at T2 shows stale models. It self-corrects but causes a visual flicker.
 
-### Efficiency: `mutation-testing.yml` only runs weekly
-Mutation regressions can sit in main for up to 7 days. Add nightly schedule.
-
-### Missing: No actionlint / workflow YAML validation
-No linter validates `.github/workflows/` YAML syntax. A typo could silently break CI.
+**Fix:** Make `ensureModelsLoaded()` check `modelsCacheGeneration` before and after the fetch, discarding stale responses the same way `prefetchModels()` does.
 
 ## Implementation Scope
 
-- [x] `.github/workflows/guardrails.yml` — expand `ui` filter:
-  ```yaml
-  ui:
-    - 'public/**'
-    - 'src/input.css'
-    - 'tests/e2e/**'
-    - 'tests/shared/**'
-    - 'playwright.config.ts'
-    - 'tailwind.config.js'
-  ```
-- [x] `.github/workflows/codeql.yml` — add `paths-ignore` for doc-only PRs
-- [x] `.github/workflows/semgrep.yml` — add `paths-ignore` for doc-only PRs
-- [x] `.github/workflows/mutation-testing.yml` — add nightly schedule (`0 2 * * *`)
-- [x] `.github/workflows/guardrails.yml` — add actionlint step for workflow YAML validation
-- [x] `package.json` — add `lint:workflows` script if actionlint is installed
+- [x] `public/js/features/chat/model-selector-controller.js` — add `modelsCacheGeneration` check to `ensureModelsLoaded()`
+- [x] Test for race condition (verify stale response is discarded)
 
 ## Acceptance Criteria
 
-1. PR that changes only `tests/e2e/frontend/accessibility.spec.ts` → `ui=true` → e2e-accessibility runs
-2. PR that changes only `.md` files → codeql + semgrep workflows skip
-3. PR that changes `tailwind.config.js` → `ui=true` → e2e-accessibility runs
-4. Nightly mutation test runs at 02:00 UTC in addition to weekly Sunday
-5. Malformed workflow YAML caught by actionlint step in guardrails
-6. All existing tests pass (no source code changes in this branch)
+1. Stale fetch responses from `ensureModelsLoaded()` are discarded
+2. No visual flicker when model invalidation occurs during dropdown open
+3. Model dropdown always shows fresh data after invalidation
+4. All existing tests pass
 
 ## Technical Constraints
 
-- All changes are workflow YAML + CI config only — no source code changes
-- `paths-ignore` patterns must match the same convention as `guardrails.yml` (`**/*.md`, `LICENSE`, `docs/`)
-- actionlint should run early in the guardrails job (fast, catches config errors before expensive steps)
-- Keep `push: branches: [main]` triggers without `paths-ignore` — main branch should always run full gate
+- Follow the existing `modelsCacheGeneration` pattern from `session-bootstrap.js`
+- Don't add locking — the generation counter approach is sufficient
+- Keep changes minimal — only modify `ensureModelsLoaded()` and its call chain
 
 ## Cross-branch Notes
 
-- **Isolated** — no file overlap with any other worktree
-- Can merge anytime, even alongside WT1 (admin-models-bugs)
-- No source code changes means no risk of merge conflicts with other branches
+- **Isolated** — only touches `model-selector-controller.js`
+- No overlap with any other worktree
+- Can merge anytime

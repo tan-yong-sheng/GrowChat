@@ -93,6 +93,10 @@ let modelsPrefetchPromise = null;
 let modelsInvalidationListenerBound = false;
 let modelsCacheGeneration = 0;
 
+export function getModelsCacheGeneration() {
+  return modelsCacheGeneration;
+}
+
 function scheduleModelsPrefetch(options = {}) {
   const run = () => {
     prefetchModels(options);
