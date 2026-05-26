@@ -37,6 +37,7 @@
     "lint:dupes": "jscpd public/js",
     "lint:dupes:budget": "node scripts/check-jscpd-budgets.js",
     "lint:dupes:scoped": "node scripts/run-scoped-guardrails.js --jscpd",
+    "lint:design": "npx @google/design.md lint DESIGN.md",
     "lint:hygiene": "pnpm exec knip --include files,dependencies,binaries",
     "lint:workflows": "github-actionlint",
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
