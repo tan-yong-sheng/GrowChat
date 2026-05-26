@@ -1,12 +1,29 @@
+import { escapeHtml } from '../utils/dom-escape.js';
 import { renderButton } from './button.js';
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+function focusAndSelectInput(input, snapshot) {
+  if (!input) return;
+  try {
+    input.focus({ preventScroll: true });
+  } catch {
+    input.focus();
+  }
+  const len = input.value.length;
+  const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
+  const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
+  try {
+    input.setSelectionRange(start, end);
+  } catch {
+    // Ignore selection restore errors for browsers that do not support it.
+  }
+}
+
+function scheduleRenderTask(task) {
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => requestAnimationFrame(task));
+    return;
+  }
+  setTimeout(task, 0);
 }
 
 export function renderSearchBarHtml({
@@ -61,27 +78,10 @@ export function restoreSearchInputState(container, inputId, snapshot) {
   if (!snapshot?.isFocused || !container || !inputId) return;
   const focusInput = () => {
     const input = container.querySelector(`#${inputId}`);
-    if (!input) return;
-    try {
-      input.focus({ preventScroll: true });
-    } catch {
-      input.focus();
-    }
-    const len = input.value.length;
-    const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
-    const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
-    try {
-      input.setSelectionRange(start, end);
-    } catch {
-      // Ignore selection restore errors for browsers that do not support it.
-    }
+    focusAndSelectInput(input, snapshot);
   };
 
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => requestAnimationFrame(focusInput));
-    return;
-  }
-  setTimeout(focusInput, 0);
+  scheduleRenderTask(focusInput);
 }
 
 function escapeSelectorValue(value) {
@@ -134,20 +134,7 @@ export function restoreRenderState(
     const targetId = inputId || snapshot.inputId;
     if (!targetId) return;
     const input = container.querySelector(`#${escapeSelectorValue(targetId)}`);
-    if (!input) return;
-    try {
-      input.focus({ preventScroll: true });
-    } catch {
-      input.focus();
-    }
-    const len = input.value.length;
-    const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
-    const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
-    try {
-      input.setSelectionRange(start, end);
-    } catch {
-      // Ignore selection restore errors for browsers that do not support it.
-    }
+    focusAndSelectInput(input, snapshot);
   };
 
   const run = () => {
@@ -155,9 +142,5 @@ export function restoreRenderState(
     restoreScroll();
   };
 
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => requestAnimationFrame(run));
-    return;
-  }
-  setTimeout(run, 0);
+  scheduleRenderTask(run);
 }

@@ -1,3 +1,4 @@
+import { ruleMatchesPrincipal, buildIdFilterClause } from './acl-shared.js';
 import { createRootLogger } from './logger.js';
 const logger = createRootLogger({});
 
@@ -76,14 +77,6 @@ export function buildModelAclIndex(rules = []) {
     index.get(normalized.model_id).push(normalized);
   }
   return index;
-}
-
-function ruleMatchesPrincipal(rule, userId, userGroupIds) {
-  if (!rule) return false;
-  if (rule.principal_type === 'user') {
-    return String(rule.principal_id || '') === String(userId || '');
-  }
-  return userGroupIds instanceof Set && userGroupIds.has(String(rule.principal_id || ''));
 }
 
 function isModelAclActionRelevant(action) {
@@ -219,15 +212,6 @@ export function buildModelAclRuleSaveStatements(
     );
   }
   return { canonicalModelId, normalized, statements };
-}
-
-function buildIdFilterClause(columnName, ids = []) {
-  const values = expandModelAclResourceIds(ids);
-  if (!values.length) return null;
-  return {
-    clause: `${columnName} IN (${values.map(() => '?').join(', ')})`,
-    values,
-  };
 }
 
 export async function loadModelAclRules(db, modelId = null, modelIds = null) {

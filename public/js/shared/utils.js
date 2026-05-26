@@ -2,12 +2,7 @@ import { renderMarkdownContent } from './markdown-renderer.js';
 
 export { ensureMarkedReady } from './markdown-renderer.js';
 
-export function escapeHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
+export { escapeHtml, escapeHtmlLoose } from './utils/dom-escape.js';
 
 export function renderMessageContent(content, options = {}) {
   if (!content)

@@ -3,16 +3,8 @@
  * Shown after successful registration when email verification is required
  */
 
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 const COOLDOWN_SECONDS = 60;
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 /**
  * Render the "Check Your Email" verification pending screen

@@ -1,13 +1,5 @@
+import { escapeHtml } from '../utils/dom-escape.js';
 import { formatDate } from '../utils.js';
-
-function escapeHtml(text) {
-  return String(text ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 export function highlightText(text, query) {
   const escapedText = escapeHtml(text);

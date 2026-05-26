@@ -491,4 +491,91 @@ describe('admin models settings', () => {
     // Verify broadcastModelsInvalidation was called on the no-op sameAsBase path
     expect(mocks.broadcastModelsInvalidation).toHaveBeenCalled();
   });
+
+  it('escapes model names containing HTML special characters (#121 XSS)', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    mocks.apiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith('/api/admin/models?')) {
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'xss-model',
+                name: '<img onerror=alert(1) src=x>',
+                enabled: true,
+                access_label: 'Admin',
+                access_variant: 'admin',
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 1,
+            active_total: 1,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    renderModelsSettings(container, data);
+    await vi.waitFor(() => expect(container.textContent).toContain('<img onerror=alert(1) src=x>'));
+    expect(container.querySelector('img')).toBeNull();
+    const row = container.querySelector('[data-model-row]');
+    expect(row).not.toBeNull();
+    expect(row.getAttribute('data-model-row')).toBe('xss-model');
+    const nameCell = row.querySelector('td.font-medium');
+    expect(nameCell).not.toBeNull();
+    expect(nameCell.getAttribute('title')).toBe('<img onerror=alert(1) src=x>');
+  });
+  it('escapes model IDs with quote-bearing payloads in data attributes (#121 XSS attr)', async () => {
+    const { renderModelsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+
+    mocks.apiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith('/api/admin/models?')) {
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: 'xss" data-pwned="1',
+                name: 'safe-model-name',
+                enabled: true,
+                access_label: 'Admin',
+                access_variant: 'admin',
+                attachments: { image: false, pdf: false },
+              },
+            ],
+            total: 1,
+            active_total: 1,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    renderModelsSettings(container, data);
+
+    await vi.waitFor(() => expect(container.querySelector('[data-model-row]')).not.toBeNull());
+
+    // No injected attributes from quote-bearing model.id
+    expect(container.querySelector('[data-pwned]')).toBeNull();
+    expect(container.querySelector('[onerror]')).toBeNull();
+
+    // The data-model-row attribute should be the escaped model.id
+    const row = container.querySelector('[data-model-row]');
+    expect(row?.getAttribute('data-model-row')).toBe('xss" data-pwned="1');
+
+    // The data-model-acl attribute should also be the escaped model.id
+    const aclBtn = container.querySelector('[data-model-acl]');
+    expect(aclBtn?.getAttribute('data-model-acl')).toBe('xss" data-pwned="1');
+  });
 });

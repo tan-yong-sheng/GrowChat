@@ -1,18 +1,21 @@
+import { escapeHtml } from '../utils/dom-escape.js';
 import { renderButton } from './button.js';
-
-function escapeHtml(value = '') {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 /**
  * Renders a section header with title, subtitle, and optional action button
  * Used consistently across admin and account settings pages
  */
+function renderDismissButton({ dataAttr, colorClass }) {
+  return `<button type="button" ${dataAttr} class="${colorClass} transition"
+    aria-label="Dismiss"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+      stroke-width="1.5" stroke="currentColor" class="size-4">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+  </button>`;
+}
+
 export function renderSectionHeader({
   title = '',
   subtitle = '',
@@ -96,18 +99,10 @@ export function renderErrorBanner({ message = '', dismissible = true } = {}) {
       <span>${message}</span>
       ${
         dismissible
-          ? `
-        <button
-          type="button"
-          data-dismiss-error
-          class="text-red-400 hover:text-red-600 transition"
-          aria-label="Dismiss"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </button>
-      `
+          ? renderDismissButton({
+              dataAttr: 'data-dismiss-error',
+              colorClass: 'text-red-400 hover:text-red-600',
+            })
           : ''
       }
     </div>
@@ -123,18 +118,10 @@ export function renderSuccessBanner({ message = '', dismissible = true } = {}) {
       <span>${message}</span>
       ${
         dismissible
-          ? `
-        <button
-          type="button"
-          data-dismiss-success
-          class="text-emerald-400 hover:text-emerald-600 transition"
-          aria-label="Dismiss"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </button>
-      `
+          ? renderDismissButton({
+              dataAttr: 'data-dismiss-success',
+              colorClass: 'text-emerald-400 hover:text-emerald-600',
+            })
           : ''
       }
     </div>

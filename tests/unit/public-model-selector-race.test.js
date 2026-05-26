@@ -8,28 +8,38 @@ vi.mock('../../public/js/shared/utils.js', () => ({
 
 vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: vi.fn(),
+  readModelsCache: vi.fn(() => null),
 }));
 
 describe('model-selector race condition', () => {
+  let fetchModelsResolve = null;
+  let fetchModelsCallCount = 0;
+
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>';
     localStorage.clear();
     vi.restoreAllMocks();
+    fetchModelsResolve = null;
+    fetchModelsCallCount = 0;
   });
 
   it('ensureModelsLoaded discards stale response after invalidation', async () => {
     let modelsCacheGeneration = 0;
-    let prefetchResolve = null;
-    let prefetchCallCount = 0;
 
-    // Mock session-bootstrap with a controllable prefetchModels
-    vi.doMock('../../public/js/bootstrap/session-bootstrap.js', () => ({
-      prefetchModels: () => {
-        prefetchCallCount++;
+    // Mock fetchModels with a controllable promise
+    vi.doMock('../../public/js/shared/api.js', () => ({
+      apiFetch: vi.fn(),
+      readModelsCache: vi.fn(() => null),
+      fetchModels: () => {
+        fetchModelsCallCount++;
         return new Promise((resolve) => {
-          prefetchResolve = resolve;
+          fetchModelsResolve = resolve;
         });
       },
+    }));
+
+    // Mock session-bootstrap with controllable getModelsCacheGeneration
+    vi.doMock('../../public/js/bootstrap/session-bootstrap.js', () => ({
       getModelsCacheGeneration: () => modelsCacheGeneration,
     }));
 
@@ -54,15 +64,15 @@ describe('model-selector race condition', () => {
     // Open dropdown — triggers ensureModelsLoaded()
     container.querySelector('#model-selector-btn').click();
 
-    // Wait for ensureModelsLoaded to call prefetchModels
-    await vi.waitFor(() => expect(prefetchCallCount).toBe(1));
+    // Wait for ensureModelsLoaded to call fetchModels
+    await vi.waitFor(() => expect(fetchModelsCallCount).toBe(1));
 
     // Simulate invalidation: increment generation (like checkModelsInvalidation does)
     modelsCacheGeneration += 1;
 
-    // Now resolve the stale prefetch with old model data
+    // Now resolve the stale fetchModels with old model data
     const staleModels = [{ id: 'stale-model', name: 'Stale Model' }];
-    prefetchResolve({ models: staleModels, visibility: null });
+    fetchModelsResolve({ models: staleModels, visibility: null });
 
     // Allow microtask queue to flush
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -74,21 +84,24 @@ describe('model-selector race condition', () => {
     destroy();
   });
 
-  it('ensureModelsLoaded allows prefetchModels to apply state when generation is unchanged', async () => {
-    let prefetchResolve = null;
-    let prefetchCallCount = 0;
-    let prefetchAppliedState = false;
+  it('ensureModelsLoaded applies fresh response when generation is unchanged', async () => {
+    let fetchAppliedState = false;
 
-    vi.doMock('../../public/js/bootstrap/session-bootstrap.js', () => ({
-      prefetchModels: () => {
-        prefetchCallCount++;
+    vi.doMock('../../public/js/shared/api.js', () => ({
+      apiFetch: vi.fn(),
+      readModelsCache: vi.fn(() => null),
+      fetchModels: () => {
+        fetchModelsCallCount++;
         return new Promise((resolve) => {
-          prefetchResolve = (data) => {
-            prefetchAppliedState = true;
+          fetchModelsResolve = (data) => {
+            fetchAppliedState = true;
             resolve(data);
           };
         });
       },
+    }));
+
+    vi.doMock('../../public/js/bootstrap/session-bootstrap.js', () => ({
       getModelsCacheGeneration: () => 0,
     }));
 
@@ -112,19 +125,18 @@ describe('model-selector race condition', () => {
     // Open dropdown — triggers ensureModelsLoaded()
     container.querySelector('#model-selector-btn').click();
 
-    await vi.waitFor(() => expect(prefetchCallCount).toBe(1));
+    await vi.waitFor(() => expect(fetchModelsCallCount).toBe(1));
 
     // Resolve with fresh data (generation unchanged)
     const freshModels = [{ id: 'fresh-model', name: 'Fresh Model' }];
-    prefetchResolve({ models: freshModels, visibility: null });
+    fetchModelsResolve({ models: freshModels, visibility: null });
 
     // Allow microtask queue to flush
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // When generation is unchanged, ensureModelsLoaded should NOT early-return
-    // after prefetchModels resolves — it should let the normal flow continue.
-    // prefetchModels was awaited and completed without being discarded.
-    expect(prefetchAppliedState).toBe(true);
+    // after fetchModels resolves — it should let the normal flow continue.
+    expect(fetchAppliedState).toBe(true);
 
     destroy();
   });
@@ -144,7 +156,7 @@ describe('model-selector race condition', () => {
       loadingPromiseBuggy = (async () => {
         const mod = await Promise.reject(new Error('import failed'));
         try {
-          await mod.prefetchModels();
+          await mod.fetchModels();
         } catch (err) {
           console.error(err);
         } finally {
@@ -153,11 +165,10 @@ describe('model-selector race condition', () => {
       })();
       return loadingPromiseBuggy;
     };
+
     try {
       await buggyPattern();
-    } catch (_e) {
-      /* expected: import rejection */
-    }
+    } catch (_e) { /* expected: import rejection */ }
     expect(loadingPromiseBuggy).not.toBeNull(); // BUG: stuck promise
 
     // Pattern 2 (FIXED): import inside try — finally always runs
@@ -170,7 +181,7 @@ describe('model-selector race condition', () => {
           const mod = await Promise.reject(new Error('import failed'));
           getGen = mod.getModelsCacheGeneration;
           reqGen = getGen();
-          await mod.prefetchModels();
+          await mod.fetchModels();
           if (reqGen !== getGen()) return;
         } catch (err) {
           if (getGen && reqGen !== undefined && reqGen !== getGen()) return;
@@ -181,11 +192,10 @@ describe('model-selector race condition', () => {
       })();
       return loadingPromiseFixed;
     };
+
     try {
       await fixedPattern();
-    } catch (_e) {
-      /* expected: import rejection */
-    }
+    } catch (_e) { /* expected: import rejection */ }
     expect(loadingPromiseFixed).toBeNull(); // FIXED: promise cleared
   });
 });

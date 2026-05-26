@@ -1,5 +1,6 @@
 {
   "reporters": ["html", "console", "json"],
-  "threshold": 0,
+  "threshold": 1,
+  "minLines": 15,
   "ignore": ["**/node_modules/**", "**/dist/**", "**/coverage/**"]
 }

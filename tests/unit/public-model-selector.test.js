@@ -9,6 +9,8 @@ vi.mock('../../public/js/shared/utils.js', () => ({
 
 vi.mock('../../public/js/shared/api.js', () => ({
   apiFetch: vi.fn(),
+  fetchModels: vi.fn(),
+  readModelsCache: vi.fn(() => null),
 }));
 
 async function loadModules() {
@@ -155,6 +157,87 @@ describe('model selector', () => {
       'Your previous model was disabled by an admin. Switched to Claude.'
     );
     expect(container.querySelector('#model-selector-notice').className).not.toContain('hidden');
+    destroy();
+  });
+
+  it('preserves modelCatalogMeta when falling back to readModelsCache on fetch failure', async () => {
+    const { store, renderModelSelector } = await loadModules();
+    const container = document.getElementById('root');
+
+    // Set empty models so ensureModelsLoaded will attempt a fetch
+    store.setState({
+      models: [],
+      modelsLoading: false,
+      activeModelId: null,
+      defaultModelId: null,
+      globalDefaultModelId: null,
+      modelCatalogMeta: null,
+    });
+
+    const destroy = renderModelSelector(container);
+
+    // Now set up mocks (after loadModules which calls vi.resetModules)
+    const { fetchModels, readModelsCache } = await import('../../public/js/shared/api.js');
+    fetchModels.mockRejectedValueOnce(new Error('Network error'));
+    readModelsCache.mockReturnValueOnce({
+      models: [
+        { id: 'cached-1', name: 'Cached Model', enabled: true },
+        { id: 'cached-2', name: 'Disabled Model', enabled: false },
+      ],
+      visibility: {
+        disabled_model_ids: ['cached-2'],
+        hidden_model_ids: [],
+      },
+    });
+
+    // Simulate opening the dropdown -> triggers toggle() -> ensureModelsLoaded()
+    container.querySelector('#model-selector-btn').click();
+
+    // Wait for async ensureModelsLoaded to complete (fetch -> catch -> cache fallback)
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // The cache fallback should have set modelCatalogMeta from cached.visibility
+    expect(store.state.modelCatalogMeta).toEqual({
+      disabled_model_ids: ['cached-2'],
+      hidden_model_ids: [],
+    });
+    expect(store.state.modelsLoading).toBe(false);
+
+    destroy();
+  });
+
+  it('skips fetch when models are already loaded (deduplication guard)', async () => {
+    // Set up mock BEFORE loadModules so it's active during initial render
+    const { fetchModels } = await import('../../public/js/shared/api.js');
+    fetchModels.mockRejectedValueOnce(new Error('Should not be called'));
+
+    const { store, renderModelSelector } = await loadModules();
+    const container = document.getElementById('root');
+
+    // Simulate models already loaded by bootstrap
+    store.setState({
+      models: [{ id: 'm1', name: 'GPT Mini' }],
+      modelsLoading: false,
+      activeModelId: 'm1',
+      defaultModelId: null,
+      globalDefaultModelId: null,
+      modelCatalogMeta: null,
+    });
+
+    const destroy = renderModelSelector(container);
+
+    // Reset the mock to track calls from this point
+    fetchModels.mockClear();
+    fetchModels.mockRejectedValueOnce(new Error('Should not be called'));
+
+    // Open the dropdown -> toggle() -> ensureModelsLoaded()
+    container.querySelector('#model-selector-btn').click();
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // fetchModels should NOT have been called — models already exist
+    expect(fetchModels).not.toHaveBeenCalled();
+
     destroy();
   });
 });

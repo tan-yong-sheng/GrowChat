@@ -58,3 +58,14 @@ The ~50-200ms window at T2 shows stale models. It self-corrects but causes a vis
 - **Isolated** — only touches `model-selector-controller.js`
 - No overlap with any other worktree
 - Can merge anytime
+
+- Follow same fix pattern as PR #116 (which fixed #70 for models.js)
+- Use shared `escapeHtml()` from `shared/utils/dom-escape.js` for all user-controlled metadata in HTML attribute and text contexts
+- DOMPurify is available for sanitizing full HTML blobs (not used for metadata escaping)
+- Keep changes minimal — don't refactor surrounding code
+
+## Cross-branch Notes
+
+- **Must merge BEFORE WT3** (eslint-guardrails) — same admin files refactored later
+- No overlap with WT10 (model-selector-race) — different file scope
+- #69/#70/#71 were fixed in PR #116 but this is a NEW bug (#117) in a DIFFERENT file

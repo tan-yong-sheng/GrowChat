@@ -1109,4 +1109,59 @@ describe('usersRouter', () => {
     });
     expect(mocks.db.run).not.toHaveBeenCalled();
   });
+
+  describe('admin user list with search', () => {
+    it('uses aliased table name in count query when filtering by search', async () => {
+      mocks.authorize.mockResolvedValueOnce({ allow: true });
+      mocks.db.first.mockResolvedValueOnce({ count: 1 });
+      mocks.db.all.mockResolvedValueOnce([
+        {
+          id: 'u2',
+          email: 'ada@example.com',
+          name: 'Ada',
+          account_status: 'active',
+          settings: null,
+          created_at: 1000,
+          updated_at: 1000,
+          last_active_at: null,
+          primary_role: 'member',
+        },
+      ]);
+      const res = await usersRouter(
+        makeReq('/api/admin/users?q=ada', 'GET'),
+        env,
+        {},
+        { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+        '/api/admin/users'
+      );
+      expect(res.status).toBe(200);
+      // Verify the count query uses the 'u' alias: 'FROM users u' not 'FROM users'
+      const countCall = mocks.db.first.mock.calls[0];
+      const countSql = countCall[0];
+      // The bug: countSql = "SELECT COUNT(*) as count FROM users" + " WHERE u.email LIKE ?"
+      // This fails in D1 because 'users' has no alias 'u'
+      // The fix: countSql should use 'FROM users u' so the WHERE clause works
+      expect(countSql).toContain('FROM users u');
+      expect(countSql).toContain('WHERE u.email LIKE');
+    });
+
+    it('works without search query (no WHERE clause)', async () => {
+      mocks.authorize.mockResolvedValueOnce({ allow: true });
+      mocks.db.first.mockResolvedValueOnce({ count: 0 });
+      mocks.db.all.mockResolvedValueOnce([]);
+      const res = await usersRouter(
+        makeReq('/api/admin/users', 'GET'),
+        env,
+        {},
+        { sub: 'u1', role: 'admin', email: 'admin@example.com' },
+        '/api/admin/users'
+      );
+      expect(res.status).toBe(200);
+      const countCall = mocks.db.first.mock.calls[0];
+      const countSql = countCall[0];
+      // Without search, countSql should just be 'SELECT COUNT(*) as count FROM users u'
+      expect(countSql).toContain('FROM users');
+      expect(countSql).not.toContain('WHERE u.');
+    });
+  });
 });

@@ -60,7 +60,7 @@ export function renderChat(container) {
     <div class="flex h-full w-full bg-white overflow-hidden text-[#171717] font-sans">
       <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
 
-      <aside id="sidebar" class="fixed md:relative h-[100dvh] md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 -ml-[260px] md:ml-0 overflow-visible group/sidebar">
+      <aside id="sidebar" aria-label="Chat sidebar" class="fixed md:relative h-[100dvh] md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 -ml-[260px] md:ml-0 overflow-visible group/sidebar">
         <div class="p-3">
           <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
             <button type="button" id="sidebar-home-btn" class="flex items-center gap-3 sidebar-full-only hover:opacity-90 transition-opacity" title="Home">
@@ -967,7 +967,9 @@ function wireChat(root) {
   bindToolServersInvalidationListener();
   checkToolServersInvalidation();
   const modelSelectorContainer = root.querySelector('#model-selector-container');
-  const destroyModelSelector = modelSelectorContainer ? renderModelSelector(modelSelectorContainer) : null;
+  const destroyModelSelector = modelSelectorContainer
+    ? renderModelSelector(modelSelectorContainer)
+    : null;
   let toolServersWarmupTriggered = false;
   const warmupToolServers = () => {
     if (toolServersWarmupTriggered) return;

@@ -17,6 +17,7 @@ import {
   syncModelsTableState,
 } from '../../../shared/components/models-section.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { renderModelAccessBadgeForModel } from '../../../shared/components/model-access-badge.js';
 import {
   extractAttachmentCapsFromModels,
@@ -57,13 +58,6 @@ function getAclRulesSignature(rules = [], normalizer) {
 }
 
 const getCapTooltip = getAttachmentCapTooltip;
-const escapeHtml = (value) =>
-  String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 export function renderModelsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'models';
@@ -127,7 +121,7 @@ export function renderModelsSettings(container, data) {
   const showError = (message) => {
     const errorSlot = container.querySelector('#models-error-container');
     if (errorSlot) {
-      errorSlot.innerHTML = `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${message}</span></div>`;
+      errorSlot.innerHTML = `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${escapeHtml(message)}</span></div>`;
       setTimeout(() => {
         if (errorSlot.querySelector('[data-error-banner]')) {
           errorSlot.innerHTML = '';
@@ -331,9 +325,9 @@ export function renderModelsSettings(container, data) {
               .map((model) => {
                 const _isDisabled = modelsState.disabledModels.has(model.id);
                 return `
-                    <tr data-model-row="${model.id}" class="text-xs hover:bg-gray-50/50 transition-colors ${_isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
-                      <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 font-mono truncate ${_isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${model.id}">${model.id}</td>
+                    <tr data-model-row="${escapeHtml(model.id)}" class="text-xs hover:bg-gray-50/50 transition-colors ${_isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
+                      <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${escapeHtml(model.name || model.id)}">${escapeHtml(model.name || model.id)}</td>
+                      <td class="px-4 py-4 font-mono truncate ${_isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
                           ${renderModelAccessBadgeForModel(model)}
@@ -344,7 +338,7 @@ export function renderModelsSettings(container, data) {
                           <button
                             type="button"
                             class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${_isDisabled || !canManageAcls ? 'hidden' : ''}"
-                            data-model-acl="${model.id}"
+                            data-model-acl="${escapeHtml(model.id)}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
                             ${_isDisabled || !canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
@@ -382,7 +376,7 @@ export function renderModelsSettings(container, data) {
     const errorSlot = container.querySelector('#models-error-container');
     if (errorSlot) {
       errorSlot.innerHTML = modelsState.error
-        ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>`
+        ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${escapeHtml(modelsState.error)}</span></div>`
         : '';
     }
 
@@ -744,9 +738,9 @@ export function renderModelsSettings(container, data) {
             .map((model) => {
               const isDisabled = modelsState.disabledModels.has(model.id);
               return `
-                    <tr data-model-row="${model.id}" class="text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
-                      <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 font-mono truncate ${isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${model.id}">${model.id}</td>
+                    <tr data-model-row="${escapeHtml(model.id)}" class="text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
+                      <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${escapeHtml(model.name || model.id)}">${escapeHtml(model.name || model.id)}</td>
+                      <td class="px-4 py-4 font-mono truncate ${isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
                           ${renderModelAccessBadgeForModel(model)}
@@ -757,7 +751,7 @@ export function renderModelsSettings(container, data) {
                           <button
                             type="button"
                             class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isDisabled || !canManageAcls ? 'hidden' : ''}"
-                            data-model-acl="${model.id}"
+                            data-model-acl="${escapeHtml(model.id)}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
                             ${isDisabled || !canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
@@ -776,7 +770,7 @@ export function renderModelsSettings(container, data) {
     if (!ensureMounted()) {
       container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
-<div id="models-error-container">${modelsState.error ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>` : ''}</div>
+<div id="models-error-container">${modelsState.error ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${escapeHtml(modelsState.error)}</span></div>` : ''}</div>
         ${renderModelsHeaderHtml({
           countTitle: 'Selected models',
           countLabel: 'Selected models',
