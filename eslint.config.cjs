@@ -258,6 +258,8 @@ module.exports = [
       'public/js/bootstrap/session-bootstrap.js',
     'public/js/bootstrap/session-helpers.js',
       'public/js/features/account/account-models.js',
+    'public/js/features/account/account-models-helpers.js',
+    'public/js/features/account/account-models-events.js',
       'public/js/features/account/sessions.js',
       'public/js/features/admin/admin-route-state.js',
       'public/js/features/admin/audit-logs.js',
