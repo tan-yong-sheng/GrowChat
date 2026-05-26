@@ -221,7 +221,6 @@ export function createAdminController(ctx) {
     ctx.renderMainActionFooter();
     ctx.updateMainActionFooter();
   };
-
   async function loadUsers({ preserveContent = true } = {}) {
     const cacheKey = `${ctx.data.pagination.page}:${ctx.data.pagination.pageSize}`;
     const cached = ctx.data.usersCache[cacheKey];
@@ -264,7 +263,6 @@ export function createAdminController(ctx) {
       renderSubContent();
     }
   }
-
   async function loadGroups({ preserveContent = true } = {}) {
     ctx.data.groupsLoading = true;
     ctx.data.groupsError = null;
@@ -286,9 +284,7 @@ export function createAdminController(ctx) {
       renderSubContent();
     }
   }
-
   ctx.data.guardNavigation = ctx.guardNavigation;
-
   function bindTopNav() {
     ctx.container.querySelectorAll('a[data-nav]').forEach((link) => {
       link.onclick = async (e) => {
@@ -311,7 +307,6 @@ export function createAdminController(ctx) {
       };
     });
   }
-
   function bindSubnav() {
     ctx.container.querySelectorAll('a[data-subnav]').forEach((link) => {
       link.onclick = async (e) => {
@@ -343,7 +338,6 @@ export function createAdminController(ctx) {
       };
     });
   }
-
   function mountShell() {
     const previousCleanup =
       typeof ctx.container.__cleanup === 'function' ? ctx.container.__cleanup : null;
@@ -395,7 +389,6 @@ export function createAdminController(ctx) {
       ctx.removeInvalidationListeners?.();
     };
   }
-
   return {
     renderSubContent,
     loadUsers,

@@ -162,19 +162,16 @@ export function bindChatMessageActions({
       const controller = new AbortController();
       setActiveStreamAbort(() => controller.abort());
       setGlobalStreamAbort(getActiveStreamAbort());
-
       const runBranchRequest = async (sourceId) => {
         let assistantMessageId = tempAssistantId;
         let errorMessage = null;
         let errorActive = false;
         let assistantText = '';
-
         function applyAssistantText(streaming = true) {
           streamingOverrideByChat.set(chatId, {
             targetMsgId: assistantMessageId,
             content: assistantText,
           });
-
           const currentMessages = [...(state.messagesByChat[chatId] || [])];
           const targetIdx = currentMessages.findIndex(
             (m) => String(m.id) === String(assistantMessageId)
@@ -197,7 +194,6 @@ export function bindChatMessageActions({
             });
           }
         }
-
         try {
           setStreamingState(chatId, true);
           const res = await apiFetch(`/api/chats/${chatId}/messages/${sourceId}/branch`, {
@@ -209,14 +205,12 @@ export function bindChatMessageActions({
             }),
             signal: controller.signal,
           });
-
           if (!res.ok || !res.body) {
             const err = await res.json().catch(() => ({}));
             const message = formatApiErrorMessage(err, 'Failed to connect to the server.');
             applyAssistantErrorMessage(chatId, assistantMessageId, message);
             return;
           }
-
           await consumeSseTextStream(res.body, {
             onEvent: (payload) => {
               if (payload?.event === 'start' && payload?.user_message_id) {
@@ -279,7 +273,6 @@ export function bindChatMessageActions({
               applyAssistantText();
             },
           });
-
           const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
           if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
             thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
@@ -330,7 +323,6 @@ export function bindChatMessageActions({
           setStreamingState(chatId, false);
         }
       };
-
       const sourceId = originalId;
       if (isTempMessageId(sourceId)) {
         waitForResolvedMessageId(chatId, sourceId).then((resolved) => {
@@ -345,7 +337,6 @@ export function bindChatMessageActions({
       }
     });
   });
-
   bindChatMessageDeleteActions({
     messagesList,
     chatId,
@@ -364,7 +355,6 @@ export function bindChatMessageActions({
     drawMessages,
     showToast,
   });
-
   bindChatMessageRetryActions({
     messagesList,
     chatId,
@@ -400,7 +390,6 @@ export function bindChatMessageActions({
     toolCallsByMessageId,
     messageBlocksById,
   });
-
   messagesList.querySelectorAll('[data-citation-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-citation-id');
