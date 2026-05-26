@@ -40,7 +40,7 @@ export async function handleUsersAdminList(
     const query = (url.searchParams.get('q') || '').trim();
 
     try {
-      let countSql = 'SELECT COUNT(*) as count FROM users';
+      let countSql = 'SELECT COUNT(*) as count FROM users u';
       let dataSql = `SELECT
            u.id,
            u.email,

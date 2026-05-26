@@ -237,11 +237,17 @@ export async function handlePublicModelsCrud(
       }
 
       if (body.max_tokens !== undefined) {
-        customModels[modelIndex].max_tokens = parseInt(body.max_tokens, 10);
+        const parsedMaxTokens = parseInt(body.max_tokens, 10);
+        if (!Number.isNaN(parsedMaxTokens)) {
+          customModels[modelIndex].max_tokens = parsedMaxTokens;
+        }
       }
 
       if (body.temperature !== undefined) {
-        customModels[modelIndex].temperature = parseFloat(body.temperature);
+        const parsedTemperature = parseFloat(body.temperature);
+        if (!Number.isNaN(parsedTemperature)) {
+          customModels[modelIndex].temperature = parsedTemperature;
+        }
       }
 
       // Save back to KV

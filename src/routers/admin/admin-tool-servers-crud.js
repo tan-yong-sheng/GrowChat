@@ -85,10 +85,10 @@ export async function handleAdminToolServersCrud(
     }
 
     if (authType === 'basic') {
-      const user = String(body.auth_basic_username || '').trim();
-      const pass = String(body.auth_basic_password || '');
-      if (user && !headers.Authorization) {
-        headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`;
+      const basicUser = String(body.auth_basic_username || '').trim();
+      const basicPass = String(body.auth_basic_password || '');
+      if (basicUser && !headers.Authorization) {
+        headers.Authorization = `Basic ${btoa(`${basicUser}:${basicPass}`)}`;
       }
     }
 
