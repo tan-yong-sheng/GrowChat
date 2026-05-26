@@ -236,6 +236,7 @@ module.exports = [
       'public/js/features/chat/chat-render-controller.js',
       'public/js/features/chat/chat-data-controller.js',
       'public/js/features/chat/model-selector-controller.js',
+    'public/js/features/chat/model-selector-notice-helpers.js',
       'src/chat/assistant-runner.js',
       'src/llm/connections.js',
       'src/llm/provider-adapters.js',
