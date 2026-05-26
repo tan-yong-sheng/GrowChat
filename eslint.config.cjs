@@ -228,6 +228,7 @@ module.exports = [
       'public/js/features/account/account-connections.js',
       'public/js/features/account/account-integrations.js',
       'public/js/shared/components/connection-modal.js',
+    'public/js/shared/components/connection-modal-utils.js',
       'public/js/shared/markdown-renderer.js',
       'public/js/features/chat/chat-message-actions.js',
     'public/js/features/chat/chat-message-ui-actions.js',
