@@ -256,6 +256,7 @@ module.exports = [
       // Additional legacy files with existing complexity/line/depth exceedances
       'public/js/bootstrap/app.js',
       'public/js/bootstrap/session-bootstrap.js',
+    'public/js/bootstrap/session-helpers.js',
       'public/js/features/account/account-models.js',
       'public/js/features/account/sessions.js',
       'public/js/features/admin/admin-route-state.js',

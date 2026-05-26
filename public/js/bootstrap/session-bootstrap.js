@@ -13,81 +13,22 @@ import {
   writeChatsCache,
 } from '../shared/api.js';
 import { state, setState } from '../shared/store.js';
-import { initShortcuts } from '../shared/shortcuts.js';
-import { startRealtimeSync, stopRealtimeSync } from '../shared/realtime.js';
 import { consumeModelsInvalidation } from '../shared/utils/model-sync.js';
 import { filterEnabledModels, getPreferredModelId } from '../shared/utils/model-state.js';
+import { getChatIdFromPath, injectTempChat, resolveActiveChatId } from './app-route-utils.js';
 import {
-  getChatIdFromPath,
-  injectTempChat,
-  resolveActiveChatId,
-  shouldStartRealtime,
-} from './app-route-utils.js';
-
-export const INITIAL_CHAT_LIMIT = 30;
-
-const FALLBACK_PERMISSIONS = {
-  admin: [
-    'chat.read',
-    'chat.write',
-    'chat.delete',
-    'chat.share',
-    'user.settings.profile.write',
-    'user.settings.preferences.write',
-    'user.settings.connections.write',
-    'user.settings.integrations.write',
-    'user.settings.tool-servers.write',
-    'admin.settings.read',
-    'admin.settings.write',
-    'admin.settings.general.write',
-    'admin.settings.connections.write',
-    'admin.settings.integrations.write',
-    'admin.settings.policies.write',
-    'admin.settings.models.write',
-    'connection.use',
-    'connection.manage',
-    'connection.admin',
-    'model.use',
-    'model.admin',
-    'file.upload',
-    'file.delete',
-    'admin.user.read',
-    'admin.user.write',
-    'admin.audit.read',
-    'admin.rbac.admin',
-    'tool-server.use',
-    'tool-server.manage',
-    'tool-server.admin',
-    'integration.use',
-    'integration.manage',
-    'integration.admin',
-  ],
-  member: [
-    'chat.read',
-    'chat.write',
-    'user.settings.profile.write',
-    'user.settings.preferences.write',
-    'user.settings.connections.write',
-    'user.settings.integrations.write',
-    'user.settings.tool-servers.write',
-    'connection.use',
-    'connection.manage',
-    'model.use',
-    'model.manage',
-    'tool-server.use',
-    'tool-server.manage',
-    'integration.use',
-    'integration.manage',
-    'file.upload',
-  ],
-};
-
-const AUTOFILL_OVERLAY_ERROR_MESSAGE = "Cannot read properties of null (reading 'includes')";
-const AUTOFILL_OVERLAY_SOURCE = 'bootstrap-autofill-overlay.js';
+  INITIAL_CHAT_LIMIT,
+  FALLBACK_PERMISSIONS,
+  normalizePublicRole,
+  isKnownAutofillOverlayError,
+  installKnownErrorSuppressors,
+  isAccessTokenNearExpiry,
+  ensureShortcuts,
+  ensureRealtime,
+  scheduleDeferredTask,
+} from './session-helpers.js';
 
 let bootstrapped = false;
-let shortcutsInitialized = false;
-let realtimeStarted = false;
 let deferredBootstrapPromise = null;
 let modelsPrefetchPromise = null;
 let modelsInvalidationListenerBound = false;
@@ -104,46 +45,6 @@ function scheduleModelsPrefetch(options = {}) {
   }
 
   setTimeout(run, 0);
-}
-
-function normalizePublicRole(role) {
-  const value = String(role || '')
-    .trim()
-    .toLowerCase();
-  return value === 'admin' ? 'admin' : 'member';
-}
-
-function isKnownAutofillOverlayError(error) {
-  const message = String(error?.message || error?.reason?.message || error?.reason || '');
-  const source = String(error?.filename || error?.sourceURL || error?.stack || '');
-  return (
-    message.includes(AUTOFILL_OVERLAY_ERROR_MESSAGE) || source.includes(AUTOFILL_OVERLAY_SOURCE)
-  );
-}
-
-export function installKnownErrorSuppressors() {
-  const suppress = (event) => {
-    if (!isKnownAutofillOverlayError(event)) return;
-    event.preventDefault();
-  };
-
-  window.addEventListener('error', suppress);
-  window.addEventListener('unhandledrejection', suppress);
-}
-
-function isAccessTokenNearExpiry(token, thresholdSeconds = 300) {
-  const parts = String(token || '').split('.');
-  if (parts.length < 2) return true;
-  const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-  const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, '=');
-  try {
-    const decoded = JSON.parse(atob(padded));
-    const exp = Number(decoded?.exp || 0);
-    if (!Number.isFinite(exp)) return true;
-    return exp <= Math.floor(Date.now() / 1000) + thresholdSeconds;
-  } catch {
-    return true;
-  }
 }
 
 export function prefetchModels({ allowCache = true, cacheBust = null, force = false } = {}) {
@@ -234,32 +135,6 @@ function bindModelsInvalidationListener() {
   });
   window.addEventListener('growchat:models-invalidated', handleInvalidation);
   modelsInvalidationListenerBound = true;
-}
-
-export function ensureShortcuts() {
-  if (shortcutsInitialized) return;
-  initShortcuts();
-  shortcutsInitialized = true;
-}
-
-export function ensureRealtime() {
-  if (!shouldStartRealtime()) return;
-  if (realtimeStarted) return;
-  startRealtimeSync({
-    onEvent: (event) => {
-      window.dispatchEvent(new CustomEvent('growchat:realtime', { detail: event }));
-    },
-  });
-  window.addEventListener('beforeunload', stopRealtimeSync, { once: true });
-  realtimeStarted = true;
-}
-
-function scheduleDeferredTask(task, timeout = 3000) {
-  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(task, { timeout });
-    return;
-  }
-  setTimeout(task, 0);
 }
 
 export function scheduleDeferredBootstrap(user, preloadedRBAC = null) {
