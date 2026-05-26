@@ -230,6 +230,7 @@ module.exports = [
       'public/js/shared/components/connection-modal.js',
       'public/js/shared/markdown-renderer.js',
       'public/js/features/chat/chat-message-actions.js',
+    'public/js/features/chat/chat-message-ui-actions.js',
       'public/js/features/chat/chat-message-list-html.js',
       'public/js/features/chat/chat-message-retry-actions.js',
       'public/js/features/chat/chat-render-controller.js',
