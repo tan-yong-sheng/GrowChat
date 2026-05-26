@@ -112,7 +112,7 @@ export function createModelSelectorController(container) {
       let getGen, reqGen;
       try {
         const { getModelsCacheGeneration } =
-          await import('../../bootstrap/session-bootstrap.js');
+          await import('../../shared/utils/models-cache-generation.js');
         getGen = getModelsCacheGeneration;
         reqGen = getGen();
         const data = await fetchModels({ cache: 'no-store', scope: 'effective' });

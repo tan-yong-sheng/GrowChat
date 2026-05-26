@@ -38,8 +38,8 @@ describe('model-selector race condition', () => {
       },
     }));
 
-    // Mock session-bootstrap with controllable getModelsCacheGeneration
-    vi.doMock('../../public/js/bootstrap/session-bootstrap.js', () => ({
+    // Mock models-cache-generation with controllable getModelsCacheGeneration
+    vi.doMock('../../public/js/shared/utils/models-cache-generation.js', () => ({
       getModelsCacheGeneration: () => modelsCacheGeneration,
     }));
 
@@ -101,7 +101,7 @@ describe('model-selector race condition', () => {
       },
     }));
 
-    vi.doMock('../../public/js/bootstrap/session-bootstrap.js', () => ({
+    vi.doMock('../../public/js/shared/utils/models-cache-generation.js', () => ({
       getModelsCacheGeneration: () => 0,
     }));
 
@@ -168,7 +168,9 @@ describe('model-selector race condition', () => {
 
     try {
       await buggyPattern();
-    } catch (_e) { /* expected: import rejection */ }
+    } catch (_e) {
+      /* expected: import rejection */
+    }
     expect(loadingPromiseBuggy).not.toBeNull(); // BUG: stuck promise
 
     // Pattern 2 (FIXED): import inside try — finally always runs
@@ -195,7 +197,9 @@ describe('model-selector race condition', () => {
 
     try {
       await fixedPattern();
-    } catch (_e) { /* expected: import rejection */ }
+    } catch (_e) {
+      /* expected: import rejection */
+    }
     expect(loadingPromiseFixed).toBeNull(); // FIXED: promise cleared
   });
 });
