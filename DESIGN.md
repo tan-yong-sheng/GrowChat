@@ -7,12 +7,12 @@ colors:
   primary: '#171717'
   primary-hover: '#262626'
   secondary: '#737373'
-  tertiary: '#525252'
+  tertiary: '#525252' # same hex as old on-surface-variant; now reserved for emphasis between primary and secondary
   neutral: '#fafafa'
   surface: '#ffffff'
   surface-container: '#f5f5f5'
   on-surface: '#171717'
-  on-surface-variant: '#525252'
+  on-surface-variant: '#404040'
   outline: '#e5e5e5'
   outline-variant: '#f3f4f6'
   error: '#dc2626'
@@ -91,9 +91,9 @@ spacing:
   xs: 4px
   sm: 8px
   md: 12px
-  md2: 16px
-  lg: 20px
-  lg2: 24px
+  base: 16px
+  comfortable: 20px
+  spacious: 24px
   xl: 32px
   gutter: 24px
   margin: 32px
@@ -111,15 +111,24 @@ components:
     textColor: '{colors.on-surface}'
     rounded: '{rounded.md}'
     padding: '12px 16px'
+  button-secondary-hover:
+    backgroundColor: '{colors.neutral}'
+  focus-ring:
+    backgroundColor: '{colors.primary}'
+    textColor: transparent
+    rounded: '{rounded.md}'
   input:
     backgroundColor: '{colors.surface}'
     textColor: '{colors.on-surface}'
     rounded: '{rounded.md}'
   badge:
-    backgroundColor: '{colors.neutral}'
+    backgroundColor: '{colors.surface-container}'
     textColor: '{colors.on-surface}'
     rounded: '{rounded.full}'
     padding: '4px 8px'
+  disabled:
+    backgroundColor: '{colors.neutral}'
+    textColor: '#9ca3af' # intentionally below WCAG AA — disabled text must appear subdued
   toggle-on:
     backgroundColor: '{colors.primary}'
   toggle-off:
@@ -128,25 +137,29 @@ components:
 
 ## Overview
 
-GrowChat embodies **Architectural Minimalism** — a monochrome design system where restraint is the aesthetic. The UI evokes a premium matte finish: high-contrast ink on limestone, with zero chromatic distraction. Every surface, every weight, every radius is deliberate. Nothing decorates. Everything serves.
+GrowChat embodies **Architectural Minimalism** — a monochrome design system where restraint is the aesthetic. The UI evokes premium matte stationery: high-contrast ink on cool off-white, with zero chromatic distraction. Every surface, every weight, every radius is deliberate. Nothing decorates. Everything serves.
+
+**Vibe keywords:** restrained, precise, institutional, content-first, pill-geometric.
 
 The monochrome palette makes the interface recede so the content — conversations, code, model outputs — commands full attention. Inter provides institutional clarity for UI chrome. Archivo lands with impact only on hero surfaces. The pill geometry (full-radius buttons, pill-shaped composer) signals approachability without softness.
+
+**Density posture: generous-negative-space.** Primary surfaces use wide margins and intentional breathing room. Content cards float on the neutral background with clear separation. Dense data views (admin tables, audit logs) may tighten internal padding, but the default is spacious — one well-placed element is worth three crammed together. The signature moment: a hero CTA in pill form with exaggerated horizontal padding (14px 48px), Archivo at display scale on pure white with 120px vertical margin, or the composer pill spanning the full chat width — these are the 120% moments where the system flexes its confidence.
 
 Dark mode is not currently supported. A future update may define inverted token values when dark mode is implemented.
 
 ## Colors
 
-The palette is strictly monochrome — a single greyscale progression from near-black to warm off-white, with no accent hue. Interaction is conveyed through weight, position, and contrast, not color.
+The palette is strictly monochrome — a single greyscale progression from near-black to cool off-white, with no accent hue. Interaction is conveyed through weight, position, and contrast, not color.
 
 - **Primary (#171717):** Deep ink for headlines, primary CTAs, active states, and all high-emphasis interactive elements. This is the sole driver for action.
 - **Primary Hover (#262626):** The responsive hover state of primary — slightly lifted from pure black to provide tactile feedback on buttons and toggles.
 - **Secondary (#737373):** Medium grey for muted labels, captions, secondary text, and de-emphasized metadata.
 - **Tertiary (#525252):** Dark grey for body text variants and on-surface-variant elements that need more emphasis than secondary but less than primary.
-- **Neutral (#fafafa):** Warm off-white foundation for app backgrounds, sidebars, and structural surfaces. Softer than pure white, providing visual breathing room.
+- **Neutral (#fafafa):** Cool off-white foundation for app backgrounds, sidebars, and structural surfaces. Softer than pure white, providing visual breathing room. Chromatically neutral — equal R, G, B channels with no warm or cool cast.
 - **Surface (#ffffff):** Pure white for content cards, elevated panels, and primary reading areas.
 - **Surface Container (#f5f5f5):** Light grey wells for inset areas — input composers, user message bubbles, edit fields. Signals "recessed" or "editable."
 - **On Surface (#171717):** Primary text color on surfaces. Same value as primary — used for semantic clarity in component tokens.
-- **On Surface Variant (#525252):** Secondary text on surfaces — body copy, descriptions, helper text. Less assertive than on-surface.
+- **On Surface Variant (#404040):** Secondary text on surfaces — body copy, descriptions, helper text. Perceptually equidistant between on-surface (#171717) and secondary (#737373) on the CIE L\* scale, ensuring clear visual hierarchy without abrupt tonal jumps.
 - **Outline (#e5e5e5):** Hairline borders, input borders, structural dividers. Visible but never heavy.
 - **Outline Variant (#f3f4f6):** The lightest structural lines — card edges, subtle separators, the boundary between adjacent surfaces.
 
@@ -193,7 +206,7 @@ Components are grouped using **containment principles**: related items sit on wh
 
 ## Elevation & Depth
 
-Depth is achieved through **tonal layers** rather than shadows. The background uses warm off-white (`neutral`), primary content sits on pure white cards (`surface`), and inset areas use a light grey well (`surface-container`). This three-layer tonal system provides clear visual hierarchy without heaviness.
+Depth is achieved through **tonal layers** rather than shadows. The background uses cool off-white (`neutral`), primary content sits on pure white cards (`surface`), and inset areas use a light grey well (`surface-container`). This three-layer tonal system provides clear visual hierarchy without heaviness.
 
 Shadows are reserved exclusively for **floating surfaces** — elements that physically detach from the page plane:
 
@@ -217,19 +230,23 @@ Secondary shapes follow a clean hierarchy:
 
 ### Buttons
 
-Primary buttons use the pill form with near-black fill and white text. Hover lifts to `primary-hover` (#262626). Active state applies `scale(0.95)` for tactile feedback. Secondary buttons are transparent with dark text and `md` rounding.
+Primary buttons use the pill form with near-black fill and white text. Hover lifts to `primary-hover` (#262626). Active state applies `scale(0.95)` for tactile feedback. Secondary buttons are transparent with dark text, `md` rounding, and an `outline` (#e5e5e5) border. On hover, they fill with `neutral` (#fafafa) background. This provides a visible affordance without competing with primary buttons.
 
 ### Inputs
 
-Text inputs and textareas sit on `surface` (#ffffff) with `outline` (#e5e5e5) borders and `md` (12px) rounding. Edit fields and the chat composer use `surface-container` (#f5f5f5) to signal "recessed/editable." Focus rings use `primary` at 20% opacity.
+Text inputs and textareas sit on `surface` (#ffffff) with `outline` (#e5e5e5) borders and `md` (12px) rounding. Edit fields and the chat composer use `surface-container` (#f5f5f5) to signal "recessed/editable." Focus rings use `primary` (#171717) at 20% opacity — a subtle dark halo that maintains the monochrome identity while meeting accessibility requirements. This replaces the legacy `focus:ring-blue-500` pattern.
 
 ### Badges
 
-Badges use the pill form (`full` rounding) with `neutral` (#fafafa) background and `on-surface` (#171717) text. No colored badges except for semantic status (error, success, warning, info).
+Badges use the pill form (`full` rounding) with `surface-container` (#f5f5f5) background, `outline-variant` (#f3f4f6) border, and `on-surface` (#171717) text. The surface-container fill ensures badges remain visible against both the neutral app background and white card surfaces. No colored badges except for semantic status (error, success, warning, info).
 
 ### Toggles
 
 Toggle switches use `primary` (#171717) when on, `outline` (#e5e5e5) when off. The pill form with a circular thumb maintains consistency with the button system.
+
+### Disabled States
+
+Disabled elements apply 50% opacity and `cursor: not-allowed`. For a monochrome system where color cannot signal "inactive," opacity reduction is the primary disabled indicator. Disabled inputs additionally use `outline-variant` (#f3f4f6) background with `outline` (#e5e5e5) text — a tonal step down that reinforces the inactive state.
 
 ## Do's and Don'ts
 
@@ -237,7 +254,7 @@ Toggle switches use `primary` (#171717) when on, `outline` (#e5e5e5) when off. T
 - Do use `{rounded.full}` for pill-shaped elements — buttons, avatars, composer, badges
 - Do use `{rounded.md}` (12px) for cards, inputs, and dropdowns
 - Do use `surface-container` (#f5f5f5) for inset/well areas — edit fields, user message bubbles
-- Do maintain WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text)
+- Do maintain WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text). The tightest point in the system is `secondary` (#737373) on `neutral` (#fafafa) at 4.5:1
 - Do use Inter for all UI text; Archivo only for display/hero surfaces at 36px+
 - Don't use arbitrary hex colors — reference design tokens instead
 - Don't use `#0066cc` (Action Blue) — it has been retired from the palette

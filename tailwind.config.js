@@ -67,7 +67,7 @@ export default {
         surface: '#ffffff',
         'surface-container': '#f5f5f5',
         'on-surface': '#171717',
-        'on-surface-variant': '#525252',
+        'on-surface-variant': '#404040',
         outline: '#e5e5e5',
         'outline-variant': '#f3f4f6',
         error: '#dc2626',
