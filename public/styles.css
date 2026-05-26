@@ -176,7 +176,6 @@ samp {
     Monaco,
     Consolas,
     Liberation Mono,
-    Courier New,
     monospace;
   font-feature-settings: normal;
   font-variation-settings: normal;
@@ -394,7 +393,7 @@ textarea:disabled {
   }
 }
 .form-error {
-  border-radius: calc(var(--radius-lg, 0.5rem));
+  border-radius: 16px;
   border-width: 1px;
   border-color: #dc2626;
   background-color: #fef2f2;
@@ -403,7 +402,7 @@ textarea:disabled {
   color: #dc2626;
 }
 .form-success {
-  border-radius: calc(var(--radius-lg, 0.5rem));
+  border-radius: 16px;
   border-width: 1px;
   border-color: #22c55e;
   background-color: #f0fdf4;
@@ -412,7 +411,7 @@ textarea:disabled {
   color: #22c55e;
 }
 .form-warning {
-  border-radius: calc(var(--radius-lg, 0.5rem));
+  border-radius: 16px;
   border-width: 1px;
   border-color: #fb923c;
   background-color: #fff7ed;
@@ -421,7 +420,7 @@ textarea:disabled {
   color: #fb923c;
 }
 .form-info {
-  border-radius: calc(var(--radius-lg, 0.5rem));
+  border-radius: 16px;
   border-width: 1px;
   border-color: #0369a1;
   background-color: #f0f9ff;
@@ -487,7 +486,7 @@ textarea:disabled {
   color: rgb(156 163 175 / var(--tw-text-opacity, 1));
 }
 .form-error {
-  border-radius: 0.5rem;
+  border-radius: 16px;
   border-width: 1px;
   border-color: rgb(254 202 202 / var(--tw-border-opacity, 1));
   background-color: rgb(254 242 242 / var(--tw-bg-opacity, 1));
@@ -503,14 +502,14 @@ textarea:disabled {
   --tw-text-opacity: 1;
 }
 .form-success {
-  border-radius: 0.5rem;
+  border-radius: 16px;
   border-width: 1px;
   border-color: rgb(187 247 208 / var(--tw-border-opacity, 1));
   background-color: rgb(240 253 244 / var(--tw-bg-opacity, 1));
   color: rgb(22 163 74 / var(--tw-text-opacity, 1));
 }
 .form-warning {
-  border-radius: 0.5rem;
+  border-radius: 16px;
   border-width: 1px;
   border-color: rgb(254 215 170 / var(--tw-border-opacity, 1));
   background-color: rgb(255 247 237 / var(--tw-bg-opacity, 1));
@@ -526,7 +525,7 @@ textarea:disabled {
   --tw-text-opacity: 1;
 }
 .form-info {
-  border-radius: 0.5rem;
+  border-radius: 16px;
   border-width: 1px;
   border-color: rgb(191 219 254 / var(--tw-border-opacity, 1));
   background-color: rgb(239 246 255 / var(--tw-bg-opacity, 1));
@@ -1802,11 +1801,9 @@ textarea:disabled {
 .rounded {
   border-radius: 0.25rem;
 }
-.rounded-2xl {
-  border-radius: 1rem;
-}
+.rounded-2xl,
 .rounded-3xl {
-  border-radius: 1.5rem;
+  border-radius: 16px;
 }
 .rounded-\[1\.2rem\] {
   border-radius: 1.2rem;
@@ -1830,16 +1827,16 @@ textarea:disabled {
   border-radius: 9999px;
 }
 .rounded-lg {
-  border-radius: 0.5rem;
+  border-radius: 16px;
 }
 .rounded-md {
-  border-radius: 0.375rem;
+  border-radius: 12px;
 }
 .rounded-sm {
-  border-radius: 0.125rem;
+  border-radius: 6px;
 }
 .rounded-xl {
-  border-radius: 0.75rem;
+  border-radius: 12px;
 }
 .border {
   border-width: 1px;
@@ -2527,8 +2524,10 @@ textarea:disabled {
     Monaco,
     Consolas,
     Liberation Mono,
-    Courier New,
     monospace;
+}
+.font-primary {
+  font-family: Inter, sans-serif;
 }
 .font-sans {
   font-family:
@@ -3346,7 +3345,7 @@ textarea:disabled {
   border-radius: 0.25rem;
 }
 .focus\:rounded-lg:focus {
-  border-radius: 0.5rem;
+  border-radius: 16px;
 }
 .focus\:border-blue-500:focus {
   --tw-border-opacity: 1;
@@ -3760,7 +3759,7 @@ textarea:disabled {
     align-self: center;
   }
   .md\:rounded-3xl {
-    border-radius: 1.5rem;
+    border-radius: 16px;
   }
   .md\:border-b-0 {
     border-bottom-width: 0;
