@@ -109,8 +109,14 @@ export function createModelSelectorController(container) {
     if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
     loadingPromise = (async () => {
       setState({ modelsLoading: true });
+      let getGen, reqGen;
       try {
+        const { getModelsCacheGeneration } =
+          await import('../../shared/utils/models-cache-generation.js');
+        getGen = getModelsCacheGeneration;
+        reqGen = getGen();
         const data = await fetchModels({ cache: 'no-store', scope: 'effective' });
+        if (reqGen !== getGen()) return;
         const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
         const nextActiveModelId = getPreferredModelId(models, [
           state.activeModelId,
@@ -124,6 +130,7 @@ export function createModelSelectorController(container) {
           activeModelId: nextActiveModelId,
         });
       } catch (err) {
+        if (getGen && reqGen !== undefined && reqGen !== getGen()) return;
         console.error('Failed to load models:', err);
         // Fallback to cached models when available, matching prefetchModels({ allowCache: true })
         try {
