@@ -393,7 +393,7 @@ textarea:disabled {
   }
 }
 .form-error {
-  border-radius: calc(var(--radius-lg, 0.5rem));
+  border-radius: 16px;
   border-width: 1px;
   border-color: #dc2626;
   background-color: #fef2f2;
@@ -402,7 +402,7 @@ textarea:disabled {
   color: #dc2626;
 }
 .form-success {
-  border-radius: calc(var(--radius-lg, 0.5rem));
+  border-radius: 16px;
   border-width: 1px;
   border-color: #22c55e;
   background-color: #f0fdf4;
@@ -411,7 +411,7 @@ textarea:disabled {
   color: #22c55e;
 }
 .form-warning {
-  border-radius: calc(var(--radius-lg, 0.5rem));
+  border-radius: 16px;
   border-width: 1px;
   border-color: #fb923c;
   background-color: #fff7ed;
@@ -420,7 +420,7 @@ textarea:disabled {
   color: #fb923c;
 }
 .form-info {
-  border-radius: calc(var(--radius-lg, 0.5rem));
+  border-radius: 16px;
   border-width: 1px;
   border-color: #0369a1;
   background-color: #f0f9ff;

@@ -106,6 +106,11 @@ components:
     padding: '14px 32px'
   button-primary-hover:
     backgroundColor: '{colors.primary-hover}'
+  button-primary-cta:
+    backgroundColor: '{colors.primary}'
+    textColor: '#ffffff'
+    rounded: '{rounded.full}'
+    padding: '14px 48px'
   button-secondary:
     backgroundColor: 'transparent'
     textColor: '{colors.on-surface}'
@@ -128,7 +133,7 @@ components:
     padding: '4px 8px'
   disabled:
     backgroundColor: '{colors.neutral}'
-    textColor: '#9ca3af' # intentionally below WCAG AA — disabled text must appear subdued
+    textColor: '#9ca3af' # intentionally below WCAG AA — disabled text must appear subdued (WCAG 1.4.3 exception for inactive UI)
   toggle-on:
     backgroundColor: '{colors.primary}'
   toggle-off:
@@ -143,7 +148,7 @@ GrowChat embodies **Architectural Minimalism** — a monochrome design system wh
 
 The monochrome palette makes the interface recede so the content — conversations, code, model outputs — commands full attention. Inter provides institutional clarity for UI chrome. Archivo lands with impact only on hero surfaces. The pill geometry (full-radius buttons, pill-shaped composer) signals approachability without softness.
 
-**Density posture: generous-negative-space.** Primary surfaces use wide margins and intentional breathing room. Content cards float on the neutral background with clear separation. Dense data views (admin tables, audit logs) may tighten internal padding, but the default is spacious — one well-placed element is worth three crammed together. The signature moment: a hero CTA in pill form with exaggerated horizontal padding (14px 48px), Archivo at display scale on pure white with 120px vertical margin, or the composer pill spanning the full chat width — these are the 120% moments where the system flexes its confidence.
+**Density posture: generous-negative-space.** Primary surfaces use wide margins and intentional breathing room. Content cards float on the neutral background with clear separation. Dense data views (admin tables, audit logs) may tighten internal padding, but the default is spacious — one well-placed element is worth three crammed together. The signature moment: a hero CTA in pill form with exaggerated horizontal padding (14px 48px, see `button-primary-cta` in Components), Archivo at display scale on pure white with 120px vertical margin, or the composer pill spanning the full chat width — these are the 120% moments where the system flexes its confidence.
 
 Dark mode is not currently supported. A future update may define inverted token values when dark mode is implemented.
 
@@ -155,7 +160,7 @@ The palette is strictly monochrome — a single greyscale progression from near-
 - **Primary Hover (#262626):** The responsive hover state of primary — slightly lifted from pure black to provide tactile feedback on buttons and toggles.
 - **Secondary (#737373):** Medium grey for muted labels, captions, secondary text, and de-emphasized metadata.
 - **Tertiary (#525252):** Dark grey for body text variants and on-surface-variant elements that need more emphasis than secondary but less than primary.
-- **Neutral (#fafafa):** Cool off-white foundation for app backgrounds, sidebars, and structural surfaces. Softer than pure white, providing visual breathing room. Chromatically neutral — equal R, G, B channels with no warm or cool cast.
+- **Neutral (#fafafa):** Cool off-white foundation for app backgrounds, sidebars, and structural surfaces. Softer than pure white, providing visual breathing room. Chromatically neutral — equal R, G, B channels with no warm or cool cast. **Tailwind alias:** `neutral-bg` (not `neutral`) to avoid collision with Tailwind's built-in `neutral-*` grey scale; all Phase 2 migrations should use `bg-neutral-bg` / `text-neutral-bg`.
 - **Surface (#ffffff):** Pure white for content cards, elevated panels, and primary reading areas.
 - **Surface Container (#f5f5f5):** Light grey wells for inset areas — input composers, user message bubbles, edit fields. Signals "recessed" or "editable."
 - **On Surface (#171717):** Primary text color on surfaces. Same value as primary — used for semantic clarity in component tokens.
@@ -230,7 +235,7 @@ Secondary shapes follow a clean hierarchy:
 
 ### Buttons
 
-Primary buttons use the pill form with near-black fill and white text. Hover lifts to `primary-hover` (#262626). Active state applies `scale(0.95)` for tactile feedback. Secondary buttons are transparent with dark text, `md` rounding, and an `outline` (#e5e5e5) border. On hover, they fill with `neutral` (#fafafa) background. This provides a visible affordance without competing with primary buttons.
+Primary buttons use the pill form with near-black fill and white text (`button-primary`: 14px 32px padding). The hero CTA variant (`button-primary-cta`: 14px 48px padding) uses exaggerated horizontal padding for the 120% signature moment. Hover lifts to `primary-hover` (#262626). Active state applies `scale(0.95)` for tactile feedback. Secondary buttons are transparent with dark text, `md` rounding, and an `outline` (#e5e5e5) border. On hover, they fill with `neutral` (#fafafa) background. This provides a visible affordance without competing with primary buttons.
 
 ### Inputs
 
@@ -254,7 +259,7 @@ Disabled elements apply 50% opacity and `cursor: not-allowed`. For a monochrome 
 - Do use `{rounded.full}` for pill-shaped elements — buttons, avatars, composer, badges
 - Do use `{rounded.md}` (12px) for cards, inputs, and dropdowns
 - Do use `surface-container` (#f5f5f5) for inset/well areas — edit fields, user message bubbles
-- Do maintain WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text). The tightest point in the system is `secondary` (#737373) on `neutral` (#fafafa) at 4.5:1
+- Do maintain WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text). The tightest point in the system is `secondary` (#737373) on `neutral` (#fafafa) at 4.5:1. **Exception:** the `disabled` component token (`textColor: #9ca3af`) is intentionally below WCAG AA — disabled text must appear subdued per accessibility convention (WCAG 1.4.3 exception for inactive UI components).
 - Do use Inter for all UI text; Archivo only for display/hero surfaces at 36px+
 - Don't use arbitrary hex colors — reference design tokens instead
 - Don't use `#0066cc` (Action Blue) — it has been retired from the palette

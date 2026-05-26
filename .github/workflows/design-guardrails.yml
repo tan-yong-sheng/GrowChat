@@ -69,7 +69,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint DESIGN.md
-        run: npx @google/design.md lint DESIGN.md
+        run: pnpm run lint:design
 
       # Future linting tools (vizzly, etc.) will be added as separate steps
       # within this same job, keeping the workflow flat and fast.

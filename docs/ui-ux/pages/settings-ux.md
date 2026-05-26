@@ -9,7 +9,7 @@ This document describes the behavioral UX design for GrowChat's settings surface
 
 The goal is to make the scope obvious to a new admin user.
 
-For visual identity (colors, typography, spacing, shapes), see [DESIGN.md](../../DESIGN.md).
+For visual identity (colors, typography, spacing, shapes), see [DESIGN.md](../../../DESIGN.md).
 
 ## Route Map
 

@@ -94,7 +94,7 @@ export default {
     },
   },
   plugins: [
-    function ({ addBase, addComponents }) {
+    function ({ addBase, addComponents, theme }) {
       addBase({
         'button:disabled': {
           opacity: '0.5',
@@ -120,7 +120,7 @@ export default {
 
       addComponents({
         '.form-error': {
-          borderRadius: 'calc(var(--radius-lg, 0.5rem))',
+          borderRadius: theme('borderRadius.lg'),
           borderWidth: '1px',
           borderColor: 'rgb(220, 38, 38)',
           backgroundColor: 'rgb(254, 242, 242)',
@@ -132,7 +132,7 @@ export default {
           color: 'rgb(220, 38, 38)',
         },
         '.form-success': {
-          borderRadius: 'calc(var(--radius-lg, 0.5rem))',
+          borderRadius: theme('borderRadius.lg'),
           borderWidth: '1px',
           borderColor: 'rgb(34, 197, 94)',
           backgroundColor: 'rgb(240, 253, 244)',
@@ -144,7 +144,7 @@ export default {
           color: 'rgb(34, 197, 94)',
         },
         '.form-warning': {
-          borderRadius: 'calc(var(--radius-lg, 0.5rem))',
+          borderRadius: theme('borderRadius.lg'),
           borderWidth: '1px',
           borderColor: 'rgb(251, 146, 60)',
           backgroundColor: 'rgb(255, 247, 237)',
@@ -156,7 +156,7 @@ export default {
           color: 'rgb(251, 146, 60)',
         },
         '.form-info': {
-          borderRadius: 'calc(var(--radius-lg, 0.5rem))',
+          borderRadius: theme('borderRadius.lg'),
           borderWidth: '1px',
           borderColor: 'rgb(3, 105, 161)',
           backgroundColor: 'rgb(240, 249, 255)',
