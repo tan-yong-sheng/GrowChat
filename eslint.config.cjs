@@ -219,6 +219,8 @@ module.exports = [
 'public/js/features/admin/settings/policies-state-ops.js',
       'public/js/features/admin/settings/policies.js',
       'public/js/features/admin/users/groups.js',
+    'public/js/features/admin/users/groups-modal.js',
+    'public/js/features/admin/users/groups-list-helpers.js',
       'public/js/features/admin/users/overview.js',
     'public/js/features/admin/users/overview-helpers.js',
     'public/js/features/admin/users/overview-render.js',
