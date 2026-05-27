@@ -1,7 +1,7 @@
 /**
  * Helpers for the admin groups page.
  */
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
