@@ -196,6 +196,8 @@ module.exports = [
       'public/js/features/chat/chat-realtime-controller.js',
       'public/js/features/chat/chat-message-stream-send.js',
       'public/js/features/chat/message-input-controller.js',
+      'public/js/features/chat/message-input-tool-selection.js',
+      'public/js/features/chat/message-input-ui.js',
       'public/js/features/chat/chat-message-stream-resume.js',
       'public/js/features/admin/settings/connections.js',
       'public/js/features/admin/settings/connections-event-handlers.js',
