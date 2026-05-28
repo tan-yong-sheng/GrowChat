@@ -249,7 +249,7 @@ module.exports = [
       'public/js/shared/markdown-special-block-ui.js',
       'public/js/shared/markdown-special-block-runtime.js',
       'public/js/shared/markdown-token-renderer.js',
-    'public/js/shared/markdown-shared.js',
+      'public/js/shared/markdown-shared.js',
       'public/js/features/chat/chat-message-actions.js',
       'public/js/features/chat/chat-message-ui-actions.js',
       'public/js/features/chat/chat-message-list-html.js',
