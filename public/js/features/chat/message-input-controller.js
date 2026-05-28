@@ -338,59 +338,49 @@ export function createMessageInputController({
     )
       toolCtrl.closeToolsMenu();
   });
-
-  const unsubscribe = subscribe((currentState) => {
-    const model = currentState.models.find((m) => m.id === currentState.activeModelId);
-    const modelName = model?.name || 'GrowChat';
-    const noSelectableModels =
-      !currentState.modelsLoading && !toolCtrl.hasSelectableModels(currentState);
-    input.placeholder = noSelectableModels
-      ? 'No selectable models are available'
-      : `Message ${modelName}`;
-    const disclaimerText = container.querySelector('#disclaimer-text');
-    if (disclaimerText) {
-      disclaimerText.textContent = noSelectableModels
+  const unsubscribe = subscribe((s) => {
+    const model = s.models.find((m) => m.id === s.activeModelId);
+    const name = model?.name || 'GrowChat';
+    const noModels = !s.modelsLoading && !toolCtrl.hasSelectableModels(s);
+    input.placeholder = noModels ? 'No selectable models are available' : `Message ${name}`;
+    const disc = container.querySelector('#disclaimer-text');
+    if (disc)
+      disc.textContent = noModels
         ? 'No selectable models are available. Ask an admin to restore access or hide fewer models.'
-        : `${modelName} can make mistakes. Check important info.`;
-    }
-    const chatChanged = currentState.activeChatId !== lastActiveChatId;
+        : `${name} can make mistakes. Check important info.`;
+    const chatChanged = s.activeChatId !== lastActiveChatId;
     if (chatChanged && uiCtrl.getPendingQueue().length > 0) {
       uiCtrl.setPendingQueue([]);
       uiCtrl.renderPendingQueue();
     }
-    const nextStreamBlocked = Boolean(
-      currentState.ui?.streaming &&
-      currentState.ui?.streamingChatId &&
-      String(currentState.ui.streamingChatId) === String(currentState.activeChatId || '')
+    const nextBlocked = Boolean(
+      s.ui?.streaming &&
+      s.ui?.streamingChatId &&
+      String(s.ui.streamingChatId) === String(s.activeChatId || '')
     );
-    latestRunningMessageId = findRunningMessageId(currentState);
+    latestRunningMessageId = findRunningMessageId(s);
     canRequestCancel = Boolean(
       latestRunningMessageId && typeof window.__growchatRequestCancel === 'function'
     );
-    if (nextStreamBlocked !== isStreamBlocked) {
-      isStreamBlocked = nextStreamBlocked;
-      if (!nextStreamBlocked && isSubmitting) {
-        finishSubmission();
-      } else {
-        toggleSendMicBtn();
-      }
+    if (nextBlocked !== isStreamBlocked) {
+      isStreamBlocked = nextBlocked;
+      if (!nextBlocked && isSubmitting) finishSubmission();
+      else toggleSendMicBtn();
       if (!isStreamBlocked && uiCtrl.getPendingQueue().length > 0 && !isSubmitting)
         startQueuedSend();
     }
-    uiCtrl.updateComposerAvailability(currentState);
+    uiCtrl.updateComposerAvailability(s);
     if (!isSubmitting && (chatChanged || (input !== document.activeElement && !input.value))) {
-      const draft = currentState.activeChatId
-        ? currentState.drafts[currentState.activeChatId] || ''
-        : currentState.newChatDraft || '';
+      const draft = s.activeChatId ? s.drafts[s.activeChatId] || '' : s.newChatDraft || '';
       if (input.value !== draft) {
         input.value = draft;
         input.dispatchEvent(new Event('input'));
       }
     }
-    lastActiveChatId = currentState.activeChatId;
-    uiCtrl.renderAttachments(getCurrentAttachments(currentState));
-    uiCtrl.updateAttachmentControls(currentState);
-    toolCtrl.updateToolControls(currentState);
+    lastActiveChatId = s.activeChatId;
+    uiCtrl.renderAttachments(getCurrentAttachments(s));
+    uiCtrl.updateAttachmentControls(s);
+    toolCtrl.updateToolControls(s);
     toggleSendMicBtn();
   });
 
