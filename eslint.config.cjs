@@ -163,6 +163,13 @@ module.exports = [
       'max-nested-callbacks': ['warn', 3],
     },
   },
+  // Frontend JS files — max 400 lines per file
+  {
+    files: ['public/js/**/*.js'],
+    rules: {
+      'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+    },
+  },
 
   // Test files — relaxed limits for nesting, depth, and function length
   {
@@ -193,6 +200,11 @@ module.exports = [
       'src/admin/tool-servers.js',
       'src/index.js',
       'public/js/features/chat/chat.js',
+      'public/js/features/chat/chat-html.js',
+      'public/js/features/chat/chat-wire-init.js',
+      'public/js/features/chat/chat-wire-setup.js',
+      'public/js/features/chat/chat-wire-controllers.js',
+      'public/js/features/chat/chat-wire-deps.js',
       'public/js/features/chat/chat-realtime-controller.js',
       'public/js/features/chat/chat-message-stream-send.js',
       'public/js/features/chat/message-input-controller.js',

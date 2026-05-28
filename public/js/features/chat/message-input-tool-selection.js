@@ -5,7 +5,6 @@
 
 import { state } from '../../shared/store.js';
 import { escapeHtml } from '../../shared/utils.js';
-
 export function createToolSelectionController({
   toolsMenu,
   toolsMenuAllOnBtn,
@@ -15,12 +14,10 @@ export function createToolSelectionController({
   setState,
 }) {
   let expandedToolServerIds = new Set();
-
   function buildToolKey(serverId, toolName) {
     const safeName = String(toolName || '').replace(/[^a-zA-Z0-9_-]/g, '_');
     return `mcp__${serverId}__${safeName}`;
   }
-
   function getToolServerScopeLabel(server) {
     const source = String(server?.source || '')
       .trim()

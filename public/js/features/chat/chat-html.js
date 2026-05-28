@@ -1,7 +1,5 @@
-/**
- * Chat page HTML template and container setup.
- * Extracted from chat.js to keep the main file under 400 lines.
- */
+// Chat page HTML template and container setup.
+// Extracted from chat.js to keep the main file under 400 lines.
 
 import { wireChat } from './chat.js';
 
