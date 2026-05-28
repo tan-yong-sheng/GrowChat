@@ -1,11 +1,15 @@
 // Chat module - main orchestration.
 // Split from original chat.js for line-count compliance.
 
-export { renderChat } from './chat-html.js';
+import { renderChat as _renderChat } from './chat-html.js';
 import { getWireChatDeps } from './chat-wire-deps.js';
 import { initWireChat } from './chat-wire-init.js';
 import { setupWireChatFeatures } from './chat-wire-setup.js';
 import { setupWireChatControllers } from './chat-wire-controllers.js';
+
+export function renderChat(container) {
+  return _renderChat(container, wireChat);
+}
 
 function wireChat(root) {
   const ctx = { root };

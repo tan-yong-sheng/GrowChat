@@ -3,7 +3,7 @@
  * KaTeX, Mermaid, and Graphviz code blocks.
  */
 
-import { escapeHtml, normalizeSpecialBlockMode } from './markdown-renderer.js';
+import { escapeHtml, normalizeSpecialBlockMode } from './markdown-shared.js';
 
 import {
   getSpecialPreviewPlaceholder,
