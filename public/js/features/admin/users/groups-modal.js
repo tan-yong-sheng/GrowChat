@@ -302,7 +302,7 @@ function renderGroupModal({
   return overlay;
 }
 
-async function openCreateModal({ onRefresh, onCreate, navigationState }) {
+export async function openCreateModal({ onRefresh, onCreate, navigationState }) {
   let users = [];
   let usersTotal = 0;
   let usersError = null;
@@ -342,7 +342,7 @@ async function openCreateModal({ onRefresh, onCreate, navigationState }) {
   });
 }
 
-async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, navigationState }) {
+export async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, navigationState }) {
   const detail = await fetchAdminGroup(groupId);
   let users = [];
   let usersTotal = 0;

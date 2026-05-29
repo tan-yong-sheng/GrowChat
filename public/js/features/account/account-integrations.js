@@ -155,7 +155,7 @@ export function renderAccountIntegrationsSection(
     }
   };
 
-  const render = () => {
+  function render() {
     if (!ensureMounted()) {
       const traceAttrs = buildTraceAttrs({
         route: '/account/settings/integrations',
@@ -211,7 +211,7 @@ export function renderAccountIntegrationsSection(
       syncListShell();
       syncActionFooter();
     }
-  };
+  }
 
   const refreshServers = async () => {
     try {

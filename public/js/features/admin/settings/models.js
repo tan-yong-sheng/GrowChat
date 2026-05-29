@@ -222,6 +222,9 @@ export function renderModelsSettings(container, data) {
     _updateCapButton,
   });
 
+  const openModelAccessModal = (model, opts) =>
+    import('./models-access-modal.js').then((m) => m.openModelAccessModal(model, opts));
+
   const { bindDelegatedEvents } = createModelsEventHandlers({
     container,
     modelsState,
@@ -236,9 +239,6 @@ export function renderModelsSettings(container, data) {
     loadModels,
     render: () => render(),
   });
-
-  const openModelAccessModal = (model, opts) =>
-    import('./models-access-modal.js').then((m) => m.openModelAccessModal(model, opts));
 
   const { render } = createModelsRender({
     container,
@@ -258,7 +258,7 @@ export function renderModelsSettings(container, data) {
     toggleAttachmentCap,
   });
 
-  const loadModels = async (force = false) => {
+  async function loadModels(force = false) {
     if (!isActiveTab()) return;
     if (modelsState.models.length > 0 && !force) return;
     const shouldShowLoading = modelsState.models.length === 0;
@@ -292,7 +292,7 @@ export function renderModelsSettings(container, data) {
       modelsState.loading = false;
       if (isActiveTab()) render();
     }
-  };
+  }
 
   render();
   loadModels(modelsState.needsReload);

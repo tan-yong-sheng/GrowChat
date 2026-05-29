@@ -10,7 +10,6 @@ import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import {
   normalizeConnectionManualModels,
-  buildModalConnectionPayload,
   resolveModalUrl,
   normalizeProviderFamily,
   isCompatibleProviderType,
@@ -23,6 +22,7 @@ import {
 import {
   buildSelectedConnectionModels,
   updateApiTypeDisplay,
+  buildModalConnectionPayload,
 } from './connections-helpers-modal-models.js';
 
 export function createConnectionsEventHandlers(deps) {

@@ -58,6 +58,15 @@ export function bindChatMessageActions({
     roundsByMessageId,
     branchSelectionByChat,
     resolveTempMessageId,
+    setState,
+    drawMessages,
+    messages,
+    showToast,
+    waitForResolvedMessageId,
+    getMessageById,
+    currentLeafByChatId,
+    setBranchSelection,
+    loadMessages,
   });
 
   messagesList.querySelectorAll('.save-edit-btn').forEach((btn) => {

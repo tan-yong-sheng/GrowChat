@@ -19,7 +19,6 @@ export function bindChatMessageUiActions(deps) {
     drawMessages,
     messages,
     showToast,
-    isTempMessageId,
     waitForResolvedMessageId,
     getMessageById,
     currentLeafByChatId,

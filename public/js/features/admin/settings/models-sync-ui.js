@@ -162,4 +162,6 @@ export function createModelsSyncUi(deps) {
 
     // Save button removed - using immediate-save pattern
   };
+
+  return { syncUi };
 }

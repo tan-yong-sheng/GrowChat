@@ -20,8 +20,15 @@ import {
   INITIAL_CHAT_LIMIT,
   FALLBACK_PERMISSIONS,
   normalizePublicRole,
-  isKnownAutofillOverlayError,
+  isAccessTokenNearExpiry,
+  ensureShortcuts,
+  ensureRealtime,
+  scheduleDeferredTask,
+} from './session-helpers.js';
+
+export {
   installKnownErrorSuppressors,
+  isKnownAutofillOverlayError,
   isAccessTokenNearExpiry,
   ensureShortcuts,
   ensureRealtime,

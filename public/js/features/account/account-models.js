@@ -198,7 +198,7 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
     bindModelsEvents({ container, sectionState, persistModelSettings, syncUi, loadModels });
   };
 
-  const render = () => {
+  function render() {
     const providerOptions = sectionState.providerOptions.length
       ? sectionState.providerOptions
       : buildProviderOptions(sectionState.models, { includeAll: true });
@@ -269,7 +269,7 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
     } else {
       syncUi();
     }
-  };
+  }
 
   const loadModels = async (force = false) => {
     if (!force && sectionState.models.length > 0) return;

@@ -216,7 +216,7 @@ export function renderPoliciesSettings(container, _data = {}) {
     openDeepLinkedAccessModal,
   });
 
-  const render = () => {
+  function render() {
     if (!isActiveTab(container)) return;
     const renderSnapshot = captureRenderState(container, {
       inputId: 'policy-search',
@@ -315,7 +315,7 @@ export function renderPoliciesSettings(container, _data = {}) {
       inputId: 'policy-search',
       scrollSelector: '[data-policies-scroll]',
     });
-  };
+  }
 
   const load = async () => {
     state.loading = true;

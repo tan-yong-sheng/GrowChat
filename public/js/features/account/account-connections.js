@@ -234,7 +234,7 @@ export function renderAccountConnectionsSection(
   });
   const { closeModal, openConnectionModal } = modal;
 
-  const render = () => {
+  function render() {
     const hiddenConnections = new Set(
       normalizeUserResourceOverrides(state.settings?.preferences).connections.hidden_ids || []
     );
@@ -376,7 +376,7 @@ export function renderAccountConnectionsSection(
         }
       });
     });
-  };
+  }
 
   render();
 }

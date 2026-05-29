@@ -38,7 +38,7 @@ export function createModelsRender(deps) {
     toggleAttachmentCap,
   } = deps;
 
-  const render = () => {
+  function render() {
     if (!isActiveTab()) return;
 
     const query = normalizeModelSearchQuery(modelsState.query);
@@ -165,5 +165,7 @@ export function createModelsRender(deps) {
     } else {
       syncUi();
     }
-  };
+  }
+
+  return { render };
 }
