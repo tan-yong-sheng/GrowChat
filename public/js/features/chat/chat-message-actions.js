@@ -2,7 +2,6 @@ import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 import { bindChatMessageUiActions } from './chat-message-ui-actions.js';
-
 export function bindChatMessageActions({
   messagesList,
   messages,
@@ -47,7 +46,6 @@ export function bindChatMessageActions({
   messageBlocksById,
 }) {
   if (!messagesList) return;
-
   bindChatMessageUiActions({
     messagesList,
     projectedMessages,
@@ -68,7 +66,6 @@ export function bindChatMessageActions({
     setBranchSelection,
     loadMessages,
   });
-
   messagesList.querySelectorAll('.save-edit-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const originalId = btn.getAttribute('data-message-id');
@@ -77,12 +74,10 @@ export function bindChatMessageActions({
       );
       const newContent = textarea?.value.trim() || '';
       if (!newContent) return;
-
       const sourceMsg =
         getMessageById(chatId, originalId) ||
         projectedMessages.find((msg) => String(msg.id) === String(originalId));
       if (!sourceMsg) return;
-
       if (sourceMsg?.role === 'assistant') {
         let id = originalId;
         if (isTempMessageId(id)) {
@@ -98,7 +93,6 @@ export function bindChatMessageActions({
             method: 'PUT',
             body: JSON.stringify({ content: newContent }),
           });
-
           if (res.ok) {
             const newEditing = { ...state.ui.editingMessages };
             delete newEditing[originalId];
@@ -118,21 +112,17 @@ export function bindChatMessageActions({
         }
         return;
       }
-
       const branchParentId = sourceMsg?.parent_id || null;
       const sourceAttachments = Array.isArray(sourceMsg?.attachments) ? sourceMsg.attachments : [];
       const attachmentIds = Array.from(
         new Set(sourceAttachments.map((item) => item?.id).filter(Boolean))
       );
-
       const newEditing = { ...state.ui.editingMessages };
       delete newEditing[originalId];
       setState({ ui: { ...state.ui, editingMessages: newEditing } });
-
       const tempUserId = `temp-user-${Date.now()}`;
       const tempAssistantId = `temp-assistant-${Date.now()}`;
       const nowTs = Math.floor(Date.now() / 1000);
-
       let localMessages = [...(state.messagesByChat[chatId] || [])];
       const tempUserMessage = {
         id: tempUserId,

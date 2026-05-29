@@ -114,7 +114,7 @@ export function createConnectionsEventHandlers(deps) {
         if (connection) openConnectionAccessModal(connection, { connectionsState });
       }
 
-      const editBtn = e.target.closest('.connection-edit-btn');
+      const editBtn = e.target.closest('.edit-connection-btn');
       if (editBtn) {
         const id = editBtn.dataset.id;
         const connection = connectionsState.openai.connections.find((c) => c.id === id);
@@ -238,6 +238,7 @@ export function createConnectionsEventHandlers(deps) {
           if (idx !== -1) manualConnections[idx] = newConnection;
         } else {
           manualConnections.push(newConnection);
+          connectionsState.openai.connections.push(newConnection);
         }
         const res = await apiFetch('/api/admin/openai/connections', {
           method: 'PUT',
@@ -254,7 +255,7 @@ export function createConnectionsEventHandlers(deps) {
         }
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
-        connectionsState.loaded = false;
+        // connectionsState.loaded = false; // removed: optimistic save
         closeModal();
         loadConnections();
       } catch (err) {
