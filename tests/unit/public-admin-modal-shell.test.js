@@ -1,9 +1,66 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildAdminModalShellMarkup, createAdminModalShell, getAdminModalPreset } from '../../public/js/features/admin/modal-shell.js';
+import {
+  buildAdminModalShellMarkup,
+  createAdminModalShell,
+  getAdminModalPreset,
+  Z_INDEX_CLASSES,
+} from '../../public/js/features/admin/modal-shell.js';
 
 afterEach(() => {
   document.body.innerHTML = '';
+});
+
+describe('Z_INDEX_CLASSES static mapping', () => {
+  it('maps all known preset z-index values to Tailwind class names', () => {
+    expect(Z_INDEX_CLASSES[140]).toBe('z-[140]');
+    expect(Z_INDEX_CLASSES[150]).toBe('z-[150]');
+    expect(Z_INDEX_CLASSES[250]).toBe('z-[250]');
+  });
+
+  it('covers every distinct zIndex used in admin modal presets', () => {
+    const presetNames = [
+      'standard',
+      'compact',
+      'userEditor',
+      'access',
+      'aclEditor',
+      'wide',
+      'roleEditor',
+      'groupEditor',
+    ];
+    const zIndexValues = new Set(presetNames.map((name) => getAdminModalPreset(name).zIndex));
+    for (const z of zIndexValues) {
+      expect(Z_INDEX_CLASSES[z]).toBeDefined();
+    }
+  });
+
+  it('emits correct z-index class in modal markup for each preset', () => {
+    const presetZIndices = { compact: 140, standard: 150, aclEditor: 250 };
+    for (const [preset, expectedZ] of Object.entries(presetZIndices)) {
+      const markup = buildAdminModalShellMarkup({
+        preset,
+        title: 'Z-Index Test',
+        body: '<div>Body</div>',
+      });
+      expect(markup).toContain(`z-[${expectedZ}]`);
+    }
+  });
+
+  it('falls back to z-[N] class with console.error when an unmapped z-index value is used', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const markup = buildAdminModalShellMarkup({
+      preset: 'standard',
+      zIndex: 999,
+      title: 'Unmapped Z',
+      body: '<div>Body</div>',
+    });
+    // Fallback class is still emitted so modal gets a z-index
+    expect(markup).toContain('z-[999]');
+    // Developer is warned via console.error
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Unmapped z-index 999'));
+    errorSpy.mockRestore();
+  });
 });
 
 describe('admin modal shell', () => {
@@ -56,7 +113,9 @@ describe('admin modal shell', () => {
     expect(modal.textContent).toContain('Connection Access');
     expect(modal.textContent).toContain('Shared shell');
 
-    modal.querySelector('[data-test-close]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    modal
+      .querySelector('[data-test-close]')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(document.body.contains(modal)).toBe(false);
 
     close();
@@ -71,7 +130,9 @@ describe('admin modal shell', () => {
       onClose,
     });
 
-    modal.querySelector('[data-test-close]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    modal
+      .querySelector('[data-test-close]')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(document.body.contains(modal)).toBe(false);

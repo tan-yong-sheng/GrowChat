@@ -82,14 +82,8 @@ export const DEFAULT_GROUP_COLLAPSE = {
   admin: false,
 };
 
-export function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
+export { escapeHtml };
 
 export function clonePermissions(source) {
   return new Set(Array.from(source || []));

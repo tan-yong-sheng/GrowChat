@@ -7,7 +7,7 @@ import {
   normalizeModelRecord,
   providerDisplayLabel as adminProviderDisplayLabel,
   resolveUrlLabel,
-} from '../admin/settings/connections-helpers.js';
+} from '../../shared/utils/connection-helpers.js';
 import {
   previewConnectionModalModels,
   buildSelectedConnectionModels,

@@ -38,7 +38,7 @@ import {
   providerDisplayLabel as adminProviderDisplayLabel,
   resolveUrlLabel,
   updateApiTypeDisplay,
-} from '../admin/settings/connections-helpers.js';
+} from '../../shared/utils/connection-helpers.js';
 
 import {
   normalizeProviderType,

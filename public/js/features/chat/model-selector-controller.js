@@ -1,4 +1,5 @@
 import { state, setState, subscribe } from '../../shared/store.js';
+import { fetchModels, readModelsCache } from '../../shared/api.js';
 import {
   filterEnabledModels,
   getPreferredModelId,

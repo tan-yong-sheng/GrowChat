@@ -4,6 +4,8 @@
 import { state, setState } from '../../shared/store.js';
 import { filterEnabledModels } from '../../shared/utils/model-state.js';
 import { getModelSelectorAvailabilitySummary } from './model-selector-helpers.js';
+import { fetchModels, readModelsCache } from '../../shared/api.js';
+import { getModelsCacheGeneration } from '../../shared/utils/models-cache-generation.js';
 
 export function createModelSelectorNoticeHelpers(elems) {
   const { summaryEl, noticeEl } = elems;
@@ -74,9 +76,20 @@ export function createModelSelectorNoticeHelpers(elems) {
   const ensureModelsLoaded = async () => {
     if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
     loadingPromise = (async () => {
+      setState({ modelsLoading: true });
+      const requestGeneration = getModelsCacheGeneration();
       try {
-        const { prefetchModels } = await import('../../bootstrap/session-bootstrap.js');
-        await prefetchModels({ allowCache: true });
+        const cache = await readModelsCache();
+        if (cache?.models?.length) {
+          if (requestGeneration !== getModelsCacheGeneration()) return;
+          const models = filterEnabledModels(cache.models);
+          setState({ models, modelCatalogMeta: cache.visibility || null, modelsLoading: false });
+          return;
+        }
+        const data = await fetchModels({ cache: 'default', scope: 'effective' });
+        if (requestGeneration !== getModelsCacheGeneration()) return;
+        const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
+        setState({ models, modelCatalogMeta: data?.visibility || null, modelsLoading: false });
       } catch (err) {
         console.error('Failed to load models:', err);
         setState({ modelsLoading: false });

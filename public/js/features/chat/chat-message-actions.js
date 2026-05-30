@@ -1,4 +1,11 @@
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
+import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
+import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';
+import {
+  createSseStreamHandlers,
+  finalizeStreamAndLoadMessages,
+  handleStreamCatchError,
+} from '../../shared/utils/sse-event-handler.js';
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 import { bindChatMessageUiActions } from './chat-message-ui-actions.js';
@@ -146,17 +153,6 @@ export function bindChatMessageActions({
         created_at: nowTs + 1,
         done: false,
       });
-      registerPendingTempMessage(chatId, {
-        id: tempAssistantId,
-        role: 'assistant',
-        content: '',
-        parent_id: tempUserId,
-        created_at: nowTs + 1,
-      });
-
-      currentLeafByChatId.set(chatId, tempAssistantId);
-      setState((prev) => ({ messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages } }));
-      if (state.activeChatId === chatId) drawMessages(localMessages);
 
       const controller = new AbortController();
       setActiveStreamAbort(() => controller.abort());
@@ -192,9 +188,10 @@ export function bindChatMessageActions({
               isStreaming: streaming,
             });
           }
-        }
-        try {
-          setStreamingState(chatId, true);
+}
+      const { getStreamState } = createSseStreamHandlers({ chatId, setState });
+      try {
+        setStreamingState(chatId, true);
           const res = await apiFetch(`/api/chats/${chatId}/messages/${sourceId}/branch`, {
             method: 'POST',
             body: JSON.stringify({
@@ -295,24 +292,22 @@ export function bindChatMessageActions({
         } catch (e) {
           if (e?.name !== 'AbortError') {
             console.error('Branching failed', e);
-            if (!errorActive) {
-              errorMessage = String(e?.message || 'LLM request failed');
-              errorActive = true;
-              assistantText = '';
-              applyAssistantText(false);
-            }
-            const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-              content: assistantText,
-              errorActive,
-              errorMessage,
-              model: state.activeModelId,
-              parentId: resolveTempMessageId(chatId, tempUserId),
-            });
-            await loadMessages(chatId, {
-              draw: state.activeChatId === chatId,
-              updateActiveModel: state.activeChatId === chatId,
+            await handleStreamCatchError({
+              error: e,
+              getStreamState,
+              applyStreamingAssistantText,
+              state,
+              setState,
+              streamingOverrideByChat,
+              updateMessageContentDom,
+              chatId,
+              buildFallbackAssistantMessage,
+              resolveTempMessageId,
+              tempUserId,
+              loadMessages,
+              activeModelId: state.activeModelId,
+              activeChatId: state.activeChatId,
               preferredLeafId: assistantMessageId,
-              fallbackMessage: fallback,
             });
           }
         } finally {

@@ -39,5 +39,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run mutation testing
+      - name: Run mutation testing with threshold enforcement
+        # Stryker exits non-zero when mutation score < thresholds.break (40%)
+        # Thresholds configured in stryker.config.json: break=40, low=50, high=60
         run: pnpm run check:mutation
+
+      - name: Report mutation score
+        if: always()
+        run: |
+          echo "Mutation testing thresholds (stryker.config.json):"
+          echo "  break: 40% (CI fails below this)"
+          echo "  low:   50% (warning)"
+          echo "  high:  60% (target)"
+          echo ""
+          echo "Check the HTML report in Stryker output for detailed scores."

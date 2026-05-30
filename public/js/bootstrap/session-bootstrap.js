@@ -39,7 +39,13 @@ let bootstrapped = false;
 let deferredBootstrapPromise = null;
 let modelsPrefetchPromise = null;
 let modelsInvalidationListenerBound = false;
-let modelsCacheGeneration = 0;
+// modelsCacheGeneration moved to shared/utils/models-cache-generation.js
+// to avoid cross-feature import violations from chat/ → bootstrap/
+import {
+  getModelsCacheGeneration,
+  incrementModelsCacheGeneration,
+} from '../shared/utils/models-cache-generation.js';
+export { getModelsCacheGeneration, incrementModelsCacheGeneration };
 
 function scheduleModelsPrefetch(options = {}) {
   const run = () => {
@@ -60,14 +66,14 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
     setState({ modelsLoading: true });
   }
 
-  const requestGeneration = modelsCacheGeneration;
+  const requestGeneration = getModelsCacheGeneration();
   const requestPromise = fetchModels({
     cache: 'no-store',
     cacheBust,
     scope: 'effective',
   })
     .then((data) => {
-      if (requestGeneration !== modelsCacheGeneration) return data;
+      if (requestGeneration !== getModelsCacheGeneration()) return data;
       const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
       const nextActiveModelId = getPreferredModelId(models, [
         state.activeModelId,
@@ -83,7 +89,7 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
       return data;
     })
     .catch((err) => {
-      if (requestGeneration !== modelsCacheGeneration) return null;
+      if (requestGeneration !== getModelsCacheGeneration()) return null;
       console.warn('Failed to prefetch models:', err);
       if (allowCache) {
         const cached = readModelsCache('effective');
@@ -119,7 +125,7 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
 export function checkModelsInvalidation() {
   const token = consumeModelsInvalidation();
   if (!token) return null;
-  modelsCacheGeneration += 1;
+  incrementModelsCacheGeneration();
   modelsPrefetchPromise = null;
   setState({ models: [], modelCatalogMeta: null, modelsLoading: true });
   prefetchModels({ allowCache: false, cacheBust: token, force: true });
@@ -131,7 +137,7 @@ function bindModelsInvalidationListener() {
   const handleInvalidation = () => {
     const token = consumeModelsInvalidation();
     if (!token) return;
-    modelsCacheGeneration += 1;
+    incrementModelsCacheGeneration();
     modelsPrefetchPromise = null;
     setState({ models: [], modelCatalogMeta: null, modelsLoading: true });
     prefetchModels({ allowCache: false, cacheBust: token, force: true });

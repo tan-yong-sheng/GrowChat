@@ -364,6 +364,22 @@ describe('admin connections modal', () => {
     expect(lastPutBody.access_updates).toEqual([]);
   });
 
+  it('renders the edit-connection modal with a z-index class from Z_INDEX_CLASSES', async () => {
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    renderConnectionsSettings(container, {});
+    await vi.waitFor(() =>
+      expect(mocks.apiFetch).toHaveBeenCalledWith(
+        '/api/admin/openai/connections?include_disabled=1'
+      )
+    );
+    container.querySelector('#add-connection')?.click();
+    const modal = container.querySelector('#edit-connection-modal');
+    expect(modal).not.toBeNull();
+    // STANDARD_MODAL_PRESET.zIndex is 150; the resolved class should be z-[150]
+    expect(modal.className).toContain('z-[150]');
+  });
+
   it('keeps disabled connections visible on reload', async () => {
     mocks.apiFetch.mockImplementationOnce(async (url) => {
       if (String(url).includes('/api/admin/openai/connections')) {
@@ -407,5 +423,92 @@ describe('admin connections modal', () => {
     expect(
       container.querySelector('[data-settings-tab="connections"] [class*="opacity-70"]')
     ).not.toBeNull();
+  });
+
+  it('escapes connection names containing HTML special characters (#121 XSS)', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/openai/connections')) {
+        return new Response(
+          JSON.stringify({
+            enabled: true,
+            connections: [
+              {
+                id: 'xss-conn',
+                name: '<img onerror=alert(1) src=x>',
+                url: 'https://xss.example.com',
+                providerType: 'openai',
+                enabled: true,
+                readOnly: false,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    renderConnectionsSettings(container, data);
+    await vi.waitFor(() =>
+      expect(mocks.apiFetch).toHaveBeenCalledWith(
+        '/api/admin/openai/connections?include_disabled=1'
+      )
+    );
+    await vi.waitFor(() => expect(container.textContent).toContain('<img onerror=alert(1) src=x>'));
+    expect(container.querySelector('img')).toBeNull();
+    const row = container.querySelector('[data-connection-row]');
+    expect(row).not.toBeNull();
+    expect(row.getAttribute('data-connection-row')).toBe('xss-conn');
+  });
+  it('escapes connection IDs with quote-bearing payloads in data attributes (#121 XSS attr)', async () => {
+    mocks.apiFetch.mockImplementationOnce(async (url) => {
+      if (String(url).includes('/api/admin/openai/connections')) {
+        return new Response(
+          JSON.stringify({
+            enabled: true,
+            connections: [
+              {
+                id: 'xss" data-pwned="1',
+                name: 'safe-conn-name',
+                url: 'https://safe.example.com',
+                providerType: 'openai',
+                enabled: true,
+                readOnly: false,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const { renderConnectionsSettings } = await loadModule();
+    const container = document.getElementById('root');
+    const data = {};
+    renderConnectionsSettings(container, data);
+
+    await vi.waitFor(() =>
+      expect(mocks.apiFetch).toHaveBeenCalledWith(
+        '/api/admin/openai/connections?include_disabled=1'
+      )
+    );
+    await vi.waitFor(() => expect(container.querySelector('[data-connection-row]')).not.toBeNull());
+
+    // No injected attributes from quote-bearing id
+    expect(container.querySelector('[data-pwned]')).toBeNull();
+    expect(container.querySelector('[onerror]')).toBeNull();
+
+    // The data-connection-row attribute should be the escaped connection.id
+    const row = container.querySelector('[data-connection-row]');
+    expect(row?.getAttribute('data-connection-row')).toBe('xss" data-pwned="1');
   });
 });

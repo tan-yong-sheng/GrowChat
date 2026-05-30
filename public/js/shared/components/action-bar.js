@@ -4,6 +4,21 @@
  */
 import { renderButton } from './button.js';
 
+function renderSaveCancelButtons(isSaving) {
+  return `${renderButton({
+    label: 'Cancel',
+    variant: 'secondary',
+    disabled: isSaving,
+    ariaLabel: 'Cancel',
+  })}
+${renderButton({
+  label: isSaving ? 'Saving...' : 'Save',
+  variant: 'primary',
+  disabled: isSaving,
+  ariaLabel: 'Save',
+})}`;
+}
+
 export function renderActionBar({ isSaving = false, helpText = '', showDelete = false } = {}) {
   return `
     <div class="flex items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 bg-white">
@@ -22,18 +37,7 @@ export function renderActionBar({ isSaving = false, helpText = '', showDelete = 
               })
             : ''
         }
-        ${renderButton({
-          label: 'Cancel',
-          variant: 'secondary',
-          disabled: isSaving,
-          ariaLabel: 'Cancel',
-        })}
-        ${renderButton({
-          label: isSaving ? 'Saving...' : 'Save',
-          variant: 'primary',
-          disabled: isSaving,
-          ariaLabel: 'Save',
-        })}
+        ${renderSaveCancelButtons(isSaving)}
       </div>
     </div>
   `;
@@ -49,18 +53,7 @@ export function renderStickyActionBar({ isSaving = false, helpText = '' } = {}) 
         ${helpText}
       </div>
       <div class="flex items-center gap-2">
-        ${renderButton({
-          label: 'Cancel',
-          variant: 'secondary',
-          disabled: isSaving,
-          ariaLabel: 'Cancel',
-        })}
-        ${renderButton({
-          label: isSaving ? 'Saving...' : 'Save',
-          variant: 'primary',
-          disabled: isSaving,
-          ariaLabel: 'Save',
-        })}
+        ${renderSaveCancelButtons(isSaving)}
       </div>
     </div>
   `;

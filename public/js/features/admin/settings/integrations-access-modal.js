@@ -5,6 +5,7 @@
 import { fetchAdminToolServerAccess } from '../../../shared/admin-access.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
+import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 
 function cloneAclRules(rules = [], normalizer = (rule) => rule) {
@@ -225,8 +226,13 @@ export async function openToolServerAccessModal(server, { onApply } = {}) {
         action: 'use',
       }));
       const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
+      if (sameAsBase) {
+        broadcastToolServersInvalidation();
+        close();
+        return;
+      }
       if (typeof onApply === 'function') {
-        await onApply(sameAsBase ? null : cloneAclRules(rules), server);
+        await onApply(cloneAclRules(rules), server);
       }
       close();
     } catch (err) {

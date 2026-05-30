@@ -93,7 +93,7 @@ module.exports = [
             },
             {
               from: { type: 'scripts' },
-              allow: { to: { type: ['scripts'] } },
+              allow: { to: { type: ['scripts', 's-bootstrap'] } },
             },
             {
               from: { type: 'test' },
@@ -103,10 +103,196 @@ module.exports = [
                 },
               },
             },
-            // Backend permissive baseline — allow all src element types to import
-            // from each other and from f-shared. TODO: tighten incrementally.
+            // Backend layer isolation — matches dep-cruiser rules from .dependency-cruiser.cjs
+            // Layer hierarchy (top → bottom):
+            // s-router → s-service → s-chat → s-llm → s-repository → leaf layers
+            // Leaf layers (s-utils, s-config, s-errors, s-validation, s-shared, s-middleware,
+            // s-mcp, s-durable, s-feature, s-admin, s-bootstrap) must not import s-router.
+            // Routers must not import legacy role helpers (s-utils admin/rbac).
             {
-              from: { type: srcTypes },
+              from: { type: 's-router' },
+              allow: {
+                to: {
+                  type: [
+                    's-root',
+                    's-service',
+                    's-chat',
+                    's-llm',
+                    's-repository',
+                    's-shared',
+                    's-utils',
+                    's-config',
+                    's-errors',
+                    's-validation',
+                    's-middleware',
+                    's-mcp',
+                    's-durable',
+                    's-feature',
+                    's-admin',
+                    's-bootstrap',
+                    'f-shared',
+                  ],
+                },
+              },
+            },
+            {
+              from: { type: 's-service' },
+              allow: {
+                to: {
+                  type: [
+                    's-root',
+                    's-llm',
+                    's-repository',
+                    's-shared',
+                    's-utils',
+                    's-config',
+                    's-errors',
+                    's-validation',
+                    's-middleware',
+                    's-mcp',
+                    's-durable',
+                    's-feature',
+                    's-admin',
+                    's-bootstrap',
+                    'f-shared',
+                  ],
+                },
+              },
+            },
+            {
+              from: { type: 's-chat' },
+              allow: {
+                to: {
+                  type: [
+                    's-service',
+                    's-repository',
+                    's-shared',
+                    's-utils',
+                    's-config',
+                    's-errors',
+                    's-validation',
+                    's-middleware',
+                    's-mcp',
+                    's-durable',
+                    's-feature',
+                    's-admin',
+                    's-bootstrap',
+                    'f-shared',
+                  ],
+                },
+              },
+            },
+            {
+              from: { type: 's-llm' },
+              allow: {
+                to: {
+                  type: [
+                    's-root',
+                    's-shared',
+                    's-utils',
+                    's-config',
+                    's-errors',
+                    's-validation',
+                    's-middleware',
+                    's-mcp',
+                    's-durable',
+                    's-feature',
+                    's-admin',
+                    's-bootstrap',
+                    'f-shared',
+                  ],
+                },
+              },
+            },
+            {
+              from: { type: 's-repository' },
+              allow: {
+                to: {
+                  type: [
+                    's-root',
+                    's-shared',
+                    's-utils',
+                    's-config',
+                    's-errors',
+                    's-validation',
+                    's-middleware',
+                    's-mcp',
+                    's-durable',
+                    's-feature',
+                    's-admin',
+                    's-bootstrap',
+                    'f-shared',
+                  ],
+                },
+              },
+            },
+            // Bootstrap layer: wires up routers (intentional upward dependency for registration)
+            {
+              from: { type: 's-bootstrap' },
+              allow: {
+                to: {
+                  type: [
+                    's-router',
+                    's-service',
+                    's-chat',
+                    's-llm',
+                    's-repository',
+                    's-shared',
+                    's-utils',
+                    's-config',
+                    's-errors',
+                    's-validation',
+                    's-middleware',
+                    's-mcp',
+                    's-durable',
+                    's-feature',
+                    's-admin',
+                    's-root',
+                    'f-shared',
+                  ],
+                },
+              },
+            },
+            // Leaf layers: may import from each other and f-shared, but NOT from s-router
+            {
+              from: {
+                type: [
+                  's-shared',
+                  's-utils',
+                  's-config',
+                  's-errors',
+                  's-validation',
+                  's-middleware',
+                  's-mcp',
+                  's-durable',
+                  's-feature',
+                  's-admin',
+                  's-bootstrap',
+                ],
+              },
+              allow: {
+                to: {
+                  type: [
+                    's-root',
+                    's-shared',
+                    's-utils',
+                    's-config',
+                    's-errors',
+                    's-validation',
+                    's-middleware',
+                    's-mcp',
+                    's-durable',
+                    's-feature',
+                    's-admin',
+                    's-bootstrap',
+                    'f-shared',
+                  ],
+                },
+              },
+            },
+            // s-root files (entry points) may import from any src layer
+            {
+              from: { type: 's-root' },
               allow: { to: { type: [...srcTypes, 'f-shared'] } },
             },
             // Tests may import from any src or frontend element type
@@ -157,10 +343,28 @@ module.exports = [
       'no-console': 'off',
       'growchat-logging/no-console-logging': 'error',
       'no-duplicate-imports': 'warn',
-      complexity: ['warn', { max: 15 }],
-      'max-lines-per-function': ['warn', { max: 120, skipBlankLines: true, skipComments: true }],
-      'max-depth': ['warn', 4],
+      complexity: ['warn', { max: 10 }],
+      'max-lines-per-function': ['warn', { max: 80, skipBlankLines: true, skipComments: true }],
+      'max-depth': ['error', 4],
       'max-nested-callbacks': ['warn', 3],
+      // #108 — New guardrail rules (start as warn, promote after fixing)
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'no-magic-numbers': [
+        'warn',
+        {
+          ignore: [
+            0, 1, -1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 15, 16, 24, 30, 31, 32, 36, 50, 60, 64, 100,
+            127, 200, 256, 260, 300, 400, 401, 403, 404, 405, 409, 500, 1000, 1024, 1970, 2000,
+            10000, 1e12,
+          ],
+          ignoreArrayIndexes: true,
+          ignoreDefaultValues: true,
+        },
+      ],
+      'max-classes-per-file': ['warn', { max: 5 }],
+      'max-params': ['warn', { max: 4 }],
+      'max-statements': ['warn', { max: 20 }],
+      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
     },
   },
   // Frontend JS files — max 400 lines per file
@@ -180,6 +384,11 @@ module.exports = [
       'max-depth': 'off',
       complexity: 'off',
       'no-unused-vars': 'off',
+      'no-magic-numbers': 'off',
+      'max-params': 'off',
+      'max-statements': 'off',
+      'max-lines': 'off',
+      'max-classes-per-file': 'off',
     },
   },
 
@@ -187,9 +396,28 @@ module.exports = [
   // TODO: Refactor these into sub-handlers and remove this override.
   {
     files: [
-      'src/routers/admin.js',
-      'src/routers/users.js',
-      'src/routers/models.js',
+      'src/routers/admin/admin-connections-access.js',
+      'src/routers/admin/admin-connections-list.js',
+      'src/routers/admin/admin-connections-save.js',
+      'src/routers/admin/admin-config.js',
+      'src/routers/admin/admin-email-security.js',
+      'src/routers/admin/admin-tool-servers-access.js',
+      'src/routers/admin/admin-tool-servers-crud.js',
+      'src/routers/admin/admin-tool-servers-oauth.js',
+      'src/routers/users/users-admin-access.js',
+      'src/routers/users/users-admin-by-id.js',
+      'src/routers/users/users-admin-crud.js',
+      'src/routers/users/users-admin-list.js',
+      'src/routers/users/users-connections.js',
+      'src/routers/users/users-helpers.js',
+      'src/routers/users/users-mcp.js',
+      'src/routers/users/users-me.js',
+      'src/routers/models/models-admin-access.js',
+      'src/routers/models/models-admin-settings.js',
+      'src/routers/models/models-discovery.js',
+      'src/routers/models/models-helpers.js',
+      'src/routers/models/models-public-crud.js',
+      'src/routers/models/models-public-list.js',
       'src/routers/chat-message.js',
       'src/routers/chat-collection.js',
       'src/routers/auth.js',
@@ -355,6 +583,11 @@ module.exports = [
       'no-unused-vars': 'off',
       'max-lines-per-function': 'off',
       'max-depth': 'off',
+      'no-magic-numbers': 'off',
+      'max-params': 'off',
+      'max-statements': 'off',
+      'max-lines': 'off',
+      'max-classes-per-file': 'off',
     },
   },
 ];

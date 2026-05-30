@@ -11,7 +11,7 @@ import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
 import {
   normalizeConnectionManualModels,
   normalizeModelRecord,
-} from '../admin/settings/connections-helpers.js';
+} from '../../shared/utils/connection-helpers.js';
 import { formatHeadersValue } from './account-connections-helpers.js';
 export function createConnectionModal(ctx) {
   const {

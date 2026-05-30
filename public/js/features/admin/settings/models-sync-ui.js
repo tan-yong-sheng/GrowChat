@@ -105,7 +105,7 @@ export function createModelsSyncUi(deps) {
               .map((model) => {
                 const _isDisabled = modelsState.disabledModels.has(model.id);
                 return `
-                    <tr data-model-row="${model.id}" class="text-xs hover:bg-gray-50/50 transition-colors ${_isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
+                    <tr data-model-row="${escapeHtml(model.id)}" class="text-xs hover:bg-gray-50/50 transition-colors ${_isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
 <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${escapeHtml(model.name || model.id)}">${escapeHtml(model.name || model.id)}</td>
                       <td class="px-4 py-4 font-mono truncate ${_isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
                       <td class="px-4 py-4">
@@ -118,7 +118,7 @@ export function createModelsSyncUi(deps) {
                           <button
                             type="button"
                             class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${_isDisabled || !canManageAcls ? 'hidden' : ''}"
-                            data-model-acl="${model.id}"
+                            data-model-acl="${escapeHtml(model.id)}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
                             ${_isDisabled || !canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}

@@ -17,14 +17,8 @@ import {
 /**
  * Escape a value for safe inclusion in HTML attributes and text.
  */
-export function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
+export { escapeHtml };
 
 /**
  * Render a small coloured badge pill.
