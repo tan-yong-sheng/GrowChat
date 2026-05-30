@@ -11,7 +11,6 @@ import {
 } from '../../../shared/api.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { createAdminModalShell } from '../modal-shell.js';
-import { displayFieldErrors, clearFormErrors } from '../../../shared/form-validation.js';
 import { renderButton } from '../../../shared/components/button.js';
 import { escapeHtml, getGroupModalTheme } from './groups-list-helpers.js';
 import { buildMemberSet, clampUserLimit, filterUsers } from './groups-members-helpers.js';

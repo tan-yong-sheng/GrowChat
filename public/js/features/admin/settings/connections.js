@@ -1,4 +1,5 @@
 import { apiFetch } from '../../../shared/api.js';
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { buildConnectionModalBodyMarkup } from '../../../shared/components/connection-modal.js';
 import { sortResourcesByEnabledThenLabel } from '../../../shared/utils/resource-sort.js';
 import { renderButton } from '../../../shared/components/button.js';
@@ -9,14 +10,6 @@ import {
 } from './connections-helpers.js';
 import { createConnectionsModalOps } from './connections-modal-ops.js';
 import { createConnectionsEventHandlers } from './connections-event-handlers.js';
-
-const escapeHtml = (value) =>
-  String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 export function renderConnectionsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'connections';
@@ -297,7 +290,7 @@ export function renderConnectionsSettings(container, data) {
     container,
     connectionsState,
     canManageAcls,
-    render,
+    loadConnections,
     openModal,
     closeModal,
     openConnectionAccessModal,

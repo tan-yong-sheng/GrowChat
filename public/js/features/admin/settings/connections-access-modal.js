@@ -5,19 +5,12 @@
  */
 
 import { apiFetch } from '../../../shared/api.js';
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { fetchAdminConnectionAccess } from '../../../shared/admin-access.js';
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { normalizeConnectionManualModels } from './connections-helpers.js';
-
-const escapeHtml = (value) =>
-  String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 function cloneAclRules(rules = [], normalizer = (rule) => rule) {
   if (!Array.isArray(rules)) return [];

@@ -225,7 +225,8 @@ export function createConnectionsEventHandlers(deps) {
           manualModelsMode: connectionsState.selectedConnection?.manualModelsMode,
         };
         const modelUpdates = buildSelectedConnectionModels(
-          connectionsState,
+          connectionsState.modalModels || [],
+          connectionsState.modalModelsSelection || new Set(),
           connectionsState.selectedConnection
         );
         const accessUpdates = [];

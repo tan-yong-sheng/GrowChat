@@ -114,17 +114,20 @@ let realtimeStarted = false;
 
 export function ensureRealtime() {
   if (realtimeStarted) return;
-  realtimeStarted = true;
   import('../shared/realtime.js')
-    .then(({ shouldStartRealtimeSync, startRealtimeSync }) => {
-      if (shouldStartRealtimeSync())
-        startRealtimeSync({
-          onEvent: (event) => {
-            window.dispatchEvent(new CustomEvent('growchat:realtime', { detail: event }));
-          },
-        });
+    .then(({ startRealtimeSync, stopRealtimeSync }) => {
+      if (typeof window === 'undefined') return;
+      startRealtimeSync({
+        onEvent: (event) => {
+          window.dispatchEvent(new CustomEvent('growchat:realtime', { detail: event }));
+        },
+      });
+      window.addEventListener('beforeunload', stopRealtimeSync, { once: true });
+      realtimeStarted = true;
     })
-    .catch(() => {});
+    .catch(() => {
+      /* ignored - will retry on next call */
+    });
 }
 
 export function scheduleDeferredTask(task, timeout = 3000) {

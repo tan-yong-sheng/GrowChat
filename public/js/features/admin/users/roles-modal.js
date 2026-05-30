@@ -1,12 +1,6 @@
 /**
  * Role editor modal for the admin roles page.
  */
-import {
-  createAdminRbacRole,
-  updateAdminRbacRole,
-  deleteAdminRbacRole,
-  fetchAdminRbacRoles,
-} from '../../../shared/api.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import {
   ROLE_PRESETS,
@@ -106,7 +100,7 @@ export function openRoleModal(
   };
 
   const renderPermissionPane = () => {
-    const groups = buildVisibleGroups(modalState.query, modalState.advanced);
+    const groups = buildVisibleGroups(modalState.query);
     const paneEl = modal.querySelector('[data-role-permission-pane]');
     if (!paneEl) return;
     paneEl.innerHTML = `
@@ -315,7 +309,7 @@ export function openRoleModal(
     })();
   });
 
-  resetBtn.addEventListener('click', () => {
+  resetBtn?.addEventListener('click', () => {
     modalState.draft = modalState.isNew
       ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
           isNew: true,
@@ -331,10 +325,10 @@ export function openRoleModal(
     renderPermissionPane();
   });
 
-  discardBtn.addEventListener('click', () => {
+  discardBtn?.addEventListener('click', () => {
     close();
   });
-  closeBtn.addEventListener('click', close);
+  closeBtn?.addEventListener('click', close);
   saveBtn?.addEventListener('click', () => {
     void saveRole();
   });

@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { apiFetch } from '../../../shared/api.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { buildProviderOptions } from '../../../shared/utils/model-filters.js';
@@ -81,7 +82,7 @@ export function renderModelsSettings(container, data) {
   const showError = (message) => {
     const errorSlot = container.querySelector('#models-error-container');
     if (errorSlot) {
-      errorSlot.innerHTML = `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${message}</span></div>`;
+      errorSlot.innerHTML = `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${escapeHtml(String(message || ''))}</span></div>`;
       setTimeout(() => {
         if (errorSlot.querySelector('[data-error-banner]')) {
           errorSlot.innerHTML = '';
@@ -182,6 +183,7 @@ export function renderModelsSettings(container, data) {
       broadcastModelsInvalidation();
     } catch (err) {
       showError(err.message || 'Failed to save access rules');
+      throw err;
     }
   };
 

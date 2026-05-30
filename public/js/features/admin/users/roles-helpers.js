@@ -75,7 +75,7 @@ export const PERMISSION_GROUPS = [
   },
 ];
 
-const DEFAULT_GROUP_COLLAPSE = {
+export const DEFAULT_GROUP_COLLAPSE = {
   chat: false,
   files: false,
   models: false,

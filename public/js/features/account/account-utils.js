@@ -7,6 +7,7 @@ export const accountSectionRenderers = {
   connections: null,
   models: null,
   integrations: null,
+  sessions: null,
 };
 
 export async function loadAccountSectionRenderer(section) {
@@ -27,6 +28,12 @@ export async function loadAccountSectionRenderer(section) {
       ({ renderAccountModelsSection }) => renderAccountModelsSection
     );
     return accountSectionRenderers.models;
+  }
+  if (normalized === 'sessions') {
+    accountSectionRenderers.sessions = import('./sessions.js').then(
+      ({ renderSessionsSection }) => renderSessionsSection
+    );
+    return accountSectionRenderers.sessions;
   }
 
   accountSectionRenderers.integrations = import('./account-integrations.js').then(

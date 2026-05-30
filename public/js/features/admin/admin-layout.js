@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import {
   DEFAULT_SETTINGS_BODY_PADDING_CLASS,
   renderSettingsViewport,
@@ -47,7 +48,7 @@ export function renderErrorState(message) {
     <div class="flex items-center justify-center h-full ${ADMIN_SHELL_BODY_PADDING_CLASS} p-6">
       <div class="max-w-md w-full rounded-3xl border border-red-100 bg-red-50/60 p-6 text-center">
         <div class="text-sm font-semibold text-red-700">Unable to load admin content</div>
-        <div class="mt-2 text-sm text-red-600">${message}</div>
+        <div class="mt-2 text-sm text-red-600">${escapeHtml(String(message || ''))}</div>
       </div>
     </div>
   `;

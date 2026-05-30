@@ -88,8 +88,8 @@ export function createModelsRender(deps) {
               const isDisabled = modelsState.disabledModels.has(model.id);
               return `
                     <tr data-model-row="${model.id}" class="text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
-                      <td class="px-4 py-4 font-medium text-gray-900 truncate" title="${model.name || model.id}">${model.name || model.id}</td>
-                      <td class="px-4 py-4 font-mono truncate ${isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${model.id}">${model.id}</td>
+<td class="px-4 py-4 font-medium text-gray-900 truncate" title="${escapeHtml(model.name || model.id)}">${escapeHtml(model.name || model.id)}</td>
+                      <td class="px-4 py-4 font-mono truncate ${isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
                       <td class="px-4 py-4">
                         <div class="flex items-center gap-2">
                           ${renderModelAccessBadgeForModel(model)}

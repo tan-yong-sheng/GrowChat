@@ -1,14 +1,7 @@
 /**
  * Helpers for the admin groups page.
  */
-export function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+export { escapeHtml } from '../../../shared/utils/dom-escape.js';
 
 export function getGroupModalTheme() {
   return {
