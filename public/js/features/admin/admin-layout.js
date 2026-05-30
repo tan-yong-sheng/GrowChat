@@ -194,7 +194,7 @@ export function renderUnderDevPlaceholder(sectionTitle) {
  <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.978 2.978 0 01-3.34-3.34L15 2.25 10.5 2.25l-4.5 4.5v1.5a1.5 1.5 0 001.5 1.5h1.5l3.93 3.93m2.856 2.856l1.5 1.5a1.5 1.5 0 001.5-1.5V10.5l-4.5-4.5H6" />
  </svg>
  </div>
- <h3 class="text-lg font-medium text-gray-900 mb-1">${sectionTitle}</h3>
+ <h3 class="text-lg font-medium text-gray-900 mb-1">${escapeHtml(String(sectionTitle || ''))}</h3>
  <p class="text-sm text-gray-700 max-w-xs">This section is currently under development.</p>
  </div>
  `;
