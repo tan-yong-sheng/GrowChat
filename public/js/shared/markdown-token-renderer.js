@@ -6,9 +6,9 @@
 import {
   escapeHtml,
   decodeHtmlEntities,
-  resolveSpecialBlockSession,
   isFullLatexDocument,
-} from './markdown-renderer.js';
+  resolveSpecialBlockSession,
+} from './markdown-shared.js';
 
 import {
   getSpecialBlockKind,

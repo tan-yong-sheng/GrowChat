@@ -5,14 +5,18 @@ import {
   enhanceMarkdownSpecialBlocks,
 } from './markdown-special-block-runtime.js';
 import { renderMarkdownTokens } from './markdown-token-renderer.js';
+import {
+  escapeHtml,
+  decodeHtmlEntities,
+  convertDisplayMathBlocks,
+  resolveSpecialBlockSession,
+  resetSpecialBlockState,
+} from './markdown-shared.js';
 
 const MARKDOWN_CACHE_LIMIT = 200;
 const markdownCache = new Map();
 let markedReadyPromise = null;
-let specialBlockScopeKey = '';
-let specialBlockMode = 'preview';
 
-// Re-export shared utilities for backward compatibility
 // Re-export shared utilities for backward compatibility
 export {
   escapeHtml,
@@ -21,24 +25,13 @@ export {
   normalizeSpecialBlockMode,
   isFullLatexDocument,
   convertDisplayMathBlocks,
+  resolveSpecialBlockSession,
+  resetSpecialBlockState,
 } from './markdown-shared.js';
-import { escapeHtml, decodeHtmlEntities, convertDisplayMathBlocks } from './markdown-shared.js';
 
 export function normalizeMessageContent(content) {
   const normalized = String(content ?? '').replace(/\r\n?/g, '\n');
   return convertDisplayMathBlocks(decodeHtmlEntities(decodeHtmlEntities(normalized)));
-}
-
-export function resolveSpecialBlockSession(scope) {
-  const nextScope = String(scope ?? '').trim();
-  if (!nextScope) {
-    return { scope: '', mode: 'preview' };
-  }
-  if (specialBlockScopeKey !== nextScope) {
-    specialBlockScopeKey = nextScope;
-    specialBlockMode = 'preview';
-  }
-  return { scope: specialBlockScopeKey, mode: specialBlockMode };
 }
 
 function touchMarkdownCache(key, value) {
@@ -238,8 +231,7 @@ export function renderMarkdownContent(content, options = {}) {
 }
 
 export function resetMarkdownSpecialBlockState() {
-  specialBlockScopeKey = '';
-  specialBlockMode = 'preview';
+  resetSpecialBlockState();
 }
 
 export { applySpecialBlockModeToScope, enhanceMarkdownSpecialBlocks };

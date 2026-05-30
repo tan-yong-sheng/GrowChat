@@ -97,3 +97,24 @@ export function convertDisplayMathBlocks(content) {
   }
   return out.join('\n');
 }
+
+// Special block session state (shared mutable state)
+let specialBlockScopeKey = '';
+let specialBlockMode = 'preview';
+
+export function resolveSpecialBlockSession(scope) {
+  const nextScope = String(scope ?? '').trim();
+  if (!nextScope) {
+    return { scope: '', mode: 'preview' };
+  }
+  if (specialBlockScopeKey !== nextScope) {
+    specialBlockScopeKey = nextScope;
+    specialBlockMode = 'preview';
+  }
+  return { scope: specialBlockScopeKey, mode: specialBlockMode };
+}
+
+export function resetSpecialBlockState() {
+  specialBlockScopeKey = '';
+  specialBlockMode = 'preview';
+}

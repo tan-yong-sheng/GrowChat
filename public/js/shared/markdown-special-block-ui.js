@@ -7,7 +7,7 @@ import {
   escapeHtml,
   normalizeSpecialBlockMode,
   normalizeSpecialBlockScope,
-} from './markdown-renderer.js';
+} from './markdown-shared.js';
 
 export function getSpecialBlockKind(lang) {
   const value = String(lang || '')
