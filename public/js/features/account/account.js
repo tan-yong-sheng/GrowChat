@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { apiFetch } from '../../shared/api.js';
 import { ensureMarkedReady, showToast } from '../../shared/utils.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
@@ -19,7 +20,6 @@ import {
   normalizeAccountSection,
   resolveAccountSectionFromPath,
   getAccountSectionPath,
-  escapeHtml,
   renderOverview,
   loadAccountSectionRenderer,
   loadAccountState,

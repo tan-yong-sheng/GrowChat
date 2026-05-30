@@ -1,13 +1,5 @@
+import { escapeHtml } from '../utils/dom-escape.js';
 import { renderButton } from './button.js';
-
-function escapeHtml(value = '') {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 export function renderSettingsDrawerShell({
   rootId = 'settings-drawer-root',

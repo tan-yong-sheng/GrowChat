@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { apiFetch, fetchAdminGroups, fetchAdminModels } from '../../../shared/api.js';
 import { consumeModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import { consumeConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
@@ -10,7 +11,6 @@ import {
   sortResourcesByVisibility,
 } from './policies-acl-helpers.js';
 import {
-  escapeHtml,
   renderSkeleton,
   renderFamilySkeleton,
   renderResourceList,
