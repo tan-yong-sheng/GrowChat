@@ -115,7 +115,9 @@ export function renderAccountIntegrationsSection(
     get openModal() {
       return openModal;
     },
-    removeServer,
+    get removeServer() {
+      return removeServer;
+    },
     escapeHtml,
     escapeSelector,
   });

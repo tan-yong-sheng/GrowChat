@@ -309,6 +309,7 @@ export function renderConnectionsSettings(container, data) {
     showFeedback,
     setTestStatus,
     updateModalSaveButton,
+    data,
   });
 
   render();

@@ -40,6 +40,7 @@ export function createConnectionsEventHandlers(deps) {
     showFeedback,
     setTestStatus,
     updateModalSaveButton,
+    data,
   } = deps;
 
   const bindEvents = () => {
@@ -90,6 +91,7 @@ export function createConnectionsEventHandlers(deps) {
               }
               broadcastModelsInvalidation();
               broadcastConnectionsInvalidation();
+              if (data) data.modelsSettingsInvalidate = Date.now();
             } catch (err) {
               connection.enabled = previousEnabled;
               const revertedEnabled = connection.enabled !== false;
@@ -255,6 +257,7 @@ export function createConnectionsEventHandlers(deps) {
         }
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
+        if (data) data.modelsSettingsInvalidate = Date.now();
         // connectionsState.loaded = false; // removed: optimistic save
         closeModal();
         loadConnections();
@@ -350,6 +353,7 @@ export function createConnectionsEventHandlers(deps) {
         }
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
+        if (data) data.modelsSettingsInvalidate = Date.now();
         connectionsState.loaded = false;
         closeModal();
         loadConnections();
