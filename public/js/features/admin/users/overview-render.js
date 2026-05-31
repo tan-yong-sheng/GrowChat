@@ -12,9 +12,7 @@ import {
   accountStatusBadgeClass,
   accountStatusDisplayName,
   timeSince,
-  accessBadgeClass,
   renderChip,
-  getRuleAccessState,
   renderRuleList,
 } from './overview-helpers.js';
 
@@ -126,7 +124,7 @@ export function renderUserRows(users) {
           <div class="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-600 overflow-hidden shrink-0">
             ${
               u.avatar
-                ? `<img class="w-full h-full object-cover" src="${u.avatar}" alt="">`
+                ? `<img class="w-full h-full object-cover" src="${escapeHtml(u.avatar)}" alt="">`
                 : name
                   ? name
                       .split(' ')
