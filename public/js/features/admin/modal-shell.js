@@ -256,7 +256,9 @@ export function buildAdminModalShellMarkup({
     closeAttr,
     rootAttrs,
   });
-  const zIndexClass = Z_INDEX_CLASSES[config.zIndex] || (typeof config.zIndex === 'number' ? `z-[${config.zIndex}]` : '');
+  const zIndexClass =
+    Z_INDEX_CLASSES[config.zIndex] ||
+    (typeof config.zIndex === 'number' ? `z-[${config.zIndex}]` : '');
   if (typeof config.zIndex === 'number' && !Z_INDEX_CLASSES[config.zIndex]) {
     console.error(
       `[modal-shell] Unmapped z-index ${config.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT generates the CSS. Falling back to z-[${config.zIndex}].`
