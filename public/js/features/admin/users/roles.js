@@ -42,16 +42,16 @@ export function renderRolesPage(container, data = {}) {
   }
 
   async function loadRolesFromServer(state) {
-  const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-  const roles =
-    Array.isArray(payload?.roles) && payload.roles.length
-      ? payload.roles.map((role) => normalizeLoadedRole(role))
-      : createInitialRoles();
-  state.roles = roles;
-  state.nextCustomIndex = getNextCustomIndex(state.roles);
-}
+    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
+    const roles =
+      Array.isArray(payload?.roles) && payload.roles.length
+        ? payload.roles.map((role) => normalizeLoadedRole(role))
+        : createInitialRoles();
+    state.roles = roles;
+    state.nextCustomIndex = getNextCustomIndex(state.roles);
+  }
 
-const closeModal = () => {
+  const closeModal = () => {
     if (typeof state.modalCleanup === 'function') {
       state.modalCleanup();
       state.modalCleanup = null;

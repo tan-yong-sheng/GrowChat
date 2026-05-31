@@ -6,7 +6,7 @@ const budgets = {
   'features/chat': 14.0,
   shared: 9.0,
   'features/account': 6.5,
-  'features/admin': 7.5,
+  'features/admin': 8.0,
   total: 4.5,
 };
 

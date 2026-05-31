@@ -188,10 +188,10 @@ export function bindChatMessageActions({
               isStreaming: streaming,
             });
           }
-}
-      const { getStreamState } = createSseStreamHandlers({ chatId, setState });
-      try {
-        setStreamingState(chatId, true);
+        }
+        const { getStreamState } = createSseStreamHandlers({ chatId, setState });
+        try {
+          setStreamingState(chatId, true);
           const res = await apiFetch(`/api/chats/${chatId}/messages/${sourceId}/branch`, {
             method: 'POST',
             body: JSON.stringify({
