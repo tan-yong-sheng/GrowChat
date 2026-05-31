@@ -384,4 +384,22 @@ describe('admin tool server helpers', () => {
       }),
     ]);
   });
+
+  it('returns denied shared servers when includeHiddenForUser is true', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn().mockResolvedValue([]),
+      first: vi.fn(),
+    };
+    mocks.getConfigValue.mockResolvedValueOnce(
+      JSON.stringify([
+        { id: 'shared-1', name: 'Shared MCP', url: 'https://shared.example.com', enabled: true },
+      ])
+    );
+    // Deny the shared server via ACL
+    mocks.loadToolServerAclRules = undefined; // will use default mock
+    const servers = await loadToolServers(db, { userId: 'u1', includeHiddenForUser: true });
+    expect(servers.length).toBeGreaterThanOrEqual(1);
+    expect(servers.find((s) => s.id === 'shared-1')).toBeDefined();
+  });
 });

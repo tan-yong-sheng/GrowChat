@@ -106,7 +106,7 @@ export async function loadToolServers(db, options = {}) {
           hiddenTools
         );
       })
-      .filter((server) => server.source === 'user' || server.allowed)
+      .filter((server) => includeHiddenForUser || server.source === 'user' || server.allowed)
       .filter(
         (server) => includeHiddenForUser || server.source === 'user' || server.visible_for_user
       );
