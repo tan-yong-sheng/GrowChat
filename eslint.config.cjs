@@ -593,7 +593,7 @@ module.exports = [
       'src/services/workspace-settings.js',
       'src/utils/validation.js',
       'src/utils/authorize.js',
-                                                                                                                      ],
+    ],
     rules: {
       complexity: 'off',
       'no-unused-vars': 'off',
