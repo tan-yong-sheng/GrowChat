@@ -14,6 +14,10 @@ vi.mock('../../public/js/shared/utils/model-sync.js', () => ({
   broadcastModelsInvalidation: (...args) => mocks.broadcastModelsInvalidation(...args),
 }));
 
+vi.mock('../../public/js/shared/utils/connection-sync.js', () => ({
+  broadcastConnectionsInvalidation: vi.fn(),
+}));
+
 async function loadModule() {
   vi.resetModules();
   return import('../../public/js/features/admin/settings/connections.js');

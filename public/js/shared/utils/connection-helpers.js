@@ -9,7 +9,6 @@ export function normalizeProviderType(value) {
     .trim()
     .toLowerCase();
 }
-
 export function normalizeProviderFamily(value) {
   switch (normalizeProviderType(value)) {
     case 'openai':
@@ -27,7 +26,6 @@ export function normalizeProviderFamily(value) {
       return 'openai';
   }
 }
-
 export function providerLabel(providerType) {
   switch (normalizeProviderType(providerType)) {
     case 'google':
@@ -43,7 +41,6 @@ export function providerLabel(providerType) {
       return 'OpenAI';
   }
 }
-
 export function providerDisplayLabel(providerType) {
   const raw = normalizeProviderType(providerType);
   if (raw === 'openai-compatible') return 'OpenAI Compatible';
@@ -51,7 +48,6 @@ export function providerDisplayLabel(providerType) {
   if (raw === 'claude-compatible') return 'Claude Compatible';
   return providerLabel(raw);
 }
-
 export function providerUrlPlaceholder(providerType) {
   switch (normalizeProviderType(providerType)) {
     case 'google':
@@ -64,24 +60,21 @@ export function providerUrlPlaceholder(providerType) {
       return 'https://api.openai.com/v1';
   }
 }
-
 export function isCompatibleProviderType(providerType) {
   const raw = normalizeProviderType(providerType);
   return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible';
 }
-
 export function resolveModalUrl(providerType, rawUrl) {
   const value = String(rawUrl || '').trim();
   if (value) return value;
   if (isCompatibleProviderType(providerType)) return '';
   return providerUrlPlaceholder(providerType);
 }
-
 export function resolveUrlLabel(providerType) {
   return `URL${isCompatibleProviderType(providerType) ? ' *' : ''}`;
 }
 
-function normalizeSavedConnectionModelId(providerId, modelId) {
+export function normalizeSavedConnectionModelId(providerId, modelId) {
   const safeProvider = String(providerId || '').trim();
   const raw = stripModelsPrefix(String(modelId || '').trim());
   if (!raw) return '';
@@ -94,11 +87,9 @@ function normalizeSavedConnectionModelId(providerId, modelId) {
   }
   return next;
 }
-
 export function resolveKeyLabel() {
   return 'API Key';
 }
-
 export function connectionApiTypeDetails(providerType) {
   switch (normalizeProviderType(providerType)) {
     case 'google':
@@ -123,7 +114,6 @@ export function connectionApiTypeDetails(providerType) {
       };
   }
 }
-
 export function normalizeConnectionManualModels(value = []) {
   if (!Array.isArray(value)) return [];
   const seen = new Set();
@@ -151,7 +141,6 @@ function stripModelsPrefix(value) {
 function firstDefinedModelName(model, fallback) {
   return String(model?.name || model?.displayName || model?.id || fallback || '').trim();
 }
-
 export function normalizeModelRecord(model = {}) {
   const id = String(model?.id || model?.modelId || model?.name || '').trim();
   if (!id) return null;
@@ -163,7 +152,6 @@ export function normalizeModelRecord(model = {}) {
     name,
   };
 }
-
 export function normalizeConnectionRecord(conn = {}) {
   const providerType = normalizeProviderType(conn.providerType || conn.providerFamily || 'openai');
   return {
@@ -178,7 +166,6 @@ export function normalizeConnectionRecord(conn = {}) {
       'all',
   };
 }
-
 export function cloneModelSelection(value = []) {
   return new Set(Array.from(value || []));
 }
@@ -202,14 +189,12 @@ export function getConnectionProviderId(connection = {}) {
   const family = normalizeProviderFamily(providerType);
   return `${family || providerType}/${connectionId}`;
 }
-
 export function formatConnectionModelId(providerId, modelId) {
   const safeProvider = String(providerId || '').trim();
   const safeModel = String(modelId || '').trim();
   if (!safeProvider || !safeModel) return '';
   return `${safeProvider}:${safeModel}`;
 }
-
 export function inflateManualConnectionModels(connection = {}) {
   const providerId = getConnectionProviderId(connection);
   return normalizeConnectionManualModels(connection.manualModels)
@@ -224,7 +209,6 @@ export function inflateManualConnectionModels(connection = {}) {
     })
     .filter(Boolean);
 }
-
 export function normalizeModalModelRecord(model = {}, connection = null) {
   const normalized = normalizeModelRecord(model);
   if (!normalized) return null;
@@ -238,7 +222,6 @@ export function normalizeModalModelRecord(model = {}, connection = null) {
     id: canonicalId,
   };
 }
-
 export function normalizeModalModelId(modelId = '', connection = null) {
   const raw = String(modelId || '').trim();
   if (!raw) return '';
@@ -247,7 +230,6 @@ export function normalizeModalModelId(modelId = '', connection = null) {
   const canonicalId = formatConnectionModelId(providerId, raw);
   return raw.startsWith(`${providerId}:`) ? raw : canonicalId;
 }
-
 export function cloneModalModelSelection(value = [], connection = null) {
   const selected = cloneModelSelection(value);
   if (!connection) return selected;
@@ -257,7 +239,6 @@ export function cloneModalModelSelection(value = [], connection = null) {
       .filter(Boolean)
   );
 }
-
 export function mergeConnectionModalModels(
   existingModels = [],
   discoveredModels = [],
@@ -280,7 +261,6 @@ export function mergeConnectionModalModels(
     });
   return sortModelsByActiveThenName(Array.from(merged.values()));
 }
-
 export function previewConnectionModalModels(
   existingModels = [],
   existingSelection = new Set(),
@@ -335,7 +315,6 @@ export function previewConnectionModalModels(
     original: new Set(selection),
   };
 }
-
 export function buildSelectedConnectionModels(
   models = [],
   selection = new Set(),
@@ -362,7 +341,6 @@ export function buildSelectedConnectionModels(
 
   return normalizeConnectionManualModels(next);
 }
-
 export function applyModalModelPreview(
   connectionsState,
   models,
@@ -386,15 +364,26 @@ export function applyModalModelPreview(
     renderModels(root);
   }
 }
-
 export function resolveConnectionModalSelectionMode(models = [], selection = new Set()) {
   return resolveConnectionModelSelectionMode(models, selection);
 }
-
 export function updateApiTypeDisplay(scope, providerType) {
   const details = connectionApiTypeDetails(providerType);
   const label = scope.querySelector('#modal-conn-api-type-label');
   const hint = scope.querySelector('#modal-conn-api-type-hint');
   if (label) label.textContent = details.label;
   if (hint) hint.textContent = details.endpoint;
+}
+export function buildModalConnectionPayload(scope = null, selectedConnection = null) {
+  const root = scope || document;
+  return {
+    id: selectedConnection?.id || '',
+    name: root.querySelector('#modal-conn-name')?.value || '',
+    url: root.querySelector('#modal-conn-url')?.value || '',
+    key: root.querySelector('#modal-conn-key')?.value || '',
+    headers: root.querySelector('#modal-conn-headers')?.value || '',
+    providerType: root.querySelector('#modal-conn-provider')?.value || 'openai',
+    providerFamily: root.querySelector('#modal-conn-provider')?.value || 'openai',
+    authType: selectedConnection?.authType || selectedConnection?.auth_type || '',
+  };
 }

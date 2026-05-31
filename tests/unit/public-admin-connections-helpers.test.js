@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import {
-  applyModalModelPreview,
   connectionApiTypeDetails,
-  buildSelectedConnectionModels,
   formatConnectionModelId,
   getConnectionProviderId,
   normalizeConnectionManualModels,
@@ -11,10 +9,14 @@ import {
   normalizeProviderFamily,
   providerDisplayLabel,
   providerUrlPlaceholder,
-  previewConnectionModalModels,
   resolveModalUrl,
   resolveUrlLabel,
-} from '../../public/js/shared/utils/connection-helpers.js';
+} from '../../public/js/features/admin/settings/connections-helpers.js';
+import {
+  applyModalModelPreview,
+  buildSelectedConnectionModels,
+  previewConnectionModalModels,
+} from '../../public/js/features/admin/settings/connections-helpers-modal-models.js';
 
 describe('admin connection helpers', () => {
   it('normalizes provider labels and types', () => {
@@ -175,16 +177,5 @@ describe('admin connection helpers', () => {
       { modelId: 'alpha', name: 'Alpha' },
       { modelId: 'beta', name: 'Beta' },
     ]);
-  });
-});
-
-describe('admin connection helpers — compatibility shim', () => {
-  it('re-exports all functions from the legacy admin path', async () => {
-    const shim = await import('../../public/js/features/admin/settings/connections-helpers.js');
-    const canonical = await import('../../public/js/shared/utils/connection-helpers.js');
-    // Every named export from canonical must be available via the shim
-    const canonicalKeys = Object.keys(canonical).sort();
-    const shimKeys = Object.keys(shim).sort();
-    expect(shimKeys).toEqual(canonicalKeys);
   });
 });

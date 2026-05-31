@@ -1,31 +1,6 @@
 import { escapeHtml } from '../utils/dom-escape.js';
 import { renderButton } from './button.js';
 
-function focusAndSelectInput(input, snapshot) {
-  if (!input) return;
-  try {
-    input.focus({ preventScroll: true });
-  } catch {
-    input.focus();
-  }
-  const len = input.value.length;
-  const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
-  const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
-  try {
-    input.setSelectionRange(start, end);
-  } catch {
-    // Ignore selection restore errors for browsers that do not support it.
-  }
-}
-
-function scheduleRenderTask(task) {
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => requestAnimationFrame(task));
-    return;
-  }
-  setTimeout(task, 0);
-}
-
 export function renderSearchBarHtml({
   inputId,
   value = '',
@@ -78,10 +53,27 @@ export function restoreSearchInputState(container, inputId, snapshot) {
   if (!snapshot?.isFocused || !container || !inputId) return;
   const focusInput = () => {
     const input = container.querySelector(`#${inputId}`);
-    focusAndSelectInput(input, snapshot);
+    if (!input) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      input.focus();
+    }
+    const len = input.value.length;
+    const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
+    const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
+    try {
+      input.setSelectionRange(start, end);
+    } catch {
+      // Ignore selection restore errors for browsers that do not support it.
+    }
   };
 
-  scheduleRenderTask(focusInput);
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => requestAnimationFrame(focusInput));
+    return;
+  }
+  setTimeout(focusInput, 0);
 }
 
 function escapeSelectorValue(value) {
@@ -134,7 +126,20 @@ export function restoreRenderState(
     const targetId = inputId || snapshot.inputId;
     if (!targetId) return;
     const input = container.querySelector(`#${escapeSelectorValue(targetId)}`);
-    focusAndSelectInput(input, snapshot);
+    if (!input) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      input.focus();
+    }
+    const len = input.value.length;
+    const start = snapshot.selectionStart === null ? len : Math.min(snapshot.selectionStart, len);
+    const end = snapshot.selectionEnd === null ? len : Math.min(snapshot.selectionEnd, len);
+    try {
+      input.setSelectionRange(start, end);
+    } catch {
+      // Ignore selection restore errors for browsers that do not support it.
+    }
   };
 
   const run = () => {
@@ -142,5 +147,9 @@ export function restoreRenderState(
     restoreScroll();
   };
 
-  scheduleRenderTask(run);
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => requestAnimationFrame(run));
+    return;
+  }
+  setTimeout(run, 0);
 }

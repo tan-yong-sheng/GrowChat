@@ -8,10 +8,10 @@ import {
 import {
   getModelDisplayLabel,
   getModelAvailabilityFallbackNotice,
-  getModelSelectorAvailabilitySummary,
   getModelSelectorDerivedState,
   renderModelSelectorOption,
 } from './model-selector-helpers.js';
+import { createModelSelectorNoticeHelpers } from './model-selector-notice-helpers.js';
 
 export function createModelSelectorController(container) {
   let unsubscribe;
@@ -34,132 +34,21 @@ export function createModelSelectorController(container) {
   let visibleCount = 10;
   const PAGE_SIZE = 10;
   const MAX_VISIBLE_NO_SCROLL = 40;
-  let loadingPromise = null;
   let sortedModels = [];
   let lastModelsRef = null;
   let lastModelsLoading = null;
   let lastActiveModelId = null;
   let renderedCount = 0;
   let searchDebounce = null;
-  let noticeClearTimer = null;
 
-  const getSelectableModelCount = (models = []) =>
-    filterEnabledModels(Array.isArray(models) ? models : []).filter(
-      (model) => model?.hidden_for_user !== true
-    ).length;
-
-  const syncScopeSummary = (currentState) => {
-    if (!summaryEl) return;
-    summaryEl.textContent = getModelSelectorAvailabilitySummary(
-      getSelectableModelCount(currentState.models),
-      { loading: currentState.modelsLoading }
-    );
-  };
-
-  const clearModelAvailabilityNotice = () => {
-    if (noticeClearTimer) {
-      clearTimeout(noticeClearTimer);
-      noticeClearTimer = null;
-    }
-  };
-
-  const setModelAvailabilityNotice = (message, key) => {
-    clearModelAvailabilityNotice();
-    setState({
-      ui: {
-        modelAvailabilityNotice: message
-          ? {
-              key,
-              message,
-              tone: 'warning',
-            }
-          : null,
-      },
-    });
-    if (message) {
-      noticeClearTimer = setTimeout(() => {
-        if (state.ui?.modelAvailabilityNotice?.key === key) {
-          setState({
-            ui: {
-              modelAvailabilityNotice: null,
-            },
-          });
-        }
-      }, 6000);
-    }
-  };
-
-  const syncAvailabilityNotice = (currentState) => {
-    if (!noticeEl) return;
-    const notice = currentState.ui?.modelAvailabilityNotice || null;
-    if (!notice?.message) {
-      noticeEl.classList.add('hidden');
-      noticeEl.textContent = '';
-      noticeEl.className = 'hidden mx-2 mt-1 rounded-xl border px-3 py-2 text-xs';
-      return;
-    }
-
-    noticeEl.classList.remove('hidden');
-    noticeEl.textContent = notice.message;
-    noticeEl.className =
-      'mx-2 mt-1 rounded-xl border px-3 py-2 text-xs border-amber-200 bg-amber-50 text-amber-800';
-  };
-
-  const ensureModelsLoaded = async () => {
-    if (state.modelsLoading || (state.models && state.models.length > 0)) return loadingPromise;
-    loadingPromise = (async () => {
-      setState({ modelsLoading: true });
-      let getGen, reqGen;
-      try {
-        const { getModelsCacheGeneration } =
-          await import('../../shared/utils/models-cache-generation.js');
-        getGen = getModelsCacheGeneration;
-        reqGen = getGen();
-        const data = await fetchModels({ cache: 'no-store', scope: 'effective' });
-        if (reqGen !== getGen()) return;
-        const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
-        const nextActiveModelId = getPreferredModelId(models, [
-          state.activeModelId,
-          state.defaultModelId,
-          state.globalDefaultModelId,
-        ]);
-        setState({
-          models,
-          modelCatalogMeta: data?.visibility || null,
-          modelsLoading: false,
-          activeModelId: nextActiveModelId,
-        });
-      } catch (err) {
-        if (getGen && reqGen !== undefined && reqGen !== getGen()) return;
-        console.error('Failed to load models:', err);
-        // Fallback to cached models when available, matching prefetchModels({ allowCache: true })
-        try {
-          const cached = readModelsCache('effective');
-          if (cached?.models) {
-            const models = filterEnabledModels(cached.models);
-            const nextActiveModelId = getPreferredModelId(models, [
-              state.activeModelId,
-              state.defaultModelId,
-              state.globalDefaultModelId,
-            ]);
-            setState({
-              models,
-              modelCatalogMeta: cached?.visibility || null,
-              modelsLoading: false,
-              activeModelId: nextActiveModelId,
-            });
-            return;
-          }
-        } catch {
-          /* cache miss — fall through */
-        }
-        setState({ modelsLoading: false });
-      } finally {
-        loadingPromise = null;
-      }
-    })();
-    return loadingPromise;
-  };
+  const noticeHelpers = createModelSelectorNoticeHelpers({ summaryEl, noticeEl });
+  const {
+    syncScopeSummary,
+    clearModelAvailabilityNotice,
+    setModelAvailabilityNotice,
+    syncAvailabilityNotice,
+    ensureModelsLoaded,
+  } = noticeHelpers;
 
   const applyActiveHighlight = (scroll = false) => {
     const buttons = listContainer.querySelectorAll('button[data-model-id]');

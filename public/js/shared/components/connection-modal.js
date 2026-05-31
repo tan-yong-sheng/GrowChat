@@ -1,80 +1,19 @@
 import { filterModelsBySearch } from '../utils/model-search.js';
 import { renderButton } from './button.js';
 import { sortModelsByActiveThenName } from '../utils/model-state.js';
-import { escapeHtml } from '../utils/dom-escape.js';
-import { normalizeProviderType, connectionApiTypeDetails } from '../utils/connection-helpers.js';
-
-function isCompatibleProviderType(providerType) {
-  const raw = normalizeProviderType(providerType);
-  return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible';
-}
-
-function providerLabel(providerType) {
-  switch (normalizeProviderType(providerType)) {
-    case 'google':
-    case 'gemini-compatible':
-      return 'Gemini';
-    case 'anthropic':
-    case 'claude-compatible':
-      return 'Claude';
-    case 'openai-compatible':
-      return 'OpenAI Compatible';
-    case 'openai':
-    default:
-      return 'OpenAI';
-  }
-}
-
-function providerDisplayLabel(providerType) {
-  const raw = normalizeProviderType(providerType);
-  if (raw === 'openai-compatible') return 'OpenAI Compatible';
-  if (raw === 'gemini-compatible') return 'Gemini Compatible';
-  if (raw === 'claude-compatible') return 'Claude Compatible';
-  return providerLabel(raw);
-}
-
-function providerUrlPlaceholder(providerType) {
-  switch (normalizeProviderType(providerType)) {
-    case 'google':
-    case 'gemini-compatible':
-      return 'https://generativelanguage.googleapis.com/v1beta';
-    case 'anthropic':
-    case 'claude-compatible':
-      return 'https://api.anthropic.com/v1';
-    default:
-      return 'https://api.openai.com/v1';
-  }
-}
-
-function resolveUrlLabel(providerType) {
-  return `URL${isCompatibleProviderType(providerType) ? ' *' : ''}`;
-}
-
-function resolveKeyLabel() {
-  return 'API Key';
-}
-
-const STANDARD_MODAL_PRESET = {
-  outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
-  overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
-  zIndex: 150,
-};
-
-function formatHeadersValue(headers) {
-  if (
-    !headers ||
-    typeof headers !== 'object' ||
-    Array.isArray(headers) ||
-    !Object.keys(headers).length
-  ) {
-    return String(headers || '').trim();
-  }
-  try {
-    return JSON.stringify(headers, null, 2);
-  } catch {
-    return '';
-  }
-}
+import {
+  normalizeProviderType,
+  isCompatibleProviderType,
+  providerLabel,
+  providerDisplayLabel,
+  providerUrlPlaceholder,
+  resolveUrlLabel,
+  resolveKeyLabel,
+  connectionApiTypeDetails,
+  STANDARD_MODAL_PRESET,
+  escapeHtml,
+  formatHeadersValue,
+} from './connection-modal-utils.js';
 
 export function buildConnectionModalBodyMarkup({
   providerType = 'openai',
