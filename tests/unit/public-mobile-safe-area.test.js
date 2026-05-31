@@ -13,7 +13,7 @@ describe('mobile safe-area shell', () => {
   });
 
   it('uses the dynamic viewport and safe-area footer padding in the chat shell', () => {
-    const chat = readText('../../public/js/features/chat/chat.js');
+    const chat = readText('../../public/js/features/chat/chat-html.js');
 
     expect(chat).toContain('h-[100dvh] md:h-[100dvh]');
     expect(chat).toContain('pb-[calc(1rem+env(safe-area-inset-bottom))]');

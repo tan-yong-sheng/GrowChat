@@ -92,10 +92,12 @@ jobs:
       # Tier 1 + Tier 2 guardrails (unit tests, typecheck, eslint incl. complexity,
       # semgrep, jscpd dupe budgets, depcruise circular deps, prettier, knip hygiene)
       - name: Pre-push gate
+        timeout-minutes: 2
         run: pnpm run prepush
 
-      # Tier 2: Vitest coverage thresholds (80% lines/branches/functions/statements)
+      # Tier 2: Vitest coverage thresholds (currently 30% lines/branches/functions/statements; planned to increase)
       - name: Coverage threshold check
+        timeout-minutes: 5
         run: pnpm run test:coverage
 
       # Tier 2: danger.js PR semantic checks
@@ -108,13 +110,13 @@ jobs:
       - name: Code duplication audit
         run: pnpm run lint:dupes:budget
 
-      # Tier 3: Performance regression audit
+      # Tier 3: Performance regression audit (with Lighthouse CI budget assertions)
       - name: Performance regression audit
         run: pnpm run check:performance
 
-      # Tier 3: Snapshot cleanup
-      - name: Snapshot cleanup
-        run: pnpm run snapshots:clean
+      # Tier 3: Snapshot budget audit (replaces cleanup-only step)
+      - name: Snapshot budget audit
+        run: pnpm run snapshots:audit
 
       # Tier 3: Migration validation
       - name: Migration validation

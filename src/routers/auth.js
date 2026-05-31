@@ -116,6 +116,40 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
     return error(req, 'JWT_SECRET is not configured', 500);
   }
 
+  /**
+   * Check account status, refresh user data, and generate tokens.
+   * @returns {{ accessToken, refreshToken, user, primaryRole } | Response}
+   */
+  async function checkActiveAccountAndGenerateTokens(req, db, env, user, jwtSecret) {
+    if (!isActiveAccount(user)) {
+      return json(req, { error: 'pending_account', message: 'Account pending approval.' }, 403);
+    }
+    await users.touchLastActive(user.id);
+    const freshUser = await users.findById(user.id);
+    if (!freshUser) {
+      return error(req, 'User not found', 404);
+    }
+    const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
+    const accessToken = await signJWT(
+      {
+        sub: freshUser.id,
+        email: freshUser.email,
+        primary_role: primaryRole,
+        name: freshUser.name,
+      },
+      jwtSecret,
+      APP_TTLS.accessTokenSeconds
+    );
+    const refresh = await createRefreshToken(env, freshUser.id);
+    return {
+      accessToken,
+      refreshToken: refresh.token,
+      refreshExpiresAt: refresh.expiresAt,
+      user: freshUser,
+      primaryRole,
+    };
+  }
+
   if (req.method === 'POST' && path === '/api/auth/register') {
     return handleRegister(req, env, db, users, jwtSecret, logger, {
       ensureUserRoleBinding,
@@ -166,33 +200,14 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
 
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) return error(req, 'Invalid credentials', 401);
-
-    if (!isActiveAccount(user)) {
-      return json(req, { error: 'pending_account', message: 'Account pending approval.' }, 403);
-    }
-
-    await users.touchLastActive(user.id);
-    const freshUser = await users.findById(user.id);
-    const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
-
-    const accessToken = await signJWT(
-      {
-        sub: freshUser.id,
-        email: freshUser.email,
-        primary_role: primaryRole,
-        name: freshUser.name,
-      },
-      jwtSecret,
-      APP_TTLS.accessTokenSeconds
-    );
-    const refresh = await createRefreshToken(env, freshUser.id);
-
+    const tokenResult = await checkActiveAccountAndGenerateTokens(req, db, env, user, jwtSecret);
+    if (tokenResult instanceof Response) return tokenResult;
     return json(req, {
-      user: sanitizeUser(freshUser, primaryRole),
-      access_token: accessToken,
-      refresh_token: refresh.token,
+      user: sanitizeUser(tokenResult.user, tokenResult.primaryRole),
+      access_token: tokenResult.accessToken,
+      refresh_token: tokenResult.refreshToken,
       expires_in: 900,
-      refresh_expires_at: refresh.expiresAt,
+      refresh_expires_at: tokenResult.refreshExpiresAt,
     });
   }
 
@@ -224,33 +239,14 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
 
     const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
     await ensureUserRoleBinding(db, user.id, userRole, user.account_status, logger);
-
-    if (!isActiveAccount(user)) {
-      return json(req, { error: 'pending_account', message: 'Account pending approval.' }, 403);
-    }
-
-    await users.touchLastActive(user.id);
-    const freshUser = await users.findById(user.id);
-    const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
-
-    const accessToken = await signJWT(
-      {
-        sub: freshUser.id,
-        email: freshUser.email,
-        primary_role: primaryRole,
-        name: freshUser.name,
-      },
-      jwtSecret,
-      APP_TTLS.accessTokenSeconds
-    );
-    const refresh = await createRefreshToken(env, freshUser.id);
-
+    const tokenResult = await checkActiveAccountAndGenerateTokens(req, db, env, user, jwtSecret);
+    if (tokenResult instanceof Response) return tokenResult;
     return json(req, {
-      user: sanitizeUser(freshUser, primaryRole),
-      access_token: accessToken,
-      refresh_token: refresh.token,
+      user: sanitizeUser(tokenResult.user, tokenResult.primaryRole),
+      access_token: tokenResult.accessToken,
+      refresh_token: tokenResult.refreshToken,
       expires_in: 900,
-      refresh_expires_at: refresh.expiresAt,
+      refresh_expires_at: tokenResult.refreshExpiresAt,
     });
   }
 

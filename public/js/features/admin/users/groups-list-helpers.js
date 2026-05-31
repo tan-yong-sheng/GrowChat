@@ -1,3 +1,23 @@
+/**
+ * Helpers for the admin groups page.
+ */
+export { escapeHtml } from '../../../shared/utils/dom-escape.js';
+
+export function getGroupModalTheme() {
+  return {
+    overlay: 'bg-black/25',
+    container: 'bg-white text-gray-900 border border-gray-200 shadow-2xl',
+    sidebar: 'border-r border-gray-200 bg-white',
+    sidebarActive: 'bg-gray-100 text-gray-900',
+    sidebarInactive: 'text-gray-700 hover:text-gray-900',
+    panelLabel: 'text-gray-600',
+    panelText: 'text-gray-900',
+    input: 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-gray-400',
+    select: 'bg-white border-gray-300 text-gray-900 focus:border-gray-400',
+    footer: 'border-t border-gray-200 bg-white',
+  };
+}
+
 export function sortGroups(groups = [], sortKey = 'members') {
   const list = Array.isArray(groups) ? groups.slice() : [];
   if (sortKey === 'name') {

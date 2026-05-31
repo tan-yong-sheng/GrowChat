@@ -1,4 +1,11 @@
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
+
+const Z_INDEX_CLASSES = {
+  140: 'z-[140]',
+  150: 'z-[150]',
+  250: 'z-[250]',
+};
 
 const DEFAULT_OUTER_CLASS =
   'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
@@ -118,15 +125,6 @@ function resolveAdminModalPreset(preset = 'standard', overrides = {}) {
     }
   }
   return resolved;
-}
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function normalizeModalHashSource(value) {
@@ -258,7 +256,14 @@ export function buildAdminModalShellMarkup({
     closeAttr,
     rootAttrs,
   });
-  const zIndexClass = typeof config.zIndex === 'number' ? `z-[${config.zIndex}]` : '';
+  const zIndexClass =
+    Z_INDEX_CLASSES[config.zIndex] ||
+    (typeof config.zIndex === 'number' ? `z-[${config.zIndex}]` : '');
+  if (typeof config.zIndex === 'number' && !Z_INDEX_CLASSES[config.zIndex]) {
+    console.error(
+      `[modal-shell] Unmapped z-index ${config.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT generates the CSS. Falling back to z-[${config.zIndex}].`
+    );
+  }
   return `
     <div class="${config.outerClass} ${zIndexClass}" ${config.rootAttrs}>
       <div class="${config.overlayClass}"></div>
@@ -288,3 +293,5 @@ export function buildAdminModalShellMarkup({
 export function getAdminModalPreset(name = 'standard') {
   return resolveAdminModalPreset(name);
 }
+
+export { Z_INDEX_CLASSES };

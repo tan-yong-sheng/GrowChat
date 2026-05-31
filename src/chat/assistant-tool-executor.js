@@ -1,5 +1,3 @@
-import { normalizeErrorMessage } from '../routers/chat-core.js';
-
 export async function executeToolCalls({
   validCalls,
   unknownCalls,
@@ -17,7 +15,7 @@ export async function executeToolCalls({
   emitSse,
   controller,
   encoder,
-  normalizeErrorMessage: normalizeError = normalizeErrorMessage,
+  normalizeErrorMessage,
 }) {
   const toolCallsForModel = validCalls.map((call) => ({
     id: call.toolCallId,
@@ -101,7 +99,7 @@ export async function executeToolCalls({
       outputText = stringifyToolPayload(output);
     } catch (err) {
       status = 'error';
-      errorText = normalizeError(err, 'Tool call failed', 8000);
+      errorText = normalizeErrorMessage(err, 'Tool call failed', 8000);
       outputText = errorText;
     }
 

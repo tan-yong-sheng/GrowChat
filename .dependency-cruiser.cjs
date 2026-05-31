@@ -9,6 +9,7 @@ module.exports = {
       from: {},
       to: { circular: true },
     },
+
     // === Backend: prevent upward imports ===
     {
       name: 'no-llm-to-chat',
@@ -47,6 +48,7 @@ module.exports = {
       from: { path: '^src/validation/' },
       to: { path: '^src/utils/rbac\\.js$' },
     },
+
     // === Frontend: block browser code from depending on server code ===
     {
       name: 'no-frontend-to-src',
@@ -55,12 +57,69 @@ module.exports = {
       from: { path: '(^|[\\\\/])public[\\\\/]js[\\\\/]' },
       to: { path: '(^|[\\\\/])src[\\\\/]' },
     },
-    // === Frontend: cross-feature coupling is legacy debt, warn only ===
+
+    // === Frontend: cross-feature imports — error (same-feature subfolder imports are allowed) ===
     {
-      name: 'warn-cross-feature',
-      comment: 'Cross-feature import — consider extracting shared logic to shared/',
-      severity: 'warn',
-      from: { path: '^public/js/(shared|features)/' },
+      name: 'no-cross-feature-chat',
+      comment:
+        'chat/ must not import from other features or bootstrap/ — extract shared logic to shared/',
+      severity: 'error',
+      from: { path: '^public/js/features/chat/' },
+      to: {
+        path: '^public/js/(features|bootstrap)/',
+        pathNot: '^public/js/features/chat/',
+      },
+    },
+    {
+      name: 'no-cross-feature-admin',
+      comment:
+        'admin/ must not import from other features or bootstrap/ — extract shared logic to shared/',
+      severity: 'error',
+      from: { path: '^public/js/features/admin/' },
+      to: {
+        path: '^public/js/(features|bootstrap)/',
+        pathNot: '^public/js/features/admin/',
+      },
+    },
+    {
+      name: 'no-cross-feature-account',
+      comment:
+        'account/ must not import from other features or bootstrap/ — extract shared logic to shared/',
+      severity: 'error',
+      from: { path: '^public/js/features/account/' },
+      to: {
+        path: '^public/js/(features|bootstrap)/',
+        pathNot: [
+          '^public/js/features/account/',
+          '^public/js/features/admin/settings/connections-helpers\\.js$',
+          '^public/js/features/admin/settings/connections-helpers-modal-models\\.js$',
+          '^public/js/features/admin/settings/models-helpers\\.js$',
+        ],
+      },
+    },
+    {
+      name: 'no-cross-feature-auth',
+      comment:
+        'auth/ must not import from other features or bootstrap/ — extract shared logic to shared/',
+      severity: 'error',
+      from: { path: '^public/js/features/auth/' },
+      to: {
+        path: '^public/js/(features|bootstrap)/',
+        pathNot: '^public/js/features/auth/',
+      },
+    },
+    {
+      name: 'no-cross-feature-shared',
+      comment: 'shared/ must not import from features/ or bootstrap/',
+      severity: 'error',
+      from: { path: '^public/js/shared/' },
+      to: { path: '^public/js/(features|bootstrap)/' },
+    },
+    {
+      name: 'no-cross-feature-landing',
+      comment: 'Landing page must not import from features/ or bootstrap/',
+      severity: 'error',
+      from: { path: '^public/js/features/landing\\.js$' },
       to: { path: '^public/js/(features|bootstrap)/' },
     },
   ],
