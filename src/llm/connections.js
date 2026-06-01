@@ -210,25 +210,24 @@ export async function getStoredOpenAIConnectionConfigs(env, options = {}) {
         const enabled = conn?.enabled !== false;
         const providerFamily =
           normalizeProviderFamily(conn.providerType || conn.providerFamily) || 'openai';
+        const id = ensureConnectionId(
+          { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
+          index
+        );
+        const providerType = String(conn.providerType || providerFamily).toLowerCase();
         return {
-          id: ensureConnectionId(
-            { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
-            index
-          ),
+          id,
           name: String(conn.name || `${labelFromFamily(providerFamily)} Compatible`).slice(0, 120),
           baseUrl: url,
           key: String(conn.key || '').trim(),
           headers,
           source: 'config',
           enabled,
-          providerType: String(conn.providerType || providerFamily).toLowerCase(),
+          providerType,
           providerFamily,
           providerId: buildProviderId({
-            id: ensureConnectionId(
-              { ...conn, url, baseUrl: url, headers: conn.headers, providerFamily },
-              index
-            ),
-            providerType: String(conn.providerType || providerFamily).toLowerCase(),
+            id,
+            providerType,
             providerFamily,
           }),
           authType: normalizeAuthType(conn.authType),

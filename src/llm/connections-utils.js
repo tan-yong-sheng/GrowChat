@@ -95,11 +95,20 @@ export function hashString(value) {
 }
 
 export function stableConnectionId(conn, index = 0) {
+  // Serialize headers deterministically to avoid collisions from object coercion
+  let headersStr = conn?.headers || '';
+  if (typeof headersStr === 'object' && !Array.isArray(headersStr)) {
+    try {
+      headersStr = JSON.stringify(headersStr, Object.keys(headersStr).sort());
+    } catch {
+      headersStr = String(headersStr);
+    }
+  }
   const seed = [
     conn?.providerFamily || conn?.providerType || '',
     conn?.url || conn?.baseUrl || '',
     conn?.key || '',
-    conn?.headers || '',
+    headersStr,
     index,
   ].join('|');
   return `conn-${hashString(seed)}`;

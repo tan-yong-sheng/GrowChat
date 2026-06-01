@@ -24,11 +24,27 @@ export async function readStreamChunkWithHeartbeat(
     keepAliveIntervalMs = STREAM_KEEPALIVE_INTERVAL_MS,
     hardTimeoutMs = STREAM_HARD_TIMEOUT_MS,
     heartbeatPayload = STREAM_KEEPALIVE_PAYLOAD,
+    deadlineAt = null,
   } = {}
 ) {
   let heartbeatTimer = null;
   let timeoutId = null;
   let timedOut = false;
+
+  // Compute effective timeout from absolute deadline (if provided) or fallback to per-chunk timeout
+  let effectiveTimeoutMs;
+  if (deadlineAt && typeof deadlineAt === 'number' && deadlineAt > 0) {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) {
+      if (typeof reader.cancel === 'function') {
+        void reader.cancel().catch(() => {});
+      }
+      throw new Error('LLM stream timed out (deadline exceeded)');
+    }
+    effectiveTimeoutMs = remainingMs;
+  } else {
+    effectiveTimeoutMs = hardTimeoutMs;
+  }
 
   if (controller && typeof controller.enqueue === 'function' && keepAliveIntervalMs > 0) {
     heartbeatTimer = setInterval(() => {
@@ -42,13 +58,13 @@ export async function readStreamChunkWithHeartbeat(
 
   const pendingReads = [reader.read()];
 
-  if (hardTimeoutMs > 0) {
+  if (effectiveTimeoutMs > 0) {
     pendingReads.push(
       new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
           timedOut = true;
           reject(new Error('LLM stream timed out'));
-        }, hardTimeoutMs);
+        }, effectiveTimeoutMs);
       })
     );
   }

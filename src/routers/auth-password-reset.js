@@ -67,7 +67,8 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
   try {
     const emailService = createEmailService(env);
     const userNameEscaped = escapeHtml(user.name);
-    const origin = new URL(req.url).origin;
+    // Use APP_PUBLIC_ORIGIN env var if configured, otherwise fall back to request origin
+    const origin = env.APP_PUBLIC_ORIGIN || new URL(req.url).origin;
 
     const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
     const emailHtml = buildPasswordResetEmailHtml(userNameEscaped, resetLink);
@@ -141,8 +142,18 @@ export async function handleResetPassword(req, env, db) {
     passwordHash,
     resetRecord.user_id,
   ]);
-  await db.run(`DELETE FROM password_reset_tokens WHERE token_hash = ?`, [tokenHashHex]);
+  await db.run(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [resetRecord.user_id]);
   await db.run(`DELETE FROM refresh_tokens WHERE user_id = ?`, [resetRecord.user_id]);
+  // Invalidate all KV-backed refresh tokens by bumping the user's session version
+  try {
+    const versionKey = `session-version:${resetRecord.user_id}`;
+    const currentVersion = await env.SESSIONS.get(versionKey);
+    await env.SESSIONS.put(versionKey, String(Number(currentVersion || 0) + 1), {
+      expirationTtl: 60 * 60 * 24 * 30,
+    });
+  } catch (e) {
+    // KV unavailability should not block password reset
+  }
 
   return json(req, {
     message: 'Password reset successful. Please log in with your new password.',

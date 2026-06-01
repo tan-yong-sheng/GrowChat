@@ -3,6 +3,7 @@ import {
   MAX_FOLLOW_UPS,
   FOLLOW_UP_PROMPT,
   STREAM_STATUS_STALE_MS,
+  STREAM_HARD_TIMEOUT_MS,
   readStreamChunkWithHeartbeat,
   createStreamHelpers,
 } from './assistant-stream-utils.js';
@@ -204,10 +205,12 @@ export function createAssistantRunner(deps) {
                 }
               };
 
+              const streamDeadlineAt = Date.now() + STREAM_HARD_TIMEOUT_MS;
               while (true) {
                 const { done, value } = await readStreamChunkWithHeartbeat(reader, {
                   controller,
                   encoder,
+                  deadlineAt: streamDeadlineAt,
                 });
                 if (done) break;
                 const delta = parser.push(decoder.decode(value, { stream: true }));

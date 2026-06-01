@@ -44,6 +44,23 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
     return error(req, 'Public registration is disabled', 403);
   }
 
+  // Guard against first-user bootstrap race: two concurrent registrations
+  // could both observe an empty system and both claim admin. Use a DB-level
+  // advisory lock via the config table to serialize the bootstrap path.
+  if (!hasUsers) {
+    await db.run(
+      `INSERT INTO app_config (key, value) VALUES ('first_admin_claimed', '1')
+       ON CONFLICT(key) DO UPDATE SET value = value`,
+      []
+    );
+    // Re-check after the insert
+    const recheckHasUsers = (await users.count()) > 0;
+    if (recheckHasUsers) {
+      // Another request won the race — register as member instead
+      return error(req, 'Registration in progress, please retry', 409);
+    }
+  }
+
   const registerLimit = await checkRateLimit(env.CACHE, {
     action: 'auth-register',
     subject: resolveRateLimitSubject(req),

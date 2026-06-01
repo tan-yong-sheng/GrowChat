@@ -152,7 +152,7 @@ export async function handleSendMessage({
   const userMsgId = crypto.randomUUID();
   const parentId = chat.current_message_id || null;
 
-  await db.batch([
+  const sendStatements = [
     db
       .prepare(
         'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
@@ -163,28 +163,22 @@ export async function handleSendMessage({
         'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
       )
       .bind(userMsgId, chatId, user.sub),
-  ]);
+  ];
+  // Include attachment links in the same atomic batch
+  for (const doc of attachmentDocs) {
+    sendStatements.push(
+      db
+        .prepare(
+          'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
+        )
+        .bind(crypto.randomUUID(), userMsgId, doc.id, 'attachment')
+    );
+  }
+  await db.batch(sendStatements);
 
   const createdUserMessage = await getMessageSnapshot(db, userMsgId);
   const updatedChatAfterUserMessage =
     (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
-
-  if (attachmentDocs.length > 0) {
-    try {
-      const statements = attachmentDocs.map((doc) =>
-        db
-          .prepare(
-            'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
-          )
-          .bind(crypto.randomUUID(), userMsgId, doc.id, 'attachment')
-      );
-      await db.batch(statements);
-    } catch (err) {
-      logger.warn('Failed to persist message attachments', {
-        error: String(err?.message || err),
-      });
-    }
-  }
 
   if (createdUserMessage && attachmentDocs.length > 0) {
     createdUserMessage.attachments = attachmentDocs.map((doc) => ({

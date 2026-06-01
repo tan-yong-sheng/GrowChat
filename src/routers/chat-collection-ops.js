@@ -189,6 +189,28 @@ export async function handleCloneChat(
     );
   }
 
+  // Clone message_documents (attachment links) for each message
+  const sourceMessageIds = sourceMessages.map((m) => String(m.id));
+  if (sourceMessageIds.length > 0) {
+    const placeholders = sourceMessageIds.map(() => '?').join(',');
+    const sourceDocs = await db.all(
+      `SELECT id, message_id, document_id, mention_type FROM message_documents WHERE message_id IN (${placeholders})`,
+      sourceMessageIds
+    );
+    for (const doc of sourceDocs) {
+      const mappedMessageId = messageIdMap.get(String(doc.message_id));
+      if (mappedMessageId) {
+        statements.push(
+          db
+            .prepare(
+              'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
+            )
+            .bind(crypto.randomUUID(), mappedMessageId, doc.document_id, doc.mention_type || null)
+        );
+      }
+    }
+  }
+
   const mappedCurrentMessageId = sourceChat.current_message_id
     ? messageIdMap.get(String(sourceChat.current_message_id)) || null
     : null;

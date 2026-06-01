@@ -245,7 +245,7 @@ export async function handleBranchMessage({
   }
 
   const newUserMsgId = crypto.randomUUID();
-  await db.batch([
+  const branchStatements = [
     db
       .prepare(
         'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
@@ -256,27 +256,21 @@ export async function handleBranchMessage({
         'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
       )
       .bind(newUserMsgId, chatId, user.sub),
-  ]);
+  ];
+  // Include attachment links in the same atomic batch
+  for (const doc of attachmentDocs) {
+    branchStatements.push(
+      db
+        .prepare(
+          'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
+        )
+        .bind(crypto.randomUUID(), newUserMsgId, doc.id, 'attachment')
+    );
+  }
+  await db.batch(branchStatements);
 
   const createdBranchUserMessage = await getMessageSnapshot(db, newUserMsgId);
   const updatedBranchChat = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
-
-  if (attachmentDocs.length > 0) {
-    try {
-      const statements = attachmentDocs.map((doc) =>
-        db
-          .prepare(
-            'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
-          )
-          .bind(crypto.randomUUID(), newUserMsgId, doc.id, 'attachment')
-      );
-      await db.batch(statements);
-    } catch (err) {
-      logger.warn('Failed to persist branch attachments', {
-        error: String(err?.message || err),
-      });
-    }
-  }
 
   if (createdBranchUserMessage && attachmentDocs.length > 0) {
     createdBranchUserMessage.attachments = attachmentDocs.map((doc) => ({
@@ -332,7 +326,7 @@ export async function handleBranchMessage({
     user,
     chatId,
     userMsgId: newUserMsgId,
-    parentId: sourceMsg.parent_id,
+    parentId: newUserMsgId,
     model,
     history,
     citations: null,

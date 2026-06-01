@@ -2,7 +2,12 @@ const ATTACHMENT_CAP_TYPES = ['image', 'pdf', 'text', 'audio', 'video', 'other']
 
 export function isValidHttpUrl(value) {
   if (!value) return false;
-  return /^https?:\/\//i.test(value);
+  try {
+    const url = new URL(String(value).trim());
+    return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeHeaders(input) {
@@ -193,9 +198,12 @@ export function mergeToolServer(existing, incoming) {
     id: incoming.id || existing?.id || crypto.randomUUID(),
     name: String(incoming.name || existing?.name || 'Tool Server').slice(0, 120),
     url: String(incoming.url || existing?.url || '').trim(),
-    headers: String(incoming.headers || existing?.headers || '').trim(),
-    enabled: incoming.enabled !== false,
-    auth_type: authType,
+    headers:
+      typeof (incoming.headers ?? existing?.headers) === 'string'
+        ? String(incoming.headers || existing?.headers || '').trim()
+        : (incoming.headers ?? existing?.headers ?? ''),
+    enabled: incoming.enabled !== undefined ? incoming.enabled : (existing?.enabled ?? true),
+    auth_type: incoming.auth_type !== undefined ? authType : existing?.auth_type || 'none',
     auth_bearer_token: String(
       incoming.auth_bearer_token || existing?.auth_bearer_token || ''
     ).trim(),
@@ -233,7 +241,7 @@ export function mergeToolServer(existing, incoming) {
     tools_error: incoming.tools_error || existing?.tools_error || '',
     tools_verified_at: incoming.tools_verified_at || existing?.tools_verified_at || null,
   };
-  if (authType !== 'oauth') {
+  if (merged.auth_type !== 'oauth') {
     delete merged.oauth_tokens;
     delete merged.oauth_state;
     delete merged.oauth_code_verifier;
@@ -241,6 +249,12 @@ export function mergeToolServer(existing, incoming) {
   } else {
     if (existing?.oauth_tokens && !incoming.oauth_tokens) {
       merged.oauth_tokens = existing.oauth_tokens;
+    }
+    if (existing?.oauth_state && !incoming.oauth_state) {
+      merged.oauth_state = existing.oauth_state;
+    }
+    if (existing?.oauth_code_verifier && !incoming.oauth_code_verifier) {
+      merged.oauth_code_verifier = existing.oauth_code_verifier;
     }
     if (existing?.oauth_connected_at && !incoming.oauth_connected_at) {
       merged.oauth_connected_at = existing.oauth_connected_at;
