@@ -197,4 +197,27 @@ describe('auth-password-reset: CodeRabbit regression tests', () => {
       }
     }
   });
+  it('does NOT delete from the unused refresh_tokens SQL table', async () => {
+    // The refresh_tokens SQL table is vestigial — all refresh tokens are in KV.
+    // Password reset should NOT write to this table.
+    const db = {
+      first: vi.fn(async () => ({ user_id: 'user-123' })),
+      run: vi.fn(async () => ({ success: true })),
+    };
+    const sessionsKv = {
+      get: vi.fn(async () => '0'),
+      put: vi.fn(async () => {}),
+    };
+    const req = {
+      json: vi.fn(async () => ({ token: 'valid-reset-token', password: 'newpassword123' })),
+      headers: { get: vi.fn(() => null) },
+    };
+    const env = { SESSIONS: sessionsKv, CACHE: { get: vi.fn(), put: vi.fn() } };
+    await handleResetPassword(req, env, db);
+    // No SQL should reference the refresh_tokens table
+    const refreshTokensSql = db.run.mock.calls.find(([sql]) =>
+      String(sql).includes('refresh_tokens')
+    );
+    expect(refreshTokensSql).toBeUndefined();
+  });
 });

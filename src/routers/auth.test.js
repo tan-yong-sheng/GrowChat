@@ -179,6 +179,75 @@ describe('authRouter', () => {
     ).toBe(true);
   });
 
+  it('returns 409 when first-admin claim is already taken (race condition guard)', async () => {
+    // Simulate a concurrent request that already claimed first_admin_claimed.
+    // db.run for INSERT OR IGNORE returns meta.changes = 0 (ignored, not inserted).
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    queryResponses.countUsers = [{ count: 0 }]; // empty system
+    queryResponses.appConfig = [null];
+    queryResponses.existingUser = [null];
+    mocks.db.run.mockImplementation(async (sql) => {
+      if (String(sql).includes('INSERT OR IGNORE INTO app_config')) {
+        return { meta: { changes: 0 } }; // another request already claimed
+      }
+      return { success: true };
+    });
+    const res = await authRouter(
+      makeReq('/api/auth/register', 'POST', {
+        email: 'racer@example.com',
+        name: 'Racer',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/register'
+    );
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe('Registration in progress, please retry');
+  });
+
+  it('allows first-admin claim when INSERT OR IGNORE returns meta.changes = 1', async () => {
+    // Verify that a real D1 response with meta.changes = 1 is treated as success.
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    queryResponses.countUsers = [{ count: 0 }];
+    queryResponses.appConfig = [null];
+    queryResponses.existingUser = [null];
+    queryResponses.userById = [
+      {
+        id: 'u1',
+        email: 'admin@example.com',
+        name: 'Admin',
+        role: 'admin',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
+      },
+    ];
+    mocks.db.run.mockImplementation(async (sql) => {
+      if (String(sql).includes('INSERT OR IGNORE INTO app_config')) {
+        return { meta: { changes: 1 } }; // claim succeeded
+      }
+      return { success: true };
+    });
+    const res = await authRouter(
+      makeReq('/api/auth/register', 'POST', {
+        email: 'admin@example.com',
+        name: 'Admin',
+        password: 'password123',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/register'
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user.primary_role).toBe('admin');
+  });
+
   it('creates pending registrations when the default registration status is pending', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
     queryResponses.countUsers = [{ count: 1 }, { count: 2 }];

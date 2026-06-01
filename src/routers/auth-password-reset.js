@@ -143,8 +143,9 @@ export async function handleResetPassword(req, env, db) {
     resetRecord.user_id,
   ]);
   await db.run(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [resetRecord.user_id]);
-  await db.run(`DELETE FROM refresh_tokens WHERE user_id = ?`, [resetRecord.user_id]);
-  // Invalidate all KV-backed refresh tokens by bumping the user's session version
+  // Invalidate all KV-backed refresh tokens by bumping the user's session version.
+  // consumeRefreshToken() checks session-version and rejects tokens with an
+  // older version, so this effectively revokes all existing sessions.
   try {
     const versionKey = `session-version:${resetRecord.user_id}`;
     const currentVersion = await env.SESSIONS.get(versionKey);

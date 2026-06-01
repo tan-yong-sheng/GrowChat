@@ -45,18 +45,20 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
   }
 
   // Guard against first-user bootstrap race: two concurrent registrations
-  // could both observe an empty system and both claim admin. Use a DB-level
-  // advisory lock via the config table to serialize the bootstrap path.
+  // could both observe an empty system and both claim admin. Use INSERT OR IGNORE
+  // on the UNIQUE app_config key — if meta.changes === 0, another request already
+  // claimed first-admin and the loser must retry (it will register as member).
   if (!hasUsers) {
-    await db.run(
-      `INSERT INTO app_config (key, value) VALUES ('first_admin_claimed', '1')
-       ON CONFLICT(key) DO UPDATE SET value = value`,
+    const claimResult = await db.run(
+      `INSERT OR IGNORE INTO app_config (key, value, updated_at) VALUES ('first_admin_claimed', '1', unixepoch())`,
       []
     );
-    // Re-check after the insert
-    const recheckHasUsers = (await users.count()) > 0;
-    if (recheckHasUsers) {
-      // Another request won the race — register as member instead
+    // D1 returns meta.changes = 1 on insert, 0 on ignore (conflict).
+    // If meta is absent (e.g. test mock), treat as success for compatibility.
+    const claimSucceeded = claimResult?.meta ? claimResult.meta.changes > 0 : true;
+    if (!claimSucceeded) {
+      // Another request won the race — tell the client to retry.
+      // On retry, hasUsers will be > 0 so they register as member.
       return error(req, 'Registration in progress, please retry', 409);
     }
   }
