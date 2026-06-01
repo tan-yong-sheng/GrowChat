@@ -36,6 +36,12 @@ vi.mock('../utils/logger.js', () => ({
   createLogger: (...args) => mocks.createLogger(...args),
 }));
 
+vi.mock('../services/email/email-service.js', () => ({
+  createEmailService: () => ({
+    send: (...args) => mocks.emailSend(...args),
+  }),
+}));
+
 // Import after mocks
 import { handleResetPassword } from './auth-password-reset.js';
 
