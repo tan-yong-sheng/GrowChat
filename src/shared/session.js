@@ -24,23 +24,33 @@ export async function createRefreshToken(env, userId) {
   const tokenHash = await sha256Hex(token);
   const expiresAt = Math.floor(Date.now() / 1000) + REFRESH_TTL_SECONDS;
 
+  // Capture the user's current session version so we can detect
+  // post-issuance invalidation (e.g. password reset bumps the version).
+  let sessionVersion = 0;
+  try {
+    const raw = await env.SESSIONS.get(`session-version:${userId}`);
+    sessionVersion = Number(raw || 0);
+  } catch {
+    // KV unavailability should not block login
+  }
+
   // Two-key pattern prevents concurrent token reuse:
   // refresh:{hash} — the "gate" key, deleted on consume (prevents reuse)
   // refresh-data:{hash} — session data, read-only after gate is gone
-  await env.SESSIONS.put(`refresh:${tokenHash}`, '1', { expirationTtl: REFRESH_TTL_SECONDS });
-  await env.SESSIONS.put(`refresh-data:${tokenHash}`, JSON.stringify({ userId, expiresAt }), {
+  await env.SESSIONS.put(`refresh:${tokenHash}`, '1', {
     expirationTtl: REFRESH_TTL_SECONDS,
   });
+  await env.SESSIONS.put(
+    `refresh-data:${tokenHash}`,
+    JSON.stringify({ userId, expiresAt, sessionVersion }),
+    { expirationTtl: REFRESH_TTL_SECONDS }
+  );
 
-  return {
-    token,
-    expiresAt,
-  };
+  return { token, expiresAt };
 }
 
 export async function consumeRefreshToken(env, token) {
   if (!token) return null;
-
   const tokenHash = await sha256Hex(token);
   const gateKey = `refresh:${tokenHash}`;
   const dataKey = `refresh-data:${tokenHash}`;
@@ -55,6 +65,22 @@ export async function consumeRefreshToken(env, token) {
 
   if (raw.expiresAt <= Math.floor(Date.now() / 1000)) {
     return null;
+  }
+
+  // Check session-version invalidation: if the user's current version
+  // is higher than the version embedded in the token, the token was
+  // issued before a password reset (or other revocation event) and
+  // must be rejected.
+  if (raw.sessionVersion !== undefined) {
+    try {
+      const currentVersionRaw = await env.SESSIONS.get(`session-version:${raw.userId}`);
+      const currentVersion = Number(currentVersionRaw || 0);
+      if (currentVersion > raw.sessionVersion) {
+        return null;
+      }
+    } catch {
+      // KV unavailability should not block token consumption
+    }
   }
 
   return raw;

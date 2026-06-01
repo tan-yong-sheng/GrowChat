@@ -1,248 +1,19 @@
-function decodeDataUrl(value) {
-  const raw = String(value || '').trim();
-  const match = raw.match(/^data:([^;,]+);base64,(.*)$/i);
-  if (!match) return null;
-  return {
-    mimeType: match[1],
-    data: match[2],
-  };
-}
+import {
+  decodeDataUrl,
+  normalizeToolParameters,
+  normalizeToolChoice,
+  contentToText,
+} from './provider-adapters-utils.js';
+import { buildGooglePayload } from './provider-adapters-google.js';
 
-export function normalizeToolParameters(input) {
-  return convertJsonSchemaToOpenApiSchema(input);
-}
-
-export function convertJsonSchemaToOpenApiSchema(jsonSchema, isRoot = true) {
-  if (jsonSchema == null) {
-    return undefined;
-  }
-
-  if (isEmptyObjectSchema(jsonSchema)) {
-    if (isRoot) {
-      return undefined;
-    }
-
-    if (typeof jsonSchema === 'object' && jsonSchema.description) {
-      return { type: 'object', description: jsonSchema.description };
-    }
-    return { type: 'object' };
-  }
-
-  if (typeof jsonSchema === 'boolean') {
-    return { type: 'boolean', properties: {} };
-  }
-
-  if (Array.isArray(jsonSchema) || typeof jsonSchema !== 'object') {
-    return jsonSchema;
-  }
-
-  const {
-    type,
-    description,
-    required,
-    properties,
-    items,
-    allOf,
-    anyOf,
-    oneOf,
-    format,
-    const: constValue,
-    minLength,
-    enum: enumValues,
-  } = jsonSchema;
-
-  const result = {};
-
-  if (description) result.description = description;
-  if (required) result.required = required;
-  if (format) result.format = format;
-
-  if (constValue !== undefined) {
-    result.enum = [constValue];
-  }
-
-  if (type) {
-    if (Array.isArray(type)) {
-      const hasNull = type.includes('null');
-      const nonNullTypes = type.filter((t) => t !== 'null');
-      if (nonNullTypes.length === 0) {
-        result.type = 'null';
-      } else {
-        result.anyOf = nonNullTypes.map((t) => ({ type: t }));
-        if (hasNull) {
-          result.nullable = true;
-        }
-      }
-    } else {
-      result.type = type;
-    }
-  }
-
-  if (enumValues !== undefined) {
-    result.enum = enumValues;
-  }
-
-  if (properties != null) {
-    result.properties = Object.entries(properties).reduce((acc, [key, value]) => {
-      acc[key] = convertJsonSchemaToOpenApiSchema(value, false);
-      return acc;
-    }, {});
-  }
-
-  if (items) {
-    result.items = Array.isArray(items)
-      ? items.map((item) => convertJsonSchemaToOpenApiSchema(item, false))
-      : convertJsonSchemaToOpenApiSchema(items, false);
-  }
-
-  if (allOf) {
-    result.allOf = allOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
-  }
-  if (anyOf) {
-    if (anyOf.some((schema) => typeof schema === 'object' && schema?.type === 'null')) {
-      const nonNullSchemas = anyOf.filter(
-        (schema) => !(typeof schema === 'object' && schema?.type === 'null')
-      );
-
-      if (nonNullSchemas.length === 1) {
-        const converted = convertJsonSchemaToOpenApiSchema(nonNullSchemas[0], false);
-        if (typeof converted === 'object' && converted) {
-          result.nullable = true;
-          Object.assign(result, converted);
-        }
-      } else {
-        result.anyOf = nonNullSchemas.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
-        result.nullable = true;
-      }
-    } else {
-      result.anyOf = anyOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
-    }
-  }
-  if (oneOf) {
-    result.oneOf = oneOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
-  }
-
-  if (minLength !== undefined) {
-    result.minLength = minLength;
-  }
-
-  return result;
-}
-
-export function isEmptyObjectSchema(jsonSchema) {
-  return (
-    jsonSchema != null &&
-    typeof jsonSchema === 'object' &&
-    jsonSchema.type === 'object' &&
-    (jsonSchema.properties == null || Object.keys(jsonSchema.properties).length === 0) &&
-    !jsonSchema.additionalProperties
-  );
-}
-
-export function normalizeToolChoice(toolChoice) {
-  if (!toolChoice) return undefined;
-  if (typeof toolChoice === 'string') {
-    const type = toolChoice.toLowerCase();
-    if (type === 'auto' || type === 'none' || type === 'required') {
-      return { type };
-    }
-    return undefined;
-  }
-  const type = String(toolChoice.type || '').toLowerCase();
-  if (!type) return undefined;
-  if (type === 'auto' || type === 'none' || type === 'required') {
-    return { type };
-  }
-  if (type === 'tool' && (toolChoice.toolName || toolChoice.name || toolChoice.function?.name)) {
-    return {
-      type: 'tool',
-      toolName: String(toolChoice.toolName || toolChoice.name || toolChoice.function?.name),
-    };
-  }
-  if (type === 'function' && (toolChoice.function?.name || toolChoice.name)) {
-    return {
-      type: 'tool',
-      toolName: String(toolChoice.function?.name || toolChoice.name),
-    };
-  }
-  return undefined;
-}
-
-function buildToolCallNameMap(messages = []) {
-  const map = new Map();
-  for (const message of messages || []) {
-    if (String(message?.role || '').toLowerCase() !== 'assistant') continue;
-    const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
-    for (const call of toolCalls) {
-      const id = String(call?.id || '').trim();
-      const name = String(call?.function?.name || '').trim();
-      if (id && name) {
-        map.set(id, name);
-      }
-    }
-  }
-  return map;
-}
-
-function contentToText(value) {
-  if (typeof value === 'string') return value;
-  if (!Array.isArray(value)) return '';
-  return value
-    .map((part) => {
-      if (!part) return '';
-      if (typeof part === 'string') return part;
-      if (part.type === 'text') return String(part.text || '');
-      if (part.type === 'tool') return String(part.content || '');
-      return '';
-    })
-    .filter(Boolean)
-    .join('\n');
-}
-
-function contentToGoogleParts(content) {
-  const parts = [];
-  if (typeof content === 'string') {
-    if (content) parts.push({ text: content });
-    return parts;
-  }
-
-  for (const part of Array.isArray(content) ? content : []) {
-    if (!part) continue;
-    if (part.type === 'text') {
-      if (part.text) parts.push({ text: String(part.text) });
-      continue;
-    }
-    if (part.type === 'image_url') {
-      const url = String(part.image_url?.url || '').trim();
-      const dataUrl = decodeDataUrl(url);
-      if (dataUrl) {
-        parts.push({
-          inlineData: {
-            mimeType: dataUrl.mimeType,
-            data: dataUrl.data,
-          },
-        });
-      } else if (url) {
-        parts.push({ fileData: { fileUri: url, mimeType: 'image/*' } });
-      }
-      continue;
-    }
-    if (part.type === 'file') {
-      const fileData = String(part.file?.file_data || '').trim();
-      const decoded = decodeDataUrl(fileData);
-      if (decoded) {
-        parts.push({
-          inlineData: {
-            mimeType: decoded.mimeType,
-            data: decoded.data,
-          },
-        });
-      }
-    }
-  }
-
-  return parts;
-}
+// Re-export everything from sub-modules for backward compatibility
+export {
+  normalizeToolParameters,
+  convertJsonSchemaToOpenApiSchema,
+  isEmptyObjectSchema,
+  normalizeToolChoice,
+} from './provider-adapters-utils.js';
+export { buildGooglePayload } from './provider-adapters-google.js';
 
 function contentToAnthropicBlocks(content) {
   const blocks = [];
@@ -250,7 +21,6 @@ function contentToAnthropicBlocks(content) {
     if (content) blocks.push({ type: 'text', text: content });
     return blocks;
   }
-
   for (const part of Array.isArray(content) ? content : []) {
     if (!part) continue;
     if (part.type === 'text') {
@@ -263,11 +33,7 @@ function contentToAnthropicBlocks(content) {
       if (dataUrl) {
         blocks.push({
           type: 'image',
-          source: {
-            type: 'base64',
-            media_type: dataUrl.mimeType,
-            data: dataUrl.data,
-          },
+          source: { type: 'base64', media_type: dataUrl.mimeType, data: dataUrl.data },
         });
       }
       continue;
@@ -279,66 +45,19 @@ function contentToAnthropicBlocks(content) {
       if (decoded.mimeType === 'application/pdf') {
         blocks.push({
           type: 'document',
-          source: {
-            type: 'base64',
-            media_type: decoded.mimeType,
-            data: decoded.data,
-          },
+          source: { type: 'base64', media_type: decoded.mimeType, data: decoded.data },
           title: part.file?.filename || 'attachment.pdf',
         });
       } else if (decoded.mimeType.startsWith('text/')) {
         blocks.push({
           type: 'document',
-          source: {
-            type: 'text',
-            media_type: decoded.mimeType,
-            data: '',
-          },
+          source: { type: 'text', media_type: decoded.mimeType, data: '' },
           title: part.file?.filename || 'attachment.txt',
         });
       }
     }
   }
-
   return blocks;
-}
-
-function buildGoogleTools(tools = [], normalize = normalizeToolParameters) {
-  const functionDeclarations = [];
-  for (const tool of Array.isArray(tools) ? tools : []) {
-    if (tool?.type !== 'function') continue;
-    const fn = tool.function || {};
-    const name = String(fn.name || '').trim();
-    if (!name) continue;
-    functionDeclarations.push({
-      name,
-      description: String(fn.description || ''),
-      parameters: normalize(fn.parameters),
-    });
-  }
-  return functionDeclarations.length ? [{ functionDeclarations }] : undefined;
-}
-
-function buildGoogleToolConfig(toolChoice) {
-  const choice = normalizeToolChoice(toolChoice);
-  if (!choice) return undefined;
-  switch (choice.type) {
-    case 'auto':
-      return { functionCallingConfig: { mode: 'AUTO' } };
-    case 'none':
-      return { functionCallingConfig: { mode: 'NONE' } };
-    case 'required':
-      return { functionCallingConfig: { mode: 'ANY' } };
-    case 'tool':
-      return {
-        functionCallingConfig: {
-          mode: 'ANY',
-          allowedFunctionNames: [choice.toolName],
-        },
-      };
-    default:
-      return undefined;
-  }
 }
 
 function buildAnthropicTools(tools = [], normalize = normalizeToolParameters) {
@@ -372,120 +91,6 @@ function buildAnthropicToolChoice(toolChoice) {
   }
 }
 
-export function buildGooglePayload(messages, options = {}) {
-  const contents = [];
-  const systemTexts = [];
-  const toolCallNameMap = buildToolCallNameMap(messages);
-  const normalize = options.normalizeToolParameters || normalizeToolParameters;
-  const getThoughtSignature = (call) => {
-    const signature =
-      call?.providerMetadata?.google?.thoughtSignature ??
-      call?.providerMetadata?.vertex?.thoughtSignature ??
-      call?.providerOptions?.google?.thoughtSignature ??
-      call?.providerOptions?.vertex?.thoughtSignature;
-    return signature != null ? String(signature) : undefined;
-  };
-  for (const message of messages || []) {
-    const role = String(message?.role || '').toLowerCase();
-    if (role === 'system') {
-      const text = contentToText(message.content);
-      if (text) systemTexts.push(text);
-      continue;
-    }
-    if (role === 'assistant' && Array.isArray(message?.tool_calls) && message.tool_calls.length) {
-      const parts = contentToGoogleParts(message.content);
-      for (const call of message.tool_calls) {
-        const fn = call?.function || {};
-        const name = String(fn.name || '').trim();
-        if (!name) continue;
-        const rawArgs = fn.arguments;
-        const args =
-          typeof rawArgs === 'string'
-            ? (() => {
-                try {
-                  return JSON.parse(rawArgs);
-                } catch {
-                  return rawArgs;
-                }
-              })()
-            : (rawArgs ?? {});
-        const thoughtSignature = getThoughtSignature(call);
-        parts.push({
-          functionCall: {
-            name,
-            args,
-          },
-          ...(thoughtSignature ? { thoughtSignature } : {}),
-        });
-      }
-      if (!parts.length) continue;
-      contents.push({
-        role: 'model',
-        parts,
-      });
-      continue;
-    }
-    if (role === 'tool') {
-      const toolName = String(
-        message?.name || toolCallNameMap.get(String(message?.tool_call_id || '')) || 'tool'
-      ).trim();
-      const outputText = contentToText(message.content);
-      contents.push({
-        role: 'user',
-        parts: [
-          {
-            functionResponse: {
-              name: toolName,
-              response: {
-                name: toolName,
-                content: outputText,
-              },
-            },
-          },
-        ],
-      });
-      continue;
-    }
-    if (role === 'user' || role === 'assistant') {
-      const parts = contentToGoogleParts(message.content);
-      if (!parts.length) {
-        const text = contentToText(message.content);
-        if (text) parts.push({ text });
-      }
-      if (!parts.length) continue;
-      contents.push({
-        role: role === 'assistant' ? 'model' : 'user',
-        parts,
-      });
-      continue;
-    }
-    const text = contentToText(message.content);
-    if (text) {
-      contents.push({ role: 'user', parts: [{ text }] });
-    }
-  }
-
-  const systemText = systemTexts.join('\n\n').trim();
-  const payload = {
-    contents,
-  };
-  if (systemText) {
-    payload.systemInstruction = { parts: [{ text: systemText }] };
-  }
-  const googleTools = buildGoogleTools(options.tools, normalize);
-  if (googleTools) {
-    payload.tools = googleTools;
-  }
-  const googleToolConfig = buildGoogleToolConfig(options.toolChoice);
-  if (googleToolConfig) {
-    payload.toolConfig = googleToolConfig;
-  }
-  if (options.stream !== false) {
-    payload.generationConfig = {};
-  }
-  return payload;
-}
-
 export function buildAnthropicPayload(messages, options = {}) {
   const normalize = options.normalizeToolParameters || normalizeToolParameters;
   const payload = {
@@ -494,6 +99,7 @@ export function buildAnthropicPayload(messages, options = {}) {
     messages: [],
   };
   const systemTexts = [];
+
   for (const message of messages || []) {
     const role = String(message?.role || '').toLowerCase();
     if (role === 'system') {
@@ -526,10 +132,7 @@ export function buildAnthropicPayload(messages, options = {}) {
         });
       }
       if (!blocks.length) continue;
-      payload.messages.push({
-        role: 'assistant',
-        content: blocks,
-      });
+      payload.messages.push({ role: 'assistant', content: blocks });
       continue;
     }
     if (role === 'tool') {
@@ -562,15 +165,14 @@ export function buildAnthropicPayload(messages, options = {}) {
     }
     const text = contentToText(message.content);
     if (text) {
-      payload.messages.push({
-        role: 'user',
-        content: [{ type: 'text', text }],
-      });
+      payload.messages.push({ role: 'user', content: [{ type: 'text', text }] });
     }
   }
+
   if (systemTexts.length) {
     payload.system = systemTexts.join('\n\n');
   }
+
   const normalizedToolChoice = normalizeToolChoice(options.toolChoice);
   const anthropicTools =
     normalizedToolChoice?.type === 'none'
@@ -586,6 +188,7 @@ export function buildAnthropicPayload(messages, options = {}) {
   if (anthropicToolChoice) {
     payload.tool_choice = anthropicToolChoice;
   }
+
   return payload;
 }
 
@@ -628,9 +231,7 @@ export function buildProviderRequest({
         }),
         stream: stream !== false,
       },
-      headers: {
-        'anthropic-version': '2023-06-01',
-      },
+      headers: { 'anthropic-version': '2023-06-01' },
     };
   }
 

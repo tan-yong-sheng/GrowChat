@@ -73,4 +73,48 @@ describe('shared/session', () => {
     expect(env.SESSIONS.delete).toHaveBeenCalledWith(`refresh:${tokenHash}`);
     expect(env.SESSIONS.delete).toHaveBeenCalledWith(`refresh-data:${tokenHash}`);
   });
+  it('embeds sessionVersion in refresh token data', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce('3'); // session-version
+    await createRefreshToken(env, 'u1');
+    const dataPut = env.SESSIONS.put.mock.calls[1];
+    const storedData = JSON.parse(dataPut[1]);
+    expect(storedData.sessionVersion).toBe(3);
+  });
+
+  it('consumeRefreshToken rejects token when session version was bumped', async () => {
+    // Create token with version 0 (default)
+    const { token } = await createRefreshToken(env, 'u1');
+    const storedData = JSON.parse(env.SESSIONS.put.mock.calls[1][1]);
+
+    // Simulate password reset: bump session-version from 0 to 1
+    env.SESSIONS.get
+      .mockResolvedValueOnce(storedData) // refresh-data read
+      .mockResolvedValueOnce('1'); // session-version now 1
+
+    const result = await consumeRefreshToken(env, token);
+    expect(result).toBeNull(); // rejected - version mismatch
+  });
+
+  it('consumeRefreshToken accepts token when session version matches', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce('2'); // session-version at creation
+    const { token } = await createRefreshToken(env, 'u1');
+    const storedData = JSON.parse(env.SESSIONS.put.mock.calls[1][1]);
+
+    env.SESSIONS.get
+      .mockResolvedValueOnce(storedData) // refresh-data read
+      .mockResolvedValueOnce('2'); // session-version still 2
+
+    const result = await consumeRefreshToken(env, token);
+    expect(result).toMatchObject({ userId: 'u1', sessionVersion: 2 });
+  });
+
+  it('consumeRefreshToken accepts token when sessionVersion is undefined (legacy)', async () => {
+    // Tokens created before sessionVersion was added have no version field.
+    // They should still work (no version check applied).
+    const legacyData = { userId: 'u1', expiresAt: Math.floor(Date.now() / 1000) + 9999 };
+    env.SESSIONS.get.mockResolvedValueOnce(legacyData);
+
+    const result = await consumeRefreshToken(env, 'legacy-token');
+    expect(result).toMatchObject({ userId: 'u1' });
+  });
 });
