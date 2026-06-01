@@ -1,59 +1,16 @@
-const MAX_TOOL_STEPS = 100;
-const MAX_FOLLOW_UPS = 20;
-const FOLLOW_UP_PROMPT =
-  'Provide a complete final answer to the user. Do not return tool calls or reasoning-only output.';
-const STREAM_KEEPALIVE_INTERVAL_MS = 15000;
-const STREAM_HARD_TIMEOUT_MS = 10 * 60 * 1000;
-const STREAM_KEEPALIVE_PAYLOAD = ':\n\n';
+import {
+  MAX_TOOL_STEPS,
+  MAX_FOLLOW_UPS,
+  FOLLOW_UP_PROMPT,
+  STREAM_STATUS_STALE_MS,
+  STREAM_HARD_TIMEOUT_MS,
+  readStreamChunkWithHeartbeat,
+  createStreamHelpers,
+} from './assistant-stream-utils.js';
+import { executeToolCalls } from './assistant-tool-executor.js';
 
-export async function readStreamChunkWithHeartbeat(
-  reader,
-  {
-    controller = null,
-    encoder = new TextEncoder(),
-    keepAliveIntervalMs = STREAM_KEEPALIVE_INTERVAL_MS,
-    hardTimeoutMs = STREAM_HARD_TIMEOUT_MS,
-    heartbeatPayload = STREAM_KEEPALIVE_PAYLOAD,
-  } = {}
-) {
-  let heartbeatTimer = null;
-  let timeoutId = null;
-  let timedOut = false;
-
-  if (controller && typeof controller.enqueue === 'function' && keepAliveIntervalMs > 0) {
-    heartbeatTimer = setInterval(() => {
-      try {
-        controller.enqueue(encoder.encode(heartbeatPayload));
-      } catch {
-        // ignore heartbeat enqueue failure
-      }
-    }, keepAliveIntervalMs);
-  }
-
-  const pendingReads = [reader.read()];
-  if (hardTimeoutMs > 0) {
-    pendingReads.push(
-      new Promise((_, reject) => {
-        timeoutId = setTimeout(() => {
-          timedOut = true;
-          reject(new Error('LLM stream timed out'));
-        }, hardTimeoutMs);
-      })
-    );
-  }
-
-  try {
-    return await Promise.race(pendingReads);
-  } catch (err) {
-    if (timedOut && typeof reader.cancel === 'function') {
-      void reader.cancel().catch(() => {});
-    }
-    throw err;
-  } finally {
-    if (heartbeatTimer) clearInterval(heartbeatTimer);
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-}
+// Re-export for backward compatibility
+export { readStreamChunkWithHeartbeat } from './assistant-stream-utils.js';
 
 export function createAssistantRunner(deps) {
   const {
@@ -92,7 +49,6 @@ export function createAssistantRunner(deps) {
     user,
     chatId,
     userMsgId,
-
     model,
     history,
     citations,
@@ -114,59 +70,19 @@ export function createAssistantRunner(deps) {
       normalizeProviderFamily(providerFamily) || ''
     );
     const toolsEnabled = tools.length > 0 && providerSupportsTools;
-    const STREAM_STATUS_STALE_MS = 10 * 60 * 1000;
 
     const encoder = new TextEncoder();
     let fullText = '';
     let fullReasoning = '';
     let reasoningStartedAt = null;
-    let deltaSeq = 0;
     const toolCallRecords = [];
-    const messageBlocks = [];
-    let streamController = null;
-
-    const persistDelta = async (payload) => {
-      if (!payload || typeof payload !== 'object') return payload;
-      deltaSeq += 1;
-      const payloadWithSeq = { ...payload, seq: deltaSeq };
-      try {
-        await db.run(
-          'INSERT INTO message_deltas (message_id, seq, payload, created_at) VALUES (?, ?, ?, unixepoch())',
-          [assistantMsgId, deltaSeq, JSON.stringify(payloadWithSeq)]
-        );
-      } catch {
-        // ignore delta persistence failure
-      }
-      return payloadWithSeq;
-    };
-
-    const emitSse = async (payload, { persist = false } = {}) => {
-      const outgoing = persist ? await persistDelta(payload) : payload;
-      if (!streamController) return outgoing;
-      streamController.enqueue(encoder.encode(sseData(outgoing)));
-      return outgoing;
-    };
-
-    const appendMessageBlock = (type, content = '', toolCallId = null) => {
-      if (!type) return;
-      const last = messageBlocks.length ? messageBlocks[messageBlocks.length - 1] : null;
-      if (type === 'tool') {
-        const existing = messageBlocks.find(
-          (block) => block.type === 'tool' && block.tool_call_id === toolCallId
-        );
-        if (existing) return;
-        messageBlocks.push({
-          type: 'tool',
-          tool_call_id: String(toolCallId || ''),
-        });
-        return;
-      }
-      if (last && last.type === type && !last.tool_call_id) {
-        last.content = `${last.content || ''}${content}`;
-        return;
-      }
-      messageBlocks.push({ type, content: String(content || '') });
-    };
+    const {
+      _persistDelta,
+      emitSse,
+      appendMessageBlock,
+      messageBlocks,
+      state: streamState,
+    } = createStreamHelpers({ db, assistantMsgId, encoder, sseData });
 
     const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : citations || null;
     const lifecycle = createAssistantStreamLifecycle({
@@ -189,8 +105,9 @@ export function createAssistantRunner(deps) {
 
     const readable = new ReadableStream({
       async start(controller) {
-        streamController = controller;
+        streamState.streamController = controller;
         await lifecycle.ensureAssistantRow();
+
         if (ctx?.waitUntil) {
           ctx.waitUntil(
             (async () => {
@@ -199,6 +116,7 @@ export function createAssistantRunner(deps) {
             })()
           );
         }
+
         await emitSse({
           event: 'start',
           chat_id: chatId,
@@ -233,22 +151,15 @@ export function createAssistantRunner(deps) {
                   toolCallRecords,
                   citations,
                 });
-                return {
-                  action: 'final',
-                  terminate: true,
-                  nextMessagesForModel: messagesForModel,
-                };
+                return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
               }
 
               const reader = stream.getReader();
               const decoder = new TextDecoder();
               const stepToolCalls = [];
               let finishReason = null;
-
               let emitEvent = () => {};
-              const parser = new SseLineParser({
-                onEvent: (event) => emitEvent(event),
-              });
+              const parser = new SseLineParser({ onEvent: (event) => emitEvent(event) });
 
               emitEvent = (event) => {
                 if (!event) return;
@@ -294,10 +205,12 @@ export function createAssistantRunner(deps) {
                 }
               };
 
+              const streamDeadlineAt = Date.now() + STREAM_HARD_TIMEOUT_MS;
               while (true) {
                 const { done, value } = await readStreamChunkWithHeartbeat(reader, {
                   controller,
                   encoder,
+                  deadlineAt: streamDeadlineAt,
                 });
                 if (done) break;
                 const delta = parser.push(decoder.decode(value, { stream: true }));
@@ -338,11 +251,7 @@ export function createAssistantRunner(deps) {
                 fullText += finalDelta;
                 stepTextOutput = true;
                 appendMessageBlock('text', finalDelta);
-                await lifecycle.persistAssistantContent({
-                  fullText,
-                  fullReasoning,
-                  messageBlocks,
-                });
+                await lifecycle.persistAssistantContent({ fullText, fullReasoning, messageBlocks });
                 const persisted = await emitSse({ response: finalDelta }, { persist: true });
                 await publishRealtimeNow(
                   env,
@@ -356,16 +265,13 @@ export function createAssistantRunner(deps) {
                   })
                 );
               }
+
               parser.finalize();
               reader.releaseLock();
 
               if (await lifecycle.isCancelled()) {
                 await lifecycle.sendCancelAndClose({ controller, encoder });
-                return {
-                  action: 'final',
-                  terminate: true,
-                  nextMessagesForModel: messagesForModel,
-                };
+                return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
               }
 
               const hasToolCalls = stepToolCalls.some((call) => call && call.name);
@@ -381,169 +287,47 @@ export function createAssistantRunner(deps) {
 
               if (turnContinuation.action === 'tool_loop') {
                 const { validCalls, unknownCalls } = normalizeToolCalls(stepToolCalls, toolMap);
-                const toolCallsForModel = validCalls.map((call) => ({
-                  id: call.toolCallId,
-                  type: 'function',
-                  function: {
-                    name: call.modelToolName,
-                    arguments: call.arguments,
-                  },
-                  ...(call.providerMetadata ? { providerMetadata: call.providerMetadata } : {}),
-                }));
-
-                const toolResultMessages = [];
-
-                for (const call of unknownCalls) {
-                  const errorText = `Unknown tool: ${call.name}`;
-                  const record = {
-                    id: call.toolCallId,
-                    name: call.name || 'Unknown tool',
-                    input: call.arguments,
-                    output: errorText,
-                    error: errorText,
-                    status: 'error',
+                const result = await executeToolCalls({
+                  validCalls,
+                  unknownCalls,
+                  serversById,
+                  parseToolArguments,
+                  executeMcpToolCall,
+                  stringifyToolPayload,
+                  lifecycle,
+                  assistantMsgId,
+                  toolCallRecords,
+                  appendMessageBlock,
+                  fullText,
+                  fullReasoning,
+                  messageBlocks,
+                  emitSse,
+                  controller,
+                  encoder,
+                  normalizeErrorMessage,
+                });
+                if (result.cancelled) {
+                  return {
+                    action: 'final',
+                    terminate: true,
+                    nextMessagesForModel: messagesForModel,
                   };
-                  toolCallRecords.push(record);
-                  appendMessageBlock('tool', '', call.toolCallId);
-                  await lifecycle.persistToolCalls(toolCallRecords);
-                  await lifecycle.persistAssistantContent({
-                    fullText,
-                    fullReasoning,
-                    messageBlocks,
-                  });
-                  await emitSse(
-                    {
-                      event: 'tool_result',
-                      message_id: assistantMsgId,
-                      tool_call_id: call.toolCallId,
-                      tool_name: record.name,
-                      input: call.arguments,
-                      output: errorText,
-                      error: errorText,
-                      status: 'error',
-                    },
-                    { persist: true }
-                  );
                 }
-
-                for (const call of validCalls) {
-                  if (await lifecycle.isCancelled()) {
-                    await lifecycle.sendCancelAndClose({ controller, encoder });
-                    return {
-                      action: 'final',
-                      terminate: true,
-                      nextMessagesForModel: messagesForModel,
-                    };
-                  }
-                  await emitSse(
-                    {
-                      event: 'tool_status',
-                      message_id: assistantMsgId,
-                      tool_call_id: call.toolCallId,
-                      tool_name: call.displayName,
-                      state: 'running',
-                      input: call.arguments,
-                    },
-                    { persist: true }
-                  );
-
-                  const server = serversById.get(call.serverId);
-                  let outputText;
-                  let errorText = '';
-                  let status = 'completed';
-                  const record = {
-                    id: call.toolCallId,
-                    name: call.displayName,
-                    input: call.arguments,
-                    output: '',
-                    error: null,
-                    status: 'running',
-                    ...(call.providerMetadata ? { providerMetadata: call.providerMetadata } : {}),
-                  };
-                  toolCallRecords.push(record);
-                  appendMessageBlock('tool', '', call.toolCallId);
-                  await lifecycle.persistToolCalls(toolCallRecords);
-
-                  try {
-                    const args = parseToolArguments(call.arguments);
-                    const output = await executeMcpToolCall({
-                      server,
-                      toolName: call.toolName,
-                      args,
-                    });
-                    outputText = stringifyToolPayload(output);
-                  } catch (err) {
-                    status = 'error';
-                    errorText = normalizeErrorMessage(err, 'Tool call failed', 8000);
-                    outputText = errorText;
-                  }
-
-                  record.output = outputText;
-                  record.error = errorText || null;
-                  record.status = status;
-                  await lifecycle.persistToolCalls(toolCallRecords);
-                  await lifecycle.persistAssistantContent({
-                    fullText,
-                    fullReasoning,
-                    messageBlocks,
-                  });
-
-                  await emitSse(
-                    {
-                      event: 'tool_result',
-                      message_id: assistantMsgId,
-                      tool_call_id: call.toolCallId,
-                      tool_name: call.displayName,
-                      input: call.arguments,
-                      output: outputText,
-                      error: errorText || null,
-                      status,
-                    },
-                    { persist: true }
-                  );
-
-                  toolResultMessages.push({
-                    role: 'tool',
-                    tool_call_id: call.toolCallId,
-                    content: outputText,
-                  });
-
-                  if (await lifecycle.isCancelled()) {
-                    await lifecycle.sendCancelAndClose({ controller, encoder });
-                    return {
-                      action: 'final',
-                      terminate: true,
-                      nextMessagesForModel: messagesForModel,
-                    };
-                  }
-                }
-
                 let nextMessagesForModel = [...messagesForModel];
-                if (toolCallsForModel.length) {
+                if (result.toolCallsForModel.length) {
                   nextMessagesForModel = [
                     ...nextMessagesForModel,
-                    {
-                      role: 'assistant',
-                      content: '',
-                      tool_calls: toolCallsForModel,
-                    },
-                    ...toolResultMessages,
+                    { role: 'assistant', content: '', tool_calls: result.toolCallsForModel },
+                    ...result.toolResultMessages,
                   ];
                 }
                 if (unknownCalls.length) {
                   nextMessagesForModel = [
                     ...nextMessagesForModel,
-                    {
-                      role: 'system',
-                      content: buildUnknownToolPrompt(unknownCalls, toolMap),
-                    },
+                    { role: 'system', content: buildUnknownToolPrompt(unknownCalls, toolMap) },
                   ];
                 }
-
-                return {
-                  action: 'tool_loop',
-                  nextMessagesForModel,
-                };
+                return { action: 'tool_loop', nextMessagesForModel };
               }
 
               if (turnContinuation.action === 'follow_up') {
@@ -556,10 +340,7 @@ export function createAssistantRunner(deps) {
                 };
               }
 
-              return {
-                action: 'final',
-                nextMessagesForModel: messagesForModel,
-              };
+              return { action: 'final', nextMessagesForModel: messagesForModel };
             },
           });
 

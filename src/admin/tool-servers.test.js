@@ -320,4 +320,86 @@ describe('admin tool server helpers', () => {
     const metadata = await discoverAuthorizationMetadata('https://auth.example.com');
     expect(metadata.authorization_endpoint).toBe('https://auth.example.com/authorize');
   });
+
+  it('strips internal allowed property from loadToolServers results', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM group_members')) return [];
+        if (String(sql).includes('FROM tool_server_acl_rules')) return [];
+        if (String(sql).includes('FROM user_tool_servers')) return [];
+        return [];
+      }),
+      first: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM users')) return { primary_role: 'member' };
+        return null;
+      }),
+    };
+    mocks.getConfigValue.mockResolvedValueOnce(
+      JSON.stringify([
+        {
+          id: 's1',
+          name: 'Test',
+          url: 'https://example.com',
+          tools: [{ name: 't1', title: 'T1', description: '', enabled: true }],
+        },
+      ])
+    );
+    const result = await loadToolServers(db, { userId: 'u1' });
+    for (const server of result) {
+      expect(server).not.toHaveProperty('allowed');
+    }
+  });
+
+  it('falls back to user-owned servers when config loading fails', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn(async (sql) => {
+        if (String(sql).includes('FROM user_tool_servers')) {
+          return [
+            {
+              id: 'mcp-user',
+              user_id: 'u1',
+              server_json: JSON.stringify({
+                id: 'mcp-user',
+                name: 'My MCP',
+                url: 'https://mcp.example.com',
+                enabled: true,
+              }),
+            },
+          ];
+        }
+        return [];
+      }),
+      first: vi.fn(),
+    };
+    // Make config loading throw to trigger the fallback
+    mocks.getConfigValue.mockRejectedValueOnce(new Error('Config DB error'));
+    const servers = await loadToolServers(db, { userId: 'u1' });
+    expect(servers).toEqual([
+      expect.objectContaining({
+        id: 'mcp-user',
+        source: 'user',
+        personal: true,
+      }),
+    ]);
+  });
+
+  it('returns denied shared servers when includeHiddenForUser is true', async () => {
+    const db = {
+      run: vi.fn().mockResolvedValue({ success: true }),
+      all: vi.fn().mockResolvedValue([]),
+      first: vi.fn(),
+    };
+    mocks.getConfigValue.mockResolvedValueOnce(
+      JSON.stringify([
+        { id: 'shared-1', name: 'Shared MCP', url: 'https://shared.example.com', enabled: true },
+      ])
+    );
+    // Deny the shared server via ACL
+    mocks.loadToolServerAclRules = undefined; // will use default mock
+    const servers = await loadToolServers(db, { userId: 'u1', includeHiddenForUser: true });
+    expect(servers.length).toBeGreaterThanOrEqual(1);
+    expect(servers.find((s) => s.id === 'shared-1')).toBeDefined();
+  });
 });

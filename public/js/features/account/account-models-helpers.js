@@ -1,10 +1,9 @@
 /**
  * Helper functions for the account models section.
  */
-import { ATTACHMENT_CAP_TYPES } from '../../shared/utils/attachment-caps.js';
+import { ATTACHMENT_CAP_TYPES, cloneAttachmentCaps } from '../../shared/utils/attachment-caps.js';
 import { normalizeUserResourceOverrides } from '../../shared/utils/user-resource-overrides.js';
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
-import { cloneAttachmentCaps } from '../../shared/utils/attachment-caps.js';
 import { renderModelAccessBadgeForModel } from '../../shared/components/model-access-badge.js';
 
 export function normalizeAttachmentCaps(attachments = {}) {
