@@ -193,15 +193,13 @@ export function mergeToolServer(existing, incoming) {
       }))
       .filter((tool) => tool.name);
   };
+  const headersValue = incoming.headers !== undefined ? incoming.headers : existing?.headers;
   const merged = {
     ...(existing || {}),
     id: incoming.id || existing?.id || crypto.randomUUID(),
     name: String(incoming.name || existing?.name || 'Tool Server').slice(0, 120),
     url: String(incoming.url || existing?.url || '').trim(),
-    headers:
-      typeof (incoming.headers ?? existing?.headers) === 'string'
-        ? String(incoming.headers || existing?.headers || '').trim()
-        : (incoming.headers ?? existing?.headers ?? ''),
+    headers: typeof headersValue === 'string' ? headersValue.trim() : (headersValue ?? ''),
     enabled: incoming.enabled !== undefined ? incoming.enabled : (existing?.enabled ?? true),
     auth_type: incoming.auth_type !== undefined ? authType : existing?.auth_type || 'none',
     auth_bearer_token: String(
