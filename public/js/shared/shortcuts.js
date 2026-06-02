@@ -89,3 +89,4 @@ export function initShortcuts() {
     }
   });
 }
+// initWireChat fix PR trigger
