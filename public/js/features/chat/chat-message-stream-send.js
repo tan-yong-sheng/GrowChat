@@ -11,10 +11,76 @@ import {
   rollbackOptimisticConversation,
 } from './chat-message-stream-temp-chat.js';
 
-export async function startChatSendMessage({
+/**
+ * Synchronous optimistic setup — runs before any async module imports so the
+ * user sees their message immediately.  Returns the optimistic state that
+ * startChatSendMessageWithOptimistic needs to continue the flow.
+ */
+export function prepareSendOptimisticUI({
+  text,
+  state,
+  setState = () => {},
+  buildTempChat = () => null,
+  pruneTempChats = (list) => list,
+  syncChatUrl = () => {},
+  updateChatTitleLocal = () => {},
+  isTempChatId = () => false,
+  currentLeafByChatId = new Map(),
+  registerPendingTempMessage = () => {},
+  setBranchSelection = () => {},
+  drawMessages = () => {},
+  getDraftAttachments = () => [],
+}) {
+  const optimistic = prepareOptimisticConversation({
+    state,
+    setState,
+    text,
+    buildTempChat,
+    pruneTempChats,
+    syncChatUrl,
+    updateChatTitleLocal,
+    isTempChatId,
+  });
+
+  const chatId = optimistic.chatId;
+  const draftAttachments = getDraftAttachments(chatId);
+  const branchParentId = currentLeafByChatId.get(chatId) || null;
+
+  const { tempUserId, tempAssistantId, localMessages } = createOptimisticTempMessages({
+    chatId,
+    branchParentId,
+    userContent: text,
+    userAttachments: draftAttachments,
+    activeModelId: state.activeModelId,
+    state,
+    setState,
+    registerPendingTempMessage,
+    setBranchSelection,
+    currentLeafByChatId,
+    drawMessages,
+  });
+
+  return {
+    optimistic,
+    chatId,
+    tempUserId,
+    tempAssistantId,
+    localMessages,
+    draftAttachments,
+  };
+}
+
+/**
+ * Continuation of startChatSendMessage AFTER the optimistic UI has already
+ * been rendered and async module imports have resolved.  Receives the
+ * optimistic state produced by prepareSendOptimisticUI so it can skip
+ * re-running the synchronous setup.
+ */
+export async function startChatSendMessageWithOptimistic({
   text,
   hooks = {},
   options = {},
+  optimisticState,
   state,
   setState = () => {},
   apiFetch,
@@ -53,36 +119,18 @@ export async function startChatSendMessage({
   replaceTempMessageId = () => {},
   resolveTempMessageId = (_, id) => id,
 } = {}) {
-  const optimistic = prepareOptimisticConversation({
-    state,
-    setState,
-    text,
-    buildTempChat,
-    pruneTempChats,
-    syncChatUrl,
-    updateChatTitleLocal,
-    isTempChatId,
-  });
-  let chatId = optimistic.chatId;
+  const {
+    optimistic,
+    chatId: optimisticChatId,
+    tempUserId,
+    tempAssistantId,
+    localMessages,
+    draftAttachments,
+  } = optimisticState;
+  let chatId = optimisticChatId;
   let tempChatId = optimistic.tempChatId;
   const hadMessagesBefore = optimistic.hadMessagesBefore;
   const optimisticAutoTitle = optimistic.autoTitle || null;
-
-  const branchParentId = currentLeafByChatId.get(chatId) || null;
-  const draftAttachments = getDraftAttachments(chatId);
-  const { tempUserId, tempAssistantId, localMessages } = createOptimisticTempMessages({
-    chatId,
-    branchParentId,
-    userContent: text,
-    userAttachments: draftAttachments,
-    activeModelId: state.activeModelId,
-    state,
-    setState,
-    registerPendingTempMessage,
-    setBranchSelection,
-    currentLeafByChatId,
-    drawMessages,
-  });
 
   if (tempChatId) {
     const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
@@ -92,12 +140,7 @@ export async function startChatSendMessage({
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      rollbackOptimisticConversation({
-        state,
-        setState,
-        tempChatId,
-        isTempChatId,
-      });
+      rollbackOptimisticConversation({ state, setState, tempChatId, isTempChatId });
       hooks.onFinished?.();
       return;
     }
@@ -112,7 +155,6 @@ export async function startChatSendMessage({
       syncChatUrl,
     });
     chatId = realChatId;
-
     if (optimisticAutoTitle) {
       apiFetch(`/api/chats/${realChatId}`, {
         method: 'PUT',
@@ -286,4 +328,27 @@ export async function startChatSendMessage({
     setStreamingState(chatId, false);
     hooks.onFinished?.();
   }
+}
+
+/**
+ * Legacy entry point — creates optimistic UI inline then continues.
+ * Kept for backward compatibility with existing tests.
+ */
+export async function startChatSendMessage(params) {
+  const optimisticState = prepareSendOptimisticUI({
+    text: params.text,
+    state: params.state,
+    setState: params.setState,
+    buildTempChat: params.buildTempChat,
+    pruneTempChats: params.pruneTempChats,
+    syncChatUrl: params.syncChatUrl,
+    updateChatTitleLocal: params.updateChatTitleLocal,
+    isTempChatId: params.isTempChatId,
+    currentLeafByChatId: params.currentLeafByChatId,
+    registerPendingTempMessage: params.registerPendingTempMessage,
+    setBranchSelection: params.setBranchSelection,
+    drawMessages: params.drawMessages,
+    getDraftAttachments: params.getDraftAttachments,
+  });
+  return startChatSendMessageWithOptimistic({ ...params, optimisticState });
 }

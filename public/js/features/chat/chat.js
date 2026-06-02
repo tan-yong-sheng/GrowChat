@@ -214,10 +214,29 @@ function wireChat(root) {
       hooks.onFinished?.();
       return;
     }
+    // Render optimistic UI synchronously before any async work,
+    // so the user sees their message instantly.
+    const optimisticState = chatMessageFlow?.prepareSendOptimisticUI?.({
+      text: prompt,
+      state,
+      setState,
+      buildTempChat,
+      pruneTempChats,
+      syncChatUrl,
+      updateChatTitleLocal,
+      isTempChatId,
+      currentLeafByChatId,
+      registerPendingTempMessage,
+      setBranchSelection,
+      drawMessages,
+      getDraftAttachments,
+    });
     try {
+      // Lazy-load stream modules in parallel — these resolve instantly
+      // if already warmed up via focusin, otherwise fetch the JS chunks.
       await ensureStreamRuntime();
       await ensureMessageSequenceTracker();
-      return chatMessageFlow?.sendMessage?.(prompt, hooks, options);
+      return chatMessageFlow?.sendWithOptimisticState?.(prompt, hooks, options, optimisticState);
     } catch (err) {
       console.error('sendMessage init failed:', err);
       hooks.onFinished?.();
