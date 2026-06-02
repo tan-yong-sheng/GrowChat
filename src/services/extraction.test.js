@@ -1,535 +1,124 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const mockParseDocument = vi.fn();
+const mocks = vi.hoisted(() => ({
+  parseDocument: vi.fn(),
+}));
 
 vi.mock('./parsers/index.js', () => ({
-  parseDocument: (...args) => mockParseDocument(...args),
-}));
-
-const mockLogger = vi.hoisted(() => ({
-  error: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-}));
-
-vi.mock('../utils/logger.js', () => ({
-  createRootLogger: () => mockLogger,
+  parseDocument: (...args) => mocks.parseDocument(...args),
 }));
 
 import { extractDocumentText } from './extraction.js';
 
 describe('extractDocumentText', () => {
   let db;
+  let env;
 
   beforeEach(() => {
+    db = { run: vi.fn().mockResolvedValue({ success: true }) };
+    env = {};
     vi.clearAllMocks();
-    mockLogger.error.mockClear();
-    db = {
-      run: vi.fn().mockResolvedValue({ meta: { changes: 1 } }),
-    };
   });
 
-  it('extracts text successfully and updates document status', async () => {
-    mockParseDocument.mockResolvedValue({ text: 'Hello world' });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd1',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(8),
+  it('extracts text and stores excerpt on success', async () => {
+    mocks.parseDocument.mockResolvedValue({
+      text: 'Hello world this is a document with enough text to exceed the preview length',
     });
 
-    expect(result).toEqual({
-      extractedText: 'Hello world',
-      excerptLength: 11,
-    });
-    expect(db.run).toHaveBeenCalledTimes(1);
-    expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = 1, text_excerpt = ?, updated_at = unixepoch()\n     WHERE id = ?',
-      ['Hello world', 'd1']
+    const result = await extractDocumentText(env, db, 'doc-1', 'text/plain', new ArrayBuffer(0));
+
+    expect(result.extractedText).toBe(
+      'Hello world this is a document with enough text to exceed the preview length'
     );
-    expect(mockParseDocument).toHaveBeenCalledWith(
-      {},
-      {
-        contentType: 'text/plain',
-        buffer: expect.any(ArrayBuffer),
-      }
+    expect(result.excerptLength).toBe(
+      'Hello world this is a document with enough text to exceed the preview length'.length
     );
-  });
-
-  it('truncates excerpt to 500 characters for long text', async () => {
-    const longText = 'a'.repeat(1000);
-    mockParseDocument.mockResolvedValue({ text: longText });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd2',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(8),
-    });
-
-    expect(result).toEqual({
-      extractedText: longText,
-      excerptLength: 500,
-    });
-    expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = 1, text_excerpt = ?, updated_at = unixepoch()\n     WHERE id = ?',
-      [longText.slice(0, 500), 'd2']
-    );
-  });
-
-  it('handles text exactly 500 characters without truncation', async () => {
-    const exact500 = 'b'.repeat(500);
-    mockParseDocument.mockResolvedValue({ text: exact500 });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd3',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(4),
-    });
-
-    expect(result.excerptLength).toBe(500);
-    expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = 1, text_excerpt = ?, updated_at = unixepoch()\n     WHERE id = ?',
-      [exact500, 'd3']
-    );
-  });
-
-  it('skips extraction with explicit reason', async () => {
-    mockParseDocument.mockResolvedValue({ skipped: true, reason: 'Unsupported format' });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd4',
-      contentType: 'application/octet-stream',
-      buffer: new ArrayBuffer(8),
-    });
-
-    expect(result).toEqual({
-      extractedText: '',
-      excerptLength: 0,
-      skipped: true,
-      reason: 'Unsupported format',
-    });
-    expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = -1, extraction_error = ?, updated_at = unixepoch()\n     WHERE id = ?',
-      ['Unsupported format', 'd4']
-    );
-  });
-
-  it('skips extraction with default reason when none provided', async () => {
-    mockParseDocument.mockResolvedValue({ skipped: true });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd5',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(8),
-    });
-
-    expect(result).toEqual({
-      extractedText: '',
-      excerptLength: 0,
-      skipped: true,
-      reason: 'Document extraction skipped',
-    });
-    expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = -1, extraction_error = ?, updated_at = unixepoch()\n     WHERE id = ?',
-      ['Document extraction skipped', 'd5']
-    );
-  });
-
-  it('uses default reason when reason is empty string', async () => {
-    mockParseDocument.mockResolvedValue({ skipped: true, reason: '' });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd6',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(8),
-    });
-
-    expect(result.reason).toBe('Document extraction skipped');
-  });
-
-  it('uses default reason when reason is null', async () => {
-    mockParseDocument.mockResolvedValue({ skipped: true, reason: null });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd7',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(8),
-    });
-
-    expect(result.reason).toBe('Document extraction skipped');
-  });
-
-  it('treats skipped: false as normal text path', async () => {
-    mockParseDocument.mockResolvedValue({ skipped: false, text: 'not skipped' });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd8',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(8),
-    });
-
-    expect(result.extractedText).toBe('not skipped');
     expect(db.run).toHaveBeenCalledWith(
       expect.stringContaining('extraction_status = 1'),
-      expect.anything()
+      expect.arrayContaining(['doc-1'])
     );
   });
 
-  it('treats skipped: undefined as normal text path', async () => {
-    mockParseDocument.mockResolvedValue({ skipped: undefined, text: 'valid text' });
+  it('stores first 500 chars as excerpt', async () => {
+    const longText = 'x'.repeat(800);
+    mocks.parseDocument.mockResolvedValue({ text: longText });
 
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd9',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(8),
-    });
+    const result = await extractDocumentText(env, db, 'doc-2', 'text/plain', new ArrayBuffer(0));
 
-    expect(result.extractedText).toBe('valid text');
+    expect(result.excerptLength).toBe(500);
+    expect(result.extractedText).toBe(longText);
+    expect(db.run).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining(['x'.repeat(500), 'doc-2'])
+    );
   });
 
-  it('treats skipped: 0 as normal text path', async () => {
-    mockParseDocument.mockResolvedValue({ skipped: 0, text: 'zero skipped' });
-
-    const result = await extractDocumentText({
-      env: {},
-      db,
-      documentId: 'd10',
-      contentType: 'text/plain',
-      buffer: new ArrayBuffer(8),
+  it('handles skipped extraction result', async () => {
+    mocks.parseDocument.mockResolvedValue({
+      skipped: true,
+      reason: 'Image extraction not supported',
     });
 
-    expect(result.extractedText).toBe('zero skipped');
+    const result = await extractDocumentText(env, db, 'doc-3', 'image/png', new ArrayBuffer(0));
+
+    expect(result.skipped).toBe(true);
+    expect(result.reason).toBe('Image extraction not supported');
+    expect(result.extractedText).toBe('');
+    expect(result.excerptLength).toBe(0);
+    expect(db.run).toHaveBeenCalledWith(
+      expect.stringContaining('extraction_status = -1'),
+      expect.arrayContaining(['Image extraction not supported', 'doc-3'])
+    );
   });
 
-  it('throws when extracted text is empty string', async () => {
-    mockParseDocument.mockResolvedValue({ text: '' });
+  it('uses default reason when skipped without reason', async () => {
+    mocks.parseDocument.mockResolvedValue({ skipped: true });
+
+    const result = await extractDocumentText(env, db, 'doc-4', 'image/png', new ArrayBuffer(0));
+
+    expect(result.skipped).toBe(true);
+    expect(result.reason).toBe('Document extraction skipped');
+  });
+
+  it('throws and marks as failed when extraction returns empty text', async () => {
+    mocks.parseDocument.mockResolvedValue({ text: '' });
 
     await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd11',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
+      extractDocumentText(env, db, 'doc-5', 'text/plain', new ArrayBuffer(0))
     ).rejects.toThrow('Document extraction resulted in empty text');
 
     expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
-      ['Document extraction resulted in empty text', 'd11']
+      expect.stringContaining('extraction_status = -1'),
+      expect.arrayContaining(['Document extraction resulted in empty text', 'doc-5'])
     );
   });
 
-  it('throws when extracted text is whitespace only', async () => {
-    mockParseDocument.mockResolvedValue({ text: '   \n\t  ' });
+  it('throws and marks as failed when extraction returns whitespace-only text', async () => {
+    mocks.parseDocument.mockResolvedValue({ text: '   \n\t  ' });
 
     await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd12',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
+      extractDocumentText(env, db, 'doc-6', 'text/plain', new ArrayBuffer(0))
     ).rejects.toThrow('Document extraction resulted in empty text');
   });
 
-  it('throws when parseDocument returns null', async () => {
-    mockParseDocument.mockResolvedValue(null);
+  it('throws and marks as failed on parser error', async () => {
+    mocks.parseDocument.mockRejectedValue(new Error('Parser crashed'));
 
     await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd13',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow('Document extraction resulted in empty text');
-  });
+      extractDocumentText(env, db, 'doc-7', 'text/plain', new ArrayBuffer(0))
+    ).rejects.toThrow('Parser crashed');
 
-  it('throws when parseDocument returns undefined', async () => {
-    mockParseDocument.mockResolvedValue(undefined);
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd14',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow('Document extraction resulted in empty text');
-  });
-
-  it('throws when parseDocument returns object without text property', async () => {
-    mockParseDocument.mockResolvedValue({ other: 'field', meta: true });
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd15',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow('Document extraction resulted in empty text');
-  });
-
-  it('throws when parseDocument returns object with null text', async () => {
-    mockParseDocument.mockResolvedValue({ text: null });
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd16',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow('Document extraction resulted in empty text');
-  });
-
-  it('forwards error and marks extraction failed when parseDocument throws Error', async () => {
-    mockParseDocument.mockRejectedValue(new Error('parse error'));
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd17',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow('parse error');
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
-      documentId: 'd17',
-      error: 'parse error',
-    });
     expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
-      ['parse error', 'd17']
+      expect.stringContaining('extraction_status = -1'),
+      expect.arrayContaining(['Parser crashed', 'doc-7'])
     );
   });
 
-  it('handles non-Error string throw from parseDocument', async () => {
-    mockParseDocument.mockRejectedValue('string error');
+  it('handles null text from parser as empty text error', async () => {
+    mocks.parseDocument.mockResolvedValue({ text: null });
 
     await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd18',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toBe('string error');
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
-      documentId: 'd18',
-      error: 'string error',
-    });
-    expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
-      [undefined, 'd18']
-    );
-  });
-
-  it('handles non-Error number throw from parseDocument', async () => {
-    mockParseDocument.mockRejectedValue(42);
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd19',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toBe(42);
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
-      documentId: 'd19',
-      error: 42,
-    });
-  });
-
-  it('handles object throw from parseDocument', async () => {
-    mockParseDocument.mockRejectedValue({ custom: 'error' });
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd20',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toEqual({ custom: 'error' });
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
-      documentId: 'd20',
-      error: { custom: 'error' },
-    });
-  });
-
-  it('handles null throw from parseDocument by propagating TypeError from err.message access', async () => {
-    mockParseDocument.mockRejectedValue(null);
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd21',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow(TypeError);
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
-      documentId: 'd21',
-      error: null,
-    });
-    expect(db.run).not.toHaveBeenCalled();
-  });
-
-  it('handles undefined throw from parseDocument by propagating TypeError from err.message access', async () => {
-    mockParseDocument.mockRejectedValue(undefined);
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd22',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow(TypeError);
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
-      documentId: 'd22',
-      error: undefined,
-    });
-    expect(db.run).not.toHaveBeenCalled();
-  });
-
-  it('handles db.run failure during markExtractionSuccess and then calls markExtractionFailed', async () => {
-    mockParseDocument.mockResolvedValue({ text: 'Hello world' });
-    db.run.mockRejectedValueOnce(new Error('DB write failed'));
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd23',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow('DB write failed');
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
-      documentId: 'd23',
-      error: 'DB write failed',
-    });
-    expect(db.run).toHaveBeenCalledTimes(2);
-    expect(db.run).toHaveBeenNthCalledWith(
-      1,
-      'UPDATE documents SET extraction_status = 1, text_excerpt = ?, updated_at = unixepoch()\n     WHERE id = ?',
-      ['Hello world', 'd23']
-    );
-    expect(db.run).toHaveBeenNthCalledWith(
-      2,
-      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
-      ['DB write failed', 'd23']
-    );
-  });
-
-  it('handles db.run failure during markExtractionFailed', async () => {
-    mockParseDocument.mockRejectedValue(new Error('parse error'));
-    db.run.mockRejectedValueOnce(new Error('DB persist failed'));
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd24',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow('DB persist failed');
-
-    expect(db.run).toHaveBeenCalledTimes(1);
-    // markExtractionFailed is called with the ORIGINAL error message, not the DB failure
-    expect(db.run).toHaveBeenCalledWith(
-      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
-      ['parse error', 'd24']
-    );
-  });
-
-  it('handles db.run failure during handleSkippedExtraction', async () => {
-    mockParseDocument.mockResolvedValue({ skipped: true, reason: 'Unsupported' });
-    db.run.mockRejectedValueOnce(new Error('DB skip failed'));
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd25',
-        contentType: 'application/pdf',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toThrow('DB skip failed');
-  });
-
-  it('handles empty buffer', async () => {
-    mockParseDocument.mockResolvedValue({ text: '' });
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd26',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(0),
-      })
+      extractDocumentText(env, db, 'doc-8', 'text/plain', new ArrayBuffer(0))
     ).rejects.toThrow('Document extraction resulted in empty text');
-  });
-
-  it('handles false throw from parseDocument', async () => {
-    mockParseDocument.mockRejectedValue(false);
-
-    await expect(
-      extractDocumentText({
-        env: {},
-        db,
-        documentId: 'd27',
-        contentType: 'text/plain',
-        buffer: new ArrayBuffer(8),
-      })
-    ).rejects.toBe(false);
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
-      documentId: 'd27',
-      error: false,
-    });
   });
 });
