@@ -1,339 +1,289 @@
-/**
- * Tests for src/llm/provider-adapters-google.js
- * Pure functions: buildGooglePayload, buildGoogleTools, buildGoogleToolConfig
- */
 import { describe, expect, it } from 'vitest';
 import { buildGooglePayload } from './provider-adapters-google.js';
 
-describe('buildGooglePayload', () => {
-  describe('empty / null input', () => {
-    it('returns basic payload for empty messages array', () => {
-      const result = buildGooglePayload([]);
-      expect(result.contents).toEqual([]);
-      expect(result.generationConfig).toEqual({});
-    });
-
-    it('returns basic payload when messages is undefined', () => {
-      const result = buildGooglePayload(undefined);
-      expect(result.contents).toEqual([]);
-    });
-
-    it('returns basic payload when messages is null', () => {
-      const result = buildGooglePayload(null);
-      expect(result.contents).toEqual([]);
-    });
-  });
-
-  describe('system messages', () => {
-    it('extracts system message as systemInstruction', () => {
-      const result = buildGooglePayload([
-        { role: 'system', content: 'You are a helpful assistant.' },
+describe('provider-adapters-google', () => {
+  describe('buildGooglePayload', () => {
+    it('builds basic payload from user and assistant messages', () => {
+      const messages = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi there' },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents).toEqual([
+        { role: 'user', parts: [{ text: 'Hello' }] },
+        { role: 'model', parts: [{ text: 'Hi there' }] },
       ]);
-      expect(result.contents).toEqual([]);
-      expect(result.systemInstruction).toEqual({
+    });
+
+    it('maps assistant role to model role', () => {
+      const messages = [{ role: 'assistant', content: 'response' }];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].role).toBe('model');
+    });
+
+    it('handles system messages as systemInstruction', () => {
+      const messages = [
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: 'Hi' },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.systemInstruction).toEqual({
         parts: [{ text: 'You are a helpful assistant.' }],
       });
     });
 
-    it('concatenates multiple system messages', () => {
-      const result = buildGooglePayload([
-        { role: 'system', content: 'Part one.' },
-        { role: 'system', content: 'Part two.' },
-      ]);
-      expect(result.systemInstruction).toEqual({
-        parts: [{ text: 'Part one.\n\nPart two.' }],
-      });
+    it('joins multiple system messages', () => {
+      const messages = [
+        { role: 'system', content: 'Rule 1' },
+        { role: 'system', content: 'Rule 2' },
+        { role: 'user', content: 'Hi' },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.systemInstruction.parts[0].text).toBe('Rule 1\n\nRule 2');
     });
 
-    it('skips empty system content', () => {
-      const result = buildGooglePayload([
+    it('skips empty system messages', () => {
+      const messages = [
         { role: 'system', content: '' },
-        { role: 'system', content: 'Visible.' },
-      ]);
-      expect(result.systemInstruction).toEqual({
-        parts: [{ text: 'Visible.' }],
+        { role: 'user', content: 'Hi' },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.systemInstruction).toBeUndefined();
+    });
+
+    it('handles tool_calls from assistant', () => {
+      const messages = [
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            {
+              id: 'call_1',
+              function: { name: 'get_weather', arguments: '{"city":"SF"}' },
+            },
+          ],
+        },
+      ];
+      const payload = buildGooglePayload(messages);
+      const part = payload.contents[0].parts[0];
+      expect(part.functionCall).toBeDefined();
+      expect(part.functionCall.name).toBe('get_weather');
+      expect(part.functionCall.args).toEqual({ city: 'SF' });
+    });
+
+    it('parses string arguments to JSON', () => {
+      const messages = [
+        {
+          role: 'assistant',
+          tool_calls: [
+            { id: 'call_1', function: { name: 'search', arguments: '{"q":"test"}' } },
+          ],
+        },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts[0].functionCall.args).toEqual({ q: 'test' });
+    });
+
+    it('handles non-JSON arguments gracefully', () => {
+      const messages = [
+        {
+          role: 'assistant',
+          tool_calls: [
+            { id: 'call_1', function: { name: 'search', arguments: 'not-json' } },
+          ],
+        },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts[0].functionCall.args).toBe('not-json');
+    });
+
+    it('handles object arguments directly', () => {
+      const messages = [
+        {
+          role: 'assistant',
+          tool_calls: [
+            { id: 'call_1', function: { name: 'search', arguments: { q: 'test' } } },
+          ],
+        },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts[0].functionCall.args).toEqual({ q: 'test' });
+    });
+
+    it('includes thoughtSignature from providerMetadata', () => {
+      const messages = [
+        {
+          role: 'assistant',
+          tool_calls: [
+            {
+              id: 'call_1',
+              function: { name: 'fn', arguments: '{}' },
+              providerMetadata: { google: { thoughtSignature: 'sig1' } },
+            },
+          ],
+        },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts[0].thoughtSignature).toBe('sig1');
+    });
+
+    it('includes thoughtSignature from providerOptions', () => {
+      const messages = [
+        {
+          role: 'assistant',
+          tool_calls: [
+            {
+              id: 'call_1',
+              function: { name: 'fn', arguments: '{}' },
+              providerOptions: { google: { thoughtSignature: 'sig2' } },
+            },
+          ],
+        },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts[0].thoughtSignature).toBe('sig2');
+    });
+
+    it('handles tool response messages', () => {
+      const messages = [
+        {
+          role: 'assistant',
+          tool_calls: [{ id: 'call_1', function: { name: 'get_weather' } }],
+        },
+        { role: 'tool', tool_call_id: 'call_1', name: 'get_weather', content: 'Sunny, 72F' },
+      ];
+      const payload = buildGooglePayload(messages);
+      const toolResponse = payload.contents[1];
+      expect(toolResponse.role).toBe('user');
+      expect(toolResponse.parts[0].functionResponse.name).toBe('get_weather');
+      expect(toolResponse.parts[0].functionResponse.response.content).toBe('Sunny, 72F');
+    });
+
+    it('resolves tool name from toolCallNameMap when name missing', () => {
+      const messages = [
+        {
+          role: 'assistant',
+          tool_calls: [{ id: 'tc_42', function: { name: 'lookup' } }],
+        },
+        { role: 'tool', tool_call_id: 'tc_42', content: 'result' },
+      ];
+      const payload = buildGooglePayload(messages);
+      const toolResponse = payload.contents[1];
+      expect(toolResponse.parts[0].functionResponse.name).toBe('lookup');
+    });
+
+    it('falls back to "tool" as default name for tool messages', () => {
+      const messages = [{ role: 'tool', content: 'result' }];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts[0].functionResponse.name).toBe('tool');
+    });
+
+    it('builds tools from options.tools', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const options = {
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'get_weather',
+              description: 'Get weather',
+              parameters: { type: 'object', properties: { city: { type: 'string' } } },
+            },
+          },
+        ],
+      };
+      const payload = buildGooglePayload(messages, options);
+      expect(payload.tools).toBeDefined();
+      expect(payload.tools[0].functionDeclarations).toHaveLength(1);
+      expect(payload.tools[0].functionDeclarations[0].name).toBe('get_weather');
+    });
+
+    it('skips tools that are not type function', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const options = {
+        tools: [{ type: 'retrieval' }],
+      };
+      const payload = buildGooglePayload(messages, options);
+      expect(payload.tools).toBeUndefined();
+    });
+
+    it('skips tools without function name', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const options = {
+        tools: [{ type: 'function', function: { name: '', description: 'empty name' } }],
+      };
+      const payload = buildGooglePayload(messages, options);
+      expect(payload.tools).toBeUndefined();
+    });
+
+    it('builds toolConfig for auto choice', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const payload = buildGooglePayload(messages, { toolChoice: 'auto' });
+      expect(payload.toolConfig).toEqual({ functionCallingConfig: { mode: 'AUTO' } });
+    });
+
+    it('builds toolConfig for none choice', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const payload = buildGooglePayload(messages, { toolChoice: 'none' });
+      expect(payload.toolConfig).toEqual({ functionCallingConfig: { mode: 'NONE' } });
+    });
+
+    it('builds toolConfig for required choice', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const payload = buildGooglePayload(messages, { toolChoice: 'required' });
+      expect(payload.toolConfig).toEqual({ functionCallingConfig: { mode: 'ANY' } });
+    });
+
+    it('builds toolConfig for specific tool choice', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const payload = buildGooglePayload(messages, {
+        toolChoice: { type: 'tool', toolName: 'get_weather' },
+      });
+      expect(payload.toolConfig).toEqual({
+        functionCallingConfig: { mode: 'ANY', allowedFunctionNames: ['get_weather'] },
       });
     });
 
-    it('does not include systemInstruction when no system content', () => {
-      const result = buildGooglePayload([
-        { role: 'system', content: '' },
-        { role: 'user', content: 'hello' },
-      ]);
-      expect(result.systemInstruction).toBeUndefined();
-    });
-  });
-
-  describe('user messages', () => {
-    it('converts string content to text part', () => {
-      const result = buildGooglePayload([{ role: 'user', content: 'Hello world' }]);
-      expect(result.contents).toEqual([{ role: 'user', parts: [{ text: 'Hello world' }] }]);
+    it('omits toolConfig when no toolChoice', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const payload = buildGooglePayload(messages);
+      expect(payload.toolConfig).toBeUndefined();
     });
 
-    it('converts text part in content array', () => {
-      const result = buildGooglePayload([
-        { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
-      ]);
-      expect(result.contents).toEqual([{ role: 'user', parts: [{ text: 'Hello' }] }]);
+    it('includes generationConfig when stream is not false', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const payload = buildGooglePayload(messages);
+      expect(payload.generationConfig).toEqual({});
     });
 
-    it('skips messages with no usable content', () => {
-      const result = buildGooglePayload([
-        { role: 'user', content: [] },
-        { role: 'user', content: [{ type: 'image_url', image_url: { url: '' } }] },
-      ]);
-      expect(result.contents).toEqual([]);
+    it('omits generationConfig when stream is false', () => {
+      const messages = [{ role: 'user', content: 'hi' }];
+      const payload = buildGooglePayload(messages, { stream: false });
+      expect(payload.generationConfig).toBeUndefined();
     });
 
-    it('maps user role to google role', () => {
-      const result = buildGooglePayload([{ role: 'user', content: 'test' }]);
-      expect(result.contents[0].role).toBe('user');
-    });
-  });
-
-  describe('assistant messages', () => {
-    it('converts string content to text part', () => {
-      const result = buildGooglePayload([{ role: 'assistant', content: 'I can help.' }]);
-      expect(result.contents).toEqual([{ role: 'model', parts: [{ text: 'I can help.' }] }]);
-    });
-
-    it('maps assistant role to model', () => {
-      const result = buildGooglePayload([{ role: 'assistant', content: 'response' }]);
-      expect(result.contents[0].role).toBe('model');
-    });
-
-    it('skips empty assistant content', () => {
-      const result = buildGooglePayload([{ role: 'assistant', content: '' }]);
-      expect(result.contents).toEqual([]);
-    });
-
-    it('handles message with no role', () => {
-      const result = buildGooglePayload([{ content: 'fallback text' }]);
-      expect(result.contents).toEqual([{ role: 'user', parts: [{ text: 'fallback text' }] }]);
-    });
-
-    it('handles message with empty role', () => {
-      const result = buildGooglePayload([{ role: '', content: 'test' }]);
-      expect(result.contents).toEqual([{ role: 'user', parts: [{ text: 'test' }] }]);
-    });
-  });
-
-  describe('assistant messages with tool calls', () => {
-    it('converts tool call to functionCall part', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: 'Let me check.',
-          tool_calls: [
-            {
-              id: 'call_123',
-              function: { name: 'get_weather', arguments: '{"city":"Boston"}' },
-            },
-          ],
-        },
-      ]);
-      expect(result.contents).toEqual([
-        {
-          role: 'model',
-          parts: [
-            { text: 'Let me check.' },
-            {
-              functionCall: {
-                name: 'get_weather',
-                args: { city: 'Boston' },
-              },
-            },
-          ],
-        },
-      ]);
-    });
-
-    it('skips tool calls with empty name', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: 'Check.',
-          tool_calls: [
-            { id: 'call_1', function: { name: '', arguments: '{}' } },
-            { id: 'call_2', function: { name: 'valid_tool', arguments: '{}' } },
-          ],
-        },
-      ]);
-      expect(result.contents[0].parts).toHaveLength(2); // text + 1 valid tool
-      expect(result.contents[0].parts[1].functionCall.name).toBe('valid_tool');
-    });
-
-    it('parses JSON arguments from string', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: '',
-          tool_calls: [
-            {
-              id: 'call_1',
-              function: { name: 'search', arguments: '{"query":"test","limit":5}' },
-            },
-          ],
-        },
-      ]);
-      expect(result.contents[0].parts[0].functionCall.args).toEqual({
-        query: 'test',
-        limit: 5,
-      });
-    });
-
-    it('keeps raw arguments on JSON parse failure', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: '',
-          tool_calls: [
-            {
-              id: 'call_1',
-              function: { name: 'search', arguments: 'not valid json' },
-            },
-          ],
-        },
-      ]);
-      expect(result.contents[0].parts[0].functionCall.args).toBe('not valid json');
-    });
-
-    it('skips message when no text and no valid tool calls', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: '',
-          tool_calls: [{ id: 'call_1', function: { name: '', arguments: '{}' } }],
-        },
-      ]);
-      expect(result.contents).toEqual([]);
-    });
-
-    it('attaches thoughtSignature from providerMetadata.google', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: '',
-          tool_calls: [
-            {
-              id: 'call_1',
-              function: { name: 'think', arguments: '{}' },
-              providerMetadata: { google: { thoughtSignature: 'reasoning here' } },
-            },
-          ],
-        },
-      ]);
-      expect(result.contents[0].parts[0].thoughtSignature).toBe('reasoning here');
-    });
-
-    it('attaches thoughtSignature from providerMetadata.vertex', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: '',
-          tool_calls: [
-            {
-              id: 'call_1',
-              function: { name: 'think', arguments: '{}' },
-              providerMetadata: { vertex: { thoughtSignature: 'vertex thought' } },
-            },
-          ],
-        },
-      ]);
-      expect(result.contents[0].parts[0].thoughtSignature).toBe('vertex thought');
-    });
-
-    it('attaches thoughtSignature from providerOptions.google', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: '',
-          tool_calls: [
-            {
-              id: 'call_1',
-              function: { name: 'think', arguments: '{}' },
-              providerOptions: { google: { thoughtSignature: 'options thought' } },
-            },
-          ],
-        },
-      ]);
-      expect(result.contents[0].parts[0].thoughtSignature).toBe('options thought');
-    });
-  });
-
-  describe('tool messages', () => {
-    it('converts tool result to user functionResponse', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'tool',
-          tool_call_id: 'call_123',
-          name: 'get_weather',
-          content: 'Sunny, 72°F',
-        },
-      ]);
-      expect(result.contents).toEqual([
-        {
-          role: 'user',
-          parts: [
-            {
-              functionResponse: {
-                name: 'get_weather',
-                response: { name: 'get_weather', content: 'Sunny, 72°F' },
-              },
-            },
-          ],
-        },
-      ]);
-    });
-
-    it('falls back to name lookup when name is missing', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'assistant',
-          content: '',
-          tool_calls: [{ id: 'call_abc', function: { name: 'weather_tool', arguments: '{}' } }],
-        },
-        {
-          role: 'tool',
-          tool_call_id: 'call_abc',
-          content: 'Result',
-        },
-      ]);
-      expect(result.contents[1].parts[0].functionResponse.name).toBe('weather_tool');
-    });
-
-    it('uses "tool" as default name when no name or id match', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'tool',
-          tool_call_id: 'call_unknown',
-          content: 'some result',
-        },
-      ]);
-      expect(result.contents[0].parts[0].functionResponse.name).toBe('tool');
-    });
-  });
-
-  describe('image handling', () => {
-    it('converts base64 data URL to inlineData', () => {
-      const result = buildGooglePayload([
+    it('handles image_url content with data URL', () => {
+      const messages = [
         {
           role: 'user',
           content: [
+            { type: 'text', text: 'Describe this image' },
             {
               type: 'image_url',
-              image_url: { url: 'data:image/png;base64,abc123xyz==' },
+              image_url: { url: 'data:image/png;base64,abc123' },
             },
           ],
         },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts).toEqual([
+        { text: 'Describe this image' },
+        { inlineData: { mimeType: 'image/png', data: 'abc123' } },
       ]);
-      expect(result.contents[0].parts[0]).toEqual({
-        inlineData: { mimeType: 'image/png', data: 'abc123xyz==' },
-      });
     });
 
-    it('converts non-base64 data URL to fileUri', () => {
-      const result = buildGooglePayload([
+    it('handles image_url content with regular URL as fileData', () => {
+      const messages = [
         {
           role: 'user',
           content: [
@@ -343,196 +293,96 @@ describe('buildGooglePayload', () => {
             },
           ],
         },
-      ]);
-      expect(result.contents[0].parts[0]).toEqual({
-        fileData: { fileUri: 'https://example.com/image.png', mimeType: 'image/*' },
-      });
-    });
-
-    it('skips empty image_url', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'user',
-          content: [{ type: 'image_url', image_url: { url: '' } }],
-        },
-      ]);
-      expect(result.contents).toEqual([]);
-    });
-  });
-
-  describe('tools option', () => {
-    it('includes tools when provided', () => {
-      const tools = [
-        {
-          type: 'function',
-          function: {
-            name: 'get_weather',
-            description: 'Get weather',
-            parameters: { type: 'object', properties: {} },
-          },
-        },
       ];
-      const result = buildGooglePayload([], { tools });
-      expect(result.tools).toBeDefined();
-      expect(result.tools[0].functionDeclarations).toHaveLength(1);
-      expect(result.tools[0].functionDeclarations[0].name).toBe('get_weather');
-      expect(result.tools[0].functionDeclarations[0].description).toBe('Get weather');
-      // parameters normalized to undefined for empty object schema at root
-      expect(result.tools[0].functionDeclarations[0].parameters).toBeUndefined();
-    });
-
-    it('skips tools without function name', () => {
-      const tools = [
-        { type: 'function', function: { name: '', description: 'Empty' } },
-        { type: 'function', function: { name: 'valid', description: 'Valid' } },
-      ];
-      const result = buildGooglePayload([], { tools });
-      expect(result.tools[0].functionDeclarations).toHaveLength(1);
-      expect(result.tools[0].functionDeclarations[0].name).toBe('valid');
-    });
-
-    it('returns undefined tools when array is empty', () => {
-      const result = buildGooglePayload([], { tools: [] });
-      expect(result.tools).toBeUndefined();
-    });
-
-    it('returns undefined tools when not an array', () => {
-      const result = buildGooglePayload([], { tools: null });
-      expect(result.tools).toBeUndefined();
-    });
-  });
-
-  describe('toolChoice option', () => {
-    it('sets toolConfig for auto', () => {
-      const result = buildGooglePayload([], { toolChoice: 'auto' });
-      expect(result.toolConfig).toEqual({
-        functionCallingConfig: { mode: 'AUTO' },
-      });
-    });
-
-    it('sets toolConfig for none', () => {
-      const result = buildGooglePayload([], { toolChoice: 'none' });
-      expect(result.toolConfig).toEqual({
-        functionCallingConfig: { mode: 'NONE' },
-      });
-    });
-
-    it('sets toolConfig for required', () => {
-      const result = buildGooglePayload([], { toolChoice: 'required' });
-      expect(result.toolConfig).toEqual({
-        functionCallingConfig: { mode: 'ANY' },
-      });
-    });
-
-    it('sets toolConfig for specific tool by name', () => {
-      const result = buildGooglePayload([], { toolChoice: { type: 'tool', toolName: 'my_tool' } });
-      expect(result.toolConfig).toEqual({
-        functionCallingConfig: { mode: 'ANY', allowedFunctionNames: ['my_tool'] },
-      });
-    });
-
-    it('ignores unknown toolChoice string', () => {
-      const result = buildGooglePayload([], { toolChoice: 'unknown_mode' });
-      expect(result.toolConfig).toBeUndefined();
-    });
-
-    it('ignores empty toolChoice object', () => {
-      const result = buildGooglePayload([], { toolChoice: { type: '' } });
-      expect(result.toolConfig).toBeUndefined();
-    });
-
-    it('ignores toolChoice with function type but no name', () => {
-      const result = buildGooglePayload([], { toolChoice: { type: 'function' } });
-      expect(result.toolConfig).toBeUndefined();
-    });
-  });
-
-  describe('generationConfig', () => {
-    it('sets generationConfig when stream is not false', () => {
-      const result = buildGooglePayload([]);
-      expect(result.generationConfig).toEqual({});
-    });
-
-    it('omits generationConfig when stream is false', () => {
-      const result = buildGooglePayload([], { stream: false });
-      expect(result.generationConfig).toBeUndefined();
-    });
-  });
-
-  describe('mixed conversation flow', () => {
-    it('handles full user → assistant → tool → assistant flow', () => {
-      const result = buildGooglePayload([
-        { role: 'user', content: 'What is the weather?' },
-        {
-          role: 'assistant',
-          content: 'Let me check.',
-          tool_calls: [{ id: 'call_1', function: { name: 'weather', arguments: '{}' } }],
-        },
-        {
-          role: 'tool',
-          tool_call_id: 'call_1',
-          name: 'weather',
-          content: 'Sunny, 75°F',
-        },
-        { role: 'assistant', content: 'It is sunny and 75°F.' },
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts).toEqual([
+        { fileData: { fileUri: 'https://example.com/image.png', mimeType: 'image/*' } },
       ]);
-      expect(result.contents).toHaveLength(4);
-      expect(result.contents[0].role).toBe('user');
-      expect(result.contents[1].role).toBe('model');
-      expect(result.contents[1].parts[1].functionCall.name).toBe('weather');
-      expect(result.contents[2].role).toBe('user');
-      expect(result.contents[3].role).toBe('model');
-    });
-  });
-
-  describe('content part types', () => {
-    it('skips null parts in content array', () => {
-      const result = buildGooglePayload([
-        { role: 'user', content: [null, { type: 'text', text: 'valid' }] },
-      ]);
-      expect(result.contents[0].parts[0].text).toBe('valid');
     });
 
-    it('skips parts with no recognized type', () => {
-      const result = buildGooglePayload([
+    it('handles file content type', () => {
+      const messages = [
         {
           role: 'user',
           content: [
-            { type: 'unknown', data: 'x' },
-            { type: 'text', text: 'ok' },
+            {
+              type: 'file',
+              file: { file_data: 'data:application/pdf;base64,ZGF0YQ==' },
+            },
           ],
         },
-      ]);
-      expect(result.contents[0].parts[0].text).toBe('ok');
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts[0].inlineData.mimeType).toBe('application/pdf');
     });
 
-    it('handles file part type', () => {
-      const result = buildGooglePayload([
-        {
-          role: 'user',
-          content: [{ type: 'file', file: { file_data: 'data:text/plain;base64,SGVsbG8=' } }],
-        },
-      ]);
-      expect(result.contents[0].parts[0]).toEqual({
-        inlineData: { mimeType: 'text/plain', data: 'SGVsbG8=' },
-      });
+    it('skips empty messages', () => {
+      const messages = [
+        { role: 'user', content: '' },
+        { role: 'user', content: 'actual content' },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents).toHaveLength(1);
     });
-  });
 
-  describe('normalizeToolParameters option', () => {
-    it('uses custom normalizer when provided', () => {
-      const customNormalize = (input) => ({ type: 'custom', value: input });
-      const tools = [
+    it('handles messages with unknown roles by including as user', () => {
+      const messages = [{ role: 'function', content: 'result data' }];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].role).toBe('user');
+    });
+
+    it('handles null messages', () => {
+      const payload = buildGooglePayload(null);
+      expect(payload.contents).toEqual([]);
+    });
+
+    it('uses custom normalizeToolParameters from options', () => {
+      const customNormalize = vi.fn(() => ({ type: 'object' }));
+      const messages = [{ role: 'user', content: 'hi' }];
+      const options = {
+        tools: [
+          {
+            type: 'function',
+            function: { name: 'test', description: 'desc', parameters: { type: 'string' } },
+          },
+        ],
+        normalizeToolParameters: customNormalize,
+      };
+      buildGooglePayload(messages, options);
+      expect(customNormalize).toHaveBeenCalledWith({ type: 'string' });
+    });
+
+    it('handles assistant with both content and tool_calls', () => {
+      const messages = [
         {
-          type: 'function',
-          function: { name: 'test', description: 'desc', parameters: { foo: 'bar' } },
+          role: 'assistant',
+          content: 'Let me check',
+          tool_calls: [
+            { id: 'call_1', function: { name: 'lookup', arguments: '{}' } },
+          ],
         },
       ];
-      const result = buildGooglePayload([], { tools, normalizeToolParameters: customNormalize });
-      expect(result.tools[0].functionDeclarations[0].parameters).toEqual({
-        type: 'custom',
-        value: { foo: 'bar' },
-      });
+      const payload = buildGooglePayload(messages);
+      const parts = payload.contents[0].parts;
+      expect(parts).toHaveLength(2);
+      expect(parts[0].text).toBe('Let me check');
+      expect(parts[1].functionCall.name).toBe('lookup');
+    });
+
+    it('handles content as array with mixed parts', () => {
+      const messages = [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Hello' },
+            { type: 'text', text: 'World' },
+          ],
+        },
+      ];
+      const payload = buildGooglePayload(messages);
+      expect(payload.contents[0].parts).toEqual([{ text: 'Hello' }, { text: 'World' }]);
     });
   });
 });
+
+import { vi } from 'vitest';

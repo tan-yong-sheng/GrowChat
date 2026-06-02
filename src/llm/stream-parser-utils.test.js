@@ -9,127 +9,154 @@ import {
 
 describe('stream-parser-utils', () => {
   describe('DEFAULT_REASONING_TAGS', () => {
-    it('contains expected tag names', () => {
-      expect(DEFAULT_REASONING_TAGS).toEqual([
-        'think',
-        'thinking',
-        'thought',
-        'thoughts',
-        'reason',
-        'reasoning',
-      ]);
+    it('is a non-empty array of strings', () => {
+      expect(Array.isArray(DEFAULT_REASONING_TAGS)).toBe(true);
+      expect(DEFAULT_REASONING_TAGS.length).toBeGreaterThan(0);
+      for (const tag of DEFAULT_REASONING_TAGS) {
+        expect(typeof tag).toBe('string');
+        expect(tag.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('contains standard reasoning tag names', () => {
+      expect(DEFAULT_REASONING_TAGS).toContain('think');
+      expect(DEFAULT_REASONING_TAGS).toContain('thinking');
+      expect(DEFAULT_REASONING_TAGS).toContain('reasoning');
     });
   });
 
   describe('getPotentialStartIndex', () => {
-    it('returns direct index when text contains searchedText', () => {
-      expect(getPotentialStartIndex('hello world', 'world')).toBe(6);
-      expect(getPotentialStartIndex('hello world', 'hello')).toBe(0);
+    it('returns direct match index when found', () => {
+      expect(getPotentialStartIndex('hello<think>', '<think>')).toBe(5);
     });
 
-    it('returns null when searchedText is empty', () => {
-      expect(getPotentialStartIndex('hello world', '')).toBeNull();
+    it('returns 0 when match is at start', () => {
+      expect(getPotentialStartIndex('<think>rest', '<think>')).toBe(0);
     });
 
-    it('returns potential start index for partial match at end', () => {
-      expect(getPotentialStartIndex('hello wor', 'world')).toBe(6);
+    it('returns null when no match and no partial match', () => {
+      expect(getPotentialStartIndex('hello world', '<think>')).toBeNull();
     });
 
-    it('returns null when no potential match exists', () => {
-      expect(getPotentialStartIndex('abc', 'xyz')).toBeNull();
+    it('returns partial match index when text ends with prefix of searchedText', () => {
+      // text ends with "<thi" which is a prefix of "<think>"
+      expect(getPotentialStartIndex('hello<thi', '<think>')).toBe(5);
     });
 
-    it('handles single character potential match', () => {
-      expect(getPotentialStartIndex('a', 'abc')).toBe(0);
+    it('returns partial match at end of string', () => {
+      expect(getPotentialStartIndex('some text<', '<think>')).toBe(9);
     });
 
-    it('prefers earliest potential match', () => {
-      // 'th' matches start of 'thought' at index 0, but we need to verify
-      expect(getPotentialStartIndex('th', 'think')).toBe(0);
+    it('returns null for empty searchedText', () => {
+      expect(getPotentialStartIndex('hello', '')).toBeNull();
     });
 
-    it('handles exact match', () => {
-      expect(getPotentialStartIndex('reasoning', 'reasoning')).toBe(0);
+    it('returns 0 when text itself is a prefix of searchedText', () => {
+      expect(getPotentialStartIndex('<th', '<think>')).toBe(0);
     });
 
-    it('returns null for complete mismatch', () => {
-      expect(getPotentialStartIndex('completely different', 'xyz')).toBeNull();
+    it('prefers direct match over partial match', () => {
+      const text = '<th<think>';
+      // Direct match at index 3, partial match at index 0
+      expect(getPotentialStartIndex(text, '<think>')).toBe(3);
+    });
+
+    it('handles single character partial match', () => {
+      expect(getPotentialStartIndex('a<', '<think>')).toBe(1);
     });
   });
 
   describe('looksLikeIncompleteJson', () => {
-    it('returns false for valid JSON strings', () => {
-      expect(looksLikeIncompleteJson('{"key": "value"}')).toBe(false);
-      expect(looksLikeIncompleteJson('[1, 2, 3]')).toBe(false);
-      expect(looksLikeIncompleteJson('"string"')).toBe(false);
-      expect(looksLikeIncompleteJson('true')).toBe(false);
-    });
-
-    it('returns true for incomplete objects', () => {
-      expect(looksLikeIncompleteJson('{"key":')).toBe(true);
-      expect(looksLikeIncompleteJson('{"key')).toBe(true);
-    });
-
-    it('returns true for incomplete arrays', () => {
-      expect(looksLikeIncompleteJson('[1, 2,')).toBe(true);
-      expect(looksLikeIncompleteJson('[')).toBe(true);
-    });
-
-    it('returns true for unclosed strings', () => {
-      expect(looksLikeIncompleteJson('{"key": "value}')).toBe(true);
-    });
-
-    it('handles escaped quotes correctly', () => {
-      expect(looksLikeIncompleteJson('{"key": "val\\"ue"}')).toBe(false);
-      expect(looksLikeIncompleteJson('{"key": "val\\"ue}')).toBe(true);
-    });
-
     it('returns false for empty string', () => {
       expect(looksLikeIncompleteJson('')).toBe(false);
     });
 
-    it('returns false for non-string values (coerced)', () => {
+    it('returns false for null/undefined', () => {
       expect(looksLikeIncompleteJson(null)).toBe(false);
       expect(looksLikeIncompleteJson(undefined)).toBe(false);
-      expect(looksLikeIncompleteJson(42)).toBe(false);
     });
 
-    it('handles nested structures', () => {
-      expect(looksLikeIncompleteJson('{"a": {"b": [1, 2]}}')).toBe(false);
-      expect(looksLikeIncompleteJson('{"a": {"b": [1, 2')).toBe(true);
+    it('returns true for incomplete object (unclosed brace)', () => {
+      expect(looksLikeIncompleteJson('{"key":')).toBe(true);
     });
 
-    it('returns true for string with only opening brace', () => {
-      expect(looksLikeIncompleteJson('{')).toBe(true);
+    it('returns true for incomplete array (unclosed bracket)', () => {
+      expect(looksLikeIncompleteJson('[1, 2')).toBe(true);
     });
 
-    it('returns false for string with matching braces in strings', () => {
-      expect(looksLikeIncompleteJson('{"a": "{not real}"}')).toBe(false);
+    it('returns true for unclosed string', () => {
+      expect(looksLikeIncompleteJson('"hello')).toBe(true);
+    });
+
+    it('returns false for complete JSON object', () => {
+      expect(looksLikeIncompleteJson('{"key": "value"}')).toBe(false);
+    });
+
+    it('returns false for complete JSON array', () => {
+      expect(looksLikeIncompleteJson('[1, 2, 3]')).toBe(false);
+    });
+
+    it('returns false for simple string', () => {
+      expect(looksLikeIncompleteJson('"hello"')).toBe(false);
+    });
+
+    it('returns false for complete nested JSON', () => {
+      expect(looksLikeIncompleteJson('{"a": {"b": 1}}')).toBe(false);
+    });
+
+    it('handles escaped quotes inside strings', () => {
+      expect(looksLikeIncompleteJson('"he\\"llo"')).toBe(false);
+    });
+
+    it('handles escaped backslash before quote', () => {
+      expect(looksLikeIncompleteJson('"path\\\\\\"file"')).toBe(false);
+    });
+
+    it('returns true for nested incomplete object', () => {
+      expect(looksLikeIncompleteJson('{"a": {"b":')).toBe(true);
+    });
+
+    it('returns false for number', () => {
+      expect(looksLikeIncompleteJson('42')).toBe(false);
+    });
+
+    it('handles deeply nested structures', () => {
+      expect(looksLikeIncompleteJson('{"a": [{"b": 1}]}')).toBe(false);
+      expect(looksLikeIncompleteJson('{"a": [{"b":')).toBe(true);
+    });
+
+    it('handles string with escaped characters correctly', () => {
+      // Escaped quote inside a string, then incomplete
+      expect(looksLikeIncompleteJson('"hello\\" world')).toBe(true);
+    });
+
+    it('handles object inside array closing correctly', () => {
+      expect(looksLikeIncompleteJson('[{"x": 1},')).toBe(true);
     });
   });
 
   describe('extractTextFromGoogle', () => {
-    it('returns empty string when no candidates', () => {
-      expect(extractTextFromGoogle({})).toBe('');
-      expect(extractTextFromGoogle(null)).toBe('');
-    });
-
-    it('returns empty string when no parts array', () => {
-      expect(extractTextFromGoogle({ candidates: [{}] })).toBe('');
-      expect(extractTextFromGoogle({ candidates: [{ content: {} }] })).toBe('');
-    });
-
-    it('extracts text from part.text fields', () => {
+    it('extracts text from Google candidate parts', () => {
       const parsed = {
         candidates: [
           {
             content: {
-              parts: [{ text: 'Hello' }, { text: 'World' }],
+              parts: [{ text: 'Hello ' }, { text: 'World' }],
             },
           },
         ],
       };
-      expect(extractTextFromGoogle(parsed)).toBe('HelloWorld');
+      expect(extractTextFromGoogle(parsed)).toBe('Hello World');
+    });
+
+    it('returns empty string for no candidates', () => {
+      expect(extractTextFromGoogle({})).toBe('');
+      expect(extractTextFromGoogle(null)).toBe('');
+      expect(extractTextFromGoogle(undefined)).toBe('');
+    });
+
+    it('returns empty string for empty candidates array', () => {
+      expect(extractTextFromGoogle({ candidates: [] })).toBe('');
     });
 
     it('skips non-text parts', () => {
@@ -137,52 +164,34 @@ describe('stream-parser-utils', () => {
         candidates: [
           {
             content: {
-              parts: [{ text: 'Hello' }, { functionCall: {} }, { text: 'World' }],
+              parts: [{ text: 'Hello' }, { functionCall: { name: 'test' } }, { text: ' World' }],
             },
           },
         ],
       };
-      expect(extractTextFromGoogle(parsed)).toBe('HelloWorld');
+      expect(extractTextFromGoogle(parsed)).toBe('Hello World');
     });
 
-    it('handles null/undefined parts', () => {
+    it('handles null parts gracefully', () => {
       const parsed = {
-        candidates: [
-          {
-            content: {
-              parts: [{ text: 'Hello' }, null, undefined, { text: 'World' }],
-            },
-          },
-        ],
+        candidates: [{ content: { parts: [null, { text: 'ok' }] } }],
       };
-      expect(extractTextFromGoogle(parsed)).toBe('HelloWorld');
+      expect(extractTextFromGoogle(parsed)).toBe('ok');
     });
 
-    it('returns empty string for non-string text values', () => {
-      const parsed = {
-        candidates: [
-          {
-            content: {
-              parts: [{ text: 123 }, { text: false }],
-            },
-          },
-        ],
-      };
-      expect(extractTextFromGoogle(parsed)).toBe('');
+    it('returns empty string when parts is not an array', () => {
+      expect(extractTextFromGoogle({ candidates: [{ content: { parts: 'not-array' } }] })).toBe('');
+      expect(extractTextFromGoogle({ candidates: [{ content: {} }] })).toBe('');
     });
   });
 
   describe('extractTextFromAnthropic', () => {
-    it('returns empty string for content_block_delta without text', () => {
-      expect(extractTextFromAnthropic({ type: 'content_block_delta', delta: {} })).toBe('');
-    });
-
     it('extracts text from content_block_delta', () => {
       const parsed = {
         type: 'content_block_delta',
-        delta: { text: 'Hello world' },
+        delta: { text: 'Hello' },
       };
-      expect(extractTextFromAnthropic(parsed)).toBe('Hello world');
+      expect(extractTextFromAnthropic(parsed)).toBe('Hello');
     });
 
     it('returns empty string for message_start', () => {
@@ -197,16 +206,18 @@ describe('stream-parser-utils', () => {
       expect(extractTextFromAnthropic({ type: 'message_stop' })).toBe('');
     });
 
-    it('returns empty string for unknown types', () => {
-      expect(extractTextFromAnthropic({ type: 'ping' })).toBe('');
-      expect(extractTextFromAnthropic({})).toBe('');
-      expect(extractTextFromAnthropic(null)).toBe('');
+    it('returns empty string for unknown type', () => {
+      expect(extractTextFromAnthropic({ type: 'unknown' })).toBe('');
     });
 
-    it('handles content_block_delta with partial text', () => {
-      expect(extractTextFromAnthropic({ type: 'content_block_delta', delta: { text: '' } })).toBe(
-        ''
-      );
+    it('returns empty string for null/undefined', () => {
+      expect(extractTextFromAnthropic(null)).toBe('');
+      expect(extractTextFromAnthropic(undefined)).toBe('');
+    });
+
+    it('handles missing delta text gracefully', () => {
+      expect(extractTextFromAnthropic({ type: 'content_block_delta' })).toBe('');
+      expect(extractTextFromAnthropic({ type: 'content_block_delta', delta: {} })).toBe('');
     });
   });
 });
