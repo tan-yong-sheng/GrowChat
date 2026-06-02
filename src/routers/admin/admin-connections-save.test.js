@@ -38,7 +38,8 @@ vi.mock('../../llm/provider-registry.js', () => ({
 }));
 
 vi.mock('../../../public/js/shared/utils/connection-model-selection.js', () => ({
-  normalizeConnectionModelSelectionMode: (...args) => mocks.normalizeConnectionModelSelectionMode(...args),
+  normalizeConnectionModelSelectionMode: (...args) =>
+    mocks.normalizeConnectionModelSelectionMode(...args),
 }));
 
 vi.mock('../../utils/validation.js', () => ({
@@ -78,7 +79,11 @@ describe('handleAdminConnectionsSave', () => {
     all: vi.fn(),
     run: vi.fn(),
     batch: vi.fn(),
-    prepare: vi.fn((sql, params = []) => ({ sql, params, bind: (...args) => ({ sql, params: args }) })),
+    prepare: vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...args) => ({ sql, params: args }),
+    })),
   };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
 
@@ -98,7 +103,8 @@ describe('handleAdminConnectionsSave', () => {
     mocks.normalizeConnectionManualModels.mockReturnValue([]);
     mocks.normalizeConnectionModelSelectionMode.mockReturnValue('all');
     mocks.normalizeConnectionAclRule.mockImplementation((rule) => ({
-      ...rule, principal_type: 'group',
+      ...rule,
+      principal_type: 'group',
     }));
     db.all.mockResolvedValue([]);
     db.batch.mockResolvedValue(undefined);
@@ -108,28 +114,45 @@ describe('handleAdminConnectionsSave', () => {
     mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no' });
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', { connections: [] }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(403);
   });
 
   it('rejects too many connections (>100)', async () => {
-    const connections = Array.from({ length: 101 }, (_, i) => ({ id: `c${i}`, name: `C${i}`, providerType: 'openai', url: 'https://example.com' }));
+    const connections = Array.from({ length: 101 }, (_, i) => ({
+      id: `c${i}`,
+      name: `C${i}`,
+      providerType: 'openai',
+      url: 'https://example.com',
+    }));
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', { connections }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
 
   it('rejects too many model updates (>500)', async () => {
-    const model_updates = Array.from({ length: 501 }, (_, i) => ({ id: `model-${i}`, enabled: true }));
+    const model_updates = Array.from({ length: 501 }, (_, i) => ({
+      id: `model-${i}`,
+      enabled: true,
+    }));
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', { connections: [], model_updates }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -137,10 +160,15 @@ describe('handleAdminConnectionsSave', () => {
   it('rejects invalid provider type', async () => {
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', {
-        connections: [{ id: 'c1', name: 'Bad', providerType: 'invalid-provider', url: 'https://example.com' }],
+        connections: [
+          { id: 'c1', name: 'Bad', providerType: 'invalid-provider', url: 'https://example.com' },
+        ],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -151,8 +179,11 @@ describe('handleAdminConnectionsSave', () => {
       makeReq('/api/admin/openai/connections', 'PUT', {
         connections: [{ id: 'c1', name: 'Bad', providerType: 'openai', url: 'not-url' }],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -161,10 +192,15 @@ describe('handleAdminConnectionsSave', () => {
     mocks.isSafeOutboundUrl.mockReturnValue({ safe: false, reason: 'blocked' });
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', {
-        connections: [{ id: 'c1', name: 'Bad', providerType: 'openai', url: 'https://evil.com/v1' }],
+        connections: [
+          { id: 'c1', name: 'Bad', providerType: 'openai', url: 'https://evil.com/v1' },
+        ],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -175,8 +211,11 @@ describe('handleAdminConnectionsSave', () => {
       makeReq('/api/admin/openai/connections', 'PUT', {
         connections: [{ id: 'c1', name: 'No URL', providerType: 'openai-compatible', url: '' }],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -184,10 +223,21 @@ describe('handleAdminConnectionsSave', () => {
   it('rejects API key too long', async () => {
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', {
-        connections: [{ id: 'c1', name: 'Long Key', providerType: 'openai', url: 'https://example.com', key: 'x'.repeat(4097) }],
+        connections: [
+          {
+            id: 'c1',
+            name: 'Long Key',
+            providerType: 'openai',
+            url: 'https://example.com',
+            key: 'x'.repeat(4097),
+          },
+        ],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -196,10 +246,15 @@ describe('handleAdminConnectionsSave', () => {
     mocks.normalizeHeaders.mockReturnValue('x'.repeat(4097));
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', {
-        connections: [{ id: 'c1', name: 'Long Headers', providerType: 'openai', url: 'https://example.com' }],
+        connections: [
+          { id: 'c1', name: 'Long Headers', providerType: 'openai', url: 'https://example.com' },
+        ],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -208,10 +263,21 @@ describe('handleAdminConnectionsSave', () => {
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', {
         enabled: true,
-        connections: [{ id: 'c1', name: 'OpenAI', providerType: 'openai', url: 'https://api.openai.com/v1', key: 'secret' }],
+        connections: [
+          {
+            id: 'c1',
+            name: 'OpenAI',
+            providerType: 'openai',
+            url: 'https://api.openai.com/v1',
+            key: 'secret',
+          },
+        ],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(200);
     const payload = await res.json();
@@ -226,8 +292,11 @@ describe('handleAdminConnectionsSave', () => {
         connections: [],
         model_updates: [{ id: '', enabled: true }],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -241,8 +310,11 @@ describe('handleAdminConnectionsSave', () => {
         connections: [],
         access_updates: [{ connection_id: 'c1', rules: [] }],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(409);
   });
@@ -254,8 +326,11 @@ describe('handleAdminConnectionsSave', () => {
         headers: { 'Content-Type': 'application/json' },
         body: 'not-json',
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(400);
   });
@@ -264,10 +339,15 @@ describe('handleAdminConnectionsSave', () => {
     db.batch.mockRejectedValue(new Error('batch fail'));
     const res = await handleAdminConnectionsSave(
       makeReq('/api/admin/openai/connections', 'PUT', {
-        connections: [{ id: 'c1', name: 'OpenAI', providerType: 'openai', url: 'https://api.openai.com/v1' }],
+        connections: [
+          { id: 'c1', name: 'OpenAI', providerType: 'openai', url: 'https://api.openai.com/v1' },
+        ],
       }),
-      env, ctx, user, '/api/admin/openai/connections',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/openai/connections',
+      { db, logger, _requestContext: {} }
     );
     expect(res.status).toBe(500);
   });
@@ -275,8 +355,11 @@ describe('handleAdminConnectionsSave', () => {
   it('returns null for non-matching path', async () => {
     const result = await handleAdminConnectionsSave(
       makeReq('/api/admin/unknown', 'PUT'),
-      env, ctx, user, '/api/admin/unknown',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/unknown',
+      { db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

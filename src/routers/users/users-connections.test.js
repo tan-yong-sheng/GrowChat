@@ -46,7 +46,11 @@ vi.mock('../../utils/validation.js', () => ({
 }));
 
 vi.mock('../../errors/http-errors.js', () => ({
-  ValidationError: class extends Error { constructor(msg) { super(msg); } },
+  ValidationError: class extends Error {
+    constructor(msg) {
+      super(msg);
+    }
+  },
   isHttpError: vi.fn(() => false),
   toHttpErrorPayload: vi.fn(),
 }));
@@ -78,7 +82,10 @@ describe('handleUsersConnections', () => {
     mocks.createDB.mockReturnValue(db);
     mocks.logAuditEvent.mockResolvedValue(undefined);
     mocks.normalizeRole.mockReturnValue('member');
-    mocks.loadWorkspaceConnectionsPayload.mockResolvedValue({ connections: [], my_connections: [] });
+    mocks.loadWorkspaceConnectionsPayload.mockResolvedValue({
+      connections: [],
+      my_connections: [],
+    });
     mocks.toPersonalConnectionSummary.mockImplementation((c) => c);
     mocks.isSafeOutboundUrl.mockReturnValue({ safe: true });
     mocks.getConnectionDefaultBaseUrl.mockReturnValue('https://api.openai.com/v1');
@@ -89,8 +96,11 @@ describe('handleUsersConnections', () => {
     it('returns connections', async () => {
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections', 'GET'),
-        env, ctx, user, '/api/users/me/resources/connections',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -99,8 +109,11 @@ describe('handleUsersConnections', () => {
       mocks.loadWorkspaceConnectionsPayload.mockRejectedValue(new Error('fail'));
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections', 'GET'),
-        env, ctx, user, '/api/users/me/resources/connections',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -110,9 +123,15 @@ describe('handleUsersConnections', () => {
     it('creates a connection', async () => {
       mocks.createUserOpenAIConnection.mockResolvedValue({ id: 'c1' });
       const res = await handleUsersConnections(
-        makeReq('/api/users/me/resources/connections', 'POST', { name: 'My Conn', url: 'https://example.com/v1' }),
-        env, ctx, user, '/api/users/me/resources/connections',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/users/me/resources/connections', 'POST', {
+          name: 'My Conn',
+          url: 'https://example.com/v1',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(201);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -123,8 +142,11 @@ describe('handleUsersConnections', () => {
       mocks.createUserOpenAIConnection.mockRejectedValue(new ValidationError('bad'));
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections', 'POST', {}),
-        env, ctx, user, '/api/users/me/resources/connections',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -135,8 +157,11 @@ describe('handleUsersConnections', () => {
       mocks.updateUserOpenAIConnection.mockResolvedValue({ id: 'c1' });
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections/c1', 'PUT', { name: 'Updated' }),
-        env, ctx, user, '/api/users/me/resources/connections/c1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections/c1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -146,8 +171,11 @@ describe('handleUsersConnections', () => {
       mocks.updateUserOpenAIConnection.mockResolvedValue(null);
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections/c1', 'PUT', { name: 'X' }),
-        env, ctx, user, '/api/users/me/resources/connections/c1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections/c1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
@@ -158,8 +186,11 @@ describe('handleUsersConnections', () => {
       mocks.deleteUserOpenAIConnection.mockResolvedValue(true);
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections/c1', 'DELETE'),
-        env, ctx, user, '/api/users/me/resources/connections/c1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections/c1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -169,8 +200,11 @@ describe('handleUsersConnections', () => {
       mocks.deleteUserOpenAIConnection.mockResolvedValue(false);
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections/nonexistent', 'DELETE'),
-        env, ctx, user, '/api/users/me/resources/connections/nonexistent',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections/nonexistent',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
@@ -180,39 +214,57 @@ describe('handleUsersConnections', () => {
     it('rejects invalid URL', async () => {
       mocks.isConnectionUrlRequired.mockReturnValue(true);
       const res = await handleUsersConnections(
-        makeReq('/api/users/me/resources/connections/test', 'POST', { url: 'not-url', provider_type: 'openai-compatible' }),
-        env, ctx, user, '/api/users/me/resources/connections/test',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/users/me/resources/connections/test', 'POST', {
+          url: 'not-url',
+          provider_type: 'openai-compatible',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections/test',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('returns connection test results', async () => {
       mocks.discoverConnectionModels.mockResolvedValue({
-        items: [{ id: 'gpt-4o', name: 'GPT-4o' }], url: 'https://api.openai.com/v1/models',
+        items: [{ id: 'gpt-4o', name: 'GPT-4o' }],
+        url: 'https://api.openai.com/v1/models',
       });
       mocks.buildConnectionHeaders.mockReturnValue({});
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections/test', 'POST', {
-          provider_type: 'openai', base_url: 'https://api.openai.com/v1', key: 'test',
+          provider_type: 'openai',
+          base_url: 'https://api.openai.com/v1',
+          key: 'test',
         }),
-        env, ctx, user, '/api/users/me/resources/connections/test',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections/test',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
 
     it('returns 502 on failed connection', async () => {
       mocks.discoverConnectionModels.mockResolvedValue({
-        items: [], error: { status: 401, message: 'Bad key' },
+        items: [],
+        error: { status: 401, message: 'Bad key' },
       });
       mocks.buildConnectionHeaders.mockReturnValue({});
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections/test', 'POST', {
-          provider_type: 'openai', base_url: 'https://api.openai.com/v1', key: 'bad',
+          provider_type: 'openai',
+          base_url: 'https://api.openai.com/v1',
+          key: 'bad',
         }),
-        env, ctx, user, '/api/users/me/resources/connections/test',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/connections/test',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(502);
     });
@@ -221,8 +273,11 @@ describe('handleUsersConnections', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleUsersConnections(
       makeReq('/api/unknown', 'GET'),
-      env, ctx, user, '/api/unknown',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/unknown',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

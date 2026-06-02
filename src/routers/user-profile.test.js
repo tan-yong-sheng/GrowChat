@@ -26,10 +26,18 @@ describe('user-profile', () => {
   describe('serializeUserProfile', () => {
     it('serializes user row to profile', () => {
       const row = {
-        id: 'u1', email: 'u@e.com', name: 'User',
-        account_status: 'active', settings: '{}',
-        avatar: null, avatar_emoji: null, status: 'online',
-        preferences: '{}', created_at: 1, last_active_at: null, updated_at: 1,
+        id: 'u1',
+        email: 'u@e.com',
+        name: 'User',
+        account_status: 'active',
+        settings: '{}',
+        avatar: null,
+        avatar_emoji: null,
+        status: 'online',
+        preferences: '{}',
+        created_at: 1,
+        last_active_at: null,
+        updated_at: 1,
       };
       const result = serializeUserProfile(row);
       expect(result.id).toBe('u1');
@@ -39,10 +47,18 @@ describe('user-profile', () => {
 
     it('normalizes pending status', () => {
       const row = {
-        id: 'u1', email: 'u@e.com', name: 'User',
-        account_status: 'pending', settings: '{}',
-        avatar: null, avatar_emoji: null, status: 'offline',
-        preferences: '{}', created_at: 1, last_active_at: null, updated_at: 1,
+        id: 'u1',
+        email: 'u@e.com',
+        name: 'User',
+        account_status: 'pending',
+        settings: '{}',
+        avatar: null,
+        avatar_emoji: null,
+        status: 'offline',
+        preferences: '{}',
+        created_at: 1,
+        last_active_at: null,
+        updated_at: 1,
       };
       const result = serializeUserProfile(row);
       expect(result.account_status).toBe('pending');
@@ -56,13 +72,22 @@ describe('user-profile', () => {
   describe('buildUserProfileResponse', () => {
     it('builds response with primary role and default model', () => {
       const row = {
-        id: 'u1', email: 'u@e.com', name: 'User',
-        account_status: 'active', settings: '{}',
-        avatar: null, avatar_emoji: null, status: 'online',
-        preferences: '{}', created_at: 1, last_active_at: null, updated_at: 1,
+        id: 'u1',
+        email: 'u@e.com',
+        name: 'User',
+        account_status: 'active',
+        settings: '{}',
+        avatar: null,
+        avatar_emoji: null,
+        status: 'online',
+        preferences: '{}',
+        created_at: 1,
+        last_active_at: null,
+        updated_at: 1,
       };
       const result = buildUserProfileResponse(row, {
-        defaultModelId: 'gpt-4o', primaryRole: 'member',
+        defaultModelId: 'gpt-4o',
+        primaryRole: 'member',
       });
       expect(result.user.primary_role).toBe('member');
       expect(result.app_config.default_model_id).toBe('gpt-4o');
@@ -93,17 +118,24 @@ describe('user-profile', () => {
 
     it('rejects avatar emoji over 50 chars', () => {
       mocks.optionalString.mockReturnValue('x'.repeat(51));
-      expect(() => buildSelfProfileUpdate({ avatar_emoji: 'x'.repeat(51) })).toThrow(ValidationError);
+      expect(() => buildSelfProfileUpdate({ avatar_emoji: 'x'.repeat(51) })).toThrow(
+        ValidationError
+      );
     });
 
     it('allows settings when allowSettings is true', () => {
       mocks.requirePlainObject.mockReturnValue({ theme: 'dark' });
-      const result = buildSelfProfileUpdate({ settings: { theme: 'dark' } }, { allowSettings: true });
+      const result = buildSelfProfileUpdate(
+        { settings: { theme: 'dark' } },
+        { allowSettings: true }
+      );
       expect(result.updates).toContain('settings = ?');
     });
 
     it('ignores settings when allowSettings is false', () => {
-      expect(() => buildSelfProfileUpdate({ settings: { theme: 'dark' } }, { allowSettings: false })).toThrow(ValidationError);
+      expect(() =>
+        buildSelfProfileUpdate({ settings: { theme: 'dark' } }, { allowSettings: false })
+      ).toThrow(ValidationError);
     });
   });
 });

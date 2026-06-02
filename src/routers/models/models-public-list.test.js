@@ -97,10 +97,17 @@ describe('handlePublicModelsList', () => {
     mocks.loadUserResourceOverrides.mockResolvedValue({});
     mocks.loadModelAclRules.mockResolvedValue([]);
     mocks.buildModelAclIndex.mockReturnValue(new Map());
-    mocks.evaluateModelAclAccess.mockReturnValue({ allowed: true, access_label: 'granted', access_variant: 'personal' });
+    mocks.evaluateModelAclAccess.mockReturnValue({
+      allowed: true,
+      access_label: 'granted',
+      access_variant: 'personal',
+    });
     mocks.splitModelScopeByUserVisibility.mockImplementation((models, hiddenIds) => {
-      const visible = []; const hidden = [];
-      models.forEach((m) => { hiddenIds.has(m.id) ? hidden.push(m) : visible.push(m); });
+      const visible = [];
+      const hidden = [];
+      models.forEach((m) => {
+        hiddenIds.has(m.id) ? hidden.push(m) : visible.push(m);
+      });
       return { visibleModels: visible, hiddenModels: hidden };
     });
   });
@@ -109,8 +116,11 @@ describe('handlePublicModelsList', () => {
     it('returns models list without auth', async () => {
       const res = await handlePublicModelsList(
         makeReq('/api/models', 'GET'),
-        env, ctx, user, '/api/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -118,8 +128,11 @@ describe('handlePublicModelsList', () => {
     it('works without user', async () => {
       const res = await handlePublicModelsList(
         makeReq('/api/models', 'GET'),
-        env, ctx, null, '/api/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        null,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -132,8 +145,11 @@ describe('handlePublicModelsList', () => {
       mocks.countEnabledModels.mockReturnValue(1);
       const res = await handlePublicModelsList(
         makeReq('/api/models?limit=1&offset=0', 'GET'),
-        env, ctx, user, '/api/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -141,8 +157,11 @@ describe('handlePublicModelsList', () => {
     it('supports search query', async () => {
       const res = await handlePublicModelsList(
         makeReq('/api/models?q=gpt', 'GET'),
-        env, ctx, user, '/api/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -156,8 +175,11 @@ describe('handlePublicModelsList', () => {
       mocks.countEnabledModels.mockReturnValue(1);
       const res = await handlePublicModelsList(
         makeReq('/api/models?scope=effective', 'GET'),
-        env, ctx, user, '/api/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -169,8 +191,11 @@ describe('handlePublicModelsList', () => {
       mocks.fetchBaseModelsFromOpenAI.mockRejectedValue(new Error('unexpected'));
       const res = await handlePublicModelsList(
         makeReq('/api/models', 'GET'),
-        env, ctx, user, '/api/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
       );
       // The handler catches discovery errors and continues with empty results
       expect(res.status).toBe(200);
@@ -180,8 +205,11 @@ describe('handlePublicModelsList', () => {
   it('returns null for non-matching paths', async () => {
     const result = await handlePublicModelsList(
       makeReq('/api/chats', 'GET'),
-      env, ctx, user, '/api/chats',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/chats',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

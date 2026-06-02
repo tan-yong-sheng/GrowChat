@@ -8,7 +8,11 @@ vi.mock('../../utils/authorize.js', () => ({
   authorize: (...args) => mocks.authorize(...args),
 }));
 
-import { isValidModelAccessId, ensureAdminAclAccess, ensureAdminMutationAccess } from './admin-helpers.js';
+import {
+  isValidModelAccessId,
+  ensureAdminAclAccess,
+  ensureAdminMutationAccess,
+} from './admin-helpers.js';
 
 describe('isValidModelAccessId', () => {
   it('returns true for valid IDs', () => {
@@ -50,7 +54,7 @@ describe('ensureAdminAclAccess', () => {
     expect(mocks.authorize).toHaveBeenCalledWith(
       { env: true },
       { sub: 'admin-1' },
-      { action: 'admin.rbac.admin', resource: 'connection' },
+      { action: 'admin.rbac.admin', resource: 'connection' }
     );
   });
 
@@ -60,7 +64,7 @@ describe('ensureAdminAclAccess', () => {
     expect(mocks.authorize).toHaveBeenCalledWith(
       {},
       { sub: 'u1' },
-      { action: 'admin.rbac.admin', resource: 'admin' },
+      { action: 'admin.rbac.admin', resource: 'admin' }
     );
     expect(result.allow).toBe(false);
   });
@@ -69,12 +73,17 @@ describe('ensureAdminAclAccess', () => {
 describe('ensureAdminMutationAccess', () => {
   it('passes custom permission and resource', async () => {
     mocks.authorize.mockResolvedValue({ allow: true });
-    const result = await ensureAdminMutationAccess({ env: true }, { sub: 'admin-1' }, 'admin.user.write', 'email-config');
+    const result = await ensureAdminMutationAccess(
+      { env: true },
+      { sub: 'admin-1' },
+      'admin.user.write',
+      'email-config'
+    );
     expect(result).toEqual({ allow: true });
     expect(mocks.authorize).toHaveBeenCalledWith(
       { env: true },
       { sub: 'admin-1' },
-      { action: 'admin.user.write', resource: 'email-config' },
+      { action: 'admin.user.write', resource: 'email-config' }
     );
   });
 
@@ -84,7 +93,7 @@ describe('ensureAdminMutationAccess', () => {
     expect(mocks.authorize).toHaveBeenCalledWith(
       {},
       { sub: 'u1' },
-      { action: 'some.perm', resource: 'admin' },
+      { action: 'some.perm', resource: 'admin' }
     );
     expect(result.allow).toBe(false);
   });

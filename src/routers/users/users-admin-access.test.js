@@ -68,7 +68,9 @@ describe('handleUsersAdminAccess', () => {
   const env = { DB: {} };
   const ctx = {};
   const db = {
-    all: vi.fn(), run: vi.fn(), first: vi.fn(),
+    all: vi.fn(),
+    run: vi.fn(),
+    first: vi.fn(),
   };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
 
@@ -93,8 +95,11 @@ describe('handleUsersAdminAccess', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'Forbidden' });
       const res = await handleUsersAdminAccess(
         makeReq('/api/admin/users/u1/access', 'GET'),
-        env, ctx, user, '/api/admin/users/u1/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -103,24 +108,34 @@ describe('handleUsersAdminAccess', () => {
       db.first.mockResolvedValue(null);
       const res = await handleUsersAdminAccess(
         makeReq('/api/admin/users/nonexistent/access', 'GET'),
-        env, ctx, user, '/api/admin/users/nonexistent/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/nonexistent/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
 
     it('returns user access info', async () => {
       db.first.mockResolvedValue({
-        id: 'u1', email: 'user@example.com', name: 'User', account_status: 'active',
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        account_status: 'active',
       });
       db.all.mockImplementation(async (sql, _params) => {
-        if (sql.includes('group_members')) return [{ group_id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }];
+        if (sql.includes('group_members'))
+          return [{ group_id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }];
         return [];
       });
       const res = await handleUsersAdminAccess(
         makeReq('/api/admin/users/u1/access', 'GET'),
-        env, ctx, user, '/api/admin/users/u1/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -133,8 +148,11 @@ describe('handleUsersAdminAccess', () => {
       db.first.mockRejectedValue(new Error('DB fail'));
       const res = await handleUsersAdminAccess(
         makeReq('/api/admin/users/u1/access', 'GET'),
-        env, ctx, user, '/api/admin/users/u1/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -143,8 +161,11 @@ describe('handleUsersAdminAccess', () => {
   it('returns null for non-matching paths', async () => {
     const result = await handleUsersAdminAccess(
       makeReq('/api/admin/users', 'GET'),
-      env, ctx, user, '/api/admin/users',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/users',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

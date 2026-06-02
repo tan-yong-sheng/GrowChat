@@ -57,11 +57,15 @@ vi.mock('./admin-helpers.js', () => ({
 }));
 
 vi.mock('../../utils/response.js', () => ({
-  json: (req, data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }),
+  json: (req, data, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }),
   error: (req, message, status = 500, details) => {
     const body = { error: message };
     if (details !== undefined) body.details = details;
-    return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
   },
   getConnectionTestFailureMessage: (...args) => mocks.getConnectionTestFailureMessage(...args),
 }));
@@ -108,16 +112,26 @@ describe('handleAdminConnectionsList', () => {
   describe('GET /api/admin/openai/connections', () => {
     it('returns connections list', async () => {
       mocks.getConfigValue.mockImplementation(async (_db, key) => {
-        if (key === 'openai_connections') return JSON.stringify([
-          { id: 'c1', name: 'OpenAI', key: 'secret-key-1234', providerType: 'openai', enabled: true },
-        ]);
+        if (key === 'openai_connections')
+          return JSON.stringify([
+            {
+              id: 'c1',
+              name: 'OpenAI',
+              key: 'secret-key-1234',
+              providerType: 'openai',
+              enabled: true,
+            },
+          ]);
         if (key === 'openai_enabled') return 'true';
         return '[]';
       });
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -129,17 +143,21 @@ describe('handleAdminConnectionsList', () => {
 
     it('filters disabled connections by default', async () => {
       mocks.getConfigValue.mockImplementation(async (_db, key) => {
-        if (key === 'openai_connections') return JSON.stringify([
-          { id: 'c1', name: 'Enabled', providerType: 'openai', enabled: true },
-          { id: 'c2', name: 'Disabled', providerType: 'openai', enabled: false },
-        ]);
+        if (key === 'openai_connections')
+          return JSON.stringify([
+            { id: 'c1', name: 'Enabled', providerType: 'openai', enabled: true },
+            { id: 'c2', name: 'Disabled', providerType: 'openai', enabled: false },
+          ]);
         if (key === 'openai_enabled') return 'true';
         return '[]';
       });
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections',
+        { db, logger, _requestContext: {} }
       );
       const payload = await res.json();
       expect(payload.connections).toHaveLength(1);
@@ -148,17 +166,21 @@ describe('handleAdminConnectionsList', () => {
 
     it('includes disabled when include_disabled=true', async () => {
       mocks.getConfigValue.mockImplementation(async (_db, key) => {
-        if (key === 'openai_connections') return JSON.stringify([
-          { id: 'c1', name: 'Enabled', providerType: 'openai', enabled: true },
-          { id: 'c2', name: 'Disabled', providerType: 'openai', enabled: false },
-        ]);
+        if (key === 'openai_connections')
+          return JSON.stringify([
+            { id: 'c1', name: 'Enabled', providerType: 'openai', enabled: true },
+            { id: 'c2', name: 'Disabled', providerType: 'openai', enabled: false },
+          ]);
         if (key === 'openai_enabled') return 'true';
         return '[]';
       });
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections?include_disabled=true', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections',
+        { db, logger, _requestContext: {} }
       );
       const payload = await res.json();
       expect(payload.connections).toHaveLength(2);
@@ -168,8 +190,11 @@ describe('handleAdminConnectionsList', () => {
       mocks.getConfigValue.mockRejectedValue(new Error('DB fail'));
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -180,10 +205,15 @@ describe('handleAdminConnectionsList', () => {
       mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections/test', 'POST', {
-          providerType: 'openai', url: 'https://api.openai.com/v1', key: 'test',
+          providerType: 'openai',
+          url: 'https://api.openai.com/v1',
+          key: 'test',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -192,10 +222,14 @@ describe('handleAdminConnectionsList', () => {
       mocks.isValidHttpUrl.mockReturnValue(false);
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections/test', 'POST', {
-          providerType: 'openai', url: 'not-a-url',
+          providerType: 'openai',
+          url: 'not-a-url',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -204,10 +238,14 @@ describe('handleAdminConnectionsList', () => {
       mocks.isSafeOutboundUrl.mockReturnValue({ safe: false, reason: 'Blocked URL' });
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections/test', 'POST', {
-          providerType: 'openai', url: 'https://evil.com/v1',
+          providerType: 'openai',
+          url: 'https://evil.com/v1',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -216,53 +254,76 @@ describe('handleAdminConnectionsList', () => {
       mocks.isConnectionUrlRequired.mockReturnValue(true);
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections/test', 'POST', {
-          providerType: 'openai-compatible', url: '',
+          providerType: 'openai-compatible',
+          url: '',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('rejects invalid headers JSON', async () => {
-      mocks.parseHeadersForRequest.mockImplementation(() => { throw new Error('Bad headers'); });
+      mocks.parseHeadersForRequest.mockImplementation(() => {
+        throw new Error('Bad headers');
+      });
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections/test', 'POST', {
-          providerType: 'openai', url: 'https://api.openai.com/v1', headers: 'not-json',
+          providerType: 'openai',
+          url: 'https://api.openai.com/v1',
+          headers: 'not-json',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('returns 502 when no models discovered', async () => {
       mocks.discoverConnectionModels.mockResolvedValue({
-        items: [], error: { status: 401, message: 'Bad key' },
+        items: [],
+        error: { status: 401, message: 'Bad key' },
       });
       mocks.buildConnectionHeaders.mockReturnValue({});
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections/test', 'POST', {
-          providerType: 'openai', url: 'https://api.openai.com/v1', key: 'bad',
+          providerType: 'openai',
+          url: 'https://api.openai.com/v1',
+          key: 'bad',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(502);
     });
 
     it('returns successful connection test', async () => {
       mocks.discoverConnectionModels.mockResolvedValue({
-        items: [{ id: 'gpt-4o', name: 'GPT-4o' }], url: 'https://api.openai.com/v1/models',
+        items: [{ id: 'gpt-4o', name: 'GPT-4o' }],
+        url: 'https://api.openai.com/v1/models',
       });
       mocks.buildConnectionHeaders.mockReturnValue({ Authorization: 'Bearer test' });
       mocks.extractConnectionModelId.mockImplementation((item) => item?.id || '');
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections/test', 'POST', {
-          providerType: 'openai', url: 'https://api.openai.com/v1', key: 'test',
+          providerType: 'openai',
+          url: 'https://api.openai.com/v1',
+          key: 'test',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -275,10 +336,15 @@ describe('handleAdminConnectionsList', () => {
       mocks.discoverConnectionModels.mockRejectedValue(new Error('Network error'));
       const res = await handleAdminConnectionsList(
         makeReq('/api/admin/openai/connections/test', 'POST', {
-          providerType: 'openai', url: 'https://api.openai.com/v1', key: 'test',
+          providerType: 'openai',
+          url: 'https://api.openai.com/v1',
+          key: 'test',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(502);
     });
@@ -290,8 +356,11 @@ describe('handleAdminConnectionsList', () => {
           headers: { 'Content-Type': 'application/json' },
           body: 'not-json',
         }),
-        env, ctx, user, '/api/admin/openai/connections/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -300,8 +369,11 @@ describe('handleAdminConnectionsList', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleAdminConnectionsList(
       makeReq('/api/admin/unknown', 'GET'),
-      env, ctx, user, '/api/admin/unknown',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/unknown',
+      { db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

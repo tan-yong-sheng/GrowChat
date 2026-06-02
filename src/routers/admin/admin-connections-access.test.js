@@ -22,8 +22,10 @@ vi.mock('../../utils/authorize.js', () => ({
 vi.mock('../../utils/connection-acl.js', () => ({
   loadConnectionAclRules: (...args) => mocks.loadConnectionAclRules(...args),
   normalizeConnectionAclRule: (...args) => mocks.normalizeConnectionAclRule(...args),
-  saveConnectionAclRulesForConnection: (...args) => mocks.saveConnectionAclRulesForConnection(...args),
-  buildConnectionAclRuleSaveStatements: (...args) => mocks.buildConnectionAclRuleSaveStatements(...args),
+  saveConnectionAclRulesForConnection: (...args) =>
+    mocks.saveConnectionAclRulesForConnection(...args),
+  buildConnectionAclRuleSaveStatements: (...args) =>
+    mocks.buildConnectionAclRuleSaveStatements(...args),
 }));
 
 vi.mock('../../llm/connections.js', () => ({
@@ -53,7 +55,11 @@ describe('handleAdminConnectionsAccess', () => {
     all: vi.fn(),
     run: vi.fn(),
     batch: vi.fn(),
-    prepare: vi.fn((sql, params = []) => ({ sql, params, bind: (...args) => ({ sql, params: args }) })),
+    prepare: vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...args) => ({ sql, params: args }),
+    })),
   };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
 
@@ -72,15 +78,32 @@ describe('handleAdminConnectionsAccess', () => {
   describe('GET /api/admin/openai/connections/access', () => {
     it('returns all groups and rules', async () => {
       db.all.mockResolvedValue([
-        { id: 'g1', name: 'Admins', description: 'Admin group', is_system: 1, created_at: 1, updated_at: 1 },
+        {
+          id: 'g1',
+          name: 'Admins',
+          description: 'Admin group',
+          is_system: 1,
+          created_at: 1,
+          updated_at: 1,
+        },
       ]);
       mocks.loadConnectionAclRules.mockResolvedValue([
-        { id: 'r1', connection_id: 'conn-1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+        {
+          id: 'r1',
+          connection_id: 'conn-1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+        },
       ]);
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/access', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -91,8 +114,11 @@ describe('handleAdminConnectionsAccess', () => {
     it('filters by ids query param', async () => {
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/access?ids=conn-1,conn-2', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -103,8 +129,11 @@ describe('handleAdminConnectionsAccess', () => {
       db.all.mockRejectedValue(new Error('DB fail'));
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/access', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -117,8 +146,11 @@ describe('handleAdminConnectionsAccess', () => {
         makeReq('/api/admin/openai/connections/access', 'PUT', {
           updates: [{ connection_id: 'conn-1', rules: [] }],
         }),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -126,20 +158,27 @@ describe('handleAdminConnectionsAccess', () => {
     it('rejects empty updates', async () => {
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/access', 'PUT', { updates: [] }),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('rejects too many updates (>200)', async () => {
       const updates = Array.from({ length: 201 }, (_, i) => ({
-        connection_id: `conn-${i}`, rules: [],
+        connection_id: `conn-${i}`,
+        rules: [],
       }));
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/access', 'PUT', { updates }),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -150,8 +189,11 @@ describe('handleAdminConnectionsAccess', () => {
         makeReq('/api/admin/openai/connections/access', 'PUT', {
           updates: [{ rules: [] }],
         }),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -165,8 +207,11 @@ describe('handleAdminConnectionsAccess', () => {
         makeReq('/api/admin/openai/connections/access', 'PUT', {
           updates: [{ connection_id: 'conn-disabled', rules: [] }],
         }),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(409);
     });
@@ -174,14 +219,24 @@ describe('handleAdminConnectionsAccess', () => {
     it('rejects invalid principal_type', async () => {
       db.all.mockResolvedValue([]); // groups query
       mocks.normalizeConnectionAclRule.mockImplementation((rule) => ({
-        ...rule, principal_type: 'user', principal_id: 'u1',
+        ...rule,
+        principal_type: 'user',
+        principal_id: 'u1',
       }));
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/access', 'PUT', {
-          updates: [{ connection_id: 'conn-1', rules: [{ principal_type: 'user', principal_id: 'u1', effect: 'allow' }] }],
+          updates: [
+            {
+              connection_id: 'conn-1',
+              rules: [{ principal_type: 'user', principal_id: 'u1', effect: 'allow' }],
+            },
+          ],
         }),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -189,7 +244,9 @@ describe('handleAdminConnectionsAccess', () => {
     it('successfully processes bulk updates', async () => {
       db.all.mockResolvedValue([{ id: 'g1' }]);
       mocks.normalizeConnectionAclRule.mockImplementation((rule) => ({
-        ...rule, principal_type: 'group', principal_id: 'g1',
+        ...rule,
+        principal_type: 'group',
+        principal_id: 'g1',
       }));
       mocks.buildConnectionAclRuleSaveStatements.mockReturnValue({
         statements: [{ sql: 'DELETE', params: [] }],
@@ -197,10 +254,18 @@ describe('handleAdminConnectionsAccess', () => {
       db.batch.mockResolvedValue(undefined);
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/access', 'PUT', {
-          updates: [{ connection_id: 'conn-1', rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }] }],
+          updates: [
+            {
+              connection_id: 'conn-1',
+              rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }],
+            },
+          ],
         }),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -209,7 +274,9 @@ describe('handleAdminConnectionsAccess', () => {
     it('returns 500 on batch failure', async () => {
       db.all.mockResolvedValue([{ id: 'g1' }]);
       mocks.normalizeConnectionAclRule.mockImplementation((rule) => ({
-        ...rule, principal_type: 'group', principal_id: 'g1',
+        ...rule,
+        principal_type: 'group',
+        principal_id: 'g1',
       }));
       mocks.buildConnectionAclRuleSaveStatements.mockReturnValue({ statements: [] });
       db.batch.mockRejectedValue(new Error('batch fail'));
@@ -217,8 +284,11 @@ describe('handleAdminConnectionsAccess', () => {
         makeReq('/api/admin/openai/connections/access', 'PUT', {
           updates: [{ connection_id: 'conn-1', rules: [] }],
         }),
-        env, ctx, user, '/api/admin/openai/connections/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -227,15 +297,32 @@ describe('handleAdminConnectionsAccess', () => {
   describe('GET /api/admin/openai/connections/:id/access', () => {
     it('returns connection access groups', async () => {
       db.all.mockResolvedValue([
-        { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+        {
+          id: 'g1',
+          name: 'Core',
+          description: 'Core team',
+          is_system: 0,
+          created_at: 1,
+          updated_at: 1,
+        },
       ]);
       mocks.loadConnectionAclRules.mockResolvedValue([
-        { id: 'r1', connection_id: 'conn-1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+        {
+          id: 'r1',
+          connection_id: 'conn-1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+        },
       ]);
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/conn-1/access', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections/conn-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/conn-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -247,8 +334,11 @@ describe('handleAdminConnectionsAccess', () => {
       db.all.mockRejectedValue(new Error('fail'));
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/conn-1/access', 'GET'),
-        env, ctx, user, '/api/admin/openai/connections/conn-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/conn-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -259,8 +349,11 @@ describe('handleAdminConnectionsAccess', () => {
       mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/conn-1/access', 'PUT', { rules: [] }),
-        env, ctx, user, '/api/admin/openai/connections/conn-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/conn-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -271,8 +364,11 @@ describe('handleAdminConnectionsAccess', () => {
       ]);
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/conn-1/access', 'PUT', { rules: [] }),
-        env, ctx, user, '/api/admin/openai/connections/conn-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/conn-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(409);
     });
@@ -280,7 +376,9 @@ describe('handleAdminConnectionsAccess', () => {
     it('saves and returns rules', async () => {
       db.all.mockResolvedValue([{ id: 'g1' }]);
       mocks.normalizeConnectionAclRule.mockImplementation((rule) => ({
-        ...rule, principal_type: 'group', principal_id: 'g1',
+        ...rule,
+        principal_type: 'group',
+        principal_id: 'g1',
       }));
       mocks.saveConnectionAclRulesForConnection.mockResolvedValue([
         { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
@@ -289,8 +387,11 @@ describe('handleAdminConnectionsAccess', () => {
         makeReq('/api/admin/openai/connections/conn-1/access', 'PUT', {
           rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }],
         }),
-        env, ctx, user, '/api/admin/openai/connections/conn-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/conn-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -301,8 +402,11 @@ describe('handleAdminConnectionsAccess', () => {
     it('returns 405 for unsupported method', async () => {
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/conn-1/access', 'PATCH', {}),
-        env, ctx, user, '/api/admin/openai/connections/conn-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/openai/connections/conn-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(405);
     });
@@ -311,8 +415,11 @@ describe('handleAdminConnectionsAccess', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleAdminConnectionsAccess(
       makeReq('/api/admin/unknown', 'GET'),
-      env, ctx, user, '/api/admin/unknown',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/unknown',
+      { db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

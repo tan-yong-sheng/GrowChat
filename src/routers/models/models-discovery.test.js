@@ -27,7 +27,8 @@ vi.mock('../../llm/provider-registry.js', () => ({
 }));
 
 vi.mock('../../../public/js/shared/utils/connection-model-selection.js', () => ({
-  normalizeConnectionModelSelectionMode: (...args) => mocks.normalizeConnectionModelSelectionMode(...args),
+  normalizeConnectionModelSelectionMode: (...args) =>
+    mocks.normalizeConnectionModelSelectionMode(...args),
 }));
 
 import {
@@ -43,10 +44,17 @@ describe('models-discovery utilities', () => {
   describe('toPublicModel', () => {
     it('maps model fields correctly', () => {
       const model = {
-        id: 'openai/gpt-4o', name: 'gpt-4o', provider: 'openai',
-        provider_type: 'openai', provider_family: 'openai', provider_id: 'openai',
-        connection_id: 'c1', connection_name: 'OpenAI', free: true,
-        description: 'GPT-4o model', enabled: true,
+        id: 'openai/gpt-4o',
+        name: 'gpt-4o',
+        provider: 'openai',
+        provider_type: 'openai',
+        provider_family: 'openai',
+        provider_id: 'openai',
+        connection_id: 'c1',
+        connection_name: 'OpenAI',
+        free: true,
+        description: 'GPT-4o model',
+        enabled: true,
       };
       const result = toPublicModel(model);
       expect(result.id).toBe('openai/gpt-4o');
@@ -85,7 +93,10 @@ describe('models-discovery utilities', () => {
         { id: 'm1', enabled: true },
         { id: 'm2', enabled: true },
       ];
-      const { visibleModels, hiddenModels } = splitModelScopeByUserVisibility(models, new Set(['m2']));
+      const { visibleModels, hiddenModels } = splitModelScopeByUserVisibility(
+        models,
+        new Set(['m2'])
+      );
       expect(visibleModels).toHaveLength(1);
       expect(hiddenModels).toHaveLength(1);
     });

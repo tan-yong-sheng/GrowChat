@@ -58,8 +58,11 @@ describe('handleUsersAdminList', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleUsersAdminList(
         makeReq('/api/admin/users', 'GET'),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -67,12 +70,25 @@ describe('handleUsersAdminList', () => {
     it('returns paginated user list', async () => {
       db.first.mockResolvedValue({ count: 1 });
       db.all.mockResolvedValue([
-        { id: 'u1', email: 'u@e.com', name: 'User', primary_role: 'member', account_status: 'active', settings: '{}', created_at: 1, updated_at: 1, last_active_at: null },
+        {
+          id: 'u1',
+          email: 'u@e.com',
+          name: 'User',
+          primary_role: 'member',
+          account_status: 'active',
+          settings: '{}',
+          created_at: 1,
+          updated_at: 1,
+          last_active_at: null,
+        },
       ]);
       const res = await handleUsersAdminList(
         makeReq('/api/admin/users', 'GET'),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -86,8 +102,11 @@ describe('handleUsersAdminList', () => {
       db.all.mockResolvedValue([]);
       const res = await handleUsersAdminList(
         makeReq('/api/admin/users?q=test', 'GET'),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -96,8 +115,11 @@ describe('handleUsersAdminList', () => {
       db.first.mockRejectedValue(new Error('fail'));
       const res = await handleUsersAdminList(
         makeReq('/api/admin/users', 'GET'),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -106,8 +128,11 @@ describe('handleUsersAdminList', () => {
   it('returns null for non-matching paths', async () => {
     const result = await handleUsersAdminList(
       makeReq('/api/admin/users/u1', 'GET'),
-      env, ctx, user, '/api/admin/users/u1',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/users/u1',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

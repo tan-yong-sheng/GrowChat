@@ -58,8 +58,15 @@ describe('chatCollectionRouter', () => {
   const user = { sub: 'u1', role: 'user' };
   const env = { DB: {} };
   const db = {
-    all: vi.fn(), run: vi.fn(), first: vi.fn(), batch: vi.fn(),
-    prepare: vi.fn((sql, params = []) => ({ sql, params, bind: (...args) => ({ sql, params: args }) })),
+    all: vi.fn(),
+    run: vi.fn(),
+    first: vi.fn(),
+    batch: vi.fn(),
+    prepare: vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...args) => ({ sql, params: args }),
+    })),
   };
 
   beforeEach(() => {
@@ -68,14 +75,22 @@ describe('chatCollectionRouter', () => {
     mocks.authorize.mockResolvedValue({ allow: true });
     mocks.createRealtimeBus.mockReturnValue({ publish: vi.fn().mockResolvedValue(true) });
     mocks.resolveDefaultModel.mockResolvedValue('gpt-4o');
-    mocks.requireOwnedChat.mockResolvedValue({ chat: { id: 'c1', user_id: 'u1', title: 'Test', model: 'gpt-4o', pinned: 0 } });
+    mocks.requireOwnedChat.mockResolvedValue({
+      chat: { id: 'c1', user_id: 'u1', title: 'Test', model: 'gpt-4o', pinned: 0 },
+    });
   });
 
   describe('GET /api/chats', () => {
     it('delegates to handleListChats', async () => {
-      mocks.handleListChats.mockResolvedValue(new Response(JSON.stringify({ chats: [] }), { status: 200 }));
+      mocks.handleListChats.mockResolvedValue(
+        new Response(JSON.stringify({ chats: [] }), { status: 200 })
+      );
       const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'GET'), env, user, '/api/chats', 's1',
+        makeReq('/api/chats', 'GET'),
+        env,
+        user,
+        '/api/chats',
+        's1'
       );
       expect(mocks.handleListChats).toHaveBeenCalled();
     });
@@ -85,16 +100,29 @@ describe('chatCollectionRouter', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'POST', { title: 'New Chat' }), env, user, '/api/chats', 's1',
+        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env,
+        user,
+        '/api/chats',
+        's1'
       );
       expect(res.status).toBe(403);
     });
 
     it('creates a new chat', async () => {
       db.run.mockResolvedValue(undefined);
-      db.first.mockResolvedValue({ id: 'new-id', user_id: 'u1', title: 'New Chat', model: 'gpt-4o' });
+      db.first.mockResolvedValue({
+        id: 'new-id',
+        user_id: 'u1',
+        title: 'New Chat',
+        model: 'gpt-4o',
+      });
       const res = await chatCollectionRouter(
-        makeReq('/api/chats', 'POST', { title: 'New Chat' }), env, user, '/api/chats', 's1',
+        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env,
+        user,
+        '/api/chats',
+        's1'
       );
       expect(res.status).toBe(201);
     });
@@ -104,7 +132,11 @@ describe('chatCollectionRouter', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/shared', 'GET'), env, user, '/api/chats/shared', 's1',
+        makeReq('/api/chats/shared', 'GET'),
+        env,
+        user,
+        '/api/chats/shared',
+        's1'
       );
       expect(res.status).toBe(403);
     });
@@ -112,7 +144,11 @@ describe('chatCollectionRouter', () => {
     it('returns shared chats', async () => {
       db.all.mockResolvedValue([]);
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/shared', 'GET'), env, user, '/api/chats/shared', 's1',
+        makeReq('/api/chats/shared', 'GET'),
+        env,
+        user,
+        '/api/chats/shared',
+        's1'
       );
       expect(res.status).toBe(200);
     });
@@ -122,7 +158,11 @@ describe('chatCollectionRouter', () => {
     it('returns archived chats', async () => {
       db.all.mockResolvedValue([]);
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/archived', 'GET'), env, user, '/api/chats/archived', 's1',
+        makeReq('/api/chats/archived', 'GET'),
+        env,
+        user,
+        '/api/chats/archived',
+        's1'
       );
       expect(res.status).toBe(200);
     });
@@ -132,16 +172,26 @@ describe('chatCollectionRouter', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1', 'PUT', { title: 'Updated' }), env, user, '/api/chats/c1', 's1',
+        makeReq('/api/chats/c1', 'PUT', { title: 'Updated' }),
+        env,
+        user,
+        '/api/chats/c1',
+        's1'
       );
       expect(res.status).toBe(403);
     });
 
     it('updates chat', async () => {
       db.run.mockResolvedValue(undefined);
-      mocks.requireOwnedChat.mockResolvedValue({ chat: { id: 'c1', user_id: 'u1', title: 'Test', model: 'gpt-4o', pinned: 0 } });
+      mocks.requireOwnedChat.mockResolvedValue({
+        chat: { id: 'c1', user_id: 'u1', title: 'Test', model: 'gpt-4o', pinned: 0 },
+      });
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1', 'PUT', { title: 'Updated', pinned: true }), env, user, '/api/chats/c1', 's1',
+        makeReq('/api/chats/c1', 'PUT', { title: 'Updated', pinned: true }),
+        env,
+        user,
+        '/api/chats/c1',
+        's1'
       );
       expect(db.run).toHaveBeenCalled();
     });
@@ -151,7 +201,11 @@ describe('chatCollectionRouter', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1', 'DELETE'), env, user, '/api/chats/c1', 's1',
+        makeReq('/api/chats/c1', 'DELETE'),
+        env,
+        user,
+        '/api/chats/c1',
+        's1'
       );
       expect(res.status).toBe(403);
     });
@@ -159,7 +213,11 @@ describe('chatCollectionRouter', () => {
     it('deletes chat', async () => {
       db.run.mockResolvedValue(undefined);
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1', 'DELETE'), env, user, '/api/chats/c1', 's1',
+        makeReq('/api/chats/c1', 'DELETE'),
+        env,
+        user,
+        '/api/chats/c1',
+        's1'
       );
       expect(res.status).toBe(200);
     });
@@ -169,7 +227,11 @@ describe('chatCollectionRouter', () => {
     it('toggles pin state', async () => {
       db.run.mockResolvedValue(undefined);
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1/pin', 'POST'), env, user, '/api/chats/c1/pin', 's1',
+        makeReq('/api/chats/c1/pin', 'POST'),
+        env,
+        user,
+        '/api/chats/c1/pin',
+        's1'
       );
       expect(db.run).toHaveBeenCalled();
     });
@@ -179,7 +241,11 @@ describe('chatCollectionRouter', () => {
     it('creates share id', async () => {
       db.run.mockResolvedValue(undefined);
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1/share', 'POST'), env, user, '/api/chats/c1/share', 's1',
+        makeReq('/api/chats/c1/share', 'POST'),
+        env,
+        user,
+        '/api/chats/c1/share',
+        's1'
       );
       expect(res.status).toBe(200);
     });
@@ -189,7 +255,11 @@ describe('chatCollectionRouter', () => {
     it('removes share id', async () => {
       db.run.mockResolvedValue(undefined);
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1/share', 'DELETE'), env, user, '/api/chats/c1/share', 's1',
+        makeReq('/api/chats/c1/share', 'DELETE'),
+        env,
+        user,
+        '/api/chats/c1/share',
+        's1'
       );
       expect(res.status).toBe(200);
     });
@@ -199,7 +269,11 @@ describe('chatCollectionRouter', () => {
     it('toggles archive state', async () => {
       db.run.mockResolvedValue(undefined);
       const res = await chatCollectionRouter(
-        makeReq('/api/chats/c1/archive', 'POST'), env, user, '/api/chats/c1/archive', 's1',
+        makeReq('/api/chats/c1/archive', 'POST'),
+        env,
+        user,
+        '/api/chats/c1/archive',
+        's1'
       );
       expect(res.status).toBe(200);
     });
@@ -207,7 +281,11 @@ describe('chatCollectionRouter', () => {
 
   it('returns null for unknown path', async () => {
     const result = await chatCollectionRouter(
-      makeReq('/api/unknown', 'GET'), env, user, '/api/unknown', 's1',
+      makeReq('/api/unknown', 'GET'),
+      env,
+      user,
+      '/api/unknown',
+      's1'
     );
     expect(result).toBeNull();
   });

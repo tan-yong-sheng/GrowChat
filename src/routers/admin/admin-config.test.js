@@ -83,8 +83,11 @@ describe('handleAdminConfig', () => {
       });
       const res = await handleAdminConfig(
         makeReq('/api/admin/audit-logs', 'GET'),
-        env, ctx, user, '/api/admin/audit-logs',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/audit-logs',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -96,21 +99,33 @@ describe('handleAdminConfig', () => {
       mocks.getAuditLog.mockResolvedValue({ entries: [], total: 0 });
       const res = await handleAdminConfig(
         makeReq('/api/admin/audit-logs?userId=u1&action=login&limit=10&offset=5', 'GET'),
-        env, ctx, user, '/api/admin/audit-logs',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/audit-logs',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
-      expect(mocks.getAuditLog).toHaveBeenCalledWith(env, expect.objectContaining({
-        actor_id: 'u1', action: 'login', limit: 10, offset: 5,
-      }));
+      expect(mocks.getAuditLog).toHaveBeenCalledWith(
+        env,
+        expect.objectContaining({
+          actor_id: 'u1',
+          action: 'login',
+          limit: 10,
+          offset: 5,
+        })
+      );
     });
 
     it('returns 500 on error', async () => {
       mocks.getAuditLog.mockRejectedValue(new Error('DB fail'));
       const res = await handleAdminConfig(
         makeReq('/api/admin/audit-logs', 'GET'),
-        env, ctx, user, '/api/admin/audit-logs',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/audit-logs',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -125,8 +140,11 @@ describe('handleAdminConfig', () => {
       });
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'GET'),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -139,8 +157,11 @@ describe('handleAdminConfig', () => {
       mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => fallback);
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'GET'),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       const payload = await res.json();
       expect(payload.public_registration_status).toBe('pending');
@@ -151,8 +172,11 @@ describe('handleAdminConfig', () => {
       mocks.getConfigBool.mockRejectedValue(new Error('DB fail'));
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'GET'),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -163,8 +187,11 @@ describe('handleAdminConfig', () => {
       mocks.ensureAdminMutationAccess.mockResolvedValue({ allow: false, reason: 'Forbidden' });
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { public_registration: true }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -172,8 +199,11 @@ describe('handleAdminConfig', () => {
     it('rejects empty body', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', {}),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -181,8 +211,11 @@ describe('handleAdminConfig', () => {
     it('rejects invalid public_registration type', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { public_registration: 'yes' }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -190,8 +223,11 @@ describe('handleAdminConfig', () => {
     it('rejects invalid registration_status', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { public_registration_status: 'invalid' }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -199,8 +235,11 @@ describe('handleAdminConfig', () => {
     it('rejects non-string registration_status', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { public_registration_status: 123 }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -208,8 +247,11 @@ describe('handleAdminConfig', () => {
     it('rejects invalid default_model_id with whitespace', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { default_model_id: 'has space' }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -217,8 +259,11 @@ describe('handleAdminConfig', () => {
     it('rejects too long default_model_id', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { default_model_id: 'a'.repeat(201) }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -226,8 +271,11 @@ describe('handleAdminConfig', () => {
     it('accepts null default_model_id', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { default_model_id: null }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.setConfigValue).toHaveBeenCalledWith(db, 'default_model_id', '');
@@ -236,8 +284,11 @@ describe('handleAdminConfig', () => {
     it('accepts empty string default_model_id', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { default_model_id: '' }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -249,8 +300,11 @@ describe('handleAdminConfig', () => {
           public_registration_status: 'active',
           default_model_id: 'gpt-4o',
         }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -265,8 +319,11 @@ describe('handleAdminConfig', () => {
       mocks.setConfigValue.mockRejectedValue(new Error('write fail'));
       const res = await handleAdminConfig(
         makeReq('/api/admin/config', 'PUT', { public_registration: false }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -278,8 +335,11 @@ describe('handleAdminConfig', () => {
           headers: { 'Content-Type': 'application/json' },
           body: 'not-json',
         }),
-        env, ctx, user, '/api/admin/config',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/config',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -287,13 +347,18 @@ describe('handleAdminConfig', () => {
 
   describe('GET /api/admin/model-attachment-caps', () => {
     it('returns caps and supported types', async () => {
-      mocks.getConfigValue.mockResolvedValue(JSON.stringify({
-        'gpt-4o': { attachments: { image: true, pdf: false }, updated_at: 123 },
-      }));
+      mocks.getConfigValue.mockResolvedValue(
+        JSON.stringify({
+          'gpt-4o': { attachments: { image: true, pdf: false }, updated_at: 123 },
+        })
+      );
       const res = await handleAdminConfig(
         makeReq('/api/admin/model-attachment-caps', 'GET'),
-        env, ctx, user, '/api/admin/model-attachment-caps',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/model-attachment-caps',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -305,8 +370,11 @@ describe('handleAdminConfig', () => {
       mocks.getConfigValue.mockResolvedValue('not-json');
       const res = await handleAdminConfig(
         makeReq('/api/admin/model-attachment-caps', 'GET'),
-        env, ctx, user, '/api/admin/model-attachment-caps',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/model-attachment-caps',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -317,8 +385,11 @@ describe('handleAdminConfig', () => {
       mocks.getConfigValue.mockRejectedValue(new Error('fail'));
       const res = await handleAdminConfig(
         makeReq('/api/admin/model-attachment-caps', 'GET'),
-        env, ctx, user, '/api/admin/model-attachment-caps',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/model-attachment-caps',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -328,9 +399,14 @@ describe('handleAdminConfig', () => {
     it('rejects ACL denied', async () => {
       mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminConfig(
-        makeReq('/api/admin/model-attachment-caps', 'PUT', { updates: [{ model_id: 'x', attachments: { image: true } }] }),
-        env, ctx, user, '/api/admin/model-attachment-caps',
-        { db, logger, _requestContext: {} },
+        makeReq('/api/admin/model-attachment-caps', 'PUT', {
+          updates: [{ model_id: 'x', attachments: { image: true } }],
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/model-attachment-caps',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -338,8 +414,11 @@ describe('handleAdminConfig', () => {
     it('rejects empty updates', async () => {
       const res = await handleAdminConfig(
         makeReq('/api/admin/model-attachment-caps', 'PUT', {}),
-        env, ctx, user, '/api/admin/model-attachment-caps',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/model-attachment-caps',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -352,8 +431,11 @@ describe('handleAdminConfig', () => {
         makeReq('/api/admin/model-attachment-caps', 'PUT', {
           updates: [{ model_id: 'gpt-4o', attachments: { image: true } }],
         }),
-        env, ctx, user, '/api/admin/model-attachment-caps',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/model-attachment-caps',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.setConfigValue).toHaveBeenCalled();
@@ -367,8 +449,11 @@ describe('handleAdminConfig', () => {
         makeReq('/api/admin/model-attachment-caps', 'PUT', {
           caps: { 'gpt-4o': { attachments: { image: true } } },
         }),
-        env, ctx, user, '/api/admin/model-attachment-caps',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/model-attachment-caps',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -383,8 +468,11 @@ describe('handleAdminConfig', () => {
         makeReq('/api/admin/model-attachment-caps', 'PUT', {
           remove: ['old-model'],
         }),
-        env, ctx, user, '/api/admin/model-attachment-caps',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/model-attachment-caps',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -395,8 +483,11 @@ describe('handleAdminConfig', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleAdminConfig(
       makeReq('/api/admin/unknown', 'GET'),
-      env, ctx, user, '/api/admin/unknown',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/unknown',
+      { db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

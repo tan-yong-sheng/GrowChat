@@ -35,7 +35,11 @@ vi.mock('../user-profile.js', () => ({
 }));
 
 vi.mock('../../errors/http-errors.js', () => ({
-  ValidationError: class extends Error { constructor(msg) { super(msg); } },
+  ValidationError: class extends Error {
+    constructor(msg) {
+      super(msg);
+    }
+  },
   isHttpError: vi.fn(() => false),
   toHttpErrorPayload: vi.fn(),
 }));
@@ -66,16 +70,26 @@ describe('handleUsersMe', () => {
     mocks.loadPrimaryRole.mockResolvedValue('member');
     mocks.normalizePublicRole.mockImplementation((r) => r || 'member');
     mocks.getConfigValue.mockResolvedValue(null);
-    mocks.buildUserProfileResponse.mockReturnValue({ user: { id: 'u1', primary_role: 'member' }, app_config: {} });
-    mocks.buildSelfProfileUpdate.mockReturnValue({ updates: ['name = ?'], values: ['New'], updatedFields: ['name'] });
+    mocks.buildUserProfileResponse.mockReturnValue({
+      user: { id: 'u1', primary_role: 'member' },
+      app_config: {},
+    });
+    mocks.buildSelfProfileUpdate.mockReturnValue({
+      updates: ['name = ?'],
+      values: ['New'],
+      updatedFields: ['name'],
+    });
   });
 
   describe('GET /api/users/me/permissions', () => {
     it('returns resolved permissions', async () => {
       const res = await handleUsersMe(
         makeReq('/api/users/me/permissions', 'GET'),
-        env, ctx, user, '/api/users/me/permissions',
-        { _db: db, _logger: logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/permissions',
+        { _db: db, _logger: logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -87,8 +101,11 @@ describe('handleUsersMe', () => {
     it('returns user roles', async () => {
       const res = await handleUsersMe(
         makeReq('/api/users/me/roles', 'GET'),
-        env, ctx, user, '/api/users/me/roles',
-        { _db: db, _logger: logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/roles',
+        { _db: db, _logger: logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -99,14 +116,27 @@ describe('handleUsersMe', () => {
   describe('GET /api/users/me', () => {
     it('returns user profile', async () => {
       db.first.mockResolvedValue({
-        id: 'u1', email: 'u@e.com', name: 'User', primary_role: 'member',
-        account_status: 'active', settings: '{}', avatar: null, avatar_emoji: null,
-        status: 'offline', preferences: '{}', created_at: 1, updated_at: 1, last_active_at: null,
+        id: 'u1',
+        email: 'u@e.com',
+        name: 'User',
+        primary_role: 'member',
+        account_status: 'active',
+        settings: '{}',
+        avatar: null,
+        avatar_emoji: null,
+        status: 'offline',
+        preferences: '{}',
+        created_at: 1,
+        updated_at: 1,
+        last_active_at: null,
       });
       const res = await handleUsersMe(
         makeReq('/api/users/me', 'GET'),
-        env, ctx, user, '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me',
+        { _db: db, _logger: logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -115,22 +145,38 @@ describe('handleUsersMe', () => {
       db.first.mockResolvedValue(null);
       const res = await handleUsersMe(
         makeReq('/api/users/me', 'GET'),
-        env, ctx, user, '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me',
+        { _db: db, _logger: logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
 
     it('includes permissions and roles with include param', async () => {
       db.first.mockResolvedValue({
-        id: 'u1', email: 'u@e.com', name: 'User', primary_role: 'member',
-        account_status: 'active', settings: '{}', avatar: null, avatar_emoji: null,
-        status: 'offline', preferences: '{}', created_at: 1, updated_at: 1, last_active_at: null,
+        id: 'u1',
+        email: 'u@e.com',
+        name: 'User',
+        primary_role: 'member',
+        account_status: 'active',
+        settings: '{}',
+        avatar: null,
+        avatar_emoji: null,
+        status: 'offline',
+        preferences: '{}',
+        created_at: 1,
+        updated_at: 1,
+        last_active_at: null,
       });
       const res = await handleUsersMe(
         makeReq('/api/users/me?include=permissions,roles', 'GET'),
-        env, ctx, user, '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me',
+        { _db: db, _logger: logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -139,25 +185,47 @@ describe('handleUsersMe', () => {
   describe('PUT /api/users/me', () => {
     it('updates user profile', async () => {
       db.first.mockImplementation(async (sql) => {
-        if (sql.includes('SELECT id, email, name')) return { id: 'u1', email: 'u@e.com', name: 'Updated', account_status: 'active', settings: '{}', avatar: null, avatar_emoji: null, status: 'online', preferences: '{}', created_at: 1, updated_at: 2, last_active_at: null };
+        if (sql.includes('SELECT id, email, name'))
+          return {
+            id: 'u1',
+            email: 'u@e.com',
+            name: 'Updated',
+            account_status: 'active',
+            settings: '{}',
+            avatar: null,
+            avatar_emoji: null,
+            status: 'online',
+            preferences: '{}',
+            created_at: 1,
+            updated_at: 2,
+            last_active_at: null,
+          };
         return null;
       });
       db.run.mockResolvedValue(undefined);
       const res = await handleUsersMe(
         makeReq('/api/users/me', 'PUT', { name: 'Updated' }),
-        env, ctx, user, '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me',
+        { _db: db, _logger: logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
 
     it('handles validation error', async () => {
       const { ValidationError } = await import('../../errors/http-errors.js');
-      mocks.buildSelfProfileUpdate.mockImplementation(() => { throw new ValidationError('bad input'); });
+      mocks.buildSelfProfileUpdate.mockImplementation(() => {
+        throw new ValidationError('bad input');
+      });
       const res = await handleUsersMe(
         makeReq('/api/users/me', 'PUT', { name: '' }),
-        env, ctx, user, '/api/users/me',
-        { _db: db, _logger: logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me',
+        { _db: db, _logger: logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -166,14 +234,31 @@ describe('handleUsersMe', () => {
   describe('POST /api/users/me/update', () => {
     it('updates profile without settings', async () => {
       db.first.mockImplementation(async (sql) => {
-        if (sql.includes('SELECT id, email, name')) return { id: 'u1', email: 'u@e.com', name: 'Updated', account_status: 'active', settings: '{}', avatar: null, avatar_emoji: null, status: 'online', preferences: '{}', created_at: 1, updated_at: 2, last_active_at: null };
+        if (sql.includes('SELECT id, email, name'))
+          return {
+            id: 'u1',
+            email: 'u@e.com',
+            name: 'Updated',
+            account_status: 'active',
+            settings: '{}',
+            avatar: null,
+            avatar_emoji: null,
+            status: 'online',
+            preferences: '{}',
+            created_at: 1,
+            updated_at: 2,
+            last_active_at: null,
+          };
         return null;
       });
       db.run.mockResolvedValue(undefined);
       const res = await handleUsersMe(
         makeReq('/api/users/me/update', 'POST', { name: 'Updated' }),
-        env, ctx, user, '/api/users/me/update',
-        { _db: db, _logger: logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/update',
+        { _db: db, _logger: logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -182,8 +267,11 @@ describe('handleUsersMe', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleUsersMe(
       makeReq('/api/unknown', 'GET'),
-      env, ctx, user, '/api/unknown',
-      { _db: db, _logger: logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/unknown',
+      { _db: db, _logger: logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

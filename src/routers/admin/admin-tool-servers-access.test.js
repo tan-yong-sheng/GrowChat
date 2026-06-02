@@ -22,8 +22,10 @@ vi.mock('../../utils/authorize.js', () => ({
 vi.mock('../../utils/tool-server-acl.js', () => ({
   loadToolServerAclRules: (...args) => mocks.loadToolServerAclRules(...args),
   normalizeToolServerAclRule: (...args) => mocks.normalizeToolServerAclRule(...args),
-  saveToolServerAclRulesForToolServer: (...args) => mocks.saveToolServerAclRulesForToolServer(...args),
-  buildToolServerAclRuleSaveStatements: (...args) => mocks.buildToolServerAclRuleSaveStatements(...args),
+  saveToolServerAclRulesForToolServer: (...args) =>
+    mocks.saveToolServerAclRulesForToolServer(...args),
+  buildToolServerAclRuleSaveStatements: (...args) =>
+    mocks.buildToolServerAclRuleSaveStatements(...args),
 }));
 
 vi.mock('../../admin/tool-servers.js', () => ({
@@ -53,7 +55,11 @@ describe('handleAdminToolServersAccess', () => {
     all: vi.fn(),
     run: vi.fn(),
     batch: vi.fn(),
-    prepare: vi.fn((sql, params = []) => ({ sql, params, bind: (...args) => ({ sql, params: args }) })),
+    prepare: vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...args) => ({ sql, params: args }),
+    })),
   };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
 
@@ -72,13 +78,23 @@ describe('handleAdminToolServersAccess', () => {
   describe('GET /api/admin/tool-servers/access', () => {
     it('returns groups and rules', async () => {
       db.all.mockResolvedValue([
-        { id: 'g1', name: 'Core', description: 'Core team', is_system: 0, created_at: 1, updated_at: 1 },
+        {
+          id: 'g1',
+          name: 'Core',
+          description: 'Core team',
+          is_system: 0,
+          created_at: 1,
+          updated_at: 1,
+        },
       ]);
       mocks.loadToolServerAclRules.mockResolvedValue([]);
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/access', 'GET'),
-        env, ctx, user, '/api/admin/tool-servers/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -89,8 +105,11 @@ describe('handleAdminToolServersAccess', () => {
       db.all.mockRejectedValue(new Error('fail'));
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/access', 'GET'),
-        env, ctx, user, '/api/admin/tool-servers/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -103,8 +122,11 @@ describe('handleAdminToolServersAccess', () => {
         makeReq('/api/admin/tool-servers/access', 'PUT', {
           updates: [{ tool_server_id: 'mcp-1', rules: [] }],
         }),
-        env, ctx, user, '/api/admin/tool-servers/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -112,18 +134,27 @@ describe('handleAdminToolServersAccess', () => {
     it('rejects empty updates', async () => {
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/access', 'PUT', { updates: [] }),
-        env, ctx, user, '/api/admin/tool-servers/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('rejects too many updates', async () => {
-      const updates = Array.from({ length: 201 }, (_, i) => ({ tool_server_id: `mcp-${i}`, rules: [] }));
+      const updates = Array.from({ length: 201 }, (_, i) => ({
+        tool_server_id: `mcp-${i}`,
+        rules: [],
+      }));
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/access', 'PUT', { updates }),
-        env, ctx, user, '/api/admin/tool-servers/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -134,23 +165,27 @@ describe('handleAdminToolServersAccess', () => {
         makeReq('/api/admin/tool-servers/access', 'PUT', {
           updates: [{ rules: [] }],
         }),
-        env, ctx, user, '/api/admin/tool-servers/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('rejects disabled servers', async () => {
       db.all.mockResolvedValue([]); // groups query
-      mocks.loadToolServers.mockResolvedValue([
-        { id: 'mcp-1', name: 'Disabled', enabled: false },
-      ]);
+      mocks.loadToolServers.mockResolvedValue([{ id: 'mcp-1', name: 'Disabled', enabled: false }]);
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/access', 'PUT', {
           updates: [{ tool_server_id: 'mcp-1', rules: [] }],
         }),
-        env, ctx, user, '/api/admin/tool-servers/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(409);
     });
@@ -158,7 +193,9 @@ describe('handleAdminToolServersAccess', () => {
     it('successfully saves bulk updates', async () => {
       db.all.mockResolvedValue([{ id: 'g1' }]);
       mocks.normalizeToolServerAclRule.mockImplementation((rule) => ({
-        ...rule, principal_type: 'group', principal_id: 'g1',
+        ...rule,
+        principal_type: 'group',
+        principal_id: 'g1',
       }));
       mocks.buildToolServerAclRuleSaveStatements.mockReturnValue({
         statements: [{ sql: 'DELETE', params: [] }],
@@ -166,10 +203,18 @@ describe('handleAdminToolServersAccess', () => {
       db.batch.mockResolvedValue(undefined);
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/access', 'PUT', {
-          updates: [{ tool_server_id: 'mcp-1', rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }] }],
+          updates: [
+            {
+              tool_server_id: 'mcp-1',
+              rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }],
+            },
+          ],
         }),
-        env, ctx, user, '/api/admin/tool-servers/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -182,12 +227,22 @@ describe('handleAdminToolServersAccess', () => {
         { id: 'g1', name: 'Core', description: 'Core', is_system: 0, created_at: 1, updated_at: 1 },
       ]);
       mocks.loadToolServerAclRules.mockResolvedValue([
-        { id: 'r1', tool_server_id: 'mcp-1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+        {
+          id: 'r1',
+          tool_server_id: 'mcp-1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+        },
       ]);
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/mcp-1/access', 'GET'),
-        env, ctx, user, '/api/admin/tool-servers/mcp-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/mcp-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -198,8 +253,11 @@ describe('handleAdminToolServersAccess', () => {
       db.all.mockRejectedValue(new Error('fail'));
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/mcp-1/access', 'GET'),
-        env, ctx, user, '/api/admin/tool-servers/mcp-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/mcp-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -210,20 +268,24 @@ describe('handleAdminToolServersAccess', () => {
       mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/mcp-1/access', 'PUT', { rules: [] }),
-        env, ctx, user, '/api/admin/tool-servers/mcp-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/mcp-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
 
     it('rejects disabled servers', async () => {
-      mocks.loadToolServers.mockResolvedValue([
-        { id: 'mcp-1', name: 'Disabled', enabled: false },
-      ]);
+      mocks.loadToolServers.mockResolvedValue([{ id: 'mcp-1', name: 'Disabled', enabled: false }]);
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/mcp-1/access', 'PUT', { rules: [] }),
-        env, ctx, user, '/api/admin/tool-servers/mcp-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/mcp-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(409);
     });
@@ -231,7 +293,9 @@ describe('handleAdminToolServersAccess', () => {
     it('saves rules and logs audit', async () => {
       db.all.mockResolvedValue([{ id: 'g1' }]);
       mocks.normalizeToolServerAclRule.mockImplementation((rule) => ({
-        ...rule, principal_type: 'group', principal_id: 'g1',
+        ...rule,
+        principal_type: 'group',
+        principal_id: 'g1',
       }));
       mocks.saveToolServerAclRulesForToolServer.mockResolvedValue([
         { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
@@ -240,8 +304,11 @@ describe('handleAdminToolServersAccess', () => {
         makeReq('/api/admin/tool-servers/mcp-1/access', 'PUT', {
           rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }],
         }),
-        env, ctx, user, '/api/admin/tool-servers/mcp-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/mcp-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -252,8 +319,11 @@ describe('handleAdminToolServersAccess', () => {
     it('returns 405 for unsupported method', async () => {
       const res = await handleAdminToolServersAccess(
         makeReq('/api/admin/tool-servers/mcp-1/access', 'PATCH', {}),
-        env, ctx, user, '/api/admin/tool-servers/mcp-1/access',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/mcp-1/access',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(405);
     });
@@ -262,8 +332,11 @@ describe('handleAdminToolServersAccess', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleAdminToolServersAccess(
       makeReq('/api/admin/unknown', 'GET'),
-      env, ctx, user, '/api/admin/unknown',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/unknown',
+      { db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

@@ -378,6 +378,11 @@ module.exports = [
   // Test files — relaxed limits for nesting, depth, and function length
   {
     files: ['tests/**/*.js', 'src/**/*.test.js'],
+    languageOptions: {
+      globals: {
+        ...globals.vitest,
+      },
+    },
     rules: {
       'max-lines-per-function': 'off',
       'max-nested-callbacks': 'off',

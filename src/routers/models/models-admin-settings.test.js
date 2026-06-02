@@ -67,7 +67,8 @@ vi.mock('./models-helpers.js', () => ({
   getModelAttachmentCapsEntry: (...args) => mocks.getModelAttachmentCapsEntry(...args),
   loadAttachmentCapsFromRaw: (...args) => mocks.loadAttachmentCapsFromRaw(...args),
   applyAttachmentCapsPatch: (...args) => mocks.applyAttachmentCapsPatch(...args),
-  buildModelAttachmentCapSaveStatement: (...args) => mocks.buildModelAttachmentCapSaveStatement(...args),
+  buildModelAttachmentCapSaveStatement: (...args) =>
+    mocks.buildModelAttachmentCapSaveStatement(...args),
   isValidModelId: (...args) => mocks.isValidModelId(...args),
   MODEL_ATTACHMENT_CAPS_KEY: 'model_attachment_caps_v1',
 }));
@@ -96,8 +97,15 @@ describe('handleAdminModelsSettings', () => {
   const env = { DB: {} };
   const ctx = {};
   const db = {
-    all: vi.fn(), run: vi.fn(), batch: vi.fn(), first: vi.fn(),
-    prepare: vi.fn((sql, params = []) => ({ sql, params, bind: (...args) => ({ sql, params: args }) })),
+    all: vi.fn(),
+    run: vi.fn(),
+    batch: vi.fn(),
+    first: vi.fn(),
+    prepare: vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...args) => ({ sql, params: args }),
+    })),
   };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
 
@@ -131,8 +139,11 @@ describe('handleAdminModelsSettings', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminModelsSettings(
         makeReq('/api/admin/models', 'GET'),
-        env, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -146,8 +157,11 @@ describe('handleAdminModelsSettings', () => {
       mocks.countEnabledModels.mockReturnValue(1);
       const res = await handleAdminModelsSettings(
         makeReq('/api/admin/models', 'GET'),
-        env, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -159,8 +173,11 @@ describe('handleAdminModelsSettings', () => {
       const noDbEnv = {};
       const res = await handleAdminModelsSettings(
         makeReq('/api/admin/models', 'GET'),
-        noDbEnv, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        noDbEnv,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -171,8 +188,11 @@ describe('handleAdminModelsSettings', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminModelsSettings(
         makeReq('/api/admin/models', 'PUT', { updates: [] }),
-        env, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -180,8 +200,11 @@ describe('handleAdminModelsSettings', () => {
     it('rejects empty body', async () => {
       const res = await handleAdminModelsSettings(
         makeReq('/api/admin/models', 'PUT', {}),
-        env, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -190,8 +213,11 @@ describe('handleAdminModelsSettings', () => {
       const updates = Array.from({ length: 501 }, (_, i) => ({ id: `m${i}`, enabled: true }));
       const res = await handleAdminModelsSettings(
         makeReq('/api/admin/models', 'PUT', { updates }),
-        env, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -200,8 +226,11 @@ describe('handleAdminModelsSettings', () => {
       mocks.isValidModelId.mockReturnValue(false);
       const res = await handleAdminModelsSettings(
         makeReq('/api/admin/models', 'PUT', { updates: [{ id: '', enabled: true }] }),
-        env, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -212,8 +241,11 @@ describe('handleAdminModelsSettings', () => {
         makeReq('/api/admin/models', 'PUT', {
           updates: [{ id: 'gpt-4o', enabled: false }],
         }),
-        env, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -227,8 +259,11 @@ describe('handleAdminModelsSettings', () => {
         makeReq('/api/admin/models', 'PUT', {
           access_updates: [{ model_id: 'm1', rules: [] }],
         }),
-        env, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -237,8 +272,11 @@ describe('handleAdminModelsSettings', () => {
       const noDbEnv = {};
       const res = await handleAdminModelsSettings(
         makeReq('/api/admin/models', 'PUT', { updates: [{ id: 'm1', enabled: true }] }),
-        noDbEnv, ctx, user, '/api/admin/models',
-        { _db: db, logger, _requestContext: {} },
+        noDbEnv,
+        ctx,
+        user,
+        '/api/admin/models',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -247,8 +285,11 @@ describe('handleAdminModelsSettings', () => {
   it('returns null for non-matching paths', async () => {
     const result = await handleAdminModelsSettings(
       makeReq('/api/models', 'GET'),
-      env, ctx, user, '/api/models',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/models',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

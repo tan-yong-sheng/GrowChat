@@ -52,8 +52,14 @@ describe('handleAdminModelsAccess', () => {
   const env = { DB: {} };
   const ctx = {};
   const db = {
-    all: vi.fn(), run: vi.fn(), batch: vi.fn(),
-    prepare: vi.fn((sql, params = []) => ({ sql, params, bind: (...args) => ({ sql, params: args }) })),
+    all: vi.fn(),
+    run: vi.fn(),
+    batch: vi.fn(),
+    prepare: vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...args) => ({ sql, params: args }),
+    })),
   };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
 
@@ -73,8 +79,11 @@ describe('handleAdminModelsAccess', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'GET'),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -86,8 +95,11 @@ describe('handleAdminModelsAccess', () => {
       mocks.loadModelAclRules.mockResolvedValue([]);
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'GET'),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -96,8 +108,11 @@ describe('handleAdminModelsAccess', () => {
       db.all.mockRejectedValue(new Error('fail'));
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'GET'),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -108,8 +123,11 @@ describe('handleAdminModelsAccess', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'PUT', { updates: [{ model_id: 'm1', rules: [] }] }),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -117,8 +135,11 @@ describe('handleAdminModelsAccess', () => {
     it('rejects empty updates', async () => {
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'PUT', { updates: [] }),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -127,8 +148,11 @@ describe('handleAdminModelsAccess', () => {
       const updates = Array.from({ length: 201 }, (_, i) => ({ model_id: `m${i}`, rules: [] }));
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'PUT', { updates }),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -137,8 +161,11 @@ describe('handleAdminModelsAccess', () => {
       db.all.mockResolvedValue([]); // groups query
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'PUT', { updates: [{ rules: [] }] }),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -148,8 +175,11 @@ describe('handleAdminModelsAccess', () => {
       mocks.getModelAccessMap.mockResolvedValue(new Map([['m1', false]]));
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'PUT', { updates: [{ model_id: 'm1', rules: [] }] }),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(409);
     });
@@ -158,16 +188,26 @@ describe('handleAdminModelsAccess', () => {
       db.all.mockResolvedValue([{ id: 'g1' }]);
       mocks.getModelAccessMap.mockResolvedValue(new Map());
       mocks.normalizeModelAclRule.mockImplementation((rule) => ({
-        ...rule, principal_type: 'group', principal_id: 'g1',
+        ...rule,
+        principal_type: 'group',
+        principal_id: 'g1',
       }));
       mocks.buildModelAclRuleSaveStatements.mockReturnValue({ statements: [] });
       db.batch.mockResolvedValue(undefined);
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/access', 'PUT', {
-          updates: [{ model_id: 'm1', rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }] }],
+          updates: [
+            {
+              model_id: 'm1',
+              rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }],
+            },
+          ],
         }),
-        env, ctx, user, '/api/admin/models/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -182,8 +222,11 @@ describe('handleAdminModelsAccess', () => {
       mocks.loadModelAclRules.mockResolvedValue([]);
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/gpt-4o/access', 'GET'),
-        env, ctx, user, '/api/admin/models/gpt-4o/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/gpt-4o/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -192,7 +235,9 @@ describe('handleAdminModelsAccess', () => {
       db.all.mockResolvedValue([{ id: 'g1' }]);
       mocks.getModelAccessMap.mockResolvedValue(new Map());
       mocks.normalizeModelAclRule.mockImplementation((rule) => ({
-        ...rule, principal_type: 'group', principal_id: 'g1',
+        ...rule,
+        principal_type: 'group',
+        principal_id: 'g1',
       }));
       mocks.saveModelAclRulesForModel.mockResolvedValue([
         { principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
@@ -201,8 +246,11 @@ describe('handleAdminModelsAccess', () => {
         makeReq('/api/admin/models/gpt-4o/access', 'PUT', {
           rules: [{ principal_type: 'group', principal_id: 'g1', effect: 'allow' }],
         }),
-        env, ctx, user, '/api/admin/models/gpt-4o/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/gpt-4o/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -211,8 +259,11 @@ describe('handleAdminModelsAccess', () => {
     it('returns 405 for unsupported method', async () => {
       const res = await handleAdminModelsAccess(
         makeReq('/api/admin/models/gpt-4o/access', 'PATCH', {}),
-        env, ctx, user, '/api/admin/models/gpt-4o/access',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/models/gpt-4o/access',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(405);
     });
@@ -221,8 +272,11 @@ describe('handleAdminModelsAccess', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleAdminModelsAccess(
       makeReq('/api/unknown', 'GET'),
-      env, ctx, user, '/api/unknown',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/unknown',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

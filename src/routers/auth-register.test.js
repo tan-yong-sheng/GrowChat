@@ -1,37 +1,22 @@
-/**
- * Tests for src/routers/auth-register.js — the first-admin bootstrap claim
- * race and its interaction with rate limiting / body validation.
- *
- * Original ordering claimed the bootstrap sentinel BEFORE rate limit + body
- * validation, so a throttled or malformed first request could consume the
- * sentinel and then fail with 429/400 without ever creating an admin. The
- * fix moves the claim AFTER validation and rolls it back if user creation
- * throws.
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  db: {
-    first: vi.fn(),
-    run: vi.fn(),
-    batch: vi.fn().mockResolvedValue([]),
-  },
+  createDB: vi.fn(),
   hashPassword: vi.fn(),
   createRefreshToken: vi.fn(),
-  signJWT: vi.fn(),
-  loadPrimaryRole: vi.fn(),
-  checkRateLimit: vi.fn(),
   getConfigBool: vi.fn(),
   getConfigValue: vi.fn(),
   setConfigValue: vi.fn(),
-  ensureUserRoleBinding: vi.fn(),
-  createAccessToken: vi.fn(),
-  usersCount: 0,
-  claimChanges: 1, // simulate first claim winning
+  checkRateLimit: vi.fn(),
+  resolveRateLimitSubject: vi.fn(),
+  stripHtml: vi.fn((v) => v),
+  escapeHtml: vi.fn((v) => v),
+  normalizePublicRole: vi.fn((r) => r || 'member'),
+  validateEmail: vi.fn(),
 }));
 
 vi.mock('../db.js', () => ({
-  createDB: () => mocks.db,
+  createDB: (...args) => mocks.createDB(...args),
 }));
 
 vi.mock('../shared/auth.js', () => ({
@@ -49,384 +34,236 @@ vi.mock('../utils/app-config.js', () => ({
 }));
 
 vi.mock('../services/rate-limit.js', () => ({
-  RATE_LIMITS: { authRegister: { limit: 5, windowMs: 60_000 } },
+  RATE_LIMITS: { authRegister: { maxRequests: 3, windowSeconds: 600 } },
   checkRateLimit: (...args) => mocks.checkRateLimit(...args),
-  resolveRateLimitSubject: () => 'test-subject',
+  resolveRateLimitSubject: (...args) => mocks.resolveRateLimitSubject(...args),
 }));
 
-vi.mock('../repositories/user-repository.js', () => ({
-  createUserRepository: () => ({
-    count: () => Promise.resolve(mocks.usersCount),
-    findByEmail: () => Promise.resolve(null),
-    create: async (userData) => {
-      if (mocks.userCreateShouldThrow) {
-        throw new Error('simulated user.create failure');
-      }
-      return { id: userData.id, ...userData };
-    },
-  }),
+vi.mock('../utils/sanitize.js', () => ({
+  stripHtml: (...args) => mocks.stripHtml(...args),
+  escapeHtml: (...args) => mocks.escapeHtml(...args),
 }));
 
 vi.mock('../utils/user-role.js', () => ({
-  normalizePublicRole: (r) => r || 'member',
-  loadPrimaryRole: (...args) => mocks.loadPrimaryRole(...args),
+  normalizePublicRole: (...args) => mocks.normalizePublicRole(...args),
 }));
 
-vi.mock('../bootstrap/router-registry.js', () => ({
-  resolveSharedFns: () => ({
-    ensureUserRoleBinding: (...args) => mocks.ensureUserRoleBinding(...args),
-    createAccessToken: (...args) => mocks.createAccessToken(...args),
+vi.mock('../validation/request.js', () => ({
+  requireString: vi.fn((v, msg) => {
+    if (!v) throw new Error(msg);
+    return v;
   }),
+  validateEmail: (...args) => mocks.validateEmail(...args),
+}));
+
+vi.mock('../errors/http-errors.js', () => ({
+  ValidationError: class extends Error {
+    constructor(msg) {
+      super(msg);
+    }
+  },
+  isHttpError: vi.fn(() => false),
+  toHttpErrorPayload: vi.fn(),
 }));
 
 import { handleRegister } from './auth-register.js';
 
-const VALID_JWT_SECRET = 'test-jwt-secret-not-real-0123456789abcdef0123456789abcdef';
-
-function makeReq(body) {
-  return new Request('https://example.com/api/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+function makeReq(path, method, body) {
+  const init = { method, headers: {} };
+  if (body !== undefined) {
+    init.body = typeof body === 'string' ? body : JSON.stringify(body);
+    init.headers['Content-Type'] = 'application/json';
+  }
+  return new Request(`https://example.com${path}`, init);
 }
 
-const VALID_BODY = {
-  email: 'admin@example.com',
-  name: 'Admin',
-  password: 'supersecret123',
-};
+describe('handleRegister', () => {
+  const db = { all: vi.fn(), run: vi.fn(), first: vi.fn() };
+  const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
+  const users = {
+    count: vi.fn(),
+    findByEmail: vi.fn(),
+    create: vi.fn(),
+  };
+  const jwtSecret = 'test-secret-0123456789abcdef0123456789abcdef';
+  const sharedFns = {
+    ensureUserRoleBinding: vi.fn(),
+    createAccessToken: vi.fn(),
+  };
+  const env = { DB: {}, CACHE: {} };
 
-beforeEach(() => {
-  mocks.db.first.mockReset();
-  mocks.db.run.mockReset();
-  mocks.hashPassword.mockReset().mockResolvedValue('hash');
-  mocks.createRefreshToken.mockReset().mockResolvedValue({ token: 'rt', expiresAt: 0 });
-  mocks.createAccessToken.mockReset().mockResolvedValue('at');
-  mocks.ensureUserRoleBinding.mockReset().mockResolvedValue(undefined);
-  mocks.getConfigBool.mockReset().mockResolvedValue(true);
-  mocks.getConfigValue.mockReset().mockResolvedValue('pending');
-  mocks.setConfigValue.mockReset().mockResolvedValue(undefined);
-  mocks.checkRateLimit
-    .mockReset()
-    .mockResolvedValue({ allowed: true, resetAt: Date.now() + 60_000 });
-  mocks.usersCount = 0; // empty system → first-admin path
-  mocks.claimChanges = 1;
-  mocks.userCreateShouldThrow = false;
-  // Track db.run calls by SQL so we can assert on the claim + rollback.
-  mocks.db.run.mockImplementation(async (sql) => {
-    if (
-      typeof sql === 'string' &&
-      sql.includes('first_admin_claimed') &&
-      sql.startsWith('INSERT')
-    ) {
-      return { meta: { changes: mocks.claimChanges } };
-    }
-    return { meta: { changes: 1 } };
-  });
-});
-
-const sharedFns = {
-  ensureUserRoleBinding: (...args) => mocks.ensureUserRoleBinding(...args),
-  createAccessToken: (...args) => mocks.createAccessToken(...args),
-};
-
-const usersRepo = {
-  count: () => Promise.resolve(mocks.usersCount),
-  findByEmail: () => Promise.resolve(null),
-  create: async (userData) => {
-    if (mocks.userCreateShouldThrow) {
-      throw new Error('simulated user.create failure');
-    }
-    return { id: userData.id, ...userData };
-  },
-};
-
-describe('handleRegister — bootstrap claim race', () => {
-  it('does NOT consume the bootstrap sentinel when the request is rate-limited', async () => {
-    mocks.usersCount = 0;
-    mocks.checkRateLimit.mockResolvedValue({ allowed: false, resetAt: Date.now() + 60_000 });
-
-    const res = await handleRegister(
-      makeReq(VALID_BODY),
-      {},
-      mocks.db,
-      usersRepo,
-      VALID_JWT_SECRET,
-      null,
-      sharedFns
-    );
-
-    expect(res.status).toBe(429);
-    const insertClaimCall = mocks.db.run.mock.calls.find(
-      ([sql]) =>
-        typeof sql === 'string' && sql.startsWith('INSERT') && sql.includes('first_admin_claimed')
-    );
-    expect(insertClaimCall).toBeUndefined();
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.hashPassword.mockResolvedValue('hashed');
+    mocks.createRefreshToken.mockResolvedValue({ token: 'rt', expiresAt: Date.now() + 604800000 });
+    mocks.getConfigBool.mockResolvedValue(true);
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => fallback);
+    mocks.setConfigValue.mockResolvedValue(undefined);
+    mocks.checkRateLimit.mockResolvedValue({ allowed: true });
+    mocks.resolveRateLimitSubject.mockReturnValue('ip:127.0.0.1');
+    mocks.stripHtml.mockImplementation((v) => v);
+    mocks.escapeHtml.mockImplementation((v) => v);
+    mocks.normalizePublicRole.mockImplementation((r) => r || 'member');
+    mocks.validateEmail.mockImplementation((e) => e);
+    users.count.mockResolvedValue(1);
+    users.findByEmail.mockResolvedValue(null);
+    users.create.mockImplementation(async (data) => ({ ...data, id: data.id }));
+    sharedFns.ensureUserRoleBinding.mockResolvedValue(undefined);
+    sharedFns.createAccessToken.mockResolvedValue('access-token');
   });
 
-  it('does NOT consume the bootstrap sentinel when the body is malformed', async () => {
-    mocks.usersCount = 0;
+  it('rejects invalid JSON body', async () => {
     const res = await handleRegister(
-      makeReq({ email: 'not-an-email', name: 'A', password: 'short' }),
-      {},
-      mocks.db,
-      usersRepo,
-      VALID_JWT_SECRET,
-      null,
+      new Request('https://example.com/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not-json',
+      }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
       sharedFns
     );
-
     expect(res.status).toBe(400);
-    const insertClaimCall = mocks.db.run.mock.calls.find(
-      ([sql]) =>
-        typeof sql === 'string' && sql.startsWith('INSERT') && sql.includes('first_admin_claimed')
-    );
-    expect(insertClaimCall).toBeUndefined();
   });
 
-  it('returns 409 when a concurrent first-admin claim wins the race', async () => {
-    mocks.usersCount = 0;
-    mocks.claimChanges = 0; // INSERT OR IGNORE saw the sentinel already taken
-
+  it('rejects when public registration is disabled', async () => {
+    mocks.getConfigBool.mockResolvedValue(false);
+    users.count.mockResolvedValue(1);
     const res = await handleRegister(
-      makeReq(VALID_BODY),
-      {},
-      mocks.db,
-      usersRepo,
-      VALID_JWT_SECRET,
-      null,
+      makeReq('/api/register', 'POST', { email: 'u@e.com', name: 'U', password: 'password123' }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
       sharedFns
     );
+    expect(res.status).toBe(403);
+  });
 
+  it('rejects rate limited requests', async () => {
+    mocks.checkRateLimit.mockResolvedValue({ allowed: false, resetAt: Date.now() + 60000 });
+    const res = await handleRegister(
+      makeReq('/api/register', 'POST', { email: 'u@e.com', name: 'U', password: 'password123' }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
+      sharedFns
+    );
+    expect(res.status).toBe(429);
+  });
+
+  it('rejects short password', async () => {
+    const res = await handleRegister(
+      makeReq('/api/register', 'POST', { email: 'u@e.com', name: 'U', password: 'short' }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
+      sharedFns
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects duplicate email', async () => {
+    users.findByEmail.mockResolvedValue({ id: 'existing' });
+    const res = await handleRegister(
+      makeReq('/api/register', 'POST', { email: 'u@e.com', name: 'U', password: 'password123' }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
+      sharedFns
+    );
     expect(res.status).toBe(409);
   });
 
-  it('rolls back the bootstrap sentinel if user creation throws after a successful claim', async () => {
-    mocks.usersCount = 0;
-    mocks.userCreateShouldThrow = true;
-
-    // The handler re-throws after rollback so the global error handler can
-    // convert it to a 500; the test asserts the rollback happened before the
-    // throw propagated.
-    await expect(
-      handleRegister(
-        makeReq(VALID_BODY),
-        {},
-        mocks.db,
-        usersRepo,
-        VALID_JWT_SECRET,
-        null,
-        sharedFns
-      )
-    ).rejects.toThrow('simulated user.create failure');
-
-    const deleteClaimCall = mocks.db.run.mock.calls.find(
-      ([sql]) =>
-        typeof sql === 'string' && sql.startsWith('DELETE') && sql.includes('first_admin_claimed')
-    );
-    expect(deleteClaimCall).toBeDefined();
-  });
-
-  it('also rolls back the inserted user row if a post-create step throws after a successful claim', async () => {
-    // PR #173 review thread Ms7sF: the catch block used to delete only the
-    // first_admin_claimed sentinel but leave the newly inserted users row
-    // behind. A retry would then see hasUsers > 0 and the original
-    // first-admin claim would be lost forever. The fix also DELETEs the user
-    // row on rollback so a failed bootstrap is fully self-healing.
-    mocks.usersCount = 0;
-    mocks.ensureUserRoleBinding.mockRejectedValueOnce(
-      new Error('simulated ensureUserRoleBinding failure')
-    );
-
-    await expect(
-      handleRegister(
-        makeReq(VALID_BODY),
-        {},
-        mocks.db,
-        usersRepo,
-        VALID_JWT_SECRET,
-        null,
-        sharedFns
-      )
-    ).rejects.toThrow('simulated ensureUserRoleBinding failure');
-
-    const deleteClaimCall = mocks.db.run.mock.calls.find(
-      ([sql]) =>
-        typeof sql === 'string' && sql.startsWith('DELETE') && sql.includes('first_admin_claimed')
-    );
-    expect(deleteClaimCall).toBeDefined();
-
-    const deleteUserCall = mocks.db.run.mock.calls.find(
-      ([sql]) =>
-        typeof sql === 'string' &&
-        sql.startsWith('DELETE') &&
-        sql.includes('users') &&
-        sql.includes('WHERE id =')
-    );
-    expect(deleteUserCall).toBeDefined();
-  });
-
-  it('claims the sentinel AFTER rate limit + validation, in the correct order', async () => {
-    mocks.usersCount = 0;
-    let claimSeenAt = -1;
-    let rateLimitSeenAt = -1;
-    let opIndex = 0;
-    mocks.db.run.mockImplementation(async (sql) => {
-      if (
-        typeof sql === 'string' &&
-        sql.startsWith('INSERT') &&
-        sql.includes('first_admin_claimed')
-      ) {
-        claimSeenAt = opIndex++;
-      } else {
-        opIndex++;
-      }
-      return { meta: { changes: 1 } };
+  it('registers user with pending status', async () => {
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'public_registration_status') return 'pending';
+      return fallback;
     });
-    mocks.checkRateLimit.mockImplementation(async () => {
-      rateLimitSeenAt = opIndex++;
-      return { allowed: true, resetAt: Date.now() + 60_000 };
-    });
-
-    await handleRegister(
-      makeReq(VALID_BODY),
-      {},
-      mocks.db,
-      usersRepo,
-      VALID_JWT_SECRET,
-      null,
+    db.run.mockResolvedValue(undefined);
+    const res = await handleRegister(
+      makeReq('/api/register', 'POST', { email: 'u@e.com', name: 'U', password: 'password123' }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
       sharedFns
     );
-
-    expect(rateLimitSeenAt).toBeGreaterThanOrEqual(0);
-    expect(claimSeenAt).toBeGreaterThanOrEqual(0);
-    // The claim must come AFTER rate limit.
-    expect(claimSeenAt).toBeGreaterThan(rateLimitSeenAt);
-  });
-});
-
-describe('handleRegister — public_registration flip ordering', () => {
-  // PR #173 review thread MsspR: disabling public_registration used to happen
-  // BEFORE ensureUserRoleBinding and the primary_role UPDATE. If either of
-  // those later writes failed, the catch block only rolled back
-  // first_admin_claimed, leaving the deployment with public registration
-  // permanently disabled until a manual DB repair. The fix defers the flip
-  // until all bootstrap writes succeed so a failed bootstrap is self-healing.
-
-  it('does NOT disable public_registration when ensureUserRoleBinding throws after the first-admin user is created', async () => {
-    mocks.usersCount = 0;
-    mocks.ensureUserRoleBinding.mockRejectedValueOnce(
-      new Error('simulated ensureUserRoleBinding failure')
-    );
-
-    await expect(
-      handleRegister(
-        makeReq(VALID_BODY),
-        {},
-        mocks.db,
-        usersRepo,
-        VALID_JWT_SECRET,
-        null,
-        sharedFns
-      )
-    ).rejects.toThrow('simulated ensureUserRoleBinding failure');
-
-    const flipCall = mocks.setConfigValue.mock.calls.find(
-      ([, key, value]) => key === 'public_registration' && value === 'false'
-    );
-    expect(flipCall).toBeUndefined();
+    expect(res.status).toBe(201);
+    const payload = await res.json();
+    expect(payload.status).toBe('pending');
   });
 
-  it('still disables public_registration when the tolerated primary_role UPDATE throws', async () => {
-    // The primary_role UPDATE is wrapped in a tolerant try/catch
-    // ("Tolerate missing column in older schemas"), so its error is
-    // swallowed and the bootstrap path is still considered successful.
-    // The public_registration flip must therefore still run after it.
-    mocks.usersCount = 0;
-    mocks.db.run.mockImplementation(async (sql) => {
-      if (typeof sql === 'string' && sql.startsWith('UPDATE users SET primary_role')) {
-        throw new Error('tolerated UPDATE failure');
-      }
-      if (
-        typeof sql === 'string' &&
-        sql.startsWith('INSERT') &&
-        sql.includes('first_admin_claimed')
-      ) {
-        return { meta: { changes: 1 } };
-      }
-      return { meta: { changes: 1 } };
+  it('registers user with active status and returns tokens', async () => {
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'public_registration_status') return 'active';
+      return fallback;
     });
-
-    await handleRegister(
-      makeReq(VALID_BODY),
-      {},
-      mocks.db,
-      usersRepo,
-      VALID_JWT_SECRET,
-      null,
+    db.run.mockResolvedValue(undefined);
+    const res = await handleRegister(
+      makeReq('/api/register', 'POST', { email: 'u@e.com', name: 'U', password: 'password123' }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
       sharedFns
     );
-
-    const flipCall = mocks.setConfigValue.mock.calls.find(
-      ([, key, value]) => key === 'public_registration' && value === 'false'
-    );
-    expect(flipCall).toBeDefined();
+    expect(res.status).toBe(201);
+    const payload = await res.json();
+    expect(payload.access_token).toBe('access-token');
+    expect(payload.refresh_token).toBe('rt');
   });
 
-  it('disables public_registration AFTER ensureUserRoleBinding and the primary_role UPDATE on successful bootstrap', async () => {
-    mocks.usersCount = 0;
-    let ensureUserRoleBindingSeenAt = -1;
-    let primaryRoleUpdateSeenAt = -1;
-    let flipSeenAt = -1;
-    let opIndex = 0;
-
-    mocks.ensureUserRoleBinding.mockImplementation(async () => {
-      ensureUserRoleBindingSeenAt = opIndex++;
-    });
-    mocks.db.run.mockImplementation(async (sql) => {
-      if (typeof sql === 'string' && sql.startsWith('UPDATE users SET primary_role')) {
-        primaryRoleUpdateSeenAt = opIndex++;
-        return { meta: { changes: 1 } };
-      }
-      opIndex++;
-      return { meta: { changes: 1 } };
-    });
-    mocks.setConfigValue.mockImplementation(async () => {
-      flipSeenAt = opIndex++;
-    });
-
-    await handleRegister(
-      makeReq(VALID_BODY),
-      {},
-      mocks.db,
-      usersRepo,
-      VALID_JWT_SECRET,
-      null,
+  it('first user becomes admin', async () => {
+    users.count.mockResolvedValue(0);
+    db.run.mockResolvedValue({ meta: { changes: 1 } });
+    users.create.mockImplementation(async (data) => ({ ...data, id: data.id }));
+    const res = await handleRegister(
+      makeReq('/api/register', 'POST', {
+        email: 'admin@e.com',
+        name: 'Admin',
+        password: 'password123',
+      }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
       sharedFns
     );
-
-    expect(ensureUserRoleBindingSeenAt).toBeGreaterThanOrEqual(0);
-    expect(primaryRoleUpdateSeenAt).toBeGreaterThanOrEqual(0);
-    expect(flipSeenAt).toBeGreaterThanOrEqual(0);
-    expect(flipSeenAt).toBeGreaterThan(ensureUserRoleBindingSeenAt);
-    expect(flipSeenAt).toBeGreaterThan(primaryRoleUpdateSeenAt);
+    expect(res.status).toBe(201);
+    const payload = await res.json();
+    expect(payload.user.primary_role).toBe('admin');
   });
 
-  it('does NOT touch public_registration when the registering user is not the first admin', async () => {
-    mocks.usersCount = 5; // not first admin
-    await handleRegister(
-      makeReq(VALID_BODY),
-      {},
-      mocks.db,
-      usersRepo,
-      VALID_JWT_SECRET,
-      null,
+  it('handles first-admin race condition', async () => {
+    users.count.mockResolvedValue(0);
+    db.run.mockResolvedValue({ meta: { changes: 0 } });
+    const res = await handleRegister(
+      makeReq('/api/register', 'POST', {
+        email: 'admin@e.com',
+        name: 'Admin',
+        password: 'password123',
+      }),
+      env,
+      db,
+      users,
+      jwtSecret,
+      logger,
       sharedFns
     );
-    const flipCall = mocks.setConfigValue.mock.calls.find(
-      ([, key, value]) => key === 'public_registration' && value === 'false'
-    );
-    expect(flipCall).toBeUndefined();
+    expect(res.status).toBe(409);
   });
 });

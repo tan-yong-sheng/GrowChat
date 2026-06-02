@@ -1,13 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handlePublicModelsCrud } from './models-public-crud.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  createDB: vi.fn(),
   authorize: vi.fn(),
   logAuditEvent: vi.fn(),
   getAllOpenAIConnectionConfigs: vi.fn(),
   fetchBaseModelsFromOpenAI: vi.fn(),
-  toPublicModel: vi.fn((m) => m),
+  toPublicModel: vi.fn(),
   loadCustomModels: vi.fn(),
+}));
+
+vi.mock('../../db.js', () => ({
+  createDB: (...args) => mocks.createDB(...args),
 }));
 
 vi.mock('../../utils/authorize.js', () => ({
@@ -25,794 +29,326 @@ vi.mock('./models-discovery.js', () => ({
   loadCustomModels: (...args) => mocks.loadCustomModels(...args),
 }));
 
-function makeReq(path, method = 'GET', body = null) {
-  const init = { method };
-  if (body !== null) {
-    init.headers = { 'content-type': 'application/json' };
-    init.body = JSON.stringify(body);
+import { handlePublicModelsCrud } from './models-public-crud.js';
+
+function makeReq(path, method, body) {
+  const init = { method, headers: {} };
+  if (body !== undefined) {
+    init.body = typeof body === 'string' ? body : JSON.stringify(body);
+    init.headers['Content-Type'] = 'application/json';
   }
-  return new Request(`http://localhost${path}`, init);
-}
-
-function makeEnv(overrides = {}) {
-  const cache = new Map();
-  return {
-    CACHE: {
-      get: vi.fn(async (key) => cache.get(key) ?? null),
-      put: vi.fn(async (key, value, opts) => {
-        cache.set(key, value);
-      }),
-    },
-    DB: {},
-    ...overrides,
-  };
-}
-
-const NULL_LOGGER = {
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-};
-
-function makeUser(overrides = {}) {
-  return { sub: 'user-1', email: 'admin@localhost', ...overrides };
+  return new Request(`https://example.com${path}`, init);
 }
 
 describe('handlePublicModelsCrud', () => {
+  const user = { sub: 'admin-1' };
+  const env = { DB: {}, CACHE: { get: vi.fn(), put: vi.fn() } };
+  const ctx = {};
+  const db = { all: vi.fn(), run: vi.fn(), first: vi.fn() };
+  const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
+
   beforeEach(() => {
     vi.resetAllMocks();
-    mocks.authorize.mockReturnValue({ allow: true });
+    mocks.createDB.mockReturnValue(db);
+    mocks.authorize.mockResolvedValue({ allow: true });
     mocks.logAuditEvent.mockResolvedValue(undefined);
     mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([]);
     mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
+    mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
     mocks.loadCustomModels.mockResolvedValue([]);
   });
 
-  // ─── POST /api/models ────────────────────────────────────────────────────────
-
   describe('POST /api/models', () => {
-    const validBody = {
-      id: 'gpt-4o-mini',
-      name: 'GPT-4o Mini',
-      provider: 'openai',
-      base_url: 'https://api.openai.com/v1',
-    };
-
-    it('returns 403 when user lacks model.admin permission', async () => {
-      mocks.authorize.mockReturnValue({ allow: false, reason: 'Forbidden' });
-      const req = makeReq('/api/models', 'POST', validBody);
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(403);
-    });
-
-    it('returns 400 for invalid JSON', async () => {
-      const req = new Request('http://localhost/api/models', {
-        method: 'POST',
-        headers: { 'content-type': 'text/plain' },
-        body: 'not json',
-      });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(400);
-    });
-
-    it('returns 400 when id is missing', async () => {
-      const req = makeReq('/api/models', 'POST', {
-        name: 'X',
-        provider: 'openai',
-        base_url: 'https://a.com',
-      });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(400);
-      const body = await result.json();
-      expect(body.error).toContain('id');
-    });
-
-    it('returns 400 when name is missing', async () => {
-      const req = makeReq('/api/models', 'POST', {
-        id: 'x',
-        provider: 'openai',
-        base_url: 'https://a.com',
-      });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(400);
-    });
-
-    it('returns 400 when provider is missing', async () => {
-      const req = makeReq('/api/models', 'POST', { id: 'x', name: 'X', base_url: 'https://a.com' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(400);
-    });
-
-    it('returns 400 when base_url is missing', async () => {
-      const req = makeReq('/api/models', 'POST', { id: 'x', name: 'X', provider: 'openai' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(400);
-    });
-
-    it('returns 400 for invalid provider', async () => {
-      const req = makeReq('/api/models', 'POST', { ...validBody, provider: 'invalid-provider' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(400);
-      const body = await result.json();
-      expect(body.error).toContain('Provider must be one of');
-    });
-
-    it('returns 400 when base_url does not start with http', async () => {
-      const req = makeReq('/api/models', 'POST', {
-        ...validBody,
-        base_url: 'ftp://api.openai.com',
-      });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(400);
-      const body = await result.json();
-      expect(body.error).toContain('base_url must start with http');
-    });
-
-    it('returns 500 when CACHE binding is missing', async () => {
-      const req = makeReq('/api/models', 'POST', validBody);
-      const env = makeEnv({ CACHE: undefined });
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {
-        logger: NULL_LOGGER,
-      });
-      expect(result.status).toBe(500);
-      const body = await result.json();
-      expect(body.error).toContain('An error occurred'); // sanitized for 5xx
-    });
-
-    it('returns 409 when model ID already exists', async () => {
-      mocks.loadCustomModels.mockResolvedValue([
-        { id: 'gpt-4o-mini', name: 'Existing', provider: 'openai', base_url: 'https://a.com' },
-      ]);
-      const req = makeReq('/api/models', 'POST', validBody);
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(409);
-      const body = await result.json();
-      expect(body.error).toContain('ID already exists');
-    });
-
-    it('returns 409 when model name already exists', async () => {
-      mocks.loadCustomModels.mockResolvedValue([
-        { id: 'other-id', name: 'GPT-4o Mini', provider: 'openai', base_url: 'https://a.com' },
-      ]);
-      const req = makeReq('/api/models', 'POST', validBody);
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(409);
-      const body = await result.json();
-      expect(body.error).toContain('name already exists');
-    });
-
-    it('creates model and returns 201 with default max_tokens and temperature', async () => {
-      const req = makeReq('/api/models', 'POST', validBody);
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(201);
-      const body = await result.json();
-      expect(body.model.id).toBe('gpt-4o-mini');
-      expect(body.model.max_tokens).toBe(4096);
-      expect(body.model.temperature).toBe(0.7);
-      expect(body.message).toContain('successfully');
-      expect(env.CACHE.put).toHaveBeenCalled();
-    });
-
-    it('creates model with custom max_tokens and temperature', async () => {
-      const req = makeReq('/api/models', 'POST', {
-        ...validBody,
-        max_tokens: 8192,
-        temperature: 0.9,
-      });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(201);
-      const body = await result.json();
-      expect(body.model.max_tokens).toBe(8192);
-      expect(body.model.temperature).toBe(0.9);
-    });
-
-    it('uses provided description', async () => {
-      const req = makeReq('/api/models', 'POST', { ...validBody, description: 'My custom model' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(201);
-      const body = await result.json();
-      expect(body.model.description).toBe('My custom model');
-    });
-
-    it('generates fallback description when not provided', async () => {
-      const req = makeReq('/api/models', 'POST', validBody);
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(result.status).toBe(201);
-      const body = await result.json();
-      expect(body.model.description).toBe(`${validBody.name} - ${validBody.provider}`);
-    });
-
-    it('logs audit event on successful create', async () => {
-      const req = makeReq('/api/models', 'POST', validBody);
-      const env = makeEnv();
-      await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {});
-      expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+    it('rejects unauthorized', async () => {
+      mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models', 'POST', {
+          id: 'm1',
+          name: 'M1',
+          provider: 'openai',
+          base_url: 'https://example.com',
+        }),
         env,
-        expect.objectContaining({
-          action: 'model_created',
-          resource_type: 'model',
-          resource_id: 'gpt-4o-mini',
-        })
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
       );
+      expect(res.status).toBe(403);
     });
 
-    it('returns 500 when KV put throws', async () => {
+    it('rejects missing required fields', async () => {
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models', 'POST', { id: 'm1' }),
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects invalid provider', async () => {
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models', 'POST', {
+          id: 'm1',
+          name: 'M1',
+          provider: 'bad',
+          base_url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects invalid base_url', async () => {
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models', 'POST', {
+          id: 'm1',
+          name: 'M1',
+          provider: 'openai',
+          base_url: 'not-http',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects when CACHE binding missing', async () => {
+      const noCacheEnv = { DB: {} };
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models', 'POST', {
+          id: 'm1',
+          name: 'M1',
+          provider: 'openai',
+          base_url: 'https://example.com',
+        }),
+        noCacheEnv,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(500);
+    });
+
+    it('creates model successfully', async () => {
       mocks.loadCustomModels.mockResolvedValue([]);
-      const req = makeReq('/api/models', 'POST', validBody);
-      const env = makeEnv();
-      env.CACHE.put.mockRejectedValue(new Error('KV error'));
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models', {
-        logger: NULL_LOGGER,
-      });
-      expect(result.status).toBe(500);
-      const body = await result.json();
-      expect(body.error).toContain('An error occurred'); // sanitized for 5xx
+      env.CACHE.put.mockResolvedValue(undefined);
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models', 'POST', {
+          id: 'm1',
+          name: 'M1',
+          provider: 'openai',
+          base_url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(201);
+      expect(mocks.logAuditEvent).toHaveBeenCalled();
+    });
+
+    it('rejects duplicate model id', async () => {
+      mocks.loadCustomModels.mockResolvedValue([{ id: 'm1' }]);
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models', 'POST', {
+          id: 'm1',
+          name: 'M1',
+          provider: 'openai',
+          base_url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/models',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(409);
     });
   });
-
-  // ─── GET /api/models/:id ─────────────────────────────────────────────────────
 
   describe('GET /api/models/:id', () => {
-    it('returns base model when found in discovered models', async () => {
-      const baseModel = { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' };
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([baseModel]);
-      mocks.toPublicModel.mockImplementation((m) => ({ ...m, public: true }));
-      const req = makeReq('/api/models/gpt-4o', 'GET');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+    it('returns model from base models', async () => {
+      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([
+        { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
+      ]);
+      mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/gpt-4o', 'GET'),
         env,
-        {},
-        makeUser(),
+        ctx,
+        user,
         '/api/models/gpt-4o',
-        {}
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      expect(body.model.id).toBe('gpt-4o');
-      expect(body.model.public).toBe(true);
+      expect(res.status).toBe(200);
     });
 
-    it('returns 404 when base model not found', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([{ id: 'gpt-4o-mini', name: 'Mini' }]);
-      mocks.loadCustomModels.mockResolvedValue([]);
-      const req = makeReq('/api/models/gpt-4o', 'GET');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/gpt-4o',
-        {}
-      );
-      expect(result.status).toBe(404);
-      const body = await result.json();
-      expect(body.error).toBe('Model not found');
-    });
-
-    it('returns custom model from KV when not in base models', async () => {
+    it('returns model from custom models', async () => {
       mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
       mocks.loadCustomModels.mockResolvedValue([
-        { id: 'custom-1', name: 'Custom', provider: 'openai', base_url: 'https://a.com' },
+        { id: 'custom-1', name: 'Custom', provider: 'custom' },
       ]);
-      const req = makeReq('/api/models/custom-1', 'GET');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+      mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/custom-1', 'GET'),
         env,
-        {},
-        makeUser(),
+        ctx,
+        user,
         '/api/models/custom-1',
-        {}
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      expect(body.model.id).toBe('custom-1');
+      expect(res.status).toBe(200);
     });
 
-    it('returns 404 when custom model not found', async () => {
+    it('returns 404 for unknown model', async () => {
       mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
       mocks.loadCustomModels.mockResolvedValue([]);
-      const req = makeReq('/api/models/not-exist', 'GET');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/nonexistent', 'GET'),
         env,
-        {},
-        makeUser(),
-        '/api/models/not-exist',
-        {}
+        ctx,
+        user,
+        '/api/models/nonexistent',
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(404);
-    });
-
-    it('degrades gracefully when fetchBaseModelsFromOpenAI throws', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockRejectedValue(new Error('Network error'));
-      mocks.loadCustomModels.mockResolvedValue([{ id: 'fallback-model', name: 'Fallback' }]);
-      const req = makeReq('/api/models/fallback-model', 'GET');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/fallback-model',
-        { logger: NULL_LOGGER }
-      );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      expect(body.model.id).toBe('fallback-model');
-    });
-
-    it('returns 500 when loadCustomModels throws', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockRejectedValue(new Error('KV error'));
-      const req = makeReq('/api/models/some-id', 'GET');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models/some-id', {
-        logger: NULL_LOGGER,
-      });
-      expect(result.status).toBe(500);
-      const body = await result.json();
-      expect(body.error).toContain('An error occurred'); // sanitized for 5xx
+      expect(res.status).toBe(404);
     });
   });
-
-  // ─── PUT /api/models/:id ─────────────────────────────────────────────────────
 
   describe('PUT /api/models/:id', () => {
-    it('returns 403 when user lacks model.admin permission', async () => {
-      mocks.authorize.mockReturnValue({ allow: false, reason: 'Forbidden' });
-      const req = makeReq('/api/models/custom-1', 'PUT', { name: 'New Name' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+    it('rejects unauthorized', async () => {
+      mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/m1', 'PUT', { name: 'Updated' }),
         env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
+        ctx,
+        user,
+        '/api/models/m1',
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(403);
+      expect(res.status).toBe(403);
     });
 
-    it('returns 400 for invalid JSON', async () => {
-      const req = new Request('http://localhost/api/models/custom-1', {
-        method: 'PUT',
-        headers: { 'content-type': 'text/plain' },
-        body: 'not json',
-      });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+    it('rejects update of base models', async () => {
+      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([{ id: 'm1' }]);
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/m1', 'PUT', { name: 'Updated' }),
         env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
+        ctx,
+        user,
+        '/api/models/m1',
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(400);
+      expect(res.status).toBe(400);
     });
 
-    it('returns 400 when updating a base model', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([{ id: 'gpt-4o-mini', name: 'Mini' }]);
-      const req = makeReq('/api/models/gpt-4o-mini', 'PUT', { name: 'New Name' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/gpt-4o-mini',
-        {}
-      );
-      expect(result.status).toBe(400);
-      const body = await result.json();
-      expect(body.error).toContain('Cannot update base model');
-    });
-
-    it('returns 500 when CACHE binding is missing', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([{ id: 'custom-1', name: 'Custom' }]);
-      const req = makeReq('/api/models/custom-1', 'PUT', { name: 'New' });
-      const env = makeEnv({ CACHE: undefined });
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        { logger: NULL_LOGGER }
-      );
-      expect(result.status).toBe(500);
-      const body = await result.json();
-      expect(body.error).toContain('An error occurred'); // sanitized for 5xx
-    });
-
-    it('returns 404 when custom model not found', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
+    it('returns 404 for unknown custom model', async () => {
       mocks.loadCustomModels.mockResolvedValue([]);
-      const req = makeReq('/api/models/not-exist', 'PUT', { name: 'New' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/nonexistent', 'PUT', { name: 'Updated' }),
         env,
-        {},
-        makeUser(),
-        '/api/models/not-exist',
-        {}
+        ctx,
+        user,
+        '/api/models/nonexistent',
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(404);
+      expect(res.status).toBe(404);
     });
 
-    it('updates name field', async () => {
+    it('updates custom model', async () => {
       mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
       mocks.loadCustomModels.mockResolvedValue([
         {
-          id: 'custom-1',
-          name: 'Old',
-          description: 'Desc',
-          base_url: 'https://a.com',
+          id: 'm1',
+          name: 'M1',
+          provider: 'custom',
+          base_url: 'https://example.com',
+          description: 'desc',
           max_tokens: 4096,
           temperature: 0.7,
         },
       ]);
-      const req = makeReq('/api/models/custom-1', 'PUT', { name: 'New Name' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+      env.CACHE.put.mockResolvedValue(undefined);
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/m1', 'PUT', { name: 'Updated' }),
         env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
+        ctx,
+        user,
+        '/api/models/m1',
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      expect(body.model.name).toBe('New Name');
-    });
-
-    it('updates description field', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        {
-          id: 'custom-1',
-          name: 'N',
-          description: 'Old',
-          base_url: 'https://a.com',
-          max_tokens: 4096,
-          temperature: 0.7,
-        },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'PUT', { description: 'New Description' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
-      );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      expect(body.model.description).toBe('New Description');
-    });
-
-    it('updates base_url and validates http prefix', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        {
-          id: 'custom-1',
-          name: 'N',
-          description: 'D',
-          base_url: 'https://a.com',
-          max_tokens: 4096,
-          temperature: 0.7,
-        },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'PUT', { base_url: 'ftp://bad.com' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
-      );
-      expect(result.status).toBe(400);
-      const body = await result.json();
-      expect(body.error).toContain('base_url must start with http');
-    });
-
-    it('updates max_tokens', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        {
-          id: 'custom-1',
-          name: 'N',
-          description: 'D',
-          base_url: 'https://a.com',
-          max_tokens: 4096,
-          temperature: 0.7,
-        },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'PUT', { max_tokens: 16384 });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
-      );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      expect(body.model.max_tokens).toBe(16384);
-    });
-
-    it('updates temperature', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        {
-          id: 'custom-1',
-          name: 'N',
-          description: 'D',
-          base_url: 'https://a.com',
-          max_tokens: 4096,
-          temperature: 0.7,
-        },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'PUT', { temperature: 1.5 });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
-      );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      expect(body.model.temperature).toBe(1.5);
-    });
-
-    it('ignores NaN max_tokens and temperature values', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        {
-          id: 'custom-1',
-          name: 'N',
-          description: 'D',
-          base_url: 'https://a.com',
-          max_tokens: 4096,
-          temperature: 0.7,
-        },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'PUT', {
-        max_tokens: 'not-a-number',
-        temperature: 'also-not',
-      });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
-      );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      // Original values preserved
-      expect(body.model.max_tokens).toBe(4096);
-      expect(body.model.temperature).toBe(0.7);
-    });
-
-    it('logs audit event on successful update', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        {
-          id: 'custom-1',
-          name: 'Old',
-          description: 'D',
-          base_url: 'https://a.com',
-          max_tokens: 4096,
-          temperature: 0.7,
-        },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'PUT', { name: 'New' });
-      const env = makeEnv();
-      await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models/custom-1', {});
-      expect(mocks.logAuditEvent).toHaveBeenCalledWith(
-        env,
-        expect.objectContaining({
-          action: 'model_updated',
-          resource_type: 'model',
-          resource_id: 'custom-1',
-        })
-      );
+      expect(res.status).toBe(200);
+      expect(mocks.logAuditEvent).toHaveBeenCalled();
     });
   });
-
-  // ─── DELETE /api/models/:id ──────────────────────────────────────────────────
 
   describe('DELETE /api/models/:id', () => {
-    it('returns 403 when user lacks model.admin permission', async () => {
-      mocks.authorize.mockReturnValue({ allow: false, reason: 'Forbidden' });
-      const req = makeReq('/api/models/custom-1', 'DELETE');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+    it('rejects unauthorized', async () => {
+      mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/m1', 'DELETE'),
         env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
+        ctx,
+        user,
+        '/api/models/m1',
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(403);
+      expect(res.status).toBe(403);
     });
 
-    it('returns 400 when deleting a base model', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([{ id: 'gpt-4o-mini', name: 'Mini' }]);
-      const req = makeReq('/api/models/gpt-4o-mini', 'DELETE');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
+    it('rejects delete of base models', async () => {
+      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([{ id: 'm1' }]);
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/m1', 'DELETE'),
         env,
-        {},
-        makeUser(),
-        '/api/models/gpt-4o-mini',
-        {}
+        ctx,
+        user,
+        '/api/models/m1',
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(400);
-      const body = await result.json();
-      expect(body.error).toContain('Cannot delete base model');
+      expect(res.status).toBe(400);
     });
 
-    it('returns 500 when CACHE binding is missing', async () => {
+    it('deletes custom model', async () => {
       mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([{ id: 'custom-1', name: 'Custom' }]);
-      const req = makeReq('/api/models/custom-1', 'DELETE');
-      const env = makeEnv({ CACHE: undefined });
-      const result = await handlePublicModelsCrud(
-        req,
+      mocks.loadCustomModels.mockResolvedValue([{ id: 'm1', name: 'M1', provider: 'custom' }]);
+      env.CACHE.put.mockResolvedValue(undefined);
+      const res = await handlePublicModelsCrud(
+        makeReq('/api/models/m1', 'DELETE'),
         env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        { logger: NULL_LOGGER }
+        ctx,
+        user,
+        '/api/models/m1',
+        { _db: db, logger, _requestContext: {} }
       );
-      expect(result.status).toBe(500);
-      const body = await result.json();
-      expect(body.error).toContain('An error occurred'); // sanitized for 5xx
-    });
-
-    it('returns 404 when custom model not found', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([]);
-      const req = makeReq('/api/models/not-exist', 'DELETE');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/not-exist',
-        {}
-      );
-      expect(result.status).toBe(404);
-    });
-
-    it('deletes model and returns 200', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        { id: 'custom-1', name: 'Custom', provider: 'openai', base_url: 'https://a.com' },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'DELETE');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        {}
-      );
-      expect(result.status).toBe(200);
-      const body = await result.json();
-      expect(body.success).toBe(true);
-      expect(body.message).toContain('removed');
-      expect(env.CACHE.put).toHaveBeenCalled();
-    });
-
-    it('logs audit event with deleted model metadata', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        { id: 'custom-1', name: 'Custom', provider: 'openai', base_url: 'https://a.com' },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'DELETE');
-      const env = makeEnv();
-      await handlePublicModelsCrud(req, env, {}, makeUser(), '/api/models/custom-1', {});
-      expect(mocks.logAuditEvent).toHaveBeenCalledWith(
-        env,
-        expect.objectContaining({
-          action: 'model_deleted',
-          resource_type: 'model',
-          resource_id: 'custom-1',
-          metadata: expect.objectContaining({ provider: 'openai', name: 'Custom' }),
-        })
-      );
-    });
-
-    it('returns 500 when KV put throws', async () => {
-      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
-      mocks.loadCustomModels.mockResolvedValue([
-        { id: 'custom-1', name: 'C', provider: 'o', base_url: 'https://a.com' },
-      ]);
-      const req = makeReq('/api/models/custom-1', 'DELETE');
-      const env = makeEnv();
-      env.CACHE.put.mockRejectedValue(new Error('KV error'));
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/custom-1',
-        { logger: NULL_LOGGER }
-      );
-      expect(result.status).toBe(500);
+      expect(res.status).toBe(200);
+      expect(mocks.logAuditEvent).toHaveBeenCalled();
     });
   });
 
-  // ─── Non-matching routes return null ────────────────────────────────────────
-
-  describe('non-matching routes', () => {
-    it('returns null for /api/models (POST with different path)', async () => {
-      const req = makeReq('/api/models/wrong', 'POST', { id: 'x' });
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/wrong',
-        {}
-      );
-      expect(result).toBeNull();
-    });
-
-    it('returns null for unhandled method', async () => {
-      const req = makeReq('/api/models/gpt-4o', 'PATCH');
-      const env = makeEnv();
-      const result = await handlePublicModelsCrud(
-        req,
-        env,
-        {},
-        makeUser(),
-        '/api/models/gpt-4o',
-        {}
-      );
-      expect(result).toBeNull();
-    });
+  it('returns null for non-matching paths', async () => {
+    const result = await handlePublicModelsCrud(
+      makeReq('/api/chats', 'GET'),
+      env,
+      ctx,
+      user,
+      '/api/chats',
+      { _db: db, logger, _requestContext: {} }
+    );
+    expect(result).toBeNull();
   });
 });

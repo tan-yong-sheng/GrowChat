@@ -95,8 +95,11 @@ describe('handleUsersMcp', () => {
     it('handles error param', async () => {
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/oauth/callback?error=denied', 'GET'),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/oauth/callback',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/callback',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -104,8 +107,11 @@ describe('handleUsersMcp', () => {
     it('requires code and state', async () => {
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/oauth/callback', 'GET'),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/oauth/callback',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/callback',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -114,26 +120,45 @@ describe('handleUsersMcp', () => {
       mocks.findUserToolServerByOauthState.mockResolvedValue(null);
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/oauth/callback?code=abc&state=bad', 'GET'),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/oauth/callback',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/callback',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('exchanges code for tokens', async () => {
       mocks.findUserToolServerByOauthState.mockResolvedValue({
-        id: 's1', user_id: 'u1', url: 'https://mcp.example.com',
-        oauth_client_id: 'c1', oauth_client_secret: 'sec',
-        oauth_code_verifier: 'verifier', oauth_token_auth_method: 'client_secret_post',
+        id: 's1',
+        user_id: 'u1',
+        url: 'https://mcp.example.com',
+        oauth_client_id: 'c1',
+        oauth_client_secret: 'sec',
+        oauth_code_verifier: 'verifier',
+        oauth_token_auth_method: 'client_secret_post',
         oauth_token_endpoint: 'https://auth.example.com/token',
       });
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
-        access_token: 'at-1', token_type: 'Bearer',
-      }), { status: 200 })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              access_token: 'at-1',
+              token_type: 'Bearer',
+            }),
+            { status: 200 }
+          )
+        )
+      );
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/oauth/callback?code=abc&state=valid', 'GET'),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/oauth/callback',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/callback',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.saveUserToolServerJson).toHaveBeenCalled();
@@ -144,8 +169,11 @@ describe('handleUsersMcp', () => {
     it('returns 401 without user', async () => {
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers', 'GET'),
-        env, ctx, null, '/api/users/me/resources/mcp-servers',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        null,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(401);
     });
@@ -154,8 +182,11 @@ describe('handleUsersMcp', () => {
       mocks.loadWorkspaceToolServersPayload.mockResolvedValue({ servers: [{ id: 's1' }] });
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers', 'GET'),
-        env, ctx, user, '/api/users/me/resources/mcp-servers',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
     });
@@ -164,8 +195,11 @@ describe('handleUsersMcp', () => {
       mocks.loadWorkspaceToolServersPayload.mockRejectedValue(new Error('fail'));
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers', 'GET'),
-        env, ctx, user, '/api/users/me/resources/mcp-servers',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -175,9 +209,15 @@ describe('handleUsersMcp', () => {
     it('creates server', async () => {
       mocks.createUserToolServer.mockResolvedValue({ id: 'new-s' });
       const res = await handleUsersMcp(
-        makeReq('/api/users/me/resources/mcp-servers', 'POST', { name: 'New', url: 'https://example.com' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/users/me/resources/mcp-servers', 'POST', {
+          name: 'New',
+          url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(201);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -187,8 +227,11 @@ describe('handleUsersMcp', () => {
       mocks.createUserToolServer.mockRejectedValue(new Error('bad data'));
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers', 'POST', { name: '' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -198,8 +241,11 @@ describe('handleUsersMcp', () => {
     it('requires valid URL', async () => {
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/test', 'POST', { url: '' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/test',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/test',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -208,8 +254,11 @@ describe('handleUsersMcp', () => {
       mocks.isSafeOutboundUrl.mockReturnValue({ safe: false, reason: 'blocked' });
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/test', 'POST', { url: 'https://evil.com' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/test',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/test',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -218,8 +267,11 @@ describe('handleUsersMcp', () => {
       mocks.testToolServerConnection.mockResolvedValue({ tools: [{ name: 't1' }] });
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/test', 'POST', { url: 'https://example.com' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/test',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/test',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -230,8 +282,11 @@ describe('handleUsersMcp', () => {
       mocks.testToolServerConnection.mockRejectedValue(new Error('fail'));
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/test', 'POST', { url: 'https://example.com' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/test',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/test',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -240,9 +295,14 @@ describe('handleUsersMcp', () => {
   describe('POST /api/users/me/resources/mcp-servers/oauth/start', () => {
     it('requires server id', async () => {
       const res = await handleUsersMcp(
-        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', { url: 'https://example.com' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/oauth/start',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', {
+          url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/start',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -250,9 +310,15 @@ describe('handleUsersMcp', () => {
     it('requires existing server', async () => {
       mocks.loadUserToolServers.mockResolvedValue([]);
       const res = await handleUsersMcp(
-        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', { id: 's1', url: 'https://example.com' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/oauth/start',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/start',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -263,8 +329,11 @@ describe('handleUsersMcp', () => {
       mocks.updateUserToolServer.mockResolvedValue({ id: 's1' });
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/s1', 'PUT', { name: 'Updated' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/s1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/s1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -274,8 +343,11 @@ describe('handleUsersMcp', () => {
       mocks.updateUserToolServer.mockResolvedValue(null);
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/nonexistent', 'PUT', { name: 'X' }),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/nonexistent',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/nonexistent',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
@@ -286,8 +358,11 @@ describe('handleUsersMcp', () => {
       mocks.deleteUserToolServer.mockResolvedValue(true);
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/s1', 'DELETE'),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/s1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/s1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -297,8 +372,11 @@ describe('handleUsersMcp', () => {
       mocks.deleteUserToolServer.mockResolvedValue(false);
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/nonexistent', 'DELETE'),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/nonexistent',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/nonexistent',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
@@ -306,8 +384,11 @@ describe('handleUsersMcp', () => {
     it('returns 405 for unsupported method', async () => {
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/s1', 'PATCH', {}),
-        env, ctx, user, '/api/users/me/resources/mcp-servers/s1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/s1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(405);
     });
@@ -316,8 +397,11 @@ describe('handleUsersMcp', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleUsersMcp(
       makeReq('/api/unknown', 'GET'),
-      env, ctx, user, '/api/unknown',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/unknown',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

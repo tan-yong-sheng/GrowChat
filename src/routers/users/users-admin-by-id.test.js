@@ -44,7 +44,11 @@ vi.mock('../../utils/sanitize.js', () => ({
 }));
 
 vi.mock('../../errors/http-errors.js', () => ({
-  ValidationError: class extends Error { constructor(msg) { super(msg); } },
+  ValidationError: class extends Error {
+    constructor(msg) {
+      super(msg);
+    }
+  },
   isHttpError: vi.fn(() => false),
   toHttpErrorPayload: vi.fn(),
 }));
@@ -94,8 +98,11 @@ describe('handleUsersAdminById', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'GET'),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -104,21 +111,32 @@ describe('handleUsersAdminById', () => {
       db.first.mockResolvedValue(null);
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/nonexistent', 'GET'),
-        env, ctx, user, '/api/admin/users/nonexistent',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/nonexistent',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
 
     it('returns user data', async () => {
       db.first.mockResolvedValue({
-        id: 'u1', email: 'user@example.com', name: 'User',
-        account_status: 'active', settings: '{}', created_at: 1, updated_at: 1,
+        id: 'u1',
+        email: 'user@example.com',
+        name: 'User',
+        account_status: 'active',
+        settings: '{}',
+        created_at: 1,
+        updated_at: 1,
       });
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'GET'),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -130,8 +148,11 @@ describe('handleUsersAdminById', () => {
       db.first.mockRejectedValue(new Error('fail'));
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'GET'),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -142,8 +163,11 @@ describe('handleUsersAdminById', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'PUT', { name: 'New' }),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -152,42 +176,69 @@ describe('handleUsersAdminById', () => {
       db.first.mockResolvedValue(null);
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/nonexistent', 'PUT', { name: 'New' }),
-        env, ctx, user, '/api/admin/users/nonexistent',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/nonexistent',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
 
     it('rejects invalid primary_role', async () => {
-      db.first.mockResolvedValue({ id: 'u1', account_status: 'active', email: 'u@e.com', name: 'U' });
+      db.first.mockResolvedValue({
+        id: 'u1',
+        account_status: 'active',
+        email: 'u@e.com',
+        name: 'U',
+      });
       mocks.resolveRequestedRole.mockResolvedValue(null);
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'PUT', { primary_role: 'nonexistent_role' }),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('prevents demoting last admin', async () => {
-      db.first.mockResolvedValue({ id: 'u1', account_status: 'active', email: 'a@e.com', name: 'Admin' });
+      db.first.mockResolvedValue({
+        id: 'u1',
+        account_status: 'active',
+        email: 'a@e.com',
+        name: 'Admin',
+      });
       mocks.loadPrimaryRole.mockResolvedValue('admin');
       mocks.isLastOwnerOfRole.mockResolvedValue(true);
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'PUT', { primary_role: 'member' }),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(409);
     });
 
     it('rejects empty name after sanitization', async () => {
-      db.first.mockResolvedValue({ id: 'u1', account_status: 'active', email: 'u@e.com', name: 'U' });
+      db.first.mockResolvedValue({
+        id: 'u1',
+        account_status: 'active',
+        email: 'u@e.com',
+        name: 'U',
+      });
       // stripHtml is mocked to pass through, so empty string stays empty
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'PUT', { name: '' }),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       // When name is empty after stripHtml, the handler returns 400
       expect(res.status).toBe(400);
@@ -195,49 +246,81 @@ describe('handleUsersAdminById', () => {
 
     it('rejects duplicate email', async () => {
       db.first.mockImplementation(async (sql, params) => {
-        if (sql.includes('SELECT id, account_status')) return { id: 'u1', account_status: 'active', email: 'u@e.com', name: 'U' };
+        if (sql.includes('SELECT id, account_status'))
+          return { id: 'u1', account_status: 'active', email: 'u@e.com', name: 'U' };
         if (sql.includes('id != ?')) return { id: 'other' };
         return null;
       });
       mocks.validateEmail.mockReturnValue('duplicate@e.com');
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'PUT', { email: 'duplicate@e.com' }),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(409);
     });
 
     it('rejects short password', async () => {
-      db.first.mockResolvedValue({ id: 'u1', account_status: 'active', email: 'u@e.com', name: 'U' });
+      db.first.mockResolvedValue({
+        id: 'u1',
+        account_status: 'active',
+        email: 'u@e.com',
+        name: 'U',
+      });
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'PUT', { password: 'short' }),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('rejects no valid fields to update', async () => {
-      db.first.mockResolvedValue({ id: 'u1', account_status: 'active', email: 'u@e.com', name: 'U' });
+      db.first.mockResolvedValue({
+        id: 'u1',
+        account_status: 'active',
+        email: 'u@e.com',
+        name: 'U',
+      });
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'PUT', {}),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('updates user successfully', async () => {
       db.first.mockImplementation(async (sql) => {
-        if (sql.includes('SELECT id, account_status')) return { id: 'u1', account_status: 'active', email: 'u@e.com', name: 'U' };
-        return { id: 'u1', email: 'u@e.com', name: 'Updated', account_status: 'active', settings: '{}', created_at: 1, updated_at: 2 };
+        if (sql.includes('SELECT id, account_status'))
+          return { id: 'u1', account_status: 'active', email: 'u@e.com', name: 'U' };
+        return {
+          id: 'u1',
+          email: 'u@e.com',
+          name: 'Updated',
+          account_status: 'active',
+          settings: '{}',
+          created_at: 1,
+          updated_at: 2,
+        };
       });
       db.run.mockResolvedValue(undefined);
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'PUT', { name: 'Updated' }),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -249,8 +332,11 @@ describe('handleUsersAdminById', () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'DELETE'),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -258,8 +344,11 @@ describe('handleUsersAdminById', () => {
     it('prevents deleting yourself', async () => {
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/admin-1', 'DELETE'),
-        env, ctx, user, '/api/admin/users/admin-1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/admin-1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -268,8 +357,11 @@ describe('handleUsersAdminById', () => {
       db.first.mockResolvedValue(null);
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/nonexistent', 'DELETE'),
-        env, ctx, user, '/api/admin/users/nonexistent',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/nonexistent',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(404);
     });
@@ -280,8 +372,11 @@ describe('handleUsersAdminById', () => {
       mocks.isLastOwnerOfRole.mockResolvedValue(true);
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'DELETE'),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -293,8 +388,11 @@ describe('handleUsersAdminById', () => {
       db.run.mockResolvedValue(undefined);
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'DELETE'),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -306,8 +404,11 @@ describe('handleUsersAdminById', () => {
       db.run.mockRejectedValue(new Error('fail'));
       const res = await handleUsersAdminById(
         makeReq('/api/admin/users/u1', 'DELETE'),
-        env, ctx, user, '/api/admin/users/u1',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/u1',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -316,8 +417,11 @@ describe('handleUsersAdminById', () => {
   it('returns null for non-matching paths', async () => {
     const result = await handleUsersAdminById(
       makeReq('/api/admin/users', 'GET'),
-      env, ctx, user, '/api/admin/users',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/users',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

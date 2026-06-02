@@ -66,8 +66,14 @@ describe('handleAdminToolServersCrud', () => {
   const env = { DB: {} };
   const ctx = {};
   const db = {
-    all: vi.fn(), run: vi.fn(), batch: vi.fn(),
-    prepare: vi.fn((sql, params = []) => ({ sql, params, bind: (...args) => ({ sql, params: args }) })),
+    all: vi.fn(),
+    run: vi.fn(),
+    batch: vi.fn(),
+    prepare: vi.fn((sql, params = []) => ({
+      sql,
+      params,
+      bind: (...args) => ({ sql, params: args }),
+    })),
   };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
 
@@ -82,7 +88,10 @@ describe('handleAdminToolServersCrud', () => {
     mocks.parseHeadersForRequest.mockReturnValue({});
     mocks.loadToolServers.mockResolvedValue([]);
     mocks.saveToolServers.mockResolvedValue(undefined);
-    mocks.mergeToolServer.mockImplementation((existing, incoming) => ({ ...existing, ...incoming }));
+    mocks.mergeToolServer.mockImplementation((existing, incoming) => ({
+      ...existing,
+      ...incoming,
+    }));
     mocks.mergeToolSpecs.mockImplementation((existing, discovered) => discovered);
   });
 
@@ -93,8 +102,11 @@ describe('handleAdminToolServersCrud', () => {
       ]);
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers', 'GET'),
-        env, ctx, user, '/api/admin/tool-servers',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -108,8 +120,11 @@ describe('handleAdminToolServersCrud', () => {
       ]);
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers', 'GET'),
-        env, ctx, user, '/api/admin/tool-servers',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers',
+        { db, logger, _requestContext: {} }
       );
       const payload = await res.json();
       expect(payload.servers).toHaveLength(1);
@@ -122,8 +137,11 @@ describe('handleAdminToolServersCrud', () => {
       ]);
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers?include_disabled=true', 'GET'),
-        env, ctx, user, '/api/admin/tool-servers',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers',
+        { db, logger, _requestContext: {} }
       );
       const payload = await res.json();
       expect(payload.servers).toHaveLength(2);
@@ -133,8 +151,11 @@ describe('handleAdminToolServersCrud', () => {
       mocks.loadToolServers.mockRejectedValue(new Error('fail'));
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers', 'GET'),
-        env, ctx, user, '/api/admin/tool-servers',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -145,8 +166,11 @@ describe('handleAdminToolServersCrud', () => {
       mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers/test', 'POST', { url: 'https://example.com' }),
-        env, ctx, user, '/api/admin/tool-servers/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -155,8 +179,11 @@ describe('handleAdminToolServersCrud', () => {
       mocks.isValidHttpUrl.mockReturnValue(false);
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers/test', 'POST', { url: 'not-url' }),
-        env, ctx, user, '/api/admin/tool-servers/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -165,18 +192,29 @@ describe('handleAdminToolServersCrud', () => {
       mocks.isSafeOutboundUrl.mockReturnValue({ safe: false, reason: 'blocked' });
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers/test', 'POST', { url: 'https://evil.com' }),
-        env, ctx, user, '/api/admin/tool-servers/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('rejects invalid headers JSON', async () => {
-      mocks.parseHeadersForRequest.mockImplementation(() => { throw new Error('Bad headers'); });
+      mocks.parseHeadersForRequest.mockImplementation(() => {
+        throw new Error('Bad headers');
+      });
       const res = await handleAdminToolServersCrud(
-        makeReq('/api/admin/tool-servers/test', 'POST', { url: 'https://example.com', headers: 'bad' }),
-        env, ctx, user, '/api/admin/tool-servers/test',
-        { db, logger, _requestContext: {} },
+        makeReq('/api/admin/tool-servers/test', 'POST', {
+          url: 'https://example.com',
+          headers: 'bad',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -185,21 +223,40 @@ describe('handleAdminToolServersCrud', () => {
       mocks.normalizeAuthType.mockReturnValue('oauth');
       mocks.loadToolServers.mockResolvedValue([]);
       const res = await handleAdminToolServersCrud(
-        makeReq('/api/admin/tool-servers/test', 'POST', { url: 'https://example.com', auth_type: 'oauth' }),
-        env, ctx, user, '/api/admin/tool-servers/test',
-        { db, logger, _requestContext: {} },
+        makeReq('/api/admin/tool-servers/test', 'POST', {
+          url: 'https://example.com',
+          auth_type: 'oauth',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
 
     it('returns connection test results', async () => {
-      mocks.mcpRequest.mockResolvedValueOnce({ sessionId: 's1' })
-        .mockResolvedValueOnce({ result: { tools: [{ name: 'tool-a', title: 'A', description: 'Tool A', inputSchema: { type: 'object' } }] } });
+      mocks.mcpRequest.mockResolvedValueOnce({ sessionId: 's1' }).mockResolvedValueOnce({
+        result: {
+          tools: [
+            {
+              name: 'tool-a',
+              title: 'A',
+              description: 'Tool A',
+              inputSchema: { type: 'object' },
+            },
+          ],
+        },
+      });
       mocks.mcpNotify.mockResolvedValueOnce({ sessionId: 's1' });
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers/test', 'POST', { url: 'https://example.com' }),
-        env, ctx, user, '/api/admin/tool-servers/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
@@ -211,8 +268,11 @@ describe('handleAdminToolServersCrud', () => {
       mocks.mcpRequest.mockRejectedValue(new Error('Connection failed'));
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers/test', 'POST', { url: 'https://example.com' }),
-        env, ctx, user, '/api/admin/tool-servers/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(502);
     });
@@ -224,8 +284,11 @@ describe('handleAdminToolServersCrud', () => {
       mocks.mcpRequest.mockRejectedValue(new Error('Connection failed'));
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers/test', 'POST', { id: 's1', url: 'https://example.com' }),
-        env, ctx, user, '/api/admin/tool-servers/test',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/test',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(502);
       expect(mocks.saveToolServers).toHaveBeenCalled();
@@ -237,8 +300,11 @@ describe('handleAdminToolServersCrud', () => {
       mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleAdminToolServersCrud(
         makeReq('/api/admin/tool-servers', 'PUT', { servers: [] }),
-        env, ctx, user, '/api/admin/tool-servers',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -250,8 +316,11 @@ describe('handleAdminToolServersCrud', () => {
         makeReq('/api/admin/tool-servers', 'PUT', {
           servers: [{ id: 's1', name: 'Server', url: 'https://example.com', enabled: true }],
         }),
-        env, ctx, user, '/api/admin/tool-servers',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
       expect(mocks.saveToolServers).toHaveBeenCalled();
@@ -266,8 +335,11 @@ describe('handleAdminToolServersCrud', () => {
         makeReq('/api/admin/tool-servers', 'PUT', {
           servers: [{ id: 's1', name: 'Server', url: 'https://example.com' }],
         }),
-        env, ctx, user, '/api/admin/tool-servers',
-        { db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers',
+        { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(500);
     });
@@ -276,8 +348,11 @@ describe('handleAdminToolServersCrud', () => {
   it('returns null for unrecognized paths', async () => {
     const result = await handleAdminToolServersCrud(
       makeReq('/api/admin/unknown', 'GET'),
-      env, ctx, user, '/api/admin/unknown',
-      { db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/unknown',
+      { db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });

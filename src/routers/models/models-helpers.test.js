@@ -142,7 +142,9 @@ describe('models-helpers', () => {
     });
 
     it('does not suppress 401 with credentials', () => {
-      expect(shouldSuppressDiscoveryWarning({ key: 'secret' }, { error: { status: 401 } })).toBe(false);
+      expect(shouldSuppressDiscoveryWarning({ key: 'secret' }, { error: { status: 401 } })).toBe(
+        false
+      );
     });
   });
 

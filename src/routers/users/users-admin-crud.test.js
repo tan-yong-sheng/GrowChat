@@ -36,7 +36,11 @@ vi.mock('../../validation/request.js', async (importOriginal) => {
 });
 
 vi.mock('../../errors/http-errors.js', () => ({
-  ValidationError: class extends Error { constructor(msg) { super(msg); } },
+  ValidationError: class extends Error {
+    constructor(msg) {
+      super(msg);
+    }
+  },
   isHttpError: vi.fn(() => false),
   toHttpErrorPayload: vi.fn(),
 }));
@@ -84,9 +88,16 @@ describe('handleUsersAdminCrud', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleUsersAdminCrud(
-        makeReq('/api/admin/users', 'POST', { email: 'u@e.com', name: 'U', password: 'password123' }),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/admin/users', 'POST', {
+          email: 'u@e.com',
+          name: 'U',
+          password: 'password123',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -94,8 +105,11 @@ describe('handleUsersAdminCrud', () => {
     it('rejects missing fields', async () => {
       const res = await handleUsersAdminCrud(
         makeReq('/api/admin/users', 'POST', { email: '' }),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -103,8 +117,11 @@ describe('handleUsersAdminCrud', () => {
     it('rejects short password', async () => {
       const res = await handleUsersAdminCrud(
         makeReq('/api/admin/users', 'POST', { email: 'u@e.com', name: 'U', password: 'short' }),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -112,9 +129,17 @@ describe('handleUsersAdminCrud', () => {
     it('rejects invalid role', async () => {
       mocks.resolveRequestedRole.mockResolvedValue(null);
       const res = await handleUsersAdminCrud(
-        makeReq('/api/admin/users', 'POST', { email: 'u@e.com', name: 'U', password: 'password123', primary_role: 'bad' }),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/admin/users', 'POST', {
+          email: 'u@e.com',
+          name: 'U',
+          password: 'password123',
+          primary_role: 'bad',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -122,9 +147,16 @@ describe('handleUsersAdminCrud', () => {
     it('rejects duplicate email', async () => {
       db.first.mockResolvedValue({ id: 'existing' });
       const res = await handleUsersAdminCrud(
-        makeReq('/api/admin/users', 'POST', { email: 'u@e.com', name: 'U', password: 'password123' }),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/admin/users', 'POST', {
+          email: 'u@e.com',
+          name: 'U',
+          password: 'password123',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(409);
     });
@@ -132,13 +164,29 @@ describe('handleUsersAdminCrud', () => {
     it('creates user successfully', async () => {
       db.first.mockImplementation(async (sql, params) => {
         if (sql.includes('SELECT id FROM users WHERE email')) return null;
-        return { id: 'new-id', email: 'u@e.com', name: 'U', account_status: 'active', settings: '{}', created_at: 1, updated_at: 1, last_active_at: null };
+        return {
+          id: 'new-id',
+          email: 'u@e.com',
+          name: 'U',
+          account_status: 'active',
+          settings: '{}',
+          created_at: 1,
+          updated_at: 1,
+          last_active_at: null,
+        };
       });
       db.run.mockResolvedValue(undefined);
       const res = await handleUsersAdminCrud(
-        makeReq('/api/admin/users', 'POST', { email: 'u@e.com', name: 'U', password: 'password123' }),
-        env, ctx, user, '/api/admin/users',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/admin/users', 'POST', {
+          email: 'u@e.com',
+          name: 'U',
+          password: 'password123',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/users',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(201);
       expect(mocks.logAuditEvent).toHaveBeenCalled();
@@ -149,9 +197,14 @@ describe('handleUsersAdminCrud', () => {
     it('rejects unauthorized', async () => {
       mocks.authorize.mockResolvedValue({ allow: false, reason: 'no' });
       const res = await handleUsersAdminCrud(
-        makeReq('/api/admin/users/import', 'POST', { csv: 'name,email,password,primary_role\nU,u@e.com,password123,member' }),
-        env, ctx, user, '/api/admin/users/import',
-        { _db: db, logger, _requestContext: {} },
+        makeReq('/api/admin/users/import', 'POST', {
+          csv: 'name,email,password,primary_role\nU,u@e.com,password123,member',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/users/import',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(403);
     });
@@ -159,8 +212,11 @@ describe('handleUsersAdminCrud', () => {
     it('rejects empty CSV', async () => {
       const res = await handleUsersAdminCrud(
         makeReq('/api/admin/users/import', 'POST', { csv: '' }),
-        env, ctx, user, '/api/admin/users/import',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/import',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(400);
     });
@@ -172,8 +228,11 @@ describe('handleUsersAdminCrud', () => {
         makeReq('/api/admin/users/import', 'POST', {
           csv: 'name,email,password,primary_role\nUser1,u1@e.com,password123,member',
         }),
-        env, ctx, user, '/api/admin/users/import',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/import',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(201);
       const payload = await res.json();
@@ -187,8 +246,11 @@ describe('handleUsersAdminCrud', () => {
         makeReq('/api/admin/users/import', 'POST', {
           csv: 'name,email,password,primary_role\n,missing-fields,,\nUser2,u2@e.com,password123,member',
         }),
-        env, ctx, user, '/api/admin/users/import',
-        { _db: db, logger, _requestContext: {} },
+        env,
+        ctx,
+        user,
+        '/api/admin/users/import',
+        { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(201);
       const payload = await res.json();
@@ -199,8 +261,11 @@ describe('handleUsersAdminCrud', () => {
   it('returns null for non-matching paths', async () => {
     const result = await handleUsersAdminCrud(
       makeReq('/api/admin/users/u1', 'GET'),
-      env, ctx, user, '/api/admin/users/u1',
-      { _db: db, logger, _requestContext: {} },
+      env,
+      ctx,
+      user,
+      '/api/admin/users/u1',
+      { _db: db, logger, _requestContext: {} }
     );
     expect(result).toBeNull();
   });
