@@ -178,6 +178,7 @@ export async function startChatSendMessage({
     } else {
       applyAssistantErrorMessage(chatId, tempAssistantId, 'Failed to connect to the server.');
     }
+    hooks.onFinished?.();
     return;
   }
 
@@ -191,6 +192,7 @@ export async function startChatSendMessage({
       // ignore response parse failure
     }
     applyAssistantErrorMessage(chatId, tempAssistantId, errorText);
+    hooks.onFinished?.();
     return;
   }
 

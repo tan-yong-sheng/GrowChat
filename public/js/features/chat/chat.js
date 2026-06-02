@@ -14,7 +14,7 @@ export function renderChat(container) {
 function wireChat(root) {
   const ctx = { root };
   const deps = getWireChatDeps();
-  initWireChat(deps, ctx);
+  initWireChat(root, deps, ctx);
   setupWireChatFeatures(ctx, deps);
   setupWireChatControllers(ctx, deps);
   // prettier-ignore
@@ -165,7 +165,9 @@ function wireChat(root) {
           button.type = 'button';
           button.className = `w-full text-left px-3 py-2 rounded-lg text-sm transition ${String(chat?.id) === String(activeId) ? 'bg-white text-gray-900 font-medium' : 'text-gray-600 hover:bg-white'}`;
           button.textContent = chat?.title || 'Untitled Chat';
-          button.addEventListener('click', () => handlers.onClick?.(chat?.id));
+          button.addEventListener('click', () => {
+            handlers.onClick?.(chat?.id);
+          });
           item.appendChild(button);
           fallbackFragment.appendChild(item);
         });
@@ -212,9 +214,14 @@ function wireChat(root) {
       hooks.onFinished?.();
       return;
     }
-    await ensureStreamRuntime();
-    await ensureMessageSequenceTracker();
-    return chatMessageFlow?.sendMessage?.(prompt, hooks, options);
+    try {
+      await ensureStreamRuntime();
+      await ensureMessageSequenceTracker();
+      return chatMessageFlow?.sendMessage?.(prompt, hooks, options);
+    } catch (err) {
+      console.error('sendMessage init failed:', err);
+      hooks.onFinished?.();
+    }
   }
   messageInputContainer.addEventListener(
     'focusin',
