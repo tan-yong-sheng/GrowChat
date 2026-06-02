@@ -90,3 +90,12 @@ if (process.argv.includes('--jscpd')) {
     process.exit(result.status ?? 1);
   }
 }
+
+if (process.argv.includes('--stryker')) {
+  const srcFiles = files.filter(
+    (file) => file.startsWith('src/') && file.endsWith('.js') && !file.endsWith('.test.js')
+  );
+  if (srcFiles.length > 0) {
+    run('npx', ['stryker', 'run', '--incremental', '--mutate', ...srcFiles]);
+  }
+}

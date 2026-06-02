@@ -66,6 +66,10 @@ coverage/
 *.lcov
 .nyc_output
 
+# ── Stryker mutation testing ──
+reports/
+.stryker-tmp/
+
 # ── Caches ──
 .cache/
 .parcel-cache/

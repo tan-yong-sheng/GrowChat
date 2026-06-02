@@ -1,8 +1,12 @@
 name: Mutation Testing
+
 on:
-  schedule:
-    - cron: '0 0 * * 0' # Every Sunday at midnight
-    - cron: '0 2 * * *' # Nightly at 02:00 UTC
+  pull_request:
+    paths:
+      - 'src/**/*.js'
+      - 'tests/**/*.js'
+      - 'vitest.config.js'
+      - 'stryker.config.json'
   workflow_dispatch:
 
 jobs:
@@ -36,6 +40,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Cache Stryker incremental
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-${{ github.sha }}
+          restore-keys: |
+            stryker-incremental-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -49,7 +61,7 @@ jobs:
         run: |
           echo "Mutation testing thresholds (stryker.config.json):"
           echo "  break: 40% (CI fails below this)"
-          echo "  low:   50% (warning)"
-          echo "  high:  60% (target)"
+          echo "  low: 50% (warning)"
+          echo "  high: 60% (target)"
           echo ""
           echo "Check the HTML report in Stryker output for detailed scores."

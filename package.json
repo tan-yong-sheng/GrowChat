@@ -13,6 +13,7 @@
     "generate:api-docs": "node scripts/generate-api-docs.js",
     "validate:migrations": "node scripts/validate-migrations.js",
     "check:mutation": "stryker run",
+    "check:mutation:scoped": "node scripts/run-scoped-guardrails.js --stryker",
     "snapshots:clean": "node scripts/cleanup-snapshots.js",
     "snapshots:audit": "node scripts/audit-snapshots.js .",
     "check:performance": "lhci autorun",
@@ -41,7 +42,7 @@
     "lint:hygiene": "pnpm exec knip --include files,dependencies,binaries",
     "lint:workflows": "github-actionlint",
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
-    "prepush": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene",
+    "prepush": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run check:mutation:scoped",
     "prepare": "husky"
   },
   "devDependencies": {
