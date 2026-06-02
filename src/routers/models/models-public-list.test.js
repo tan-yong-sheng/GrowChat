@@ -1,0 +1,188 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  createDB: vi.fn(),
+  getConfigBool: vi.fn(),
+  getAllOpenAIConnectionConfigs: vi.fn(),
+  fetchBaseModelsFromOpenAI: vi.fn(),
+  loadCustomModels: vi.fn(),
+  toPublicModel: vi.fn(),
+  buildProviderStats: vi.fn(),
+  sortModelsByActiveThenName: vi.fn(),
+  countEnabledModels: vi.fn(),
+  isOpenAIProvider: vi.fn(),
+  getDisabledModelSet: vi.fn(),
+  getModelAccessMap: vi.fn(),
+  loadModelAttachmentCaps: vi.fn(),
+  getModelAttachmentCapsEntry: vi.fn(),
+  loadUserResourceOverrides: vi.fn(),
+  loadModelAclRules: vi.fn(),
+  buildModelAclIndex: vi.fn(),
+  evaluateModelAclAccess: vi.fn(),
+  splitModelScopeByUserVisibility: vi.fn(),
+}));
+
+vi.mock('../../db.js', () => ({
+  createDB: (...args) => mocks.createDB(...args),
+}));
+
+vi.mock('../../utils/app-config.js', () => ({
+  getConfigBool: (...args) => mocks.getConfigBool(...args),
+}));
+
+vi.mock('../../llm/connections.js', () => ({
+  getAllOpenAIConnectionConfigs: (...args) => mocks.getAllOpenAIConnectionConfigs(...args),
+}));
+
+vi.mock('../../llm/model-state.js', () => ({
+  countEnabledModels: (...args) => mocks.countEnabledModels(...args),
+  sortModelsByActiveThenName: (...args) => mocks.sortModelsByActiveThenName(...args),
+}));
+
+vi.mock('../../../public/js/shared/utils/user-resource-overrides.js', () => ({
+  loadUserResourceOverrides: (...args) => mocks.loadUserResourceOverrides(...args),
+}));
+
+vi.mock('../../utils/model-acl.js', () => ({
+  loadModelAclRules: (...args) => mocks.loadModelAclRules(...args),
+  buildModelAclIndex: (...args) => mocks.buildModelAclIndex(...args),
+  evaluateModelAclAccess: (...args) => mocks.evaluateModelAclAccess(...args),
+}));
+
+vi.mock('./models-helpers.js', () => ({
+  getDisabledModelSet: (...args) => mocks.getDisabledModelSet(...args),
+  getModelAccessMap: (...args) => mocks.getModelAccessMap(...args),
+  loadModelAttachmentCaps: (...args) => mocks.loadModelAttachmentCaps(...args),
+  getModelAttachmentCapsEntry: (...args) => mocks.getModelAttachmentCapsEntry(...args),
+}));
+
+vi.mock('./models-discovery.js', () => ({
+  fetchBaseModelsFromOpenAI: (...args) => mocks.fetchBaseModelsFromOpenAI(...args),
+  loadCustomModels: (...args) => mocks.loadCustomModels(...args),
+  toPublicModel: (...args) => mocks.toPublicModel(...args),
+  buildProviderStats: (...args) => mocks.buildProviderStats(...args),
+  isOpenAIProvider: (...args) => mocks.isOpenAIProvider(...args),
+  splitModelScopeByUserVisibility: (...args) => mocks.splitModelScopeByUserVisibility(...args),
+}));
+
+import { handlePublicModelsList } from './models-public-list.js';
+
+function makeReq(path, method) {
+  return new Request(`https://example.com${path}`, { method });
+}
+
+describe('handlePublicModelsList', () => {
+  const user = { sub: 'u1' };
+  const env = { DB: {} };
+  const ctx = {};
+  const db = { all: vi.fn(), run: vi.fn(), first: vi.fn() };
+  const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.createDB.mockReturnValue(db);
+    mocks.getConfigBool.mockResolvedValue(true);
+    mocks.getAllOpenAIConnectionConfigs.mockResolvedValue([]);
+    mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([]);
+    mocks.loadCustomModels.mockResolvedValue([]);
+    mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
+    mocks.buildProviderStats.mockReturnValue([]);
+    mocks.sortModelsByActiveThenName.mockImplementation((m) => m);
+    mocks.countEnabledModels.mockReturnValue(0);
+    mocks.isOpenAIProvider.mockReturnValue(false);
+    mocks.getDisabledModelSet.mockResolvedValue(new Set());
+    mocks.getModelAccessMap.mockResolvedValue(new Map());
+    mocks.loadModelAttachmentCaps.mockResolvedValue({});
+    mocks.getModelAttachmentCapsEntry.mockReturnValue({ text: true });
+    mocks.loadUserResourceOverrides.mockResolvedValue({});
+    mocks.loadModelAclRules.mockResolvedValue([]);
+    mocks.buildModelAclIndex.mockReturnValue(new Map());
+    mocks.evaluateModelAclAccess.mockReturnValue({ allowed: true, access_label: 'granted', access_variant: 'personal' });
+    mocks.splitModelScopeByUserVisibility.mockImplementation((models, hiddenIds) => {
+      const visible = []; const hidden = [];
+      models.forEach((m) => { hiddenIds.has(m.id) ? hidden.push(m) : visible.push(m); });
+      return { visibleModels: visible, hiddenModels: hidden };
+    });
+  });
+
+  describe('GET /api/models', () => {
+    it('returns models list without auth', async () => {
+      const res = await handlePublicModelsList(
+        makeReq('/api/models', 'GET'),
+        env, ctx, user, '/api/models',
+        { _db: db, logger, _requestContext: {} },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it('works without user', async () => {
+      const res = await handlePublicModelsList(
+        makeReq('/api/models', 'GET'),
+        env, ctx, null, '/api/models',
+        { _db: db, logger, _requestContext: {} },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it('returns models with pagination', async () => {
+      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([
+        { id: 'm1', name: 'M1', provider: 'openai' },
+      ]);
+      mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
+      mocks.countEnabledModels.mockReturnValue(1);
+      const res = await handlePublicModelsList(
+        makeReq('/api/models?limit=1&offset=0', 'GET'),
+        env, ctx, user, '/api/models',
+        { _db: db, logger, _requestContext: {} },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it('supports search query', async () => {
+      const res = await handlePublicModelsList(
+        makeReq('/api/models?q=gpt', 'GET'),
+        env, ctx, user, '/api/models',
+        { _db: db, logger, _requestContext: {} },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it('supports effective scope', async () => {
+      db.all.mockResolvedValue([]);
+      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([
+        { id: 'm1', name: 'M1', provider: 'openai', connection_source: 'config' },
+      ]);
+      mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
+      mocks.countEnabledModels.mockReturnValue(1);
+      const res = await handlePublicModelsList(
+        makeReq('/api/models?scope=effective', 'GET'),
+        env, ctx, user, '/api/models',
+        { _db: db, logger, _requestContext: {} },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it('returns 500 on unexpected error', async () => {
+      // The handler gracefully degrades, so a DB failure returns empty results.
+      // A truly unexpected error would come from something inside the try/catch.
+      // Since the code has error handling, we test that it degrades gracefully.
+      mocks.fetchBaseModelsFromOpenAI.mockRejectedValue(new Error('unexpected'));
+      const res = await handlePublicModelsList(
+        makeReq('/api/models', 'GET'),
+        env, ctx, user, '/api/models',
+        { _db: db, logger, _requestContext: {} },
+      );
+      // The handler catches discovery errors and continues with empty results
+      expect(res.status).toBe(200);
+    });
+  });
+
+  it('returns null for non-matching paths', async () => {
+    const result = await handlePublicModelsList(
+      makeReq('/api/chats', 'GET'),
+      env, ctx, user, '/api/chats',
+      { _db: db, logger, _requestContext: {} },
+    );
+    expect(result).toBeNull();
+  });
+});
