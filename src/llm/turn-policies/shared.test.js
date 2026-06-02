@@ -7,7 +7,7 @@ describe('resolveSharedTurnContinuation', () => {
       resolveSharedTurnContinuation({
         hasToolCalls: true,
         finishReason: 'tool_calls',
-      }),
+      })
     ).toEqual({ action: 'tool_loop' });
   });
 
@@ -16,7 +16,7 @@ describe('resolveSharedTurnContinuation', () => {
       resolveSharedTurnContinuation({
         hasToolCalls: true,
         finishReason: 'stop',
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -25,7 +25,7 @@ describe('resolveSharedTurnContinuation', () => {
       resolveSharedTurnContinuation({
         hasToolCalls: true,
         finishReason: null,
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -37,7 +37,7 @@ describe('resolveSharedTurnContinuation', () => {
         stepReasoningOutput: true,
         followUps: 0,
         maxFollowUps: 5,
-      }),
+      })
     ).toEqual({ action: 'follow_up' });
   });
 
@@ -49,7 +49,7 @@ describe('resolveSharedTurnContinuation', () => {
         stepReasoningOutput: true,
         followUps: 5,
         maxFollowUps: 5,
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -61,7 +61,7 @@ describe('resolveSharedTurnContinuation', () => {
         stepReasoningOutput: true,
         followUps: 0,
         maxFollowUps: 0,
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -73,7 +73,7 @@ describe('resolveSharedTurnContinuation', () => {
         stepReasoningOutput: true,
         followUps: 0,
         maxFollowUps: 5,
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -91,7 +91,7 @@ describe('resolveSharedTurnContinuation', () => {
         stepReasoningOutput: true,
         followUps: 4,
         maxFollowUps: 5,
-      }),
+      })
     ).toEqual({ action: 'follow_up' });
   });
 
@@ -101,7 +101,7 @@ describe('resolveSharedTurnContinuation', () => {
         hasToolCalls: false,
         stepTextOutput: true,
         stepReasoningOutput: true,
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -111,7 +111,7 @@ describe('resolveSharedTurnContinuation', () => {
         hasToolCalls: false,
         stepTextOutput: true,
         stepReasoningOutput: false,
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 });

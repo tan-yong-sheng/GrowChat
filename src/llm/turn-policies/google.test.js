@@ -7,7 +7,7 @@ describe('resolveGoogleTurnContinuation', () => {
       resolveGoogleTurnContinuation({
         hasToolCalls: true,
         finishReason: null,
-      }),
+      })
     ).toEqual({ action: 'tool_loop' });
   });
 
@@ -16,7 +16,7 @@ describe('resolveGoogleTurnContinuation', () => {
       resolveGoogleTurnContinuation({
         hasToolCalls: true,
         finishReason: 'stop',
-      }),
+      })
     ).toEqual({ action: 'tool_loop' });
   });
 
@@ -25,7 +25,7 @@ describe('resolveGoogleTurnContinuation', () => {
       resolveGoogleTurnContinuation({
         hasToolCalls: true,
         finishReason: 'tool_calls',
-      }),
+      })
     ).toEqual({ action: 'tool_loop' });
   });
 
@@ -37,7 +37,7 @@ describe('resolveGoogleTurnContinuation', () => {
         stepReasoningOutput: true,
         followUps: 0,
         maxFollowUps: 5,
-      }),
+      })
     ).toEqual({ action: 'follow_up' });
   });
 
@@ -50,7 +50,7 @@ describe('resolveGoogleTurnContinuation', () => {
       resolveGoogleTurnContinuation({
         hasToolCalls: false,
         finishReason: 'stop',
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -63,7 +63,7 @@ describe('resolveGoogleTurnContinuation', () => {
       resolveGoogleTurnContinuation({
         hasToolCalls: false,
         finishReason: 'tool_calls',
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 });

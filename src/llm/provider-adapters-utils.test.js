@@ -79,7 +79,7 @@ describe('provider-adapters-utils', () => {
 
     it('preserves description on empty object schema at non-root', () => {
       expect(
-        convertJsonSchemaToOpenApiSchema({ type: 'object', description: 'desc' }, false),
+        convertJsonSchemaToOpenApiSchema({ type: 'object', description: 'desc' }, false)
       ).toEqual({ type: 'object', description: 'desc' });
     });
 
@@ -231,7 +231,9 @@ describe('provider-adapters-utils', () => {
     });
 
     it('returns false for object schema with properties', () => {
-      expect(isEmptyObjectSchema({ type: 'object', properties: { name: { type: 'string' } } })).toBe(false);
+      expect(
+        isEmptyObjectSchema({ type: 'object', properties: { name: { type: 'string' } } })
+      ).toBe(false);
     });
 
     it('returns false for non-object type', () => {
@@ -409,7 +411,7 @@ describe('provider-adapters-utils', () => {
         contentToText([
           { type: 'text', text: 'Hello' },
           { type: 'text', text: 'World' },
-        ]),
+        ])
       ).toBe('Hello\nWorld');
     });
 
@@ -422,7 +424,7 @@ describe('provider-adapters-utils', () => {
         contentToText([
           { type: 'image_url', image_url: { url: 'http://x' } },
           { type: 'text', text: 'visible' },
-        ]),
+        ])
       ).toBe('visible');
     });
 
@@ -432,7 +434,7 @@ describe('provider-adapters-utils', () => {
 
     it('handles string items in array', () => {
       expect(contentToText(['plain', { type: 'text', text: 'structured' }])).toBe(
-        'plain\nstructured',
+        'plain\nstructured'
       );
     });
 
@@ -447,7 +449,13 @@ describe('provider-adapters-utils', () => {
     });
 
     it('joins with newlines and filters empty', () => {
-      expect(contentToText([{ type: 'text', text: 'a' }, { type: 'text', text: '' }, { type: 'text', text: 'b' }])).toBe('a\nb');
+      expect(
+        contentToText([
+          { type: 'text', text: 'a' },
+          { type: 'text', text: '' },
+          { type: 'text', text: 'b' },
+        ])
+      ).toBe('a\nb');
     });
   });
 });

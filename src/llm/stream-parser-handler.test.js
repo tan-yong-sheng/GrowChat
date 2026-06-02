@@ -529,7 +529,9 @@ describe('handleParsed', () => {
       };
       handleParsed(parser, parsed);
       expect(parser._hasToolCalls).toBe(false);
-      expect(parser.events).not.toContainEqual(expect.objectContaining({ type: 'tool_call_delta' }));
+      expect(parser.events).not.toContainEqual(
+        expect.objectContaining({ type: 'tool_call_delta' })
+      );
     });
 
     it('handles finish_reason with tool keyword in value', () => {

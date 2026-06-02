@@ -40,14 +40,16 @@ describe('SseLineParser', () => {
     it('parses multiple data lines', () => {
       const parser = new SseLineParser();
       const text = parser.push(
-        'data: {"choices":[{"delta":{"content":"Hello"}}]}\ndata: {"choices":[{"delta":{"content":" World"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"Hello"}}]}\ndata: {"choices":[{"delta":{"content":" World"}}]}\n\n'
       );
       expect(text).toBe('Hello World');
     });
 
     it('ignores non-data lines', () => {
       const parser = new SseLineParser();
-      const text = parser.push('event: message\ndata: {"choices":[{"delta":{"content":"hi"}}]}\n\n');
+      const text = parser.push(
+        'event: message\ndata: {"choices":[{"delta":{"content":"hi"}}]}\n\n'
+      );
       expect(text).toBe('hi');
     });
 
@@ -90,7 +92,7 @@ describe('SseLineParser', () => {
     it('handles Google SSE format', () => {
       const parser = new SseLineParser();
       const text = parser.push(
-        'data: {"candidates":[{"content":{"parts":[{"text":"Hello Google"}]}}]}\n\n',
+        'data: {"candidates":[{"content":{"parts":[{"text":"Hello Google"}]}}]}\n\n'
       );
       expect(text).toBe('Hello Google');
     });
@@ -98,7 +100,7 @@ describe('SseLineParser', () => {
     it('handles Anthropic SSE format', () => {
       const parser = new SseLineParser();
       const text = parser.push(
-        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello Anthropic"}}\n\n',
+        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello Anthropic"}}\n\n'
       );
       expect(text).toBe('Hello Anthropic');
     });
@@ -231,9 +233,7 @@ describe('SseLineParser', () => {
       expect(parser._inReasoning).toBe(true);
       // Second call: tagBuffer is empty, appends '</think>after', closes reasoning, emits 'after' as text
       const segments = parser._extractTaggedSegments('\x3C/think>after');
-      expect(segments).toEqual([
-        { type: 'text', text: 'after' },
-      ]);
+      expect(segments).toEqual([{ type: 'text', text: 'after' }]);
       expect(parser._inReasoning).toBe(false);
     });
 
@@ -276,7 +276,7 @@ describe('SseLineParser', () => {
     it('handles multiple reasoning cycles', () => {
       const parser = new SseLineParser();
       const segments = parser._extractTaggedSegments(
-        'a\x3Cthink>t1\x3C/think>b\x3Cthink>t2\x3C/think>c',
+        'a\x3Cthink>t1\x3C/think>b\x3Cthink>t2\x3C/think>c'
       );
       expect(segments).toEqual([
         { type: 'text', text: 'a' },

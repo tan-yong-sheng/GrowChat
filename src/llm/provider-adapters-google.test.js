@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildGooglePayload } from './provider-adapters-google.js';
 
 describe('provider-adapters-google', () => {
@@ -75,9 +75,7 @@ describe('provider-adapters-google', () => {
       const messages = [
         {
           role: 'assistant',
-          tool_calls: [
-            { id: 'call_1', function: { name: 'search', arguments: '{"q":"test"}' } },
-          ],
+          tool_calls: [{ id: 'call_1', function: { name: 'search', arguments: '{"q":"test"}' } }],
         },
       ];
       const payload = buildGooglePayload(messages);
@@ -88,9 +86,7 @@ describe('provider-adapters-google', () => {
       const messages = [
         {
           role: 'assistant',
-          tool_calls: [
-            { id: 'call_1', function: { name: 'search', arguments: 'not-json' } },
-          ],
+          tool_calls: [{ id: 'call_1', function: { name: 'search', arguments: 'not-json' } }],
         },
       ];
       const payload = buildGooglePayload(messages);
@@ -101,9 +97,7 @@ describe('provider-adapters-google', () => {
       const messages = [
         {
           role: 'assistant',
-          tool_calls: [
-            { id: 'call_1', function: { name: 'search', arguments: { q: 'test' } } },
-          ],
+          tool_calls: [{ id: 'call_1', function: { name: 'search', arguments: { q: 'test' } } }],
         },
       ];
       const payload = buildGooglePayload(messages);
@@ -357,9 +351,7 @@ describe('provider-adapters-google', () => {
         {
           role: 'assistant',
           content: 'Let me check',
-          tool_calls: [
-            { id: 'call_1', function: { name: 'lookup', arguments: '{}' } },
-          ],
+          tool_calls: [{ id: 'call_1', function: { name: 'lookup', arguments: '{}' } }],
         },
       ];
       const payload = buildGooglePayload(messages);
@@ -384,5 +376,3 @@ describe('provider-adapters-google', () => {
     });
   });
 });
-
-import { vi } from 'vitest';

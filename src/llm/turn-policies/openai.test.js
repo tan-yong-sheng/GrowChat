@@ -7,7 +7,7 @@ describe('resolveOpenAITurnContinuation', () => {
       resolveOpenAITurnContinuation({
         hasToolCalls: true,
         finishReason: 'tool_calls',
-      }),
+      })
     ).toEqual({ action: 'tool_loop' });
   });
 
@@ -16,7 +16,7 @@ describe('resolveOpenAITurnContinuation', () => {
       resolveOpenAITurnContinuation({
         hasToolCalls: true,
         finishReason: null,
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -28,7 +28,7 @@ describe('resolveOpenAITurnContinuation', () => {
         stepReasoningOutput: true,
         followUps: 0,
         maxFollowUps: 5,
-      }),
+      })
     ).toEqual({ action: 'follow_up' });
   });
 
@@ -41,7 +41,7 @@ describe('resolveOpenAITurnContinuation', () => {
       resolveOpenAITurnContinuation({
         hasToolCalls: false,
         finishReason: 'stop',
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
@@ -54,7 +54,7 @@ describe('resolveOpenAITurnContinuation', () => {
       resolveOpenAITurnContinuation({
         hasToolCalls: true,
         finishReason: 'stop',
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 });

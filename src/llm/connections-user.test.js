@@ -23,8 +23,20 @@ vi.mock('../utils/logger.js', () => ({
 // Mock provider-registry
 vi.mock('./provider-registry.js', () => ({
   normalizeProviderFamily: (v) => {
-    const map = { openai: 'openai', google: 'google', anthropic: 'anthropic', gemini: 'google', claude: 'anthropic' };
-    return map[String(v || '').trim().toLowerCase()] || null;
+    const map = {
+      openai: 'openai',
+      google: 'google',
+      anthropic: 'anthropic',
+      gemini: 'google',
+      claude: 'anthropic',
+    };
+    return (
+      map[
+        String(v || '')
+          .trim()
+          .toLowerCase()
+      ] || null
+    );
   },
   buildProviderId: ({ id }) => id || 'conn-test',
 }));
@@ -32,7 +44,9 @@ vi.mock('./provider-registry.js', () => ({
 // Mock connection-model-selection
 vi.mock('../../public/js/shared/utils/connection-model-selection.js', () => ({
   normalizeConnectionModelSelectionMode: (v) => {
-    const raw = String(v || '').trim().toLowerCase();
+    const raw = String(v || '')
+      .trim()
+      .toLowerCase();
     if (raw === 'all' || raw === 'some' || raw === 'none') return raw;
     return '';
   },
@@ -48,7 +62,9 @@ vi.mock('./connections-utils.js', () => ({
     return 'OpenAI';
   },
   normalizeAuthType: (v) => {
-    const raw = String(v || '').trim().toLowerCase();
+    const raw = String(v || '')
+      .trim()
+      .toLowerCase();
     if (['bearer', 'x-api-key', 'x-goog-api-key', 'api-key'].includes(raw)) return raw;
     return '';
   },
@@ -239,19 +255,21 @@ describe('connections-user', () => {
   describe('createUserOpenAIConnection', () => {
     it('throws when db is null', async () => {
       await expect(createUserOpenAIConnection(null, 'user-1', {})).rejects.toThrow(
-        'User id is required',
+        'User id is required'
       );
     });
 
     it('throws when userId is null', async () => {
       await expect(createUserOpenAIConnection(createMockDb(), null, {})).rejects.toThrow(
-        'User id is required',
+        'User id is required'
       );
     });
 
     it('throws when name is missing', async () => {
       await expect(
-        createUserOpenAIConnection(createMockDb(), 'user-1', { base_url: 'https://api.openai.com/v1' }),
+        createUserOpenAIConnection(createMockDb(), 'user-1', {
+          base_url: 'https://api.openai.com/v1',
+        })
       ).rejects.toThrow('name is required');
     });
 
@@ -313,9 +331,9 @@ describe('connections-user', () => {
 
   describe('updateUserOpenAIConnection', () => {
     it('throws when connectionId is null', async () => {
-      await expect(
-        updateUserOpenAIConnection(createMockDb(), 'user-1', null, {}),
-      ).rejects.toThrow('Connection id is required');
+      await expect(updateUserOpenAIConnection(createMockDb(), 'user-1', null, {})).rejects.toThrow(
+        'Connection id is required'
+      );
     });
 
     it('returns null when connection does not exist', async () => {
@@ -349,16 +367,16 @@ describe('connections-user', () => {
     it('throws when name is empty after normalization', async () => {
       const db = createMockDb([makeRow()]);
       await expect(
-        updateUserOpenAIConnection(db, 'user-1', 'conn-test-001', { name: '   ' }),
+        updateUserOpenAIConnection(db, 'user-1', 'conn-test-001', { name: '   ' })
       ).rejects.toThrow('name is required');
     });
   });
 
   describe('deleteUserOpenAIConnection', () => {
     it('throws when connectionId is null', async () => {
-      await expect(
-        deleteUserOpenAIConnection(createMockDb(), 'user-1', null),
-      ).rejects.toThrow('Connection id is required');
+      await expect(deleteUserOpenAIConnection(createMockDb(), 'user-1', null)).rejects.toThrow(
+        'Connection id is required'
+      );
     });
 
     it('returns false when connection does not exist', async () => {
@@ -376,9 +394,9 @@ describe('connections-user', () => {
     });
 
     it('throws when db is null', async () => {
-      await expect(
-        deleteUserOpenAIConnection(null, 'user-1', 'conn-1'),
-      ).rejects.toThrow('Connection id is required');
+      await expect(deleteUserOpenAIConnection(null, 'user-1', 'conn-1')).rejects.toThrow(
+        'Connection id is required'
+      );
     });
   });
 });

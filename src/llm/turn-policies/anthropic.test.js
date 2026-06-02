@@ -7,7 +7,7 @@ describe('resolveAnthropicTurnContinuation', () => {
       resolveAnthropicTurnContinuation({
         hasToolCalls: true,
         finishReason: 'tool_calls',
-      }),
+      })
     ).toEqual({ action: 'tool_loop' });
   });
 
@@ -23,7 +23,7 @@ describe('resolveAnthropicTurnContinuation', () => {
         stepReasoningOutput: true,
         followUps: 0,
         maxFollowUps: 5,
-      }),
+      })
     ).toEqual({ action: 'follow_up' });
   });
 
@@ -32,7 +32,7 @@ describe('resolveAnthropicTurnContinuation', () => {
       resolveAnthropicTurnContinuation({
         hasToolCalls: true,
         finishReason: 'stop',
-      }),
+      })
     ).toEqual({ action: 'final' });
   });
 
