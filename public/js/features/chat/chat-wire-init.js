@@ -224,6 +224,7 @@ export function initWireChat(root, deps, ctx) {
     chatSidebarListReadyPromise = loadChatSidebarListModule()
       .then(({ buildChatSidebarListFragment }) => {
         buildChatSidebarListFragmentImpl = buildChatSidebarListFragment;
+        ctx.buildChatSidebarListFragmentImpl = buildChatSidebarListFragment;
         ctx.drawChats?.(state.chats, state.activeChatId);
         return buildChatSidebarListFragmentImpl;
       })

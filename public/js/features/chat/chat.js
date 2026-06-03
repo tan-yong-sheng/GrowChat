@@ -19,7 +19,7 @@ function wireChat(root) {
   setupWireChatControllers(ctx, deps);
   // prettier-ignore
   const {
-    PINNED_COLLAPSED_KEY, applyAssistantErrorMessage, archivedModalContainer, bindToolServersInvalidationListener, buildChatSidebarListFragmentImpl, buildFallbackAssistantMessage, buildTempChat, chatList, chatListContainerEl, checkToolServersInvalidation, clearGlobalStreamAbort, consumeSseTextStream,
+    PINNED_COLLAPSED_KEY, applyAssistantErrorMessage, archivedModalContainer, bindToolServersInvalidationListener,  buildFallbackAssistantMessage, buildTempChat, chatList, chatListContainerEl, checkToolServersInvalidation, clearGlobalStreamAbort, consumeSseTextStream,
     currentLeafByChatId, destroyChatFileEvents, destroyMessageListInteractions, destroySidebar, drawMessages, ensureChatFileEvents, ensureChatListHandlers, ensureMessageListInteractions, ensureMessageSequenceTracker, ensureRealtimeController, ensureStreamRuntime, filesModalContainer,
     getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, headerMenuBtn, headerMenuDropdown, isTempChatId, loadAllowedToolServers, loadChats, loadChatsImpl, loadMessages,
     loadMessagesImpl, maybeRefreshChatListObserver, messageBlocksById, messageInputContainer, messagesList, newChatBtn, notePayloadSeq, onChatListInteraction, onRealtimeEvent, openArchivedModal, openCitation, openSearchBtn,
@@ -148,7 +148,7 @@ function wireChat(root) {
   }
   drawPlaceholder();
   function drawChats(chats, activeId) {
-    if (!buildChatSidebarListFragmentImpl) {
+    if (!ctx.buildChatSidebarListFragmentImpl) {
       scheduleSidebarHydrationWarmup();
       const fallbackFragment = document.createDocumentFragment();
       const chatItems = Array.isArray(chats) ? chats : [];
@@ -187,7 +187,7 @@ function wireChat(root) {
       chatList.appendChild(fallbackFragment);
       return;
     }
-    const fragment = buildChatSidebarListFragmentImpl({
+    const fragment = ctx.buildChatSidebarListFragmentImpl({
       chats,
       activeId,
       models: state.models,
@@ -207,6 +207,7 @@ function wireChat(root) {
     chatList.innerHTML = '';
     chatList.appendChild(fragment);
   }
+  ctx.drawChats = drawChats;
   window.addEventListener('growchat:realtime', onRealtimeEvent);
   async function sendMessage(text, hooks = {}, options = {}) {
     const prompt = String(text || '').trim();

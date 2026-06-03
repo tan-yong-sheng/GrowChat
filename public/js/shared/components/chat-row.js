@@ -121,11 +121,13 @@ export function createChatRow(chat, handlers) {
     if (isHidden) {
       dropdown.classList.remove('hidden');
 
-      // Use fixed positioning to escape overflow-hidden/auto containers
-      const rect = menuBtn.getBoundingClientRect();
+      let rect = menuBtn.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        rect = content.getBoundingClientRect();
+      }
       dropdown.style.position = 'fixed';
       dropdown.style.top = `${rect.bottom + 4}px`;
-      dropdown.style.left = `${rect.right - 180}px`; // 180 is min-w
+      dropdown.style.left = `${Math.max(8, rect.right - 180)}px`;
 
       // Check for bottom overflow
       requestAnimationFrame(() => {
