@@ -81,9 +81,9 @@ export function renderChat(container, wireChat) {
           </div>
         </header>
         <div id="messages-container" class="flex-grow overflow-y-auto no-scrollbar pb-[148px] pt-[58px]">
-          <div id="messages-inner" class="max-w-4xl mx-auto w-full px-4 flex flex-col gap-6 pb-4">
+          <div id="messages-inner" class="max-w-4xl mx-auto w-full px-4 flex flex-col gap-1 pb-4">
             <div id="welcome-screen-container"></div>
-            <div id="messages-list" class="hidden flex flex-col gap-6"></div>
+            <div id="messages-list" class="hidden flex flex-col gap-1"></div>
           </div>
         </div>
         <div class="absolute bottom-0 left-0 w-full pt-4 pb-6 bg-gradient-to-t from-white via-white to-transparent">
