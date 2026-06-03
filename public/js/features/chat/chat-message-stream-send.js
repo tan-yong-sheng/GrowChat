@@ -59,7 +59,6 @@ export function prepareSendOptimisticUI({
     currentLeafByChatId,
     drawMessages,
   });
-
   return {
     optimistic,
     chatId,

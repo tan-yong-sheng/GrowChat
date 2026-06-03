@@ -216,21 +216,7 @@ function wireChat(root) {
     }
     // Render optimistic UI synchronously before any async work,
     // so the user sees their message instantly.
-    const optimisticState = chatMessageFlow?.prepareSendOptimisticUI?.({
-      text: prompt,
-      state,
-      setState,
-      buildTempChat,
-      pruneTempChats,
-      syncChatUrl,
-      updateChatTitleLocal,
-      isTempChatId,
-      currentLeafByChatId,
-      registerPendingTempMessage,
-      setBranchSelection,
-      drawMessages,
-      getDraftAttachments,
-    });
+    const optimisticState = chatMessageFlow?.prepareSendOptimisticUI?.(prompt);
     try {
       // Lazy-load stream modules in parallel — these resolve instantly
       // if already warmed up via focusin, otherwise fetch the JS chunks.
