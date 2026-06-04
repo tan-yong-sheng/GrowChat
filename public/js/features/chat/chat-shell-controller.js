@@ -20,8 +20,6 @@ export function createChatShellController({
   sidebarBackdrop = null,
   toggleChatsBtn = null,
   toggleChatsIcon = null,
-  headerMenuBtn = null,
-  headerMenuDropdown = null,
   getChatHandlers = () => ({}),
 } = {}) {
   let loadMoreChatsPromise = null;
@@ -184,41 +182,6 @@ export function createChatShellController({
     }
   };
 
-  const onHeaderMenuClick = (e) => {
-    e.stopPropagation();
-    if (headerMenuDropdown) {
-      headerMenuDropdown.classList.toggle('hidden');
-    }
-  };
-
-  const onHeaderMenuAction = async (e) => {
-    const actionBtn = e.target?.closest?.('button[data-action]');
-    if (!actionBtn || !state.activeChatId) return;
-
-    const action = actionBtn.dataset.action;
-    const chatId = state.activeChatId;
-    const chat = state.chats.find((item) => item.id === chatId);
-    const handlers = getChatHandlers(chat);
-
-    if (action === 'share') handlers.share?.(chatId);
-    else if (action === 'rename') handlers.rename?.(chatId);
-    else if (action === 'archive') handlers.archive?.(chatId);
-    else if (action === 'delete') handlers.delete?.(chatId);
-
-    headerMenuDropdown?.classList.add('hidden');
-  };
-
-  const onDocumentClickForHeaderMenu = (e) => {
-    if (
-      headerMenuBtn &&
-      headerMenuDropdown &&
-      !headerMenuBtn.contains(e.target) &&
-      !headerMenuDropdown.contains(e.target)
-    ) {
-      headerMenuDropdown.classList.add('hidden');
-    }
-  };
-
   const onSidebarBackdropClick = () => setState({ showSidebar: false });
 
   function bindShellEvents() {
@@ -229,11 +192,8 @@ export function createChatShellController({
     newChatBtn?.addEventListener('click', onNewChat);
     sidebarBackdrop?.addEventListener('click', onSidebarBackdropClick);
     toggleChatsBtn?.addEventListener('click', onToggleChats);
-    headerMenuBtn?.addEventListener('click', onHeaderMenuClick);
-    headerMenuDropdown?.addEventListener('click', onHeaderMenuAction);
     window.addEventListener('growchat:open-archived', onOpenArchivedEvent);
     window.addEventListener('popstate', onPopState);
-    document.addEventListener('click', onDocumentClickForHeaderMenu);
 
     return () => {
       sidebarHomeBtn?.removeEventListener('click', onHome);
@@ -243,11 +203,8 @@ export function createChatShellController({
       newChatBtn?.removeEventListener('click', onNewChat);
       sidebarBackdrop?.removeEventListener('click', onSidebarBackdropClick);
       toggleChatsBtn?.removeEventListener('click', onToggleChats);
-      headerMenuBtn?.removeEventListener('click', onHeaderMenuClick);
-      headerMenuDropdown?.removeEventListener('click', onHeaderMenuAction);
       window.removeEventListener('growchat:open-archived', onOpenArchivedEvent);
       window.removeEventListener('popstate', onPopState);
-      document.removeEventListener('click', onDocumentClickForHeaderMenu);
     };
   }
 

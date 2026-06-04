@@ -10,6 +10,7 @@ import {
   getModelAvailabilityFallbackNotice,
   getModelSelectorDerivedState,
   renderModelSelectorOption,
+  persistDefaultModelSelection,
 } from './model-selector-helpers.js';
 import { createModelSelectorNoticeHelpers } from './model-selector-notice-helpers.js';
 
@@ -198,6 +199,30 @@ export function createModelSelectorController(container) {
     }
   };
 
+  const handleSetDefault = async (modelId) => {
+    const currentState = state;
+    const isDefault = currentState.defaultModelId === modelId;
+    const { apiFetch } = await import('../../shared/api.js');
+    const result = await persistDefaultModelSelection({
+      apiFetch,
+      modelId: isDefault ? null : modelId,
+      currentPreferences: currentState.user?.preferences || {},
+    });
+    if (result.ok) {
+      const nextDefaultModelId = isDefault ? null : modelId;
+      const nextPreferences = { ...(currentState.user?.preferences || {}) };
+      if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
+      else delete nextPreferences.defaultModelId;
+      setState({
+        defaultModelId: nextDefaultModelId,
+        user: currentState.user
+          ? { ...currentState.user, preferences: nextPreferences }
+          : currentState.user,
+      });
+      renderList(state, { reset: true, rebuild: true });
+    }
+  };
+
   btn.onclick = (e) => {
     e.stopPropagation();
     toggle();
@@ -265,6 +290,13 @@ export function createModelSelectorController(container) {
   document.addEventListener('click', onDocumentClick);
 
   listContainer.addEventListener('click', (e) => {
+    // Handle star click for setting default model
+    const starEl = e.target.closest('.set-default-star');
+    if (starEl) {
+      e.stopPropagation();
+      handleSetDefault(starEl.getAttribute('data-set-default-id'));
+      return;
+    }
     const button = e.target.closest('button[data-model-id]');
     if (!button) return;
     const newModelId = button.getAttribute('data-model-id');

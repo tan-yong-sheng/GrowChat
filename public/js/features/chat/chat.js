@@ -21,7 +21,7 @@ function wireChat(root) {
   const {
     PINNED_COLLAPSED_KEY, applyAssistantErrorMessage, archivedModalContainer, bindToolServersInvalidationListener,  buildFallbackAssistantMessage, buildTempChat, chatList, chatListContainerEl, checkToolServersInvalidation, clearGlobalStreamAbort, consumeSseTextStream,
     currentLeafByChatId, destroyChatFileEvents, destroyMessageListInteractions, destroySidebar, drawMessages, ensureChatFileEvents, ensureChatListHandlers, ensureMessageListInteractions, ensureMessageSequenceTracker, ensureRealtimeController, ensureStreamRuntime, filesModalContainer,
-    getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, headerMenuBtn, headerMenuDropdown, isTempChatId, loadAllowedToolServers, loadChats, loadChatsImpl, loadMessages,
+    getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, isTempChatId, loadAllowedToolServers, loadChats, loadChatsImpl, loadMessages,
     loadMessagesImpl, maybeRefreshChatListObserver, messageBlocksById, messageInputContainer, messagesList, newChatBtn, notePayloadSeq, onChatListInteraction, onRealtimeEvent, openArchivedModal, openCitation, openSearchBtn,
     pruneTempChats, recentChatIds, refreshChatListObserver, refreshChatListObserverImpl, refreshShareState, refreshShareStateImpl, registerPendingTempMessage, replaceTempMessageId, resolveTempMessageId, schedulePrune, scheduleSidebarHydrationWarmup, searchModalContainer,
     setBranchSelection, setDraftAttachments, setDraftToolNames, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebar, sidebarBackdrop, sidebarHomeBtn, startNewChat,
@@ -238,10 +238,6 @@ function wireChat(root) {
     },
     { once: true }
   );
-  const onHeaderMenuInteraction = () => {
-    void ensureChatListHandlers();
-    warmupToolServers();
-  };
   const handleMessageListInteractionFallback = (event) => {
     if (!event?.target) return;
     const thinkingTarget = event.target.closest?.('[data-thinking-toggle]');
@@ -317,7 +313,6 @@ function wireChat(root) {
       schedulePrune();
     }
     lastActiveChatId = currentState.activeChatId;
-    headerMenuBtn.disabled = !currentState.activeChatId || isTempChatId(currentState.activeChatId);
     drawChats(currentState.chats, currentState.activeChatId);
     maybeRefreshChatListObserver();
   });
@@ -341,13 +336,6 @@ function wireChat(root) {
     once: true,
   });
   chatListContainerEl?.addEventListener('click', onChatListInteraction, {
-    once: true,
-    capture: true,
-  });
-  headerMenuBtn?.addEventListener('click', onHeaderMenuInteraction, {
-    once: true,
-  });
-  headerMenuDropdown?.addEventListener('click', onHeaderMenuInteraction, {
     once: true,
   });
   messagesList?.addEventListener('click', onMessageListInteraction, {
@@ -394,8 +382,6 @@ function wireChat(root) {
     chatListContainerEl?.removeEventListener('wheel', onChatListInteraction);
     chatListContainerEl?.removeEventListener('touchstart', onChatListInteraction);
     chatListContainerEl?.removeEventListener('scroll', onChatListInteraction);
-    headerMenuBtn?.removeEventListener('click', onHeaderMenuInteraction);
-    headerMenuDropdown?.removeEventListener('click', onHeaderMenuInteraction);
     messagesList?.removeEventListener('click', onMessageListInteraction, true);
     destroyShellEvents?.();
     shellController.dispose?.();

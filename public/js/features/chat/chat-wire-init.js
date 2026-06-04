@@ -203,8 +203,6 @@ export function initWireChat(root, deps, ctx) {
   const newChatBtn = root.querySelector('#new-chat');
   const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
   const toggleSidebarDesktop = root.querySelector('#toggle-sidebar-desktop');
-  const headerMenuBtn = root.querySelector('#header-menu-btn');
-  const headerMenuDropdown = root.querySelector('#header-menu-dropdown');
   const sidebar = root.querySelector('#sidebar');
   const sidebarBackdrop = root.querySelector('#sidebar-backdrop');
   const messagesContainer = root.querySelector('#messages-container');
@@ -313,7 +311,7 @@ export function initWireChat(root, deps, ctx) {
  syncChatUrl, startNewChat,
     refreshChatListObserver, refreshShareState, loadChats, loadMessages, drawMessages, openCitation, schedulePrune, streamSession, chatMessageFlow, uiResources,
     consumeSseTextStream, renderShareModal, openArchivedModal, destroyChatFileEvents, ensureChatFileEvents, ensureChatModals, toggleChatsBtn, toggleChatsIcon, chatList, chatListContainerEl,
-    messagesList, welcomeScreenContainer, messageInputContainer, sidebarHomeBtn, newChatBtn, toggleSidebarMobile, toggleSidebarDesktop, headerMenuBtn, headerMenuDropdown, sidebar,
+    messagesList, welcomeScreenContainer, messageInputContainer, sidebarHomeBtn, newChatBtn, toggleSidebarMobile, toggleSidebarDesktop, sidebar,
     sidebarBackdrop, messagesContainer, openSearchBtn, searchModalContainer, filesModalContainer, shareModalContainer, archivedModalContainer, citationModalContainer, chatListObserverArmed, buildChatSidebarListFragmentImpl,
     sidebarHydrationWarmupTimer, chatSidebarListReadyPromise, ensureChatSidebarListBuilder, armChatListObserver, maybeRefreshChatListObserver, onChatListInteraction, scheduleSidebarHydrationWarmup, sharedByChatId, processedRealtimeEvents, getMessageSeq,
     notePayloadSeq, ensureMessageSequenceTracker, thinkingStartByMessageId, thinkingDurationByMessageId, thinkingCollapsedByKey, thinkingActiveByMessageId, errorExpandedByMessageId, toolCallsByMessageId, toolExpandedByKey, messageBlocksById,

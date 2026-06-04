@@ -38,8 +38,6 @@ export function setupWireChatControllers(ctx, deps) {
     sidebarHomeBtn,
     toggleSidebarMobile,
     toggleSidebarDesktop,
-    headerMenuBtn,
-    headerMenuDropdown,
     openSearchBtn,
     newChatBtn,
     sidebarBackdrop,
@@ -289,8 +287,6 @@ export function setupWireChatControllers(ctx, deps) {
     sidebarBackdrop,
     toggleChatsBtn,
     toggleChatsIcon,
-    headerMenuBtn,
-    headerMenuDropdown,
     getChatHandlers,
   });
   ctx.syncChatUrlImpl = shellController.syncChatUrl;

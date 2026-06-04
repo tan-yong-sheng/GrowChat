@@ -137,6 +137,7 @@ export function getModelSelectorDerivedState({
 
 export function renderModelSelectorOption(model, currentState) {
   const isSelected = currentState.activeModelId === model.id;
+  const isDefault = currentState.defaultModelId === model.id;
   const scopeLabel = getModelScopeLabel(model);
   const scopeBadgeClass = getModelScopeBadgeClass(model);
   return `
@@ -148,7 +149,12 @@ export function renderModelSelectorOption(model, currentState) {
         <span class="truncate">${escapeHtml(getModelDisplayLabel(model))}</span>
         <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scopeBadgeClass}">${escapeHtml(scopeLabel)}</span>
       </div>
-      ${isSelected ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
+      <div class="flex items-center gap-1.5">
+        <span class="set-default-star cursor-pointer p-0.5 rounded hover:bg-gray-100 transition-colors ${isDefault ? 'text-amber-500' : 'text-gray-300 hover:text-gray-400'}" data-set-default-id="${escapeHtml(model.id)}" title="${isDefault ? 'Remove as default' : 'Set as default'}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${isDefault ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </span>
+        ${isSelected ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
+      </div>
     </button>
   `;
 }
