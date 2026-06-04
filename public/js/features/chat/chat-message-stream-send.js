@@ -132,33 +132,39 @@ export async function startChatSendMessageWithOptimistic({
   const optimisticAutoTitle = optimistic.autoTitle || null;
 
   if (tempChatId) {
-    const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
-    const payload = modelToUse ? { model: modelToUse } : {};
-    const res = await apiFetch('/api/chats', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
+    try {
+      const modelToUse = state.activeModelId || state.defaultModelId || state.globalDefaultModelId;
+      const payload = modelToUse ? { model: modelToUse } : {};
+      const res = await apiFetch('/api/chats', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        rollbackOptimisticConversation({ state, setState, tempChatId, isTempChatId });
+        hooks.onFinished?.();
+        return;
+      }
+      const data = await res.json();
+      const realChatId = promoteOptimisticConversation({
+        state,
+        setState,
+        tempChatId,
+        realChat: data.chat,
+        currentLeafByChatId,
+        streamingOverrideByChat,
+        syncChatUrl,
+      });
+      chatId = realChatId;
+      if (optimisticAutoTitle) {
+        apiFetch(`/api/chats/${realChatId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ title: optimisticAutoTitle }),
+        }).catch(() => {});
+      }
+    } catch {
       rollbackOptimisticConversation({ state, setState, tempChatId, isTempChatId });
       hooks.onFinished?.();
       return;
-    }
-    const data = await res.json();
-    const realChatId = promoteOptimisticConversation({
-      state,
-      setState,
-      tempChatId,
-      realChat: data.chat,
-      currentLeafByChatId,
-      streamingOverrideByChat,
-      syncChatUrl,
-    });
-    chatId = realChatId;
-    if (optimisticAutoTitle) {
-      apiFetch(`/api/chats/${realChatId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ title: optimisticAutoTitle }),
-      }).catch(() => {});
     }
   }
 
@@ -184,6 +190,13 @@ export async function startChatSendMessageWithOptimistic({
   setGlobalStreamAbort(abortHandler);
   hooks.onAbortable?.(abortHandler);
 
+  const finishEarly = () => {
+    clearGlobalStreamAbort(abortHandler);
+    setActiveStreamAbort(null);
+    setStreamingState(chatId, false);
+    hooks.onFinished?.();
+  };
+
   let res;
   setStreamingState(chatId, true);
   try {
@@ -205,7 +218,6 @@ export async function startChatSendMessageWithOptimistic({
       signal: controller.signal,
     });
   } catch (err) {
-    setStreamingState(chatId, false);
     const isAbort = err?.name === 'AbortError';
     if (isAbort) {
       if (localMessages.length > 0) {
@@ -219,12 +231,11 @@ export async function startChatSendMessageWithOptimistic({
     } else {
       applyAssistantErrorMessage(chatId, tempAssistantId, 'Failed to connect to the server.');
     }
-    hooks.onFinished?.();
+    finishEarly();
     return;
   }
 
   if (!res.ok || !res.body) {
-    setStreamingState(chatId, false);
     let errorText = 'Failed to connect to the server.';
     try {
       const errPayload = await res.json();
@@ -233,7 +244,7 @@ export async function startChatSendMessageWithOptimistic({
       // ignore response parse failure
     }
     applyAssistantErrorMessage(chatId, tempAssistantId, errorText);
-    hooks.onFinished?.();
+    finishEarly();
     return;
   }
 

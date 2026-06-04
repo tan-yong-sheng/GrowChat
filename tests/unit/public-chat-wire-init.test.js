@@ -110,4 +110,23 @@ describe('initWireChat', () => {
     expect(ctx).toHaveProperty('activeStreamAbort');
     expect(ctx.activeStreamAbort).toBeNull();
   });
+
+  it('proxies use latest ctx impl assignments (no stale closure)', async () => {
+    const root = makeRoot();
+    const deps = makeDeps();
+    const ctx = { root };
+
+    initWireChat(root, deps, ctx);
+
+    const first = vi.fn(async () => 'first');
+    const second = vi.fn(async () => 'second');
+
+    ctx.loadChatsImpl = first;
+    await ctx.loadChats();
+    expect(first).toHaveBeenCalledTimes(1);
+
+    ctx.loadChatsImpl = second;
+    await ctx.loadChats();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
 });

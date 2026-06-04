@@ -215,10 +215,11 @@ function wireChat(root) {
       hooks.onFinished?.();
       return;
     }
-    // Render optimistic UI synchronously before any async work,
-    // so the user sees their message instantly.
-    const optimisticState = chatMessageFlow?.prepareSendOptimisticUI?.(prompt);
+    let optimisticState;
     try {
+      // Render optimistic UI synchronously before any async work,
+      // so the user sees their message instantly.
+      optimisticState = chatMessageFlow?.prepareSendOptimisticUI?.(prompt);
       // Lazy-load stream modules in parallel — these resolve instantly
       // if already warmed up via focusin, otherwise fetch the JS chunks.
       await ensureStreamRuntime();

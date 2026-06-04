@@ -200,24 +200,24 @@ export function createModelSelectorController(container) {
   };
 
   const handleSetDefault = async (modelId) => {
-    const currentState = state;
-    const isDefault = currentState.defaultModelId === modelId;
+    const isDefault = state.defaultModelId === modelId;
     const { apiFetch } = await import('../../shared/api.js');
     const result = await persistDefaultModelSelection({
       apiFetch,
       modelId: isDefault ? null : modelId,
-      currentPreferences: currentState.user?.preferences || {},
+      currentPreferences: state.user?.preferences || {},
     });
     if (result.ok) {
       const nextDefaultModelId = isDefault ? null : modelId;
-      const nextPreferences = { ...(currentState.user?.preferences || {}) };
-      if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
-      else delete nextPreferences.defaultModelId;
-      setState({
-        defaultModelId: nextDefaultModelId,
-        user: currentState.user
-          ? { ...currentState.user, preferences: nextPreferences }
-          : currentState.user,
+      setState((prev) => {
+        const updated = { defaultModelId: nextDefaultModelId };
+        if (result.persisted) {
+          const nextPreferences = { ...(prev.user?.preferences || {}) };
+          if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
+          else delete nextPreferences.defaultModelId;
+          updated.user = prev.user ? { ...prev.user, preferences: nextPreferences } : prev.user;
+        }
+        return updated;
       });
       renderList(state, { reset: true, rebuild: true });
     }
