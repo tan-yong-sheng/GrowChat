@@ -46,27 +46,37 @@ export function prepareSendOptimisticUI({
   const draftAttachments = getDraftAttachments(chatId);
   const branchParentId = currentLeafByChatId.get(chatId) || null;
 
-  const { tempUserId, tempAssistantId, localMessages } = createOptimisticTempMessages({
-    chatId,
-    branchParentId,
-    userContent: text,
-    userAttachments: draftAttachments,
-    activeModelId: state.activeModelId,
-    state,
-    setState,
-    registerPendingTempMessage,
-    setBranchSelection,
-    currentLeafByChatId,
-    drawMessages,
-  });
-  return {
-    optimistic,
-    chatId,
-    tempUserId,
-    tempAssistantId,
-    localMessages,
-    draftAttachments,
-  };
+  try {
+    const { tempUserId, tempAssistantId, localMessages } = createOptimisticTempMessages({
+      chatId,
+      branchParentId,
+      userContent: text,
+      userAttachments: draftAttachments,
+      activeModelId: state.activeModelId,
+      state,
+      setState,
+      registerPendingTempMessage,
+      setBranchSelection,
+      currentLeafByChatId,
+      drawMessages,
+    });
+    return {
+      optimistic,
+      chatId,
+      tempUserId,
+      tempAssistantId,
+      localMessages,
+      draftAttachments,
+    };
+  } catch (err) {
+    // createOptimisticTempMessages throws can leave the temp conversation
+    // orphaned in state — clean it up before re-throwing so the caller
+    // can still call hooks.onFinished in its catch.
+    if (optimistic?.tempChatId) {
+      rollbackOptimisticConversation({ setState, tempChatId: optimistic.tempChatId });
+    }
+    throw err;
+  }
 }
 
 /**
