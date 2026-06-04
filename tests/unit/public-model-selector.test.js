@@ -106,7 +106,7 @@ describe('model selector', () => {
     container.querySelector('#model-selector-btn').click();
     expect(container.textContent).toContain('Personal');
     expect(container.textContent).toContain('Shared');
-    container.querySelector('button[data-model-id="m2"]').click();
+    container.querySelector('[data-model-id="m2"]').click();
     expect(store.state.activeModelId).toBe('m2');
     destroy();
   });

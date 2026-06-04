@@ -141,7 +141,7 @@ export function renderModelSelectorOption(model, currentState) {
   const scopeLabel = getModelScopeLabel(model);
   const scopeBadgeClass = getModelScopeBadgeClass(model);
   return `
-    <button class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${isSelected ? 'bg-gray-100 text-gray-900 font-semibold ring-1 ring-gray-200 shadow-sm' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${escapeHtml(model.id)}" role="option" aria-selected="${isSelected}">
+    <div class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${isSelected ? 'bg-gray-100 text-gray-900 font-semibold ring-1 ring-gray-200 shadow-sm' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${escapeHtml(model.id)}" role="option" aria-selected="${isSelected}">
       <div class="flex items-center gap-2">
         <div class="w-6 h-6 rounded-lg bg-white border border-gray-100 flex items-center justify-center overflow-hidden shadow-sm">
           <img src="/logo.png" alt="" class="w-4 h-4 object-contain opacity-70" />
@@ -155,7 +155,7 @@ export function renderModelSelectorOption(model, currentState) {
         </button>
         ${isSelected ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
       </div>
-    </button>
+    </div>
   `;
 }
 

@@ -1,6 +1,7 @@
 // Chat module - main orchestration.
 // Split from original chat.js for line-count compliance.
 
+import { rollbackOptimisticConversation } from './chat-message-stream-temp-chat.js';
 import { renderChat as _renderChat } from './chat-html.js';
 import { getWireChatDeps } from './chat-wire-deps.js';
 import { initWireChat } from './chat-wire-init.js';
@@ -227,6 +228,13 @@ function wireChat(root) {
       return chatMessageFlow?.sendWithOptimisticState?.(prompt, hooks, options, optimisticState);
     } catch (err) {
       console.error('sendMessage init failed:', err);
+      // Roll back the optimistic temp chat if one was created
+      if (optimisticState) {
+        const tempChatId = optimisticState.optimistic?.tempChatId;
+        if (tempChatId) {
+          rollbackOptimisticConversation({ setState, tempChatId });
+        }
+      }
       hooks.onFinished?.();
     }
   }

@@ -200,26 +200,30 @@ export function createModelSelectorController(container) {
   };
 
   const handleSetDefault = async (modelId) => {
-    const isDefault = state.defaultModelId === modelId;
-    const { apiFetch } = await import('../../shared/api.js');
-    const result = await persistDefaultModelSelection({
-      apiFetch,
-      modelId: isDefault ? null : modelId,
-      currentPreferences: state.user?.preferences || {},
-    });
-    if (result.ok) {
-      const nextDefaultModelId = isDefault ? null : modelId;
-      setState((prev) => {
-        const updated = { defaultModelId: nextDefaultModelId };
-        if (result.persisted) {
-          const nextPreferences = { ...(prev.user?.preferences || {}) };
-          if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
-          else delete nextPreferences.defaultModelId;
-          updated.user = prev.user ? { ...prev.user, preferences: nextPreferences } : prev.user;
-        }
-        return updated;
+    try {
+      const isDefault = state.defaultModelId === modelId;
+      const { apiFetch } = await import('../../shared/api.js');
+      const result = await persistDefaultModelSelection({
+        apiFetch,
+        modelId: isDefault ? null : modelId,
+        currentPreferences: state.user?.preferences || {},
       });
-      renderList(state, { reset: true, rebuild: true });
+      if (result.ok) {
+        const nextDefaultModelId = isDefault ? null : modelId;
+        setState((prev) => {
+          const updated = { defaultModelId: nextDefaultModelId };
+          if (result.persisted) {
+            const nextPreferences = { ...(prev.user?.preferences || {}) };
+            if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
+            else delete nextPreferences.defaultModelId;
+            updated.user = prev.user ? { ...prev.user, preferences: nextPreferences } : prev.user;
+          }
+          return updated;
+        });
+        renderList(state, { reset: true, rebuild: true });
+      }
+    } catch (err) {
+      console.error('Failed to set default model:', err);
     }
   };
 
@@ -297,9 +301,9 @@ export function createModelSelectorController(container) {
       handleSetDefault(starEl.getAttribute('data-set-default-id'));
       return;
     }
-    const button = e.target.closest('button[data-model-id]');
-    if (!button) return;
-    const newModelId = button.getAttribute('data-model-id');
+    const optionEl = e.target.closest('[data-model-id]');
+    if (!optionEl) return;
+    const newModelId = optionEl.getAttribute('data-model-id');
     clearModelAvailabilityNotice();
     setState({
       activeModelId: newModelId,
