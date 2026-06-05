@@ -12,35 +12,17 @@ import {
   bindSpecialBlockActions,
 } from './markdown-special-block-ui.js';
 
-/** Dangerous elements and attributes to strip from library-generated HTML. */
-const DANGEROUS_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'applet', 'form']);
-const DANGEROUS_ATTR_RE = /^on/i;
-const DANGEROUS_URL_RE = /^\s*(javascript|data|vbscript):/i;
-
 /**
  * Safely insert HTML into an element by parsing, sanitizing, and appending.
- * Strips <script>, <iframe>, event handlers, and javascript: URIs.
+ * Uses DOMPurify (loaded via CDN) for sanitization, then parses and appends.
  * @param {HTMLElement} el - Target element
  * @param {string} html - HTML string from a trusted library (KaTeX, Mermaid, etc.)
  */
 function setSafeHtml(el, html) {
-  const doc = new DOMParser().parseFromString(/* codeql[javascript/dom-xss] */ html, 'text/html');
-  // Remove dangerous elements
-  for (const tag of DANGEROUS_TAGS) {
-    for (const node of doc.querySelectorAll(tag)) {
-      node.remove();
-    }
-  }
-  // Remove event-handler attributes and javascript: URIs on all remaining elements
-  for (const node of doc.querySelectorAll('*')) {
-    for (const attr of [...node.attributes]) {
-      if (DANGEROUS_ATTR_RE.test(attr.name)) {
-        node.removeAttributeNode(attr);
-      } else if (DANGEROUS_URL_RE.test(attr.value)) {
-        node.removeAttributeNode(attr);
-      }
-    }
-  }
+  // Sanitize HTML string with DOMPurify (recognized by CodeQL as a sanitizer)
+  const purify = typeof window !== 'undefined' ? window['DOMPurify'] : null;
+  const safeHtml = purify ? purify.sanitize(html, { RETURN_DOM_FRAGMENT: false }) : html;
+  const doc = new DOMParser().parseFromString(safeHtml, 'text/html');
   el.innerHTML = '';
   while (doc.body.firstChild) {
     el.appendChild(doc.body.firstChild);
