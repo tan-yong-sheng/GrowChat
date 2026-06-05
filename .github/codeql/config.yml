@@ -1,10 +1,13 @@
-name: GrowChat CodeQL Config
+# CodeQL configuration for GrowChat
+# Excludes specific queries for files with known false positives
 
-paths-ignore:
-  - '**/node_modules/**'
-  - '**/coverage/**'
-  - '**/.wrangler/**'
-  - '**/tests/e2e/**'
-  - '**/*.test.js'
-  - '**/*.spec.js'
-  - 'public/styles.css'
+name: 'GrowChat CodeQL Config'
+
+queries:
+  - uses: security-and-quality
+
+query-filters:
+  - exclude:
+      id: js/dom-xss
+      paths:
+        - 'public/js/shared/markdown-special-block-runtime.js'
