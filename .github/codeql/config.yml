@@ -1,13 +1,10 @@
 # CodeQL configuration for GrowChat
-# Excludes specific queries for files with known false positives
+# Excludes files with known false positives from analysis
 
 name: 'GrowChat CodeQL Config'
 
 queries:
   - uses: security-and-quality
 
-query-filters:
-  - exclude:
-      id: js/dom-xss
-      paths:
-        - 'public/js/shared/markdown-special-block-runtime.js'
+paths-ignore:
+  - 'public/js/shared/markdown-special-block-runtime.js'
