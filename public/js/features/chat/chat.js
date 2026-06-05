@@ -295,6 +295,16 @@ function wireChat(root) {
     void ensureMessageSequenceTracker();
   };
   let lastActiveChatId = state.activeChatId;
+  let lastChatsRef = state.chats;
+  let pendingChatListRaf = null;
+  const scheduleChatListUpdate = () => {
+    if (pendingChatListRaf !== null) return;
+    pendingChatListRaf = requestAnimationFrame(() => {
+      pendingChatListRaf = null;
+      drawChats(state.chats, state.activeChatId);
+      maybeRefreshChatListObserver();
+    });
+  };
   const unsubscribe = subscribe((currentState) => {
     if (currentState.showSearch) {
       ensureSearchModal();
@@ -321,9 +331,19 @@ function wireChat(root) {
       touchRecentChat(recentChatIds, currentState.activeChatId);
       schedulePrune();
     }
+    const chatListChanged = currentState.chats !== lastChatsRef;
+    const activeChanged = currentState.activeChatId !== lastActiveChatId;
     lastActiveChatId = currentState.activeChatId;
-    drawChats(currentState.chats, currentState.activeChatId);
-    maybeRefreshChatListObserver();
+    if (chatListChanged) {
+      lastChatsRef = currentState.chats;
+      scheduleChatListUpdate();
+    } else if (activeChanged) {
+      // Active chat changed but list reference didn't — still need to update
+      // the active highlight.  Defer with rAF to batch with other renders.
+      scheduleChatListUpdate();
+    } else {
+      maybeRefreshChatListObserver();
+    }
   });
   chatListContainerEl?.addEventListener('wheel', onChatListInteraction, {
     once: true,
