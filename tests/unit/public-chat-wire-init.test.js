@@ -129,4 +129,38 @@ describe('initWireChat', () => {
     await ctx.loadChats();
     expect(second).toHaveBeenCalledTimes(1);
   });
+
+  it('all proxy functions use late-bound ctx impl (no stale closures)', async () => {
+    const root = makeRoot();
+    const deps = makeDeps();
+    const ctx = { root };
+
+    initWireChat(root, deps, ctx);
+
+    const proxyNames = [
+      'syncChatUrl',
+      'startNewChat',
+      'refreshChatListObserver',
+      'refreshShareState',
+      'loadChats',
+      'loadMessages',
+      'drawMessages',
+      'openCitation',
+    ];
+
+    for (const name of proxyNames) {
+      const implName = name + 'Impl';
+      const first = vi.fn(async () => 'first-' + name);
+      const second = vi.fn(async () => 'second-' + name);
+
+      ctx[implName] = first;
+      await ctx[name]();
+      expect(first).toHaveBeenCalledTimes(1);
+      expect(second).not.toHaveBeenCalled();
+
+      ctx[implName] = second;
+      await ctx[name]();
+      expect(second).toHaveBeenCalledTimes(1);
+    }
+  });
 });

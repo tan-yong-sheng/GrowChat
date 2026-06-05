@@ -201,22 +201,40 @@ export function createModelSelectorController(container) {
 
   const handleSetDefault = async (modelId) => {
     try {
-      const isDefault = state.defaultModelId === modelId;
       const { apiFetch } = await import('../../shared/api.js');
+
+      // Use setState updater to read latest state and avoid stale closures
+      // We do this in two steps: first read current state, then persist, then update
+      let currentDefaultModelId = null;
+      let currentPreferences = {};
+
+      setState((prev) => {
+        currentDefaultModelId = prev.defaultModelId;
+        currentPreferences = { ...(prev.user?.preferences || {}) };
+        return prev; // no state change, just reading
+      });
+
+      const isDefault = currentDefaultModelId === modelId;
+      const nextDefaultModelId = isDefault ? null : modelId;
+      const nextPreferences = { ...currentPreferences };
+      if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
+      else delete nextPreferences.defaultModelId;
+
       const result = await persistDefaultModelSelection({
         apiFetch,
-        modelId: isDefault ? null : modelId,
-        currentPreferences: state.user?.preferences || {},
+        modelId: nextDefaultModelId,
+        currentPreferences: nextPreferences,
       });
+
       if (result.ok) {
-        const nextDefaultModelId = isDefault ? null : modelId;
         setState((prev) => {
           const updated = { defaultModelId: nextDefaultModelId };
+          // Only mutate user.preferences if the preference was actually persisted to the backend
           if (result.persisted) {
-            const nextPreferences = { ...(prev.user?.preferences || {}) };
-            if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
-            else delete nextPreferences.defaultModelId;
-            updated.user = prev.user ? { ...prev.user, preferences: nextPreferences } : prev.user;
+            const prefs = { ...(prev.user?.preferences || {}) };
+            if (nextDefaultModelId) prefs.defaultModelId = nextDefaultModelId;
+            else delete prefs.defaultModelId;
+            updated.user = prev.user ? { ...prev.user, preferences: prefs } : prev.user;
           }
           return updated;
         });
