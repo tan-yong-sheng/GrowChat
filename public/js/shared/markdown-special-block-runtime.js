@@ -24,7 +24,7 @@ const DANGEROUS_URL_RE = /^\s*(javascript|data|vbscript):/i;
  * @param {string} html - HTML string from a trusted library (KaTeX, Mermaid, etc.)
  */
 function setSafeHtml(el, html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html'); // codeql[js/dom-xss] - trusted library input + sanitized below
+  /* codeql[js/dom-xss] */ const doc = new DOMParser().parseFromString(html, 'text/html');
   // Remove dangerous elements
   for (const tag of DANGEROUS_TAGS) {
     for (const node of doc.querySelectorAll(tag)) {
