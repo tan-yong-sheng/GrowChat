@@ -25,7 +25,7 @@ function wireChat(root) {
     getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, isTempChatId, loadAllowedToolServers, loadChats, loadChatsImpl, loadMessages,
     loadMessagesImpl, maybeRefreshChatListObserver, messageBlocksById, messageInputContainer, messagesList, newChatBtn, notePayloadSeq, onChatListInteraction, onRealtimeEvent, openArchivedModal, openCitation, openSearchBtn,
     pruneTempChats, recentChatIds, refreshChatListObserver, refreshChatListObserverImpl, refreshShareState, refreshShareStateImpl, registerPendingTempMessage, replaceTempMessageId, resolveTempMessageId, schedulePrune, scheduleSidebarHydrationWarmup, searchModalContainer,
-    setBranchSelection, setDraftAttachments, setDraftToolNames, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebar, sidebarBackdrop, sidebarHomeBtn, startNewChat,
+    destroyShellEvents, setBranchSelection, setDraftAttachments, setDraftToolNames, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebar, sidebarBackdrop, sidebarHomeBtn, startNewChat,
     startNewChatImpl, streamSession, streamingOverrideByChat, syncChatUrl, syncChatUrlImpl, thinkingActiveByMessageId, thinkingCollapsedByKey, thinkingDurationByMessageId, thinkingStartByMessageId, toggleChatsBtn, toggleChatsIcon, toggleSidebarDesktop,
     toggleSidebarMobile, toolCallsByMessageId, toolExpandedByKey, uiResources, unbindToolServersInvalidationListener, updateChatTitleLocal, updateMessageContentDom, welcomeScreenContainer
   } = ctx;
@@ -40,7 +40,6 @@ function wireChat(root) {
     toggleArchiveChat, fetchChats, fetchSharedChats
   } = deps;
 
-  const destroyShellEvents = shellController.bindShellEvents();
   const dataController = createChatDataController({
     state,
     setState,
@@ -119,6 +118,8 @@ function wireChat(root) {
     const { renderFilesModal } = await uiResources.loadFilesModalModule();
     destroyFilesModal = renderFilesModal(filesModalContainer);
   }
+  ctx.ensureSearchModal = ensureSearchModal;
+  ctx.ensureFilesModal = ensureFilesModal;
   const inputComponent = renderMessageInput(messageInputContainer, sendMessage, async () => {
     await ensureFilesModal();
     setState({ showFiles: true });

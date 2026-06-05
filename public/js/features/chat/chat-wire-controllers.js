@@ -293,8 +293,10 @@ export function setupWireChatControllers(ctx, deps) {
   ctx.startNewChatImpl = shellController.startNewChat;
   ctx.refreshChatListObserverImpl = shellController.refreshChatListObserver;
 
+  const shellEventCleanup = shellController.bindShellEvents();
+
   Object.assign(ctx, {
-    destroyShellEvents: shellController.bindShellEvents(),
+    destroyShellEvents: shellEventCleanup,
     shellController,
     renderController,
     destroyMessageListInteractions,
