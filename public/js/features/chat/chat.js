@@ -394,6 +394,10 @@ function wireChat(root) {
       clearTimeout(sidebarHydrationWarmupTimer);
       sidebarHydrationWarmupTimer = null;
     }
+    if (pendingChatListRaf !== null) {
+      cancelAnimationFrame(pendingChatListRaf);
+      pendingChatListRaf = null;
+    }
     if (activeStreamAbort) activeStreamAbort();
     streamSession.dispose();
     unsubscribe();

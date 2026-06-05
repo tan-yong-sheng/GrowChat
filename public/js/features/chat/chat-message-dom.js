@@ -1,3 +1,5 @@
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
+
 export function createChatMessageDom({
   messagesList,
   state,
@@ -20,6 +22,9 @@ export function createChatMessageDom({
     toolExpandedByKey,
     messageBlocksById,
   };
+
+  // Track incremental streaming state per message
+  const streamingState = new WeakMap();
 
   function updateMessageContentDom(messageId, content, options = {}) {
     if (!messageId) return false;
@@ -46,6 +51,41 @@ export function createChatMessageDom({
       if (hasActiveSelection) {
         return true;
       }
+
+      // Check if we can do incremental text update (no thinking, no tools)
+      const key = String(messageId);
+      const hasThinking = thinkingActiveByMessageId?.get(key) === true;
+      const hasTools = (toolCallsByMessageId?.get(key) || []).some(
+        (call) => String(call?.status || '').toLowerCase() === 'running'
+      );
+      const canIncremental = !hasThinking && !hasTools && !forceError;
+
+      if (canIncremental) {
+        // Incremental text append for streaming text content
+        const prev = streamingState.get(el) || { lastLength: 0 };
+        const textEl = el.querySelector('[data-streaming-text]');
+        if (textEl && prev.lastLength <= content.length) {
+          // Append only the new delta
+          const delta = content.slice(prev.lastLength);
+          if (delta) {
+            const escapedDelta = escapeHtml(delta).replace(/\n/g, '<br/>');
+            textEl.insertAdjacentHTML('beforeend', escapedDelta);
+            prev.lastLength = content.length;
+            streamingState.set(el, prev);
+            return true;
+          }
+        }
+        // First time or fallback: render with streaming marker
+        const html = `<div class="whitespace-pre-wrap break-words" data-streaming-text>${escapeHtml(String(content ?? '')).replace(/\n/g, '<br/>')}</div>`;
+        el.innerHTML = html;
+        streamingState.set(el, { lastLength: content.length });
+        return true;
+      }
+      // Fall through to full render for thinking/tools/error
+      streamingState.delete(el);
+    } else {
+      // Streaming ended - clear tracking and do full render
+      streamingState.delete(el);
     }
 
     el.innerHTML = renderAssistantMessageBody({
