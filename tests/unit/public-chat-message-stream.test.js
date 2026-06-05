@@ -638,4 +638,76 @@ describe('chat message stream helper', () => {
     ]);
     expect(toolCallsByMessageId.get('msg-1')[0].status).toBe('completed');
   });
+
+  it('handles undefined optimisticState gracefully (safe destructuring)', async () => {
+    const state = {
+      activeChatId: 'chat-1',
+      activeModelId: 'model-1',
+      chats: [{ id: 'chat-1', title: 'Chat 1' }],
+      messagesByChat: { 'chat-1': [{ id: 'm-1', role: 'user', content: 'hi' }] },
+      attachmentsByChat: {},
+      ui: {},
+    };
+    const setState = vi.fn((updater) => {
+      const next = typeof updater === 'function' ? updater(state) : updater;
+      Object.assign(state, next);
+    });
+    const onFinished = vi.fn();
+    const helper = createChatMessageStream({
+      state,
+      setState,
+      apiFetch: vi.fn(async (url) => {
+        if (String(url).includes('/messages')) {
+          throw new TypeError('Failed to fetch');
+        }
+        return { ok: true, json: async () => ({}) };
+      }),
+      drawMessages: vi.fn(),
+      buildTempChat: vi.fn(),
+      pruneTempChats: (list) => list,
+      currentLeafByChatId: new Map(),
+      registerPendingTempMessage: vi.fn(),
+      setBranchSelection: vi.fn(),
+      streamingOverrideByChat: new Map(),
+      setGlobalStreamAbort: vi.fn(),
+      clearGlobalStreamAbort: vi.fn(),
+      setStreamingState: vi.fn(),
+      getActiveStreamAbort: vi.fn(() => null),
+      setActiveStreamAbort: vi.fn(),
+      consumeSseTextStream: vi.fn(),
+      appendBlock: vi.fn(),
+      ensureThinkingBlock: vi.fn(),
+      updateToolCallState: vi.fn(),
+      notePayloadSeq: vi.fn(),
+      buildFallbackAssistantMessage: vi.fn(),
+      formatApiErrorMessage: vi.fn((_, fallback) => fallback),
+      updateMessageContentDom: vi.fn(),
+      applyAssistantErrorMessage: vi.fn(),
+      getMessageById: vi.fn(() => null),
+      loadMessages: vi.fn().mockResolvedValue(undefined),
+      getMessageSeq: vi.fn(() => 0),
+      thinkingStartByMessageId: new Map(),
+      thinkingDurationByMessageId: new Map(),
+      thinkingActiveByMessageId: new Map(),
+      messageBlocksById: new Map(),
+      toolCallsByMessageId: new Map(),
+      streamSession: {
+        getResumeStream: vi.fn(),
+        setResumeStream: vi.fn(),
+        clearResumeStream: vi.fn(),
+        startStreamPolling: vi.fn(),
+        stopStreamPolling: vi.fn(),
+        stopResumeStream: vi.fn(),
+      },
+      replaceTempMessageId: vi.fn(),
+      resolveTempMessageId: vi.fn((_, id) => id),
+    });
+
+    // Calling sendWithOptimisticState with undefined optimisticState
+    // should not throw from destructuring — safe fallbacks kick in.
+    await expect(
+      helper.sendWithOptimisticState('hello', { onFinished }, {}, undefined)
+    ).resolves.not.toThrow();
+    expect(onFinished).toHaveBeenCalledTimes(1);
+  });
 });

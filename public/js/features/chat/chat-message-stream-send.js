@@ -129,13 +129,13 @@ export async function startChatSendMessageWithOptimistic({
   resolveTempMessageId = (_, id) => id,
 } = {}) {
   const {
-    optimistic,
+    optimistic = {},
     chatId: optimisticChatId,
     tempUserId,
     tempAssistantId,
-    localMessages,
-    draftAttachments,
-  } = optimisticState;
+    localMessages = [],
+    draftAttachments = [],
+  } = optimisticState || {};
   let chatId = optimisticChatId;
   let tempChatId = optimistic.tempChatId;
   const hadMessagesBefore = optimistic.hadMessagesBefore;
