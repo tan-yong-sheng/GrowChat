@@ -207,6 +207,26 @@ export async function startChatSendMessageWithOptimistic({
     hooks.onFinished?.();
   };
 
+  const commitPartialStreamText = () => {
+    const st = getStreamState();
+    const text = String(st.assistantText || '').trim();
+    if (!text || !tempAssistantId) return;
+    const currentMessages = [...(state.messagesByChat[chatId] || [])];
+    const idx = currentMessages.findIndex((m) => String(m?.id || '') === String(tempAssistantId));
+    if (idx >= 0) {
+      const current = currentMessages[idx] || {};
+      currentMessages[idx] = {
+        ...current,
+        content: text,
+        done: true,
+      };
+    }
+    setState((prev) => ({
+      messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
+    }));
+    streamingOverrideByChat.delete(chatId);
+  };
+
   let res;
   setStreamingState(chatId, true);
   try {
@@ -228,17 +248,7 @@ export async function startChatSendMessageWithOptimistic({
       signal: controller.signal,
     });
   } catch (err) {
-    const isAbort = err?.name === 'AbortError';
-    if (isAbort) {
-      if (localMessages.length > 0) {
-        localMessages[localMessages.length - 1].done = true;
-        localMessages[localMessages.length - 1].content = 'Stopped.';
-        setState((prev) => ({
-          messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages },
-        }));
-        if (state.activeChatId === chatId) drawMessages(localMessages);
-      }
-    } else {
+    if (err?.name !== 'AbortError') {
       applyAssistantErrorMessage(chatId, tempAssistantId, 'Failed to connect to the server.');
     }
     finishEarly();
@@ -322,7 +332,9 @@ export async function startChatSendMessageWithOptimistic({
       activeChatId: state.activeChatId,
     });
   } catch (err) {
-    if (err?.name !== 'AbortError') {
+    if (err?.name === 'AbortError') {
+      commitPartialStreamText();
+    } else {
       console.error('Stream error:', err);
       await handleStreamCatchError({
         error: err,
