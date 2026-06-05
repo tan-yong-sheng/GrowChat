@@ -12,6 +12,7 @@
 !.claude/skills/**
 
 # ── Pi / gstack / dev tool state ──
+.archon/artifacts/
 .gstack/
 .pi/
 .pi-lens/

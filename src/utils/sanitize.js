@@ -24,9 +24,18 @@ export function escapeHtml(text) {
  * Strip all HTML tags from a string.
  * Used to sanitize user input before storing in the database.
  *
+ * Iterates until no tags remain to prevent reconstruction attacks
+ * (e.g. `<<script>script>` → `<script>` after a single pass).
+ *
  * @param {string} text - Raw text that may contain HTML
  * @returns {string} Text with HTML tags removed
  */
 export function stripHtml(text) {
-  return String(text ?? '').replace(/<[^>]*>/g, '').trim();
+  let result = String(text ?? '');
+  let previous;
+  do {
+    previous = result;
+    result = result.replace(/<[^>]*>/g, '');
+  } while (result !== previous);
+  return result.trim();
 }

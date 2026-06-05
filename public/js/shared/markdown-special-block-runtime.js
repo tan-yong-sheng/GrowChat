@@ -12,6 +12,41 @@ import {
   bindSpecialBlockActions,
 } from './markdown-special-block-ui.js';
 
+/** Dangerous elements and attributes to strip from library-generated HTML. */
+const DANGEROUS_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'applet', 'form']);
+const DANGEROUS_ATTR_RE = /^on/i;
+const DANGEROUS_URL_RE = /^\s*(javascript|data|vbscript):/i;
+
+/**
+ * Safely insert HTML into an element by parsing, sanitizing, and appending.
+ * Strips <script>, <iframe>, event handlers, and javascript: URIs.
+ * @param {HTMLElement} el - Target element
+ * @param {string} html - HTML string from a trusted library (KaTeX, Mermaid, etc.)
+ */
+function setSafeHtml(el, html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // Remove dangerous elements
+  for (const tag of DANGEROUS_TAGS) {
+    for (const node of doc.querySelectorAll(tag)) {
+      node.remove();
+    }
+  }
+  // Remove event-handler attributes and javascript: URIs on all remaining elements
+  for (const node of doc.querySelectorAll('*')) {
+    for (const attr of [...node.attributes]) {
+      if (DANGEROUS_ATTR_RE.test(attr.name)) {
+        node.removeAttributeNode(attr);
+      } else if (DANGEROUS_URL_RE.test(attr.value)) {
+        node.removeAttributeNode(attr);
+      }
+    }
+  }
+  el.innerHTML = '';
+  while (doc.body.firstChild) {
+    el.appendChild(doc.body.firstChild);
+  }
+}
+
 const externalScriptPromises = new Map();
 const externalStylesheetPromises = new Map();
 let graphvizRendererPromise = null;
@@ -219,11 +254,14 @@ export async function renderSpecialPreview(kind, source, previewEl, block) {
       const katex = globalThis?.window?.katex || globalThis?.katex;
       if (!katex || typeof katex.renderToString !== 'function')
         throw new Error('KaTeX unavailable');
-      previewEl.innerHTML = katex.renderToString(text, {
-        displayMode: true,
-        throwOnError: true,
-        output: 'html',
-      });
+      setSafeHtml(
+        previewEl,
+        katex.renderToString(text, {
+          displayMode: true,
+          throwOnError: true,
+          output: 'html',
+        })
+      );
       if (block) setSpecialBlockError(block, '');
       return true;
     }
@@ -254,7 +292,7 @@ export async function renderSpecialPreview(kind, source, previewEl, block) {
             reject(err);
           }
         });
-        previewEl.innerHTML = String(svg || '');
+        setSafeHtml(previewEl, String(svg || ''));
       }
       if (block) setSpecialBlockError(block, '');
       return true;
@@ -263,7 +301,7 @@ export async function renderSpecialPreview(kind, source, previewEl, block) {
       const renderer = await loadGraphvizRenderer();
       if (!renderer || typeof renderer.dot !== 'function') throw new Error('Graphviz unavailable');
       const svg = await Promise.resolve(renderer.dot(text));
-      previewEl.innerHTML = String(svg || '');
+      setSafeHtml(previewEl, String(svg || ''));
       if (block) setSpecialBlockError(block, '');
       return true;
     }
