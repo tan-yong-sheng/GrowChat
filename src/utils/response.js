@@ -132,20 +132,17 @@ function sanitizeErrorMessage(message, status) {
 
 /**
  * Sanitizes a details object by removing stack trace information from string values.
- * Used for 4xx errors where we expose details but want to strip sensitive info.
+ * For 5xx errors, the error message is already sanitized to a generic message,
+ * but we still sanitize any additional details to prevent stack trace leakage.
+ * For 4xx errors, we expose details but strip stack traces from string values.
  */
 // eslint-disable-next-line complexity
 function sanitizeErrorDetails(details, status) {
-  // For 5xx errors, never expose details
-  if (status >= 500) {
-    return undefined;
-  }
-
   if (!details) {
     return undefined;
   }
 
-  // For arrays and primitives, recursively sanitize
+  // For arrays, recursively sanitize each item
   if (Array.isArray(details)) {
     return details.map((item) => sanitizeErrorDetails(item, status)).filter(Boolean);
   }
