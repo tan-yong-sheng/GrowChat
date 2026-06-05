@@ -1898,9 +1898,6 @@ textarea:disabled {
   --tw-border-opacity: 1;
   border-color: rgb(191 219 254 / var(--tw-border-opacity, 1));
 }
-.border-current {
-  border-color: currentColor;
-}
 .border-emerald-100 {
   --tw-border-opacity: 1;
   border-color: rgb(209 250 229 / var(--tw-border-opacity, 1));
@@ -2014,9 +2011,6 @@ textarea:disabled {
 .border-t-gray-800 {
   --tw-border-opacity: 1;
   border-top-color: rgb(31 41 55 / var(--tw-border-opacity, 1));
-}
-.border-t-transparent {
-  border-top-color: transparent;
 }
 .bg-\[\#0066cc\] {
   --tw-bg-opacity: 1;
@@ -2773,10 +2767,6 @@ textarea:disabled {
   --tw-text-opacity: 1;
   color: rgb(17 24 39 / var(--tw-text-opacity, 1));
 }
-.text-green-500 {
-  --tw-text-opacity: 1;
-  color: rgb(34 197 94 / var(--tw-text-opacity, 1));
-}
 .text-green-600 {
   --tw-text-opacity: 1;
   color: rgb(22 163 74 / var(--tw-text-opacity, 1));
@@ -3290,7 +3280,6 @@ textarea:disabled {
 }
 .hover\:text-gray-400:hover {
   --tw-text-opacity: 1;
-
   color: rgb(156 163 175 / var(--tw-text-opacity, 1));
 }
 .hover\:text-gray-600:hover {
