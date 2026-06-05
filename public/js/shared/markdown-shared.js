@@ -12,11 +12,43 @@ export function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+const HTML_ENTITY_RE = /&(?:#(x[0-9a-fA-F]+|\d+)|([a-zA-Z]+));/g;
+
+const NAMED_ENTITIES = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: '\u00A0',
+  mdash: '\u2014',
+  ndash: '\u2013',
+  laquo: '\u00AB',
+  raquo: '\u00BB',
+  hellip: '\u2026',
+  bull: '\u2022',
+  lsquo: '\u2018',
+  rsquo: '\u2019',
+  ldquo: '\u201C',
+  rdquo: '\u201D',
+  trade: '\u2122',
+  copy: '\u00A9',
+  reg: '\u00AE',
+  euro: '\u20AC',
+};
+
 export function decodeHtmlEntities(content) {
-  if (typeof document === 'undefined') return String(content ?? '');
-  const textarea = document.createElement('textarea');
-  textarea.innerHTML = String(content ?? '');
-  return textarea.value;
+  const text = String(content ?? '');
+  return text.replace(HTML_ENTITY_RE, (match, numRef, nameRef) => {
+    if (nameRef) {
+      return NAMED_ENTITIES[nameRef] || match;
+    }
+    if (numRef) {
+      const code = numRef.startsWith('x') ? parseInt(numRef.slice(1), 16) : parseInt(numRef, 10);
+      return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : match;
+    }
+    return match;
+  });
 }
 
 export function normalizeSpecialBlockScope(scope) {

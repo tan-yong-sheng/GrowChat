@@ -15,6 +15,7 @@ export function setupWireChatControllers(ctx, deps) {
     messageBlocksById,
     errorExpandedByMessageId,
     currentLeafByChatId,
+    branchSelectionByChat,
     streamingOverrideByChat,
     loadMessages,
     openCitation,
@@ -37,8 +38,6 @@ export function setupWireChatControllers(ctx, deps) {
     sidebarHomeBtn,
     toggleSidebarMobile,
     toggleSidebarDesktop,
-    headerMenuBtn,
-    headerMenuDropdown,
     openSearchBtn,
     newChatBtn,
     sidebarBackdrop,
@@ -136,7 +135,7 @@ export function setupWireChatControllers(ctx, deps) {
     welcomeScreenContainer,
     messagesContainer,
     hydrateAttachmentImages,
-    branchSelectionByChat: currentLeafByChatId,
+    branchSelectionByChat,
     currentLeafByChatId,
     streamingOverrideByChat,
     errorExpandedByMessageId,
@@ -288,16 +287,16 @@ export function setupWireChatControllers(ctx, deps) {
     sidebarBackdrop,
     toggleChatsBtn,
     toggleChatsIcon,
-    headerMenuBtn,
-    headerMenuDropdown,
     getChatHandlers,
   });
   ctx.syncChatUrlImpl = shellController.syncChatUrl;
   ctx.startNewChatImpl = shellController.startNewChat;
   ctx.refreshChatListObserverImpl = shellController.refreshChatListObserver;
 
+  const shellEventCleanup = shellController.bindShellEvents();
+
   Object.assign(ctx, {
-    destroyShellEvents: shellController.bindShellEvents(),
+    destroyShellEvents: shellEventCleanup,
     shellController,
     renderController,
     destroyMessageListInteractions,

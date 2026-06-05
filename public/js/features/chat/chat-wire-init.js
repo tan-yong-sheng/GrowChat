@@ -10,22 +10,27 @@ export function initWireChat(root, deps, ctx) {
     loadChatSidebarListModule, loadChatStreamControllerModule
   } = deps;
 
-  let syncChatUrlImpl = () => {};
-  const syncChatUrl = (...args) => syncChatUrlImpl(...args);
-  let startNewChatImpl = () => {};
-  const startNewChat = (...args) => startNewChatImpl(...args);
-  let refreshChatListObserverImpl = () => {};
-  const refreshChatListObserver = (...args) => refreshChatListObserverImpl(...args);
-  let refreshShareStateImpl = async () => {};
-  const refreshShareState = (...args) => refreshShareStateImpl(...args);
-  let loadChatsImpl = async () => {};
-  const loadChats = (...args) => loadChatsImpl(...args);
-  let loadMessagesImpl = async () => {};
-  const loadMessages = (...args) => loadMessagesImpl(...args);
-  let drawMessagesImpl = () => {};
-  const drawMessages = (...args) => drawMessagesImpl(...args);
-  let openCitationImpl = () => {};
-  const openCitation = (...args) => openCitationImpl(...args);
+  // Impl variables are stored on ctx; proxy functions read from ctx so that
+  // late-bound replacements (ctx.syncChatUrlImpl = ...) take effect immediately.
+  const syncChatUrl = (...args) => ctx.syncChatUrlImpl(...args);
+  const startNewChat = (...args) => ctx.startNewChatImpl(...args);
+  const refreshChatListObserver = (...args) => ctx.refreshChatListObserverImpl(...args);
+  const refreshShareState = (...args) => ctx.refreshShareStateImpl(...args);
+  const loadChats = (...args) => ctx.loadChatsImpl(...args);
+  const loadMessages = (...args) => ctx.loadMessagesImpl(...args);
+  const drawMessages = (...args) => ctx.drawMessagesImpl(...args);
+  const openCitation = (...args) => ctx.openCitationImpl(...args);
+
+  // Initialize default impls on ctx so proxy functions have valid targets
+  // before setupWireChatControllers replaces them with real implementations.
+  ctx.syncChatUrlImpl = () => {};
+  ctx.startNewChatImpl = () => {};
+  ctx.refreshChatListObserverImpl = () => {};
+  ctx.refreshShareStateImpl = async () => {};
+  ctx.loadChatsImpl = async () => {};
+  ctx.loadMessagesImpl = async () => {};
+  ctx.drawMessagesImpl = () => {};
+  ctx.openCitationImpl = () => {};
   const MAX_CACHED_CHATS = 6;
   const recentChatIds = [];
   const { schedulePrune } = createChatCacheController({
@@ -180,7 +185,7 @@ export function initWireChat(root, deps, ctx) {
       isSupportedAttachmentType,
     });
   };
-  openCitationImpl = (...args) => {
+  ctx.openCitationImpl = (...args) => {
     if (typeof openCitationModalImpl === 'function') {
       return openCitationModalImpl(...args);
     }
@@ -198,8 +203,6 @@ export function initWireChat(root, deps, ctx) {
   const newChatBtn = root.querySelector('#new-chat');
   const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
   const toggleSidebarDesktop = root.querySelector('#toggle-sidebar-desktop');
-  const headerMenuBtn = root.querySelector('#header-menu-btn');
-  const headerMenuDropdown = root.querySelector('#header-menu-dropdown');
   const sidebar = root.querySelector('#sidebar');
   const sidebarBackdrop = root.querySelector('#sidebar-backdrop');
   const messagesContainer = root.querySelector('#messages-container');
@@ -219,6 +222,7 @@ export function initWireChat(root, deps, ctx) {
     chatSidebarListReadyPromise = loadChatSidebarListModule()
       .then(({ buildChatSidebarListFragment }) => {
         buildChatSidebarListFragmentImpl = buildChatSidebarListFragment;
+        ctx.buildChatSidebarListFragmentImpl = buildChatSidebarListFragment;
         ctx.drawChats?.(state.chats, state.activeChatId);
         return buildChatSidebarListFragmentImpl;
       })
@@ -302,10 +306,12 @@ export function initWireChat(root, deps, ctx) {
 
   // prettier-ignore
   Object.assign(ctx, {
-    syncChatUrlImpl, startNewChatImpl, refreshChatListObserverImpl, refreshShareStateImpl, loadChatsImpl, loadMessagesImpl, drawMessagesImpl, openCitationImpl, syncChatUrl, startNewChat,
+    activeStreamAbort: null,
+    ensureStreamSession,
+ syncChatUrl, startNewChat,
     refreshChatListObserver, refreshShareState, loadChats, loadMessages, drawMessages, openCitation, schedulePrune, streamSession, chatMessageFlow, uiResources,
     consumeSseTextStream, renderShareModal, openArchivedModal, destroyChatFileEvents, ensureChatFileEvents, ensureChatModals, toggleChatsBtn, toggleChatsIcon, chatList, chatListContainerEl,
-    messagesList, welcomeScreenContainer, messageInputContainer, sidebarHomeBtn, newChatBtn, toggleSidebarMobile, toggleSidebarDesktop, headerMenuBtn, headerMenuDropdown, sidebar,
+    messagesList, welcomeScreenContainer, messageInputContainer, sidebarHomeBtn, newChatBtn, toggleSidebarMobile, toggleSidebarDesktop, sidebar,
     sidebarBackdrop, messagesContainer, openSearchBtn, searchModalContainer, filesModalContainer, shareModalContainer, archivedModalContainer, citationModalContainer, chatListObserverArmed, buildChatSidebarListFragmentImpl,
     sidebarHydrationWarmupTimer, chatSidebarListReadyPromise, ensureChatSidebarListBuilder, armChatListObserver, maybeRefreshChatListObserver, onChatListInteraction, scheduleSidebarHydrationWarmup, sharedByChatId, processedRealtimeEvents, getMessageSeq,
     notePayloadSeq, ensureMessageSequenceTracker, thinkingStartByMessageId, thinkingDurationByMessageId, thinkingCollapsedByKey, thinkingActiveByMessageId, errorExpandedByMessageId, toolCallsByMessageId, toolExpandedByKey, messageBlocksById,

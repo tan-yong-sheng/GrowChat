@@ -1,6 +1,7 @@
 // Chat module - main orchestration.
 // Split from original chat.js for line-count compliance.
 
+import { rollbackOptimisticConversation } from './chat-message-stream-temp-chat.js';
 import { renderChat as _renderChat } from './chat-html.js';
 import { getWireChatDeps } from './chat-wire-deps.js';
 import { initWireChat } from './chat-wire-init.js';
@@ -14,17 +15,17 @@ export function renderChat(container) {
 function wireChat(root) {
   const ctx = { root };
   const deps = getWireChatDeps();
-  initWireChat(deps, ctx);
+  initWireChat(root, deps, ctx);
   setupWireChatFeatures(ctx, deps);
   setupWireChatControllers(ctx, deps);
   // prettier-ignore
   const {
-    PINNED_COLLAPSED_KEY, applyAssistantErrorMessage, archivedModalContainer, bindToolServersInvalidationListener, buildChatSidebarListFragmentImpl, buildFallbackAssistantMessage, buildTempChat, chatList, chatListContainerEl, checkToolServersInvalidation, clearGlobalStreamAbort, consumeSseTextStream,
+    PINNED_COLLAPSED_KEY, applyAssistantErrorMessage, archivedModalContainer, bindToolServersInvalidationListener,  buildFallbackAssistantMessage, buildTempChat, chatList, chatListContainerEl, checkToolServersInvalidation, clearGlobalStreamAbort, consumeSseTextStream,
     currentLeafByChatId, destroyChatFileEvents, destroyMessageListInteractions, destroySidebar, drawMessages, ensureChatFileEvents, ensureChatListHandlers, ensureMessageListInteractions, ensureMessageSequenceTracker, ensureRealtimeController, ensureStreamRuntime, filesModalContainer,
-    getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, headerMenuBtn, headerMenuDropdown, isTempChatId, loadAllowedToolServers, loadChats, loadChatsImpl, loadMessages,
+    getChatHandlers, getDraftAttachments, getDraftToolNames, getMessageById, getMessageSeq, isTempChatId, loadAllowedToolServers, loadChats, loadChatsImpl, loadMessages,
     loadMessagesImpl, maybeRefreshChatListObserver, messageBlocksById, messageInputContainer, messagesList, newChatBtn, notePayloadSeq, onChatListInteraction, onRealtimeEvent, openArchivedModal, openCitation, openSearchBtn,
     pruneTempChats, recentChatIds, refreshChatListObserver, refreshChatListObserverImpl, refreshShareState, refreshShareStateImpl, registerPendingTempMessage, replaceTempMessageId, resolveTempMessageId, schedulePrune, scheduleSidebarHydrationWarmup, searchModalContainer,
-    setBranchSelection, setDraftAttachments, setDraftToolNames, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebar, sidebarBackdrop, sidebarHomeBtn, startNewChat,
+    destroyShellEvents, setBranchSelection, setDraftAttachments, setDraftToolNames, setGlobalStreamAbort, setStreamingState, shareModalContainer, sharedByChatId, shellController, sidebar, sidebarBackdrop, sidebarHomeBtn, startNewChat,
     startNewChatImpl, streamSession, streamingOverrideByChat, syncChatUrl, syncChatUrlImpl, thinkingActiveByMessageId, thinkingCollapsedByKey, thinkingDurationByMessageId, thinkingStartByMessageId, toggleChatsBtn, toggleChatsIcon, toggleSidebarDesktop,
     toggleSidebarMobile, toolCallsByMessageId, toolExpandedByKey, uiResources, unbindToolServersInvalidationListener, updateChatTitleLocal, updateMessageContentDom, welcomeScreenContainer
   } = ctx;
@@ -39,7 +40,6 @@ function wireChat(root) {
     toggleArchiveChat, fetchChats, fetchSharedChats
   } = deps;
 
-  const destroyShellEvents = shellController.bindShellEvents();
   const dataController = createChatDataController({
     state,
     setState,
@@ -118,6 +118,8 @@ function wireChat(root) {
     const { renderFilesModal } = await uiResources.loadFilesModalModule();
     destroyFilesModal = renderFilesModal(filesModalContainer);
   }
+  ctx.ensureSearchModal = ensureSearchModal;
+  ctx.ensureFilesModal = ensureFilesModal;
   const inputComponent = renderMessageInput(messageInputContainer, sendMessage, async () => {
     await ensureFilesModal();
     setState({ showFiles: true });
@@ -148,7 +150,7 @@ function wireChat(root) {
   }
   drawPlaceholder();
   function drawChats(chats, activeId) {
-    if (!buildChatSidebarListFragmentImpl) {
+    if (!ctx.buildChatSidebarListFragmentImpl) {
       scheduleSidebarHydrationWarmup();
       const fallbackFragment = document.createDocumentFragment();
       const chatItems = Array.isArray(chats) ? chats : [];
@@ -165,7 +167,9 @@ function wireChat(root) {
           button.type = 'button';
           button.className = `w-full text-left px-3 py-2 rounded-lg text-sm transition ${String(chat?.id) === String(activeId) ? 'bg-white text-gray-900 font-medium' : 'text-gray-600 hover:bg-white'}`;
           button.textContent = chat?.title || 'Untitled Chat';
-          button.addEventListener('click', () => handlers.onClick?.(chat?.id));
+          button.addEventListener('click', () => {
+            handlers.onClick?.(chat?.id);
+          });
           item.appendChild(button);
           fallbackFragment.appendChild(item);
         });
@@ -185,7 +189,7 @@ function wireChat(root) {
       chatList.appendChild(fallbackFragment);
       return;
     }
-    const fragment = buildChatSidebarListFragmentImpl({
+    const fragment = ctx.buildChatSidebarListFragmentImpl({
       chats,
       activeId,
       models: state.models,
@@ -205,6 +209,7 @@ function wireChat(root) {
     chatList.innerHTML = '';
     chatList.appendChild(fragment);
   }
+  ctx.drawChats = drawChats;
   window.addEventListener('growchat:realtime', onRealtimeEvent);
   async function sendMessage(text, hooks = {}, options = {}) {
     const prompt = String(text || '').trim();
@@ -212,9 +217,27 @@ function wireChat(root) {
       hooks.onFinished?.();
       return;
     }
-    await ensureStreamRuntime();
-    await ensureMessageSequenceTracker();
-    return chatMessageFlow?.sendMessage?.(prompt, hooks, options);
+    let optimisticState;
+    try {
+      // Render optimistic UI synchronously before any async work,
+      // so the user sees their message instantly.
+      optimisticState = chatMessageFlow?.prepareSendOptimisticUI?.(prompt);
+      // Lazy-load stream modules in parallel — these resolve instantly
+      // if already warmed up via focusin, otherwise fetch the JS chunks.
+      await ensureStreamRuntime();
+      await ensureMessageSequenceTracker();
+      return chatMessageFlow?.sendWithOptimisticState?.(prompt, hooks, options, optimisticState);
+    } catch (err) {
+      console.error('sendMessage init failed:', err);
+      // Roll back the optimistic temp chat if one was created
+      if (optimisticState) {
+        const tempChatId = optimisticState.optimistic?.tempChatId;
+        if (tempChatId) {
+          rollbackOptimisticConversation({ setState, tempChatId });
+        }
+      }
+      hooks.onFinished?.();
+    }
   }
   messageInputContainer.addEventListener(
     'focusin',
@@ -225,10 +248,6 @@ function wireChat(root) {
     },
     { once: true }
   );
-  const onHeaderMenuInteraction = () => {
-    void ensureChatListHandlers();
-    warmupToolServers();
-  };
   const handleMessageListInteractionFallback = (event) => {
     if (!event?.target) return;
     const thinkingTarget = event.target.closest?.('[data-thinking-toggle]');
@@ -277,6 +296,16 @@ function wireChat(root) {
     void ensureMessageSequenceTracker();
   };
   let lastActiveChatId = state.activeChatId;
+  let lastChatsRef = state.chats;
+  let pendingChatListRaf = null;
+  const scheduleChatListUpdate = () => {
+    if (pendingChatListRaf !== null) return;
+    pendingChatListRaf = requestAnimationFrame(() => {
+      pendingChatListRaf = null;
+      drawChats(state.chats, state.activeChatId);
+      maybeRefreshChatListObserver();
+    });
+  };
   const unsubscribe = subscribe((currentState) => {
     if (currentState.showSearch) {
       ensureSearchModal();
@@ -303,10 +332,19 @@ function wireChat(root) {
       touchRecentChat(recentChatIds, currentState.activeChatId);
       schedulePrune();
     }
+    const chatListChanged = currentState.chats !== lastChatsRef;
+    const activeChanged = currentState.activeChatId !== lastActiveChatId;
     lastActiveChatId = currentState.activeChatId;
-    headerMenuBtn.disabled = !currentState.activeChatId || isTempChatId(currentState.activeChatId);
-    drawChats(currentState.chats, currentState.activeChatId);
-    maybeRefreshChatListObserver();
+    if (chatListChanged) {
+      lastChatsRef = currentState.chats;
+      scheduleChatListUpdate();
+    } else if (activeChanged) {
+      // Active chat changed but list reference didn't — still need to update
+      // the active highlight.  Defer with rAF to batch with other renders.
+      scheduleChatListUpdate();
+    } else {
+      maybeRefreshChatListObserver();
+    }
   });
   chatListContainerEl?.addEventListener('wheel', onChatListInteraction, {
     once: true,
@@ -328,13 +366,6 @@ function wireChat(root) {
     once: true,
   });
   chatListContainerEl?.addEventListener('click', onChatListInteraction, {
-    once: true,
-    capture: true,
-  });
-  headerMenuBtn?.addEventListener('click', onHeaderMenuInteraction, {
-    once: true,
-  });
-  headerMenuDropdown?.addEventListener('click', onHeaderMenuInteraction, {
     once: true,
   });
   messagesList?.addEventListener('click', onMessageListInteraction, {
@@ -364,6 +395,10 @@ function wireChat(root) {
       clearTimeout(sidebarHydrationWarmupTimer);
       sidebarHydrationWarmupTimer = null;
     }
+    if (pendingChatListRaf !== null) {
+      cancelAnimationFrame(pendingChatListRaf);
+      pendingChatListRaf = null;
+    }
     if (activeStreamAbort) activeStreamAbort();
     streamSession.dispose();
     unsubscribe();
@@ -381,8 +416,6 @@ function wireChat(root) {
     chatListContainerEl?.removeEventListener('wheel', onChatListInteraction);
     chatListContainerEl?.removeEventListener('touchstart', onChatListInteraction);
     chatListContainerEl?.removeEventListener('scroll', onChatListInteraction);
-    headerMenuBtn?.removeEventListener('click', onHeaderMenuInteraction);
-    headerMenuDropdown?.removeEventListener('click', onHeaderMenuInteraction);
     messagesList?.removeEventListener('click', onMessageListInteraction, true);
     destroyShellEvents?.();
     shellController.dispose?.();

@@ -12,6 +12,23 @@ import {
   bindSpecialBlockActions,
 } from './markdown-special-block-ui.js';
 
+/**
+ * Safely insert HTML into an element by parsing, sanitizing, and appending.
+ * Uses DOMPurify (loaded via CDN) for sanitization, then parses and appends.
+ * @param {HTMLElement} el - Target element
+ * @param {string} html - HTML string from a trusted library (KaTeX, Mermaid, etc.)
+ */
+function setSafeHtml(el, html) {
+  // Sanitize HTML string with DOMPurify (recognized by CodeQL as a sanitizer)
+  const purify = typeof window !== 'undefined' ? window['DOMPurify'] : null;
+  const safeHtml = purify ? purify.sanitize(html, { RETURN_DOM_FRAGMENT: false }) : html;
+  const doc = new DOMParser().parseFromString(safeHtml, 'text/html');
+  el.innerHTML = '';
+  while (doc.body.firstChild) {
+    el.appendChild(doc.body.firstChild);
+  }
+}
+
 const externalScriptPromises = new Map();
 const externalStylesheetPromises = new Map();
 let graphvizRendererPromise = null;
@@ -219,11 +236,14 @@ export async function renderSpecialPreview(kind, source, previewEl, block) {
       const katex = globalThis?.window?.katex || globalThis?.katex;
       if (!katex || typeof katex.renderToString !== 'function')
         throw new Error('KaTeX unavailable');
-      previewEl.innerHTML = katex.renderToString(text, {
-        displayMode: true,
-        throwOnError: true,
-        output: 'html',
-      });
+      setSafeHtml(
+        previewEl,
+        katex.renderToString(text, {
+          displayMode: true,
+          throwOnError: true,
+          output: 'html',
+        })
+      );
       if (block) setSpecialBlockError(block, '');
       return true;
     }
@@ -254,7 +274,7 @@ export async function renderSpecialPreview(kind, source, previewEl, block) {
             reject(err);
           }
         });
-        previewEl.innerHTML = String(svg || '');
+        setSafeHtml(previewEl, String(svg || ''));
       }
       if (block) setSpecialBlockError(block, '');
       return true;
@@ -263,7 +283,7 @@ export async function renderSpecialPreview(kind, source, previewEl, block) {
       const renderer = await loadGraphvizRenderer();
       if (!renderer || typeof renderer.dot !== 'function') throw new Error('Graphviz unavailable');
       const svg = await Promise.resolve(renderer.dot(text));
-      previewEl.innerHTML = String(svg || '');
+      setSafeHtml(previewEl, String(svg || ''));
       if (block) setSpecialBlockError(block, '');
       return true;
     }

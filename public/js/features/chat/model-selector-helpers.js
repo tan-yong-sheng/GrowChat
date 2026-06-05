@@ -137,10 +137,11 @@ export function getModelSelectorDerivedState({
 
 export function renderModelSelectorOption(model, currentState) {
   const isSelected = currentState.activeModelId === model.id;
+  const isDefault = currentState.defaultModelId === model.id;
   const scopeLabel = getModelScopeLabel(model);
   const scopeBadgeClass = getModelScopeBadgeClass(model);
   return `
-    <button class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${isSelected ? 'bg-gray-100 text-gray-900 font-semibold ring-1 ring-gray-200 shadow-sm' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${escapeHtml(model.id)}" role="option" aria-selected="${isSelected}">
+    <div class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between text-sm group ${isSelected ? 'bg-gray-100 text-gray-900 font-semibold ring-1 ring-gray-200 shadow-sm' : 'hover:bg-gray-50 text-gray-700'}" data-model-id="${escapeHtml(model.id)}" role="option" aria-selected="${isSelected}">
       <div class="flex items-center gap-2">
         <div class="w-6 h-6 rounded-lg bg-white border border-gray-100 flex items-center justify-center overflow-hidden shadow-sm">
           <img src="/logo.png" alt="" class="w-4 h-4 object-contain opacity-70" />
@@ -148,8 +149,13 @@ export function renderModelSelectorOption(model, currentState) {
         <span class="truncate">${escapeHtml(getModelDisplayLabel(model))}</span>
         <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scopeBadgeClass}">${escapeHtml(scopeLabel)}</span>
       </div>
-      ${isSelected ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
-    </button>
+      <div class="flex items-center gap-1.5">
+        <button class="set-default-star p-0.5 rounded hover:bg-gray-100 transition-colors ${isDefault ? 'text-amber-500' : 'text-gray-300 hover:text-gray-400'}" data-set-default-id="${escapeHtml(model.id)}" title="${isDefault ? 'Remove as default' : 'Set as default'}" type="button" aria-label="${isDefault ? 'Remove as default' : 'Set as default'}" aria-pressed="${isDefault}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${isDefault ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </button>
+        ${isSelected ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-800"><path d="M20 6 9 17l-5-5"/></svg>' : ''}
+      </div>
+    </div>
   `;
 }
 

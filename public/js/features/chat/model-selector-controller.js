@@ -10,6 +10,7 @@ import {
   getModelAvailabilityFallbackNotice,
   getModelSelectorDerivedState,
   renderModelSelectorOption,
+  persistDefaultModelSelection,
 } from './model-selector-helpers.js';
 import { createModelSelectorNoticeHelpers } from './model-selector-notice-helpers.js';
 
@@ -198,6 +199,52 @@ export function createModelSelectorController(container) {
     }
   };
 
+  const handleSetDefault = async (modelId) => {
+    try {
+      const { apiFetch } = await import('../../shared/api.js');
+
+      // Use setState updater to read latest state and avoid stale closures
+      // We do this in two steps: first read current state, then persist, then update
+      let currentDefaultModelId = null;
+      let currentPreferences = {};
+
+      setState((prev) => {
+        currentDefaultModelId = prev.defaultModelId;
+        currentPreferences = { ...(prev.user?.preferences || {}) };
+        return prev; // no state change, just reading
+      });
+
+      const isDefault = currentDefaultModelId === modelId;
+      const nextDefaultModelId = isDefault ? null : modelId;
+      const nextPreferences = { ...currentPreferences };
+      if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
+      else delete nextPreferences.defaultModelId;
+
+      const result = await persistDefaultModelSelection({
+        apiFetch,
+        modelId: nextDefaultModelId,
+        currentPreferences: nextPreferences,
+      });
+
+      if (result.ok) {
+        setState((prev) => {
+          const updated = { defaultModelId: nextDefaultModelId };
+          // Only mutate user.preferences if the preference was actually persisted to the backend
+          if (result.persisted) {
+            const prefs = { ...(prev.user?.preferences || {}) };
+            if (nextDefaultModelId) prefs.defaultModelId = nextDefaultModelId;
+            else delete prefs.defaultModelId;
+            updated.user = prev.user ? { ...prev.user, preferences: prefs } : prev.user;
+          }
+          return updated;
+        });
+        renderList(state, { reset: true, rebuild: true });
+      }
+    } catch (err) {
+      console.error('Failed to set default model:', err);
+    }
+  };
+
   btn.onclick = (e) => {
     e.stopPropagation();
     toggle();
@@ -265,9 +312,16 @@ export function createModelSelectorController(container) {
   document.addEventListener('click', onDocumentClick);
 
   listContainer.addEventListener('click', (e) => {
-    const button = e.target.closest('button[data-model-id]');
-    if (!button) return;
-    const newModelId = button.getAttribute('data-model-id');
+    // Handle star click for setting default model
+    const starEl = e.target.closest('.set-default-star');
+    if (starEl) {
+      e.stopPropagation();
+      handleSetDefault(starEl.getAttribute('data-set-default-id'));
+      return;
+    }
+    const optionEl = e.target.closest('[data-model-id]');
+    if (!optionEl) return;
+    const newModelId = optionEl.getAttribute('data-model-id');
     clearModelAvailabilityNotice();
     setState({
       activeModelId: newModelId,

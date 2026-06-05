@@ -153,6 +153,11 @@ export function bindChatMessageActions({
         created_at: nowTs + 1,
         done: false,
       });
+      currentLeafByChatId.set(chatId, tempAssistantId);
+      setState((prev) => ({
+        messagesByChat: { ...prev.messagesByChat, [chatId]: localMessages },
+      }));
+      if (state.activeChatId === chatId) drawMessages(localMessages);
 
       const controller = new AbortController();
       setActiveStreamAbort(() => controller.abort());

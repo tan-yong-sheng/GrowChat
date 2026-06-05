@@ -1,6 +1,5 @@
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
-import { apiFetch } from '../../shared/api.js';
-import { ensureMarkedReady, showToast } from '../../shared/utils.js';
+import { ensureMarkedReady } from '../../shared/utils.js';
 import { renderSettingsShell } from '../../shared/components/settings-shell.js';
 import { renderSettingsDrawerShell } from '../../shared/components/settings-drawer-shell.js';
 import { renderWorkspaceShell } from '../../shared/components/workspace-shell.js';
@@ -14,7 +13,6 @@ import { renderWorkspaceVerticalTabs } from '../../shared/components/workspace-v
 import { createSettingsRouteCache } from '../../shared/utils/settings-route-cache.js';
 import { setSidebarRouteScope } from '../../shared/utils/sidebar-visibility.js';
 import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-capabilities.js';
-import { renderSessionsSection } from './sessions.js';
 
 import {
   normalizeAccountSection,
@@ -47,14 +45,9 @@ function getAccountNavItems(section) {
       label: 'Integrations',
       active: activeSection === 'integrations',
     },
-    {
-      href: '#sessions',
-      key: 'sessions',
-      label: 'Sessions',
-      active: activeSection === 'sessions',
-    },
   ];
 }
+/* eslint-disable max-statements */
 
 async function renderAccountSection({
   section,
@@ -111,21 +104,11 @@ async function renderAccountSection({
     });
     return;
   }
-
-  if (section === 'sessions') {
-    const sessionsEl = await renderSessionsSection({
-      apiFetch,
-      showToast: (message) => showToast(message),
-    });
-    content.replaceChildren(sessionsEl);
-    if (footerHost) footerHost.innerHTML = '';
-    return;
-  }
-
   content.innerHTML = renderOverview(accountState);
   if (footerHost) footerHost.innerHTML = '';
 }
 
+/* eslint-disable max-lines-per-function, max-statements */
 export async function renderAccountPage(container) {
   ensureMarkedReady();
   setSidebarRouteScope('account');
@@ -234,6 +217,7 @@ export async function renderAccountPage(container) {
   closeOverlay?.addEventListener('click', closeSettings);
 }
 
+/* eslint-disable max-lines-per-function, max-statements */
 export async function openAccountSettingsDrawer({ section = 'connections' } = {}) {
   ensureMarkedReady();
   const existing = document.getElementById('account-settings-drawer-modal');

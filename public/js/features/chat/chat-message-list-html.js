@@ -66,7 +66,7 @@ export function buildChatMessageListHtml({
       if (isEditing) {
         if (m.role === 'user') {
           return `
-          <div class="flex justify-end w-full group py-2" data-message-id="${msgId}">
+          <div class="flex justify-end w-full group py-1" data-message-id="${msgId}">
             <div class="flex flex-col items-end w-full max-w-[85%] gap-2">
               <textarea class="edit-message-textarea w-full bg-[#f4f4f4] rounded-2xl px-4 py-2 text-[15px] text-gray-800 outline-none focus:ring-2 focus:ring-black/5 resize-none font-sans border-none" data-message-id="${msgId}">${escapeHtml(editingContent)}</textarea>
               <div class="flex items-center gap-2 justify-end">
@@ -79,11 +79,11 @@ export function buildChatMessageListHtml({
         }
 
         return `
-        <div class="flex gap-4 w-full group py-4 first:pt-0 border-b border-gray-50 last:border-0" data-message-id="${msgId}">
+        <div class="flex gap-4 w-full group py-1.5 first:pt-0 " data-message-id="${msgId}">
           <div class="flex-shrink-0 w-7 h-7 rounded-lg bg-white border border-gray-100 flex items-center justify-center mt-1 overflow-hidden shadow-sm">
              <img src="/logo.png" alt="${escapeHtml(modelName)}" class="w-5 h-5 object-contain" />
           </div>
-          <div class="flex-grow min-w-0 flex flex-col gap-2">
+          <div class="flex-grow min-w-0 flex flex-col gap-1">
              <div class="font-bold text-sm text-gray-800 font-primary">${escapeHtml(modelName)}</div>
              <textarea class="edit-message-textarea w-full p-0 bg-transparent text-[15px] leading-[1.6] text-gray-800 outline-none resize-none font-sans border-none focus:ring-0" data-message-id="${msgId}">${escapeHtml(editingContent)}</textarea>
              <div class="flex items-center gap-2 justify-start mt-1">
@@ -99,7 +99,7 @@ export function buildChatMessageListHtml({
       if (m.role === 'user') {
         const attachmentHtml = renderAttachmentPills?.(m.attachments, 'end') || '';
         return `
-        <div class="flex justify-end w-full group py-2" data-message-id="${msgId}">
+        <div class="flex justify-end w-full group py-1" data-message-id="${msgId}">
           <div class="flex flex-col items-end max-w-[85%] gap-1">
             ${attachmentHtml}
             <div class="bg-[#f4f4f4] rounded-2xl px-4 py-2 text-[15px] text-gray-800 transition-colors relative">
@@ -136,7 +136,7 @@ export function buildChatMessageListHtml({
 
       const showRoundNav = (rounds?.total || 0) > 1;
       return `
-      <div class="flex gap-4 w-full group py-4 first:pt-0 border-b border-gray-50 last:border-0" data-message-id="${msgId}">
+      <div class="flex gap-4 w-full group py-1.5 first:pt-0 " data-message-id="${msgId}">
         <div class="flex-shrink-0 w-7 h-7 rounded-lg bg-white border border-gray-100 flex items-center justify-center mt-1 overflow-hidden shadow-sm">
            <img src="/logo.png" alt="${escapeHtml(modelName)}" class="w-5 h-5 object-contain" />
         </div>

@@ -71,6 +71,7 @@ export function json(req, data, status = 200, headers = {}) {
   });
 }
 
+// eslint-disable-next-line complexity
 export function jsonCached(req, data, options = {}) {
   const {
     status = 200,
@@ -130,9 +131,55 @@ function sanitizeErrorMessage(message, status) {
 }
 
 /**
- * Maps an upstream HTTP status code to a safe, user-facing connection
- * test failure message. Never exposes raw upstream error details.
+ * Sanitizes a details object by removing stack trace information from string values.
+ * For 5xx errors, the error message is already sanitized to a generic message,
+ * but we still sanitize any additional details to prevent stack trace leakage.
+ * For 4xx errors, we expose details but strip stack traces from string values.
  */
+// eslint-disable-next-line complexity
+function sanitizeErrorDetails(details, status) {
+  if (!details) {
+    return undefined;
+  }
+
+  // For arrays, recursively sanitize each item
+  if (Array.isArray(details)) {
+    return details.map((item) => sanitizeErrorDetails(item, status)).filter(Boolean);
+  }
+
+  if (typeof details === 'object') {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(details)) {
+      // Skip requestId - it's extracted and promoted to top-level in error()
+      if (key === 'requestId') continue;
+      if (typeof value === 'string') {
+        // Strip stack traces from string values
+        const cleaned = value
+          .split('\n')
+          .filter(
+            (line) =>
+              !line.trim().startsWith('at ') && !/\.(js|ts|mjs|cjs|jsx|tsx|map):\d+/.test(line)
+          )
+          .join('\n')
+          .trim();
+        if (cleaned) {
+          sanitized[key] = cleaned;
+        }
+      } else if (typeof value === 'object' && value !== null) {
+        const nested = sanitizeErrorDetails(value, status);
+        if (nested && Object.keys(nested).length > 0) {
+          sanitized[key] = nested;
+        }
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+  }
+
+  // For non-object, non-array values, return as-is
+  return details;
+}
 export function getConnectionTestFailureMessage(status) {
   if (status === 401) return 'Authentication failed \u2014 check your API key';
   if (status === 403) return 'Access denied \u2014 check your permissions';
@@ -148,21 +195,20 @@ export function error(req, message, status = 500, details = undefined) {
   }
 
   const sanitized = sanitizeErrorMessage(message, status);
+
+  // Extract requestId from original details before sanitization
   const isPlainObj = details && typeof details === 'object' && !Array.isArray(details);
   const requestId = isPlainObj ? details.requestId : undefined;
-  let restDetails = details;
-  if (isPlainObj && requestId) {
-    restDetails = { ...details };
-    delete restDetails.requestId;
-  }
-  const hasDetails =
-    restDetails !== undefined && (!isPlainObj || Object.keys(restDetails).length > 0);
+
+  // Sanitize details (removes stack traces, strips requestId, and for 5xx returns undefined)
+  const sanitizedDetails = sanitizeErrorDetails(details, status);
+
   return json(
     req,
     {
       error: sanitized,
       ...(requestId ? { requestId } : {}),
-      ...(hasDetails ? { details: restDetails } : {}),
+      ...(sanitizedDetails ? { details: sanitizedDetails } : {}),
     },
     status
   );

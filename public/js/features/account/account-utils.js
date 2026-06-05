@@ -7,7 +7,6 @@ export const accountSectionRenderers = {
   connections: null,
   models: null,
   integrations: null,
-  sessions: null,
 };
 
 export async function loadAccountSectionRenderer(section) {
@@ -15,27 +14,18 @@ export async function loadAccountSectionRenderer(section) {
   if (accountSectionRenderers[normalized]) {
     return accountSectionRenderers[normalized];
   }
-
   if (normalized === 'connections') {
     accountSectionRenderers.connections = import('./account-connections.js').then(
       ({ renderAccountConnectionsSection }) => renderAccountConnectionsSection
     );
     return accountSectionRenderers.connections;
   }
-
   if (normalized === 'models') {
     accountSectionRenderers.models = import('./account-models.js').then(
       ({ renderAccountModelsSection }) => renderAccountModelsSection
     );
     return accountSectionRenderers.models;
   }
-  if (normalized === 'sessions') {
-    accountSectionRenderers.sessions = import('./sessions.js').then(
-      ({ renderSessionsSection }) => renderSessionsSection
-    );
-    return accountSectionRenderers.sessions;
-  }
-
   accountSectionRenderers.integrations = import('./account-integrations.js').then(
     ({ renderAccountIntegrationsSection }) => renderAccountIntegrationsSection
   );
@@ -44,12 +34,7 @@ export async function loadAccountSectionRenderer(section) {
 
 export function normalizeAccountSection(section) {
   const value = String(section || '').trim();
-  if (
-    value === 'connections' ||
-    value === 'models' ||
-    value === 'integrations' ||
-    value === 'sessions'
-  ) {
+  if (value === 'connections' || value === 'models' || value === 'integrations') {
     return value;
   }
   return 'connections';
@@ -67,8 +52,6 @@ export function resolveAccountSectionFromPath(pathname) {
   if (pathname.startsWith('/account/settings/connections')) return 'connections';
   if (pathname.startsWith('/account/settings/models')) return 'models';
   if (pathname.startsWith('/account/settings/integrations')) return 'integrations';
-  if (pathname.startsWith('/account/settings/sessions')) return 'sessions';
-  if (pathname.startsWith('/account/settings/security')) return 'sessions';
   return 'connections';
 }
 
@@ -80,8 +63,6 @@ export function getAccountSectionPath(section) {
       return '/account/settings/models';
     case 'integrations':
       return '/account/settings/integrations';
-    case 'sessions':
-      return '/account/settings/sessions';
     default:
       return '/account/settings/connections';
   }
@@ -104,6 +85,7 @@ export async function loadAccountState() {
   return res.json();
 }
 
+/* eslint-disable complexity */
 export function renderOverview(state) {
   const user = state.user || {};
   const preferences = state.settings?.preferences || {};

@@ -1,6 +1,10 @@
 import { extractThinkingBlocks } from './chat-message-utils.js';
 import { startChatResumeStream } from './chat-message-stream-resume.js';
-import { startChatSendMessage } from './chat-message-stream-send.js';
+import {
+  prepareSendOptimisticUI,
+  startChatSendMessage,
+  startChatSendMessageWithOptimistic,
+} from './chat-message-stream-send.js';
 
 export function createChatMessageStream({
   state,
@@ -77,49 +81,79 @@ export function createChatMessageStream({
     });
   }
 
-  async function sendSingleMessage(text, hooks = {}, options = {}) {
-    return startChatSendMessage({
+  // Shared params object for both send paths
+  const sendParams = {
+    state,
+    setState,
+    apiFetch,
+    syncChatUrl,
+    drawMessages,
+    buildTempChat,
+    pruneTempChats,
+    getDraftAttachments,
+    getDraftToolNames,
+    setDraftAttachments,
+    updateChatTitleLocal,
+    currentLeafByChatId,
+    registerPendingTempMessage,
+    setBranchSelection,
+    streamingOverrideByChat,
+    setGlobalStreamAbort,
+    clearGlobalStreamAbort,
+    setStreamingState,
+    setActiveStreamAbort,
+    consumeSseTextStream,
+    appendBlock,
+    ensureThinkingBlock,
+    updateToolCallState,
+    notePayloadSeq,
+    buildFallbackAssistantMessage,
+    formatApiErrorMessage,
+    updateMessageContentDom,
+    applyAssistantErrorMessage,
+    loadMessages,
+    thinkingStartByMessageId,
+    thinkingDurationByMessageId,
+    thinkingActiveByMessageId,
+    messageBlocksById,
+    toolCallsByMessageId,
+    isTempChatId,
+    replaceTempMessageId,
+    resolveTempMessageId,
+  };
+
+  /** Synchronous optimistic UI — call before any async work. */
+  function prepareOptUI(text) {
+    return prepareSendOptimisticUI({
       text,
-      hooks,
-      options,
       state,
       setState,
-      apiFetch,
-      syncChatUrl,
-      drawMessages,
       buildTempChat,
       pruneTempChats,
-      getDraftAttachments,
-      getDraftToolNames,
-      setDraftAttachments,
+      syncChatUrl,
       updateChatTitleLocal,
+      isTempChatId,
       currentLeafByChatId,
       registerPendingTempMessage,
       setBranchSelection,
-      streamingOverrideByChat,
-      setGlobalStreamAbort,
-      clearGlobalStreamAbort,
-      setStreamingState,
-      setActiveStreamAbort,
-      consumeSseTextStream,
-      appendBlock,
-      ensureThinkingBlock,
-      updateToolCallState,
-      notePayloadSeq,
-      buildFallbackAssistantMessage,
-      formatApiErrorMessage,
-      updateMessageContentDom,
-      applyAssistantErrorMessage,
-      loadMessages,
-      thinkingStartByMessageId,
-      thinkingDurationByMessageId,
-      thinkingActiveByMessageId,
-      messageBlocksById,
-      toolCallsByMessageId,
-      isTempChatId,
-      replaceTempMessageId,
-      resolveTempMessageId,
+      drawMessages,
+      getDraftAttachments,
     });
+  }
+
+  /** Continue with already-rendered optimistic UI after async module loads. */
+  async function sendWithOptimisticState(text, hooks, options, optimisticState) {
+    return startChatSendMessageWithOptimistic({
+      text,
+      hooks,
+      options,
+      optimisticState,
+      ...sendParams,
+    });
+  }
+
+  async function sendSingleMessage(text, hooks = {}, options = {}) {
+    return startChatSendMessage({ text, hooks, options, ...sendParams });
   }
 
   async function sendMessage(text, hooks = {}, options = {}) {
@@ -136,5 +170,7 @@ export function createChatMessageStream({
     sendMessage,
     startResumeStream,
     stopResumeStream,
+    prepareSendOptimisticUI: prepareOptUI,
+    sendWithOptimisticState,
   };
 }

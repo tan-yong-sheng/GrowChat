@@ -33,8 +33,10 @@ export function bindChatMessageUiActions(deps) {
     const nextId = direction === 'next' ? rounds.nextId : rounds.prevId;
     if (!nextId) return;
     const chatMap = branchSelectionByChat.get(chatId) || new Map();
-    chatMap.set(resolvedId, nextId);
+    chatMap.set(String(rounds.parentKey), String(nextId));
     branchSelectionByChat.set(chatId, chatMap);
+    currentLeafByChatId.set(chatId, String(nextId));
+    drawMessages(messages);
   }
 
   messagesList.querySelectorAll('[data-error-toggle]').forEach((btn) => {
