@@ -81,6 +81,7 @@
         "ENVIRONMENT": "production",
         "EMAIL_PROVIDER": "resend",
         "ALLOWED_ORIGINS": "https://growchat.example.com",
+        "APP_PUBLIC_ORIGIN": "https://growchat.example.com",
         "LOG_LEVEL": "info",
 
       },

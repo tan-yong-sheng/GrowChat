@@ -107,7 +107,7 @@ vi.mock('../shared/session.js', () => ({
 
 // JWT secret — stable 32-char test secret
 vi.mock('../shared/jwt-secret.js', () => ({
-  getJwtSecret: () => '0123456789abcdef0123456789abcdef',
+  getJwtSecret: () => 'test-jwt-secret-not-real-0123456789',
 }));
 
 // Rate limit — inline no-op store approach
@@ -165,7 +165,7 @@ import { authRouter } from './auth.js';
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-const VALID_JWT_SECRET = '0123456789abcdef0123456789abcdef';
+const VALID_JWT_SECRET = 'test-jwt-secret-not-real-0123456789';
 
 function makeReq(path, method, body, headers = {}) {
   const init = { method, headers: { ...headers } };
