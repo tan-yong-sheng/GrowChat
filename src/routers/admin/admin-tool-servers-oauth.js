@@ -29,6 +29,10 @@ export async function handleAdminToolServersOAuth(
   { db, _logger, _requestContext }
 ) {
   if (req.method === 'POST' && path === '/api/admin/tool-servers/oauth/start') {
+    const origin = env.APP_PUBLIC_ORIGIN;
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
     let body;
     try {
       body = await req.json();
@@ -70,11 +74,6 @@ export async function handleAdminToolServersOAuth(
     const authServerUrl = String(
       body.oauth_authorization_server || server.oauth_authorization_server || serverUrl
     ).trim();
-
-    const origin = env.APP_PUBLIC_ORIGIN;
-    if (!origin) {
-      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
-    }
     const redirectUri = origin + '/api/admin/tool-servers/oauth/callback';
 
     let metadata;
@@ -175,6 +174,10 @@ export async function handleAdminToolServersOAuth(
 
   // GET /api/admin/tool-servers/oauth/callback - OAuth redirect handler
   if (req.method === 'GET' && path === '/api/admin/tool-servers/oauth/callback') {
+    const origin = env.APP_PUBLIC_ORIGIN;
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');

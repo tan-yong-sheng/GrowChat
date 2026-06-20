@@ -1497,7 +1497,7 @@ describe('adminRouter tool server oauth', () => {
           oauth_token_auth_method: '',
         }),
       }),
-      { DB: {} },
+      { DB: {}, APP_PUBLIC_ORIGIN: 'https://example.com' },
       {},
       { sub: 'admin-1' },
       '/api/admin/tool-servers/oauth/start'
