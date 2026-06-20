@@ -40,7 +40,10 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const state = url.searchParams.get('state');
     const errParam = url.searchParams.get('error');
     if (errParam) {
-      return new Response(`Authorization failed: ${errParam}`, { status: 400 });
+      return new Response(`Authorization failed: ${errParam}`, {
+        status: 400,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
     }
     if (!code || !state) {
       return new Response('Missing authorization code or state', {
