@@ -71,7 +71,11 @@ export async function handleAdminToolServersOAuth(
       body.oauth_authorization_server || server.oauth_authorization_server || serverUrl
     ).trim();
 
-    const redirectUri = new URL(req.url).origin + '/api/admin/tool-servers/oauth/callback';
+    const origin = env.APP_PUBLIC_ORIGIN;
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
+    const redirectUri = origin + '/api/admin/tool-servers/oauth/callback';
 
     let metadata;
     try {
@@ -206,7 +210,7 @@ export async function handleAdminToolServersOAuth(
       grant_type: 'authorization_code',
       code,
       code_verifier: codeVerifier,
-      redirect_uri: new URL(req.url).origin + '/api/admin/tool-servers/oauth/callback',
+      redirect_uri: origin + '/api/admin/tool-servers/oauth/callback',
       client_id: clientId,
     });
 

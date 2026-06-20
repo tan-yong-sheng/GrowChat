@@ -80,9 +80,9 @@
         "APP_NAME": "GrowChat",
         "ENVIRONMENT": "production",
         "EMAIL_PROVIDER": "resend",
-        "ALLOWED_ORIGINS": "*",
-    "LOG_LEVEL": "info",
-        "RESEND_API_KEY": "re_xxxxx",
+        "ALLOWED_ORIGINS": "https://growchat.example.com",
+        "LOG_LEVEL": "info",
+
       },
       "d1_databases": [
         {

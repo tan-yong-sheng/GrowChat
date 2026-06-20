@@ -65,10 +65,16 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
   );
 
   try {
+    const origin = env.APP_PUBLIC_ORIGIN;
+    if (!origin) {
+      logger.error('APP_PUBLIC_ORIGIN is not configured — password reset link origin unknown');
+      return json(req, {
+        message: 'If an account exists with this email, a reset link has been sent.',
+      });
+    }
+
     const emailService = createEmailService(env);
     const userNameEscaped = escapeHtml(user.name);
-    // Use APP_PUBLIC_ORIGIN env var if configured, otherwise fall back to request origin
-    const origin = env.APP_PUBLIC_ORIGIN || new URL(req.url).origin;
 
     const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
     const emailHtml = buildPasswordResetEmailHtml(userNameEscaped, resetLink);
