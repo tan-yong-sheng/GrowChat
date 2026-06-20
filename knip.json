@@ -19,17 +19,7 @@
     "wait-on",
     "github-actionlint"
   ],
-  "ignoreBinaries": [
-    "dot",
-    "uv",
-    "semgrep",
-    "danger",
-    "lhci",
-    "serve",
-    "stryker",
-    "wait-on",
-    "github-actionlint"
-  ],
+  "ignoreBinaries": ["dot", "uv", "semgrep", "lhci", "stryker"],
   "ignoreFiles": [
     "public/js/features/admin/settings/security.js",
     "public/js/features/chat/keyboard-navigation.js",
