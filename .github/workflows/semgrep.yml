@@ -40,7 +40,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install Semgrep
-        run: python3 -m pip install semgrep
+        run: python3 -m pip install semgrep==1.167.0
       - name: Run custom rules (blocking — ERROR severity only)
         run: |
           semgrep scan \
