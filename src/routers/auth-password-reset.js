@@ -49,8 +49,8 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     });
   }
 
-  // Check APP_PUBLIC_ORIGIN as a precondition — must be set before any DB write
-  const origin = env.APP_PUBLIC_ORIGIN;
+  // Strip trailing slash so concatenations produce clean URLs
+  const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
   if (!origin) {
     logger.error('APP_PUBLIC_ORIGIN is not configured — password reset link origin unknown');
     // Return same fake-OK as missing-user to avoid email enumeration
