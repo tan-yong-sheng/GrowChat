@@ -30,6 +30,10 @@ import { findUserToolServerByOauthState, saveUserToolServerJson } from './users-
  */
 export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _requestContext }) {
   if (req.method === 'GET' && path === '/api/users/me/resources/mcp-servers/oauth/callback') {
+    const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
     const db = createDB(env.DB);
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
@@ -60,7 +64,7 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const tokenAuthMethod =
       normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
     const redirectUri =
-      new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+      origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -187,6 +191,11 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
   }
 
   if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers/oauth/start') {
+    const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
+
     let body;
     try {
       body = await req.json();
@@ -238,7 +247,7 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const registrationEndpoint =
       metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
     const redirectUri =
-      new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+      origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
     if (!clientId) {
       if (!registrationEndpoint) {
