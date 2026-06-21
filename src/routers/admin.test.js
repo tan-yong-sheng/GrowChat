@@ -1509,4 +1509,74 @@ describe('adminRouter tool server oauth', () => {
     const savedCall = mocks.setConfigValue.mock.calls.find(([, key]) => key === 'tool_servers');
     expect(savedCall).toBeFalsy();
   });
+
+  it('returns 500 when APP_PUBLIC_ORIGIN is not configured', async () => {
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'tool_servers')
+        return JSON.stringify([{ id: 'saved-server-1', url: 'https://example.com/mcp' }]);
+      return fallback;
+    });
+
+    const res = await adminRouter(
+      new Request('https://example.com/api/admin/tool-servers/oauth/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'saved-server-1',
+          name: 'Test MCP',
+          url: 'https://example.com/mcp',
+          auth_type: 'oauth',
+          oauth_client_name: 'Test Client',
+          oauth_scope: '',
+          oauth_client_id: 'client-id',
+          oauth_client_secret: '',
+          oauth_token_auth_method: '',
+        }),
+      }),
+      { DB: {} /* no APP_PUBLIC_ORIGIN */ },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/tool-servers/oauth/start'
+    );
+    const payload = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(payload.error || payload.message).toBe('An error occurred. Please try again later.');
+  });
+
+  it('callback returns text/plain when error param is present', async () => {
+    mocks.getConfigValue.mockImplementation(async (_db, key, fallback) => {
+      if (key === 'tool_servers') {
+        return JSON.stringify([
+          {
+            id: 'callback-server',
+            url: 'https://example.com',
+            oauth_state: 'test-state-123',
+            oauth_authorization_server: 'https://example.com',
+            oauth_client_id: 'client-id',
+            oauth_client_secret: 'secret',
+            oauth_token_auth_method: 'client_secret_post',
+          },
+        ]);
+      }
+      return fallback;
+    });
+
+    const res = await adminRouter(
+      new Request(
+        'https://example.com/api/admin/tool-servers/oauth/callback?error=<script>alert(1)</script>&state=test-state-123',
+        { method: 'GET' }
+      ),
+      { DB: {}, APP_PUBLIC_ORIGIN: 'https://example.com' },
+      {},
+      { sub: 'admin-1' },
+      '/api/admin/tool-servers/oauth/callback'
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');
+    const text = await res.text();
+    expect(text).toContain('Authorization failed:');
+    expect(text).toContain('<script>alert(1)</script>');
+  });
 });
