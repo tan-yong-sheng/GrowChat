@@ -1,0 +1,78 @@
+name: Visual Regression
+
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+    paths:
+      - 'public/**'
+      - 'src/**'
+      - 'DESIGN.md'
+      - 'tests/e2e/frontend/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'src/**'
+      - 'DESIGN.md'
+      - 'tests/e2e/frontend/**'
+
+jobs:
+  visual-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start dev server
+        run: pnpm run dev &
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:8787/api/health | grep -q "ok"; then
+              echo "Server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to start"
+          exit 1
+
+      - name: Run visual regression tests
+        run: |
+          TEST_URL=http://localhost:8787 \
+          PLAYWRIGHT_TEST_BASE_URL=http://localhost:8787 \
+          pnpm exec playwright test tests/e2e/frontend/visual-regression.spec.ts
+        env:
+          CI: true
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-diffs
+          path: |
+            test-results/
+            tests/e2e/frontend/visual-regression.spec.ts-snapshots/
+          retention-days: 7

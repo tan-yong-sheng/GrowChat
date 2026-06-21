@@ -23,6 +23,7 @@ export default defineConfig({
         /bootstrap\.spec\.ts/,
         /auth-workflows\.spec\.ts/,
         /accessibility\.spec\.ts/,
+        /visual-regression\.spec\.ts/,
       ],
     },
     {
