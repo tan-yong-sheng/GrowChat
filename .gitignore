@@ -147,3 +147,4 @@ vendor/
 semgrep-runtime.json
 semgrep-report.json
 .fuse_hidden*
+tests/e2e/fixtures/auth-state.json

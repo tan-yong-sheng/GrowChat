@@ -16,6 +16,11 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: [/auth\.setup\.spec\.ts/],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'chromium-guest',
       use: { ...devices['Desktop Chrome'] },
       testMatch: [
@@ -23,16 +28,16 @@ export default defineConfig({
         /bootstrap\.spec\.ts/,
         /auth-workflows\.spec\.ts/,
         /accessibility\.spec\.ts/,
-        /visual-regression\.spec\.ts/,
       ],
     },
     {
       name: 'chromium-auth',
+      dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'tests/e2e/fixtures/auth-state.json',
       },
-      testMatch: [/chat\.spec\.ts/, /admin-settings\.spec\.ts/],
+      testMatch: [/chat\.spec\.ts/, /admin-settings\.spec\.ts/, /visual-regression\.spec\.ts/],
     },
   ],
 });
