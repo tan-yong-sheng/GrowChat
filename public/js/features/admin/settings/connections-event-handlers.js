@@ -37,6 +37,7 @@ export function createConnectionsEventHandlers(deps) {
     updateConnectionToggle,
     renderModalModels,
     addManualModalModel,
+    removeManualModalModel,
     showFeedback,
     setTestStatus,
     updateModalSaveButton,
@@ -309,6 +310,20 @@ export function createConnectionsEventHandlers(deps) {
       if (e.key === 'Enter') {
         e.preventDefault();
         addManualModalModel(container.querySelector('#edit-connection-modal') || container);
+      }
+    });
+
+    container.querySelector('#modal-models-list')?.addEventListener('click', (e) => {
+      const deleteBtn = e.target.closest('[data-delete-model-id]');
+      if (!deleteBtn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const modelId = deleteBtn.getAttribute('data-delete-model-id');
+      if (modelId) {
+        removeManualModalModel(
+          modelId,
+          container.querySelector('#edit-connection-modal') || container
+        );
       }
     });
 

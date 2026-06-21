@@ -223,6 +223,28 @@ export function createConnectionsModalForm(deps) {
     renderModalModels(modalRoot);
   };
 
+  const removeManualModalModel = (modelId, scope = container) => {
+    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
+    const connection = connectionsState.selectedConnection;
+    if (!connection?.id || connection?.readOnly) return;
+    const models = Array.isArray(connectionsState.modalModels) ? connectionsState.modalModels : [];
+    const target = models.find((m) => m.id === modelId);
+    if (!target || !target.manual) return;
+    const shortId = target.manualModelId || target.name || modelId;
+    connectionsState.modalModels = models.filter((m) => m.id !== modelId);
+    if (connectionsState.modalModelsSelection instanceof Set) {
+      connectionsState.modalModelsSelection.delete(modelId);
+    }
+    if (connectionsState.modalModelsOriginal instanceof Set) {
+      connectionsState.modalModelsOriginal.delete(modelId);
+    }
+    const nextManualModels = normalizeConnectionManualModels(connection.manualModels).filter(
+      (m) => m.modelId !== shortId
+    );
+    connection.manualModels = nextManualModels;
+    renderModalModels(modalRoot);
+  };
+
   const loadModalModels = async (connection, scope = container) => {
     const connectionId = String(connection?.id || '').trim();
     if (!connectionId) {
@@ -368,6 +390,7 @@ export function createConnectionsModalForm(deps) {
     fillModalFields,
     renderModalModels,
     addManualModalModel,
+    removeManualModalModel,
     loadModalModels,
     refreshModalModels,
     updateModalSaveButton,
