@@ -20,10 +20,10 @@ import {
 } from './connections-helpers.js';
 import {
   updateApiTypeDisplay,
-  resolveConnectionModalSelectionMode,
   previewConnectionModalModels,
   buildModalConnectionPayload,
 } from './connections-helpers-modal-models.js';
+import { normalizeConnectionModelSelectionMode } from '../../../shared/utils/connection-model-selection.js';
 import { buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 
@@ -261,7 +261,7 @@ export function createConnectionsModalForm(deps) {
     const seedModels = inflateManualConnectionModels(connection);
     const seedSelection = new Set(seedModels.map((model) => model.id));
     const inferredMode =
-      resolveConnectionModalSelectionMode(
+      normalizeConnectionModelSelectionMode(
         connection?.manualModelsMode || connection?.manual_models_mode
       ) || (seedSelection.size > 0 ? 'some' : 'all');
     connectionsState.modalModelsLoading = true;

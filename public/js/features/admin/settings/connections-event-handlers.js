@@ -225,7 +225,14 @@ export function createConnectionsEventHandlers(deps) {
             connectionsState.modalModelsSelection || new Set(),
             connectionsState.selectedConnection
           ),
-          manualModelsMode: connectionsState.selectedConnection?.manualModelsMode,
+          manualModelsMode: (() => {
+            const allModels = connectionsState.modalModels || [];
+            const selection = connectionsState.modalModelsSelection || new Set();
+            if (allModels.length === 0) return 'none';
+            if (selection.size === allModels.length) return 'all';
+            if (selection.size === 0) return 'none';
+            return 'some';
+          })(),
         };
         const modelUpdates = (connectionsState.modalModels || []).map((m) => ({
           id: m.id || m.modelId,
