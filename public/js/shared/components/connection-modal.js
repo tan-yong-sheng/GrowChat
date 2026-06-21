@@ -193,18 +193,20 @@ export function buildConnectionModalModelsMarkup(
         ? `<div class="text-[10px] text-gray-700 mt-0.5">${escapeHtml(model.description)}</div>`
         : '';
       return `
-      <label class="flex items-center gap-3 px-4 py-2 border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50">
-        <input type="checkbox" data-model-id="${escapeHtml(model.id)}" class="h-4 w-4 rounded border-gray-300" ${checked ? 'checked' : ''} />
-        <div class="flex flex-col min-w-0 flex-1">
-          <div class="truncate text-sm font-medium text-gray-900">
-            ${escapeHtml(model.name || model.id)}
-            ${manualBadge}
+      <div class="flex items-center gap-3 px-4 py-2 border-b border-gray-50 last:border-0">
+        <label class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:bg-gray-50">
+          <input type="checkbox" data-model-id="${escapeHtml(model.id)}" class="h-4 w-4 rounded border-gray-300 shrink-0" ${checked ? 'checked' : ''} />
+          <div class="flex flex-col min-w-0 flex-1">
+            <div class="truncate text-sm font-medium text-gray-900">
+              ${escapeHtml(model.name || model.id)}
+              ${manualBadge}
+            </div>
+            <div class="truncate text-[10px] text-gray-700 font-mono">${escapeHtml(model.id)}</div>
+            ${description}
           </div>
-          <div class="truncate text-[10px] text-gray-700 font-mono">${escapeHtml(model.id)}</div>
-          ${description}
-        </div>
+        </label>
         ${deleteButton}
-      </label>
+      </div>
     `;
     })
     .join('');

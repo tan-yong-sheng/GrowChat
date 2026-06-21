@@ -4,7 +4,7 @@ test.describe('Visual Regression - Auth Pages', () => {
   test('auth login page matches baseline (desktop)', async ({ page }) => {
     await page.goto('/auth.html');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
+    await page.locator('#auth-submit').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('auth-login-desktop.png', {
       maxDiffPixelRatio: 0.02,
       animations: 'disabled',
@@ -15,7 +15,7 @@ test.describe('Visual Regression - Auth Pages', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/auth.html');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
+    await page.locator('#auth-submit').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('auth-login-mobile.png', {
       maxDiffPixelRatio: 0.02,
       animations: 'disabled',
@@ -30,7 +30,7 @@ test.describe('Visual Regression - Chat', () => {
     test.setTimeout(60000);
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(1000);
+    await page.locator('#sidebar').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('chat-list-desktop.png', {
       maxDiffPixelRatio: 0.02,
       animations: 'disabled',
@@ -42,7 +42,7 @@ test.describe('Visual Regression - Chat', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(1000);
+    await page.locator('#sidebar').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('chat-list-mobile.png', {
       maxDiffPixelRatio: 0.02,
       animations: 'disabled',
@@ -57,7 +57,7 @@ test.describe('Visual Regression - Admin', () => {
     test.setTimeout(60000);
     await page.goto('/admin/settings');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(1000);
+    await page.locator('#manage-connections-section').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('admin-settings-desktop.png', {
       maxDiffPixelRatio: 0.02,
       animations: 'disabled',
@@ -69,7 +69,7 @@ test.describe('Visual Regression - Admin', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/admin/settings');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(1000);
+    await page.locator('#manage-connections-section').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('admin-settings-mobile.png', {
       maxDiffPixelRatio: 0.02,
       animations: 'disabled',

@@ -239,7 +239,7 @@ export function createConnectionsModalForm(deps) {
       connectionsState.modalModelsOriginal.delete(modelId);
     }
     const nextManualModels = normalizeConnectionManualModels(connection.manualModels).filter(
-      (m) => m.modelId !== shortId
+      (m) => m.modelId !== shortId && m.modelId !== modelId && !modelId.endsWith('/' + m.modelId)
     );
     connection.manualModels = nextManualModels;
     renderModalModels(modalRoot);
