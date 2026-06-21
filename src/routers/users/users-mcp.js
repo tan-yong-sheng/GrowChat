@@ -66,8 +66,7 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const codeVerifier = String(server.oauth_code_verifier || '').trim();
     const tokenAuthMethod =
       normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
-    const redirectUri =
-      origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+    const redirectUri = origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -249,8 +248,7 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     ).trim();
     const registrationEndpoint =
       metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
-    const redirectUri =
-      origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+    const redirectUri = origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
     if (!clientId) {
       if (!registrationEndpoint) {

@@ -10,10 +10,7 @@ describe('QA Comprehensive UI/UX Check', () => {
   let document;
 
   beforeEach(() => {
-    const authHtml = fs.readFileSync(
-      path.join(process.cwd(), 'public/auth.html'),
-      'utf-8'
-    );
+    const authHtml = fs.readFileSync(path.join(process.cwd(), 'public/auth.html'), 'utf-8');
     dom = new JSDOM(authHtml, {
       url: (process.env.TEST_URL || 'http://localhost:8787').replace(/\/$/, '') + '/auth.html',
       pretendToBeVisual: true,
@@ -129,9 +126,7 @@ describe('QA Comprehensive UI/UX Check', () => {
   describe('Auth Page - Script Loading', () => {
     it('loads auth.js module', () => {
       const scripts = document.querySelectorAll('script[type="module"]');
-      const hasAuthScript = Array.from(scripts).some((s) =>
-        s.src.includes('auth.js')
-      );
+      const hasAuthScript = Array.from(scripts).some((s) => s.src.includes('auth.js'));
       expect(hasAuthScript).toBe(true);
     });
 

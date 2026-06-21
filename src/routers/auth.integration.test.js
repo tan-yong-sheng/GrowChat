@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /*  Hoisted mock registry                                              */
 /* ------------------------------------------------------------------ */
 const mocks = vi.hoisted(() => ({
-  kvStore: {},     // KV namespace for refresh tokens
+  kvStore: {}, // KV namespace for refresh tokens
   // Query-specific response map for db.first()
   firstResponses: new Map(),
   // FIFO for db.run()
