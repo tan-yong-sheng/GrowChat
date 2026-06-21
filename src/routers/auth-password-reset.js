@@ -49,6 +49,16 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     });
   }
 
+  // Strip trailing slash so concatenations produce clean URLs
+  const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+  if (!origin) {
+    logger.error('APP_PUBLIC_ORIGIN is not configured — password reset link origin unknown');
+    // Return same fake-OK as missing-user to avoid email enumeration
+    return json(req, {
+      message: 'If an account exists with this email, a reset link has been sent.',
+    });
+  }
+
   const resetToken = crypto.getRandomValues(new Uint8Array(32));
   const resetTokenHex = [...resetToken].map((x) => x.toString(16).padStart(2, '0')).join('');
 
@@ -67,8 +77,6 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
   try {
     const emailService = createEmailService(env);
     const userNameEscaped = escapeHtml(user.name);
-    // Use APP_PUBLIC_ORIGIN env var if configured, otherwise fall back to request origin
-    const origin = env.APP_PUBLIC_ORIGIN || new URL(req.url).origin;
 
     const resetLink = `${origin}/auth/reset-password?token=${resetTokenHex}`;
     const emailHtml = buildPasswordResetEmailHtml(userNameEscaped, resetLink);

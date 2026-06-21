@@ -6,6 +6,9 @@ export default defineConfig({
     // Tests needing jsdom must include:
     // @vitest-environment jsdom
     environment: 'node',
+    // Polyfill localStorage for all JSDOM tests. JSDOM does not include it by default.
+    // setup-localstorage.js is excluded from test discovery in exclude below.
+    setupFiles: ['./tests/unit/setup-localstorage.js'],
     globals: true,
     // Retry failed tests once to handle Windows file system flakiness
     retry: 1,
@@ -16,7 +19,13 @@ export default defineConfig({
     maxWorkers: process.env.CI ? 4 : 6,
     testTimeout: 10000,
     include: ['src/**/*.test.js', 'tests/unit/**/*.test.js'],
-    exclude: ['tests/e2e/**', '.worktrees/**', 'node_modules/**', '.wrangler/**'],
+    exclude: [
+      'tests/e2e/**',
+      '.worktrees/**',
+      'node_modules/**',
+      '.wrangler/**',
+      'tests/unit/setup-localstorage.js', // setup file, not a test
+    ],
     coverage: {
       all: true,
       provider: 'v8',

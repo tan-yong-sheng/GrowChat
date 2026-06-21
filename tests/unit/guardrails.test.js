@@ -33,6 +33,7 @@ function run(command, args, cwd, timeout = 25000) {
     encoding: 'utf8',
     shell: false,
     timeout, // Must be below vitest timeout so the outer test limit remains effective
+    env: { ...process.env, HOME: '/tmp' }, // semgrep needs writable HOME for settings
   });
 }
 

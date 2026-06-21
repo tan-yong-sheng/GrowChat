@@ -219,16 +219,17 @@ export function createConnectionsEventHandlers(deps) {
           apiType: connectionApiTypeDetails(providerType).value,
           source: 'manual',
           enabled: connectionsState.selectedConnection?.enabled !== false,
-          manualModels: normalizeConnectionManualModels(
-            connectionsState.selectedConnection?.manualModels
+          manualModels: buildSelectedConnectionModels(
+            connectionsState.modalModels || [],
+            connectionsState.modalModelsSelection || new Set(),
+            connectionsState.selectedConnection
           ),
           manualModelsMode: connectionsState.selectedConnection?.manualModelsMode,
         };
-        const modelUpdates = buildSelectedConnectionModels(
-          connectionsState.modalModels || [],
-          connectionsState.modalModelsSelection || new Set(),
-          connectionsState.selectedConnection
-        );
+        const modelUpdates = (connectionsState.modalModels || []).map((m) => ({
+          id: m.id || m.modelId,
+          enabled: (connectionsState.modalModelsSelection || new Set()).has(m.id || m.modelId),
+        }));
         const accessUpdates = [];
         const manualConnections = connectionsState.openai.connections
           .filter((c) => !c.readOnly)

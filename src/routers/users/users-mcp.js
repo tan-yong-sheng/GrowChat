@@ -30,13 +30,20 @@ import { findUserToolServerByOauthState, saveUserToolServerJson } from './users-
  */
 export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _requestContext }) {
   if (req.method === 'GET' && path === '/api/users/me/resources/mcp-servers/oauth/callback') {
+    const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
     const db = createDB(env.DB);
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const errParam = url.searchParams.get('error');
     if (errParam) {
-      return new Response(`Authorization failed: ${errParam}`, { status: 400 });
+      return new Response(`Authorization failed: ${errParam}`, {
+        status: 400,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
     }
     if (!code || !state) {
       return new Response('Missing authorization code or state', {
@@ -59,8 +66,7 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const codeVerifier = String(server.oauth_code_verifier || '').trim();
     const tokenAuthMethod =
       normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
-    const redirectUri =
-      new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+    const redirectUri = origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -187,6 +193,11 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
   }
 
   if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers/oauth/start') {
+    const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
+
     let body;
     try {
       body = await req.json();
@@ -237,8 +248,7 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     ).trim();
     const registrationEndpoint =
       metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
-    const redirectUri =
-      new URL(req.url).origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+    const redirectUri = origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
     if (!clientId) {
       if (!registrationEndpoint) {

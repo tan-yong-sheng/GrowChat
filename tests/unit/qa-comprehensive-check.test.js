@@ -10,10 +10,7 @@ describe('QA Comprehensive UI/UX Check', () => {
   let document;
 
   beforeEach(() => {
-    const authHtml = fs.readFileSync(
-      path.join(process.cwd(), 'public/auth.html'),
-      'utf-8'
-    );
+    const authHtml = fs.readFileSync(path.join(process.cwd(), 'public/auth.html'), 'utf-8');
     dom = new JSDOM(authHtml, {
       url: (process.env.TEST_URL || 'http://localhost:8787').replace(/\/$/, '') + '/auth.html',
       pretendToBeVisual: true,
@@ -36,7 +33,8 @@ describe('QA Comprehensive UI/UX Check', () => {
 
     it('email input has correct type and attributes', () => {
       const emailInput = document.getElementById('email');
-      expect(emailInput.type).toBe('email');
+      // type=text (not email) to allow localhost dev emails that HTML5 rejects
+      expect(emailInput.type).toBe('text');
       expect(emailInput.required).toBe(true);
       expect(emailInput.getAttribute('autocomplete')).toBeTruthy();
     });
@@ -128,9 +126,7 @@ describe('QA Comprehensive UI/UX Check', () => {
   describe('Auth Page - Script Loading', () => {
     it('loads auth.js module', () => {
       const scripts = document.querySelectorAll('script[type="module"]');
-      const hasAuthScript = Array.from(scripts).some((s) =>
-        s.src.includes('auth.js')
-      );
+      const hasAuthScript = Array.from(scripts).some((s) => s.src.includes('auth.js'));
       expect(hasAuthScript).toBe(true);
     });
 
@@ -152,7 +148,8 @@ describe('QA Comprehensive UI/UX Check', () => {
 
     it('email input has email type validation', () => {
       const emailInput = document.getElementById('email');
-      expect(emailInput.type).toBe('email');
+      // type=text (not email) to allow localhost dev emails that HTML5 rejects
+      expect(emailInput.type).toBe('text');
     });
 
     it('password input has minimum length constraint', () => {
@@ -187,7 +184,7 @@ describe('QA Comprehensive UI/UX Check', () => {
 
     it('forgot password form has email input', () => {
       const forgotForm = document.getElementById('forgot-password-form');
-      const emailInput = forgotForm.querySelector('input[type="email"]');
+      const emailInput = forgotForm.querySelector('input#forgot-email');
       expect(emailInput).toBeTruthy();
     });
 

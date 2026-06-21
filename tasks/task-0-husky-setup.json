@@ -33,10 +33,7 @@
       "note": "Used --no-verify because default pre-commit hook runs 'npm test' which has vitest pool timeouts (not actual test failures - 903 tests pass). This is expected behavior during initial setup."
     }
   ],
-  "files_created": [
-    ".husky/pre-commit",
-    ".husky/_/"
-  ],
+  "files_created": [".husky/pre-commit", ".husky/_/"],
   "files_modified": [
     "package.json (added husky, lint-staged, commitlint, @commitlint/config-conventional devDependencies)"
   ],

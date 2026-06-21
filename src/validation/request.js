@@ -94,7 +94,7 @@ export function parsePagination(
 
 export function isValidEmail(email) {
   if (!email || typeof email !== 'string') return false;
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailRegex = /^[^\s@]+@([^\s@]+\.[^\s@]+|localhost)$/;
   return emailRegex.test(email);
 }
 

@@ -71,8 +71,11 @@
     "APP_NAME": "GrowChat",
     "ENVIRONMENT": "dev",
     "EMAIL_PROVIDER": "resend",
+    "EMAIL_FROM": "noreply@growchat.app",
     "ALLOWED_ORIGINS": "*",
     "LOG_LEVEL": "debug",
+    "APP_PUBLIC_ORIGIN": "http://localhost:8787",
+    "APP_URL": "http://localhost:8787",
   },
   "env": {
     "production": {
@@ -80,9 +83,11 @@
         "APP_NAME": "GrowChat",
         "ENVIRONMENT": "production",
         "EMAIL_PROVIDER": "resend",
-        "ALLOWED_ORIGINS": "*",
-    "LOG_LEVEL": "info",
-        "RESEND_API_KEY": "re_xxxxx",
+        "ALLOWED_ORIGINS": "https://growchat.example.com",
+        "APP_PUBLIC_ORIGIN": "https://chat.tanyongsheng.qzz.io",
+        "APP_URL": "https://chat.tanyongsheng.qzz.io",
+        "LOG_LEVEL": "info",
+
       },
       "d1_databases": [
         {

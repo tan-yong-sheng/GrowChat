@@ -13,6 +13,7 @@
 
 # ── Pi / gstack / dev tool state ──
 .archon/artifacts/
+piolium/
 .gstack/
 .pi/
 .pi-lens/

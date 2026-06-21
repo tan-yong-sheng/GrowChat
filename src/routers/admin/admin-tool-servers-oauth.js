@@ -29,6 +29,11 @@ export async function handleAdminToolServersOAuth(
   { db, _logger, _requestContext }
 ) {
   if (req.method === 'POST' && path === '/api/admin/tool-servers/oauth/start') {
+    // Strip trailing slash so concatenations produce clean URLs
+    const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
     let body;
     try {
       body = await req.json();
@@ -70,8 +75,7 @@ export async function handleAdminToolServersOAuth(
     const authServerUrl = String(
       body.oauth_authorization_server || server.oauth_authorization_server || serverUrl
     ).trim();
-
-    const redirectUri = new URL(req.url).origin + '/api/admin/tool-servers/oauth/callback';
+    const redirectUri = origin + '/api/admin/tool-servers/oauth/callback';
 
     let metadata;
     try {
@@ -171,12 +175,20 @@ export async function handleAdminToolServersOAuth(
 
   // GET /api/admin/tool-servers/oauth/callback - OAuth redirect handler
   if (req.method === 'GET' && path === '/api/admin/tool-servers/oauth/callback') {
+    // Strip trailing slash so concatenations produce clean URLs
+    const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+    if (!origin) {
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+    }
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const errParam = url.searchParams.get('error');
     if (errParam) {
-      return new Response(`Authorization failed: ${errParam}`, { status: 400 });
+      return new Response(`Authorization failed: ${errParam}`, {
+        status: 400,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
     }
     if (!code || !state) {
       return new Response('Missing authorization code or state', {
@@ -206,7 +218,7 @@ export async function handleAdminToolServersOAuth(
       grant_type: 'authorization_code',
       code,
       code_verifier: codeVerifier,
-      redirect_uri: new URL(req.url).origin + '/api/admin/tool-servers/oauth/callback',
+      redirect_uri: origin + '/api/admin/tool-servers/oauth/callback',
       client_id: clientId,
     });
 

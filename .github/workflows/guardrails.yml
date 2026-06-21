@@ -83,7 +83,7 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.local/bin:$PATH"
-          pnpm run setup:semgrep
+          uv tool install semgrep==1.167.0
 
       - name: Setup Gitleaks
         run: |
