@@ -23,6 +23,7 @@ import {
   buildSelectedConnectionModels,
   updateApiTypeDisplay,
   buildModalConnectionPayload,
+  resolveConnectionModalSelectionMode,
 } from './connections-helpers-modal-models.js';
 
 export function createConnectionsEventHandlers(deps) {
@@ -225,14 +226,10 @@ export function createConnectionsEventHandlers(deps) {
             connectionsState.modalModelsSelection || new Set(),
             connectionsState.selectedConnection
           ),
-          manualModelsMode: (() => {
-            const allModels = connectionsState.modalModels || [];
-            const selection = connectionsState.modalModelsSelection || new Set();
-            if (allModels.length === 0) return 'none';
-            if (selection.size === allModels.length) return 'all';
-            if (selection.size === 0) return 'none';
-            return 'some';
-          })(),
+          manualModelsMode: resolveConnectionModalSelectionMode(
+            connectionsState.modalModels || [],
+            connectionsState.modalModelsSelection || new Set()
+          ),
         };
         const modelUpdates = (connectionsState.modalModels || []).map((m) => ({
           id: m.id || m.modelId,

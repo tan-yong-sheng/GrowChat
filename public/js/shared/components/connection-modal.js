@@ -185,7 +185,7 @@ export function buildConnectionModalModelsMarkup(
         ? '<span class="ml-2 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">Manual</span>'
         : '';
       const deleteButton = model.manual
-        ? `<button type="button" data-delete-model-id="${escapeHtml(model.id)}" class="ml-auto shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors" title="Remove this manual model" onclick="event.preventDefault();">` +
+        ? `<button type="button" data-delete-model-id="${escapeHtml(model.id)}" class="ml-auto shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors" title="Remove this manual model">` +
           `<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>` +
           `</button>`
         : '';

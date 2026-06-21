@@ -25,7 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -66,6 +66,13 @@ jobs:
           pnpm exec playwright test tests/e2e/frontend/visual-regression.spec.ts
         env:
           CI: true
+
+      - name: Stop dev server
+        if: always()
+        run: |
+          pkill -f "wrangler" || true
+          pkill -f "vite" || true
+          echo "Dev server stopped"
 
       - name: Upload test artifacts
         if: failure()
