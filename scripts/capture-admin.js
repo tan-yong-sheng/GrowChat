@@ -14,8 +14,8 @@ import { chromium } from 'playwright';
     await page.goto(`${baseUrl}/auth.html`);
     
     console.log('Logging in...');
-    await page.fill('#email', 'tys203831@gmail.com');
-    await page.fill('#password', '&Test203831');
+    await page.fill('#email', 'admin@localhost');
+    await page.fill('#password', 'admin123');
     await page.click('#auth-submit');
     
     // Wait for redirect to home
