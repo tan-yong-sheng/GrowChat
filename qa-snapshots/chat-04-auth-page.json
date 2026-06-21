@@ -1,0 +1,30 @@
+{
+  "origin": "http://localhost:8787/auth",
+  "refs": {
+    "e1": {
+      "name": "Sign in to GrowChat",
+      "role": "heading"
+    },
+    "e2": {
+      "name": "Sign up",
+      "role": "button"
+    },
+    "e3": {
+      "name": "Forgot password?",
+      "role": "button"
+    },
+    "e4": {
+      "name": "Email",
+      "role": "textbox"
+    },
+    "e5": {
+      "name": "Sign in",
+      "role": "button"
+    },
+    "e6": {
+      "name": "Password",
+      "role": "textbox"
+    }
+  },
+  "snapshot": "- heading \"Sign in to GrowChat\" [level=1, ref=e1]\n- textbox \"Email\" [required, ref=e4]\n- textbox \"Password\" [required, ref=e6]\n- button \"Sign in\" [disabled, ref=e5]\n- button \"Sign up\" [ref=e2]\n- button \"Forgot password?\" [ref=e3]"
+}

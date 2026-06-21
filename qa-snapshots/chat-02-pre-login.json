@@ -1,0 +1,206 @@
+{
+  "origin": "http://localhost:8787/",
+  "refs": {
+    "e1": {
+      "name": "Skip to content",
+      "role": "link"
+    },
+    "e10": {
+      "name": "Comparison",
+      "role": "region"
+    },
+    "e11": {
+      "name": "GitHub",
+      "role": "link"
+    },
+    "e12": {
+      "name": "Deploy",
+      "role": "link"
+    },
+    "e13": {
+      "name": "30-second deploy. Zero Docker. Chat with any LLM.",
+      "role": "heading"
+    },
+    "e14": {
+      "name": "Deploy Now",
+      "role": "link"
+    },
+    "e15": {
+      "name": "Login / Sign Up",
+      "role": "link"
+    },
+    "e16": {
+      "name": "Built different",
+      "role": "heading"
+    },
+    "e17": {
+      "name": "3-Scope RBAC",
+      "role": "heading"
+    },
+    "e18": {
+      "name": "Multi-Provider LLM",
+      "role": "heading"
+    },
+    "e19": {
+      "name": "Cloudflare Deploy",
+      "role": "heading"
+    },
+    "e2": {
+      "name": "GrowChat home",
+      "role": "link"
+    },
+    "e20": {
+      "name": "Why GrowChat?",
+      "role": "heading"
+    },
+    "e21": {
+      "name": "Docker Required",
+      "role": "cell"
+    },
+    "e22": {
+      "name": "No",
+      "role": "cell"
+    },
+    "e23": {
+      "name": "Yes",
+      "role": "cell"
+    },
+    "e24": {
+      "name": "Yes",
+      "role": "cell"
+    },
+    "e25": {
+      "name": "Yes",
+      "role": "cell"
+    },
+    "e26": {
+      "name": "RBAC Permissions",
+      "role": "cell"
+    },
+    "e27": {
+      "name": "3-scope",
+      "role": "cell"
+    },
+    "e28": {
+      "name": "Basic",
+      "role": "cell"
+    },
+    "e29": {
+      "name": "None",
+      "role": "cell"
+    },
+    "e3": {
+      "name": "Features",
+      "role": "link"
+    },
+    "e30": {
+      "name": "Basic",
+      "role": "cell"
+    },
+    "e31": {
+      "name": "Multi-User",
+      "role": "cell"
+    },
+    "e32": {
+      "name": "Yes",
+      "role": "cell"
+    },
+    "e33": {
+      "name": "Yes",
+      "role": "cell"
+    },
+    "e34": {
+      "name": "Yes",
+      "role": "cell"
+    },
+    "e35": {
+      "name": "Limited",
+      "role": "cell"
+    },
+    "e36": {
+      "name": "Deploy Time",
+      "role": "cell"
+    },
+    "e37": {
+      "name": "~30s",
+      "role": "cell"
+    },
+    "e38": {
+      "name": "~5min",
+      "role": "cell"
+    },
+    "e39": {
+      "name": "~5min",
+      "role": "cell"
+    },
+    "e4": {
+      "name": "Compare",
+      "role": "link"
+    },
+    "e40": {
+      "name": "~5min",
+      "role": "cell"
+    },
+    "e41": {
+      "name": "Edge / Serverless",
+      "role": "cell"
+    },
+    "e42": {
+      "name": "Yes",
+      "role": "cell"
+    },
+    "e43": {
+      "name": "No",
+      "role": "cell"
+    },
+    "e44": {
+      "name": "No",
+      "role": "cell"
+    },
+    "e45": {
+      "name": "No",
+      "role": "cell"
+    },
+    "e46": {
+      "name": "FEATURE",
+      "role": "columnheader"
+    },
+    "e47": {
+      "name": "GROWCHAT",
+      "role": "columnheader"
+    },
+    "e48": {
+      "name": "OPEN WEBUI",
+      "role": "columnheader"
+    },
+    "e49": {
+      "name": "LIBRECHAT",
+      "role": "columnheader"
+    },
+    "e5": {
+      "name": "1",
+      "role": "link"
+    },
+    "e50": {
+      "name": "HIVECHAT",
+      "role": "columnheader"
+    },
+    "e6": {
+      "name": "Login",
+      "role": "link"
+    },
+    "e7": {
+      "name": "Deploy Now",
+      "role": "link"
+    },
+    "e8": {
+      "name": "Hero",
+      "role": "region"
+    },
+    "e9": {
+      "name": "Features",
+      "role": "region"
+    }
+  },
+  "snapshot": "- link \"Skip to content\" [ref=e1]\n- link \"GrowChat home\" [ref=e2]\n- link \"Features\" [ref=e3]\n- link \"Compare\" [ref=e4]\n- link \"1\" [ref=e5]\n- link \"Login\" [ref=e6]\n- link \"Deploy Now\" [ref=e7]\n- region \"Hero\" [ref=e8]\n  - heading \"30-second deploy. Zero Docker. Chat with any LLM.\" [level=1, ref=e13]\n  - link \"Deploy Now\" [ref=e14]\n  - link \"Login / Sign Up\" [ref=e15]\n- region \"Features\" [ref=e9]\n  - heading \"Built different\" [level=2, ref=e16]\n  - heading \"3-Scope RBAC\" [level=3, ref=e17]\n  - heading \"Multi-Provider LLM\" [level=3, ref=e18]\n  - heading \"Cloudflare Deploy\" [level=3, ref=e19]\n- region \"Comparison\" [ref=e10]\n  - heading \"Why GrowChat?\" [level=2, ref=e20]\n  - columnheader \"FEATURE\" [ref=e46]\n  - columnheader \"GROWCHAT\" [ref=e47]\n  - columnheader \"OPEN WEBUI\" [ref=e48]\n  - columnheader \"LIBRECHAT\" [ref=e49]\n  - columnheader \"HIVECHAT\" [ref=e50]\n  - cell \"Docker Required\" [ref=e21]\n  - cell \"No\" [ref=e22]\n  - cell \"Yes\" [ref=e23]\n  - cell \"Yes\" [ref=e24]\n  - cell \"Yes\" [ref=e25]\n  - cell \"RBAC Permissions\" [ref=e26]\n  - cell \"3-scope\" [ref=e27]\n  - cell \"Basic\" [ref=e28]\n  - cell \"None\" [ref=e29]\n  - cell \"Basic\" [ref=e30]\n  - cell \"Multi-User\" [ref=e31]\n  - cell \"Yes\" [ref=e32]\n  - cell \"Yes\" [ref=e33]\n  - cell \"Yes\" [ref=e34]\n  - cell \"Limited\" [ref=e35]\n  - cell \"Deploy Time\" [ref=e36]\n  - cell \"~30s\" [ref=e37]\n  - cell \"~5min\" [ref=e38]\n  - cell \"~5min\" [ref=e39]\n  - cell \"~5min\" [ref=e40]\n  - cell \"Edge / Serverless\" [ref=e41]\n  - cell \"Yes\" [ref=e42]\n  - cell \"No\" [ref=e43]\n  - cell \"No\" [ref=e44]\n  - cell \"No\" [ref=e45]\n- link \"GitHub\" [ref=e11]\n- link \"Deploy\" [ref=e12]"
+}
