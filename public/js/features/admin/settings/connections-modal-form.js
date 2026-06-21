@@ -238,10 +238,10 @@ export function createConnectionsModalForm(deps) {
     if (connectionsState.modalModelsOriginal instanceof Set) {
       connectionsState.modalModelsOriginal.delete(modelId);
     }
-    const nextManualModels = normalizeConnectionManualModels(connection.manualModels).filter(
-      (m) => m.modelId !== shortId && m.modelId !== modelId && !modelId.endsWith('/' + m.modelId)
-    );
-    connection.manualModels = nextManualModels;
+    if (!Array.isArray(connectionsState.deletedManualModelIds)) {
+      connectionsState.deletedManualModelIds = [];
+    }
+    connectionsState.deletedManualModelIds.push(shortId);
     renderModalModels(modalRoot);
   };
 

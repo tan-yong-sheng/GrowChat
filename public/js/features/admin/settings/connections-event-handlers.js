@@ -157,6 +157,7 @@ export function createConnectionsEventHandlers(deps) {
     });
 
     container.querySelector('#close-modal')?.addEventListener('click', () => {
+      connectionsState.deletedManualModelIds = [];
       closeModal();
     });
 
@@ -221,11 +222,16 @@ export function createConnectionsEventHandlers(deps) {
           apiType: connectionApiTypeDetails(providerType).value,
           source: 'manual',
           enabled: connectionsState.selectedConnection?.enabled !== false,
-          manualModels: buildSelectedConnectionModels(
-            connectionsState.modalModels || [],
-            connectionsState.modalModelsSelection || new Set(),
-            connectionsState.selectedConnection
-          ),
+          manualModels: (() => {
+            const models = buildSelectedConnectionModels(
+              connectionsState.modalModels || [],
+              connectionsState.modalModelsSelection || new Set(),
+              connectionsState.selectedConnection
+            );
+            const deleted = connectionsState.deletedManualModelIds || [];
+            if (!deleted.length) return models;
+            return models.filter((m) => !deleted.includes(m.modelId));
+          })(),
           manualModelsMode: resolveConnectionModalSelectionMode(
             connectionsState.modalModels || [],
             connectionsState.modalModelsSelection || new Set()
@@ -266,6 +272,7 @@ export function createConnectionsEventHandlers(deps) {
         broadcastConnectionsInvalidation();
         if (data) data.modelsSettingsInvalidate = Date.now();
         // connectionsState.loaded = false; // removed: optimistic save
+        connectionsState.deletedManualModelIds = [];
         closeModal();
         loadConnections();
       } catch (err) {

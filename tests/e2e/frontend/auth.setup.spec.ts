@@ -7,8 +7,13 @@ setup('authenticate', async ({ page }) => {
   await page.goto('/auth.html');
   
   // Fill login form
-  await page.locator('#email').fill(process.env.TEST_EMAIL || 'admin@localhost');
-  await page.locator('#password').fill(process.env.TEST_PASSWORD || 'admin123');
+  const email = process.env.TEST_EMAIL;
+  if (!email) throw new Error('TEST_EMAIL is required');
+  await page.locator('#email').fill(email);
+
+  const password = process.env.TEST_PASSWORD;
+  if (!password) throw new Error('TEST_PASSWORD is required');
+  await page.locator('#password').fill(password);
   
   // Submit login
   await page.locator('#auth-submit').click();

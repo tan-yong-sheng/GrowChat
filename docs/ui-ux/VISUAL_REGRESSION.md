@@ -57,7 +57,7 @@ Then commit the updated baseline PNGs.
 
 ### Location
 
-```
+```text
 tests/e2e/frontend/visual-regression.spec.ts-snapshots/
 ├── auth-login-desktop.png
 ├── auth-login-mobile.png
@@ -286,7 +286,7 @@ Run auth setup first:
 
 ```bash
 TEST_EMAIL=admin@localhost TEST_PASSWORD=admin123 \
-pnpm exec playwright test tests/e2e/frontend/auth-workflows.spec.ts
+pnpm exec playwright test tests/e2e/frontend/auth.setup.spec.ts
 ```
 
 This creates `tests/e2e/fixtures/auth-state.json`.
