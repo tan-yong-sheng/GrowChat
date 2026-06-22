@@ -721,5 +721,538 @@ describe('stream-parser-handler', () => {
       const text = handleParsed(parser, parsed);
       expect(text).toBe('');
     });
+
+    it('handles Google candidate with null content', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [{ content: null }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles Google candidate with undefined content', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [{ content: undefined }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles Google candidate with empty parts', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [{ content: { parts: [] } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles Google candidate with non-array parts', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [{ content: { parts: 'not-array' } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles Google candidate with finish_reason field', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [{ finish_reason: 'STOP', content: { parts: [] } }],
+      };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'stop' });
+    });
+
+    it('handles Google candidate with undefined finishReason', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [{ content: { parts: [{ text: 'Hi' }] }, finishReason: undefined }],
+      };
+      handleParsed(parser, parsed);
+      const finishEvents = parser.events.filter((e) => e.type === 'finish_reason');
+      expect(finishEvents).toHaveLength(0);
+    });
+
+    it('handles Google candidate with functionCall missing args', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [
+          {
+            content: { parts: [{ functionCall: { name: 'test' } }] },
+          },
+        ],
+      };
+      handleParsed(parser, parsed);
+      const toolEvent = parser.events.find((e) => e.type === 'tool_call_delta');
+      expect(toolEvent.tool_calls[0].function.arguments).toBe('{}');
+    });
+
+    it('handles Google candidate with functionCall with null args', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [
+          {
+            content: { parts: [{ functionCall: { name: 'test', args: null } }] },
+          },
+        ],
+      };
+      handleParsed(parser, parsed);
+      const toolEvent = parser.events.find((e) => e.type === 'tool_call_delta');
+      expect(toolEvent.tool_calls[0].function.arguments).toBe('{}');
+    });
+
+    it('handles Google candidate with thoughtSignature of empty string', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [
+          {
+            content: {
+              parts: [{ functionCall: { name: 'test' }, thoughtSignature: '' }],
+            },
+          },
+        ],
+      };
+      handleParsed(parser, parsed);
+      const toolEvent = parser.events.find((e) => e.type === 'tool_call_delta');
+      expect(toolEvent.tool_calls[0].providerMetadata).toBeUndefined();
+    });
+
+    it('handles Google candidate with thoughtSignature of 0 (0 != null)', () => {
+      const parser = createMockParser();
+      const parsed = {
+        candidates: [
+          {
+            content: {
+              parts: [{ functionCall: { name: 'test' }, thoughtSignature: 0 }],
+            },
+          },
+        ],
+      };
+      handleParsed(parser, parsed);
+      const toolEvent = parser.events.find((e) => e.type === 'tool_call_delta');
+      // 0 != null is true, so thoughtSignature is included
+      expect(toolEvent.tool_calls[0].providerMetadata).toEqual({
+        google: { thoughtSignature: '0' },
+      });
+    });
+
+    it('normalizes finish_reason: empty string returns null', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: '', delta: {} }] };
+      handleParsed(parser, parsed);
+      const finishEvents = parser.events.filter((e) => e.type === 'finish_reason');
+      expect(finishEvents).toHaveLength(0);
+    });
+
+    it('handles whitespace-only finish_reason emitting null reason', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: '   ', delta: {} }] };
+      handleParsed(parser, parsed);
+      const finishEvents = parser.events.filter((e) => e.type === 'finish_reason');
+      // finish_reason is truthy so event is emitted, but normalize returns null
+      expect(finishEvents).toEqual([{ type: 'finish_reason', reason: null }]);
+    });
+
+    it('normalizes finish_reason: undefined finish_reason', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: undefined, delta: {} }] };
+      handleParsed(parser, parsed);
+      const finishEvents = parser.events.filter((e) => e.type === 'finish_reason');
+      expect(finishEvents).toHaveLength(0);
+    });
+
+    it('normalizes finish_reason: null finish_reason', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: null, delta: {} }] };
+      handleParsed(parser, parsed);
+      const finishEvents = parser.events.filter((e) => e.type === 'finish_reason');
+      expect(finishEvents).toHaveLength(0);
+    });
+
+    it('normalizes finish_reason: "tool" substring', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: 'tool_call', delta: {} }] };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'tool_calls' });
+    });
+
+    it('normalizes finish_reason: "TOOL_CALLS" uppercase', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: 'TOOL_CALLS', delta: {} }] };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'tool_calls' });
+    });
+
+    it('normalizes finish_reason: "STOP_SEQUENCE" uppercase', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: 'STOP_SEQUENCE', delta: {} }] };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'stop' });
+    });
+
+    it('normalizes finish_reason: "END_TURN" uppercase', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: 'END_TURN', delta: {} }] };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'stop' });
+    });
+
+    it('normalizes finish_reason: "MAX_TOKENS" uppercase', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: 'MAX_TOKENS', delta: {} }] };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'length' });
+    });
+
+    it('normalizes finish_reason: "LENGTH" uppercase', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: 'LENGTH', delta: {} }] };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'length' });
+    });
+
+    it('normalizes finish_reason: "STOP" uppercase', () => {
+      const parser = createMockParser();
+      const parsed = { choices: [{ finish_reason: 'STOP', delta: {} }] };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'stop' });
+    });
+
+    it('normalizes finish_reason when _hasToolCalls is true but finish_reason is tool_use', () => {
+      const parser = createMockParser();
+      parser._hasToolCalls = true;
+      const parsed = { choices: [{ finish_reason: 'tool_use', delta: {} }] };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'tool_calls' });
+    });
+
+    it('handles content_block_start without content_block', () => {
+      const parser = createMockParser();
+      const parsed = { type: 'content_block_start', index: 0 };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+      expect(parser.events).toHaveLength(0);
+    });
+
+    it('handles content_block_start with null content_block', () => {
+      const parser = createMockParser();
+      const parsed = { type: 'content_block_start', index: 0, content_block: null };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+      expect(parser.events).toHaveLength(0);
+    });
+
+    it('handles content_block_start with tool_use but null input', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 't1', name: 'calc', input: null },
+      };
+      handleParsed(parser, parsed);
+      const toolEvent = parser.events.find((e) => e.type === 'tool_call_delta');
+      expect(toolEvent.tool_calls[0].function.arguments).toBe('{}');
+    });
+
+    it('handles content_block_start with tool_use and string input', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 't1', name: 'calc', input: '{"a":1}' },
+      };
+      handleParsed(parser, parsed);
+      const toolEvent = parser.events.find((e) => e.type === 'tool_call_delta');
+      expect(toolEvent.tool_calls[0].function.arguments).toBe('{"a":1}');
+    });
+
+    it('handles content_block_delta with missing index', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'content_block_delta',
+        delta: { type: 'input_json_delta', partial_json: '{}' },
+      };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual(
+        expect.objectContaining({
+          type: 'tool_call_delta',
+          tool_calls: [expect.objectContaining({ index: 0 })],
+        })
+      );
+    });
+
+    it('handles content_block_delta with non-finite index', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'content_block_delta',
+        index: NaN,
+        delta: { type: 'input_json_delta', partial_json: '{}' },
+      };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual(
+        expect.objectContaining({
+          type: 'tool_call_delta',
+          tool_calls: [expect.objectContaining({ index: 0 })],
+        })
+      );
+    });
+
+    it('handles content_block_delta with Infinity index', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'content_block_delta',
+        index: Infinity,
+        delta: { type: 'input_json_delta', partial_json: '{}' },
+      };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual(
+        expect.objectContaining({
+          type: 'tool_call_delta',
+          tool_calls: [expect.objectContaining({ index: 0 })],
+        })
+      );
+    });
+
+    it('handles content_block_delta with input_json_delta and null partial_json', () => {
+      const parser = createMockParser();
+      parser._anthropicToolCalls.set(0, {
+        index: 0,
+        id: 't1',
+        function: { name: 'calc', arguments: '' },
+      });
+      const parsed = {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: null },
+      };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual(
+        expect.objectContaining({
+          type: 'tool_call_delta',
+          tool_calls: [expect.objectContaining({ function: { arguments: '' } })],
+        })
+      );
+    });
+
+    it('handles content_block_delta with input_json_delta and undefined partial_json', () => {
+      const parser = createMockParser();
+      parser._anthropicToolCalls.set(0, {
+        index: 0,
+        id: 't1',
+        function: { name: 'calc', arguments: '' },
+      });
+      const parsed = {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: undefined },
+      };
+      handleParsed(parser, parsed);
+      expect(parser.events).toContainEqual(
+        expect.objectContaining({
+          type: 'tool_call_delta',
+          tool_calls: [expect.objectContaining({ function: { arguments: '' } })],
+        })
+      );
+    });
+
+    it('handles openai with all null reasoning fields', () => {
+      const parser = createMockParser();
+      const parsed = {
+        choices: [
+          {
+            delta: {
+              reasoning: null,
+              thinking: null,
+              reasoning_content: null,
+              reasoningContent: null,
+            },
+          },
+        ],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+      expect(parser._emitReasoningDelta).not.toHaveBeenCalled();
+    });
+
+    it('does not emit reasoning for empty string reasoning field', () => {
+      const parser = createMockParser();
+      const parsed = {
+        choices: [{ delta: { reasoning: '' } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+      // reasoningField is '' which is falsy, so _emitReasoningDelta is not called
+      expect(parser._emitReasoningDelta).not.toHaveBeenCalled();
+    });
+
+    it('handles openai with message.content as empty string', () => {
+      const parser = createMockParser();
+      const parsed = {
+        choices: [{ message: { content: '' } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles openai with choices[0].text as empty string', () => {
+      const parser = createMockParser();
+      const parsed = {
+        choices: [{ text: '' }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles openai with delta.content as empty string', () => {
+      const parser = createMockParser();
+      parser._extractTaggedSegments = vi.fn((text) => [{ type: 'text', text }]);
+      const parsed = {
+        choices: [{ delta: { content: '' } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles openai with delta.content as null', () => {
+      const parser = createMockParser();
+      const parsed = {
+        choices: [{ delta: { content: null } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles openai with delta.content as object with text null', () => {
+      const parser = createMockParser();
+      parser._extractTaggedSegments = vi.fn((text) => [{ type: 'text', text }]);
+      const parsed = {
+        choices: [{ delta: { content: { text: null } } }],
+      };
+      const text = handleParsed(parser, parsed);
+      // content object is truthy, String({text:null}) = '[object Object]'
+      expect(text).toBe('[object Object]');
+    });
+
+    it('handles openai with delta.content as object without text property', () => {
+      const parser = createMockParser();
+      parser._extractTaggedSegments = vi.fn((text) => [{ type: 'text', text }]);
+      const parsed = {
+        choices: [{ delta: { content: { other: 'value' } } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('[object Object]');
+    });
+
+    it('handles openai with delta.content as array with null elements', () => {
+      const parser = createMockParser();
+      parser._extractTaggedSegments = vi.fn((text) => [{ type: 'text', text }]);
+      const parsed = {
+        choices: [{ delta: { content: [null, undefined, { type: 'text', text: 'hi' }] } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('hi');
+    });
+
+    it('handles openai with delta.content as array with non-text parts', () => {
+      const parser = createMockParser();
+      const parsed = {
+        choices: [{ delta: { content: [{ type: 'image' }, { type: 'audio' }] } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles openai with parsed.type and delta as undefined', () => {
+      const parser = createMockParser();
+      parser._extractTaggedSegments = vi.fn((text) => [{ type: 'text', text }]);
+      const parsed = {
+        type: 'some_event',
+        delta: undefined,
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles openai with parsed.type and text as null', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'some_event',
+        text: null,
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles openai with parsed.type and text as undefined', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'some_event',
+        text: undefined,
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles empty array content with only image parts', () => {
+      const parser = createMockParser();
+      const parsed = {
+        choices: [{ delta: { content: [{ type: 'image', url: 'http://example.com' }] } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles array content parts that are null', () => {
+      const parser = createMockParser();
+      const parsed = {
+        choices: [{ delta: { content: [null] } }],
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles message_delta with null delta', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'message_delta',
+        delta: null,
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles message_delta with delta but no stop_reason', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'message_delta',
+        delta: { stop_reason: undefined },
+      };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+    });
+
+    it('handles message_stop without any additional data', () => {
+      const parser = createMockParser();
+      const parsed = { type: 'message_stop' };
+      const text = handleParsed(parser, parsed);
+      expect(text).toBe('');
+      expect(parser.events).toContainEqual({ type: 'finish_reason', reason: 'stop' });
+    });
+
+    it('handles content_block_start with mcp_tool_use and missing id', () => {
+      const parser = createMockParser();
+      const parsed = {
+        type: 'content_block_start',
+        index: 3,
+        content_block: { type: 'mcp_tool_use', name: 'test', input: {} },
+      };
+      handleParsed(parser, parsed);
+      const toolEvent = parser.events.find((e) => e.type === 'tool_call_delta');
+      expect(toolEvent.tool_calls[0].id).toBe('anthropic_tool_3');
+    });
   });
 });

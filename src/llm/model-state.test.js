@@ -181,5 +181,116 @@ describe('model-state utils', () => {
       expect(sorted[0].id).toBe('first');
       expect(sorted[1].id).toBe('second');
     });
+
+    it('handles all models disabled including null enabled', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'b', name: 'Beta', enabled: null },
+        { id: 'a', name: 'Alpha', enabled: false },
+      ]);
+      expect(sorted.length).toBe(2);
+    });
+
+    it('handles all models enabled including 0 enabled', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'b', name: 'Beta', enabled: 0 },
+        { id: 'a', name: 'Alpha', enabled: true },
+      ]);
+      expect(sorted[0].id).toBe('a');
+    });
+
+    it('handles models with same id and same name', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'same', name: 'Same', enabled: true },
+        { id: 'same', name: 'Same', enabled: true },
+      ]);
+      expect(sorted).toHaveLength(2);
+    });
+
+    it('handles models with empty string id', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'a', name: 'Alpha', enabled: true },
+        { id: '', name: 'Beta', enabled: true },
+      ]);
+      expect(sorted.map((m) => m.id)).toEqual(['a', '']);
+    });
+
+    it('handles models with null name', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'a', name: null, enabled: true },
+        { id: 'b', name: 'Alpha', enabled: true },
+      ]);
+      expect(sorted[0].id).toBe('a');
+      expect(sorted[1].id).toBe('b');
+    });
+
+    it('handles models with undefined name', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'a', name: undefined, enabled: true },
+        { id: 'b', name: 'Alpha', enabled: true },
+      ]);
+      expect(sorted[0].id).toBe('a');
+      expect(sorted[1].id).toBe('b');
+    });
+
+    it('handles models with null connection_name', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'a', connection_name: null, enabled: true },
+        { id: 'b', connection_name: 'Alpha', enabled: true },
+      ]);
+      expect(sorted[0].id).toBe('a');
+      expect(sorted[1].id).toBe('b');
+    });
+
+    it('handles models with same id, same name, same connection_name', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'same', name: 'Same', connection_name: 'Same', enabled: true },
+        { id: 'same', name: 'Same', connection_name: 'Same', enabled: true },
+      ]);
+      expect(sorted).toHaveLength(2);
+    });
+
+    it('handles disabled model with falsy name sorting', () => {
+      const sorted = sortModelsByActiveThenName([
+        { id: 'b', enabled: false },
+        { id: 'a', enabled: false },
+      ]);
+      expect(sorted.map((m) => m.id)).toEqual(['a', 'b']);
+    });
+  });
+
+  describe('countEnabledModels additional edge cases', () => {
+    it('returns 0 for empty string', () => {
+      expect(countEnabledModels('')).toBe(0);
+    });
+
+    it('counts model with enabled set to empty string', () => {
+      expect(countEnabledModels([{ enabled: '' }])).toBe(1);
+    });
+
+    it('counts model with enabled set to 0 (0 !== false)', () => {
+      expect(countEnabledModels([{ enabled: 0 }])).toBe(1);
+    });
+
+    it('counts model with enabled set to negative number', () => {
+      expect(countEnabledModels([{ enabled: -1 }])).toBe(1);
+    });
+
+    it('counts model with enabled set to empty array', () => {
+      expect(countEnabledModels([{ enabled: [] }])).toBe(1);
+    });
+
+    it('counts model with enabled set to empty object', () => {
+      expect(countEnabledModels([{ enabled: {} }])).toBe(1);
+    });
+
+    it('handles models with null id', () => {
+      expect(countEnabledModels([{ id: null, enabled: true }])).toBe(1);
+    });
+
+    it('returns 0 for sparse array', () => {
+      const arr = [];
+      arr[2] = { enabled: true };
+      expect(countEnabledModels(arr)).toBe(1);
+    });
   });
 });

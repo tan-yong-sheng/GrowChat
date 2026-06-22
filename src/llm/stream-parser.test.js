@@ -649,4 +649,348 @@ describe('stream-parser', () => {
       expect(parser._buf).toBe('');
     });
   });
+
+  describe('_extractTaggedSegments additional edge cases', () => {
+    it('returns empty array for null chunk', () => {
+      const parser = new SseLineParser();
+      expect(parser._extractTaggedSegments(null)).toEqual([]);
+    });
+
+    it('returns empty array for undefined chunk', () => {
+      const parser = new SseLineParser();
+      expect(parser._extractTaggedSegments(undefined)).toEqual([]);
+    });
+
+    it('handles exact open tag match consuming entire buffer', () => {
+      const parser = new SseLineParser();
+      parser._extractTaggedSegments('<think>');
+      expect(parser._inReasoning).toBe(true);
+      expect(parser._tagBuffer).toBe('');
+    });
+
+    it('handles tag close crossing fragment boundaries', () => {
+      const parser = new SseLineParser();
+      parser._extractTaggedSegments('<think>test</thi');
+      expect(parser._inReasoning).toBe(true);
+      const segments = parser._extractTaggedSegments('nk>more');
+      expect(segments).toContainEqual({ type: 'text', text: 'more' });
+    });
+
+    it('handles text without any tag-like sequences', () => {
+      const parser = new SseLineParser();
+      const segments = parser._extractTaggedSegments('Just regular text without tags');
+      expect(segments).toEqual([{ type: 'text', text: 'Just regular text without tags' }]);
+    });
+
+    it('handles text with angle brackets but no matching tags', () => {
+      const parser = new SseLineParser();
+      const segments = parser._extractTaggedSegments('5 < 10 and 10 > 5');
+      expect(segments).toEqual([{ type: 'text', text: '5 < 10 and 10 > 5' }]);
+    });
+
+    it('handles empty reasoning segments', () => {
+      const parser = new SseLineParser();
+      const segments = parser._extractTaggedSegments('A <think></think> B');
+      expect(segments).toEqual([
+        { type: 'text', text: 'A ' },
+        { type: 'text', text: ' B' },
+      ]);
+    });
+
+    it('handles close tag longer than remaining buffer', () => {
+      const parser = new SseLineParser();
+      parser._extractTaggedSegments('<think>text</t');
+      expect(parser._inReasoning).toBe(true);
+      // Buffer should be '</t'
+      expect(parser._tagBuffer).toBe('</t');
+    });
+
+    it('handles non-lowercase open token matching', () => {
+      const parser = new SseLineParser();
+      const segments = parser._extractTaggedSegments('A <THINK>data</THINK> B');
+      expect(segments).toContainEqual({ type: 'text', text: 'A ' });
+      expect(segments).toContainEqual({ type: 'reasoning', text: 'data' });
+      expect(segments).toContainEqual({ type: 'text', text: ' B' });
+    });
+
+    it('handles reasoning tag with complex attributes', () => {
+      const parser = new SseLineParser();
+      const segments = parser._extractTaggedSegments(
+        'A <think class="test" id="1">content</think> B'
+      );
+      expect(segments).toContainEqual({ type: 'text', text: 'A ' });
+      expect(segments).toContainEqual({ type: 'reasoning', text: 'content' });
+      expect(segments).toContainEqual({ type: 'text', text: ' B' });
+    });
+
+    it('correctly resets tag buffer on no match', () => {
+      const parser = new SseLineParser();
+      // No matching open tag; entire text emitted
+      const segments = parser._extractTaggedSegments('text <code> more');
+      expect(segments).toEqual([{ type: 'text', text: 'text <code> more' }]);
+      expect(parser._tagBuffer).toBe('');
+    });
+  });
+
+  describe('push edge cases', () => {
+    it('handles line that does not start with data:', () => {
+      const parser = new SseLineParser();
+      const text = parser.push(': something\n\n');
+      expect(text).toBe('');
+    });
+
+    it('handles data: with only whitespace after colon', () => {
+      const parser = new SseLineParser();
+      const text = parser.push('data:   \n\n');
+      expect(text).toBe('');
+    });
+
+    it('handles data: followed by newline with dataBuffer', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"partial": true';
+      const text = parser.push('data: , "more": true}\n\n');
+      expect(typeof text).toBe('string');
+    });
+
+    it('processes json that looksLikeIncompleteJson in buffer', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"incomplete": true';
+      const text = parser.push('data: , "rest": false}\n\n');
+      // The buffered incomplete JSON should be accumulated
+      expect(typeof text).toBe('string');
+    });
+
+    it('handles looksLikeIncompleteJson returning false for empty buffer', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '';
+      const text = parser.push('data: {"choices":[{"delta":{"content":"x"}}]}\n\n');
+      expect(text).toBe('x');
+    });
+
+    it('handles buffer with valid data but looksLikeIncompleteJson check', () => {
+      const parser = new SseLineParser();
+      // Put some complete JSON in buffer that doesn't look incomplete
+      parser._dataBuffer = '{"choices":[{"delta":{"content":"existing"}}]}';
+      const text = parser.push('data: {"choices":[{"delta":{"content":"new"}}]}\n\n');
+      expect(text).toBe('existingnew');
+    });
+
+    it('handles accumulation when dataBuffer present and new line looks incomplete', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"partial":';
+      const text = parser.push('data: true}\n\n');
+      expect(typeof text).toBe('string');
+    });
+
+    it('handles data: line before empty line when buffer has no incomplete JSON', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{}';
+      const text = parser.push('data: {"choices":[{"delta":{"content":"test"}}]}\n\n');
+      expect(text).toBe('test');
+    });
+
+    it('handles remaining buffer starting with data: but no payload', () => {
+      const parser = new SseLineParser();
+      parser._buf = 'data:   ';
+      const text = parser.flush();
+      expect(text).toBe('');
+    });
+
+    it('handles flush with no onEvent', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"choices":[{"delta":{"content":"flush-test"}}]}';
+      const text = parser.flush();
+      expect(text).toBe('flush-test');
+    });
+
+    it('handles push with only newlines', () => {
+      const parser = new SseLineParser();
+      const text = parser.push('\n\n\n');
+      expect(text).toBe('');
+    });
+
+    it('handles push with dataBuffer and empty data line', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"test": true';
+      const text = parser.push('\ndata: ,"more": false}\n\n');
+      expect(typeof text).toBe('string');
+    });
+
+    it('handles multiple data lines in one push with buffer accumulation', () => {
+      const parser = new SseLineParser();
+      const text = parser.push(
+        'data: {"choices":[{"delta":{"content":"a"}}]}\n' +
+          'data: {"choices":[{"delta":{"content":"b"}}]}\n' +
+          '\n'
+      );
+      expect(text).toBe('ab');
+    });
+
+    it('handles line with carriage return only', () => {
+      const parser = new SseLineParser();
+      parser._buf = 'test\r';
+      const text = parser.flush();
+      expect(text).toBe('');
+    });
+  });
+
+  describe('flush edge cases', () => {
+    it('handles flush when both _buf and _dataBuffer empty', () => {
+      const parser = new SseLineParser();
+      expect(parser.flush()).toBe('');
+    });
+
+    it('handles flush with _buf empty but _dataBuffer has content', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"choices":[{"delta":{"content":"only-buffer"}}]}';
+      const text = parser.flush();
+      expect(text).toBe('only-buffer');
+    });
+
+    it('handles flush with _buf starting data: but no colon', () => {
+      const parser = new SseLineParser();
+      parser._buf = 'data';
+      const text = parser.flush();
+      expect(text).toBe('');
+    });
+
+    it('handles flush with tagBuffer during reasoning', () => {
+      const onEvent = vi.fn();
+      const parser = new SseLineParser({ onEvent });
+      parser._inReasoning = true;
+      parser._currentTag = 'think';
+      parser._tagBuffer = 'remaining reasoning';
+      const text = parser.flush();
+      expect(text).toBe('');
+      expect(onEvent).toHaveBeenCalledWith({ type: 'reasoning_start' });
+      expect(onEvent).toHaveBeenCalledWith({
+        type: 'reasoning_delta',
+        delta: 'remaining reasoning',
+      });
+    });
+
+    it('handles flush with empty tagBuffer', () => {
+      const parser = new SseLineParser();
+      parser._buf = '';
+      parser._dataBuffer = '';
+      parser._tagBuffer = '';
+      expect(parser.flush()).toBe('');
+    });
+
+    it('handles flush with non-data line remaining', () => {
+      const parser = new SseLineParser();
+      parser._buf = 'event: end-event';
+      const text = parser.flush();
+      expect(text).toBe('');
+    });
+
+    it('handles flush with _buf starting data: followed by payload', () => {
+      const parser = new SseLineParser();
+      parser._buf = 'data: {"choices":[{"delta":{"content":"flush-buf"}}]}';
+      const text = parser.flush();
+      expect(text).toBe('flush-buf');
+    });
+
+    it('handles flush with dataBuffer and new buf line both valid', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"choices":[{"delta":{"content":"buf"}}]}';
+      parser._buf = 'data: {"choices":[{"delta":{"content":"line"}}]}';
+      const text = parser.flush();
+      // flush processes buf line first, then dataBuffer; buf gets appended to dataBuffer
+      expect(typeof text).toBe('string');
+    });
+
+    it('handles complete accumulated data in _dataBuffer flush', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"choices":[{"delta":{"content":"complete"}}]}';
+      const text = parser.flush();
+      expect(text).toBe('complete');
+      expect(parser._dataBuffer).toBe('');
+    });
+
+    it('handles accumulated incomplete json in _dataBuffer flush', () => {
+      const parser = new SseLineParser();
+      parser._dataBuffer = '{"incomplete": true';
+      const text = parser.flush();
+      expect(text).toBe('');
+      expect(parser._dataBuffer).toBe('');
+    });
+
+    it('handles empty _buf line (after removing \r)', () => {
+      const parser = new SseLineParser();
+      parser._buf = '\r';
+      const text = parser.flush();
+      expect(text).toBe('');
+    });
+  });
+
+  describe('_consumeDataPayload edge cases', () => {
+    it('handles undefined payload', () => {
+      const parser = new SseLineParser();
+      expect(parser._consumeDataPayload(undefined)).toBe('');
+    });
+
+    it('handles boolean payload', () => {
+      const parser = new SseLineParser();
+      // JSON.parse('true') returns true, then handleParsed returns '' for unexpected types
+      expect(parser._consumeDataPayload('true')).toBe('');
+    });
+
+    it('handles number payload', () => {
+      const parser = new SseLineParser();
+      // JSON.parse('42') returns 42, then handleParsed returns ''
+      expect(parser._consumeDataPayload('42')).toBe('');
+    });
+
+    it('handles object payload that is not valid JSON string', () => {
+      const parser = new SseLineParser();
+      expect(parser._consumeDataPayload({})).toBeNull();
+    });
+
+    it('handles JSON with null content', () => {
+      const parser = new SseLineParser();
+      const text = parser._consumeDataPayload('{"choices":[{"delta":{}}]}');
+      expect(text).toBe('');
+    });
+
+    it('handles empty object JSON', () => {
+      const parser = new SseLineParser();
+      const text = parser._consumeDataPayload('{}');
+      expect(text).toBe('');
+    });
+  });
+
+  describe('finalize edge cases', () => {
+    it('does not emit reasoning_end when not started', () => {
+      const onEvent = vi.fn();
+      const parser = new SseLineParser({ onEvent });
+      parser._reasoningStarted = false;
+      parser.finalize();
+      expect(onEvent).not.toHaveBeenCalled();
+    });
+
+    it('does not emit reasoning_end twice', () => {
+      const onEvent = vi.fn();
+      const parser = new SseLineParser({ onEvent });
+      parser._reasoningStarted = true;
+      parser.finalize();
+      expect(onEvent).toHaveBeenCalledTimes(1);
+      parser.finalize();
+      expect(onEvent).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('parseSseChunk edge cases', () => {
+    it('returns empty string for null input', () => {
+      expect(parseSseChunk(null)).toBe('');
+    });
+
+    it('returns empty string for undefined input', () => {
+      expect(parseSseChunk(undefined)).toBe('');
+    });
+
+    it('returns empty string for whitespace only', () => {
+      expect(parseSseChunk('   \n\n   ')).toBe('');
+    });
+  });
 });

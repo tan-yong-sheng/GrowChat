@@ -571,4 +571,408 @@ describe('provider-adapters-utils', () => {
       expect(contentToText(parts)).toBe('');
     });
   });
+
+  describe('decodeDataUrl edge cases', () => {
+    it('trims whitespace around data URL', () => {
+      const result = decodeDataUrl('  data:text/plain;base64,SGVsbG8=  ');
+      expect(result).toEqual({ mimeType: 'text/plain', data: 'SGVsbG8=' });
+    });
+
+    it('returns null for string starting with data: but missing base64', () => {
+      expect(decodeDataUrl('data:text/plain,Hello')).toBeNull();
+    });
+
+    it('returns null for string with data: but no comma', () => {
+      expect(decodeDataUrl('data:text/plain;base64')).toBeNull();
+    });
+
+    it('returns null for data URL without semicolon separator', () => {
+      expect(decodeDataUrl('datatext/plain;base64,abc')).toBeNull();
+    });
+
+    it('returns null for number input', () => {
+      expect(decodeDataUrl(42)).toBeNull();
+    });
+
+    it('returns null for object input', () => {
+      expect(decodeDataUrl({})).toBeNull();
+    });
+
+    it('handles data URL with no data after comma', () => {
+      const result = decodeDataUrl('data:text/plain;base64,');
+      expect(result).toEqual({ mimeType: 'text/plain', data: '' });
+    });
+
+    it('handles data URL with spaces in mimeType', () => {
+      const result = decodeDataUrl('data: text/plain ;base64,abc');
+      // regex allows spaces in mimeType
+      expect(result).toEqual({ mimeType: ' text/plain ', data: 'abc' });
+    });
+  });
+
+  describe('convertJsonSchemaToOpenApiSchema edge cases', () => {
+    it('returns undefined for undefined at root', () => {
+      expect(convertJsonSchemaToOpenApiSchema(undefined)).toBeUndefined();
+    });
+
+    it('returns undefined for null at root', () => {
+      expect(convertJsonSchemaToOpenApiSchema(null)).toBeUndefined();
+    });
+
+    it('handles jsonSchema with only description and no type', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ description: 'A thing' });
+      expect(result).toEqual({ description: 'A thing' });
+    });
+
+    it('handles jsonSchema with const set to 0', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ const: 0 });
+      expect(result.enum).toEqual([0]);
+    });
+
+    it('handles jsonSchema with const set to empty string', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ const: '' });
+      expect(result.enum).toEqual(['']);
+    });
+
+    it('handles jsonSchema with const set to false', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ const: false });
+      expect(result.enum).toEqual([false]);
+    });
+
+    it('handles jsonSchema with const set to null', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ const: null });
+      expect(result.enum).toEqual([null]);
+    });
+
+    it('handles jsonSchema with array type containing only null', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ type: ['null'] });
+      expect(result).toEqual({ type: 'null' });
+    });
+
+    it('handles jsonSchema with allOf containing nested empty objects', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        allOf: [{ type: 'object' }, { type: 'object' }],
+      });
+      expect(result.allOf).toEqual([{ type: 'object' }, { type: 'object' }]);
+    });
+
+    it('handles jsonSchema with anyOf where all are null', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        anyOf: [{ type: 'null' }, { type: 'null' }],
+      });
+      expect(result).toEqual({ anyOf: [], nullable: true });
+    });
+
+    it('handles jsonSchema with anyOf null plus one type', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        anyOf: [{ type: 'string' }, { type: 'null' }],
+      });
+      expect(result.nullable).toBe(true);
+      expect(result.type).toBe('string');
+    });
+
+    it('handles jsonSchema with anyOf where null schema has additional properties', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        anyOf: [{ type: 'null', description: 'null type' }],
+      });
+      expect(result).toEqual({ anyOf: [], nullable: true });
+    });
+
+    it('handles jsonSchema with enum containing values but no type', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ enum: ['a', 'b'] });
+      expect(result.enum).toEqual(['a', 'b']);
+    });
+
+    it('handles jsonSchema with format and no type', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ format: 'date-time' });
+      expect(result.format).toBe('date-time');
+    });
+
+    it('handles jsonSchema with minLength 0', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ minLength: 0 });
+      expect(result.minLength).toBe(0);
+    });
+
+    it('handles jsonSchema with required empty array', () => {
+      const result = convertJsonSchemaToOpenApiSchema({ required: [] });
+      expect(result.required).toEqual([]);
+    });
+
+    it('handles deeply nested anyOf', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        anyOf: [
+          { type: 'string' },
+          {
+            anyOf: [{ type: 'number' }, { type: 'integer' }],
+          },
+        ],
+      });
+      expect(result.anyOf).toEqual([
+        { type: 'string' },
+        { anyOf: [{ type: 'number' }, { type: 'integer' }] },
+      ]);
+    });
+
+    it('handles type array with three non-null types', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        type: ['string', 'number', 'boolean'],
+      });
+      expect(result).toEqual({
+        anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }],
+      });
+    });
+
+    it('handles boolean false value', () => {
+      const result = convertJsonSchemaToOpenApiSchema(false);
+      expect(result).toEqual({ type: 'boolean', properties: {} });
+    });
+
+    it('handles boolean true value', () => {
+      const result = convertJsonSchemaToOpenApiSchema(true);
+      expect(result).toEqual({ type: 'boolean', properties: {} });
+    });
+
+    it('handles empty array items', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        type: 'array',
+        items: [],
+      });
+      expect(result.items).toEqual([]);
+    });
+
+    it('handles anyOf where converted is not an object', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        anyOf: [{ type: 'string' }, { type: 'null' }],
+      });
+      expect(result.nullable).toBe(true);
+    });
+
+    it('preserves additional unknown fields when not empty object schema', () => {
+      const result = convertJsonSchemaToOpenApiSchema({
+        type: 'object',
+        properties: { name: { type: 'string' } },
+        additionalProperties: false,
+      });
+      expect(result.properties).toEqual({ name: { type: 'string' } });
+    });
+  });
+
+  describe('isEmptyObjectSchema edge cases', () => {
+    it('returns false for object with additionalProperties false', () => {
+      expect(isEmptyObjectSchema({ type: 'object', additionalProperties: false })).toBe(true);
+    });
+
+    it('returns false for object with patternProperties', () => {
+      expect(isEmptyObjectSchema({ type: 'object', patternProperties: {} })).toBe(true);
+    });
+
+    it('returns false for array input', () => {
+      expect(isEmptyObjectSchema([])).toBe(false);
+    });
+
+    it('returns false for boolean input', () => {
+      expect(isEmptyObjectSchema(true)).toBe(false);
+    });
+  });
+
+  describe('normalizeToolChoice edge cases', () => {
+    it('returns undefined for empty string', () => {
+      expect(normalizeToolChoice('')).toBeUndefined();
+    });
+
+    it('returns undefined for whitespace string', () => {
+      expect(normalizeToolChoice('   ')).toBeUndefined();
+    });
+
+    it('handles mixed-case string "Auto"', () => {
+      expect(normalizeToolChoice('Auto')).toEqual({ type: 'auto' });
+    });
+
+    it('handles mixed-case string "None"', () => {
+      expect(normalizeToolChoice('None')).toEqual({ type: 'none' });
+    });
+
+    it('handles mixed-case string "Required"', () => {
+      expect(normalizeToolChoice('Required')).toEqual({ type: 'required' });
+    });
+
+    it('returns undefined for string with spaces', () => {
+      expect(normalizeToolChoice(' auto ')).toBeUndefined();
+    });
+
+    it('handles object with uppercase type', () => {
+      expect(normalizeToolChoice({ type: 'AUTO' })).toEqual({ type: 'auto' });
+    });
+
+    it('handles object with empty type string', () => {
+      expect(normalizeToolChoice({ type: '' })).toBeUndefined();
+    });
+
+    it('returns undefined for tool type with empty toolName', () => {
+      // empty string is falsy, so toolName not found
+      expect(normalizeToolChoice({ type: 'tool', toolName: '' })).toBeUndefined();
+    });
+
+    it('returns undefined for tool type with empty name', () => {
+      expect(normalizeToolChoice({ type: 'tool', name: '' })).toBeUndefined();
+    });
+
+    it('returns undefined for function type with empty function.name', () => {
+      expect(normalizeToolChoice({ type: 'function', function: { name: '' } })).toBeUndefined();
+    });
+
+    it('returns undefined for object with type "tool" and no name fields', () => {
+      expect(normalizeToolChoice({ type: 'tool' })).toBeUndefined();
+    });
+
+    it('returns undefined for object with unknown type', () => {
+      expect(normalizeToolChoice({ type: 'unknown' })).toBeUndefined();
+    });
+
+    it('handles object with type "function" but no function property', () => {
+      expect(normalizeToolChoice({ type: 'function' })).toBeUndefined();
+    });
+
+    it('handles object with null type', () => {
+      expect(normalizeToolChoice({ type: null })).toBeUndefined();
+    });
+
+    it('handles object with numeric type', () => {
+      expect(normalizeToolChoice({ type: 42 })).toBeUndefined();
+    });
+  });
+
+  describe('buildToolCallNameMap edge cases', () => {
+    it('handles empty tool_calls array', () => {
+      const messages = [{ role: 'assistant', tool_calls: [] }];
+      expect(buildToolCallNameMap(messages)).toEqual(new Map());
+    });
+
+    it('handles tool_calls with null elements', () => {
+      const messages = [
+        { role: 'assistant', tool_calls: [null, { id: 'c1', function: { name: 'f1' } }] },
+      ];
+      const map = buildToolCallNameMap(messages);
+      expect(map.get('c1')).toBe('f1');
+    });
+
+    it('handles tool_calls with undefined elements', () => {
+      const messages = [{ role: 'assistant', tool_calls: [undefined] }];
+      expect(buildToolCallNameMap(messages)).toEqual(new Map());
+    });
+
+    it('handles tool_calls where function is null', () => {
+      const messages = [{ role: 'assistant', tool_calls: [{ id: 'c1', function: null }] }];
+      expect(buildToolCallNameMap(messages)).toEqual(new Map());
+    });
+
+    it('handles tool_calls where function.name is whitespace-only', () => {
+      const messages = [
+        { role: 'assistant', tool_calls: [{ id: 'c1', function: { name: '  ' } }] },
+      ];
+      expect(buildToolCallNameMap(messages)).toEqual(new Map());
+    });
+
+    it('handles tool_calls where id is whitespace-only', () => {
+      const messages = [
+        { role: 'assistant', tool_calls: [{ id: '  ', function: { name: 'f1' } }] },
+      ];
+      expect(buildToolCallNameMap(messages)).toEqual(new Map());
+    });
+
+    it('handles messages with no role property', () => {
+      const messages = [{ content: 'Hello' }];
+      expect(buildToolCallNameMap(messages)).toEqual(new Map());
+    });
+
+    it('handles messages with role as mixed case', () => {
+      const messages = [
+        { role: 'ASSISTANT', tool_calls: [{ id: 'c1', function: { name: 'f1' } }] },
+      ];
+      const map = buildToolCallNameMap(messages);
+      expect(map.get('c1')).toBe('f1');
+    });
+
+    it('handles messages array that is not an array', () => {
+      expect(buildToolCallNameMap('not array')).toEqual(new Map());
+    });
+
+    it('handles tool_calls nested in correct structure but id missing', () => {
+      const messages = [{ role: 'assistant', tool_calls: [{ function: { name: 'f1' } }] }];
+      expect(buildToolCallNameMap(messages)).toEqual(new Map());
+    });
+
+    it('handles tool_calls with function as string', () => {
+      const messages = [{ role: 'assistant', tool_calls: [{ id: 'c1', function: 'not-object' }] }];
+      expect(buildToolCallNameMap(messages)).toEqual(new Map());
+    });
+  });
+
+  describe('contentToText edge cases', () => {
+    it('returns empty string for boolean true', () => {
+      expect(contentToText(true)).toBe('');
+    });
+
+    it('returns empty string for boolean false', () => {
+      expect(contentToText(false)).toBe('');
+    });
+
+    it('returns empty string for empty object', () => {
+      expect(contentToText({})).toBe('');
+    });
+
+    it('handles array with all empty/invalid parts', () => {
+      const parts = [null, undefined, '', { type: 'text', text: '' }];
+      expect(contentToText(parts)).toBe('');
+    });
+
+    it('handles array with only null parts', () => {
+      expect(contentToText([null, null])).toBe('');
+    });
+
+    it('handles part with type but no text', () => {
+      const parts = [{ type: 'text' }];
+      expect(contentToText(parts)).toBe('');
+    });
+
+    it('handles part with type but text is null', () => {
+      const parts = [{ type: 'text', text: null }];
+      expect(contentToText(parts)).toBe('');
+    });
+
+    it('handles part with type but text is undefined', () => {
+      const parts = [{ type: 'text', text: undefined }];
+      expect(contentToText(parts)).toBe('');
+    });
+
+    it('handles part.text that is a number', () => {
+      const parts = [{ type: 'text', text: 42 }];
+      expect(contentToText(parts)).toBe('42');
+    });
+
+    it('handles part with unknown type', () => {
+      const parts = [{ type: 'unknown', data: 'x' }];
+      expect(contentToText(parts)).toBe('');
+    });
+
+    it('handles part with no type but with content', () => {
+      const parts = [{ content: 'value' }];
+      expect(contentToText(parts)).toBe('');
+    });
+
+    it('handles array of plain strings interleaved with objects', () => {
+      const parts = ['a', { type: 'text', text: 'b' }, 'c'];
+      expect(contentToText(parts)).toBe('a\nb\nc');
+    });
+
+    it('handles tool part with numeric content', () => {
+      const parts = [{ type: 'tool', content: 42 }];
+      expect(contentToText(parts)).toBe('42');
+    });
+
+    it('handles tool part with empty content', () => {
+      const parts = [{ type: 'tool', content: '' }];
+      expect(contentToText(parts)).toBe('');
+    });
+  });
 });

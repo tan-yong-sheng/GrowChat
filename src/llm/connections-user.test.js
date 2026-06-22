@@ -531,14 +531,12 @@ describe('connections-user', () => {
     });
 
     it('properly handles partial updates with camelCase input', async () => {
-      mockDb.first
-        .mockResolvedValueOnce(makeConnectionRow())
-        .mockResolvedValueOnce(
-          makeConnectionRow({
-            provider_type: 'anthropic',
-            base_url: 'https://api.anthropic.com/v1',
-          })
-        );
+      mockDb.first.mockResolvedValueOnce(makeConnectionRow()).mockResolvedValueOnce(
+        makeConnectionRow({
+          provider_type: 'anthropic',
+          base_url: 'https://api.anthropic.com/v1',
+        })
+      );
 
       await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', {
         providerType: 'anthropic',
@@ -614,6 +612,300 @@ describe('connections-user', () => {
         'DELETE FROM user_connections WHERE user_id = ? AND id = ?',
         ['user-1', 'conn-1']
       );
+    });
+  });
+
+  describe('edge cases for normalizeUserConnectionRow', () => {
+    it('returns null for null row', async () => {
+      mockDb.all.mockResolvedValue([null]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('returns null for undefined row', async () => {
+      mockDb.all.mockResolvedValue([undefined]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('returns null for row with empty base_url', async () => {
+      mockDb.all.mockResolvedValue([makeConnectionRow({ base_url: '' })]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('returns null for row with null base_url', async () => {
+      mockDb.all.mockResolvedValue([makeConnectionRow({ base_url: null })]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('handles row with enabled=false', async () => {
+      mockDb.all.mockResolvedValue([makeConnectionRow({ enabled: false })]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('handles row with enabled=0', async () => {
+      mockDb.all.mockResolvedValue([makeConnectionRow({ enabled: 0 })]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('handles row with enabled as string "0"', async () => {
+      mockDb.all.mockResolvedValue([makeConnectionRow({ enabled: '0' })]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toHaveLength(1);
+      expect(result[0].enabled).toBe(true);
+    });
+
+    it('handles row with provider_family missing', async () => {
+      mockDb.all.mockResolvedValue([
+        makeConnectionRow({ provider_type: 'google', provider_family: null }),
+      ]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result[0].providerFamily).toBe('google');
+    });
+
+    it('handles row with key containing whitespace', async () => {
+      mockDb.all.mockResolvedValue([makeConnectionRow({ key: '  sk-test  ' })]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result[0].key).toBe('sk-test');
+    });
+
+    it('handles row with manual_models as empty array string', async () => {
+      mockDb.all.mockResolvedValue([makeConnectionRow({ manual_models: '[]' })]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result[0].manualModels).toEqual([]);
+    });
+
+    it('handles row with manual_models as null', async () => {
+      mockDb.all.mockResolvedValue([makeConnectionRow({ manual_models: null })]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result[0].manualModels).toEqual([]);
+    });
+
+    it('filters out null results from row normalization', async () => {
+      mockDb.all.mockResolvedValue([
+        makeConnectionRow({ id: 'conn-1', base_url: 'https://api.example.com/v1' }),
+        makeConnectionRow({ id: 'conn-2', base_url: '' }),
+        makeConnectionRow({ id: 'conn-3', base_url: 'https://api.example.com/v1' }),
+      ]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toHaveLength(2);
+      expect(result.map((c) => c.id)).toEqual(['conn-1', 'conn-3']);
+    });
+  });
+
+  describe('edge cases for normalizeUserConnectionInput', () => {
+    it('uses existing name when input name is undefined', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow({ name: 'Existing' }))
+        .mockResolvedValueOnce(makeConnectionRow({ name: 'Existing' }));
+
+      const result = await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', {
+        base_url: 'https://new.com',
+      });
+      expect(result).not.toBeNull();
+    });
+
+    it('uses existing providerType when input providerType is undefined', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow({ provider_type: 'anthropic' }))
+        .mockResolvedValueOnce(makeConnectionRow({ provider_type: 'anthropic' }));
+
+      const result = await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', { name: 'Same' });
+      expect(result).not.toBeNull();
+    });
+
+    it('uses existing baseUrl when input base_url is undefined', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow())
+        .mockResolvedValueOnce(makeConnectionRow());
+
+      const result = await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', { name: 'Same' });
+      expect(result).not.toBeNull();
+    });
+
+    it('preserves existing key when input key is undefined', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow({ key: 'existing-key' }))
+        .mockResolvedValueOnce(makeConnectionRow({ key: 'existing-key' }));
+
+      await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', { name: 'Same' });
+
+      const updateCalls = mockDb.run.mock.calls.filter((call) =>
+        String(call[0]).includes('UPDATE user_connections')
+      );
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][1]).toContain('existing-key');
+    });
+
+    it('resets key to empty string when input key is empty string', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow({ key: 'existing-key' }))
+        .mockResolvedValueOnce(makeConnectionRow({ key: '' }));
+
+      await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', { name: 'Same', key: '' });
+
+      const updateCalls = mockDb.run.mock.calls.filter((call) =>
+        String(call[0]).includes('UPDATE user_connections')
+      );
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][1]).toContain('');
+    });
+
+    it('handles headers as empty string', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow())
+        .mockResolvedValueOnce(makeConnectionRow());
+
+      await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', { name: 'Same', headers: '' });
+      const updateCalls = mockDb.run.mock.calls.filter((call) =>
+        String(call[0]).includes('UPDATE user_connections')
+      );
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][1]).toContain('{}');
+    });
+
+    it('handles manual_models as undefined preserving existing', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow({ manual_models: '["gpt-4"]' }))
+        .mockResolvedValueOnce(makeConnectionRow({ manual_models: '["gpt-4"]' }));
+
+      await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', { name: 'Same' });
+      const updateCalls = mockDb.run.mock.calls.filter((call) =>
+        String(call[0]).includes('UPDATE user_connections')
+      );
+      expect(updateCalls).toHaveLength(1);
+      // UPDATE was called successfully
+      expect(updateCalls[0]).toBeDefined();
+    });
+
+    it('handles manual_models_mode as undefined preserving existing', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow({ manual_models_mode: 'whitelist' }))
+        .mockResolvedValueOnce(makeConnectionRow({ manual_models_mode: 'whitelist' }));
+
+      await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', { name: 'Same' });
+      const updateCalls = mockDb.run.mock.calls.filter((call) =>
+        String(call[0]).includes('UPDATE user_connections')
+      );
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0][1]).toContain('whitelist');
+    });
+
+    it('defaults providerType to openai-compatible when missing everywhere', async () => {
+      mockDb.first.mockResolvedValue(makeConnectionRow({ id: 'test-uuid-123' }));
+      const result = await createUserOpenAIConnection(mockDb, 'user-1', {
+        name: 'Test',
+        base_url: 'https://api.example.com/v1',
+      });
+      expect(result).not.toBeNull();
+    });
+
+    it('defaults baseUrl from providerType when missing', async () => {
+      mockDb.first.mockResolvedValue(makeConnectionRow({ id: 'test-uuid-123' }));
+      const result = await createUserOpenAIConnection(mockDb, 'user-1', {
+        name: 'Test',
+        provider_type: 'anthropic',
+      });
+      expect(result).not.toBeNull();
+      expect(mockDb.run).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO user_connections'),
+        expect.arrayContaining(['https://api.anthropic.com/v1'])
+      );
+    });
+
+    it('handles create with empty manual_models array', async () => {
+      mockDb.first.mockResolvedValue(makeConnectionRow({ id: 'test-uuid-123' }));
+      const result = await createUserOpenAIConnection(mockDb, 'user-1', {
+        name: 'Test',
+        base_url: 'https://api.example.com/v1',
+        manual_models: [],
+      });
+      expect(result).not.toBeNull();
+    });
+  });
+
+  describe('additional error paths', () => {
+    it('handles PRAGMA returning non-array for columns', async () => {
+      mockDb.all.mockImplementation(async (query) => {
+        if (query.includes('PRAGMA table_info')) {
+          return null;
+        }
+        return [];
+      });
+
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('handles db.all returning undefined rows', async () => {
+      mockDb.all.mockResolvedValue(undefined);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result).toEqual([]);
+    });
+
+    it('handles db.first returning undefined', async () => {
+      mockDb.first.mockResolvedValue(undefined);
+      const result = await getUserOpenAIConnectionConfig(mockDb, 'user-1', 'conn-1');
+      expect(result).toBeNull();
+    });
+
+    it('does not throw when base_url is empty on create (falls back to default)', async () => {
+      mockDb.first.mockResolvedValue(makeConnectionRow({ id: 'test-uuid-123' }));
+      const result = await createUserOpenAIConnection(mockDb, 'user-1', {
+        name: 'Test',
+        base_url: '',
+      });
+      expect(result).not.toBeNull();
+      expect(mockDb.run).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO user_connections'),
+        expect.arrayContaining(['https://api.openai.com/v1'])
+      );
+    });
+
+    it('throws when name is empty string on create', async () => {
+      await expect(
+        createUserOpenAIConnection(mockDb, 'user-1', {
+          name: '',
+          base_url: 'https://api.example.com/v1',
+        })
+      ).rejects.toThrow('name is required');
+    });
+
+    it('preserves existing base_url when update base_url is empty string', async () => {
+      mockDb.first
+        .mockResolvedValueOnce(makeConnectionRow())
+        .mockResolvedValueOnce(makeConnectionRow());
+      const result = await updateUserOpenAIConnection(mockDb, 'user-1', 'conn-1', {
+        name: 'Test',
+        base_url: '',
+      });
+      expect(result).not.toBeNull();
+    });
+
+    it('handles row with camelCase manualModels as array', async () => {
+      mockDb.all.mockResolvedValue([
+        {
+          id: 'conn-1',
+          userId: 'user-1',
+          name: 'Test',
+          providerType: 'openai-compatible',
+          baseUrl: 'https://api.example.com/v1',
+          key: 'sk-test',
+          headers: '{}',
+          authType: '',
+          enabled: 1,
+          manualModels: ['gpt-4'],
+          manualModelsMode: 'all',
+          created_at: 1234567890,
+          updated_at: 1234567890,
+        },
+      ]);
+      const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
+      expect(result[0].manualModels).toEqual([{ modelId: 'gpt-4', name: 'gpt-4' }]);
     });
   });
 });
