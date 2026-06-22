@@ -13,13 +13,16 @@ describe('rate limit service', () => {
       put: vi.fn().mockResolvedValue(undefined),
     };
 
-    const result = await checkRateLimit(store, {
-      action: 'login',
-      subject: 'ip:1.2.3.4',
-      limit: 2,
-      windowSeconds: 60,
-      now: 0,
-    });
+    const result = await checkRateLimit(
+      { CACHE: store },
+      {
+        action: 'login',
+        subject: 'ip:1.2.3.4',
+        limit: 2,
+        windowSeconds: 60,
+        now: 0,
+      }
+    );
 
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(1);
@@ -32,16 +35,41 @@ describe('rate limit service', () => {
       put: vi.fn().mockResolvedValue(undefined),
     };
 
-    const result = await checkRateLimit(store, {
-      action: 'login',
-      subject: 'ip:1.2.3.4',
-      limit: 2,
-      windowSeconds: 60,
-      now: 0,
-    });
+    const result = await checkRateLimit(
+      { CACHE: store },
+      {
+        action: 'login',
+        subject: 'ip:1.2.3.4',
+        limit: 2,
+        windowSeconds: 60,
+        now: 0,
+      }
+    );
 
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
+    expect(store.put).not.toHaveBeenCalled();
+  });
+
+  it('bypasses rate limiting when DISABLE_RATE_LIMIT is set', async () => {
+    const store = {
+      get: vi.fn().mockResolvedValue('999'),
+      put: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const result = await checkRateLimit(
+      { CACHE: store, DISABLE_RATE_LIMIT: 'true' },
+      {
+        action: 'login',
+        subject: 'ip:1.2.3.4',
+        limit: 2,
+        windowSeconds: 60,
+        now: 0,
+      }
+    );
+
+    expect(result.allowed).toBe(true);
+    expect(store.get).not.toHaveBeenCalled();
     expect(store.put).not.toHaveBeenCalled();
   });
 });

@@ -116,10 +116,10 @@ vi.mock('../services/rate-limit.js', () => ({
     authLogin: { limit: 10, windowSeconds: 600 },
     authRegister: { limit: 5, windowSeconds: 600 },
   },
-  checkRateLimit: async (store, opts) => {
+  checkRateLimit: async (env, opts) => {
     const noopStore = { get: async () => null, put: async () => {} };
     const real = await vi.importActual('../services/rate-limit.js');
-    return real.checkRateLimit(noopStore, opts);
+    return real.checkRateLimit({ CACHE: noopStore }, opts);
   },
   resolveRateLimitSubject: () => 'test-client',
 }));

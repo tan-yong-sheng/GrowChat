@@ -63,7 +63,7 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
     }
   }
 
-  const registerLimit = await checkRateLimit(env.CACHE, {
+  const registerLimit = await checkRateLimit(env, {
     action: 'auth-register',
     subject: resolveRateLimitSubject(req),
     ...RATE_LIMITS.authRegister,

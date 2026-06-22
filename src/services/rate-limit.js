@@ -50,26 +50,44 @@ export function resolveRateLimitSubject(req, fallback = 'anonymous') {
   return String(ip || fallback).trim() || fallback;
 }
 
-export async function checkRateLimit(
-  store,
-  { action, subject, limit, windowSeconds, now = Date.now() }
-) {
+function buildBypassResult({ action, subject, limit, windowSeconds, now }) {
+  const maxRequests = normalizeLimit(limit);
+  const windowSize = normalizeWindowSeconds(windowSeconds);
+  return {
+    allowed: true,
+    remaining: maxRequests,
+    resetAt: now + windowSize * 1000,
+    key: buildRateLimitKey(action, subject),
+  };
+}
+
+function isRateLimitDisabled(env) {
+  const val = env && env.DISABLE_RATE_LIMIT;
+  return val === 'true' || val === '1';
+}
+
+function resolveStore(env) {
+  if (!env) return null;
+  const store = env.CACHE || env;
+  if (store.get && store.put) return store;
+  return null;
+}
+
+export async function checkRateLimit(env, opts) {
+  if (isRateLimitDisabled(env)) return buildBypassResult({ ...opts, now: opts.now || Date.now() });
+
+  const store = resolveStore(env);
+  if (!store) return buildBypassResult({ ...opts, now: opts.now || Date.now() });
+
+  const { action, subject, limit, windowSeconds } = opts;
+  const now = opts.now || Date.now();
   const maxRequests = normalizeLimit(limit);
   const windowSize = normalizeWindowSeconds(windowSeconds);
   const resetAt = now + windowSize * 1000;
 
-  if (!store?.get || !store?.put) {
-    return {
-      allowed: true,
-      remaining: maxRequests,
-      resetAt,
-      key: buildRateLimitKey(action, subject),
-    };
-  }
-
   const key = buildRateLimitKey(action, subject);
   const raw = await store.get(key);
-  const current = Number.parseInt(String(raw || '0'), 10);
+  const current = Number.parseInt(raw || '0', 10);
   const count = Number.isFinite(current) && current > 0 ? current : 0;
 
   if (count >= maxRequests) {

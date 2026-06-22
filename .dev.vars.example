@@ -1,3 +1,6 @@
+# Disable rate limit when local dev testing
+DISABLE_RATE_LIMIT=true
+
 # JWT signing secret (min 32 chars recommended)
 JWT_SECRET=my-super-jwt-secret-thirty-two-bytes!
 

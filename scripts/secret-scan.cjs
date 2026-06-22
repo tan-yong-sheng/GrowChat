@@ -53,6 +53,7 @@ function scanFile(filePath, cache) {
   
   if (filePath.includes('node_modules') || filePath.includes('.git')) return null;
   if (filePath.includes('coverage') || filePath.includes('dist') || filePath.includes('build')) return null;
+  if (filePath.endsWith('.test.js') || filePath.endsWith('.spec.js') || filePath.endsWith('.spec.ts')) return null;
   
   // Check cache first
   const fileHash = getFileHash(filePath);

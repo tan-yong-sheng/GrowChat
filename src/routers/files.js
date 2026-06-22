@@ -90,7 +90,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
       return error(req, authDecision.reason || 'Forbidden', 403);
     }
 
-    const uploadLimit = await checkRateLimit(env.CACHE, {
+    const uploadLimit = await checkRateLimit(env, {
       action: 'file-upload',
       subject: user.sub,
       ...RATE_LIMITS.fileUpload,

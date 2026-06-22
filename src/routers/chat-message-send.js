@@ -52,7 +52,7 @@ export async function handleSendMessage({
   if (owned.error) return owned.error;
   const chat = owned.chat;
 
-  const sendLimit = await checkRateLimit(env.CACHE, {
+  const sendLimit = await checkRateLimit(env, {
     action: 'chat-send',
     subject: user.sub,
     ...RATE_LIMITS.chatSend,
