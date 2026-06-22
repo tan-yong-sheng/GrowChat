@@ -1,0 +1,255 @@
+{
+  "result": [
+    {
+      "scriptId": "231",
+      "url": "file:///mnt/data/Coding/GrowChat/tests/unit/setup-localstorage.js",
+      "functions": [
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 0, "endOffset": 6267, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 13, "endOffset": 6267, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "getItem",
+          "ranges": [{ "startOffset": 685, "endOffset": 740, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "setItem",
+          "ranges": [{ "startOffset": 744, "endOffset": 814, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "removeItem",
+          "ranges": [{ "startOffset": 818, "endOffset": 872, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "clear",
+          "ranges": [{ "startOffset": 876, "endOffset": 910, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "get length",
+          "ranges": [{ "startOffset": 914, "endOffset": 957, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "key",
+          "ranges": [{ "startOffset": 961, "endOffset": 1031, "count": 0 }],
+          "isBlockCoverage": false
+        }
+      ],
+      "startOffset": 209
+    },
+    {
+      "scriptId": "233",
+      "url": "file:///mnt/data/Coding/GrowChat/src/shared/auth.test.js",
+      "functions": [
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 0, "endOffset": 12091, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 13, "endOffset": 12091, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 698, "endOffset": 3331, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 772, "endOffset": 1125, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 1200, "endOffset": 1454, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 1555, "endOffset": 2099, "count": 1 },
+            { "startOffset": 1865, "endOffset": 1870, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 2157, "endOffset": 2482, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 2307, "endOffset": 2345, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 2552, "endOffset": 2837, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 2905, "endOffset": 3327, "count": 1 }],
+          "isBlockCoverage": true
+        }
+      ],
+      "startOffset": 209
+    },
+    {
+      "scriptId": "235",
+      "url": "file:///mnt/data/Coding/GrowChat/src/shared/auth.js",
+      "functions": [
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 0, "endOffset": 18739, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 13, "endOffset": 18739, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 244, "endOffset": 285, "count": 4 },
+            { "startOffset": 275, "endOffset": 283, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 325, "endOffset": 368, "count": 6 },
+            { "startOffset": 358, "endOffset": 366, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 411, "endOffset": 457, "count": 1 },
+            { "startOffset": 447, "endOffset": 455, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 502, "endOffset": 550, "count": 2 },
+            { "startOffset": 540, "endOffset": 548, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "toBase64Url",
+          "ranges": [
+            { "startOffset": 587, "endOffset": 779, "count": 16 },
+            { "startOffset": 661, "endOffset": 694, "count": 575 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "fromBase64Url",
+          "ranges": [
+            { "startOffset": 781, "endOffset": 1039, "count": 2 },
+            { "startOffset": 936, "endOffset": 940, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 1013, "endOffset": 1035, "count": 119 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "encodeJson",
+          "ranges": [{ "startOffset": 1041, "endOffset": 1138, "count": 8 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "decodeJson",
+          "ranges": [{ "startOffset": 1140, "endOffset": 1247, "count": 2 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "hmacSign",
+          "ranges": [{ "startOffset": 1249, "endOffset": 1583, "count": 8 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "signJWT",
+          "ranges": [{ "startOffset": 1585, "endOffset": 1934, "count": 4 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "verifyJWT",
+          "ranges": [
+            { "startOffset": 1937, "endOffset": 2443, "count": 6 },
+            { "startOffset": 2013, "endOffset": 2018, "count": 0 },
+            { "startOffset": 2046, "endOffset": 2079, "count": 2 },
+            { "startOffset": 2079, "endOffset": 2236, "count": 4 },
+            { "startOffset": 2236, "endOffset": 2377, "count": 2 },
+            { "startOffset": 2379, "endOffset": 2442, "count": 1 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "constantTimeEquals",
+          "ranges": [
+            { "startOffset": 2446, "endOffset": 2643, "count": 6 },
+            { "startOffset": 2511, "endOffset": 2524, "count": 0 },
+            { "startOffset": 2578, "endOffset": 2620, "count": 300 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "bytesToHex",
+          "ranges": [{ "startOffset": 2645, "endOffset": 2749, "count": 4 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 2698, "endOffset": 2736, "count": 112 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "hexToBytes",
+          "ranges": [{ "startOffset": 2751, "endOffset": 2852, "count": 2 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 2825, "endOffset": 2847, "count": 32 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "hashPassword",
+          "ranges": [{ "startOffset": 2854, "endOffset": 3335, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "verifyPassword",
+          "ranges": [
+            { "startOffset": 3338, "endOffset": 3949, "count": 2 },
+            { "startOffset": 3499, "endOffset": 3512, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        }
+      ],
+      "startOffset": 209
+    }
+  ]
+}

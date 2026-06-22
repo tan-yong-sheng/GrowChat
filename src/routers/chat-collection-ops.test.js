@@ -357,8 +357,10 @@ describe('handleCloneChat', () => {
 
     expect(db.batch).toHaveBeenCalled();
     const statements = db.batch.mock.calls[0][0];
-    // Should include UPDATE current_message_id
-    expect(statements.some((s) => String(s.sql || '').includes('current_message_id'))).toBe(true);
+    // Should include UPDATE current_message_id - check via prepare.mock.calls
+    expect(db.prepare.mock.calls.some(([sql]) => sql && sql.includes('current_message_id'))).toBe(
+      true
+    );
   });
 
   it('publishes chat.created realtime event', async () => {

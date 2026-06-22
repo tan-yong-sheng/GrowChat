@@ -1,0 +1,191 @@
+{
+  "result": [
+    {
+      "scriptId": "1460",
+      "url": "file:///mnt/data/Coding/GrowChat/tests/unit/setup-localstorage.js",
+      "functions": [
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 0, "endOffset": 6267, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 13, "endOffset": 6267, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "getItem",
+          "ranges": [{ "startOffset": 685, "endOffset": 740, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "setItem",
+          "ranges": [{ "startOffset": 744, "endOffset": 814, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "removeItem",
+          "ranges": [{ "startOffset": 818, "endOffset": 872, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "clear",
+          "ranges": [{ "startOffset": 876, "endOffset": 910, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "get length",
+          "ranges": [{ "startOffset": 914, "endOffset": 957, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "key",
+          "ranges": [{ "startOffset": 961, "endOffset": 1031, "count": 0 }],
+          "isBlockCoverage": false
+        }
+      ],
+      "startOffset": 209
+    },
+    {
+      "scriptId": "1461",
+      "url": "file:///mnt/data/Coding/GrowChat/tests/unit/public-settings-modal-shell.test.js",
+      "functions": [
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 0, "endOffset": 9374, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 13, "endOffset": 9374, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 774, "endOffset": 2590, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 866, "endOffset": 1764, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 1845, "endOffset": 2586, "count": 1 }],
+          "isBlockCoverage": true
+        }
+      ],
+      "startOffset": 209
+    },
+    {
+      "scriptId": "1463",
+      "url": "file:///mnt/data/Coding/GrowChat/public/js/shared/components/settings-modal-shell.js",
+      "functions": [
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 0, "endOffset": 19778, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 13, "endOffset": 19778, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 266, "endOffset": 329, "count": 1 },
+            { "startOffset": 319, "endOffset": 327, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 384, "endOffset": 442, "count": 1 },
+            { "startOffset": 432, "endOffset": 440, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "buildSettingsModalShellMarkup",
+          "ranges": [
+            { "startOffset": 1577, "endOffset": 3689, "count": 2 },
+            { "startOffset": 2861, "endOffset": 2964, "count": 1 },
+            { "startOffset": 2965, "endOffset": 2969, "count": 1 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "createSettingsModalShell",
+          "ranges": [{ "startOffset": 3692, "endOffset": 4456, "count": 1 }],
+          "isBlockCoverage": true
+        }
+      ],
+      "startOffset": 209
+    },
+    {
+      "scriptId": "1464",
+      "url": "file:///mnt/data/Coding/GrowChat/public/js/shared/utils/dom-escape.js",
+      "functions": [
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 0, "endOffset": 9776, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 13, "endOffset": 9776, "count": 1 }],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 251, "endOffset": 299, "count": 2 },
+            { "startOffset": 289, "endOffset": 297, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [
+            { "startOffset": 340, "endOffset": 384, "count": 15 },
+            { "startOffset": 374, "endOffset": 382, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "",
+          "ranges": [{ "startOffset": 430, "endOffset": 479, "count": 0 }],
+          "isBlockCoverage": false
+        },
+        {
+          "functionName": "escapeSelector",
+          "ranges": [
+            { "startOffset": 856, "endOffset": 1181, "count": 2 },
+            { "startOffset": 916, "endOffset": 921, "count": 0 },
+            { "startOffset": 957, "endOffset": 992, "count": 0 },
+            { "startOffset": 994, "endOffset": 1027, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "escapeHtml",
+          "ranges": [
+            { "startOffset": 1343, "endOffset": 1552, "count": 15 },
+            { "startOffset": 1394, "endOffset": 1399, "count": 0 }
+          ],
+          "isBlockCoverage": true
+        },
+        {
+          "functionName": "escapeHtmlLoose",
+          "ranges": [{ "startOffset": 2034, "endOffset": 2218, "count": 0 }],
+          "isBlockCoverage": false
+        }
+      ],
+      "startOffset": 209
+    }
+  ]
+}

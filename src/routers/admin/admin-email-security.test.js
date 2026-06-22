@@ -252,14 +252,12 @@ describe('handleAdminEmailSecurity', () => {
 
     it('sends test email successfully', async () => {
       mocks.getConfigValue.mockResolvedValueOnce('api-key-123');
-      const fetch = vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ id: 'email-1' }), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          })
-        );
+      const fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ id: 'email-1' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      );
       global.fetch = fetch;
 
       const req = makeReq('/api/admin/email-config/test', 'POST', {
@@ -291,14 +289,12 @@ describe('handleAdminEmailSecurity', () => {
 
     it('returns 400 when Resend API returns error', async () => {
       mocks.getConfigValue.mockResolvedValueOnce('api-key-123');
-      const fetch = vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ message: 'Invalid API key' }), {
-            status: 401,
-            headers: { 'content-type': 'application/json' },
-          })
-        );
+      const fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: 'Invalid API key' }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' },
+        })
+      );
       global.fetch = fetch;
 
       const req = makeReq('/api/admin/email-config/test', 'POST', {
@@ -313,7 +309,7 @@ describe('handleAdminEmailSecurity', () => {
         { db, logger }
       );
       expect(res.status).toBe(400);
-      expect((await res.json()).error).toBe('An error occurred. Please try again later.');
+      expect((await res.json()).error).toBe('Failed to send test email');
       expect(logger.error).toHaveBeenCalled();
 
       delete global.fetch;
@@ -336,7 +332,7 @@ describe('handleAdminEmailSecurity', () => {
         { db, logger }
       );
       expect(res.status).toBe(400);
-      expect((await res.json()).error).toBe('An error occurred. Please try again later.');
+      expect((await res.json()).error).toBe('Failed to send test email');
 
       delete global.fetch;
     });

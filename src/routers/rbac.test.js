@@ -1608,4 +1608,126 @@ describe('rbacRouter', () => {
       expect(res.status).toBe(500);
     });
   });
+
+  // ============================================
+  // Final fallback return null (line 437)
+  // ============================================
+  describe('fallback return null', () => {
+    it('returns null for PATCH /api/admin/rbac/roles/:id (no handler)', async () => {
+      mocks.authorize.mockResolvedValue({ allow: true });
+
+      const res = await rbacRouter(
+        makeReq('/api/admin/rbac/roles/custom-1', 'PATCH', { name: 'test' }),
+        { DB: {} },
+        {},
+        { sub: 'u1' },
+        '/api/admin/rbac/roles/custom-1'
+      );
+
+      expect(res).toBeNull();
+    });
+
+    it('returns null for POST /api/admin/rbac/permissions (read-only)', async () => {
+      mocks.authorize.mockResolvedValue({ allow: true });
+
+      const res = await rbacRouter(
+        makeReq('/api/admin/rbac/permissions', 'POST', { key: 'test' }),
+        { DB: {} },
+        {},
+        { sub: 'u1' },
+        '/api/admin/rbac/permissions'
+      );
+
+      expect(res).toBeNull();
+    });
+
+    it('returns null for DELETE /api/admin/rbac/bindings (no handler)', async () => {
+      mocks.authorize.mockResolvedValue({ allow: true });
+
+      const res = await rbacRouter(
+        makeReq('/api/admin/rbac/bindings', 'DELETE'),
+        { DB: {} },
+        {},
+        { sub: 'u1' },
+        '/api/admin/rbac/bindings'
+      );
+
+      expect(res).toBeNull();
+    });
+
+    it('returns null for PUT /api/admin/rbac/roles (no id)', async () => {
+      mocks.authorize.mockResolvedValue({ allow: true });
+
+      const res = await rbacRouter(
+        makeReq('/api/admin/rbac/roles', 'PUT', { name: 'test' }),
+        { DB: {} },
+        {},
+        { sub: 'u1' },
+        '/api/admin/rbac/roles'
+      );
+
+      expect(res).toBeNull();
+    });
+  });
+
+  // ============================================
+  // Helper function edge cases
+  // ============================================
+  describe('helper functions', () => {
+    it('normalizeStringList filters out null and undefined items', async () => {
+      mocks.db.all.mockImplementation(async (sql) => {
+        const query = String(sql || '');
+        if (query.includes('FROM permissions') && query.includes('WHERE key IN')) {
+          return [{ id: 'p-1', key: 'chat.read' }];
+        }
+        return [];
+      });
+
+      const res = await rbacRouter(
+        makeReq('/api/admin/rbac/roles', 'POST', {
+          name: 'Test',
+          permissions: [null, undefined, 'chat.read', null],
+        }),
+        { DB: {} },
+        {},
+        { sub: 'u1' },
+        '/api/admin/rbac/roles'
+      );
+
+      expect(res.status).toBe(201);
+    });
+
+    it('normalizeStringList returns empty for non-array input', async () => {
+      mocks.db.all.mockResolvedValue([]);
+
+      const res = await rbacRouter(
+        makeReq('/api/admin/rbac/roles', 'POST', {
+          name: 'Test',
+          permissions: 'not-an-array',
+        }),
+        { DB: {} },
+        {},
+        { sub: 'u1' },
+        '/api/admin/rbac/roles'
+      );
+
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.role.permissions).toEqual([]);
+    });
+
+    it('serializeRoleWithPermissions handles non-array permissionKeys', async () => {
+      mocks.db.all.mockResolvedValue([]);
+
+      const res = await rbacRouter(
+        makeReq('/api/admin/rbac/roles', 'POST', { name: 'Test' }),
+        { DB: {} },
+        {},
+        { sub: 'u1' },
+        '/api/admin/rbac/roles'
+      );
+
+      expect(res.status).toBe(201);
+    });
+  });
 });
