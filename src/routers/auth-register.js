@@ -134,6 +134,18 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
 
   await ensureUserRoleBinding(db, id, finalRole, finalAccountStatus, logger);
 
+  // Sync users.primary_role in the DB (create() inserts with the column default,
+  // which is 'member'). Without this UPDATE the users table and user_roles table
+  // can disagree on the role for the first-admin path.
+  try {
+    await db.run('UPDATE users SET primary_role = ? WHERE id = ?', [
+      normalizePublicRole(finalRole),
+      id,
+    ]);
+  } catch {
+    // Tolerate missing column in older schemas.
+  }
+
   if (finalAccountStatus === 'pending') {
     return json(
       req,

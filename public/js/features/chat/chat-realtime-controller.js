@@ -10,6 +10,7 @@ export function createChatRealtimeController({
   updateToolCallState = () => {},
   updateMessageContentDom = () => {},
   matchPendingTempMessage = () => {},
+  replaceTempMessageId = () => {},
   getActiveStreamAbort = () => null,
   setActiveStreamAbort = () => {},
   clearGlobalStreamAbort = () => {},
@@ -52,18 +53,46 @@ export function createChatRealtimeController({
 
   function upsertMessageFromEvent(chatId, message, { draw = true } = {}) {
     if (!chatId || !message?.id) return;
-    const existingMessages = [...(state.messagesByChat[chatId] || [])];
-    const index = existingMessages.findIndex((item) => String(item?.id) === String(message.id));
+    let workingMessages = [...(state.messagesByChat[chatId] || [])];
+    const realId = String(message.id);
+    let index = workingMessages.findIndex((item) => String(item?.id) === realId);
+
+    // If the real ID isn't found, check whether a temp message with matching
+    // role + content + parent_id exists. This handles the race where the
+    // realtime message.created arrives before the SSE start event has had a
+    // chance to call replaceTempMessageId. Without this, both the temp and
+    // real message coexist briefly, causing a spurious "2 / 2" branch indicator.
+    if (index < 0) {
+      const msgRole = String(message.role || '');
+      const msgContent = String(message.content || '');
+      const msgParent = message.parent_id ? String(message.parent_id) : null;
+      const tempIdx = workingMessages.findIndex((item) => {
+        if (!String(item?.id || '').startsWith('temp-')) return false;
+        if (String(item.role || '') !== msgRole) return false;
+        if (String(item.parent_id || '') !== String(msgParent || '')) return false;
+        if (msgRole !== 'assistant' && String(item.content || '') !== msgContent) return false;
+        return true;
+      });
+      if (tempIdx >= 0) {
+        // replaceTempMessageId updates state synchronously (swaps temp→real ID
+        // and fixes all parent_id references). Re-read the fresh state afterward
+        // so subsequent mutations build on the correct data.
+        replaceTempMessageId(chatId, workingMessages[tempIdx].id, realId);
+        workingMessages = [...(state.messagesByChat[chatId] || [])];
+        index = workingMessages.findIndex((item) => String(item?.id) === realId);
+      }
+    }
+
     const normalized = { ...message, done: true };
     if (index >= 0) {
-      existingMessages[index] = { ...existingMessages[index], ...normalized };
+      workingMessages[index] = { ...workingMessages[index], ...normalized };
     } else {
-      existingMessages.push(normalized);
-      existingMessages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
+      workingMessages.push(normalized);
+      workingMessages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
     }
-    currentLeafByChatId.set(chatId, String(message.id));
-    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: existingMessages } });
-    if (draw && state.activeChatId === chatId) drawMessages(existingMessages);
+    currentLeafByChatId.set(chatId, realId);
+    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: workingMessages } });
+    if (draw && state.activeChatId === chatId) drawMessages(workingMessages);
   }
 
   const onRealtimeEvent = async (evt) => {
