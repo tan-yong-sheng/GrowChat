@@ -148,3 +148,7 @@ semgrep-runtime.json
 semgrep-report.json
 .fuse_hidden*
 tests/e2e/fixtures/auth-state.json
+
+# Local act workflow testing artifacts
+.act-event.json
+.act-pr-event.json
