@@ -151,7 +151,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
       // Skip extraction for JSON files (avoid memory overhead for config/data files)
       if (!contentType.includes('json')) {
         ctx.waitUntil(
-          extractDocumentText(env, db, documentId, contentType, buffer)
+          extractDocumentText({ env, db, documentId, contentType, buffer })
             .then(async (extractResult) => {
               if (extractResult?.skipped) {
                 logger.info('Document extraction skipped', {

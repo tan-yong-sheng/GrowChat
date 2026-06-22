@@ -10,6 +10,23 @@ export function renderMessageContent(content, options = {}) {
   return renderMarkdownContent(content, options);
 }
 
+function pickSseText(parsed) {
+  return parsed.response || parsed.choices?.[0]?.delta?.content || '';
+}
+
+function extractSseDelta(line, onEvent) {
+  if (!line.startsWith('data: ')) return null;
+  const payload = line.slice(6).trim();
+  if (!payload || payload === '[DONE]') return null;
+  try {
+    const parsed = JSON.parse(payload);
+    if (onEvent) onEvent(parsed);
+    return pickSseText(parsed);
+  } catch {
+    return null;
+  }
+}
+
 export class SseLineParser {
   constructor(onEvent = null) {
     this._buf = '';
@@ -23,18 +40,8 @@ export class SseLineParser {
     while ((newlineIdx = this._buf.indexOf('\n')) !== -1) {
       const line = this._buf.slice(0, newlineIdx).replace(/\r$/, '');
       this._buf = this._buf.slice(newlineIdx + 1);
-
-      if (!line.startsWith('data: ')) continue;
-      const payload = line.slice(6).trim();
-      if (!payload || payload === '[DONE]') continue;
-
-      try {
-        const parsed = JSON.parse(payload);
-        if (this._onEvent) this._onEvent(parsed);
-        text += parsed.response || parsed.choices?.[0]?.delta?.content || '';
-      } catch {
-        // Incomplete JSON
-      }
+      const delta = extractSseDelta(line, this._onEvent);
+      if (delta) text += delta;
     }
     return text;
   }
@@ -42,16 +49,7 @@ export class SseLineParser {
   flush() {
     const line = this._buf.replace(/\r$/, '');
     this._buf = '';
-    if (!line.startsWith('data: ')) return '';
-    const payload = line.slice(6).trim();
-    if (!payload || payload === '[DONE]') return '';
-    try {
-      const parsed = JSON.parse(payload);
-      if (this._onEvent) this._onEvent(parsed);
-      return parsed.response || parsed.choices?.[0]?.delta?.content || '';
-    } catch {
-      return '';
-    }
+    return extractSseDelta(line, this._onEvent) ?? '';
   }
 }
 

@@ -6,21 +6,26 @@ export function parseJsonBody(req) {
   });
 }
 
-export function requireString(
-  value,
-  message,
-  { trim = true, minLength = 1, maxLength = null, allowEmpty = false } = {}
-) {
-  if (typeof value !== 'string') {
-    throw new ValidationError(message);
-  }
-  const normalized = trim ? value.trim() : value;
+function validateStringConstraints(normalized, message, constraints) {
+  const { minLength, maxLength, allowEmpty } = constraints;
   if (!allowEmpty && normalized.length < minLength) {
     throw new ValidationError(message);
   }
   if (maxLength != null && normalized.length > maxLength) {
     throw new ValidationError(message);
   }
+}
+
+export function requireString(value, message, options = {}) {
+  if (typeof value !== 'string') {
+    throw new ValidationError(message);
+  }
+  const trim = options.trim !== false;
+  const minLength = options.minLength ?? 1;
+  const maxLength = options.maxLength ?? null;
+  const allowEmpty = options.allowEmpty === true;
+  const normalized = trim ? value.trim() : value;
+  validateStringConstraints(normalized, message, { minLength, maxLength, allowEmpty });
   return normalized;
 }
 

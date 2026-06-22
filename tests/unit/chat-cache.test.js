@@ -16,7 +16,7 @@ describe('chat cache helpers', () => {
     ]);
     const revokeFn = vi.fn();
 
-    touchAttachmentCache(cache, 'a', 'url-a-next', 2, revokeFn);
+    touchAttachmentCache({ cache, key: 'a', url: 'url-a-next', maxEntries: 2, revokeFn });
 
     expect([...cache.entries()]).toEqual([
       ['b', 'url-b'],
@@ -24,7 +24,7 @@ describe('chat cache helpers', () => {
     ]);
     expect(revokeFn).not.toHaveBeenCalled();
 
-    touchAttachmentCache(cache, 'c', 'url-c', 2, revokeFn);
+    touchAttachmentCache({ cache, key: 'c', url: 'url-c', maxEntries: 2, revokeFn });
 
     expect([...cache.entries()]).toEqual([
       ['a', 'url-a-next'],
@@ -39,9 +39,7 @@ describe('chat cache helpers', () => {
       ['a', 'url-a'],
       ['b', null],
     ]);
-    const promiseCache = new Map([
-      ['pa', Promise.resolve('one')],
-    ]);
+    const promiseCache = new Map([['pa', Promise.resolve('one')]]);
     const revokeFn = vi.fn();
 
     clearAttachmentCache(cache, promiseCache, revokeFn);
@@ -104,5 +102,3 @@ describe('chat cache helpers', () => {
     expect(isTempMessageId('123')).toBe(false);
   });
 });
-
-

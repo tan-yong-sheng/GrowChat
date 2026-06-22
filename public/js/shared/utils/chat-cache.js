@@ -1,10 +1,22 @@
-export function touchAttachmentCache(
+const DEFAULT_MAX_ENTRIES = 48;
+const defaultRevokeFn = (value) => URL.revokeObjectURL(value);
+
+/**
+ * Touch attachment cache - adds/updates entry and evicts oldest if needed
+ * @param {Object} options
+ * @param {Map} options.cache - The cache Map
+ * @param {string} options.key - Cache key
+ * @param {string} options.url - URL to cache
+ * @param {number} [options.maxEntries=48] - Max entries before eviction
+ * @param {Function} [options.revokeFn] - Function to revoke old URLs
+ */
+export function touchAttachmentCache({
   cache,
   key,
   url,
-  maxEntries = 48,
-  revokeFn = (value) => URL.revokeObjectURL(value)
-) {
+  maxEntries = DEFAULT_MAX_ENTRIES,
+  revokeFn = defaultRevokeFn,
+}) {
   if (!key || !cache) return;
   if (cache.has(key)) {
     cache.delete(key);

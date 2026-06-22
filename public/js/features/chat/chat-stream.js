@@ -1,5 +1,11 @@
 import { SseLineParser } from '../../shared/utils.js';
 
+function maybeEmit(delta, callback) {
+  if (delta && typeof callback === 'function') {
+    callback(delta);
+  }
+}
+
 export async function consumeSseTextStream(body, { onEvent, onDelta } = {}) {
   if (!body || typeof body.getReader !== 'function') {
     throw new Error('Stream body is required');
@@ -12,17 +18,11 @@ export async function consumeSseTextStream(body, { onEvent, onDelta } = {}) {
   while (true) {
     const { done, value } = await reader.read();
     if (done) {
-      const finalDelta = parser.flush();
-      if (finalDelta && typeof onDelta === 'function') {
-        onDelta(finalDelta);
-      }
+      maybeEmit(parser.flush(), onDelta);
       return;
     }
 
     const chunk = decoder.decode(value, { stream: true });
-    const delta = parser.push(chunk);
-    if (delta && typeof onDelta === 'function') {
-      onDelta(delta);
-    }
+    maybeEmit(parser.push(chunk), onDelta);
   }
 }

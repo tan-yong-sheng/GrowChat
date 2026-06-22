@@ -14,24 +14,37 @@ export function countEnabledModels(models = []) {
   );
 }
 
+function compareEnabled(a, b) {
+  const aEnabled = isModelEnabled(a);
+  const bEnabled = isModelEnabled(b);
+  if (aEnabled !== bEnabled) return aEnabled ? -1 : 1;
+  return 0;
+}
+
+function compareLabel(a, b) {
+  return normalizeModelLabel(a).localeCompare(normalizeModelLabel(b));
+}
+
+function compareId(a, b) {
+  return String(a?.id || '')
+    .toLowerCase()
+    .localeCompare(String(b?.id || '').toLowerCase());
+}
+
+function compareConnection(a, b) {
+  return String(a?.connection_name || '')
+    .toLowerCase()
+    .localeCompare(String(b?.connection_name || '').toLowerCase());
+}
+
 export function sortModelsByActiveThenName(models = []) {
   return (Array.isArray(models) ? models : []).slice().sort((a, b) => {
-    const aEnabled = isModelEnabled(a);
-    const bEnabled = isModelEnabled(b);
-    if (aEnabled !== bEnabled) return aEnabled ? -1 : 1;
-
-    const aLabel = normalizeModelLabel(a);
-    const bLabel = normalizeModelLabel(b);
-    const labelCompare = aLabel.localeCompare(bLabel);
-    if (labelCompare !== 0) return labelCompare;
-
-    const aId = String(a?.id || '').toLowerCase();
-    const bId = String(b?.id || '').toLowerCase();
-    const idCompare = aId.localeCompare(bId);
-    if (idCompare !== 0) return idCompare;
-
-    const aConnection = String(a?.connection_name || '').toLowerCase();
-    const bConnection = String(b?.connection_name || '').toLowerCase();
-    return aConnection.localeCompare(bConnection);
+    let cmp = compareEnabled(a, b);
+    if (cmp !== 0) return cmp;
+    cmp = compareLabel(a, b);
+    if (cmp !== 0) return cmp;
+    cmp = compareId(a, b);
+    if (cmp !== 0) return cmp;
+    return compareConnection(a, b);
   });
 }

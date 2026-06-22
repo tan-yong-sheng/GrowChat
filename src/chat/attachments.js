@@ -139,33 +139,40 @@ export function formatUnsupportedAttachmentMessage(unsupported = []) {
   return `Selected model does not support ${joined} attachment${list.length > 1 ? 's' : ''}.`;
 }
 
+const TRANSIENT_ERROR_PATTERN =
+  /rate limit|overloaded|timeout|timed out|temporarily|unavailable|connect|network|502|503|504/i;
+
 export function isTransientModelError(message) {
-  const msg = String(message || '').toLowerCase();
-  return (
-    msg.includes('rate limit') ||
-    msg.includes('overloaded') ||
-    msg.includes('timeout') ||
-    msg.includes('timed out') ||
-    msg.includes('temporarily') ||
-    msg.includes('unavailable') ||
-    msg.includes('connect') ||
-    msg.includes('network') ||
-    msg.includes('502') ||
-    msg.includes('503') ||
-    msg.includes('504')
-  );
+  return TRANSIENT_ERROR_PATTERN.test(String(message || ''));
 }
+
+const KIND_KEYWORDS = [
+  { keywords: ['image', 'vision', 'multimodal'], kind: 'image' },
+  { keywords: ['audio'], kind: 'audio' },
+  { keywords: ['video'], kind: 'video' },
+  { keywords: ['pdf'], kind: 'pdf' },
+  { keywords: ['text'], kind: 'text' },
+];
 
 export function inferUnsupportedAttachmentKind(message, attachmentKinds = []) {
   if (!attachmentKinds.length) return null;
   if (attachmentKinds.length === 1) return attachmentKinds[0];
   const msg = String(message || '').toLowerCase();
-  if (msg.includes('image') || msg.includes('vision') || msg.includes('multimodal')) return 'image';
-  if (msg.includes('audio')) return 'audio';
-  if (msg.includes('video')) return 'video';
-  if (msg.includes('pdf')) return 'pdf';
-  if (msg.includes('text')) return 'text';
+  for (const { keywords, kind } of KIND_KEYWORDS) {
+    if (keywords.some((kw) => msg.includes(kw))) return kind;
+  }
   return null;
+}
+
+function attachFailureToCaps(caps, modelId, kind) {
+  const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
+  const attachments = { ...(current.attachments || {}) };
+  attachments[kind] = false;
+  caps[modelId] = {
+    ...current,
+    attachments,
+    updated_at: Date.now(),
+  };
 }
 
 export async function recordAttachmentCapabilityFailure(db, modelId, attachmentKinds, err) {
@@ -173,16 +180,8 @@ export async function recordAttachmentCapabilityFailure(db, modelId, attachmentK
   if (!modelId || !attachmentKinds?.length || isTransientModelError(message)) return;
   const inferred = inferUnsupportedAttachmentKind(message, attachmentKinds);
   if (!inferred) return;
-
   const caps = await loadModelAttachmentCaps(db);
-  const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
-  const attachments = { ...(current.attachments || {}) };
-  attachments[inferred] = false;
-  caps[modelId] = {
-    ...current,
-    attachments,
-    updated_at: Date.now(),
-  };
+  attachFailureToCaps(caps, modelId, inferred);
   await saveModelAttachmentCaps(db, caps);
 }
 

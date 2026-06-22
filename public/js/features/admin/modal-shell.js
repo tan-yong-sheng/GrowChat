@@ -56,13 +56,10 @@ const ADMIN_MODAL_PRESETS = {
     widthClass: '',
   },
   access: {
-    shellClass:
-      'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]',
-    headerClass:
-      'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0',
-    bodyClass: 'p-5 sm:p-6 overflow-y-auto flex-1 min-h-0',
-    footerClass:
-      'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
+    shellClass: DEFAULT_SHELL_CLASS,
+    headerClass: DEFAULT_HEADER_CLASS,
+    bodyClass: DEFAULT_BODY_CLASS,
+    footerClass: DEFAULT_FOOTER_CLASS,
     zIndex: 150,
     widthClass: 'max-w-3xl',
   },
@@ -83,8 +80,7 @@ const ADMIN_MODAL_PRESETS = {
     headerClass:
       'flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 shrink-0',
     bodyClass: 'p-0 overflow-y-auto flex-1 min-h-0',
-    footerClass:
-      'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
+    footerClass: DEFAULT_FOOTER_CLASS,
     zIndex: 140,
     widthClass: '',
   },
@@ -107,8 +103,7 @@ const ADMIN_MODAL_PRESETS = {
     headerClass:
       'flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 shrink-0',
     bodyClass: 'p-0 overflow-y-auto flex-1 min-h-0',
-    footerClass:
-      'px-5 py-3 border-t border-gray-200 bg-white flex items-center justify-between shrink-0',
+    footerClass: DEFAULT_FOOTER_CLASS,
     zIndex: 140,
     widthClass: '',
   },
@@ -145,52 +140,17 @@ function resolveModalHash({ modalHash, rootAttrs, title } = {}) {
   return normalizeModalHashSource(title);
 }
 
-export function createAdminModalShell({
-  preset = 'standard',
-  title = '',
-  subtitle = '',
-  body = '',
-  footer = '',
-  onClose = null,
-  widthClass,
-  zIndex,
-  outerClass,
-  overlayClass,
-  shellClass,
-  headerClass,
-  bodyClass,
-  footerClass,
-  closeClass,
-  closeAriaLabel,
-  closeAttr = 'data-admin-modal-close',
-  rootAttrs = '',
-  modalHash = '',
-} = {}) {
-  const markup = buildAdminModalShellMarkup({
-    preset,
-    title,
-    subtitle,
-    body,
-    footer,
-    widthClass,
-    zIndex,
-    outerClass,
-    overlayClass,
-    shellClass,
-    headerClass,
-    bodyClass,
-    footerClass,
-    closeClass,
-    closeAriaLabel,
-    closeAttr,
-    rootAttrs,
+function attachModalCloseHandlers(rendered, closeAttr, closeFn) {
+  rendered.addEventListener('click', (event) => {
+    if (event.target === rendered || event.target.closest(`[${closeAttr}]`)) {
+      closeFn('dismiss');
+    }
   });
-  const modal = document.createElement('div');
-  modal.innerHTML = markup.trim();
-  const rendered = modal.firstElementChild;
-  const resolvedModalHash = resolveModalHash({ modalHash, rootAttrs, title });
+}
+
+function createCloseFn(rendered, onClose, resolvedModalHash) {
   let closed = false;
-  const close = (reason = 'dismiss') => {
+  return (reason = 'dismiss') => {
     if (closed) return;
     closed = true;
     rendered.remove();
@@ -201,11 +161,52 @@ export function createAdminModalShell({
       onClose(reason);
     }
   };
-  rendered.addEventListener('click', (event) => {
-    if (event.target === rendered || event.target.closest(`[${closeAttr}]`)) {
-      close('dismiss');
-    }
+}
+
+export function createAdminModalShell(options = {}) {
+  const o = Object.assign(
+    {
+      preset: 'standard',
+      title: '',
+      subtitle: '',
+      body: '',
+      footer: '',
+      onClose: null,
+      closeAttr: 'data-admin-modal-close',
+      rootAttrs: '',
+      modalHash: '',
+    },
+    options || {}
+  );
+  const markup = buildAdminModalShellMarkup({
+    preset: o.preset,
+    title: o.title,
+    subtitle: o.subtitle,
+    body: o.body,
+    footer: o.footer,
+    widthClass: o.widthClass,
+    zIndex: o.zIndex,
+    outerClass: o.outerClass,
+    overlayClass: o.overlayClass,
+    shellClass: o.shellClass,
+    headerClass: o.headerClass,
+    bodyClass: o.bodyClass,
+    footerClass: o.footerClass,
+    closeClass: o.closeClass,
+    closeAriaLabel: o.closeAriaLabel,
+    closeAttr: o.closeAttr,
+    rootAttrs: o.rootAttrs,
   });
+  const modal = document.createElement('div');
+  modal.innerHTML = markup.trim();
+  const rendered = modal.firstElementChild;
+  const resolvedModalHash = resolveModalHash({
+    modalHash: o.modalHash,
+    rootAttrs: o.rootAttrs,
+    title: o.title,
+  });
+  const close = createCloseFn(rendered, o.onClose, resolvedModalHash);
+  attachModalCloseHandlers(rendered, o.closeAttr, close);
   document.body.appendChild(rendered);
   if (resolvedModalHash) {
     setModalHash(resolvedModalHash);
@@ -219,73 +220,91 @@ export function createAdminModalShell({
   };
 }
 
-export function buildAdminModalShellMarkup({
-  preset = 'standard',
-  title = '',
-  subtitle = '',
-  body = '',
-  footer = '',
-  widthClass,
-  zIndex,
-  outerClass,
-  overlayClass,
-  shellClass,
-  headerClass,
-  bodyClass,
-  footerClass,
-  closeClass,
-  closeAriaLabel,
-  closeAttr = 'data-admin-modal-close',
-  rootAttrs = '',
-} = {}) {
-  const config = resolveAdminModalPreset(preset, {
-    title,
-    subtitle,
-    body,
-    footer,
-    widthClass,
-    zIndex,
-    outerClass,
-    overlayClass,
-    shellClass,
-    headerClass,
-    bodyClass,
-    footerClass,
-    closeClass,
-    closeAriaLabel,
-    closeAttr,
-    rootAttrs,
-  });
-  const zIndexClass =
-    Z_INDEX_CLASSES[config.zIndex] ||
-    (typeof config.zIndex === 'number' ? `z-[${config.zIndex}]` : '');
-  if (typeof config.zIndex === 'number' && !Z_INDEX_CLASSES[config.zIndex]) {
+function buildZIndexClass(configZIndex) {
+  const predefined = Z_INDEX_CLASSES[configZIndex];
+  if (predefined) return predefined;
+  if (typeof configZIndex === 'number') {
     console.error(
-      `[modal-shell] Unmapped z-index ${config.zIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT generates the CSS. Falling back to z-[${config.zIndex}].`
+      `[modal-shell] Unmapped z-index ${configZIndex}; add it to Z_INDEX_CLASSES so Tailwind JIT generates the CSS. Falling back to z-[${configZIndex}].`
     );
+    return `z-[${configZIndex}]`;
   }
+  return '';
+}
+
+function buildModalHeader(config, closeAttr) {
+  const subtitleHtml = config.subtitle
+    ? `<div class="text-[11px] text-gray-700 mt-1">${escapeHtml(config.subtitle)}</div>`
+    : '';
+  return `
+    <div class="${config.headerClass}" data-admin-modal-header>
+      <div>
+        <div class="text-lg font-semibold">${escapeHtml(config.title)}</div>
+        ${subtitleHtml}
+      </div>
+      <button type="button" class="${config.closeClass}" ${closeAttr} aria-label="${escapeHtml(config.closeAriaLabel)}">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  `;
+}
+
+function buildModalBody(config) {
+  return `<div class="${config.bodyClass}" data-admin-modal-body>${config.body}</div>`;
+}
+
+function buildModalFooter(config) {
+  return `<div class="${config.footerClass}" data-admin-modal-footer>${config.footer}</div>`;
+}
+
+function buildModalShellInner(config, closeAttr) {
+  return `
+    <div class="${config.shellClass} ${config.widthClass}">
+      ${buildModalHeader(config, closeAttr)}
+      ${buildModalBody(config)}
+      ${buildModalFooter(config)}
+    </div>
+  `;
+}
+
+export function buildAdminModalShellMarkup(options = {}) {
+  const o = Object.assign(
+    {
+      preset: 'standard',
+      title: '',
+      subtitle: '',
+      body: '',
+      footer: '',
+      closeAttr: 'data-admin-modal-close',
+      rootAttrs: '',
+    },
+    options || {}
+  );
+  const config = resolveAdminModalPreset(o.preset, {
+    title: o.title,
+    subtitle: o.subtitle,
+    body: o.body,
+    footer: o.footer,
+    widthClass: o.widthClass,
+    zIndex: o.zIndex,
+    outerClass: o.outerClass,
+    overlayClass: o.overlayClass,
+    shellClass: o.shellClass,
+    headerClass: o.headerClass,
+    bodyClass: o.bodyClass,
+    footerClass: o.footerClass,
+    closeClass: o.closeClass,
+    closeAriaLabel: o.closeAriaLabel,
+    closeAttr: o.closeAttr,
+    rootAttrs: o.rootAttrs,
+  });
+  const zIndexClass = buildZIndexClass(config.zIndex);
   return `
     <div class="${config.outerClass} ${zIndexClass}" ${config.rootAttrs}>
       <div class="${config.overlayClass}"></div>
-      <div class="${config.shellClass} ${config.widthClass}">
-        <div class="${config.headerClass}" data-admin-modal-header>
-          <div>
-            <div class="text-lg font-semibold">${escapeHtml(config.title)}</div>
-            ${config.subtitle ? `<div class="text-[11px] text-gray-700 mt-1">${escapeHtml(config.subtitle)}</div>` : ''}
-          </div>
-          <button type="button" class="${config.closeClass}" ${config.closeAttr} aria-label="${escapeHtml(config.closeAriaLabel)}">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="${config.bodyClass}" data-admin-modal-body>
-          ${config.body}
-        </div>
-        <div class="${config.footerClass}" data-admin-modal-footer>
-          ${config.footer}
-        </div>
-      </div>
+      ${buildModalShellInner(config, o.closeAttr)}
     </div>
   `;
 }

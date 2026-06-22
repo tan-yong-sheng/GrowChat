@@ -79,30 +79,32 @@ export function parseProviderId(value) {
   };
 }
 
+const TYPE_PREFIX_OVERRIDES = Object.freeze({
+  'openai-compatible': 'openai',
+  'gemini-compatible': 'google',
+  'claude-compatible': 'anthropic',
+});
+
+const KNOWN_PROVIDER_TYPES = Object.freeze(['openai', 'google', 'anthropic']);
+
+function resolveProviderPrefix(providerType, providerFamily) {
+  if (TYPE_PREFIX_OVERRIDES[providerType]) {
+    return TYPE_PREFIX_OVERRIDES[providerType];
+  }
+  if (KNOWN_PROVIDER_TYPES.includes(providerType)) {
+    return providerType;
+  }
+  return providerFamily || 'openai';
+}
+
 export function buildProviderId(connection) {
   const providerType = String(connection?.providerType || '')
     .trim()
     .toLowerCase();
-  const providerFamily =
-    normalizeProviderFamily(connection?.providerFamily || providerType) || 'openai';
-  let prefix = providerFamily;
-  if (providerType === 'openai-compatible') {
-    prefix = 'openai';
-  } else if (providerType === 'gemini-compatible') {
-    prefix = 'google';
-  } else if (providerType === 'claude-compatible') {
-    prefix = 'anthropic';
-  } else if (
-    providerType === 'google' ||
-    providerType === 'anthropic' ||
-    providerType === 'openai'
-  ) {
-    prefix = providerType;
-  }
+  const providerFamily = normalizeProviderFamily(connection?.providerFamily || providerType);
+  const prefix = resolveProviderPrefix(providerType, providerFamily);
   const id = String(connection?.id || '').trim();
-  if (!id) {
-    return prefix;
-  }
+  if (!id) return prefix;
   return `${prefix}/${id}`;
 }
 

@@ -1,11 +1,50 @@
+function getProp(obj, key, fallback) {
+  if (obj && obj[key] != null) return obj[key];
+  return fallback;
+}
+
 function normalizeModelLabel(model = {}) {
-  return String(model?.name || model?.id || model?.connection_name || model?.connection_id || '')
+  return String(
+    getProp(model, 'name') ||
+      getProp(model, 'id') ||
+      getProp(model, 'connection_name') ||
+      getProp(model, 'connection_id', '')
+  )
     .trim()
     .toLowerCase();
 }
 
 function isModelEnabled(model = {}) {
-  return model?.enabled !== false;
+  return getProp(model, 'enabled') !== false;
+}
+
+function getModelIds(models) {
+  return models.map((model) => String(getProp(model, 'id', '')).trim()).filter(Boolean);
+}
+
+function findPreferredMatch(modelIds, preferredIds) {
+  const idSet = new Set(modelIds);
+  for (const preferredId of preferredIds) {
+    const candidateId = String(preferredId || '').trim();
+    if (candidateId && idSet.has(candidateId)) {
+      return candidateId;
+    }
+  }
+  return null;
+}
+
+function compareModels(a, b) {
+  const labelCompare = normalizeModelLabel(a).localeCompare(normalizeModelLabel(b));
+  if (labelCompare !== 0) return labelCompare;
+
+  const aId = String(getProp(a, 'id', '')).toLowerCase();
+  const bId = String(getProp(b, 'id', '')).toLowerCase();
+  const idCompare = aId.localeCompare(bId);
+  if (idCompare !== 0) return idCompare;
+
+  const aConnection = String(getProp(a, 'connection_name', '')).toLowerCase();
+  const bConnection = String(getProp(b, 'connection_name', '')).toLowerCase();
+  return aConnection.localeCompare(bConnection);
 }
 
 export function countEnabledModels(models = []) {
@@ -23,33 +62,14 @@ export function getPreferredModelId(models = [], preferredIds = []) {
   const sortedModels = sortModelsByActiveThenName(filterEnabledModels(models));
   if (!sortedModels.length) return null;
 
-  const modelIdSet = new Set(
-    sortedModels.map((model) => String(model?.id || '').trim()).filter(Boolean)
-  );
-  for (const preferredId of Array.isArray(preferredIds) ? preferredIds : []) {
-    const candidateId = String(preferredId || '').trim();
-    if (candidateId && modelIdSet.has(candidateId)) {
-      return candidateId;
-    }
-  }
+  const modelIds = getModelIds(sortedModels);
+  const normalizedPreferredIds = Array.isArray(preferredIds) ? preferredIds : [];
+  const match = findPreferredMatch(modelIds, normalizedPreferredIds);
+  if (match) return match;
 
-  return sortedModels[0]?.id || null;
+  return getProp(sortedModels[0], 'id', null);
 }
 
 export function sortModelsByActiveThenName(models = []) {
-  return (Array.isArray(models) ? models : []).slice().sort((a, b) => {
-    const aLabel = normalizeModelLabel(a);
-    const bLabel = normalizeModelLabel(b);
-    const labelCompare = aLabel.localeCompare(bLabel);
-    if (labelCompare !== 0) return labelCompare;
-
-    const aId = String(a?.id || '').toLowerCase();
-    const bId = String(b?.id || '').toLowerCase();
-    const idCompare = aId.localeCompare(bId);
-    if (idCompare !== 0) return idCompare;
-
-    const aConnection = String(a?.connection_name || '').toLowerCase();
-    const bConnection = String(b?.connection_name || '').toLowerCase();
-    return aConnection.localeCompare(bConnection);
-  });
+  return (Array.isArray(models) ? models : []).slice().sort(compareModels);
 }

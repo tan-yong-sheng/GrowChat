@@ -9,41 +9,55 @@ import { parseDocument } from './parsers/index.js';
 import { createRootLogger } from '../utils/logger.js';
 const logger = createRootLogger({});
 
+async function handleSkippedExtraction(db, documentId, reason) {
+  const message = reason || 'Document extraction skipped';
+  await db.run(
+    `UPDATE documents SET extraction_status = -1, extraction_error = ?, updated_at = unixepoch()
+     WHERE id = ?`,
+    [message, documentId]
+  );
+  return { extractedText: '', excerptLength: 0, skipped: true, reason: message };
+}
+
+async function markExtractionSuccess(db, documentId, excerpt) {
+  await db.run(
+    `UPDATE documents SET extraction_status = 1, text_excerpt = ?, updated_at = unixepoch()
+     WHERE id = ?`,
+    [excerpt, documentId]
+  );
+}
+
+async function markExtractionFailed(db, documentId, errorMessage) {
+  await db.run(`UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?`, [
+    errorMessage,
+    documentId,
+  ]);
+}
+
 /**
  * Extract text from an uploaded document and store a preview excerpt.
- * @param {Object} env - Worker environment
- * @param {Object} db - Database connection
- * @param {string} documentId - Document ID
- * @param {string} contentType - MIME type
- * @param {ArrayBuffer} buffer - File buffer
+ * @param {Object} options - Extraction options
+ * @param {Object} options.env - Worker environment
+ * @param {Object} options.db - Database connection
+ * @param {string} options.documentId - Document ID
+ * @param {string} options.contentType - MIME type
+ * @param {ArrayBuffer} options.buffer - File buffer
  * @returns {Promise<Object>} - { extractedText, excerptLength, skipped?, reason? }
  */
-export async function extractDocumentText(env, db, documentId, contentType, buffer) {
+export async function extractDocumentText({ env, db, documentId, contentType, buffer }) {
   try {
     const result = await parseDocument(env, { contentType, buffer });
     if (result?.skipped) {
-      const reason = result.reason || 'Document extraction skipped';
-      await db.run(
-        `UPDATE documents SET extraction_status = -1, extraction_error = ?, updated_at = unixepoch()
-         WHERE id = ?`,
-        [reason, documentId]
-      );
-      return { extractedText: '', excerptLength: 0, skipped: true, reason };
+      return handleSkippedExtraction(db, documentId, result.reason);
     }
 
     const fullText = result?.text || '';
-
-    if (!fullText || fullText.trim().length === 0) {
+    if (!fullText.trim()) {
       throw new Error('Document extraction resulted in empty text');
     }
 
-    // Update document extraction status
     const excerpt = fullText.slice(0, 500);
-    await db.run(
-      `UPDATE documents SET extraction_status = 1, text_excerpt = ?, updated_at = unixepoch()
-       WHERE id = ?`,
-      [excerpt, documentId]
-    );
+    await markExtractionSuccess(db, documentId, excerpt);
 
     return {
       extractedText: fullText,
@@ -51,13 +65,7 @@ export async function extractDocumentText(env, db, documentId, contentType, buff
     };
   } catch (err) {
     logger.error('Document extraction failed', { documentId, error: err?.message || err });
-
-    // Mark as failed in D1
-    await db.run(`UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?`, [
-      err.message,
-      documentId,
-    ]);
-
+    await markExtractionFailed(db, documentId, err.message);
     throw err;
   }
 }

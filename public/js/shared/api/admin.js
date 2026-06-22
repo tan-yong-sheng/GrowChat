@@ -45,6 +45,16 @@ export async function fetchAdminGroups() {
   return readJsonResponse(res, `Failed to fetch groups (${res.status})`);
 }
 
+function buildAdminModelParams({ limit, offset, query, includeDisabled, provider }) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  params.set('offset', String(offset));
+  if (query) params.set('q', query);
+  if (provider && provider !== 'all') params.set('provider', provider);
+  if (includeDisabled) params.set('include_disabled', '1');
+  return params;
+}
+
 export async function fetchAdminModels({
   limit = 200,
   offset = 0,
@@ -52,12 +62,7 @@ export async function fetchAdminModels({
   includeDisabled = true,
   provider = '',
 } = {}) {
-  const params = new URLSearchParams();
-  params.set('limit', String(limit));
-  params.set('offset', String(offset));
-  if (query) params.set('q', query);
-  if (provider && provider !== 'all') params.set('provider', provider);
-  if (includeDisabled) params.set('include_disabled', '1');
+  const params = buildAdminModelParams({ limit, offset, query, includeDisabled, provider });
   const res = await apiFetch(`/api/admin/models?${params.toString()}`);
   return readJsonResponse(res, `Failed to fetch models (${res.status})`);
 }

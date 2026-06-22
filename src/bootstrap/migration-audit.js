@@ -32,6 +32,33 @@ const DESTRUCTIVE_DDL_PATTERNS = [
   },
 ];
 
+function processMigrationFile(name, entries, errors, seenPrefixes) {
+  const match = name.match(MIGRATION_FILE_PATTERN);
+  if (!match) {
+    errors.push(`Invalid migration filename: ${name}`);
+    return;
+  }
+
+  const prefix = Number(match[1]);
+  const title = match[2];
+  const entry = { fileName: name, prefix, title };
+  entries.push(entry);
+
+  const existing = seenPrefixes.get(prefix);
+  if (existing) {
+    errors.push(`Duplicate migration prefix ${match[1]}: ${existing.fileName}, ${name}`);
+  } else {
+    seenPrefixes.set(prefix, entry);
+  }
+}
+
+function deduplicateAndSortEntries(entries) {
+  const uniqueEntries = entries.filter((entry, index, array) => {
+    return array.findIndex((candidate) => candidate.prefix === entry.prefix) === index;
+  });
+  return uniqueEntries.slice().sort((a, b) => a.prefix - b.prefix);
+}
+
 export function auditMigrationFiles(fileNames = []) {
   const entries = [];
   const errors = [];
@@ -40,31 +67,10 @@ export function auditMigrationFiles(fileNames = []) {
   for (const fileName of Array.isArray(fileNames) ? [...fileNames].sort() : []) {
     const name = String(fileName || '').trim();
     if (!name) continue;
-
-    const match = name.match(MIGRATION_FILE_PATTERN);
-    if (!match) {
-      errors.push(`Invalid migration filename: ${name}`);
-      continue;
-    }
-
-    const prefix = Number(match[1]);
-    const title = match[2];
-    const entry = { fileName: name, prefix, title };
-    entries.push(entry);
-
-    const existing = seenPrefixes.get(prefix);
-    if (existing) {
-      errors.push(`Duplicate migration prefix ${match[1]}: ${existing.fileName}, ${name}`);
-    } else {
-      seenPrefixes.set(prefix, entry);
-    }
+    processMigrationFile(name, entries, errors, seenPrefixes);
   }
 
-  const uniqueEntries = entries.filter((entry, index, array) => {
-    return array.findIndex((candidate) => candidate.prefix === entry.prefix) === index;
-  });
-
-  const sortedEntries = uniqueEntries.slice().sort((a, b) => a.prefix - b.prefix);
+  const sortedEntries = deduplicateAndSortEntries(entries);
 
   return {
     entries: sortedEntries,
@@ -153,46 +159,43 @@ function stripSqlComments(content) {
  * @param {string} content - SQL content (ideally comment-stripped).
  * @returns {{ lines: string[], lineMap: number[] }} Normalized lines and their original line numbers.
  */
-function normalizeMultilineSQL(content) {
-  const originalLines = content.split('\n');
-  const lineMap = []; // maps normalized line index → original line number
-  const normalizedLines = [];
+function createStatementAccumulator() {
+  return { lineMap: [], normalizedLines: [], buffer: '', startLine: 0 };
+}
 
-  let buffer = '';
-  let startLine = 0;
+function finalizeAccumulator(acc) {
+  if (acc.buffer.trim().length > 0) {
+    acc.normalizedLines.push(acc.buffer.trim());
+    acc.lineMap.push(acc.startLine);
+  }
+  return { lines: acc.normalizedLines, lineMap: acc.lineMap };
+}
 
-  for (let i = 0; i < originalLines.length; i++) {
-    const line = originalLines[i];
-    const trimmed = line.trim();
+function accumulateLine(acc, line, lineIndex) {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return;
+  if (acc.buffer.length === 0) acc.startLine = lineIndex + 1;
+  acc.buffer += (acc.buffer.length > 0 ? ' ' : '') + trimmed.replace(/\s+/g, ' ');
 
-    if (trimmed.length === 0) continue;
-
-    if (buffer.length === 0) startLine = i + 1; // 1-indexed
-
-    buffer += (buffer.length > 0 ? ' ' : '') + trimmed.replace(/\s+/g, ' ');
-
-    // Split on every semicolon, not just the line-ending one.
-    // This handles multiple statements on one physical line.
-    while (buffer.includes(';')) {
-      const semiIdx = buffer.indexOf(';');
-      const stmt = buffer.substring(0, semiIdx + 1).trim();
-      if (stmt.length > 0) {
-        normalizedLines.push(stmt);
-        lineMap.push(startLine);
-      }
-      buffer = buffer.substring(semiIdx + 1).trim();
-      // Next statement starts on the same original line
-      if (buffer.length > 0) startLine = i + 1;
+  while (acc.buffer.includes(';')) {
+    const semiIdx = acc.buffer.indexOf(';');
+    const stmt = acc.buffer.substring(0, semiIdx + 1).trim();
+    if (stmt.length > 0) {
+      acc.normalizedLines.push(stmt);
+      acc.lineMap.push(acc.startLine);
     }
+    acc.buffer = acc.buffer.substring(semiIdx + 1).trim();
+    if (acc.buffer.length > 0) acc.startLine = lineIndex + 1;
   }
+}
 
-  // Handle trailing statement without semicolon
-  if (buffer.trim().length > 0) {
-    normalizedLines.push(buffer.trim());
-    lineMap.push(startLine);
+function normalizeMultilineSQL(content) {
+  const acc = createStatementAccumulator();
+  const originalLines = content.split('\n');
+  for (let i = 0; i < originalLines.length; i++) {
+    accumulateLine(acc, originalLines[i], i);
   }
-
-  return { lines: normalizedLines, lineMap };
+  return finalizeAccumulator(acc);
 }
 
 /**

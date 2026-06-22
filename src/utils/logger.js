@@ -49,6 +49,37 @@ export function resolveLogLevel(env) {
  * @param {string} [context.userId] - Authenticated user ID
  * @returns {Object} Logger with debug/info/warn/error methods
  */
+function normalizeLogData(data) {
+  return data && typeof data === 'object' && !Array.isArray(data) ? data : { data };
+}
+
+function buildFallbackEntry(entryLevel, message, err) {
+  return {
+    level: entryLevel,
+    message: typeof message === 'string' ? message : String(message),
+    timestamp: new Date().toISOString(),
+    error: 'Logger serialization failed',
+    originalError: err?.message || String(err),
+  };
+}
+
+function writeToConsole(entryLevel, output) {
+  switch (entryLevel) {
+    case 'debug':
+      console.debug(output);
+      break;
+    case 'info':
+      console.info(output);
+      break;
+    case 'warn':
+      console.warn(output);
+      break;
+    case 'error':
+      console.error(output);
+      break;
+  }
+}
+
 export function createLogger(env, context = {}) {
   let currentEnv = env;
   let level = resolveLogLevel(env);
@@ -58,13 +89,8 @@ export function createLogger(env, context = {}) {
     const entryValue = LEVEL_VALUES[entryLevel];
     if (entryValue < levelValue) return;
 
-    // Wrap arrays and non-objects in a `data` key to avoid spreading
-    // indexed keys (e.g. {"0": ...}) or primitive values into the entry.
-    const safeData = data && typeof data === 'object' && !Array.isArray(data) ? data : { data };
+    const safeData = normalizeLogData(data);
 
-    // Build entry with reserved fields protected from data key collisions.
-    // Reserved keys (level, timestamp, message) are assigned LAST so they
-    // always take precedence over any overlapping keys in data/context.
     const entry = {
       ...safeData,
       ...context,
@@ -73,35 +99,11 @@ export function createLogger(env, context = {}) {
       message: typeof message === 'string' ? message : String(message),
     };
 
-    // Workers console output is captured by the platform logger.
-    // Use the matching console method so severity is preserved in
-    // Cloudflare's structured log viewer (Workers tail / wrangler tail).
-    // Wrap JSON.stringify in try-catch to prevent circular reference crashes.
     try {
       const output = JSON.stringify(entry);
-      switch (entryLevel) {
-        case 'debug':
-          console.debug(output);
-          break;
-        case 'info':
-          console.info(output);
-          break;
-        case 'warn':
-          console.warn(output);
-          break;
-        case 'error':
-          console.error(output);
-          break;
-      }
+      writeToConsole(entryLevel, output);
     } catch (err) {
-      // Fallback: log a safe entry if serialization fails (e.g. circular refs)
-      const fallback = JSON.stringify({
-        level: entryLevel,
-        message: typeof message === 'string' ? message : String(message),
-        timestamp: new Date().toISOString(),
-        error: 'Logger serialization failed',
-        originalError: err?.message || String(err),
-      });
+      const fallback = JSON.stringify(buildFallbackEntry(entryLevel, message, err));
       console.error(fallback);
     }
   }

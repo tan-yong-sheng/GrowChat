@@ -56,6 +56,109 @@ export function renderWorkspaceSidebar({
   `;
 }
 
+function findWorkspaceElements(root, selectors) {
+  return {
+    newChatBtn: root.querySelector('#new-chat'),
+    homeLink: root.querySelector('#workspace-home-link'),
+    toggleSidebarMobile: root.querySelector('#toggle-sidebar-mobile'),
+    toggleSidebarDesktop: root.querySelector('#toggle-sidebar-desktop'),
+    sidebar: root.querySelector('#sidebar'),
+    sidebarBackdrop: root.querySelector('#sidebar-backdrop'),
+    openSearchBtn: root.querySelector('#open-search'),
+    searchModalContainer: root.querySelector(selectors.searchModalContainerSelector),
+    filesModalContainer: root.querySelector(selectors.filesModalContainerSelector),
+  };
+}
+
+function createHomeNavigator(navigateHome) {
+  return async () => {
+    if (typeof navigateHome === 'function') {
+      await navigateHome();
+    } else {
+      window.history.pushState({}, '', '/');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
+}
+
+function createModalEnsurer({ container, showFlag, importPath, renderFn, renderArgs = [] }) {
+  let destroyFn = null;
+  let initPromise = null;
+
+  const ensure = async () => {
+    if (!showFlag || !container) return;
+    if (typeof destroyFn === 'function') return;
+    if (initPromise) return initPromise;
+
+    initPromise = import(importPath)
+      .then((mod) => {
+        destroyFn = mod[renderFn](container, ...renderArgs);
+      })
+      .finally(() => {
+        initPromise = null;
+      });
+
+    return initPromise;
+  };
+
+  const destroy = () => {
+    if (typeof destroyFn === 'function') {
+      destroyFn();
+      destroyFn = null;
+    }
+  };
+
+  return { ensure, destroy };
+}
+
+function createEventHandlers(elements, navigateToHome, guardNavigation, modalEnsurers) {
+  const onToggleSidebar = () => {
+    if (state.isMobile) {
+      setState({ showSidebar: !state.showSidebar });
+    } else if (!state.showSidebar) {
+      setState({ showSidebar: true });
+    } else {
+      setState({ sidebarCollapsed: !state.sidebarCollapsed });
+    }
+  };
+
+  const onOpenSearch = async () => {
+    await modalEnsurers.search.ensure();
+    setState({ showSearch: true });
+  };
+
+  const onNewChat = async () => {
+    if (typeof guardNavigation === 'function') {
+      const allowed = await guardNavigation();
+      if (!allowed) return;
+    }
+    await navigateToHome();
+  };
+
+  return { onToggleSidebar, onOpenSearch, onNewChat };
+}
+
+function bindSidebarEvents(elements, handlers) {
+  elements.toggleSidebarMobile?.addEventListener('click', handlers.onToggleSidebar);
+  elements.toggleSidebarDesktop?.addEventListener('click', handlers.onToggleSidebar);
+  elements.openSearchBtn?.addEventListener('click', () => void handlers.onOpenSearch());
+  elements.newChatBtn?.addEventListener('click', () => void handlers.onNewChat());
+  elements.homeLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    void handlers.onNewChat();
+  });
+}
+
+function syncMobileVisibility(sidebar, sidebarBackdrop, currentState) {
+  if (currentState.showSidebar && currentState.isMobile) {
+    sidebarBackdrop?.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  } else {
+    sidebarBackdrop?.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+}
+
 export function wireWorkspaceSidebar(
   root,
   {
@@ -67,125 +170,45 @@ export function wireWorkspaceSidebar(
     filesModalContainerSelector = '#files-modal-container',
   } = {}
 ) {
-  const newChatBtn = root.querySelector('#new-chat');
-  const homeLink = root.querySelector('#workspace-home-link');
-  const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
-  const toggleSidebarDesktop = root.querySelector('#toggle-sidebar-desktop');
-  const sidebar = root.querySelector('#sidebar');
-  const sidebarBackdrop = root.querySelector('#sidebar-backdrop');
-  const openSearchBtn = root.querySelector('#open-search');
-  const searchModalContainer = root.querySelector(searchModalContainerSelector);
-  const filesModalContainer = root.querySelector(filesModalContainerSelector);
-
-  const destroySidebar = renderSidebar(sidebar, root);
-
-  const navigateToHome = async () => {
-    if (typeof navigateHome === 'function') {
-      await navigateHome();
-    } else {
-      window.history.pushState({}, '', '/');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    }
-  };
-
-  let destroySearchModal = null;
-  let destroyFilesModal = null;
-  let searchModalInitPromise = null;
-  let filesModalInitPromise = null;
-
-  const ensureSearchModal = async () => {
-    if (!showSearchModal || !searchModalContainer) return;
-    if (typeof destroySearchModal === 'function') return;
-    if (searchModalInitPromise) return searchModalInitPromise;
-
-    searchModalInitPromise = import('./search-modal.js')
-      .then(({ renderSearchModal }) => {
-        destroySearchModal = renderSearchModal(
-          searchModalContainer,
-          navigateToHome,
-          navigateToHome
-        );
-      })
-      .finally(() => {
-        searchModalInitPromise = null;
-      });
-
-    return searchModalInitPromise;
-  };
-
-  const ensureFilesModal = async () => {
-    if (!showFilesModal || !filesModalContainer) return;
-    if (typeof destroyFilesModal === 'function') return;
-    if (filesModalInitPromise) return filesModalInitPromise;
-
-    filesModalInitPromise = import('./files-modal.js')
-      .then(({ renderFilesModal }) => {
-        destroyFilesModal = renderFilesModal(filesModalContainer);
-      })
-      .finally(() => {
-        filesModalInitPromise = null;
-      });
-
-    return filesModalInitPromise;
-  };
-
-  const onToggleSidebar = () => {
-    if (state.isMobile) {
-      setState({ showSidebar: !state.showSidebar });
-    } else if (!state.showSidebar) {
-      setState({ showSidebar: true });
-    } else {
-      setState({ sidebarCollapsed: !state.sidebarCollapsed });
-    }
-  };
-  const onOpenSearch = async () => {
-    await ensureSearchModal();
-    setState({ showSearch: true });
-  };
-  const onNewChat = async () => {
-    if (typeof guardNavigation === 'function') {
-      const allowed = await guardNavigation();
-      if (!allowed) return;
-    }
-    await navigateToHome();
-  };
-
-  toggleSidebarMobile?.addEventListener('click', onToggleSidebar);
-  toggleSidebarDesktop?.addEventListener('click', onToggleSidebar);
-  openSearchBtn?.addEventListener('click', () => {
-    void onOpenSearch();
+  const elements = findWorkspaceElements(root, {
+    searchModalContainerSelector,
+    filesModalContainerSelector,
   });
-  newChatBtn?.addEventListener('click', () => {
-    void onNewChat();
-  });
-  homeLink?.addEventListener('click', (e) => {
-    e.preventDefault();
-    void onNewChat();
-  });
+
+  const destroySidebar = renderSidebar(elements.sidebar);
+  const navigateToHome = createHomeNavigator(navigateHome);
+
+  const modalEnsurers = {
+    search: createModalEnsurer({
+      container: elements.searchModalContainer,
+      showFlag: showSearchModal,
+      importPath: './search-modal.js',
+      renderFn: 'renderSearchModal',
+      renderArgs: [navigateToHome, navigateToHome],
+    }),
+    files: createModalEnsurer({
+      container: elements.filesModalContainer,
+      showFlag: showFilesModal,
+      importPath: './files-modal.js',
+      renderFn: 'renderFilesModal',
+    }),
+  };
+
+  const handlers = createEventHandlers(elements, navigateToHome, guardNavigation, modalEnsurers);
+  bindSidebarEvents(elements, handlers);
 
   const unsubscribe = subscribe((currentState) => {
-    if (currentState.showSidebar && currentState.isMobile) {
-      sidebarBackdrop?.classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
-    } else {
-      sidebarBackdrop?.classList.add('hidden');
-      document.body.style.overflow = '';
-    }
-
-    if (currentState.showSearch) {
-      void ensureSearchModal();
-    }
-    if (currentState.showFiles) {
-      void ensureFilesModal();
-    }
+    syncMobileVisibility(elements.sidebar, elements.sidebarBackdrop, currentState);
+    if (currentState.showSearch) void modalEnsurers.search.ensure();
+    if (currentState.showFiles) void modalEnsurers.files.ensure();
   });
 
-  sidebarBackdrop?.addEventListener('click', () => setState({ showSidebar: false }));
+  elements.sidebarBackdrop?.addEventListener('click', () => setState({ showSidebar: false }));
 
   return () => {
     unsubscribe?.();
-    destroySearchModal?.();
-    destroyFilesModal?.();
+    modalEnsurers.search.destroy();
+    modalEnsurers.files.destroy();
     destroySidebar?.();
   };
 }

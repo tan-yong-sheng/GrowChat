@@ -30,15 +30,23 @@ export function buildRateLimitKey(action, subject) {
   return `${DEFAULT_KEY_PREFIX}:${normalizedAction}:${normalizedSubject}`;
 }
 
+function extractClientIp(req) {
+  const headers = req && req.headers;
+  if (!headers) return null;
+  return (
+    headers.get('CF-Connecting-IP') ||
+    headers.get('x-forwarded-for') ||
+    headers.get('x-real-ip') ||
+    null
+  );
+}
+
 export function resolveRateLimitSubject(req, fallback = 'anonymous') {
   // NOTE: In local development (wrangler dev), none of these headers are present.
   // All local requests will share the 'anonymous' fallback rate limit key.
   // This means rate limits apply globally across all local users during dev.
   // To test per-IP rate limiting locally, set CF-Connecting-IP header manually.
-  const ip =
-    req?.headers?.get?.('CF-Connecting-IP') ||
-    req?.headers?.get?.('x-forwarded-for') ||
-    req?.headers?.get?.('x-real-ip');
+  const ip = extractClientIp(req);
   return String(ip || fallback).trim() || fallback;
 }
 
