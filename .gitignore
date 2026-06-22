@@ -153,3 +153,6 @@ tests/e2e/fixtures/auth-state.json
 .act-event.json
 .act-pr-event.json
 .stryker-tmp/
+coverage2/
+reports/
+.mutation-test-instructions.md
