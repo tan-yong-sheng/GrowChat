@@ -10,3 +10,15 @@ paths = [
   'scripts/backend_smoke_matrix\.sh',
   'scripts/secret-scan\.cjs'
 ]
+
+[[allowlists]]
+description = "Exclude build artifacts, caches, and tooling state"
+paths = [
+  '\.wrangler/.*',
+  '\.gitnexus/.*',
+  '\.pnpm-store/.*',
+  'node_modules/.*',
+  '\.cache/.*',
+  'test-results/.*',
+  'playwright-report/.*'
+]
