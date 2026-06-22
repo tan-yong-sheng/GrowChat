@@ -23,7 +23,7 @@ test("auth page opens in register mode for fresh workspace", async ({
 		};
 	});
 
-	await page.goto("http://127.0.0.1:3007/auth.html");
+	await page.goto("/auth.html");
 
 	await expect(page.locator("#auth-title")).toHaveText("Create an account");
 	await expect(page.locator("#name-wrap")).not.toHaveClass(/hidden/);

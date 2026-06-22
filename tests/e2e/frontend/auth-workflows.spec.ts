@@ -59,9 +59,9 @@ test.describe('Auth Workflows QA', () => {
   test('Login flow with provided credentials', async ({ page }) => {
     await page.goto('/auth.html');
     
-    const testUser = process.env.TEST_USER;
+    const testUser = process.env.TEST_EMAIL;
     const testPassword = process.env.TEST_PASSWORD;
-    
+
     test.skip(!testUser || !testPassword, 'TEST_USER and TEST_PASSWORD env vars are required for this test');
     
     // Fill credentials

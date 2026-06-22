@@ -16,11 +16,10 @@ test("login with valid credentials", async ({ page }) => {
 	await page.locator("#password").fill(password);
 	await page.locator("#auth-submit").click();
 
-	await page.waitForURL("/");
-	await page.waitForLoadState("networkidle");
-
+	// Don't use waitForURL('/') — the landing page immediately redirects to /?app=1
+	// client-side, causing a race. Instead, wait directly for the authenticated UI.
 	await expect(page.locator(".user-profile-btn")).toBeVisible({
-		timeout: 5000,
+		timeout: 15000,
 	});
 });
 

@@ -37,7 +37,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: 'tests/e2e/fixtures/auth-state.json',
       },
-      testMatch: [/chat\.spec\.ts/, /admin-settings\.spec\.ts/, /visual-regression\.spec\.ts/],
+      testMatch: [/chat\.spec\.ts/, /admin-settings\.spec\.ts/, /visual-regression\.spec\.ts/, /connections\.spec\.ts/],
     },
   ],
 });

@@ -18,9 +18,10 @@ test.describe('Accessibility audit', () => {
   test('should not have any automatically detectable accessibility issues on home page', async ({
     page,
   }) => {
-    // The SPA at / redirects to /auth.html when no auth token is present.
-    // Wait for the redirect to complete before scanning.
-    await page.goto('/');
+    // The SPA at /?app=1 bypasses the landing page and redirects to /auth.html
+    // when no auth token is present. We use ?app=1 because the server serves
+    // landing.html for bare / requests (see maybeServeLandingPage in src/index.js).
+    await page.goto('/?app=1');
     await page.waitForURL(/\/auth(\.html)?$/, { timeout: 5000 });
     await page.waitForLoadState('networkidle');
 
