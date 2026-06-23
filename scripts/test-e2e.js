@@ -1,269 +1,265 @@
 #!/usr/bin/env node
 /**
- * Wrapper script that:
- * 1. Loads .dev.vars so TEST_EMAIL / TEST_PASSWORD / TEST_URL are available
- * 2. Initializes local D1 DB
- * 3. Starts wrangler dev in the background (reads .dev.vars automatically)
- * 4. Waits for it to be ready
- * 5. Enables public registration (so test users can be active)
- * 6. Seeds a test user for E2E auth
- * 7. Runs the Playwright E2E suite
- * 8. Tears down the dev server
- *
- * Usage:
- *   node scripts/test-e2e.js          # reads TEST_EMAIL / TEST_PASSWORD from .dev.vars
- *   TEST_EMAIL=... TEST_PASSWORD=... node scripts/test-e2e.js   # env vars override .dev.vars
+ * E2E test orchestration:
+ * 1. Clean state dir + kill stale workerd processes
+ * 2. Spin up wrangler dev briefly → miniflare creates the D1 sqlite file
+ * 3. Kill tmp server, detect which hash wrangler used
+ * 4. Apply all migrations + public_registration config directly via sqlite3 stdin
+ * 5. Start wrangler dev for real (DB already has schema — no lazy init)
+ * 6. Seed test user + run Playwright
  */
 
 import { spawn, execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync, lstatSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+import path from 'node:path';
 
-// Test server port: defaults to 8788 to avoid conflicting with a running
-// dev server on the default 8787. Set TEST_PORT env var to override.
-const PORT = process.env.TEST_PORT || '8788';
-const BASE_URL = process.env.TEST_URL || `http://localhost:${PORT}`;
+const PORT        = process.env.TEST_PORT || '8788';
+const BASE_URL    = process.env.TEST_URL  || `http://localhost:${PORT}`;
 const DEV_TIMEOUT = 90_000;
-const POLL_INTERVAL = 500;
+const POLL_MS     = 500;
+const STATE_DIR   = '.wrangler/state-e2e';
 
 let wranglerProc = null;
 
-// Use a separate state directory for E2E tests so the test seed
-// (which claims the first-admin role) does not pollute the user's
-// development database at .wrangler/state.
-const TEST_STATE_DIR = '.wrangler/state-e2e';
+function log(...a) { console.error('[test-e2e]', ...a); }
 
-function log(...args) {
-  console.error('[test-e2e]', ...args);
-}
+// ── .dev.vars loader ──────────────────────────────────────────────────────────
 
-// ── Load .dev.vars into process.env ───────────────────────────────────────────
-
-/**
- * Parse .dev.vars and merge into process.env.
- * .dev.vars format: KEY="value"  (one per line, # for comments)
- * This mirrors what wrangler dev does for its child process.
- */
-function stripQuotes(value) {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-  return value;
+function stripQuotes(v) {
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1);
+  return v;
 }
 
 function loadDevVars() {
-  let content;
   try {
-    content = readFileSync('.dev.vars', 'utf8');
-  } catch {
-    return;
-  }
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/);
-    // Always load TEST_EMAIL/TEST_PASSWORD from .dev.vars (user deleted .env, uses .dev.vars only)
-    const alwaysLoad = ['TEST_EMAIL', 'TEST_PASSWORD'].includes(match[1]);
-    if (!match || (process.env[match[1]] && !alwaysLoad)) continue;
-    process.env[match[1]] = stripQuotes(match[2].trim());
-  }
+    for (const line of readFileSync('.dev.vars', 'utf8').split('\n')) {
+      const t = line.trim();
+      if (!t || t.startsWith('#')) continue;
+      const m = t.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/);
+      const always = ['TEST_EMAIL', 'TEST_PASSWORD'].includes(m?.[1]);
+      if (!m || (process.env[m[1]] && !always)) continue;
+      process.env[m[1]] = stripQuotes(m[2].trim());
+    }
+  } catch { /* no .dev.vars */ }
 }
 
 loadDevVars();
 
-// ── Dev server ────────────────────────────────────────────────────────────────
+// ── D1 probe ─────────────────────────────────────────────────────────────────
+
+/** Find the actual D1 sqlite file. Miniflare stores it as a direct child of
+ * miniflare-D1DatabaseObject/ (not inside a hash sub-dir). Uses lstat to avoid
+ * FUSE open-delay false negatives. */
+function findD1Sqlite(pd) {
+  const dir = path.join(pd, 'v3', 'd1', 'miniflare-D1DatabaseObject');
+  try {
+    for (const name of readdirSync(dir)) {
+      if (name === 'metadata.sqlite') continue;
+      if (name.endsWith('.sqlite')) {
+        const p = path.join(dir, name);
+        try { lstatSync(p); return p; } catch { /* */ }
+      }
+      // Also check one level deeper (older miniflare layout: hash/hash.sqlite)
+      try {
+        for (const f of readdirSync(path.join(dir, name))) {
+          if (f.endsWith('.sqlite') && f !== 'metadata.sqlite') {
+            const p = path.join(dir, name, f);
+            try { lstatSync(p); return p; } catch { /* */ }
+          }
+        }
+      } catch { /* */ }
+    }
+  } catch { /* */ }
+  return null;
+}
+
+// ── DB init ───────────────────────────────────────────────────────────────────
 
 async function initDatabase() {
-  log('Initializing local D1 database (test state)...');
+  log('Initializing local D1 database...');
   try {
-    // Clean previous test state to ensure a fresh DB each run
-    execSync(`rm -rf ${TEST_STATE_DIR}`, { stdio: 'ignore' });
-    execSync('node scripts/init-local-db.js', {
-      stdio: 'inherit',
-      env: { ...process.env, NODE_ENV: 'development', WRANGLER_PERSIST_TO: TEST_STATE_DIR },
-    });
-  } catch (err) {
-    log('Warning: DB init failed (may already exist):', err.message);
+    execSync(`rm -rf ${STATE_DIR}`, { stdio: 'ignore' });
+  } catch {
+    // rm -rf can fail on stale FUSE mounts (miniflare leftover).
+    // Rename to a timestamped junk dir instead so mkdir succeeds.
+    try {
+      execSync(`mv ${STATE_DIR} ${STATE_DIR}-junk-${Date.now()}`, { stdio: 'ignore' });
+    } catch { /* dir already gone */ }
   }
+  mkdirSync(STATE_DIR, { recursive: true });
+
+  // Boot wrangler dev briefly on a dedicated port so it doesn't conflict with
+  // the real server we start afterward on PORT.
+  log('Creating D1 file via wrangler dev...');
+  const TMP_PORT = String(parseInt(PORT) + 1);
+  const tmp = spawn('npx', ['wrangler', 'dev',
+    '--ip', '0.0.0.0', '--port', TMP_PORT, '--persist-to', STATE_DIR,
+  ], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NODE_ENV: 'development' }, detached: false });
+
+  // Wait for tmp server to be HTTP-ready, then fire a DB-touched request
+  // so miniflare creates the sqlite file (lazy init on first query).
+  let httpReady = false;
+  let dbPath = null;
+  for (let i = 0; i < 60; i++) {          // up to 30 s
+    try {
+      const r = await fetch(`http://127.0.0.1:${TMP_PORT}/`);
+      if (r.ok && !httpReady) {
+        httpReady = true;
+        log('  tmp server HTTP-ready, triggering D1 init...');
+        // Fire request that definitely touches D1 (counts users → triggers DB open)
+        await fetch(`http://127.0.0.1:${TMP_PORT}/api/health`);
+        await sleep(1000);  // give miniflare time to create the sqlite file
+      }
+      if (httpReady) {
+        const found = findD1Sqlite(STATE_DIR);
+        if (found) { dbPath = found; break; }
+        // Debug: check what dirs exist
+        const d1Dir = path.join(STATE_DIR, 'v3', 'd1', 'miniflare-D1DatabaseObject');
+        let subs = 'N/A';
+        try { subs = readdirSync(d1Dir).join(', '); } catch { /* */ }
+      }
+    } catch { /* not ready */ }
+    await sleep(500);
+  }
+  tmp.kill('SIGTERM');
+  await sleep(1200);                      // let port release
+
+  if (!dbPath) { log('FATAL: D1 sqlite never created'); process.exit(1); }
+  const dbHash = path.basename(path.dirname(dbPath));
+  log(`D1 database: ${dbHash}/${path.basename(dbPath)}`);
+
+  // Apply all migrations via sqlite3 stdin (handles multi-line / trailing stmts)
+  log('Applying migrations...');
+  for (const file of [
+    '001_initial.sql', '002_settings_permissions.sql',
+    '003_password_reset_tokens.sql', '004_email_verification.sql',
+    '005_message_editing.sql', '006_audit_logging.sql',
+  ]) {
+    const sqlPath = path.join(process.cwd(), 'migrations', file);
+    log(`  Applying ${file}...`);
+    try {
+      const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'ignore', 'pipe'] });
+      child.stdin.write(readFileSync(sqlPath));
+      child.stdin.end();
+      const err = child.stderr.read();
+      if (err) {
+        const msg = err.toString().trim();
+        if (!msg.includes('already exists') && !msg.includes('no such table')) {
+          log(`    sqlite3: ${msg}`);
+        }
+      }
+      log(`  ✓ ${file}`);
+    } catch (err) { log(`  ✗ ${file}: ${err.message}`); }
+  }
+
+  // Enable public_registration config
+  log('Enabling public registration...');
+  try {
+    const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'ignore', 'pipe'] });
+    child.stdin.write(
+      'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
+      '("public_registration_status", "active", unixepoch()), ' +
+      '("public_registration", "true", unixepoch());\n'
+    );
+    child.stdin.end();
+    const err = child.stderr.read();
+    if (err) log('  sqlite3 warning:', err.toString().trim());
+    log('Public registration enabled.');
+  } catch (err) { log('Warning: could not enable public_registration:', err.message); }
+
+  // Verify tables exist
+  const tables = execSync(`sqlite3 "${dbPath}" ".tables"`, { encoding: 'utf8' }).trim();
+  log(`DB ready — ${tables.split(' ').length} tables`);
 }
+
+// ── Dev server ────────────────────────────────────────────────────────────────
 
 async function startDevServer() {
   log(`Starting wrangler dev on port ${PORT}...`);
+  wranglerProc = spawn('npx', ['wrangler', 'dev',
+    '--ip', '0.0.0.0', '--port', PORT, '--persist-to', STATE_DIR,
+  ], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NODE_ENV: 'development' }, detached: false });
 
-  // wrangler dev reads .dev.vars automatically from CWD
-  wranglerProc = spawn(
-    'npx',
-    ['wrangler', 'dev', '--ip', '0.0.0.0', '--port', PORT, '--persist-to', TEST_STATE_DIR],
-    {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, NODE_ENV: 'development' },
-      detached: false,
-    }
-  );
+  wranglerProc.stdout.on('data', c => process.stderr.write(c));
+  wranglerProc.stderr.on('data', c => process.stderr.write(c));
+  wranglerProc.on('error', err => { log('Wrangler error:', err.message); process.exit(1); });
 
-  wranglerProc.stdout.on('data', (chunk) => process.stderr.write(chunk));
-  wranglerProc.stderr.on('data', (chunk) => process.stderr.write(chunk));
-  wranglerProc.on('error', (err) => {
-    log('Wrangler process error:', err.message);
-    process.exit(1);
-  });
-
-  // Poll until server is ready
-  const start = Date.now();
-  while (Date.now() - start < DEV_TIMEOUT) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < DEV_TIMEOUT) {
     try {
       const res = await fetch(`${BASE_URL}/`);
-      if (res.ok) {
-        log(`Server ready at ${BASE_URL} (took ${Date.now() - start}ms)`);
-        return;
-      }
-    } catch {
-      // not ready yet
-    }
-    await sleep(POLL_INTERVAL);
+      if (res.ok) { log(`Server ready (${Date.now()-t0}ms)`); return; }
+    } catch { /* */ }
+    await sleep(POLL_MS);
   }
-
-  log(`ERROR: Server did not start within ${DEV_TIMEOUT / 1000}s`);
+  log(`ERROR: Server did not start within ${DEV_TIMEOUT/1000}s`);
   wranglerProc.kill('SIGTERM');
   process.exit(1);
 }
+
+// ── Teardown ──────────────────────────────────────────────────────────────────
 
 function killDevServer() {
   if (!wranglerProc) return;
   log('Stopping wrangler dev...');
   const pid = wranglerProc.pid;
   if (pid) {
-    try {
-      execSync(`pkill -TERM -P ${pid}`, { stdio: 'ignore' });
-    } catch {
-      /* no children */
-    }
-    try {
-      execSync(`kill -TERM ${pid}`, { stdio: 'ignore' });
-    } catch {
-      /* already dead */
-    }
-    sleep(500).then(() => {
-      try {
-        execSync(`kill -9 ${pid}`, { stdio: 'ignore' });
-      } catch {
-        /* ok */
-      }
-    });
+    try { execSync(`pkill -TERM -P ${pid}`, { stdio: 'ignore' }); } catch { /* */ }
+    try { execSync(`kill -TERM ${pid}`,      { stdio: 'ignore' }); } catch { /* */ }
+    sleep(500).then(() => { try { execSync(`kill -9 ${pid}`, { stdio: 'ignore' }); } catch { /* */ } });
   }
-  wranglerProc.kill('SIGTERM');
   wranglerProc = null;
 }
 
-// ── DB config ─────────────────────────────────────────────────────────────────
-
-async function enablePublicRegistration() {
-  log('Enabling public registration for E2E...');
-  try {
-    execSync(
-      `npx wrangler d1 execute growchat --local --persist-to ${TEST_STATE_DIR} ` +
-        '--command "INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
-        "('public_registration_status', 'active', unixepoch()), " +
-        "('public_registration', 'true', unixepoch())\"",
-      { stdio: 'inherit' }
-    );
-    log('Public registration enabled.');
-  } catch (err) {
-    log('Warning: Could not set public_registration_status:', err.message);
-  }
-}
-
-// ── Seed user ─────────────────────────────────────────────────────────────────
+// ── Seed ─────────────────────────────────────────────────────────────────────
 
 async function seedUser() {
-  const email = process.env.TEST_EMAIL;
-  const password = process.env.TEST_PASSWORD;
-
-  if (!email || !password) {
-    log('TEST_EMAIL / TEST_PASSWORD not set — skipping seed');
-    return;
-  }
-
+  const { TEST_EMAIL: email, TEST_PASSWORD: password } = process.env;
+  if (!email || !password) { log('TEST_EMAIL/TEST_PASSWORD not set'); return; }
   log(`Seeding test user: ${email}`);
-
   const res = await fetch(`${BASE_URL}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, name: 'E2E Test User' }),
   });
-
-  if (!res.ok) {
-    if (res.status === 409) {
-      log('Test user already exists — OK');
-    } else {
-      const text = await res.text().catch(() => '');
-      log(`Warning: seed failed (${res.status}): ${text}`);
-    }
-  } else {
-    log('Test user seeded successfully.');
-  }
+  if (res.ok) { log('Test user seeded.'); return; }
+  if (res.status === 409) { log('Test user already exists.'); return; }
+  log(`Warning: seed failed (${res.status}): ${await res.text().catch(()=>'')}`);
 }
 
-// ── Run tests ─────────────────────────────────────────────────────────────────
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 async function runTests() {
-  return new Promise((resolve) => {
-    const testEnv = {
-      ...process.env,
-      TEST_URL: BASE_URL,
-      PLAYWRIGHT_TEST_BASE_URL: BASE_URL,
-    };
-
-    const testProc = spawn('pnpm', ['exec', 'playwright', 'test'], {
+  return new Promise(resolve => {
+    const proc = spawn('pnpm', ['exec', 'playwright', 'test'], {
       stdio: 'inherit',
-      env: testEnv,
+      env: { ...process.env, TEST_URL: BASE_URL, PLAYWRIGHT_TEST_BASE_URL: BASE_URL },
     });
-
-    testProc.on('close', (code) => resolve(code ?? 1));
-    testProc.on('error', (err) => {
-      log('Playwright spawn error:', err.message);
-      resolve(1);
-    });
+    proc.on('close',  code => resolve(code ?? 1));
+    proc.on('error',  err  => { log('Playwright error:', err.message); resolve(1); });
   });
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  // Kill any stale wrangler/workerd processes on the test port
   log('Cleaning up stale processes...');
+  // Use pgrep to find PIDs first, then kill — avoids pkill -f matching itself
   try {
-    execSync('pkill -9 -f "workerd.*--socket-addr=entry=0\\.0\\.0\\.0:' + PORT + '"', {
-      stdio: 'ignore',
-    });
-  } catch {
-    /* none */
-  }
-  try {
-    execSync(`lsof -ti :${PORT} | xargs kill -9 2>/dev/null`, { stdio: 'ignore' });
-  } catch {
-    /* none */
-  }
-  await sleep(1000);
+    const pids1 = execSync('pgrep -f "workerd.*8788" 2>/dev/null', { encoding: 'utf8' });
+    const pids2 = execSync('pgrep -f "wrangler.*dev.*8788" 2>/dev/null', { encoding: 'utf8' });
+    const pids  = [...(pids1||'').matchAll(/\d+/g), ...(pids2||'').matchAll(/\d+/g)];
+    if (pids.length) execSync(`kill -9 ${[...pids].join(' ')}`, { stdio: 'ignore' });
+  } catch { /* */ }
+  await sleep(2000);
 
-  const cleanup = () => {
-    killDevServer();
-    process.exit(1);
-  };
-  process.on('SIGINT', cleanup);
+  const cleanup = () => killDevServer();
+  process.on('SIGINT',  cleanup);
   process.on('SIGTERM', cleanup);
 
   try {
-    // Phase 1: Initialize DB and configure BEFORE starting the dev server.
-    // wrangler d1 execute spawns its own workerd which conflicts with a
-    // running dev server on the same port (Address already in use / kj::Exception).
-    await initDatabase();
-    await enablePublicRegistration();
-
-    // Phase 2: Start the dev server (no more wrangler d1 commands after this).
+    await initDatabase();    // migrations + public_registration
     await startDevServer();
     await seedUser();
     const code = await runTests();
