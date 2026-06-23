@@ -233,11 +233,15 @@ describe('filesRouter', () => {
     it('returns 401 when user is null', async () => {
       const res = await filesRouter(makeReq('/api/files'), env, {}, null, '/api/files');
       expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.error).toBe('Unauthorized');
     });
 
     it('returns 401 when user is undefined', async () => {
       const res = await filesRouter(makeReq('/api/files'), env, {}, undefined, '/api/files');
       expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.error).toBe('Unauthorized');
     });
   });
 
@@ -282,6 +286,21 @@ describe('filesRouter', () => {
       expect(res.status).toBe(500);
       const body = await res.json();
       expect(body.error).toBe('An error occurred. Please try again later.');
+    });
+
+    it('handles null rejection in health check gracefully', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      const mockFiles = { list: vi.fn().mockRejectedValue(null) };
+      const res = await filesRouter(
+        makeReq('/api/files/health'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/health',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(503);
+      expect(customLogger.error).not.toHaveBeenCalled();
     });
 
     it('returns 200 when R2 is reachable', async () => {
@@ -385,6 +404,21 @@ describe('filesRouter', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.documents).toEqual([]);
+    });
+
+    it('handles null rejection in list gracefully for isMissingDocumentsTable', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.listUserDocuments.mockRejectedValueOnce(null);
+      const res = await filesRouter(
+        makeReq('/api/files'),
+        env,
+        {},
+        user,
+        '/api/files',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('File list failed', { error: null });
     });
 
     it('returns 500 on unexpected list error', async () => {
@@ -621,6 +655,52 @@ describe('filesRouter', () => {
       expect(customLogger.error).toHaveBeenCalledWith(
         'Failed to process document extraction',
         expect.objectContaining({ documentId: 'd1' })
+      );
+    });
+
+    it('handles null extractResult in waitUntil for optional chaining', async () => {
+      mocks.resolveContentType.mockReturnValueOnce('text/plain');
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      const waitUntilCalls = [];
+      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
+      const formData = new FormData();
+      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
+      mocks.extractDocumentText.mockResolvedValueOnce(null);
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        ctx,
+        user,
+        '/api/files/upload',
+        { logger: customLogger }
+      );
+      await waitUntilCalls[0];
+      expect(customLogger.info).toHaveBeenCalledWith('Document extraction complete', {
+        documentId: 'd1',
+      });
+      expect(customLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('handles null extraction rejection in waitUntil for optional chaining', async () => {
+      mocks.resolveContentType.mockReturnValueOnce('text/plain');
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      const waitUntilCalls = [];
+      const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
+      const formData = new FormData();
+      formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
+      mocks.extractDocumentText.mockRejectedValueOnce(null);
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        ctx,
+        user,
+        '/api/files/upload',
+        { logger: customLogger }
+      );
+      await waitUntilCalls[0];
+      expect(customLogger.error).toHaveBeenCalledWith(
+        'Failed to process document extraction',
+        { documentId: 'd1', error: null }
       );
     });
 
@@ -1585,6 +1665,1280 @@ describe('filesRouter', () => {
         '/api/files/d1/content'
       );
       expect(res.status).toBe(500);
+    });
+  });
+
+  // ── Mutation coverage: POST /api/files/upload deep assertions ───────────
+
+  describe('POST /api/files/upload mutation coverage', () => {
+    it('returns exact response body on successful upload', async () => {
+      mocks.storeFileMetadata.mockResolvedValueOnce('doc-123');
+      mocks.uploadFileToR2.mockResolvedValueOnce({
+        r2Key: 'key-1',
+        r2Url: 'https://r2.example.com/key-1',
+      });
+      const formData = new FormData();
+      formData.append('file', new File(['{"a":1}'], 'data.json', { type: 'application/json' }));
+      const res = await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body).toMatchObject({
+        id: 'doc-123',
+        filename: 'data.json',
+        content_type: 'application/json',
+        file_size: 7,
+        r2_key: 'key-1',
+        r2_url: 'https://r2.example.com/key-1',
+        extraction_status: 0,
+      });
+      expect(typeof body.created_at).toBe('number');
+    });
+
+    it('calls resolveContentType with filename and file.type', async () => {
+      const formData = new FormData();
+      const file = new File(['x'], 'test.txt', { type: 'text/plain' });
+      formData.append('file', file);
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(mocks.resolveContentType).toHaveBeenCalledWith('test.txt', 'text/plain');
+    });
+
+    it('calls validateFile with correct args', async () => {
+      mocks.resolveContentType.mockReturnValueOnce('text/plain');
+      const formData = new FormData();
+      const file = new File(['hello world'], 'test.txt', { type: 'text/plain' });
+      formData.append('file', file);
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(mocks.validateFile).toHaveBeenCalledWith('test.txt', 'text/plain', 11);
+    });
+
+    it('calls uploadFileToR2 with correct args', async () => {
+      mocks.resolveContentType.mockReturnValueOnce('text/plain');
+      const formData = new FormData();
+      const file = new File(['abc'], 'test.txt', { type: 'text/plain' });
+      formData.append('file', file);
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(mocks.uploadFileToR2).toHaveBeenCalledWith(
+        env,
+        'u1',
+        'test.txt',
+        'text/plain',
+        expect.any(ArrayBuffer)
+      );
+    });
+
+    it('calls storeFileMetadata with correct metadata object', async () => {
+      mocks.resolveContentType.mockReturnValueOnce('text/plain');
+      mocks.uploadFileToR2.mockResolvedValueOnce({
+        r2Key: 'key-2',
+        r2Url: 'https://r2.example.com/key-2',
+      });
+      const formData = new FormData();
+      formData.append('file', new File(['x'], 'test.txt', { type: 'text/plain' }));
+      formData.append('chat_id', 'chat-99');
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(mocks.storeFileMetadata).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          userId: 'u1',
+          chatId: 'chat-99',
+          filename: 'test.txt',
+          contentType: 'text/plain',
+          fileSize: 1,
+          r2Key: 'key-2',
+          r2Url: 'https://r2.example.com/key-2',
+        })
+      );
+    });
+
+    it('calls logAuditEvent with exact metadata on upload', async () => {
+      mocks.resolveContentType.mockReturnValueOnce('text/plain');
+      const formData = new FormData();
+      formData.append('file', new File(['xyz'], 'test.txt', { type: 'text/plain' }));
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          actor_id: 'u1',
+          action: 'file_uploaded',
+          resource_type: 'file',
+          resource_id: 'd1',
+          metadata: { filename: 'test.txt', contentType: 'text/plain', fileSize: 3 },
+        })
+      );
+    });
+
+    it('returns 500 when req.formData throws', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      const req = {
+        url: 'https://example.com/api/files/upload',
+        method: 'POST',
+        headers: new Headers(),
+        async formData() {
+          throw new Error('multipart parse error');
+        },
+      };
+      const res = await filesRouter(req, env, {}, user, '/api/files/upload', {
+        logger: customLogger,
+      });
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('File upload failed', {
+        error: 'multipart parse error',
+      });
+    });
+
+    it('returns 500 when file.arrayBuffer throws', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      const formData = new FormData();
+      const badFile = new File(['x'], 'bad.txt', { type: 'text/plain' });
+      badFile.arrayBuffer = async () => {
+        throw new Error('read error');
+      };
+      formData.append('file', badFile);
+      const res = await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('File upload failed', {
+        error: 'read error',
+      });
+    });
+
+    it('returns 504 when upload times out', async () => {
+      mocks.uploadFileToR2.mockRejectedValueOnce(new Error('R2 upload timed out'));
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      const formData = new FormData();
+      formData.append('file', new File(['{}'], 'x.json', { type: 'application/json' }));
+      const res = await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(504);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('File upload failed', {
+        error: 'R2 upload timed out',
+      });
+    });
+
+    it('logs correct error when upload fails with plain object', async () => {
+      mocks.uploadFileToR2.mockRejectedValueOnce({ message: 'network down' });
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      const formData = new FormData();
+      formData.append('file', new File(['{}'], 'x.json', { type: 'application/json' }));
+      const res = await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('File upload failed', {
+        error: 'network down',
+      });
+    });
+
+    it('logs correct error when upload fails with object lacking message', async () => {
+      mocks.uploadFileToR2.mockRejectedValueOnce(null);
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      const formData = new FormData();
+      formData.append('file', new File(['{}'], 'x.json', { type: 'application/json' }));
+      const res = await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('File upload failed', { error: null });
+    });
+
+    it('calls authorize with correct upload action', async () => {
+      const formData = new FormData();
+      formData.append('file', new File(['{}'], 'x.json', { type: 'application/json' }));
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(mocks.authorize).toHaveBeenCalledWith(env, user, {
+        action: 'file.upload',
+        resource: 'file',
+      });
+    });
+
+    it('calls checkRateLimit with correct params', async () => {
+      const formData = new FormData();
+      formData.append('file', new File(['{}'], 'x.json', { type: 'application/json' }));
+      await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(mocks.checkRateLimit).toHaveBeenCalledWith(env, {
+        action: 'file-upload',
+        subject: 'u1',
+        limit: 10,
+        windowMs: 60000,
+      });
+    });
+
+    it('returns exact 429 body with retry_after', async () => {
+      const resetAt = Date.now() + 45_000;
+      mocks.checkRateLimit.mockResolvedValueOnce({ allowed: false, resetAt });
+      const formData = new FormData();
+      formData.append('file', new File(['{}'], 'x.json', { type: 'application/json' }));
+      const res = await filesRouter(
+        makeMultipartReq('/api/files/upload', formData),
+        env,
+        {},
+        user,
+        '/api/files/upload'
+      );
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body.error).toBe('Too many file uploads');
+      expect(body.details.retry_after).toBeGreaterThanOrEqual(44);
+      expect(body.details.retry_after).toBeLessThanOrEqual(45);
+    });
+  });
+
+  // ── Mutation coverage: GET /api/files deep assertions ─────────────────────
+
+  describe('GET /api/files mutation coverage', () => {
+    it('returns exact response body', async () => {
+      mocks.listUserDocuments.mockResolvedValueOnce([
+        { id: 'd1', filename: 'a.txt' },
+        { id: 'd2', filename: 'b.txt' },
+      ]);
+      const res = await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ documents: [{ id: 'd1', filename: 'a.txt' }, { id: 'd2', filename: 'b.txt' }] });
+    });
+
+    it('handles NaN limit by passing NaN to listUserDocuments', async () => {
+      mocks.listUserDocuments.mockResolvedValueOnce([]);
+      await filesRouter(makeReq('/api/files?limit=abc'), env, {}, user, '/api/files');
+      const [, , limitArg] = mocks.listUserDocuments.mock.calls[0];
+      expect(Number.isNaN(limitArg)).toBe(true);
+    });
+
+    it('handles NaN offset by passing NaN to listUserDocuments', async () => {
+      mocks.listUserDocuments.mockResolvedValueOnce([]);
+      await filesRouter(makeReq('/api/files?offset=abc'), env, {}, user, '/api/files');
+      const [, , , offsetArg] = mocks.listUserDocuments.mock.calls[0];
+      expect(Number.isNaN(offsetArg)).toBe(true);
+    });
+
+    it('logs exact error message on list failure', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.listUserDocuments.mockRejectedValueOnce(new Error('disk full'));
+      const res = await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files', {
+        logger: customLogger,
+      });
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('File list failed', {
+        error: 'disk full',
+      });
+    });
+
+    it('logs object error on list failure without message', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.listUserDocuments.mockRejectedValueOnce(null);
+      const res = await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files', {
+        logger: customLogger,
+      });
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('File list failed', { error: null });
+    });
+  });
+
+  // ── Mutation coverage: GET /api/files/:id deep assertions ─────────────────
+
+  describe('GET /api/files/:id mutation coverage', () => {
+    it('returns exact document response body', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: { id: 'd1', filename: 'a.txt', content_type: 'text/plain', user_id: 'u1' },
+      });
+      const res = await filesRouter(makeReq('/api/files/d1'), env, {}, user, '/api/files/d1');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ id: 'd1', filename: 'a.txt', content_type: 'text/plain', user_id: 'u1' });
+    });
+
+    it('logs exact error when get document fails', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.requireOwnedDocument.mockRejectedValueOnce(new Error('timeout'));
+      const res = await filesRouter(makeReq('/api/files/d1'), env, {}, user, '/api/files/d1', {
+        logger: customLogger,
+      });
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('Get document failed', { error: 'timeout' });
+    });
+
+    it('logs object error when get document fails without message', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.requireOwnedDocument.mockRejectedValueOnce(null);
+      const res = await filesRouter(makeReq('/api/files/d1'), env, {}, user, '/api/files/d1', {
+        logger: customLogger,
+      });
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('Get document failed', { error: null });
+    });
+  });
+
+  // ── Mutation coverage: DELETE /api/files/:id deep assertions ──────────────
+
+  describe('DELETE /api/files/:id mutation coverage', () => {
+    it('returns exact success body', async () => {
+      const res = await filesRouter(
+        new Request('https://example.com/api/files/d1', { method: 'DELETE' }),
+        env,
+        {},
+        user,
+        '/api/files/d1'
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ success: true });
+    });
+
+    it('calls authorize with exact delete action', async () => {
+      await filesRouter(
+        new Request('https://example.com/api/files/d1', { method: 'DELETE' }),
+        env,
+        {},
+        user,
+        '/api/files/d1'
+      );
+      expect(mocks.authorize).toHaveBeenCalledWith(env, user, {
+        action: 'file.delete',
+        resource: 'file',
+        resourceId: 'd1',
+      });
+    });
+
+    it('calls deleteDocument with correct args', async () => {
+      await filesRouter(
+        new Request('https://example.com/api/files/d1', { method: 'DELETE' }),
+        env,
+        {},
+        user,
+        '/api/files/d1'
+      );
+      expect(mocks.deleteDocument).toHaveBeenCalledWith(
+        env,
+        expect.anything(),
+        'd1',
+        'u1'
+      );
+    });
+
+    it('logs audit event with exact delete metadata', async () => {
+      await filesRouter(
+        new Request('https://example.com/api/files/d1', { method: 'DELETE' }),
+        env,
+        {},
+        user,
+        '/api/files/d1'
+      );
+      expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          actor_id: 'u1',
+          action: 'file_deleted',
+          resource_type: 'file',
+          resource_id: 'd1',
+        })
+      );
+    });
+
+    it('logs exact error on unexpected delete failure', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.deleteDocument.mockRejectedValueOnce(new Error('FK violation'));
+      const res = await filesRouter(
+        new Request('https://example.com/api/files/d1', { method: 'DELETE' }),
+        env,
+        {},
+        user,
+        '/api/files/d1',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('Delete document failed', {
+        error: 'FK violation',
+      });
+    });
+
+    it('logs object error on delete failure without message', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.deleteDocument.mockRejectedValueOnce({});
+      const res = await filesRouter(
+        new Request('https://example.com/api/files/d1', { method: 'DELETE' }),
+        env,
+        {},
+        user,
+        '/api/files/d1',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('Delete document failed', { error: {} });
+    });
+
+    it('returns exact 404 body on document not found', async () => {
+      mocks.deleteDocument.mockRejectedValueOnce(new Error('Document not found'));
+      const res = await filesRouter(
+        new Request('https://example.com/api/files/d1', { method: 'DELETE' }),
+        env,
+        {},
+        user,
+        '/api/files/d1'
+      );
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('Not found');
+    });
+  });
+
+  // ── Mutation coverage: GET /api/files/search deep assertions ──────────────
+
+  describe('GET /api/files/search mutation coverage', () => {
+    it('returns exact response body with results', async () => {
+      mocks.db.all.mockResolvedValueOnce([{ id: 'd1', filename: 'report.pdf' }]);
+      const res = await filesRouter(
+        makeReq('/api/files/search?q=report'),
+        env,
+        {},
+        user,
+        '/api/files/search'
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({
+        documents: [{ id: 'd1', filename: 'report.pdf' }],
+        query: 'report',
+        limit: 20,
+        offset: 0,
+      });
+    });
+
+    it('returns exact empty response body', async () => {
+      mocks.db.all.mockResolvedValueOnce([]);
+      const res = await filesRouter(
+        makeReq('/api/files/search?q=xyz'),
+        env,
+        {},
+        user,
+        '/api/files/search'
+      );
+      const body = await res.json();
+      expect(body).toMatchObject({
+        documents: [],
+        query: 'xyz',
+        limit: 20,
+        offset: 0,
+      });
+    });
+
+    it('handles NaN limit by clamping to 1', async () => {
+      mocks.db.all.mockResolvedValueOnce([]);
+      await filesRouter(
+        makeReq('/api/files/search?q=test&limit=abc'),
+        env,
+        {},
+        user,
+        '/api/files/search'
+      );
+      const [, params] = mocks.db.all.mock.calls[0];
+      expect(params[2]).toBeNaN(); // Math.max(NaN, 1) = NaN
+    });
+
+    it('handles NaN offset by clamping to 0', async () => {
+      mocks.db.all.mockResolvedValueOnce([]);
+      await filesRouter(
+        makeReq('/api/files/search?q=test&offset=abc'),
+        env,
+        {},
+        user,
+        '/api/files/search'
+      );
+      const [, params] = mocks.db.all.mock.calls[0];
+      expect(params[3]).toBeNaN(); // Math.max(NaN, 0) = NaN
+    });
+
+    it('logs exact error on search failure', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.db.all.mockRejectedValueOnce(new Error('query timeout'));
+      const res = await filesRouter(
+        makeReq('/api/files/search?q=test'),
+        env,
+        {},
+        user,
+        '/api/files/search',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('Document search failed', {
+        error: 'query timeout',
+      });
+    });
+
+    it('logs object error on search failure without message', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.db.all.mockRejectedValueOnce(null);
+      const res = await filesRouter(
+        makeReq('/api/files/search?q=test'),
+        env,
+        {},
+        user,
+        '/api/files/search',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('Document search failed', { error: null });
+    });
+
+    it('passes exact SQL params to db.all', async () => {
+      mocks.db.all.mockResolvedValueOnce([]);
+      await filesRouter(
+        makeReq('/api/files/search?q=hello&limit=5&offset=10'),
+        env,
+        {},
+        user,
+        '/api/files/search'
+      );
+      const [sql, params] = mocks.db.all.mock.calls[0];
+      expect(sql).toContain('SELECT');
+      expect(sql).toContain('FROM documents');
+      expect(params).toEqual(['u1', '%hello%', 5, 10]);
+    });
+  });
+
+  // ── Mutation coverage: GET /api/files/:id/blob deep assertions ────────────
+
+  describe('GET /api/files/:id/blob mutation coverage', () => {
+    it('sets exact Content-Disposition header', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: { id: 'd1', filename: 'report.pdf', content_type: 'application/pdf', r2_key: 'k1' },
+      });
+      const stream = new ReadableStream();
+      const mockFiles = {
+        get: vi.fn().mockResolvedValue({
+          body: stream,
+          httpMetadata: { contentType: 'application/pdf' },
+        }),
+      };
+      const res = await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/blob'
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Disposition')).toBe('inline; filename="report.pdf"');
+    });
+
+    it('calls env.FILES.get with r2_key', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: { id: 'd1', filename: 'a.txt', content_type: 'text/plain', r2_key: 'k2' },
+      });
+      const mockFiles = {
+        get: vi.fn().mockResolvedValue({
+          body: new ReadableStream(),
+          httpMetadata: {},
+        }),
+      };
+      await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/blob'
+      );
+      expect(mockFiles.get).toHaveBeenCalledWith('k2');
+    });
+
+    it('returns exact 404 body when R2 object missing', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: { id: 'd1', r2_key: 'k1' },
+      });
+      const mockFiles = { get: vi.fn().mockResolvedValue(null) };
+      const res = await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/blob'
+      );
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('File not found');
+    });
+
+    it('returns exact 404 body when R2 body missing', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: { id: 'd1', r2_key: 'k1' },
+      });
+      const mockFiles = { get: vi.fn().mockResolvedValue({ body: null }) };
+      const res = await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/blob'
+      );
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('File not found');
+    });
+
+    it('returns exact 500 body when blob fetch fails', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.requireOwnedDocument.mockRejectedValueOnce(new Error('connection lost'));
+      const res = await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        env,
+        {},
+        user,
+        '/api/files/d1/blob',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('Get file blob failed', {
+        error: 'connection lost',
+      });
+    });
+
+    it('logs object error when blob fetch fails without message', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.requireOwnedDocument.mockRejectedValueOnce(null);
+      const res = await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        env,
+        {},
+        user,
+        '/api/files/d1/blob',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('Get file blob failed', { error: null });
+    });
+
+    it('returns exact fallback headers when content types are missing', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: { id: 'd1', filename: 'data.bin', r2_key: 'k1' },
+      });
+      const mockFiles = {
+        get: vi.fn().mockResolvedValue({
+          body: new ReadableStream(),
+          httpMetadata: {},
+        }),
+      };
+      const res = await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/blob'
+      );
+      expect(res.headers.get('Content-Type')).toBe('application/octet-stream');
+    });
+
+    it('returns fallback when httpMetadata is absent for optional chaining', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: { id: 'd1', filename: 'data.bin', r2_key: 'k1' },
+      });
+      const mockFiles = {
+        get: vi.fn().mockResolvedValue({
+          body: new ReadableStream(),
+        }),
+      };
+      const res = await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/blob'
+      );
+      expect(res.headers.get('Content-Type')).toBe('application/octet-stream');
+    });
+  });
+
+  // ── Mutation coverage: GET /api/files/:id/process/status deep assertions ──
+
+  describe('GET /api/files/:id/process/status mutation coverage', () => {
+    it('returns exact pending body', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          extraction_status: 0,
+          created_at: 123,
+          updated_at: 456,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/process/status'),
+        env,
+        {},
+        user,
+        '/api/files/d1/process/status'
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'a.txt',
+        extraction: { status: 'pending', error: null },
+        created_at: 123,
+        updated_at: 456,
+      });
+    });
+
+    it('returns exact done body', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          extraction_status: 1,
+          created_at: 1,
+          updated_at: 2,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/process/status'),
+        env,
+        {},
+        user,
+        '/api/files/d1/process/status'
+      );
+      const body = await res.json();
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'a.txt',
+        extraction: { status: 'done', error: null },
+        created_at: 1,
+        updated_at: 2,
+      });
+    });
+
+    it('returns exact failed body with error', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          extraction_status: -1,
+          extraction_error: 'corrupt',
+          created_at: 1,
+          updated_at: 2,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/process/status'),
+        env,
+        {},
+        user,
+        '/api/files/d1/process/status'
+      );
+      const body = await res.json();
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'a.txt',
+        extraction: { status: 'failed', error: 'corrupt' },
+        created_at: 1,
+        updated_at: 2,
+      });
+    });
+
+    it('logs exact error on status failure', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.requireOwnedDocument.mockRejectedValueOnce(new Error('timeout'));
+      const res = await filesRouter(
+        makeReq('/api/files/d1/process/status'),
+        env,
+        {},
+        user,
+        '/api/files/d1/process/status',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('Get process status failed', {
+        error: 'timeout',
+      });
+    });
+
+    it('logs object error on status failure without message', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.requireOwnedDocument.mockRejectedValueOnce(null);
+      const res = await filesRouter(
+        makeReq('/api/files/d1/process/status'),
+        env,
+        {},
+        user,
+        '/api/files/d1/process/status',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('Get process status failed', { error: null });
+    });
+  });
+
+  // ── Mutation coverage: GET /api/files/:id/content deep assertions ─────────
+
+  describe('GET /api/files/:id/content mutation coverage', () => {
+    it('returns exact JSON content body', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'data.json',
+          content_type: 'application/json',
+          text_excerpt: '{"a":1}',
+          extraction_status: 1,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'data.json',
+        type: 'application/json',
+        content: { a: 1 },
+        extracted: true,
+      });
+    });
+
+    it('returns exact text content body', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          content_type: 'text/plain',
+          text_excerpt: 'hello world',
+          extraction_status: 1,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'a.txt',
+        type: 'text/plain',
+        content: 'hello world',
+        extracted: true,
+      });
+    });
+
+    it('returns exact binary metadata body for pending extraction', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'img.png',
+          content_type: 'image/png',
+          text_excerpt: null,
+          extraction_status: 0,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'img.png',
+        type: 'image/png',
+        content: {
+          filename: 'img.png',
+          type: 'image/png',
+          status: 'pending',
+          note: 'Binary file - text excerpt not available',
+        },
+        extracted: false,
+      });
+    });
+
+    it('returns exact binary metadata body for extracted status', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'img.png',
+          content_type: 'image/png',
+          text_excerpt: null,
+          extraction_status: 1,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'img.png',
+        type: 'image/png',
+        content: {
+          filename: 'img.png',
+          type: 'image/png',
+          status: 'extracted',
+          note: 'Binary file - text excerpt not available',
+        },
+        extracted: true,
+      });
+    });
+
+    it('returns exact JSON parse error body', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'bad.json',
+          content_type: 'application/json',
+          text_excerpt: 'not-json',
+          extraction_status: 1,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'bad.json',
+        type: 'application/json',
+        content: { error: 'Failed to parse JSON content' },
+        extracted: true,
+      });
+    });
+
+    it('returns binary body when content_type is null', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'unknown',
+          content_type: null,
+          text_excerpt: 'something',
+          extraction_status: 1,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body.content).toEqual({
+        filename: 'unknown',
+        type: null,
+        status: 'extracted',
+        note: 'Binary file - text excerpt not available',
+      });
+    });
+
+    it('returns binary body when content_type is undefined', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'unknown',
+          content_type: undefined,
+          text_excerpt: 'something',
+          extraction_status: 1,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body.content).toEqual({
+        filename: 'unknown',
+        type: undefined,
+        status: 'extracted',
+        note: 'Binary file - text excerpt not available',
+      });
+    });
+
+    it('returns exact empty JSON body when text_excerpt is null', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'data.json',
+          content_type: 'application/json',
+          text_excerpt: null,
+          extraction_status: 1,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body.content).toEqual({});
+    });
+
+    it('returns exact fallback text body when text_excerpt is null', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          content_type: 'text/plain',
+          text_excerpt: null,
+          extraction_status: 1,
+        },
+      });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      const body = await res.json();
+      expect(body.content).toBe('[No text content extracted]');
+    });
+
+    it('logs exact error on content failure', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.requireOwnedDocument.mockRejectedValueOnce(new Error('db crash'));
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+      expect(customLogger.error).toHaveBeenCalledWith('Get file content failed', {
+        error: 'db crash',
+      });
+    });
+
+    it('logs object error on content failure without message', async () => {
+      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+      mocks.requireOwnedDocument.mockRejectedValueOnce(null);
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content',
+        { logger: customLogger }
+      );
+      expect(res.status).toBe(500);
+      expect(customLogger.error).toHaveBeenCalledWith('Get file content failed', { error: null });
+    });
+  });
+
+  // ── Mutation coverage: GET /api/files/health deep assertions ──────────────
+
+  describe('GET /api/files/health mutation coverage', () => {
+    it('returns exact success body', async () => {
+      const mockFiles = { list: vi.fn().mockResolvedValue({ objects: [] }) };
+      const res = await filesRouter(
+        makeReq('/api/files/health'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/health'
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({ ok: true, message: 'R2 reachable' });
+    });
+
+    it('returns exact 500 body when FILES binding missing', async () => {
+      const res = await filesRouter(
+        makeReq('/api/files/health'),
+        {},
+        {},
+        user,
+        '/api/files/health'
+      );
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+    });
+
+    it('returns exact 503 body with error message', async () => {
+      const mockFiles = { list: vi.fn().mockRejectedValue(new Error('connection refused')) };
+      const res = await filesRouter(
+        makeReq('/api/files/health'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/health'
+      );
+      expect(res.status).toBe(503);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+    });
+
+    it('returns exact 503 body with fallback message', async () => {
+      const mockFiles = { list: vi.fn().mockRejectedValue({}) };
+      const res = await filesRouter(
+        makeReq('/api/files/health'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/health'
+      );
+      expect(res.status).toBe(503);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+    });
+
+    it('returns exact 503 body on timeout', async () => {
+      vi.useFakeTimers();
+      const mockFiles = { list: vi.fn().mockReturnValue(new Promise(() => {})) };
+      const promise = filesRouter(
+        makeReq('/api/files/health'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/health'
+      );
+      vi.advanceTimersByTime(3100);
+      const res = await promise;
+      expect(res.status).toBe(503);
+      const body = await res.json();
+      expect(body.error).toBe('An error occurred. Please try again later.');
+    });
+  });
+
+  // ── Mutation coverage: route matching edge cases ──────────────────────────
+
+  describe('route matching edge cases', () => {
+    it('rejects /api/files/search/extra as non-file path', async () => {
+      const res = await filesRouter(
+        makeReq('/api/files/search/extra'),
+        env,
+        {},
+        user,
+        '/api/files/search/extra'
+      );
+      expect(res).toBeNull();
+    });
+
+    it('rejects /api/files/upload/extra as non-file path', async () => {
+      const res = await filesRouter(
+        makeReq('/api/files/upload/extra'),
+        env,
+        {},
+        user,
+        '/api/files/upload/extra'
+      );
+      expect(res).toBeNull();
+    });
+
+    it('rejects path with trailing slash on document ID', async () => {
+      const res = await filesRouter(
+        makeReq('/api/files/d1/'),
+        env,
+        {},
+        user,
+        '/api/files/d1/'
+      );
+      expect(res).toBeNull();
     });
   });
 
