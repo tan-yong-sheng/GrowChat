@@ -86,6 +86,7 @@ function isModelAclActionRelevant(action) {
   return ['use', 'manage', 'admin', 'read'].includes(normalized);
 }
 
+// eslint-disable-next-line max-params -- 3 params (model, rules, opts) is clean; opts is destructured options object
 function evaluateModelAclCore(model, rules, { user, userGroupIds, allowAdmin }) {
   if (model?.connection_source === 'user') {
     return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
@@ -156,6 +157,7 @@ export async function ensureModelAclRulesTable(db) {
   }
 }
 
+// eslint-disable-next-line max-params -- 4 params (db, modelId, rules, opts) by design for DB statement builder
 export function buildModelAclRuleSaveStatements(
   db,
   modelId,
@@ -250,6 +252,7 @@ function normalizeModelAclRows(rows) {
     ).items;
 }
 
+// eslint-disable-next-line max-params -- 3 params (db, modelId, modelIds) for list/filter operations
 export async function loadModelAclRules(db, modelId = null, modelIds = null) {
   if (!db) return [];
   try {
@@ -275,6 +278,7 @@ export async function loadModelAclRules(db, modelId = null, modelIds = null) {
   }
 }
 
+// eslint-disable-next-line max-params -- 3 params (db, modelId, rules) for save-with-reload pattern
 export async function saveModelAclRulesForModel(db, modelId, rules = []) {
   const { statements } = buildModelAclRuleSaveStatements(db, modelId, rules);
   await db.batch(statements);

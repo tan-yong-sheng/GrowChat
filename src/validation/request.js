@@ -6,8 +6,7 @@ export function parseJsonBody(req) {
   });
 }
 
-function validateStringConstraints(normalized, message, constraints) {
-  const { minLength, maxLength, allowEmpty } = constraints;
+function validateStringConstraints(normalized, { minLength, maxLength, allowEmpty, message }) {
   if (!allowEmpty && normalized.length < minLength) {
     throw new ValidationError(message);
   }
@@ -16,7 +15,8 @@ function validateStringConstraints(normalized, message, constraints) {
   }
 }
 
-export function requireString(value, message, options = {}) {
+export function requireString(value, options = {}) {
+  const message = options.message;
   if (typeof value !== 'string') {
     throw new ValidationError(message);
   }
@@ -25,7 +25,7 @@ export function requireString(value, message, options = {}) {
   const maxLength = options.maxLength ?? null;
   const allowEmpty = options.allowEmpty === true;
   const normalized = trim ? value.trim() : value;
-  validateStringConstraints(normalized, message, { minLength, maxLength, allowEmpty });
+  validateStringConstraints(normalized, { minLength, maxLength, allowEmpty, message });
   return normalized;
 }
 
@@ -54,6 +54,7 @@ export function requirePlainObject(value, message) {
   return value;
 }
 
+// eslint-disable-next-line max-params -- opts pattern used (message is part of options, 3rd param is options object)
 export function parsePositiveInt(
   value,
   message,

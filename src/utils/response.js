@@ -59,19 +59,22 @@ export function createWeakEtag(value) {
   return `W/"${hex}"`;
 }
 
-export function json(req, data, status = 200, headers = {}) {
+function buildJsonBody(req, data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
       ...originHeaders(req),
       ...securityHeaders(),
-      ...headers,
+      ...extraHeaders,
     },
   });
 }
 
-// eslint-disable-next-line complexity
+export function json(req, data, status = 200, headers = {}) {
+  return buildJsonBody(req, data, status, headers);
+}
+
 export function jsonCached(req, data, options = {}) {
   const {
     status = 200,
@@ -136,7 +139,6 @@ function sanitizeErrorMessage(message, status) {
  * but we still sanitize any additional details to prevent stack trace leakage.
  * For 4xx errors, we expose details but strip stack traces from string values.
  */
-// eslint-disable-next-line complexity
 function sanitizeErrorDetails(details, status) {
   if (!details) {
     return undefined;
@@ -180,6 +182,7 @@ function sanitizeErrorDetails(details, status) {
   // For non-object, non-array values, return as-is
   return details;
 }
+
 export function getConnectionTestFailureMessage(status) {
   if (status === 401) return 'Authentication failed \u2014 check your API key';
   if (status === 403) return 'Access denied \u2014 check your permissions';
@@ -191,7 +194,7 @@ export function getConnectionTestFailureMessage(status) {
 export function error(req, message, status = 500, details = undefined) {
   if (isHttpError(message)) {
     const payload = toHttpErrorPayload(message);
-    return json(req, payload.body, payload.status);
+    return buildJsonBody(req, payload.body, payload.status);
   }
 
   const sanitized = sanitizeErrorMessage(message, status);
@@ -203,7 +206,7 @@ export function error(req, message, status = 500, details = undefined) {
   // Sanitize details (removes stack traces, strips requestId, and for 5xx returns undefined)
   const sanitizedDetails = sanitizeErrorDetails(details, status);
 
-  return json(
+  return buildJsonBody(
     req,
     {
       error: sanitized,

@@ -99,7 +99,10 @@ async function persistSriHashes(env, hashes) {
   }
 }
 
-async function refreshMissingSriHashesInBackground(env, missingEntries = [], baseHashes = {}) {
+async function refreshMissingSriHashesInBackground(
+  env,
+  { missingEntries = [], baseHashes = {} } = {}
+) {
   if (!Array.isArray(missingEntries) || missingEntries.length === 0) return;
 
   const entries = await Promise.all(
@@ -156,14 +159,14 @@ function buildSriHashMap(persistedHashes) {
   return { hashes, missingEntries };
 }
 
-async function commitSriHashState(env, hashes, missingEntries) {
+async function commitSriHashState(env, { hashes, missingEntries }) {
   const hasMissing = missingEntries.length > 0;
   sriHashesState.value = hashes;
   sriHashesState.expiresAt =
     Date.now() + (hasMissing ? SRI_PARTIAL_CACHE_TTL_SECONDS : SRI_CACHE_TTL_SECONDS) * 1000;
 
   if (hasMissing) {
-    void refreshMissingSriHashesInBackground(env, missingEntries, hashes);
+    void refreshMissingSriHashesInBackground(env, { missingEntries, baseHashes: hashes });
   } else {
     await persistSriHashes(env, hashes);
   }
@@ -179,7 +182,7 @@ async function loadSriHashes(env) {
   sriHashesPromise = (async () => {
     const persistedHashes = await readPersistedSriHashes(env);
     const { hashes, missingEntries } = buildSriHashMap(persistedHashes);
-    return commitSriHashState(env, hashes, missingEntries);
+    return commitSriHashState(env, { hashes, missingEntries });
   })().finally(() => {
     sriHashesPromise = null;
   });
