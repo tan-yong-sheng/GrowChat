@@ -4,6 +4,9 @@
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { renderStatusBadge } from '../../shared/components/status-badge.js';
 import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
+import { renderLoadingSkeleton } from '../admin/settings/acl-modal-shared.js';
+// Re-export so existing callers don't need to change.
+export { renderLoadingSkeleton };
 
 export function normalizeTool(tool = {}) {
   const name = String(tool.name || tool.id || tool.title || '').trim();
@@ -80,33 +83,6 @@ export function normalizeServer(server = {}) {
 
 export function shouldShowAuthField(authType, fieldType) {
   return String(authType || 'none').toLowerCase() === fieldType;
-}
-
-export function renderLoadingSkeleton() {
-  return `
-    <div class="space-y-2">
-      ${Array.from({ length: 4 })
-        .map(
-          () => `
-        <div class="border-b border-gray-50 last:border-0">
-          <div class="py-2.5 flex items-center justify-between pr-2 animate-pulse">
-            <div class="flex flex-col min-w-0 flex-1 space-y-2">
-              <div class="h-3.5 w-40 bg-gray-200 rounded-full"></div>
-              <div class="h-2.5 w-64 bg-gray-100 rounded-full"></div>
-              <div class="h-2.5 w-56 bg-gray-100 rounded-full"></div>
-            </div>
-            <div class="flex items-center gap-3 shrink-0">
-              <div class="h-6 w-12 rounded-full bg-gray-100 border border-gray-200"></div>
-              <div class="h-6 w-6 rounded-full bg-gray-100 border border-gray-200"></div>
-              <div class="h-5 w-9 rounded-full bg-gray-100 border border-gray-200"></div>
-            </div>
-          </div>
-        </div>
-      `
-        )
-        .join('')}
-    </div>
-  `;
 }
 
 export function buildFormMarkup(server = null, modalMode = 'create', canManage = true) {

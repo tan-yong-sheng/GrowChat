@@ -159,7 +159,13 @@ describe('filesRouter', () => {
     });
 
     it('matches /api/files/search', async () => {
-      const res = await filesRouter(makeReq('/api/files/search'), env, {}, user, '/api/files/search');
+      const res = await filesRouter(
+        makeReq('/api/files/search'),
+        env,
+        {},
+        user,
+        '/api/files/search'
+      );
       expect(res).not.toBeNull();
     });
 
@@ -353,7 +359,12 @@ describe('filesRouter', () => {
     it('uses default offset of 0', async () => {
       mocks.listUserDocuments.mockResolvedValueOnce([]);
       await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files');
-      expect(mocks.listUserDocuments).toHaveBeenCalledWith(expect.anything(), 'u1', expect.any(Number), 0);
+      expect(mocks.listUserDocuments).toHaveBeenCalledWith(
+        expect.anything(),
+        'u1',
+        expect.any(Number),
+        0
+      );
     });
 
     it('parses limit and offset from query params', async () => {
@@ -488,7 +499,10 @@ describe('filesRouter', () => {
 
     it('returns 201 on successful upload with JSON file', async () => {
       const formData = new FormData();
-      formData.append('file', new File(['{"ok":true}'], 'sample.json', { type: 'application/json' }));
+      formData.append(
+        'file',
+        new File(['{"ok":true}'], 'sample.json', { type: 'application/json' })
+      );
       const res = await filesRouter(
         makeMultipartReq('/api/files/upload', formData),
         env,
@@ -516,10 +530,9 @@ describe('filesRouter', () => {
         { logger: customLogger }
       );
       expect(mocks.extractDocumentText).not.toHaveBeenCalled();
-      expect(customLogger.info).toHaveBeenCalledWith(
-        'Document extraction skipped for JSON file',
-        { documentId: 'd1' }
-      );
+      expect(customLogger.info).toHaveBeenCalledWith('Document extraction skipped for JSON file', {
+        documentId: 'd1',
+      });
     });
 
     it('triggers async extraction for non-JSON files', async () => {
@@ -547,7 +560,10 @@ describe('filesRouter', () => {
       const ctx = { waitUntil: vi.fn((p) => waitUntilCalls.push(p)) };
       const formData = new FormData();
       formData.append('file', new File(['hello'], 'test.txt', { type: 'text/plain' }));
-      mocks.extractDocumentText.mockResolvedValueOnce({ skipped: true, reason: 'unsupported type' });
+      mocks.extractDocumentText.mockResolvedValueOnce({
+        skipped: true,
+        reason: 'unsupported type',
+      });
       await filesRouter(
         makeMultipartReq('/api/files/upload', formData),
         env,
@@ -962,26 +978,14 @@ describe('filesRouter', () => {
 
     it('uses default limit of 20', async () => {
       mocks.db.all.mockResolvedValueOnce([]);
-      await filesRouter(
-        makeReq('/api/files/search?q=test'),
-        env,
-        {},
-        user,
-        '/api/files/search'
-      );
+      await filesRouter(makeReq('/api/files/search?q=test'), env, {}, user, '/api/files/search');
       const [, params] = mocks.db.all.mock.calls[0];
       expect(params[2]).toBe(20);
     });
 
     it('uses default offset of 0', async () => {
       mocks.db.all.mockResolvedValueOnce([]);
-      await filesRouter(
-        makeReq('/api/files/search?q=test'),
-        env,
-        {},
-        user,
-        '/api/files/search'
-      );
+      await filesRouter(makeReq('/api/files/search?q=test'), env, {}, user, '/api/files/search');
       const [, params] = mocks.db.all.mock.calls[0];
       expect(params[3]).toBe(0);
     });
@@ -1078,13 +1082,7 @@ describe('filesRouter', () => {
 
     it('uses case-insensitive LIKE pattern', async () => {
       mocks.db.all.mockResolvedValueOnce([]);
-      await filesRouter(
-        makeReq('/api/files/search?q=TeSt'),
-        env,
-        {},
-        user,
-        '/api/files/search'
-      );
+      await filesRouter(makeReq('/api/files/search?q=TeSt'), env, {}, user, '/api/files/search');
       const [, params] = mocks.db.all.mock.calls[0];
       expect(params[1]).toBe('%TeSt%');
     });

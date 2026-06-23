@@ -3,6 +3,24 @@ import {
   normalizeConnectionModelSelectionMode,
   resolveConnectionModelSelectionMode,
 } from './connection-model-selection.js';
+// Import and re-export shared provider-display utilities from the canonical source.
+// This eliminates duplicate function definitions with connection-modal-utils.js.
+import {
+  providerLabel,
+  providerDisplayLabel,
+  providerUrlPlaceholder,
+  resolveUrlLabel,
+  resolveKeyLabel,
+  connectionApiTypeDetails,
+} from '../components/connection-modal-utils.js';
+export {
+  providerLabel,
+  providerDisplayLabel,
+  providerUrlPlaceholder,
+  resolveUrlLabel,
+  resolveKeyLabel,
+  connectionApiTypeDetails,
+};
 
 export function normalizeProviderType(value) {
   return String(value || '')
@@ -26,40 +44,6 @@ export function normalizeProviderFamily(value) {
       return 'openai';
   }
 }
-export function providerLabel(providerType) {
-  switch (normalizeProviderType(providerType)) {
-    case 'google':
-    case 'gemini-compatible':
-      return 'Gemini';
-    case 'anthropic':
-    case 'claude-compatible':
-      return 'Claude';
-    case 'openai-compatible':
-      return 'OpenAI Compatible';
-    case 'openai':
-    default:
-      return 'OpenAI';
-  }
-}
-export function providerDisplayLabel(providerType) {
-  const raw = normalizeProviderType(providerType);
-  if (raw === 'openai-compatible') return 'OpenAI Compatible';
-  if (raw === 'gemini-compatible') return 'Gemini Compatible';
-  if (raw === 'claude-compatible') return 'Claude Compatible';
-  return providerLabel(raw);
-}
-export function providerUrlPlaceholder(providerType) {
-  switch (normalizeProviderType(providerType)) {
-    case 'google':
-    case 'gemini-compatible':
-      return 'https://generativelanguage.googleapis.com/v1beta';
-    case 'anthropic':
-    case 'claude-compatible':
-      return 'https://api.anthropic.com/v1';
-    default:
-      return 'https://api.openai.com/v1';
-  }
-}
 export function isCompatibleProviderType(providerType) {
   const raw = normalizeProviderType(providerType);
   return raw === 'openai-compatible' || raw === 'gemini-compatible' || raw === 'claude-compatible';
@@ -69,9 +53,6 @@ export function resolveModalUrl(providerType, rawUrl) {
   if (value) return value;
   if (isCompatibleProviderType(providerType)) return '';
   return providerUrlPlaceholder(providerType);
-}
-export function resolveUrlLabel(providerType) {
-  return `URL${isCompatibleProviderType(providerType) ? ' *' : ''}`;
 }
 
 export function normalizeSavedConnectionModelId(providerId, modelId) {
@@ -86,33 +67,6 @@ export function normalizeSavedConnectionModelId(providerId, modelId) {
     next = next.slice(safeProvider.length + 1);
   }
   return next;
-}
-export function resolveKeyLabel() {
-  return 'API Key';
-}
-export function connectionApiTypeDetails(providerType) {
-  switch (normalizeProviderType(providerType)) {
-    case 'google':
-    case 'gemini-compatible':
-      return {
-        value: 'stream-generate-content',
-        label: 'Gemini Stream Generate Content',
-        endpoint: 'Uses /v1beta/models/:model:streamGenerateContent?alt=sse',
-      };
-    case 'anthropic':
-    case 'claude-compatible':
-      return {
-        value: 'messages',
-        label: 'Messages',
-        endpoint: 'Uses /v1/messages',
-      };
-    default:
-      return {
-        value: 'chat-completions',
-        label: 'Chat Completions',
-        endpoint: 'Uses /v1/chat/completions',
-      };
-  }
 }
 export function normalizeConnectionManualModels(value = []) {
   if (!Array.isArray(value)) return [];

@@ -50,7 +50,10 @@ vi.mock('../utils/authorize.js', () => ({
 vi.mock('../utils/response.js', () => ({
   error: (req, message, status = 500, details) => {
     const body = details ? { error: message, details } : { error: message };
-    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
   },
   json: (_req, data, status = 200) =>
     new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } }),
@@ -100,7 +103,14 @@ describe('handleUsersConnections', () => {
   });
 
   it('returns null for unmatched paths', async () => {
-    const res = await handleUsersConnections(makeReq('/api/other'), env, {}, user, '/api/other', deps);
+    const res = await handleUsersConnections(
+      makeReq('/api/other'),
+      env,
+      {},
+      user,
+      '/api/other',
+      deps
+    );
     expect(res).toBeNull();
   });
 
@@ -124,7 +134,12 @@ describe('handleUsersConnections', () => {
       expect(json.connections).toEqual([{ id: 'c1', name: 'Shared' }]);
       expect(json.my_connections).toEqual([expect.objectContaining({ id: 'c2' })]);
       expect(mocks.loadWorkspaceConnectionsPayload).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'u1', primaryRole: 'member', includeDisabled: true, includeHiddenForUser: true })
+        expect.objectContaining({
+          userId: 'u1',
+          primaryRole: 'member',
+          includeDisabled: true,
+          includeHiddenForUser: true,
+        })
       );
     });
 
@@ -315,7 +330,10 @@ describe('handleUsersConnections', () => {
       mocks.createUserOpenAIConnection.mockResolvedValue({ id: 'conn-new', name: 'New' });
 
       const res = await handleUsersConnections(
-        makeReq('/api/users/me/resources/connections', 'POST', { name: 'New', base_url: 'https://example.com/v1' }),
+        makeReq('/api/users/me/resources/connections', 'POST', {
+          name: 'New',
+          base_url: 'https://example.com/v1',
+        }),
         env,
         {},
         user,

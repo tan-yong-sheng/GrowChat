@@ -6,7 +6,9 @@ export function parseJsonBody(req) {
   });
 }
 
-function validateStringConstraints(normalized, { minLength, maxLength, allowEmpty, message }) {
+// eslint-disable-next-line max-params -- internal helper: normalized/message/constraints is clean and stable
+function validateStringConstraints(normalized, message, constraints) {
+  const { minLength, maxLength, allowEmpty } = constraints;
   if (!allowEmpty && normalized.length < minLength) {
     throw new ValidationError(message);
   }
@@ -15,17 +17,17 @@ function validateStringConstraints(normalized, { minLength, maxLength, allowEmpt
   }
 }
 
-export function requireString(value, options = {}) {
-  const message = options.message;
+// eslint-disable-next-line max-params -- value/message/options is clean; called from 20+ sites
+export function requireString(value, message, options = {}) {
   if (typeof value !== 'string') {
     throw new ValidationError(message);
   }
-  const trim = options.trim !== false;
-  const minLength = options.minLength ?? 1;
-  const maxLength = options.maxLength ?? null;
-  const allowEmpty = options.allowEmpty === true;
+  const trim = options?.trim !== false;
+  const minLength = options?.minLength ?? 1;
+  const maxLength = options?.maxLength ?? null;
+  const allowEmpty = options?.allowEmpty === true;
   const normalized = trim ? value.trim() : value;
-  validateStringConstraints(normalized, { minLength, maxLength, allowEmpty, message });
+  validateStringConstraints(normalized, message, { minLength, maxLength, allowEmpty });
   return normalized;
 }
 

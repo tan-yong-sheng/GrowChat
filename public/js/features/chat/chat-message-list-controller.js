@@ -4,21 +4,25 @@ export function createChatMessageListController({
   toolExpandedByKey = new Map(),
   openCitation = () => {},
 } = {}) {
+  const toggleChevron = (messagesList, key, collapsed) => {
+    const chevron = messagesList?.querySelector(
+      `[data-thinking-chevron="${key}"], [data-tool-chevron="${key}"]`
+    );
+    if (!chevron) return;
+    chevron.classList.toggle('-rotate-90', collapsed);
+    chevron.classList.toggle('rotate-0', !collapsed);
+  };
+
   const onListClick = (event) => {
     const thinkingTarget = event.target?.closest?.('[data-thinking-toggle]');
     if (thinkingTarget) {
       const key = thinkingTarget.getAttribute('data-thinking-toggle');
       if (!key) return;
       const isCollapsed = thinkingCollapsedByKey.get(key) ?? false;
-      const next = !isCollapsed;
-      thinkingCollapsedByKey.set(key, next);
+      thinkingCollapsedByKey.set(key, !isCollapsed);
       const body = messagesList?.querySelector(`[data-thinking-body="${key}"]`);
-      const chevron = messagesList?.querySelector(`[data-thinking-chevron="${key}"]`);
-      if (body) body.classList.toggle('hidden', next);
-      if (chevron) {
-        chevron.classList.toggle('-rotate-90', next);
-        chevron.classList.toggle('rotate-0', !next);
-      }
+      if (body) body.classList.toggle('hidden', !isCollapsed);
+      toggleChevron(messagesList, key, !isCollapsed);
       return;
     }
 
@@ -26,16 +30,11 @@ export function createChatMessageListController({
     if (toolTarget) {
       const key = toolTarget.getAttribute('data-tool-toggle');
       if (!key) return;
-      const expanded = toolExpandedByKey.get(key) === true;
-      const next = !expanded;
-      toolExpandedByKey.set(key, next);
+      const isExpanded = toolExpandedByKey.get(key) === true;
+      toolExpandedByKey.set(key, !isExpanded);
       const body = messagesList?.querySelector(`[data-tool-body="${key}"]`);
-      const chevron = messagesList?.querySelector(`[data-tool-chevron="${key}"]`);
-      if (body) body.classList.toggle('hidden', !next);
-      if (chevron) {
-        chevron.classList.toggle('-rotate-90', !next);
-        chevron.classList.toggle('rotate-0', next);
-      }
+      if (body) body.classList.toggle('hidden', isExpanded);
+      toggleChevron(messagesList, key, isExpanded);
       return;
     }
 

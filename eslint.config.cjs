@@ -362,7 +362,7 @@ module.exports = [
         },
       ],
       'max-classes-per-file': ['warn', { max: 5 }],
-      'max-params': ['error', { max: 2 }],  // #172 — enforced as error; files with genuine multi-param helpers are in ignore list above
+      'max-params': ['error', { max: 2 }], // #172 — enforced as error; files with genuine multi-param helpers are in ignore list above
       'max-statements': ['warn', { max: 20 }],
       'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
     },

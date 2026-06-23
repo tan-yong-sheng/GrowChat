@@ -65,7 +65,9 @@ function loadDevVars() {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/);
-    if (!match || process.env[match[1]]) continue;
+    // Always load TEST_EMAIL/TEST_PASSWORD from .dev.vars (user deleted .env, uses .dev.vars only)
+    const alwaysLoad = ['TEST_EMAIL', 'TEST_PASSWORD'].includes(match[1]);
+    if (!match || (process.env[match[1]] && !alwaysLoad)) continue;
     process.env[match[1]] = stripQuotes(match[2].trim());
   }
 }

@@ -113,10 +113,7 @@ describe('loadUserOpenAIConnectionConfigs', () => {
 
   it('excludes disabled connections by default', async () => {
     const mockDb = makeDb();
-    mockDb.all.mockResolvedValue([
-      VALID_ROW,
-      { ...VALID_ROW, id: 'conn-2', enabled: 0 },
-    ]);
+    mockDb.all.mockResolvedValue([VALID_ROW, { ...VALID_ROW, id: 'conn-2', enabled: 0 }]);
 
     const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1');
     expect(result).toHaveLength(1);
@@ -124,10 +121,7 @@ describe('loadUserOpenAIConnectionConfigs', () => {
 
   it('includes disabled when includeDisabled is true', async () => {
     const mockDb = makeDb();
-    mockDb.all.mockResolvedValue([
-      VALID_ROW,
-      { ...VALID_ROW, id: 'conn-2', enabled: 0 },
-    ]);
+    mockDb.all.mockResolvedValue([VALID_ROW, { ...VALID_ROW, id: 'conn-2', enabled: 0 }]);
 
     const result = await loadUserOpenAIConnectionConfigs(mockDb, 'user-1', {
       includeDisabled: true,

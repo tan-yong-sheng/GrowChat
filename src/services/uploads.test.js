@@ -108,19 +108,25 @@ describe('validateFile', () => {
   it('rejects unsupported content type with exact message', () => {
     const result = validateFile('video.mp4', 'video/mp4', 1024);
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('File type video/mp4 not supported. Supported: text/code, images, pdf');
+    expect(result.error).toBe(
+      'File type video/mp4 not supported. Supported: text/code, images, pdf'
+    );
   });
 
   it('rejects application/octet-stream with exact message', () => {
     const result = validateFile('binary.exe', 'application/octet-stream', 512);
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('File type application/octet-stream not supported. Supported: text/code, images, pdf');
+    expect(result.error).toBe(
+      'File type application/octet-stream not supported. Supported: text/code, images, pdf'
+    );
   });
 
   it('rejects audio files with exact message', () => {
     const result = validateFile('song.mp3', 'audio/mpeg', 1024);
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('File type audio/mpeg not supported. Supported: text/code, images, pdf');
+    expect(result.error).toBe(
+      'File type audio/mpeg not supported. Supported: text/code, images, pdf'
+    );
   });
 
   it('rejects empty/blank filename', () => {
@@ -149,8 +155,12 @@ describe('validateFile', () => {
   });
 
   it('reports exact error for unknown type', () => {
-    expect(validateFile('file', '', 1024).error).toBe('File type unknown not supported. Supported: text/code, images, pdf');
-    expect(validateFile('file', null, 1024).error).toBe('File type unknown not supported. Supported: text/code, images, pdf');
+    expect(validateFile('file', '', 1024).error).toBe(
+      'File type unknown not supported. Supported: text/code, images, pdf'
+    );
+    expect(validateFile('file', null, 1024).error).toBe(
+      'File type unknown not supported. Supported: text/code, images, pdf'
+    );
   });
 
   it('is case-insensitive for content type', () => {
@@ -233,13 +243,7 @@ describe('uploadFileToR2', () => {
     const mockEnv = { FILES: mockFiles };
     const buffer = new ArrayBuffer(1024);
 
-    const result = await uploadFileToR2(
-      mockEnv,
-      'user-1',
-      'doc.pdf',
-      'application/pdf',
-      buffer
-    );
+    const result = await uploadFileToR2(mockEnv, 'user-1', 'doc.pdf', 'application/pdf', buffer);
 
     expect(result.r2Key).toMatch(
       /^\/user\/user-1\/files\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/
@@ -295,13 +299,9 @@ describe('uploadFileToR2', () => {
     const mockEnv = { FILES: mockFiles };
     const buffer = new ArrayBuffer(512);
 
-    const err = await uploadFileToR2(
-      mockEnv,
-      'user-1',
-      'doc.pdf',
-      'application/pdf',
-      buffer
-    ).catch((e) => e);
+    const err = await uploadFileToR2(mockEnv, 'user-1', 'doc.pdf', 'application/pdf', buffer).catch(
+      (e) => e
+    );
 
     expect(err.message).toBe('R2 upload failed: R2 network error');
     expect(err.cause).toBeInstanceOf(Error);
@@ -425,13 +425,7 @@ describe('uploadFileToR2', () => {
       const mockEnv = { FILES: mockFiles };
       const buffer = new ArrayBuffer(512);
 
-      const promise = uploadFileToR2(
-        mockEnv,
-        'user-1',
-        'doc.pdf',
-        'application/pdf',
-        buffer
-      );
+      const promise = uploadFileToR2(mockEnv, 'user-1', 'doc.pdf', 'application/pdf', buffer);
 
       vi.advanceTimersByTime(16_000);
 
@@ -540,13 +534,7 @@ describe('storeFileMetadata', () => {
     const [, params] = mockDb.run.mock.calls[0];
     expect(params[2]).toBeNull();
     expect(params.slice(1, 2)).toEqual(['user-1']);
-    expect(params.slice(3)).toEqual([
-      'doc.pdf',
-      'application/pdf',
-      1024,
-      'key',
-      'url',
-    ]);
+    expect(params.slice(3)).toEqual(['doc.pdf', 'application/pdf', 1024, 'key', 'url']);
   });
 });
 
@@ -560,10 +548,7 @@ describe('getFileMetadata', () => {
     const result = await getFileMetadata(mockDb, 'doc-1');
 
     expect(result).toEqual(doc);
-    expect(mockDb.first).toHaveBeenCalledWith(
-      'SELECT * FROM documents WHERE id = ?',
-      ['doc-1']
-    );
+    expect(mockDb.first).toHaveBeenCalledWith('SELECT * FROM documents WHERE id = ?', ['doc-1']);
   });
 
   it('returns undefined when not found', async () => {
@@ -669,10 +654,10 @@ describe('deleteDocument', () => {
 
     expect(result).toBe(true);
     expect(mockFiles.delete).toHaveBeenCalledWith('/user/user-1/files/doc-id.pdf');
-    expect(mockDb.run).toHaveBeenCalledWith(
-      'DELETE FROM documents WHERE id = ? AND user_id = ?',
-      ['doc-1', 'user-1']
-    );
+    expect(mockDb.run).toHaveBeenCalledWith('DELETE FROM documents WHERE id = ? AND user_id = ?', [
+      'doc-1',
+      'user-1',
+    ]);
   });
 
   it('throws exact message when document not found', async () => {
