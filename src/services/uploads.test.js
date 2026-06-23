@@ -53,12 +53,32 @@ describe('validateFile', () => {
     expect(validateFile('config.json', 'application/json', 256).valid).toBe(true);
   });
 
+  it('accepts x-iif alias type', () => {
+    expect(validateFile('data.iif', 'application/x-iif', 256).valid).toBe(true);
+  });
+
   it('accepts valid yaml file', () => {
     expect(validateFile('config.yaml', 'application/x-yaml', 256).valid).toBe(true);
   });
 
+  it('accepts application/xml type', () => {
+    expect(validateFile('data.xml', 'application/xml', 256).valid).toBe(true);
+  });
+
+  it('accepts x-xml alias type', () => {
+    expect(validateFile('data.xml', 'application/x-xml', 256).valid).toBe(true);
+  });
+
+  it('accepts application/yaml type', () => {
+    expect(validateFile('data.yaml', 'application/yaml', 256).valid).toBe(true);
+  });
+
   it('accepts valid js file', () => {
     expect(validateFile('index.js', 'application/javascript', 512).valid).toBe(true);
+  });
+
+  it('accepts x-javascript alias type', () => {
+    expect(validateFile('legacy.js', 'application/x-javascript', 256).valid).toBe(true);
   });
 
   it('accepts valid ts file', () => {
