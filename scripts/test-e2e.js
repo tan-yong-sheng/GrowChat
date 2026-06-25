@@ -32,7 +32,13 @@ import {
 import { setTimeout as sleep } from 'node:timers/promises';
 import path from 'node:path';
 
-const PORT = process.env.TEST_PORT || '8788';
+const RAW_PORT = process.env.TEST_PORT || '8788';
+// Validate PORT is a numeric string to prevent shell-injection from env vars.
+if (!/^\d+$/.test(RAW_PORT)) {
+  console.error(`[test-e2e] FATAL: TEST_PORT must be numeric, got ${JSON.stringify(RAW_PORT)}`);
+  process.exit(2);
+}
+const PORT = RAW_PORT;
 const BASE_URL = process.env.TEST_URL || `http://localhost:${PORT}`;
 const DEV_TIMEOUT = 90_000;
 const POLL_MS = 500;
@@ -40,6 +46,7 @@ const STATE_DIR = '.wrangler/state-e2e';
 const RUNNER_PID_FILE = path.join(STATE_DIR, '.runner-pid');
 const WRANGLER_PIDS_FILE = path.join(STATE_DIR, '.wrangler-pids');
 const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 };
+const KILL_TREE_TIMEOUT_MS = 3000;
 
 let wranglerProc = null;
 let runnerLockAcquired = false;
@@ -103,8 +110,10 @@ function collectDescendants(parentPid) {
 
 /** Kill a PID and its entire process tree (children, grandchildren, ...).
  * Sends SIGKILL to the process group (negative PID = group) which catches all
- * children even if they were reparented after our parent died. */
-function killProcessTree(pid) {
+ * children even if they were reparented after our parent died. Then awaits
+ * until the PID is actually dead (with a short poll) so callers don't race
+ * against zombie ports. */
+async function killProcessTree(pid) {
   if (!pid) return;
   // First signal the whole process group — catches descendants, reparented
   // orphans, and grandchildren we can't see via pgrep -P.
@@ -127,11 +136,16 @@ function killProcessTree(pid) {
       /* */
     }
   }
+  // Wait for the PID to actually exit (signal-flush race on slow runners).
+  const deadline = Date.now() + KILL_TREE_TIMEOUT_MS;
+  while (isPidAlive(pid) && Date.now() < deadline) {
+    await sleep(50);
+  }
 }
 
 /** Kill all PIDs recorded in WRANGLER_PIDS_FILE (and their descendants).
  * This is the ONLY mechanism for killing wrangler — never blind port-based kills. */
-function killRecordedWranglerPids() {
+async function killRecordedWranglerPids() {
   let raw;
   try {
     raw = readFileSync(WRANGLER_PIDS_FILE, 'utf8');
@@ -147,7 +161,7 @@ function killRecordedWranglerPids() {
     for (const d of collectDescendants(pid)) toKill.add(d);
   }
   log(`  Killing ${toKill.size} recorded wrangler process(es)...`);
-  for (const pid of toKill) killProcessTree(pid);
+  for (const pid of toKill) await killProcessTree(pid);
 }
 
 /** Record a wrangler PID for later cleanup. */
@@ -178,9 +192,9 @@ function refuseConcurrentRun(existingPid) {
 }
 
 /** Clean up after a dead previous runner. */
-function cleanupDeadRunner(existingPid) {
+async function cleanupDeadRunner(existingPid) {
   log(`Cleaning up after dead previous runner (PID ${existingPid})...`);
-  killRecordedWranglerPids();
+  await killRecordedWranglerPids();
   try {
     unlinkSync(WRANGLER_PIDS_FILE);
   } catch {
@@ -214,7 +228,7 @@ function releaseRunnerLock() {
 }
 
 /** Acquire exclusive runner lock via PID file. Exits if another runner is alive. */
-function acquireRunnerLock() {
+async function acquireRunnerLock() {
   mkdirSync(STATE_DIR, { recursive: true });
 
   if (existsSync(RUNNER_PID_FILE)) {
@@ -232,7 +246,7 @@ function acquireRunnerLock() {
 
     if (isPidAlive(existingPid)) refuseConcurrentRun(existingPid);
 
-    cleanupDeadRunner(existingPid);
+    await cleanupDeadRunner(existingPid);
   }
 
   writeFileSync(RUNNER_PID_FILE, String(process.pid));
@@ -342,10 +356,9 @@ async function bootWranglerForD1Init() {
   }
   // Stop tmp wrangler BEFORE applying migrations so it doesn't hold the file lock
   // or cache an empty schema. Record the dbPath while wrangler is still alive so
-  // we know the exact file wrangler opened.
-  killProcessTree(tmp.pid);
-  // eslint-disable-next-line no-magic-numbers
-  await sleep(1500);
+  // we know the exact file wrangler opened. killProcessTree polls for actual
+  // exit so we don't race a port-rebind.
+  await killProcessTree(tmp.pid);
   if (!dbPath) {
     log('FATAL: D1 sqlite never created');
     process.exit(1);
@@ -367,38 +380,6 @@ async function applyMigrations(dbPath) {
   for (const file of files) {
     const sqlPath = path.join(process.cwd(), 'migrations', file);
     log(`  Applying ${file}...`);
-    try {
-      await new Promise((resolve, reject) => {
-        const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
-        let stderr = '';
-        child.stderr.on('data', (d) => {
-          stderr += d.toString();
-        });
-        child.on('error', reject);
-        child.on('close', (code) => {
-          const msg = stderr.trim();
-          // Filter known benign messages
-          if (msg && !msg.includes('already exists') && !msg.includes('no such table')) {
-            log(`    sqlite3: ${msg}`);
-          }
-          if (code !== 0 && code !== null) {
-            log(`    exit code: ${code}`);
-          }
-          resolve();
-        });
-        child.stdin.write(readFileSync(sqlPath));
-        child.stdin.end();
-      });
-      log(`  ✓ ${file}`);
-    } catch (err) {
-      log(`  ✗ ${file}: ${err.message}`);
-    }
-  }
-}
-
-async function enablePublicRegistration(dbPath) {
-  log('Enabling public registration...');
-  try {
     await new Promise((resolve, reject) => {
       const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
       let stderr = '';
@@ -406,21 +387,48 @@ async function enablePublicRegistration(dbPath) {
         stderr += d.toString();
       });
       child.on('error', reject);
-      child.on('close', () => {
-        if (stderr.trim()) log(`    sqlite3: ${stderr.trim()}`);
+      child.on('close', (code) => {
+        const msg = stderr.trim();
+        if (msg) log(`    sqlite3: ${msg}`);
+        if (code !== 0 && code !== null) {
+          reject(new Error(`sqlite3 exited with code ${code} applying ${file}: ${msg}`));
+          return;
+        }
         resolve();
       });
-      child.stdin.write(
-        'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
-          "('public_registration_status', 'active', unixepoch()), " +
-          "('public_registration', 'true', unixepoch());\n"
-      );
+      child.stdin.write(readFileSync(sqlPath));
       child.stdin.end();
     });
-    log('Public registration enabled.');
-  } catch (err) {
-    log('Warning: could not enable public_registration:', err.message);
+    log(`  ✓ ${file}`);
   }
+}
+
+async function enablePublicRegistration(dbPath) {
+  log('Enabling public registration...');
+  await new Promise((resolve, reject) => {
+    const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      const msg = stderr.trim();
+      if (msg) log(`    sqlite3: ${msg}`);
+      if (code !== 0 && code !== null) {
+        reject(new Error(`sqlite3 exited with code ${code} enabling registration: ${msg}`));
+        return;
+      }
+      resolve();
+    });
+    child.stdin.write(
+      'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
+        "('public_registration_status', 'active', unixepoch()), " +
+        "('public_registration', 'true', unixepoch());\n"
+    );
+    child.stdin.end();
+  });
+  log('Public registration enabled.');
 }
 
 function verifyTables(dbPath) {
@@ -429,8 +437,20 @@ function verifyTables(dbPath) {
     { encoding: 'utf8' }
   ).trim();
   log(`DB ready — ${count} tables`);
-  // Sanity check: migrations must have created enough tables (GrowChat has 20+ core tables)
-  if (Number(count) < 10) {
+  // Hard assertion: required core tables must exist after migrations.
+  // Weak `.tables` smoke checks can pass on partial schemas and hide broken DBs.
+  const REQUIRED_TABLES = ['users', 'chats', 'messages', 'app_config', 'roles'];
+  const present = execSync(
+    `sqlite3 "${dbPath}" "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"`,
+    { encoding: 'utf8' }
+  ).trim();
+  const presentSet = new Set(present.split('\n').filter(Boolean));
+  const missing = REQUIRED_TABLES.filter((t) => !presentSet.has(t));
+  if (missing.length > 0) {
+    log(`FATAL: required tables missing after migrations: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+  if (Number(count) < REQUIRED_TABLES.length) {
     log(`FATAL: too few tables after migrations (got ${count})`);
     process.exit(1);
   }
@@ -483,17 +503,17 @@ async function startDevServer() {
     await sleep(POLL_MS);
   }
   log(`ERROR: Server did not start within ${DEV_TIMEOUT / 1000}s`);
-  killProcessTree(wranglerProc.pid);
+  await killProcessTree(wranglerProc.pid);
   process.exit(1);
 }
 
 // ── Teardown ──────────────────────────────────────────────────────────────────
 
-function killDevServer() {
+async function killDevServer() {
   if (!wranglerProc) return;
   const pid = wranglerProc.pid;
   log(`Stopping wrangler dev (PID ${pid})...`);
-  if (pid) killProcessTree(pid);
+  if (pid) await killProcessTree(pid);
   wranglerProc = null;
 }
 
@@ -541,7 +561,7 @@ async function runTests() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  acquireRunnerLock(); // PID lock — refuses on concurrent runner
+  await acquireRunnerLock(); // PID lock — refuses on concurrent runner
 
   const cleanup = () => killDevServer();
   process.on('SIGINT', cleanup);
@@ -552,11 +572,11 @@ async function main() {
     await startDevServer();
     await seedUser();
     const code = await runTests();
-    killDevServer();
+    await killDevServer();
     process.exit(code);
   } catch (err) {
     log('Unexpected error:', err);
-    killDevServer();
+    await killDevServer();
     process.exit(1);
   }
 }
