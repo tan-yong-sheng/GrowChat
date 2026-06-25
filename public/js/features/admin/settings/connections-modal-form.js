@@ -230,7 +230,7 @@ export function createConnectionsModalForm(deps) {
     const models = Array.isArray(connectionsState.modalModels) ? connectionsState.modalModels : [];
     const target = models.find((m) => m.id === modelId);
     if (!target || !target.manual) return;
-    const shortId = target.manualModelId || target.name || modelId;
+    const deletedModelId = target.manualModelId || modelId;
     connectionsState.modalModels = models.filter((m) => m.id !== modelId);
     if (connectionsState.modalModelsSelection instanceof Set) {
       connectionsState.modalModelsSelection.delete(modelId);
@@ -241,7 +241,7 @@ export function createConnectionsModalForm(deps) {
     if (!Array.isArray(connectionsState.deletedManualModelIds)) {
       connectionsState.deletedManualModelIds = [];
     }
-    connectionsState.deletedManualModelIds.push(shortId);
+    connectionsState.deletedManualModelIds.push(deletedModelId);
     renderModalModels(modalRoot);
   };
 

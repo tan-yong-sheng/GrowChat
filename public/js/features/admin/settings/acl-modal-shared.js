@@ -12,9 +12,12 @@ import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 
 export function cloneAclRules(rules = [], normalizer = (rule) => rule) {
   if (!Array.isArray(rules)) return [];
-  return rules
-    .map((rule) => ({ ...normalizer(rule) }))
-    .filter((rule) => rule !== null && rule !== undefined);
+  const result = [];
+  for (const rule of rules) {
+    const normalized = normalizer(rule);
+    if (normalized != null) result.push({ ...normalized });
+  }
+  return result;
 }
 
 export function getAclRulesSignature(rules = [], normalizer) {
