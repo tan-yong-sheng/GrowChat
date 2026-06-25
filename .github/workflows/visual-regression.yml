@@ -73,6 +73,16 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"name":"Admin","email":"admin@localhost","password":"admin123"}' || true
 
+      - name: Run auth setup (create auth-state.json fixture)
+        run: |
+          TEST_URL=http://localhost:8787 \
+          PLAYWRIGHT_TEST_BASE_URL=http://localhost:8787 \
+          pnpm exec playwright test tests/e2e/frontend/auth.setup.spec.ts --project=setup
+        env:
+          CI: true
+          TEST_EMAIL: admin@localhost
+          TEST_PASSWORD: admin123
+
       - name: Run visual regression tests
         run: |
           TEST_URL=http://localhost:8787 \

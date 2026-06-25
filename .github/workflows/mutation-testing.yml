@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          # Full history needed for --since diff on PRs
+          # Full history needed for git diff origin/main on PRs
           fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
           persist-credentials: false
 
@@ -45,10 +45,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # PR: incremental — only mutate files changed since main (fast feedback)
+      # PR: incremental — use git diff to only mutate files changed since main
       - name: Run incremental mutation testing (PR)
         if: github.event_name == 'pull_request'
-        run: pnpm run check:mutation --since origin/main
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'src/**/*.js' | grep -v '\.test\.js$' | tr '\n' ',' | sed 's/,$//')
+          if [ -z "$CHANGED" ]; then
+            echo "No source files changed under src/, skipping mutation testing"
+          else
+            echo "Mutating changed source files: $CHANGED"
+            pnpm run check:mutation -- --mutate "$CHANGED"
+          fi
 
       # Schedule/dispatch: full run — all 203 source files
       - name: Run full mutation testing (weekly)
