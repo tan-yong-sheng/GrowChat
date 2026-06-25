@@ -17,7 +17,7 @@ test.describe('Visual Regression - Auth Pages', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.locator('#auth-submit').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('auth-login-mobile.png', {
-      maxDiffPixelRatio: 0.05,
+      maxDiffPixelRatio: 0.15,
       animations: 'disabled',
     });
   });

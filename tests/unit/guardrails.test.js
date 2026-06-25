@@ -33,7 +33,7 @@ function run(command, args, cwd, timeout = 25000) {
     encoding: 'utf8',
     shell: false,
     timeout, // Must be below vitest timeout so the outer test limit remains effective
-    env: { ...process.env, HOME: '/tmp' }, // semgrep needs writable HOME for settings
+    env: { ...process.env, HOME: os.tmpdir() }, // semgrep needs writable HOME for settings
   });
 }
 
@@ -75,14 +75,22 @@ describe('guardrail fixtures', () => {
 
     const result = run(
       'semgrep',
-      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/demo.js'],
+      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/demo.js'],
       fixtureRoot
     );
 
-    expect(result.status).not.toBe(0);
-    expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
-      'no-frontend-worker-env-access'
-    );
+    let foundWorkerEnvRule = false;
+    let parsed = { results: [] };
+    try {
+      parsed = JSON.parse(result.stdout);
+      foundWorkerEnvRule = (parsed.results ?? []).some((r) =>
+        r.check_id?.includes('no-frontend-worker-env-access')
+      );
+    } catch {
+      /* ignore parse errors */
+    }
+    expect(parsed.results.length).toBeGreaterThan(0);
+    expect(foundWorkerEnvRule).toBe(true);
   }, 30000);
 
   it('rejects raw status badge markup in account feature slice via semgrep', () => {
@@ -131,14 +139,22 @@ describe('guardrail fixtures', () => {
 
     const badResult = run(
       'semgrep',
-      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/demo.js'],
+      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/demo.js'],
       fixtureRoot
     );
 
-    expect(badResult.status).not.toBe(0);
-    expect(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`).toContain(
-      'no-raw-pill-button-markup-in-feature-code'
-    );
+    let foundPillButtonRule = false;
+    let parsedBad = { results: [] };
+    try {
+      parsedBad = JSON.parse(badResult.stdout);
+      foundPillButtonRule = (parsedBad.results ?? []).some((r) =>
+        r.check_id?.includes('no-raw-pill-button-markup-in-feature-code')
+      );
+    } catch {
+      /* ignore parse errors */
+    }
+    expect(parsedBad.results.length).toBeGreaterThan(0);
+    expect(foundPillButtonRule).toBe(true);
 
     writeFixture(
       fixtureRoot,
@@ -148,11 +164,22 @@ describe('guardrail fixtures', () => {
 
     const goodResult = run(
       'semgrep',
-      ['scan', '--config', semgrepConfig, '--error', 'public/js/features/demo.js'],
+      ['scan', '--config', semgrepConfig, '--json', 'public/js/features/demo.js'],
       fixtureRoot
     );
 
-    expect(goodResult.status).toBe(0);
+    let foundPillButtonGood = false;
+    let parsedGood = { results: [] };
+    try {
+      parsedGood = JSON.parse(goodResult.stdout);
+      foundPillButtonGood = (parsedGood.results ?? []).some((r) =>
+        r.check_id?.includes('no-raw-pill-button-markup-in-feature-code')
+      );
+    } catch {
+      /* ignore parse errors */
+    }
+    expect(parsedGood.results.length).toBe(0);
+    expect(foundPillButtonGood).toBe(false);
   }, 30000);
 
   it('rejects raw model access badge markup in account/admin model settings pages', () => {

@@ -1,0 +1,784 @@
+
+> growchat@1.0.0 prepush:checks /home/tys203831/.no-mistakes/worktrees/9f45ffe636b5/01KVZ1B2DVG0JNV54TR0AYB9HB
+> pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene
+
+
+> growchat@1.0.0 test /home/tys203831/.no-mistakes/worktrees/9f45ffe636b5/01KVZ1B2DVG0JNV54TR0AYB9HB
+> vitest run
+
+
+ RUN  v4.1.6 /home/tys203831/.no-mistakes/worktrees/9f45ffe636b5/01KVZ1B2DVG0JNV54TR0AYB9HB
+
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: navigation to another Document
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ tests/unit/guardrails.test.js (7 tests | 5 failed) 39610ms
+     × rejects frontend worker-env access via semgrep 7450ms (retry x1)
+     × rejects raw status badge markup in account feature slice via semgrep 7353ms (retry x1)
+     × rejects rounded pill action buttons but allows compact toggle switches 7215ms (retry x1)
+     × rejects raw model access badge markup in account/admin model settings pages 7180ms (retry x1)
+     × rejects direct getModelAccessPresentation usage in model settings pages 7555ms (retry x1)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects frontend worker-env access via semgrep
+AssertionError: expected 'Traceback (most recent call last):\n …' to contain 'no-frontend-worker-env-access'
+
+- Expected
++ Received
+
+- no-frontend-worker-env-access
++ Traceback (most recent call last):
++   File "/home/linuxbrew/.linuxbrew/bin/pysemgrep", line 6, in <module>
++     sys.exit(main())
++              ~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/console_scripts/pysemgrep.py", line 64, in main
++     sys.exit(semgrep.main.main())
++              ~~~~~~~~~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/main.py", line 146, in main
++     cli(prog_name="semgrep")
++     ~~~^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1161, in __call__
++     return self.main(*args, **kwargs)
++            ~~~~~~~~~^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1082, in main
++     rv = self.invoke(ctx)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1694, in invoke
++     super().invoke(ctx)
++     ~~~~~~~~~~~~~~^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1443, in invoke
++     return ctx.invoke(self.callback, **ctx.params)
++            ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 788, in invoke
++     return __callback(*args, **kwargs)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/decorators.py", line 33, in new_func
++     return f(get_current_context(), *args, **kwargs)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/cli.py", line 74, in cli
++     state = get_state()
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/state.py", line 170, in get_state
++     return ctx.ensure_object(SemgrepState)
++            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 652, in ensure_object
++     self.obj = rv = object_type()
++                     ~~~~~~~~~~~^^
++   File "<attrs generated methods semgrep.state.SemgrepState>", line 63, in __init__
++     _setattr('settings', __attr_factory_settings())
++                          ~~~~~~~~~~~~~~~~~~~~~~~^^
++   File "<attrs generated methods semgrep.settings.Settings>", line 32, in __init__
++     self.__attrs_post_init__()
++     ~~~~~~~~~~~~~~~~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/settings.py", line 114, in __attrs_post_init__
++     self.save()  # in case we retrieved default contents
++     ~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/settings.py", line 123, in save
++     fd, tmp_path = mkstemp(suffix=".yml", prefix="settings", dir=dir, text=True)
++                    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/opt/python@3.14/lib/python3.14/tempfile.py", line 354, in mkstemp
++     return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
++   File "/home/linuxbrew/.linuxbrew/opt/python@3.14/lib/python3.14/tempfile.py", line 255, in _mkstemp_inner
++     fd = _os.open(file, flags, 0o600)
++ OSError: [Errno 30] Read-only file system: '/tmp/.semgrep/settingsy7hlymwj.yml'
++
+
+ ❯ tests/unit/guardrails.test.js:83:60
+     81|
+     82|     expect(result.status).not.toBe(0);
+     83|     expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+       |                                                            ^
+     84|       'no-frontend-worker-env-access'
+     85|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects frontend worker-env access via semgrep
+AssertionError: expected 'Traceback (most recent call last):\n …' to contain 'no-frontend-worker-env-access'
+
+- Expected
++ Received
+
+- no-frontend-worker-env-access
++ Traceback (most recent call last):
++   File "/home/linuxbrew/.linuxbrew/bin/pysemgrep", line 6, in <module>
++     sys.exit(main())
++              ~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/console_scripts/pysemgrep.py", line 64, in main
++     sys.exit(semgrep.main.main())
++              ~~~~~~~~~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/main.py", line 146, in main
++     cli(prog_name="semgrep")
++     ~~~^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1161, in __call__
++     return self.main(*args, **kwargs)
++            ~~~~~~~~~^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1082, in main
++     rv = self.invoke(ctx)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1694, in invoke
++     super().invoke(ctx)
++     ~~~~~~~~~~~~~~^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1443, in invoke
++     return ctx.invoke(self.callback, **ctx.params)
++            ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 788, in invoke
++     return __callback(*args, **kwargs)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/decorators.py", line 33, in new_func
++     return f(get_current_context(), *args, **kwargs)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/cli.py", line 74, in cli
++     state = get_state()
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/state.py", line 170, in get_state
++     return ctx.ensure_object(SemgrepState)
++            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 652, in ensure_object
++     self.obj = rv = object_type()
++                     ~~~~~~~~~~~^^
++   File "<attrs generated methods semgrep.state.SemgrepState>", line 63, in __init__
++     _setattr('settings', __attr_factory_settings())
++                          ~~~~~~~~~~~~~~~~~~~~~~~^^
++   File "<attrs generated methods semgrep.settings.Settings>", line 32, in __init__
++     self.__attrs_post_init__()
++     ~~~~~~~~~~~~~~~~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/settings.py", line 114, in __attrs_post_init__
++     self.save()  # in case we retrieved default contents
++     ~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/settings.py", line 123, in save
++     fd, tmp_path = mkstemp(suffix=".yml", prefix="settings", dir=dir, text=True)
++                    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/opt/python@3.14/lib/python3.14/tempfile.py", line 354, in mkstemp
++     return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
++   File "/home/linuxbrew/.linuxbrew/opt/python@3.14/lib/python3.14/tempfile.py", line 255, in _mkstemp_inner
++     fd = _os.open(file, flags, 0o600)
++ OSError: [Errno 30] Read-only file system: '/tmp/.semgrep/settingsh0hetuqr.yml'
++
+
+ ❯ tests/unit/guardrails.test.js:83:60
+     81|
+     82|     expect(result.status).not.toBe(0);
+     83|     expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toContain(
+       |                                                            ^
+     84|       'no-frontend-worker-env-access'
+     85|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects raw status badge markup in account feature slice via semgrep
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects raw status badge markup in account feature slice via semgrep
+AssertionError: expected 0 to be greater than 0
+ ❯ tests/unit/guardrails.test.js:117:35
+    115|       /* ignore parse errors */
+    116|     }
+    117|     expect(parsed.results.length).toBeGreaterThan(0);
+       |                                   ^
+    118|     expect(foundBadgeRule).toBe(true);
+    119|   }, 30000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects rounded pill action buttons but allows compact toggle switches
+AssertionError: expected 'Traceback (most recent call last):\n …' to contain 'no-raw-pill-button-markup-in-feature-…'
+
+- Expected
++ Received
+
+- no-raw-pill-button-markup-in-feature-code
++ Traceback (most recent call last):
++   File "/home/linuxbrew/.linuxbrew/bin/pysemgrep", line 6, in <module>
++     sys.exit(main())
++              ~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/console_scripts/pysemgrep.py", line 64, in main
++     sys.exit(semgrep.main.main())
++              ~~~~~~~~~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/main.py", line 146, in main
++     cli(prog_name="semgrep")
++     ~~~^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1161, in __call__
++     return self.main(*args, **kwargs)
++            ~~~~~~~~~^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1082, in main
++     rv = self.invoke(ctx)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1694, in invoke
++     super().invoke(ctx)
++     ~~~~~~~~~~~~~~^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1443, in invoke
++     return ctx.invoke(self.callback, **ctx.params)
++            ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 788, in invoke
++     return __callback(*args, **kwargs)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/decorators.py", line 33, in new_func
++     return f(get_current_context(), *args, **kwargs)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/cli.py", line 74, in cli
++     state = get_state()
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/state.py", line 170, in get_state
++     return ctx.ensure_object(SemgrepState)
++            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 652, in ensure_object
++     self.obj = rv = object_type()
++                     ~~~~~~~~~~~^^
++   File "<attrs generated methods semgrep.state.SemgrepState>", line 63, in __init__
++     _setattr('settings', __attr_factory_settings())
++                          ~~~~~~~~~~~~~~~~~~~~~~~^^
++   File "<attrs generated methods semgrep.settings.Settings>", line 32, in __init__
++     self.__attrs_post_init__()
++     ~~~~~~~~~~~~~~~~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/settings.py", line 114, in __attrs_post_init__
++     self.save()  # in case we retrieved default contents
++     ~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/settings.py", line 123, in save
++     fd, tmp_path = mkstemp(suffix=".yml", prefix="settings", dir=dir, text=True)
++                    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/opt/python@3.14/lib/python3.14/tempfile.py", line 354, in mkstemp
++     return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
++   File "/home/linuxbrew/.linuxbrew/opt/python@3.14/lib/python3.14/tempfile.py", line 255, in _mkstemp_inner
++     fd = _os.open(file, flags, 0o600)
++ OSError: [Errno 30] Read-only file system: '/tmp/.semgrep/settingsbnfk_wnt.yml'
++
+
+ ❯ tests/unit/guardrails.test.js:139:66
+    137|
+    138|     expect(badResult.status).not.toBe(0);
+    139|     expect(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`).toCon…
+       |                                                                  ^
+    140|       'no-raw-pill-button-markup-in-feature-code'
+    141|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects rounded pill action buttons but allows compact toggle switches
+AssertionError: expected 'Traceback (most recent call last):\n …' to contain 'no-raw-pill-button-markup-in-feature-…'
+
+- Expected
++ Received
+
+- no-raw-pill-button-markup-in-feature-code
++ Traceback (most recent call last):
++   File "/home/linuxbrew/.linuxbrew/bin/pysemgrep", line 6, in <module>
++     sys.exit(main())
++              ~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/console_scripts/pysemgrep.py", line 64, in main
++     sys.exit(semgrep.main.main())
++              ~~~~~~~~~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/main.py", line 146, in main
++     cli(prog_name="semgrep")
++     ~~~^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1161, in __call__
++     return self.main(*args, **kwargs)
++            ~~~~~~~~~^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1082, in main
++     rv = self.invoke(ctx)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1694, in invoke
++     super().invoke(ctx)
++     ~~~~~~~~~~~~~~^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 1443, in invoke
++     return ctx.invoke(self.callback, **ctx.params)
++            ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 788, in invoke
++     return __callback(*args, **kwargs)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/decorators.py", line 33, in new_func
++     return f(get_current_context(), *args, **kwargs)
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/cli.py", line 74, in cli
++     state = get_state()
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/state.py", line 170, in get_state
++     return ctx.ensure_object(SemgrepState)
++            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/click/core.py", line 652, in ensure_object
++     self.obj = rv = object_type()
++                     ~~~~~~~~~~~^^
++   File "<attrs generated methods semgrep.state.SemgrepState>", line 63, in __init__
++     _setattr('settings', __attr_factory_settings())
++                          ~~~~~~~~~~~~~~~~~~~~~~~^^
++   File "<attrs generated methods semgrep.settings.Settings>", line 32, in __init__
++     self.__attrs_post_init__()
++     ~~~~~~~~~~~~~~~~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/settings.py", line 114, in __attrs_post_init__
++     self.save()  # in case we retrieved default contents
++     ~~~~~~~~~^^
++   File "/home/linuxbrew/.linuxbrew/Cellar/semgrep/1.167.0/libexec/lib/python3.14/site-packages/semgrep/settings.py", line 123, in save
++     fd, tmp_path = mkstemp(suffix=".yml", prefix="settings", dir=dir, text=True)
++                    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++   File "/home/linuxbrew/.linuxbrew/opt/python@3.14/lib/python3.14/tempfile.py", line 354, in mkstemp
++     return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
++   File "/home/linuxbrew/.linuxbrew/opt/python@3.14/lib/python3.14/tempfile.py", line 255, in _mkstemp_inner
++     fd = _os.open(file, flags, 0o600)
++ OSError: [Errno 30] Read-only file system: '/tmp/.semgrep/settingsrarkhzne.yml'
++
+
+ ❯ tests/unit/guardrails.test.js:139:66
+    137|
+    138|     expect(badResult.status).not.toBe(0);
+    139|     expect(`${badResult.stdout ?? ''}${badResult.stderr ?? ''}`).toCon…
+       |                                                                  ^
+    140|       'no-raw-pill-button-markup-in-feature-code'
+    141|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects raw model access badge markup in account/admin model settings pages
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects raw model access badge markup in account/admin model settings pages
+AssertionError: expected 0 to be greater than 0
+ ❯ tests/unit/guardrails.test.js:185:35
+    183|       /* ignore parse errors */
+    184|     }
+    185|     expect(parsed.results.length).toBeGreaterThan(0);
+       |                                   ^
+    186|     expect(foundBadgeRule).toBe(true);
+    187|   }, 30000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects direct getModelAccessPresentation usage in model settings pages
+ FAIL  tests/unit/guardrails.test.js > guardrail fixtures > rejects direct getModelAccessPresentation usage in model settings pages
+AssertionError: expected 0 to be greater than 0
+ ❯ tests/unit/guardrails.test.js:216:35
+    214|       /* ignore parse errors */
+    215|     }
+    216|     expect(parsed.results.length).toBeGreaterThan(0);
+       |                                   ^
+    217|     expect(foundPresentationRule).toBe(true);
+    218|   }, 30000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+
+ Test Files  1 failed | 219 passed (220)
+      Tests  5 failed | 3038 passed (3043)
+   Start at  18:34:53
+   Duration  43.48s (transform 8.34s, setup 3.75s, import 14.18s, tests 74.55s, environment 97.65s)
+
+ ELIFECYCLE  Test failed. See above for more details.
+ ELIFECYCLE  Command failed with exit code 1.
