@@ -409,14 +409,9 @@ describe('filesRouter', () => {
     it('handles null rejection in list gracefully for isMissingDocumentsTable', async () => {
       const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
       mocks.listUserDocuments.mockRejectedValueOnce(null);
-      const res = await filesRouter(
-        makeReq('/api/files'),
-        env,
-        {},
-        user,
-        '/api/files',
-        { logger: customLogger }
-      );
+      const res = await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files', {
+        logger: customLogger,
+      });
       expect(res.status).toBe(500);
       expect(customLogger.error).toHaveBeenCalledWith('File list failed', { error: null });
     });
@@ -698,10 +693,10 @@ describe('filesRouter', () => {
         { logger: customLogger }
       );
       await waitUntilCalls[0];
-      expect(customLogger.error).toHaveBeenCalledWith(
-        'Failed to process document extraction',
-        { documentId: 'd1', error: null }
-      );
+      expect(customLogger.error).toHaveBeenCalledWith('Failed to process document extraction', {
+        documentId: 'd1',
+        error: null,
+      });
     });
 
     it('uses default reason when extraction skip has no reason', async () => {
@@ -1970,7 +1965,12 @@ describe('filesRouter', () => {
       const res = await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files');
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body).toEqual({ documents: [{ id: 'd1', filename: 'a.txt' }, { id: 'd2', filename: 'b.txt' }] });
+      expect(body).toEqual({
+        documents: [
+          { id: 'd1', filename: 'a.txt' },
+          { id: 'd2', filename: 'b.txt' },
+        ],
+      });
     });
 
     it('handles NaN limit by passing NaN to listUserDocuments', async () => {
@@ -2022,7 +2022,12 @@ describe('filesRouter', () => {
       const res = await filesRouter(makeReq('/api/files/d1'), env, {}, user, '/api/files/d1');
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body).toEqual({ id: 'd1', filename: 'a.txt', content_type: 'text/plain', user_id: 'u1' });
+      expect(body).toEqual({
+        id: 'd1',
+        filename: 'a.txt',
+        content_type: 'text/plain',
+        user_id: 'u1',
+      });
     });
 
     it('logs exact error when get document fails', async () => {
@@ -2085,12 +2090,7 @@ describe('filesRouter', () => {
         user,
         '/api/files/d1'
       );
-      expect(mocks.deleteDocument).toHaveBeenCalledWith(
-        env,
-        expect.anything(),
-        'd1',
-        'u1'
-      );
+      expect(mocks.deleteDocument).toHaveBeenCalledWith(env, expect.anything(), 'd1', 'u1');
     });
 
     it('logs audit event with exact delete metadata', async () => {
@@ -2931,13 +2931,7 @@ describe('filesRouter', () => {
     });
 
     it('rejects path with trailing slash on document ID', async () => {
-      const res = await filesRouter(
-        makeReq('/api/files/d1/'),
-        env,
-        {},
-        user,
-        '/api/files/d1/'
-      );
+      const res = await filesRouter(makeReq('/api/files/d1/'), env, {}, user, '/api/files/d1/');
       expect(res).toBeNull();
     });
   });
