@@ -1,27 +1,48 @@
 #!/usr/bin/env node
+/* eslint-disable max-lines -- single-file orchestrator with many distinct phases */
 /**
- * E2E test orchestration:
- * 1. Clean state dir + kill stale workerd processes on 8788/8789
- * 2. Spin up wrangler dev briefly → miniflare creates the D1 sqlite file
- * 3. Kill tmp server, detect which hash wrangler used
- * 4. Apply all migrations + public_registration config directly via sqlite3 stdin
- * 5. Start wrangler dev for real (DB already has schema — no lazy init)
- * 6. Seed test user + run Playwright
+ * E2E test orchestration with ownership-based cleanup.
+ *
+ * Flow:
+ *   1. Acquire runner lock via PID file (refuses if another runner is alive).
+ *   2. On startup, kill only PIDs we (or a dead previous runner) recorded.
+ *   3. Spin up wrangler dev briefly on PORT → miniflare creates the D1 sqlite file.
+ *   4. Kill tmp wrangler, apply migrations + config via sqlite3 stdin.
+ *   5. Start wrangler dev for real (DB already has schema).
+ *   6. Record every wrangler PID we spawn, for cleanup.
+ *   7. Seed test user + run Playwright.
+ *   8. On exit: release the runner lock (wrangler PIDs are auto-cleaned on next run).
+ *
+ * Key invariants:
+ *   - Port 8788 is the ONLY port used.
+ *   - We never kill processes we don't own (no blind port-based kills).
+ *   - Concurrent runners safely refuse instead of trampling each other.
  */
 
 import { spawn, execSync } from 'node:child_process';
-import { readFileSync, readdirSync, mkdirSync, lstatSync } from 'node:fs';
+import {
+  readFileSync,
+  readdirSync,
+  mkdirSync,
+  writeFileSync,
+  unlinkSync,
+  lstatSync,
+  existsSync,
+} from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import path from 'node:path';
 
 const PORT = process.env.TEST_PORT || '8788';
-const MIN_D1_FILE_SIZE = 4096;
 const BASE_URL = process.env.TEST_URL || `http://localhost:${PORT}`;
 const DEV_TIMEOUT = 90_000;
 const POLL_MS = 500;
 const STATE_DIR = '.wrangler/state-e2e';
+const RUNNER_PID_FILE = path.join(STATE_DIR, '.runner-pid');
+const WRANGLER_PIDS_FILE = path.join(STATE_DIR, '.wrangler-pids');
+const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 };
 
 let wranglerProc = null;
+let runnerLockAcquired = false;
 
 function log(...a) {
   console.error('[test-e2e]', ...a);
@@ -52,53 +73,194 @@ function loadDevVars() {
 
 loadDevVars();
 
-// ── Stale process cleanup ─────────────────────────────────────────────────────
+// ── Runner lock + ownership-based cleanup ─────────────────────────────────────
 
-/** Kill processes listening on a specific port using ss + kill. */
-function killOnPort(port) {
+function isPidAlive(pid) {
+  if (!pid || pid <= 0) return false;
   try {
-    const out = execSync(`ss -tlnp sport = :${port} 2>/dev/null`, { encoding: 'utf8' });
-    const pids = [...new Set([...out.matchAll(/pid=(\d+)/g)].map((m) => m[1]))];
-    if (!pids.length) return;
-    log(`  Port ${port}: killing PIDs ${pids.join(',')}`);
-    for (const pid of pids) {
-      try {
-        execSync(`pkill -9 -P ${pid}`, { stdio: 'ignore' });
-      } catch {
-        /* */
-      }
-      try {
-        execSync(`kill -9 ${pid}`, { stdio: 'ignore' });
-      } catch {
-        /* */
-      }
-    }
-  } catch {
-    /* no listeners on this port */
-  }
-}
-
-function cleanupStaleProcesses() {
-  log('Cleaning up stale processes...');
-  killOnPort(PORT);
-  killOnPort(String(parseInt(PORT) + 1));
-}
-
-// ── D1 probe ─────────────────────────────────────────────────────────────────
-
-/** Probe a single file for D1 sqlite suitability (size > 4096 bytes). */
-function isD1File(filePath) {
-  try {
-    return lstatSync(filePath).size > MIN_D1_FILE_SIZE;
+    process.kill(pid, 0);
+    return true;
   } catch {
     return false;
   }
 }
 
-/** Find the actual D1 sqlite file.
- * Tries two layouts: direct child of miniflare-D1DatabaseObject/,
- * and older nested layout (hash/hash.sqlite). Uses lstat to avoid FUSE
- * open-delay false negatives. */
+/** Recursively collect descendant PIDs of a given parent PID. */
+function collectDescendants(parentPid) {
+  const pids = [];
+  try {
+    const out = execSync(`pgrep -P ${parentPid} 2>/dev/null`, { encoding: 'utf8' });
+    const children = out.trim().split('\n').filter(Boolean).map(Number).filter(Boolean);
+    for (const c of children) {
+      pids.push(c);
+      pids.push(...collectDescendants(c));
+    }
+  } catch {
+    /* no children */
+  }
+  return pids;
+}
+
+/** Kill a PID and its entire process tree (children, grandchildren, ...).
+ * Sends SIGKILL to the process group (negative PID = group) which catches all
+ * children even if they were reparented after our parent died. */
+function killProcessTree(pid) {
+  if (!pid) return;
+  // First signal the whole process group — catches descendants, reparented
+  // orphans, and grandchildren we can't see via pgrep -P.
+  try {
+    process.kill(-pid, 'SIGKILL');
+  } catch {
+    /* not a group leader or already dead */
+  }
+  // Then belt-and-suspenders: kill by PID and any visible descendants.
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch {
+    /* */
+  }
+  for (const d of collectDescendants(pid)) {
+    if (!isPidAlive(d)) continue;
+    try {
+      process.kill(d, 'SIGKILL');
+    } catch {
+      /* */
+    }
+  }
+}
+
+/** Kill all PIDs recorded in WRANGLER_PIDS_FILE (and their descendants).
+ * This is the ONLY mechanism for killing wrangler — never blind port-based kills. */
+function killRecordedWranglerPids() {
+  let raw;
+  try {
+    raw = readFileSync(WRANGLER_PIDS_FILE, 'utf8');
+  } catch {
+    return;
+  }
+  const pids = raw.trim().split('\n').filter(Boolean).map(Number).filter(Boolean);
+  if (!pids.length) return;
+
+  const toKill = new Set();
+  for (const pid of pids) {
+    toKill.add(pid);
+    for (const d of collectDescendants(pid)) toKill.add(d);
+  }
+  log(`  Killing ${toKill.size} recorded wrangler process(es)...`);
+  for (const pid of toKill) killProcessTree(pid);
+}
+
+/** Record a wrangler PID for later cleanup. */
+function recordWranglerPid(pid) {
+  if (!pid) return;
+  let raw;
+  try {
+    raw = readFileSync(WRANGLER_PIDS_FILE, 'utf8');
+  } catch {
+    raw = '';
+  }
+  const pids = raw.trim().split('\n').filter(Boolean).map(Number).filter(Boolean);
+  pids.push(pid);
+  writeFileSync(WRANGLER_PIDS_FILE, pids.join('\n') + '\n');
+}
+
+/** Refuse to start because another runner is alive. Logs a clear message and exits. */
+function refuseConcurrentRun(existingPid) {
+  log('');
+  log('════════════════════════════════════════════════════════════════════');
+  log(`  Another test-e2e.js instance is running (PID ${existingPid}).`);
+  log("  Refusing to start to avoid killing another runner's wrangler.");
+  log('');
+  log(`  If this is stale, kill it manually: kill -9 ${existingPid}`);
+  log(`  Then delete ${RUNNER_PID_FILE} and retry.`);
+  log('════════════════════════════════════════════════════════════════════');
+  process.exit(1);
+}
+
+/** Clean up after a dead previous runner. */
+function cleanupDeadRunner(existingPid) {
+  log(`Cleaning up after dead previous runner (PID ${existingPid})...`);
+  killRecordedWranglerPids();
+  try {
+    unlinkSync(WRANGLER_PIDS_FILE);
+  } catch {
+    /* */
+  }
+  try {
+    unlinkSync(RUNNER_PID_FILE);
+  } catch {
+    /* */
+  }
+}
+
+/** Release the runner lock (called on exit / SIGINT / SIGTERM). */
+function releaseRunnerLock() {
+  if (!runnerLockAcquired) return;
+  runnerLockAcquired = false;
+  try {
+    const current = readFileSync(RUNNER_PID_FILE, 'utf8').trim();
+    if (parseInt(current) === process.pid) {
+      unlinkSync(RUNNER_PID_FILE);
+    }
+  } catch {
+    /* lock file already removed — fine */
+  }
+  // Always try to clean up the wrangler-pids file we own, regardless of lock state.
+  try {
+    unlinkSync(WRANGLER_PIDS_FILE);
+  } catch {
+    /* already gone — fine */
+  }
+}
+
+/** Acquire exclusive runner lock via PID file. Exits if another runner is alive. */
+function acquireRunnerLock() {
+  mkdirSync(STATE_DIR, { recursive: true });
+
+  if (existsSync(RUNNER_PID_FILE)) {
+    let existingPid = NaN;
+    try {
+      existingPid = parseInt(readFileSync(RUNNER_PID_FILE, 'utf8'));
+    } catch {
+      /* */
+    }
+
+    if (existingPid === process.pid) {
+      runnerLockAcquired = true;
+      return;
+    }
+
+    if (isPidAlive(existingPid)) refuseConcurrentRun(existingPid);
+
+    cleanupDeadRunner(existingPid);
+  }
+
+  writeFileSync(RUNNER_PID_FILE, String(process.pid));
+  runnerLockAcquired = true;
+
+  process.on('exit', releaseRunnerLock);
+  process.on('SIGINT', () => {
+    releaseRunnerLock();
+    process.exit(SIGNAL_EXIT_CODES.SIGINT);
+  });
+  process.on('SIGTERM', () => {
+    releaseRunnerLock();
+    process.exit(SIGNAL_EXIT_CODES.SIGTERM);
+  });
+}
+
+// ── D1 probe ──────────────────────────────────────────────────────────────────
+
+/** Any sqlite file (even empty) is acceptable — we apply migrations via sqlite3 after. */
+function isD1File(filePath) {
+  try {
+    lstatSync(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // eslint-disable-next-line complexity
 function findD1Sqlite(pd) {
   const dir = path.join(pd, 'v3', 'd1', 'miniflare-D1DatabaseObject');
@@ -112,10 +274,8 @@ function findD1Sqlite(pd) {
   for (const name of entries) {
     if (name === 'metadata.sqlite') continue;
     if (!name.endsWith('.sqlite')) continue;
-    // Layout A: direct child
     const direct = path.join(dir, name);
     if (isD1File(direct)) return direct;
-    // Layout B: nested (hash/hash.sqlite)
     let files;
     try {
       files = readdirSync(path.join(dir, name));
@@ -147,28 +307,28 @@ function cleanupStateDir() {
 }
 
 // eslint-disable-next-line max-statements
-async function bootTmpWrangler() {
-  const tmpPort = String(parseInt(PORT) + 1);
-  log(`Creating D1 file via wrangler dev (tmp port ${tmpPort})...`);
+async function bootWranglerForD1Init() {
+  log(`Creating D1 file via wrangler dev (port ${PORT})...`);
   const tmp = spawn(
     'npx',
-    ['wrangler', 'dev', '--ip', '0.0.0.0', '--port', tmpPort, '--persist-to', STATE_DIR],
+    ['wrangler', 'dev', '--ip', '0.0.0.0', '--port', PORT, '--persist-to', STATE_DIR],
     {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, NODE_ENV: 'development' },
-      detached: false,
+      detached: true, // new process group → killProcessTree can signal the whole group
     }
   );
+  recordWranglerPid(tmp.pid);
 
   let httpReady = false;
   let dbPath = null;
   for (let i = 0; i < 60; i++) {
     try {
-      const r = await fetch(`http://127.0.0.1:${tmpPort}/`);
+      const r = await fetch(`http://127.0.0.1:${PORT}/`);
       if (r.ok && !httpReady) {
         httpReady = true;
-        log('  tmp server HTTP-ready, triggering D1 init...');
-        await fetch(`http://127.0.0.1:${tmpPort}/api/health`);
+        log('  wrangler HTTP-ready, triggering D1 init...');
+        await fetch(`http://127.0.0.1:${PORT}/api/health`);
         await sleep(1000);
       }
       if (httpReady) {
@@ -176,20 +336,21 @@ async function bootTmpWrangler() {
         if (dbPath) break;
       }
     } catch {
-      /* not ready yet */
+      /* not ready */
     }
     await sleep(500);
   }
-  tmp.kill('SIGTERM');
+  // Stop tmp wrangler BEFORE applying migrations so it doesn't hold the file lock
+  // or cache an empty schema. Record the dbPath while wrangler is still alive so
+  // we know the exact file wrangler opened.
+  killProcessTree(tmp.pid);
   // eslint-disable-next-line no-magic-numbers
-  await sleep(1200);
+  await sleep(1500);
   if (!dbPath) {
     log('FATAL: D1 sqlite never created');
     process.exit(1);
   }
-  const dir = path.basename(path.dirname(dbPath));
-  const file = path.basename(dbPath);
-  log(`D1 database: ${dir}/${file}`);
+  log(`D1 database: ${path.basename(path.dirname(dbPath))}/${path.basename(dbPath)}`);
   return dbPath;
 }
 
@@ -207,16 +368,27 @@ async function applyMigrations(dbPath) {
     const sqlPath = path.join(process.cwd(), 'migrations', file);
     log(`  Applying ${file}...`);
     try {
-      const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'ignore', 'pipe'] });
-      child.stdin.write(readFileSync(sqlPath));
-      child.stdin.end();
-      const err = child.stderr.read();
-      if (err) {
-        const msg = err.toString().trim();
-        if (!msg.includes('already exists') && !msg.includes('no such table')) {
-          log(`    sqlite3: ${msg}`);
-        }
-      }
+      await new Promise((resolve, reject) => {
+        const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+        let stderr = '';
+        child.stderr.on('data', (d) => {
+          stderr += d.toString();
+        });
+        child.on('error', reject);
+        child.on('close', (code) => {
+          const msg = stderr.trim();
+          // Filter known benign messages
+          if (msg && !msg.includes('already exists') && !msg.includes('no such table')) {
+            log(`    sqlite3: ${msg}`);
+          }
+          if (code !== 0 && code !== null) {
+            log(`    exit code: ${code}`);
+          }
+          resolve();
+        });
+        child.stdin.write(readFileSync(sqlPath));
+        child.stdin.end();
+      });
       log(`  ✓ ${file}`);
     } catch (err) {
       log(`  ✗ ${file}: ${err.message}`);
@@ -227,14 +399,24 @@ async function applyMigrations(dbPath) {
 async function enablePublicRegistration(dbPath) {
   log('Enabling public registration...');
   try {
-    const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'ignore', 'pipe'] });
-    child.stdin.write(
-      'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
-        '("public_registration_status", "active", unixepoch()), ' +
-        '("public_registration", "true", unixepoch());\n'
-    );
-    child.stdin.end();
-    child.stderr.read();
+    await new Promise((resolve, reject) => {
+      const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (d) => {
+        stderr += d.toString();
+      });
+      child.on('error', reject);
+      child.on('close', () => {
+        if (stderr.trim()) log(`    sqlite3: ${stderr.trim()}`);
+        resolve();
+      });
+      child.stdin.write(
+        'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
+          "('public_registration_status', 'active', unixepoch()), " +
+          "('public_registration', 'true', unixepoch());\n"
+      );
+      child.stdin.end();
+    });
     log('Public registration enabled.');
   } catch (err) {
     log('Warning: could not enable public_registration:', err.message);
@@ -242,8 +424,16 @@ async function enablePublicRegistration(dbPath) {
 }
 
 function verifyTables(dbPath) {
-  const tables = execSync(`sqlite3 "${dbPath}" ".tables"`, { encoding: 'utf8' }).trim();
-  log(`DB ready — ${tables.split(' ').length} tables`);
+  const count = execSync(
+    `sqlite3 "${dbPath}" "SELECT count(*) FROM sqlite_master WHERE type='table';"`,
+    { encoding: 'utf8' }
+  ).trim();
+  log(`DB ready — ${count} tables`);
+  // Sanity check: migrations must have created enough tables (GrowChat has 20+ core tables)
+  if (Number(count) < 10) {
+    log(`FATAL: too few tables after migrations (got ${count})`);
+    process.exit(1);
+  }
 }
 
 // ── DB init ───────────────────────────────────────────────────────────────────
@@ -251,7 +441,7 @@ function verifyTables(dbPath) {
 async function initDatabase() {
   log('Initializing local D1 database...');
   cleanupStateDir();
-  const dbPath = await bootTmpWrangler();
+  const dbPath = await bootWranglerForD1Init();
   await applyMigrations(dbPath);
   await enablePublicRegistration(dbPath);
   verifyTables(dbPath);
@@ -267,9 +457,10 @@ async function startDevServer() {
     {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, NODE_ENV: 'development' },
-      detached: false,
+      detached: true, // new process group → killProcessTree can signal the whole group
     }
   );
+  recordWranglerPid(wranglerProc.pid);
 
   wranglerProc.stdout.on('data', (c) => process.stderr.write(c));
   wranglerProc.stderr.on('data', (c) => process.stderr.write(c));
@@ -292,7 +483,7 @@ async function startDevServer() {
     await sleep(POLL_MS);
   }
   log(`ERROR: Server did not start within ${DEV_TIMEOUT / 1000}s`);
-  wranglerProc.kill('SIGTERM');
+  killProcessTree(wranglerProc.pid);
   process.exit(1);
 }
 
@@ -300,27 +491,9 @@ async function startDevServer() {
 
 function killDevServer() {
   if (!wranglerProc) return;
-  log('Stopping wrangler dev...');
   const pid = wranglerProc.pid;
-  if (pid) {
-    try {
-      execSync(`pkill -TERM -P ${pid}`, { stdio: 'ignore' });
-    } catch {
-      /* */
-    }
-    try {
-      execSync(`kill -TERM ${pid}`, { stdio: 'ignore' });
-    } catch {
-      /* */
-    }
-    sleep(500).then(() => {
-      try {
-        execSync(`kill -9 ${pid}`, { stdio: 'ignore' });
-      } catch {
-        /* */
-      }
-    });
-  }
+  log(`Stopping wrangler dev (PID ${pid})...`);
+  if (pid) killProcessTree(pid);
   wranglerProc = null;
 }
 
@@ -365,12 +538,10 @@ async function runTests() {
   });
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  cleanupStaleProcesses();
-  // eslint-disable-next-line no-magic-numbers
-  await sleep(1500);
+  acquireRunnerLock(); // PID lock — refuses on concurrent runner
 
   const cleanup = () => killDevServer();
   process.on('SIGINT', cleanup);
