@@ -9,16 +9,18 @@ GrowChat/
 ├── tests/                  # Unit + E2E + integration tests
 ├── migrations/             # D1 SQL migrations (forward-only)
 ├── docs/                   # This documentation
-├── scripts/                # Dev/deploy scripts
-├── skills/                 # Claude Code skills
+├── scripts/                # Dev/deploy scripts (init-local-db, test-e2e, seed-test-user, etc.)
+├── .claude/skills/         # Claude Code skills (gitnexus-exploring, etc.)
 ├── tests/e2e/fixtures/     # E2E auth state data
 ├── tests/e2e/artifacts/    # E2E screenshots, traces
 ├── coverage/               # Test coverage reports (generated)
 ├── wrangler.jsonc          # Cloudflare Workers configuration
 ├── package.json            # Dependencies and scripts
 ├── tailwind.config.js      # Tailwind CSS config
+├── DESIGN.md              # UX design guidelines
 ├── AGENTS.md              # Agent instructions (quick reference)
-├── .env                   # Local environment vars
+├── CLAUDE.md              # Project-level Claude instructions
+├── .dev.vars.example      # Local environment variable template
 └── .gitignore
 ```
 
@@ -135,7 +137,7 @@ public/
 tests/
 ├── unit/                   # Vitest unit tests
 ├── e2e/                    # Playwright E2E tests
-│   ├── frontend/          # auth.spec.ts, chat.spec.ts, admin-settings.spec.ts
+│   ├── frontend/          # auth, chat, admin-settings, connections, visual-regression, etc.
 │   └── fixtures/          # auth-state.json (⚠️ contains real credentials — sanitize)
 ├── rbac.test.js            # RBAC design spec (not executable)
 └── rbac.integration.test.js # RBAC integration spec (not executable)
@@ -143,13 +145,28 @@ tests/
 
 Test files in `src/`: `src/**/*.test.js` — colocated unit tests.
 
+### E2E Test Specs (`tests/e2e/frontend/`)
+
+- `auth.setup.spec.ts` — Generates `auth-state.json` (storageState) from `TEST_EMAIL`/`TEST_PASSWORD`
+- `auth.spec.ts` — Guest auth flows (register, login, password reset)
+- `auth-workflows.spec.ts` — Complex auth workflows
+- `bootstrap.spec.ts` — App bootstrap tests
+- `chat.spec.ts` — Chat creation, messaging, streaming
+- `admin-settings.spec.ts` — Admin settings CRUD
+- `connections.spec.ts` — LLM connection management
+- `visual-regression.spec.ts` — Playwright `toHaveScreenshot()` baselines (desktop + mobile)
+- `accessibility.spec.ts` — axe-core a11y audits
+- `button-responsive.spec.ts` — Button responsive behavior tests
+
 ## Migrations (`migrations/`)
 
 ```
 migrations/
 ├── 001_initial.sql         # Core schema: 22 tables + seed (roles, permissions)
 ├── 002_settings_permissions.sql # Additive: 28 new permissions + role bindings
-└── 003_password_reset_tokens.sql  # Additive: password_reset_tokens table
+├── 004_email_verification.sql   # Email verification tokens
+├── 005_message_editing.sql      # Message edit history
+└── 006_audit_logging.sql        # Audit log schema
 ```
 
 Policy: Forward-only, sequential filenames, additive-only after baseline.
@@ -187,7 +204,11 @@ pnpm run dev:db           # Initialize local D1 database
 pnpm test                 # All unit tests (Vitest)
 pnpm run test:watch       # Watch mode
 pnpm run test:coverage   # Coverage report
-pnpm run test:e2e        # Playwright E2E
+pnpm run test:e2e        # E2E (via scripts/test-e2e.js: starts wrangler dev, seeds DB, runs Playwright)
+pnpm run test:e2e:ui     # Playwright UI mode
+pnpm run test:e2e:update-snapshots  # Update visual regression baselines
+pnpm run check:mutation  # Stryker mutation testing
+pnpm run prepush:checks  # Full pre-push gate (unit tests + typecheck + lint + scoped checks)
 
 # Deployment
 pnpm run deploy           # predeploy: lint → format-check → test → coverage → build:css → validate migrations → wrangler deploy
