@@ -127,7 +127,33 @@ export function renderSummary({ state, summaryEl, countEl, reasonEl, resourceLab
   if (reasonEl) reasonEl.textContent = reasonText;
 }
 
-export function renderAclGroupList({ listEl, errorEl, state, effectClass }) {
+/**
+ * Bind a single body-render function for an ACL access modal: re-renders the
+ * summary (count, allow/deny text) and the group list together. The group
+ * list's change handler is wired to this same function so toggling a rule
+ * updates the summary inline (instead of staying stale until save).
+ *
+ * Returns the bound renderAll function so the caller can invoke it
+ * explicitly on initial mount and after async loads.
+ */
+export function bindAclModalBodyRender({
+  state,
+  summaryEl,
+  countEl,
+  reasonEl,
+  listEl,
+  errorEl,
+  effectClass,
+  resourceLabel,
+}) {
+  const renderAll = () => {
+    renderSummary({ state, summaryEl, countEl, reasonEl, resourceLabel });
+    renderAclGroupList({ listEl, errorEl, state, effectClass, onChange: renderAll });
+  };
+  return renderAll;
+}
+
+export function renderAclGroupList({ listEl, errorEl, state, effectClass, onChange }) {
   if (!listEl) return;
   if (state.loading) {
     listEl.innerHTML = `
@@ -192,6 +218,12 @@ export function renderAclGroupList({ listEl, errorEl, state, effectClass }) {
         state.rulesByGroup.delete(groupId);
       } else {
         state.rulesByGroup.set(groupId, effect === 'deny' ? 'deny' : 'allow');
+      }
+      // Notify the caller so it can re-render the summary / counts.
+      // Without this, the summary text stays stale until the user saves
+      // or reopens the modal.
+      if (typeof onChange === 'function') {
+        onChange();
       }
     });
   });

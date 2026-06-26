@@ -65,7 +65,7 @@ export function tryWriteExclusive(pidFile, myPid) {
  * @param {(pid: number) => void | Promise<void>} opts.onDeadRunner  Called to clean up a dead runner before retry.
  * @returns {{ acquired: boolean, fresh?: boolean }}   Result of the acquire attempt.
  */
-export function acquirePidLockAtomic({
+export async function acquirePidLockAtomic({
   pidFile,
   myPid,
   isAlive,
@@ -97,8 +97,10 @@ export function acquirePidLockAtomic({
   }
 
   // Dead runner (or unparseable content). Let the caller clean up, then retry
-  // the atomic create exactly once.
-  onDeadRunner(existingPid);
+  // the atomic create exactly once. The cleanup may be async (e.g. wait for
+  // a process to exit, close a connection); await it so the retry does not
+  // race with the cleanup's own file delete.
+  await onDeadRunner(existingPid);
 
   if (tryWriteExclusive(pidFile, myPid)) {
     return { acquired: true, fresh: true };

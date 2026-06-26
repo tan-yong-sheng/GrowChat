@@ -69,9 +69,13 @@ jobs:
             sleep 1
           done
           echo "Seeding test user..."
-          curl -sf -X POST http://localhost:8787/api/auth/register \
-            -H 'Content-Type: application/json' \
-            -d '{"name":"Admin","email":"admin@localhost","password":"admin123"}' || true
+          # Use the shared seeder which treats 409 (already exists) as success
+          # but fails fast on any other status (500, 401, schema mismatch,
+          # etc.) so we don't run Playwright against a half-broken server.
+          TEST_URL=http://localhost:8787 \
+            TEST_EMAIL=admin@localhost \
+            TEST_PASSWORD=admin123 \
+            node scripts/seed-test-user.js
 
       - name: Run auth setup (create auth-state.json fixture)
         run: |

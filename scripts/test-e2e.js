@@ -233,7 +233,7 @@ function releaseRunnerLock() {
 async function acquireRunnerLock() {
   mkdirSync(STATE_DIR, { recursive: true });
 
-  const result = acquirePidLockAtomic({
+  const result = await acquirePidLockAtomic({
     pidFile: RUNNER_PID_FILE,
     myPid: process.pid,
     isAlive: isPidAlive,

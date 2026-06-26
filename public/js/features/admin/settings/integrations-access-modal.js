@@ -8,9 +8,8 @@ import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-ser
 import {
   cloneAclRules,
   getAclRulesSignature,
-  renderSummary,
   updateSaveButton,
-  renderAclGroupList,
+  bindAclModalBodyRender,
 } from './acl-modal-shared.js';
 
 export async function openToolServerAccessModal(server, { onApply } = {}) {
@@ -38,10 +37,24 @@ export async function openToolServerAccessModal(server, { onApply } = {}) {
     rulesByGroup: new Map(),
   };
 
+  // Single source of truth for the modal's body render. Called on load and
+  // again whenever a rule effect changes so the summary/count text stays
+  // in sync with rulesByGroup.
+  const renderAll = bindAclModalBodyRender({
+    state,
+    summaryEl,
+    countEl,
+    reasonEl,
+    listEl,
+    errorEl,
+    effectClass: 'tool-server-acl-effect',
+    resourceLabel: 'MCP server',
+  });
+
   const loadAccess = async () => {
     state.loading = true;
     state.error = null;
-    renderAclGroupList({ listEl, errorEl, state, effectClass: 'tool-server-acl-effect' });
+    renderAll();
     try {
       const payload = await fetchAdminToolServerAccess(server.id);
       state.groups = Array.isArray(payload.groups) ? payload.groups : [];
@@ -63,8 +76,7 @@ export async function openToolServerAccessModal(server, { onApply } = {}) {
       state.error = err?.message || 'Failed to load MCP server access';
     } finally {
       state.loading = false;
-      renderSummary({ state, summaryEl, countEl, reasonEl, resourceLabel: 'MCP server' });
-      renderAclGroupList({ listEl, errorEl, state, effectClass: 'tool-server-acl-effect' });
+      renderAll();
     }
   };
 
@@ -99,8 +111,7 @@ export async function openToolServerAccessModal(server, { onApply } = {}) {
   });
 
   document.body.appendChild(modal);
-  renderSummary({ state, summaryEl, countEl, reasonEl, resourceLabel: 'MCP server' });
-  renderAclGroupList({ listEl, errorEl, state, effectClass: 'tool-server-acl-effect' });
+  renderAll();
   updateSaveButton(saveBtn, state);
   await loadAccess();
 }

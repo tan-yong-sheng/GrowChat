@@ -71,8 +71,8 @@ describe('acquirePidLockAtomic', () => {
     dead.mockReset();
   });
 
-  it('fresh acquire when no lock file exists', () => {
-    const result = acquirePidLockAtomic({
+  it('fresh acquire when no lock file exists', async () => {
+    const result = await acquirePidLockAtomic({
       pidFile: lockFile,
       myPid: 1234,
       isAlive: () => false,
@@ -83,9 +83,9 @@ describe('acquirePidLockAtomic', () => {
     expect(readPid(lockFile)).toBe(1234);
   });
 
-  it('idempotent acquire when lock file already holds our own pid', () => {
+  it('idempotent acquire when lock file already holds our own pid', async () => {
     writeFileSync(lockFile, '1234');
-    const result = acquirePidLockAtomic({
+    const result = await acquirePidLockAtomic({
       pidFile: lockFile,
       myPid: 1234,
       isAlive: () => false,
@@ -96,9 +96,9 @@ describe('acquirePidLockAtomic', () => {
     expect(readPid(lockFile)).toBe(1234);
   });
 
-  it('refuses and calls onRefuseLiveRunner when a live other pid holds the lock', () => {
+  it('refuses and calls onRefuseLiveRunner when a live other pid holds the lock', async () => {
     writeFileSync(lockFile, String(DEAD_PID)); // will appear alive via the isAlive mock
-    const result = acquirePidLockAtomic({
+    const result = await acquirePidLockAtomic({
       pidFile: lockFile,
       myPid: 1234,
       isAlive: () => true, // everything is alive in this test
@@ -111,11 +111,11 @@ describe('acquirePidLockAtomic', () => {
     expect(readPid(lockFile)).toBe(DEAD_PID); // we did not overwrite
   });
 
-  it('cleans up dead runner and acquires when pid file holds a dead pid', () => {
+  it('cleans up dead runner and acquires when pid file holds a dead pid', async () => {
     writeFileSync(lockFile, String(DEAD_PID));
     // Real callers' cleanup callback deletes the stale file. Mirror that.
     const onDead = vi.fn(() => rmSync(lockFile, { force: true }));
-    const result = acquirePidLockAtomic({
+    const result = await acquirePidLockAtomic({
       pidFile: lockFile,
       myPid: 1234,
       isAlive: () => false, // nothing alive
@@ -127,10 +127,10 @@ describe('acquirePidLockAtomic', () => {
     expect(readPid(lockFile)).toBe(1234);
   });
 
-  it('treats malformed lock file content as a dead runner and acquires', () => {
+  it('treats malformed lock file content as a dead runner and acquires', async () => {
     writeFileSync(lockFile, 'not-a-pid\n');
     const onDead = vi.fn(() => rmSync(lockFile, { force: true }));
-    const result = acquirePidLockAtomic({
+    const result = await acquirePidLockAtomic({
       pidFile: lockFile,
       myPid: 1234,
       isAlive: () => false,
@@ -143,7 +143,7 @@ describe('acquirePidLockAtomic', () => {
     expect(readPid(lockFile)).toBe(1234);
   });
 
-  it('refuses (acquired=false, no overwrite) when EEXIST persists after cleanup', () => {
+  it('refuses (acquired=false, no overwrite) when EEXIST persists after cleanup', async () => {
     // Simulate: lock file exists with dead pid, but cleanup callback re-creates
     // the file with another live pid before our retry. The atomic retry must
     // NOT clobber the new owner.
@@ -152,7 +152,7 @@ describe('acquirePidLockAtomic', () => {
       // Simulate a concurrent winner grabbing the slot during cleanup.
       writeFileSync(lockFile, '4321');
     });
-    const result = acquirePidLockAtomic({
+    const result = await acquirePidLockAtomic({
       pidFile: lockFile,
       myPid: 1234,
       isAlive: (pid) => pid === 4321, // the new owner is "alive"
@@ -162,6 +162,29 @@ describe('acquirePidLockAtomic', () => {
     expect(onDead).toHaveBeenCalled();
     expect(result.acquired).toBe(false);
     expect(readPid(lockFile)).toBe(4321); // not overwritten
+  });
+
+  it('awaits async onDeadRunner cleanup before retrying the atomic create', async () => {
+    // Real callers may need to do async I/O to clean up (e.g. wait for a
+    // process, close a connection). If the helper does not await the cleanup,
+    // the retry happens while the lock file still exists and acquire fails.
+    writeFileSync(lockFile, String(DEAD_PID));
+    let cleanupCompleted = false;
+    const onDead = vi.fn(async () => {
+      await new Promise((r) => setImmediate(r));
+      rmSync(lockFile, { force: true });
+      cleanupCompleted = true;
+    });
+    const result = await acquirePidLockAtomic({
+      pidFile: lockFile,
+      myPid: 1234,
+      isAlive: () => false,
+      onRefuseLiveRunner: refuse,
+      onDeadRunner: onDead,
+    });
+    expect(cleanupCompleted).toBe(true);
+    expect(result).toEqual({ acquired: true, fresh: true });
+    expect(readPid(lockFile)).toBe(1234);
   });
 });
 

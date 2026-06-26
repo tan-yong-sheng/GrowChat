@@ -12,9 +12,8 @@ import { normalizeConnectionManualModels } from './connections-helpers.js';
 import {
   cloneAclRules,
   getAclRulesSignature,
-  renderSummary,
   updateSaveButton,
-  renderAclGroupList,
+  bindAclModalBodyRender,
 } from './acl-modal-shared.js';
 
 export async function openConnectionAccessModal(connection, { connectionsState, _onApply } = {}) {
@@ -44,10 +43,21 @@ export async function openConnectionAccessModal(connection, { connectionsState, 
     rulesByGroup: new Map(),
   };
 
+  const renderAll = bindAclModalBodyRender({
+    state,
+    summaryEl,
+    countEl,
+    reasonEl,
+    listEl,
+    errorEl,
+    effectClass: 'connection-acl-effect',
+    resourceLabel: 'connection',
+  });
+
   const loadAccess = async () => {
     state.loading = true;
     state.error = null;
-    renderAclGroupList({ listEl, errorEl, state, effectClass: 'connection-acl-effect' });
+    renderAll();
     try {
       const payload = await fetchAdminConnectionAccess(connection.id);
       state.groups = Array.isArray(payload.groups) ? payload.groups : [];
@@ -69,8 +79,7 @@ export async function openConnectionAccessModal(connection, { connectionsState, 
       state.error = err.message || 'Failed to load connection access';
     } finally {
       state.loading = false;
-      renderSummary({ state, summaryEl, countEl, reasonEl, resourceLabel: 'connection' });
-      renderAclGroupList({ listEl, errorEl, state, effectClass: 'connection-acl-effect' });
+      renderAll();
     }
   };
 
@@ -118,8 +127,7 @@ export async function openConnectionAccessModal(connection, { connectionsState, 
   });
 
   updateSaveButton(saveBtn, state);
-  renderSummary({ state, summaryEl, countEl, reasonEl, resourceLabel: 'connection' });
-  renderAclGroupList({ listEl, errorEl, state, effectClass: 'connection-acl-effect' });
+  renderAll();
   loadAccess();
   document.body.appendChild(modal);
 }
