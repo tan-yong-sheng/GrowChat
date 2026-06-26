@@ -4,14 +4,16 @@
  *
  * Replaces Danger because the latter consistently failed with
  * ERR_STREAM_PREMATURE_CLOSE (node-fetch v2 + gzipped GitHub API responses
- * for large PRs). The two validations are simple enough to replicate
- * without a third-party CI library:
+ * for large PRs). The two original dangerfile.js rules (both `warn()`,
+ * non-blocking) are replicated here:
  *
  *   1. PR body must be at least 10 characters long.
  *   2. If package.json is modified, pnpm-lock.yaml must also be modified.
  *
  * Inputs are read from environment variables (PR_BODY, PR_BASE_REF) and
  * `git diff --name-only $PR_BASE_REF...HEAD`, so the check is fully offline.
+ * Both rules are reported as warnings (matching the original `warn()`
+ * semantics) — the script only exits 1 if git diff itself fails.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -29,6 +31,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  delete process.env.PR_BODY;
+  delete process.env.PR_BASE_REF;
 });
 
 describe('validate (pure)', () => {
@@ -36,27 +40,30 @@ describe('validate (pure)', () => {
     expect(validate('A real PR description with details.', ['src/foo.js'])).toEqual([]);
   });
 
-  it('fails when body is shorter than minimum', () => {
-    const errors = validate('short', ['src/foo.js']);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]).toMatch(/PR body is too short/);
+  it('warns when body is shorter than minimum', () => {
+    const warnings = validate('short', ['src/foo.js']);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/PR body is too short/);
   });
 
-  it('fails when body is empty', () => {
-    const errors = validate('', ['src/foo.js']);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]).toMatch(/PR body is too short/);
+  it('warns when body is empty', () => {
+    const warnings = validate('', ['src/foo.js']);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/PR body is too short/);
   });
 
-  it('fails when body is null/undefined', () => {
+  it('warns when body is null/undefined', () => {
     expect(validate(null, ['src/foo.js'])).toHaveLength(1);
     expect(validate(undefined, ['src/foo.js'])).toHaveLength(1);
   });
 
-  it('fails when package.json is modified without pnpm-lock.yaml', () => {
-    const errors = validate('A real PR description with details.', ['package.json', 'src/foo.js']);
-    expect(errors).toHaveLength(1);
-    expect(errors[0]).toMatch(/package.json was modified but pnpm-lock\.yaml was not/);
+  it('warns when package.json is modified without pnpm-lock.yaml', () => {
+    const warnings = validate('A real PR description with details.', [
+      'package.json',
+      'src/foo.js',
+    ]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/package.json was modified but pnpm-lock\.yaml was not/);
   });
 
   it('passes when package.json AND pnpm-lock.yaml are both modified', () => {
@@ -65,9 +72,9 @@ describe('validate (pure)', () => {
     ).toEqual([]);
   });
 
-  it('reports both errors at once (body too short + lockfile missing)', () => {
-    const errors = validate('tiny', ['package.json', 'src/foo.js']);
-    expect(errors).toHaveLength(2);
+  it('reports both warnings at once (body too short + lockfile missing)', () => {
+    const warnings = validate('tiny', ['package.json', 'src/foo.js']);
+    expect(warnings).toHaveLength(2);
   });
 
   it('respects MIN_BODY_LENGTH constant', () => {
@@ -140,21 +147,7 @@ describe('getChangedFiles', () => {
 });
 
 describe('runChecks (CLI entrypoint)', () => {
-  let exitSpy;
-
-  beforeEach(() => {
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
-      throw new Error(`__exit__:${code}`);
-    });
-  });
-
-  afterEach(() => {
-    exitSpy.mockRestore();
-    delete process.env.PR_BODY;
-    delete process.env.PR_BASE_REF;
-  });
-
-  it('passes when env vars and git diff are consistent', () => {
+  it('passes silently when env vars and git diff are consistent', () => {
     process.env.PR_BODY = 'A real PR description with details.';
     process.env.PR_BASE_REF = 'origin/main';
     spawnSync.mockReturnValue({
@@ -166,7 +159,6 @@ describe('runChecks (CLI entrypoint)', () => {
       stderr: '',
     });
     expect(() => runChecks()).not.toThrow();
-    expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('uses origin/main when PR_BASE_REF is unset', () => {
@@ -187,7 +179,10 @@ describe('runChecks (CLI entrypoint)', () => {
     );
   });
 
-  it('exits 1 when validation fails', () => {
+  it('does NOT exit when validation produces warnings (matches dangerfile warn() semantics)', () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`__exit__:${code}`);
+    });
     process.env.PR_BODY = 'tiny';
     process.env.PR_BASE_REF = 'origin/main';
     spawnSync.mockReturnValue({
@@ -198,6 +193,9 @@ describe('runChecks (CLI entrypoint)', () => {
       stdout: '',
       stderr: '',
     });
-    expect(() => runChecks()).toThrow('__exit__:1');
+    // Warnings are non-blocking — process.exit should NOT be called.
+    expect(() => runChecks()).not.toThrow();
+    expect(exitSpy).not.toHaveBeenCalled();
+    exitSpy.mockRestore();
   });
 });
