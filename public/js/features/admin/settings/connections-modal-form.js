@@ -249,6 +249,14 @@ export function createConnectionsModalForm(deps) {
       connectionsState.deletedManualModelIds = [];
     }
     connectionsState.deletedManualModelIds.push(deletedModelId);
+    // Keep selectedConnection.manualModels in sync — refreshModalModels()
+    // repopulates from there, so leaving it stale would resurrect the
+    // deleted model after a test/refresh and desync the save payload.
+    if (Array.isArray(connection.manualModels)) {
+      connection.manualModels = normalizeConnectionManualModels(connection.manualModels).filter(
+        (model) => model.modelId !== deletedModelId
+      );
+    }
     renderModalModels(modalRoot);
   };
 
