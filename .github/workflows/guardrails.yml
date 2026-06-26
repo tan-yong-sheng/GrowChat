@@ -101,16 +101,18 @@ jobs:
         timeout-minutes: 5
         run: pnpm run test:coverage
 
-      # Tier 2: danger.js PR semantic checks
-      # Uses scripts/run-danger.js wrapper to retry on transient network
-      # failures (ERR_STREAM_PREMATURE_CLOSE from node-fetch v2 reading
-      # gzipped GitHub API responses for large PRs) that bypass Danger's
-      # built-in 401/5xx-only retry logic.
-      - name: Run Danger
-        timeout-minutes: 10
+      # Tier 2: PR semantic checks
+      # Replaces the previous `danger ci` invocation, which consistently
+      # failed on this PR with ERR_STREAM_PREMATURE_CLOSE (node-fetch v2 +
+      # gzipped GitHub API responses for large PRs). The custom check is
+      # fully offline — it reads the PR body from a GitHub Actions env var
+      # and runs `git diff --name-only` locally — so it has no third-party
+      # network dependency.
+      - name: Run PR checks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/run-danger.js
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: node scripts/pr-checks.js
 
       # Tier 3: Code duplication audit (budget-enforced)
       - name: Code duplication audit
