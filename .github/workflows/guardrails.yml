@@ -111,7 +111,9 @@ jobs:
       - name: Run PR checks
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          # Prefix origin/ because actions/checkout creates the base branch
+          # as origin/<ref>, not as a bare local ref.
+          PR_BASE_REF: origin/${{ github.event.pull_request.base.ref }}
         run: node scripts/pr-checks.js
 
       # Tier 3: Code duplication audit (budget-enforced)
