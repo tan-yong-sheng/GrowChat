@@ -219,6 +219,13 @@ export function createConnectionsModalForm(deps) {
     connectionsState.modalModelsSelection.add(fullId);
     connectionsState.modalModelsOriginal = new Set(connectionsState.modalModelsOriginal || []);
     connectionsState.modalModelsOriginal.add(fullId);
+    // Clear any tombstone from a previous remove of the same model so the
+    // re-add isn't silently filtered out by buildSelectedConnectionModels().
+    if (Array.isArray(connectionsState.deletedManualModelIds)) {
+      connectionsState.deletedManualModelIds = connectionsState.deletedManualModelIds.filter(
+        (id) => id !== safe && id !== fullId
+      );
+    }
     input.value = '';
     renderModalModels(modalRoot);
   };

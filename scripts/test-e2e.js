@@ -536,7 +536,10 @@ async function seedUser() {
     log('Test user already exists.');
     return;
   }
-  log(`Warning: seed failed (${res.status}): ${await res.text().catch(() => '')}`);
+  // Fail fast: if seeding failed for any reason other than "already exists",
+  // Playwright would proceed against an unauthenticated server and produce
+  // misleading downstream failures far from the root cause.
+  throw new Error(`Seed failed (${res.status}): ${await res.text().catch(() => '')}`);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

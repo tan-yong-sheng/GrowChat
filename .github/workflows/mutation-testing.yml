@@ -49,7 +49,8 @@ jobs:
       - name: Run incremental mutation testing (PR)
         if: github.event_name == 'pull_request'
         run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD -- 'src/**/*.js' | grep -v '\.test\.js$' | tr '\n' ',' | sed 's/,$//')
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'src/**/*.js' | grep -v '\.test\.js$' || true)
+          CHANGED=$(printf '%s\n' "$CHANGED" | tr '\n' ',' | sed 's/,$//')
           if [ -z "$CHANGED" ]; then
             echo "No source files changed under src/, skipping mutation testing"
           else

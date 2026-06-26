@@ -19,17 +19,9 @@ export function normalizeToolList(tools = []) {
     .filter((tool) => tool.name);
 }
 
-function fromServer(server, defaults) {
-  const out = {};
-  for (const key of Object.keys(defaults)) {
-    out[key] = server[key] !== undefined ? server[key] : defaults[key];
-  }
-  return out;
-}
-
 function buildAuthFields(server = {}) {
   const s = server || {};
-  return fromServer(s, {
+  const defaults = {
     auth_type: 'none',
     auth_bearer_token: '',
     auth_basic_username: '',
@@ -39,7 +31,18 @@ function buildAuthFields(server = {}) {
     oauth_client_id: '',
     oauth_client_secret: '',
     oauth_token_auth_method: '',
-  });
+  };
+  // Coerce every auth field to a trimmed string. Without this, nullish or
+  // whitespace-padded values would survive into saved records and corrupt
+  // downstream auth (DB expects non-null strings; trailing space breaks
+  // bearer/OAuth matching). Matches sanitizeIntegrationsServers() history.
+  const out = {};
+  for (const key of Object.keys(defaults)) {
+    const value = s[key] !== undefined ? s[key] : defaults[key];
+    out[key] = String(value ?? '').trim();
+  }
+  if (!out.auth_type) out.auth_type = 'none';
+  return out;
 }
 
 export function normalizeToolServer(server = {}) {
