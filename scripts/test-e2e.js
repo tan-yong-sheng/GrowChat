@@ -27,10 +27,10 @@ import {
   writeFileSync,
   unlinkSync,
   lstatSync,
-  existsSync,
 } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import path from 'node:path';
+import { acquirePidLockAtomic, releasePidLock } from './lib/runner-lock.js';
 
 const RAW_PORT = process.env.TEST_PORT || '8788';
 // Validate PORT is a numeric string to prevent shell-injection from env vars.
@@ -211,14 +211,10 @@ async function cleanupDeadRunner(existingPid) {
 function releaseRunnerLock() {
   if (!runnerLockAcquired) return;
   runnerLockAcquired = false;
-  try {
-    const current = readFileSync(RUNNER_PID_FILE, 'utf8').trim();
-    if (parseInt(current) === process.pid) {
-      unlinkSync(RUNNER_PID_FILE);
-    }
-  } catch {
-    /* lock file already removed — fine */
-  }
+  // releasePidLock is a no-op when the file does not hold our pid, so it
+  // safely tolerates the file being held by a different runner that won a
+  // race during cleanup.
+  releasePidLock(RUNNER_PID_FILE, process.pid);
   // Always try to clean up the wrangler-pids file we own, regardless of lock state.
   try {
     unlinkSync(WRANGLER_PIDS_FILE);
@@ -227,29 +223,30 @@ function releaseRunnerLock() {
   }
 }
 
-/** Acquire exclusive runner lock via PID file. Exits if another runner is alive. */
+/** Acquire exclusive runner lock via PID file. Exits if another runner is alive.
+ *
+ * Uses an atomic create-or-fail (O_EXCL) to eliminate the TOCTOU race that
+ * exists between an existsSync() pre-check and a subsequent writeFileSync().
+ * The atomic open either succeeds (we hold the lock) or fails with EEXIST
+ * (someone else does); there is no intermediate state in which two runners
+ * can both believe they hold the lock. */
 async function acquireRunnerLock() {
   mkdirSync(STATE_DIR, { recursive: true });
 
-  if (existsSync(RUNNER_PID_FILE)) {
-    let existingPid = NaN;
-    try {
-      existingPid = parseInt(readFileSync(RUNNER_PID_FILE, 'utf8'));
-    } catch {
-      /* */
-    }
+  const result = acquirePidLockAtomic({
+    pidFile: RUNNER_PID_FILE,
+    myPid: process.pid,
+    isAlive: isPidAlive,
+    onRefuseLiveRunner: refuseConcurrentRun,
+    onDeadRunner: cleanupDeadRunner,
+  });
 
-    if (existingPid === process.pid) {
-      runnerLockAcquired = true;
-      return;
-    }
-
-    if (isPidAlive(existingPid)) refuseConcurrentRun(existingPid);
-
-    await cleanupDeadRunner(existingPid);
+  if (!result.acquired) {
+    // refuseConcurrentRun already logged and called process.exit; this is a
+    // defensive return in case the caller passes a non-exiting refuse.
+    return;
   }
 
-  writeFileSync(RUNNER_PID_FILE, String(process.pid));
   runnerLockAcquired = true;
 
   process.on('exit', releaseRunnerLock);
