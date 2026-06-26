@@ -102,10 +102,15 @@ jobs:
         run: pnpm run test:coverage
 
       # Tier 2: danger.js PR semantic checks
+      # Uses scripts/run-danger.js wrapper to retry on transient network
+      # failures (ERR_STREAM_PREMATURE_CLOSE from node-fetch v2 reading
+      # gzipped GitHub API responses for large PRs) that bypass Danger's
+      # built-in 401/5xx-only retry logic.
       - name: Run Danger
+        timeout-minutes: 10
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm exec danger ci
+        run: node scripts/run-danger.js
 
       # Tier 3: Code duplication audit (budget-enforced)
       - name: Code duplication audit
