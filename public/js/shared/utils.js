@@ -18,13 +18,14 @@ function extractSseDelta(line, onEvent) {
   if (!line.startsWith('data: ')) return null;
   const payload = line.slice(6).trim();
   if (!payload || payload === '[DONE]') return null;
+  let parsed;
   try {
-    const parsed = JSON.parse(payload);
-    if (onEvent) onEvent(parsed);
-    return pickSseText(parsed);
+    parsed = JSON.parse(payload);
   } catch {
     return null;
   }
+  if (onEvent) onEvent(parsed);
+  return pickSseText(parsed);
 }
 
 export class SseLineParser {
