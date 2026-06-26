@@ -45,7 +45,7 @@ function makeReq(path) {
 
 const user = { sub: 'u1' };
 const env = {};
-const db = { all: vi.fn(), batch: vi.fn(), prepare: vi.fn((sql) => ({ bind: vi.fn() })) };
+const db = { all: vi.fn(), batch: vi.fn(), prepare: vi.fn((_sql) => ({ bind: vi.fn() })) };
 
 describe('handleListChats', () => {
   beforeEach(() => {
@@ -356,7 +356,7 @@ describe('handleCloneChat', () => {
     );
 
     expect(db.batch).toHaveBeenCalled();
-    const statements = db.batch.mock.calls[0][0];
+    const _statements = db.batch.mock.calls[0][0];
     // Should include UPDATE current_message_id - check via prepare.mock.calls
     expect(db.prepare.mock.calls.some(([sql]) => sql && sql.includes('current_message_id'))).toBe(
       true

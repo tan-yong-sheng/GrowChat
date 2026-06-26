@@ -502,9 +502,7 @@ describe('createAssistantRunner factory', () => {
       isCancelled: vi.fn().mockResolvedValue(false),
     };
 
-    let capturedOnEvent;
-    const SseLineParser = vi.fn().mockImplementation(({ onEvent }) => {
-      capturedOnEvent = onEvent;
+    const SseLineParser = vi.fn().mockImplementation(() => {
       return {
         push: vi.fn().mockReturnValue(null),
         flush: vi.fn().mockReturnValue(null),
@@ -569,9 +567,7 @@ describe('createAssistantRunner factory', () => {
       isCancelled: vi.fn().mockResolvedValue(false),
     };
 
-    let capturedOnEvent;
-    const SseLineParser = vi.fn().mockImplementation(({ onEvent }) => {
-      capturedOnEvent = onEvent;
+    const SseLineParser = vi.fn().mockImplementation(() => {
       return {
         push: vi.fn().mockReturnValue(null),
         flush: vi.fn().mockReturnValue(null),
@@ -614,7 +610,7 @@ describe('createAssistantRunner factory', () => {
   it('terminates when runAsyncSessionProcessor returns terminate flag', async () => {
     const deps = makeDeps({
       runAsyncSessionProcessor: vi.fn().mockImplementation(async ({ runStep }) => {
-        const result = await runStep({ messagesForModel: [], followUps: 0 });
+        const _result = await runStep({ messagesForModel: [], followUps: 0 });
         return { lastResult: { terminate: true } };
       }),
     });

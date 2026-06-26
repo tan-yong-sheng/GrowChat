@@ -315,7 +315,7 @@ describe('auth-password-reset: handleResetPassword', () => {
         }),
       };
 
-      const result = await handleResetPassword(req, {}, {});
+      const _result = await handleResetPassword(req, {}, {});
 
       expect(mocks.error).toHaveBeenCalledWith(req, 'Invalid JSON body', 400);
     });
@@ -337,7 +337,7 @@ describe('auth-password-reset: handleResetPassword', () => {
         return val;
       });
 
-      const result = await handleResetPassword(req, {}, {});
+      const _result = await handleResetPassword(req, {}, {});
 
       expect(mocks.error).toHaveBeenCalledWith(req, 'token and password are required', 400);
     });
@@ -354,7 +354,7 @@ describe('auth-password-reset: handleResetPassword', () => {
         return val;
       });
 
-      const result = await handleResetPassword(req, {}, {});
+      const _result = await handleResetPassword(req, {}, {});
 
       expect(mocks.error).toHaveBeenCalledWith(req, 'token and password are required', 400);
     });
@@ -380,7 +380,7 @@ describe('auth-password-reset: handleResetPassword', () => {
 
       mocks.requireString.mockReturnValueOnce('valid-token').mockReturnValueOnce('short');
 
-      const result = await handleResetPassword(req, {}, {});
+      const _result = await handleResetPassword(req, {}, {});
 
       expect(mocks.error).toHaveBeenCalledWith(req, 'Password must be at least 8 characters', 400);
     });
@@ -402,7 +402,7 @@ describe('auth-password-reset: handleResetPassword', () => {
         put: vi.fn(async () => {}),
       };
 
-      const result = await handleResetPassword(req, { SESSIONS: sessionsKv }, db);
+      const _result = await handleResetPassword(req, { SESSIONS: sessionsKv }, db);
 
       expect(mocks.error).not.toHaveBeenCalledWith(
         req,
@@ -425,7 +425,7 @@ describe('auth-password-reset: handleResetPassword', () => {
         resetAt: Date.now() + 60000,
       });
 
-      const result = await handleResetPassword(req, {}, {});
+      const _result = await handleResetPassword(req, {}, {});
 
       expect(mocks.error).toHaveBeenCalledWith(
         req,
@@ -450,7 +450,7 @@ describe('auth-password-reset: handleResetPassword', () => {
         first: vi.fn(async () => null),
       };
 
-      const result = await handleResetPassword(req, {}, db);
+      const _result = await handleResetPassword(req, {}, db);
 
       expect(mocks.error).toHaveBeenCalledWith(req, 'Invalid or expired reset token', 400);
     });
@@ -468,7 +468,7 @@ describe('auth-password-reset: handleResetPassword', () => {
         first: vi.fn(async () => null),
       };
 
-      const result = await handleResetPassword(req, {}, db);
+      const _result = await handleResetPassword(req, {}, db);
 
       expect(mocks.error).toHaveBeenCalledWith(req, 'Invalid or expired reset token', 400);
     });
@@ -494,7 +494,7 @@ describe('auth-password-reset: handleResetPassword', () => {
         }),
       };
 
-      const result = await handleResetPassword(req, { SESSIONS: sessionsKv }, db);
+      const _result = await handleResetPassword(req, { SESSIONS: sessionsKv }, db);
 
       expect(mocks.json).toHaveBeenCalledWith(
         req,
