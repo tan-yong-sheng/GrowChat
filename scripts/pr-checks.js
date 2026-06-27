@@ -58,7 +58,12 @@ function validate(body, files) {
 
 function runChecks() {
   const body = process.env.PR_BODY || '';
-  const baseRef = process.env.PR_BASE_REF || DEFAULT_BASE_REF;
+  const rawBase = process.env.PR_BASE_REF;
+  // Defensive: push events set PR_BASE_REF to "origin/" (empty base.ref),
+  // which would cause git diff origin/...HEAD to fail. Fall back to default
+  // when the ref looks empty, bare "origin/", or has no slash at all.
+  const baseRef =
+    !rawBase || rawBase === 'origin/' || !rawBase.includes('/') ? DEFAULT_BASE_REF : rawBase;
   const files = getChangedFiles(baseRef);
   const warnings = validate(body, files);
 

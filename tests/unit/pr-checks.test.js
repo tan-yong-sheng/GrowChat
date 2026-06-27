@@ -179,6 +179,25 @@ describe('runChecks (CLI entrypoint)', () => {
     );
   });
 
+  it('falls back to origin/main when PR_BASE_REF is the malformed "origin/"', () => {
+    process.env.PR_BODY = 'A real PR description with details.';
+    process.env.PR_BASE_REF = 'origin/';
+    spawnSync.mockReturnValue({
+      status: 0,
+      signal: null,
+      pid: 1,
+      output: [],
+      stdout: '',
+      stderr: '',
+    });
+    expect(() => runChecks()).not.toThrow();
+    expect(spawnSync).toHaveBeenCalledWith(
+      'git',
+      ['diff', '--name-only', 'origin/main...HEAD'],
+      expect.objectContaining({ encoding: 'utf8' })
+    );
+  });
+
   it('does NOT exit when validation produces warnings (matches dangerfile warn() semantics)', () => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
       throw new Error(`__exit__:${code}`);
