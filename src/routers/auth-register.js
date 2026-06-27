@@ -147,7 +147,6 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
     });
 
     if (finalRole === 'admin') {
-      await setConfigValue(db, 'public_registration', 'false');
       user = { ...user, primary_role: 'admin', account_status: 'active' };
     } else {
       user = { ...user, primary_role: 'member', account_status: finalAccountStatus };
@@ -165,6 +164,17 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
       ]);
     } catch {
       // Tolerate missing column in older schemas.
+    }
+
+    // Defer the public_registration flip until AFTER all bootstrap writes
+    // succeed. If ensureUserRoleBinding / the primary_role UPDATE fails
+    // after the claim succeeded, the catch block below only rolls back the
+    // first_admin_claimed sentinel — flipping public_registration here would
+    // leave the deployment with registration permanently disabled until a
+    // manual DB repair. Holding the flip to the end keeps a failed bootstrap
+    // self-healing: a retry can still register the first admin.
+    if (finalRole === 'admin') {
+      await setConfigValue(db, 'public_registration', 'false');
     }
   } catch (err) {
     // Roll back the bootstrap sentinel if user creation failed so a retry

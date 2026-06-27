@@ -266,3 +266,128 @@ describe('handleRegister — bootstrap claim race', () => {
     expect(claimSeenAt).toBeGreaterThan(rateLimitSeenAt);
   });
 });
+
+describe('handleRegister — public_registration flip ordering', () => {
+  // PR #173 review thread MsspR: disabling public_registration used to happen
+  // BEFORE ensureUserRoleBinding and the primary_role UPDATE. If either of
+  // those later writes failed, the catch block only rolled back
+  // first_admin_claimed, leaving the deployment with public registration
+  // permanently disabled until a manual DB repair. The fix defers the flip
+  // until all bootstrap writes succeed so a failed bootstrap is self-healing.
+
+  it('does NOT disable public_registration when ensureUserRoleBinding throws after the first-admin user is created', async () => {
+    mocks.usersCount = 0;
+    mocks.ensureUserRoleBinding.mockRejectedValueOnce(
+      new Error('simulated ensureUserRoleBinding failure')
+    );
+
+    await expect(
+      handleRegister(
+        makeReq(VALID_BODY),
+        {},
+        mocks.db,
+        usersRepo,
+        VALID_JWT_SECRET,
+        null,
+        sharedFns
+      )
+    ).rejects.toThrow('simulated ensureUserRoleBinding failure');
+
+    const flipCall = mocks.setConfigValue.mock.calls.find(
+      ([, key, value]) => key === 'public_registration' && value === 'false'
+    );
+    expect(flipCall).toBeUndefined();
+  });
+
+  it('still disables public_registration when the tolerated primary_role UPDATE throws', async () => {
+    // The primary_role UPDATE is wrapped in a tolerant try/catch
+    // ("Tolerate missing column in older schemas"), so its error is
+    // swallowed and the bootstrap path is still considered successful.
+    // The public_registration flip must therefore still run after it.
+    mocks.usersCount = 0;
+    mocks.db.run.mockImplementation(async (sql) => {
+      if (typeof sql === 'string' && sql.startsWith('UPDATE users SET primary_role')) {
+        throw new Error('tolerated UPDATE failure');
+      }
+      if (
+        typeof sql === 'string' &&
+        sql.startsWith('INSERT') &&
+        sql.includes('first_admin_claimed')
+      ) {
+        return { meta: { changes: 1 } };
+      }
+      return { meta: { changes: 1 } };
+    });
+
+    await handleRegister(
+      makeReq(VALID_BODY),
+      {},
+      mocks.db,
+      usersRepo,
+      VALID_JWT_SECRET,
+      null,
+      sharedFns
+    );
+
+    const flipCall = mocks.setConfigValue.mock.calls.find(
+      ([, key, value]) => key === 'public_registration' && value === 'false'
+    );
+    expect(flipCall).toBeDefined();
+  });
+
+  it('disables public_registration AFTER ensureUserRoleBinding and the primary_role UPDATE on successful bootstrap', async () => {
+    mocks.usersCount = 0;
+    let ensureUserRoleBindingSeenAt = -1;
+    let primaryRoleUpdateSeenAt = -1;
+    let flipSeenAt = -1;
+    let opIndex = 0;
+
+    mocks.ensureUserRoleBinding.mockImplementation(async () => {
+      ensureUserRoleBindingSeenAt = opIndex++;
+    });
+    mocks.db.run.mockImplementation(async (sql) => {
+      if (typeof sql === 'string' && sql.startsWith('UPDATE users SET primary_role')) {
+        primaryRoleUpdateSeenAt = opIndex++;
+        return { meta: { changes: 1 } };
+      }
+      opIndex++;
+      return { meta: { changes: 1 } };
+    });
+    mocks.setConfigValue.mockImplementation(async () => {
+      flipSeenAt = opIndex++;
+    });
+
+    await handleRegister(
+      makeReq(VALID_BODY),
+      {},
+      mocks.db,
+      usersRepo,
+      VALID_JWT_SECRET,
+      null,
+      sharedFns
+    );
+
+    expect(ensureUserRoleBindingSeenAt).toBeGreaterThanOrEqual(0);
+    expect(primaryRoleUpdateSeenAt).toBeGreaterThanOrEqual(0);
+    expect(flipSeenAt).toBeGreaterThanOrEqual(0);
+    expect(flipSeenAt).toBeGreaterThan(ensureUserRoleBindingSeenAt);
+    expect(flipSeenAt).toBeGreaterThan(primaryRoleUpdateSeenAt);
+  });
+
+  it('does NOT touch public_registration when the registering user is not the first admin', async () => {
+    mocks.usersCount = 5; // not first admin
+    await handleRegister(
+      makeReq(VALID_BODY),
+      {},
+      mocks.db,
+      usersRepo,
+      VALID_JWT_SECRET,
+      null,
+      sharedFns
+    );
+    const flipCall = mocks.setConfigValue.mock.calls.find(
+      ([, key, value]) => key === 'public_registration' && value === 'false'
+    );
+    expect(flipCall).toBeUndefined();
+  });
+});
