@@ -134,6 +134,7 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
   const finalAccountStatus = finalRole === 'admin' ? 'active' : registrationStatus;
 
   let user;
+  let userCreated = false;
   try {
     const passwordHash = await hashPassword(password);
 
@@ -145,6 +146,7 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
       accountStatus: finalAccountStatus,
       settings: '{}',
     });
+    userCreated = true;
 
     if (finalRole === 'admin') {
       user = { ...user, primary_role: 'admin', account_status: 'active' };
@@ -177,9 +179,19 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
       await setConfigValue(db, 'public_registration', 'false');
     }
   } catch (err) {
-    // Roll back the bootstrap sentinel if user creation failed so a retry
-    // can succeed. Without this, a transient failure leaves the deployment
-    // stuck behind 409s for the lifetime of the DB.
+    // Roll back the bootstrap sentinel AND the partially-created user row if
+    // user creation succeeded but a post-create step (ensureUserRoleBinding,
+    // primary_role UPDATE, setConfigValue) failed. Without the user-row
+    // rollback, hasUsers would stay > 0 on the next request and the original
+    // first-admin claim would be permanently lost — the deployment would
+    // silently end up adminless.
+    if (userCreated) {
+      try {
+        await db.run('DELETE FROM users WHERE id = ?', [id]);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
     if (claimedBootstrap) {
       try {
         await db.run(`DELETE FROM app_config WHERE key = 'first_admin_claimed'`, []);

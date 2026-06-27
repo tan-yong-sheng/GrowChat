@@ -228,6 +228,45 @@ describe('handleRegister — bootstrap claim race', () => {
     expect(deleteClaimCall).toBeDefined();
   });
 
+  it('also rolls back the inserted user row if a post-create step throws after a successful claim', async () => {
+    // PR #173 review thread Ms7sF: the catch block used to delete only the
+    // first_admin_claimed sentinel but leave the newly inserted users row
+    // behind. A retry would then see hasUsers > 0 and the original
+    // first-admin claim would be lost forever. The fix also DELETEs the user
+    // row on rollback so a failed bootstrap is fully self-healing.
+    mocks.usersCount = 0;
+    mocks.ensureUserRoleBinding.mockRejectedValueOnce(
+      new Error('simulated ensureUserRoleBinding failure')
+    );
+
+    await expect(
+      handleRegister(
+        makeReq(VALID_BODY),
+        {},
+        mocks.db,
+        usersRepo,
+        VALID_JWT_SECRET,
+        null,
+        sharedFns
+      )
+    ).rejects.toThrow('simulated ensureUserRoleBinding failure');
+
+    const deleteClaimCall = mocks.db.run.mock.calls.find(
+      ([sql]) =>
+        typeof sql === 'string' && sql.startsWith('DELETE') && sql.includes('first_admin_claimed')
+    );
+    expect(deleteClaimCall).toBeDefined();
+
+    const deleteUserCall = mocks.db.run.mock.calls.find(
+      ([sql]) =>
+        typeof sql === 'string' &&
+        sql.startsWith('DELETE') &&
+        sql.includes('users') &&
+        sql.includes('WHERE id =')
+    );
+    expect(deleteUserCall).toBeDefined();
+  });
+
   it('claims the sentinel AFTER rate limit + validation, in the correct order', async () => {
     mocks.usersCount = 0;
     let claimSeenAt = -1;
