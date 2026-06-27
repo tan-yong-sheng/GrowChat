@@ -157,6 +157,61 @@ describe('connections modal form — cancel-safe mutation', () => {
     expect(reseeded.map((m) => m.manualModelId).sort()).toEqual(['gpt-3', 'gpt-4']);
   });
 
+  it('refreshModalModels preserves an unsaved manual-model addition through the Verify round-trip', async () => {
+    // PR #173 review thread (github-actions 09:47:04Z, COMMENTED): the
+    // bot claimed refreshModalModels could drop unsaved manual-model
+    // additions because existingManualModels was rebuilt from
+    // selectedConnection.manualModels instead of the current modal
+    // state. This test proves the bot's claim is incorrect: the
+    // preview step takes connectionsState.modalModels as its base, so
+    // gpt-5 (added in the modal session) survives the round-trip
+    // even though connection.manualModels doesn't list it yet.
+    const createConnectionsModalForm = await loadModalForm();
+    const container = makeContainer();
+    const connection = makeConnection();
+    const connectionsState = {
+      selectedConnection: connection,
+      modalModels: [
+        { id: MODEL_GPT3, name: 'gpt-3', manual: true, manualModelId: 'gpt-3' },
+        { id: MODEL_GPT4, name: 'gpt-4', manual: true, manualModelId: 'gpt-4' },
+        // gpt-5 added in this modal session — unsaved, not in
+        // connection.manualModels.
+        { id: MODEL_GPT5, name: 'gpt-5', manual: true, manualModelId: 'gpt-5' },
+      ],
+      modalModelsSelection: new Set([MODEL_GPT3, MODEL_GPT4, MODEL_GPT5]),
+      modalModelsOriginal: new Set([MODEL_GPT3, MODEL_GPT4]),
+      deletedManualModelIds: [],
+    };
+    const form = createConnectionsModalForm({
+      container,
+      connectionsState,
+      setTestStatus: vi.fn(),
+    });
+
+    const { apiFetch } = await import('../../public/js/shared/api.js');
+    apiFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        models: [
+          { id: 'upstream-1', name: 'Upstream One', enabled: true },
+          { id: 'upstream-2', name: 'Upstream Two', enabled: true },
+        ],
+      }),
+    });
+
+    await form.refreshModalModels(container);
+
+    // gpt-5 must still be in the modal after refresh even though
+    // connection.manualModels doesn't include it (user hasn't saved yet).
+    const ids = connectionsState.modalModels.map((m) => m.id);
+    expect(ids).toContain(MODEL_GPT5);
+    expect(ids).toContain(MODEL_GPT3);
+    expect(ids).toContain(MODEL_GPT4);
+    expect(ids).toContain('openai/conn_test1:upstream-1');
+    expect(ids).toContain('openai/conn_test1:upstream-2');
+    expect(connectionsState.modalModelsSelection.has(MODEL_GPT5)).toBe(true);
+  });
+
   it('refreshModalModels filters deleted manual models out of the merged list', async () => {
     const createConnectionsModalForm = await loadModalForm();
     const container = makeContainer();
