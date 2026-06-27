@@ -41,7 +41,7 @@
     "lint:hygiene": "pnpm exec knip --include files,dependencies,binaries",
     "lint:workflows": "github-actionlint",
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
-    "prepush": "bash scripts/prepush-e2e.sh && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene",
+    "prepush": "pnpm run test && bash scripts/prepush-e2e.sh && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene",
     "prepare": "husky",
     "prepush:checks": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene"
   },
