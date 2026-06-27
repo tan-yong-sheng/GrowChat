@@ -201,6 +201,216 @@ test.describe('Admin Connections', () => {
     // Verify the name field is pre-filled
     await expect(page.locator('#modal-conn-name')).toHaveValue('My OpenAI');
   });
+
+  test('connection toggle click persists the new enabled state', async ({ page }) => {
+    let storedEnabled = true;
+    await page.route(
+      (url) => url.pathname === '/api/admin/openai/connections',
+      async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            status: 200,
+            json: {
+              enabled: true,
+              connections: [
+                {
+                  id: 'conn_test1',
+                  name: 'My OpenAI',
+                  url: 'https://api.openai.com/v1',
+                  provider_type: 'openai',
+                  enabled: storedEnabled,
+                  source: 'manual',
+                  has_key: true,
+                  key_masked: 'sk-****5678',
+                  manual_models: [],
+                },
+              ],
+            },
+          });
+        } else if (route.request().method() === 'PUT') {
+          // Capture the new enabled state for the next GET
+          const body = JSON.parse(route.request().postData() || '{}');
+          if (Array.isArray(body.connections)) {
+            const target = body.connections.find((c) => c.id === 'conn_test1');
+            if (target) storedEnabled = target.enabled !== false;
+          }
+          await route.fulfill({ status: 200, json: { ok: true } });
+        } else {
+          await route.fallback();
+        }
+      }
+    );
+
+    await page.goto('/admin/settings/connections');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('[data-connection-row="conn_test1"]', { timeout: 10000 });
+
+    // Initially enabled — toggle should have bg-black (not bg-gray-200)
+    const toggle = page.locator('.connection-toggle[data-id="conn_test1"]');
+    await expect(toggle).toHaveClass(/bg-black/);
+    await expect(toggle).not.toHaveClass(/bg-gray-200/);
+
+    // Click the toggle to disable
+    await toggle.click();
+
+    // Immediately the local row reflects the disabled state
+    await expect(toggle).toHaveClass(/bg-gray-200/);
+
+    // Reload and confirm the new state is persisted
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('[data-connection-row="conn_test1"]', { timeout: 10000 });
+
+    // After reload the disabled state is restored from the GET mock
+    const toggleAfterReload = page.locator('.connection-toggle[data-id="conn_test1"]');
+    await expect(toggleAfterReload).toHaveClass(/bg-gray-200/);
+  });
+
+  test('acl button opens the access-rules modal', async ({ page }) => {
+    // Mock the connection ACL access endpoint that the modal fetches
+    await page.route(
+      (url) => url.pathname === '/api/admin/openai/connections/conn_test1/access',
+      async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            status: 200,
+            json: {
+              groups: [{ id: 'g1', name: 'Admins' }],
+              rules: [],
+            },
+          });
+        } else {
+          await route.fulfill({ status: 200, json: { ok: true } });
+        }
+      }
+    );
+
+    // Override the connections list API to return one enabled connection
+    await page.route(
+      (url) => url.pathname === '/api/admin/openai/connections',
+      async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            status: 200,
+            json: {
+              enabled: true,
+              connections: [
+                {
+                  id: 'conn_test1',
+                  name: 'My OpenAI',
+                  url: 'https://api.openai.com/v1',
+                  provider_type: 'openai',
+                  enabled: true,
+                  source: 'manual',
+                  has_key: true,
+                  key_masked: 'sk-****5678',
+                  manual_models: [],
+                },
+              ],
+            },
+          });
+        } else if (route.request().method() === 'PUT') {
+          await route.fulfill({ status: 200, json: { ok: true } });
+        } else {
+          await route.fallback();
+        }
+      }
+    );
+
+    await page.goto('/admin/settings/connections');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('[data-connection-row="conn_test1"]', { timeout: 10000 });
+
+    // ACL button must be visible (connection enabled + canManageAcls defaults true)
+    const aclBtn = page.locator('.connection-acl-btn[data-id="conn_test1"]');
+    await expect(aclBtn).toBeVisible();
+
+    await aclBtn.click();
+
+    // The ACL modal is appended to document.body with title "Connection Access"
+    await expect(page.locator('text=Connection Access').first()).toBeVisible({ timeout: 5000 });
+    // The modal exposes the connection name as subtitle
+    await expect(page.locator('text=My OpenAI').first()).toBeVisible();
+  });
+
+  test('buttons remain clickable after toggling another connection', async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === '/api/admin/openai/connections',
+      async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            status: 200,
+            json: {
+              enabled: true,
+              connections: [
+                {
+                  id: 'conn_a',
+                  name: 'Alpha Connection',
+                  url: 'https://a.example.com/v1',
+                  provider_type: 'openai-compatible',
+                  enabled: true,
+                  source: 'manual',
+                  has_key: true,
+                  key_masked: 'sk-****aaaa',
+                  manual_models: [],
+                },
+                {
+                  id: 'conn_b',
+                  name: 'Beta Connection',
+                  url: 'https://b.example.com/v1',
+                  provider_type: 'openai-compatible',
+                  enabled: true,
+                  source: 'manual',
+                  has_key: true,
+                  key_masked: 'sk-****bbbb',
+                  manual_models: [],
+                },
+              ],
+            },
+          });
+        } else if (route.request().method() === 'PUT') {
+          await route.fulfill({ status: 200, json: { ok: true } });
+        } else {
+          await route.fallback();
+        }
+      }
+    );
+
+    await page.goto('/admin/settings/connections');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('[data-connection-row="conn_a"]', { timeout: 10000 });
+    await page.waitForSelector('[data-connection-row="conn_b"]', { timeout: 10000 });
+
+    // Click the toggle on conn_a to disable it.
+    // The click handler is synchronous for the class update but the PUT is async.
+    // Wait for the PUT response to succeed (the catch block reverts if PUT fails).
+    const toggleA = page.locator('.connection-toggle[data-id="conn_a"]');
+    const putAResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().endsWith('/api/admin/openai/connections') && resp.request().method() === 'PUT'
+    );
+    await toggleA.click();
+    const resp = await putAResponse;
+    expect(resp.status()).toBe(200);
+    // Allow the broadcast invalidation callbacks to settle before checking the next button
+    await page.waitForTimeout(200);
+
+    // Click edit on a DIFFERENT row (conn_b) — the user-reported scenario
+    await page.locator('.edit-connection-btn[data-id="conn_b"]').click();
+    const modal = page.locator('#edit-connection-modal');
+    await expect(modal).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#modal-title')).toHaveText('Edit Connection');
+    await expect(page.locator('#modal-conn-name')).toHaveValue('Beta Connection');
+
+    // Close the modal
+    await page.locator('#close-modal').click();
+    await expect(modal).toHaveClass(/hidden/, { timeout: 5000 });
+
+    // The #add-connection button must also still respond
+    await page.locator('#add-connection').click();
+    await expect(modal).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#modal-title')).toHaveText('Add Connection');
+  });
 });
 
 // ── Account Connections ───────────────────────────────────────────────────────
