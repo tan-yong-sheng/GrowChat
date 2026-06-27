@@ -13,6 +13,21 @@ import { escapeHtml } from '../utils/sanitize.js';
 import { createLogger } from '../utils/logger.js';
 import { handleForgotPassword, handleResetPassword } from './auth-password-reset.js';
 import { handleRegister } from './auth-register.js';
+import { trackFailedLoginAttempt, clearFailedLoginAttempts } from '../services/audit-logging.js';
+
+/**
+ * Maximum number of failed login attempts allowed per email before the
+ * account is locked out. Layered on top of the IP-based rate limit so
+ * distributed brute-force attacks against a single account are also blocked.
+ */
+const MAX_LOGIN_ATTEMPTS_PER_ACCOUNT = 5;
+
+/**
+ * Length of the rolling window (in seconds) used to count failed attempts.
+ * Must match the TTL written by trackFailedLoginAttempt() in
+ * src/services/audit-logging.js so the retry-after hint is accurate.
+ */
+const LOGIN_LOCKOUT_WINDOW_SECONDS = 3600;
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback)
@@ -193,13 +208,30 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
     }
 
     const user = await users.findByEmail(email);
-    if (!user) return error(req, 'Invalid credentials', 401);
+    if (!user) {
+      const attempts = await trackFailedLoginAttempt(env, email);
+      if (attempts >= MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) {
+        return error(req, 'Too many failed login attempts for this account', 429, {
+          retry_after: LOGIN_LOCKOUT_WINDOW_SECONDS,
+        });
+      }
+      return error(req, 'Invalid credentials', 401);
+    }
 
     const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
     await ensureUserRoleBinding(db, user.id, userRole, user.account_status, logger);
 
     const ok = await verifyPassword(password, user.password_hash);
-    if (!ok) return error(req, 'Invalid credentials', 401);
+    if (!ok) {
+      const attempts = await trackFailedLoginAttempt(env, email);
+      if (attempts >= MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) {
+        return error(req, 'Too many failed login attempts for this account', 429, {
+          retry_after: LOGIN_LOCKOUT_WINDOW_SECONDS,
+        });
+      }
+      return error(req, 'Invalid credentials', 401);
+    }
+    await clearFailedLoginAttempts(env, email);
     const tokenResult = await checkActiveAccountAndGenerateTokens(req, db, env, user, jwtSecret);
     if (tokenResult instanceof Response) return tokenResult;
     return json(req, {
