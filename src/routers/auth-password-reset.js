@@ -1,5 +1,6 @@
 import { error, json } from '../utils/response.js';
 import { hashPassword } from '../shared/auth.js';
+import { bumpSessionVersion } from '../shared/session.js';
 import { requireString, validateEmail } from '../validation/request.js';
 import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../services/rate-limit.js';
 import { createEmailService } from '../services/email/email-service.js';
@@ -154,15 +155,7 @@ export async function handleResetPassword(req, env, db) {
   // Invalidate all KV-backed refresh tokens by bumping the user's session version.
   // consumeRefreshToken() checks session-version and rejects tokens with an
   // older version, so this effectively revokes all existing sessions.
-  try {
-    const versionKey = `session-version:${resetRecord.user_id}`;
-    const currentVersion = await env.SESSIONS.get(versionKey);
-    await env.SESSIONS.put(versionKey, String(Number(currentVersion || 0) + 1), {
-      expirationTtl: 60 * 60 * 24 * 30,
-    });
-  } catch (e) {
-    // KV unavailability should not block password reset
-  }
+  await bumpSessionVersion(env, resetRecord.user_id);
 
   return json(req, {
     message: 'Password reset successful. Please log in with your new password.',

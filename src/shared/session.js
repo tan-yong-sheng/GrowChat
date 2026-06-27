@@ -1,6 +1,8 @@
 import { APP_TTLS } from '../config/app.js';
 
 const REFRESH_TTL_SECONDS = APP_TTLS.refreshTokenSeconds;
+const SESSION_VERSION_TTL_SECONDS = APP_TTLS.sessionVersionSeconds;
+const SESSION_VERSION_KEY_PREFIX = 'session-version:';
 
 function bytesToHex(bytes) {
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -87,8 +89,49 @@ export async function consumeRefreshToken(env, token) {
 }
 
 export async function revokeRefreshToken(env, token) {
-  if (!token) return;
+  if (!token) return null;
   const tokenHash = await sha256Hex(token);
+  const dataKey = `refresh-data:${tokenHash}`;
+  // Read userId before deleting so the caller can fan out side-effects
+  // (e.g. bumping the session version to invalidate stolen clones).
+  let userId = null;
+  try {
+    const raw = await env.SESSIONS.get(dataKey, 'json');
+    if (raw && typeof raw === 'object') {
+      userId = raw.userId || null;
+    }
+  } catch {
+    // KV unavailability should not block revoke
+  }
   await env.SESSIONS.delete(`refresh:${tokenHash}`);
-  await env.SESSIONS.delete(`refresh-data:${tokenHash}`);
+  await env.SESSIONS.delete(dataKey);
+  return userId;
+}
+
+/**
+ * Increment the per-user session-version counter. consumeRefreshToken()
+ * rejects refresh tokens whose embedded version is lower than the current
+ * counter, so bumping here invalidates every other live refresh token for
+ * this user (e.g. a clone captured before logout).
+ *
+ * Read-modify-write has a tiny race window under concurrent bumps, but the
+ * worst case is one lost increment — which is still sufficient to invalidate
+ * older tokens for the threat model in #146.
+ */
+export async function bumpSessionVersion(env, userId) {
+  if (!userId || !env?.SESSIONS) return;
+  const versionKey = `${SESSION_VERSION_KEY_PREFIX}${userId}`;
+  try {
+    const currentVersionRaw = await env.SESSIONS.get(versionKey);
+    // Use Number.isFinite so 'not-a-number' (NaN) and junk values fall back to 0
+    // instead of producing NaN + 1 = NaN and storing a poisoned counter.
+    const parsed = Number(currentVersionRaw);
+    const currentVersion = Number.isFinite(parsed) ? parsed : 0;
+    const nextVersion = currentVersion + 1;
+    await env.SESSIONS.put(versionKey, String(nextVersion), {
+      expirationTtl: SESSION_VERSION_TTL_SECONDS,
+    });
+  } catch {
+    // KV unavailability should not block the caller (logout / password reset)
+  }
 }

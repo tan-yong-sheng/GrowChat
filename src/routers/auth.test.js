@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   createRefreshToken: vi.fn(),
   consumeRefreshToken: vi.fn(),
   revokeRefreshToken: vi.fn(),
+  bumpSessionVersion: vi.fn(),
   loadPrimaryRole: vi.fn(),
 }));
 
@@ -36,6 +37,7 @@ vi.mock('../shared/session.js', () => ({
   createRefreshToken: (...args) => mocks.createRefreshToken(...args),
   consumeRefreshToken: (...args) => mocks.consumeRefreshToken(...args),
   revokeRefreshToken: (...args) => mocks.revokeRefreshToken(...args),
+  bumpSessionVersion: (...args) => mocks.bumpSessionVersion(...args),
 }));
 
 vi.mock('../repositories/user-repository.js', () => ({
@@ -498,6 +500,7 @@ describe('authRouter', () => {
 
   it('returns ok on logout and revokes provided refresh token', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    mocks.revokeRefreshToken.mockResolvedValueOnce('u1');
 
     const res = await authRouter(
       makeReq('/api/auth/logout', 'POST', { refresh_token: 'bye' }),
@@ -510,6 +513,39 @@ describe('authRouter', () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({ ok: true });
     expect(mocks.revokeRefreshToken).toHaveBeenCalledWith(env, 'bye');
+    expect(mocks.bumpSessionVersion).toHaveBeenCalledWith(env, 'u1');
+  });
+
+  it('logout bumps session-version only when revoke yields a userId', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    mocks.revokeRefreshToken.mockResolvedValueOnce(null);
+
+    const res = await authRouter(
+      makeReq('/api/auth/logout', 'POST', { refresh_token: 'unknown' }),
+      env,
+      {},
+      null,
+      '/api/auth/logout'
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.bumpSessionVersion).not.toHaveBeenCalled();
+  });
+
+  it('logout with no refresh token is a no-op for session-version bump', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+
+    const res = await authRouter(
+      makeReq('/api/auth/logout', 'POST', {}),
+      env,
+      {},
+      null,
+      '/api/auth/logout'
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.revokeRefreshToken).not.toHaveBeenCalled();
+    expect(mocks.bumpSessionVersion).not.toHaveBeenCalled();
   });
 
   it('returns 500 when JWT_SECRET is missing', async () => {

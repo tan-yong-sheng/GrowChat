@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  bumpSessionVersion,
   consumeRefreshToken,
   createRefreshToken,
   generateOpaqueToken,
@@ -67,11 +68,57 @@ describe('shared/session', () => {
 
   it('revokeRefreshToken deletes both keys', async () => {
     env.SESSIONS.delete.mockClear();
+    env.SESSIONS.get.mockResolvedValueOnce({ userId: 'u1', expiresAt: 9999999999 });
     await revokeRefreshToken(env, 'some-token');
     const tokenHash = await sha256Hex('some-token');
     expect(env.SESSIONS.delete).toHaveBeenCalledTimes(2);
     expect(env.SESSIONS.delete).toHaveBeenCalledWith(`refresh:${tokenHash}`);
     expect(env.SESSIONS.delete).toHaveBeenCalledWith(`refresh-data:${tokenHash}`);
+  });
+
+  it('revokeRefreshToken returns the userId from the stored data', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce({ userId: 'u42', expiresAt: 9999999999 });
+    const userId = await revokeRefreshToken(env, 'some-token');
+    expect(userId).toBe('u42');
+  });
+
+  it('revokeRefreshToken returns null when token data is missing', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce(null);
+    const userId = await revokeRefreshToken(env, 'ghost-token');
+    expect(userId).toBeNull();
+  });
+
+  it('bumpSessionVersion increments an existing counter', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce('3');
+    await bumpSessionVersion(env, 'u1');
+    expect(env.SESSIONS.put).toHaveBeenCalledWith(
+      'session-version:u1',
+      '4',
+      expect.objectContaining({ expirationTtl: expect.any(Number) })
+    );
+  });
+
+  it('bumpSessionVersion starts from 0 when no counter exists', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce(null);
+    await bumpSessionVersion(env, 'u1');
+    expect(env.SESSIONS.put).toHaveBeenCalledWith('session-version:u1', '1', expect.any(Object));
+  });
+
+  it('bumpSessionVersion treats non-numeric counters as 0', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce('not-a-number');
+    await bumpSessionVersion(env, 'u1');
+    expect(env.SESSIONS.put).toHaveBeenCalledWith('session-version:u1', '1', expect.any(Object));
+  });
+
+  it('bumpSessionVersion is a no-op when SESSIONS KV is missing', async () => {
+    await expect(bumpSessionVersion({}, 'u1')).resolves.toBeUndefined();
+    expect(env.SESSIONS.get).not.toHaveBeenCalled();
+    expect(env.SESSIONS.put).not.toHaveBeenCalled();
+  });
+
+  it('bumpSessionVersion swallows KV errors so callers do not fail', async () => {
+    env.SESSIONS.get.mockRejectedValueOnce(new Error('KV down'));
+    await expect(bumpSessionVersion(env, 'u1')).resolves.toBeUndefined();
   });
   it('embeds sessionVersion in refresh token data', async () => {
     env.SESSIONS.get.mockResolvedValueOnce('3'); // session-version

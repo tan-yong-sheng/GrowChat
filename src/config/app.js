@@ -14,6 +14,9 @@ export const APP_LIMITS = {
 export const APP_TTLS = {
   accessTokenSeconds: 60 * 15,
   refreshTokenSeconds: 60 * 60 * 24 * 7,
+  // Per-user session-version counter must outlive the refresh token TTL
+  // so that stale refresh tokens still see a bumped version on validation.
+  sessionVersionSeconds: 60 * 60 * 24 * 30,
   schemaCompatibilityWaitMs: 60 * 1000,
 };
 
