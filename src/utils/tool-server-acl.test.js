@@ -190,11 +190,12 @@ describe('tool-server-acl', () => {
 
   describe('evaluateToolServerAclAccess', () => {
     it('returns personal access for user-source tool server', () => {
-      const result = evaluateToolServerAclAccess(
-        { source: 'user' },
-        { user: { sub: 'user1' } }
-      );
-      expect(result).toEqual({ allowed: true, access_label: 'Personal', access_variant: 'personal' });
+      const result = evaluateToolServerAclAccess({ source: 'user' }, { user: { sub: 'user1' } });
+      expect(result).toEqual({
+        allowed: true,
+        access_label: 'Personal',
+        access_variant: 'personal',
+      });
     });
 
     it('returns no access when no rules match and user is not admin', () => {
@@ -207,41 +208,62 @@ describe('tool-server-acl', () => {
 
     it('returns shared access when allow rule matches', () => {
       const rules = [
-        { tool_server_id: 'ts1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'use' },
+        {
+          tool_server_id: 'ts1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'use',
+        },
       ];
-      const result = evaluateToolServerAclAccess(
-        { id: 'ts1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateToolServerAclAccess({ id: 'ts1' }, { user: { sub: 'user1' }, rules });
       expect(result).toEqual({ allowed: true, access_label: 'Shared', access_variant: 'shared' });
     });
 
     it('returns no access when deny rule matches', () => {
       const rules = [
-        { tool_server_id: 'ts1', principal_type: 'user', principal_id: 'user1', effect: 'deny', action: 'use' },
+        {
+          tool_server_id: 'ts1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
-      const result = evaluateToolServerAclAccess(
-        { id: 'ts1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateToolServerAclAccess({ id: 'ts1' }, { user: { sub: 'user1' }, rules });
       expect(result).toEqual({ allowed: false, access_label: 'No access', access_variant: 'none' });
     });
 
     it('deny takes precedence over allow', () => {
       const rules = [
-        { tool_server_id: 'ts1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'use' },
-        { tool_server_id: 'ts1', principal_type: 'user', principal_id: 'user1', effect: 'deny', action: 'use' },
+        {
+          tool_server_id: 'ts1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'use',
+        },
+        {
+          tool_server_id: 'ts1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
-      const result = evaluateToolServerAclAccess(
-        { id: 'ts1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateToolServerAclAccess({ id: 'ts1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(false);
     });
 
     it('group-based allow rule matches via userGroupIds', () => {
       const rules = [
-        { tool_server_id: 'ts1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+        {
+          tool_server_id: 'ts1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+        },
       ];
       const result = evaluateToolServerAclAccess(
         { id: 'ts1' },
@@ -252,7 +274,13 @@ describe('tool-server-acl', () => {
 
     it('group-based deny rule blocks access', () => {
       const rules = [
-        { tool_server_id: 'ts1', principal_type: 'group', principal_id: 'g1', effect: 'deny', action: 'use' },
+        {
+          tool_server_id: 'ts1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
       const result = evaluateToolServerAclAccess(
         { id: 'ts1' },
@@ -279,7 +307,13 @@ describe('tool-server-acl', () => {
 
     it('deny rule takes precedence even for admin', () => {
       const rules = [
-        { tool_server_id: 'ts1', principal_type: 'user', principal_id: 'admin1', effect: 'deny', action: 'use' },
+        {
+          tool_server_id: 'ts1',
+          principal_type: 'user',
+          principal_id: 'admin1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
       const result = evaluateToolServerAclAccess(
         { id: 'ts1' },
@@ -290,33 +324,36 @@ describe('tool-server-acl', () => {
 
     it('ignores rules with irrelevant action', () => {
       const rules = [
-        { tool_server_id: 'ts1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'unknown' },
+        {
+          tool_server_id: 'ts1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'unknown',
+        },
       ];
-      const result = evaluateToolServerAclAccess(
-        { id: 'ts1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateToolServerAclAccess({ id: 'ts1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(false);
     });
 
     it('recognizes relevant actions: use, manage, admin, read', () => {
       for (const action of ['use', 'manage', 'admin', 'read']) {
         const rules = [
-          { tool_server_id: 'ts1', principal_type: 'user', principal_id: 'u1', effect: 'allow', action },
+          {
+            tool_server_id: 'ts1',
+            principal_type: 'user',
+            principal_id: 'u1',
+            effect: 'allow',
+            action,
+          },
         ];
-        const result = evaluateToolServerAclAccess(
-          { id: 'ts1' },
-          { user: { sub: 'u1' }, rules }
-        );
+        const result = evaluateToolServerAclAccess({ id: 'ts1' }, { user: { sub: 'u1' }, rules });
         expect(result.allowed).toBe(true);
       }
     });
 
     it('handles null user', () => {
-      const result = evaluateToolServerAclAccess(
-        { source: 'system' },
-        { user: null, rules: [] }
-      );
+      const result = evaluateToolServerAclAccess({ source: 'system' }, { user: null, rules: [] });
       expect(result.allowed).toBe(false);
     });
 
@@ -462,8 +499,26 @@ describe('tool-server-acl', () => {
 
     it('loads rules for multiple toolServerIds', async () => {
       const mockRows = [
-        { id: '1', tool_server_id: 'ts1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '2', tool_server_id: 'ts2', principal_type: 'user', principal_id: 'u1', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          tool_server_id: 'ts1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '2',
+          tool_server_id: 'ts2',
+          principal_type: 'user',
+          principal_id: 'u1',
+          effect: 'deny',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -475,7 +530,16 @@ describe('tool-server-acl', () => {
 
     it('loads all rules when no filter provided', async () => {
       const mockRows = [
-        { id: '1', tool_server_id: 'ts1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          tool_server_id: 'ts1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -504,9 +568,36 @@ describe('tool-server-acl', () => {
 
     it('filters out rows with empty tool_server_id or principal_id', async () => {
       const mockRows = [
-        { id: '1', tool_server_id: '', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '2', tool_server_id: 'ts1', principal_type: 'user', principal_id: '', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '3', tool_server_id: 'ts1', principal_type: 'user', principal_id: 'u1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          tool_server_id: '',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '2',
+          tool_server_id: 'ts1',
+          principal_type: 'user',
+          principal_id: '',
+          effect: 'deny',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '3',
+          tool_server_id: 'ts1',
+          principal_type: 'user',
+          principal_id: 'u1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -532,10 +623,7 @@ describe('tool-server-acl', () => {
       };
       await loadToolServerAclRules(db, 'ts1', ['ts2', 'ts3']);
       // Should use singleFilter (tool_server_id = ?) not idFilter
-      expect(db.all).toHaveBeenCalledWith(
-        expect.stringContaining('tool_server_id = ?'),
-        ['ts1']
-      );
+      expect(db.all).toHaveBeenCalledWith(expect.stringContaining('tool_server_id = ?'), ['ts1']);
     });
   });
 

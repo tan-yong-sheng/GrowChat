@@ -7,10 +7,9 @@ describe('app-config', () => {
       const db = { first: vi.fn().mockResolvedValue({ value: 'hello' }) };
       const result = await getConfigValue(db, 'test_key');
       expect(result).toBe('hello');
-      expect(db.first).toHaveBeenCalledWith(
-        'SELECT value FROM app_config WHERE key = ?',
-        ['test_key']
-      );
+      expect(db.first).toHaveBeenCalledWith('SELECT value FROM app_config WHERE key = ?', [
+        'test_key',
+      ]);
     });
 
     it('returns fallback when row not found', async () => {
@@ -160,10 +159,10 @@ describe('app-config', () => {
     it('calls db.run with upsert SQL', async () => {
       const db = { run: vi.fn().mockResolvedValue() };
       await setConfigValue(db, 'key1', 'val1');
-      expect(db.run).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO app_config'),
-        ['key1', 'val1']
-      );
+      expect(db.run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO app_config'), [
+        'key1',
+        'val1',
+      ]);
     });
 
     it('does nothing when key is falsy (empty string)', async () => {

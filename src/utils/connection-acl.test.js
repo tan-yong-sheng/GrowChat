@@ -198,11 +198,12 @@ describe('connection-acl', () => {
 
   describe('evaluateConnectionAclAccess', () => {
     it('returns personal access for user-source connection', () => {
-      const result = evaluateConnectionAclAccess(
-        { source: 'user' },
-        { user: { sub: 'user1' } }
-      );
-      expect(result).toEqual({ allowed: true, access_label: 'Personal', access_variant: 'personal' });
+      const result = evaluateConnectionAclAccess({ source: 'user' }, { user: { sub: 'user1' } });
+      expect(result).toEqual({
+        allowed: true,
+        access_label: 'Personal',
+        access_variant: 'personal',
+      });
     });
 
     it('returns no access when no rules match and user is not admin', () => {
@@ -215,41 +216,62 @@ describe('connection-acl', () => {
 
     it('returns shared access when allow rule matches', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'use' },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'use',
+        },
       ];
-      const result = evaluateConnectionAclAccess(
-        { id: 'c1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateConnectionAclAccess({ id: 'c1' }, { user: { sub: 'user1' }, rules });
       expect(result).toEqual({ allowed: true, access_label: 'Shared', access_variant: 'shared' });
     });
 
     it('returns no access when deny rule matches', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'user1', effect: 'deny', action: 'use' },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
-      const result = evaluateConnectionAclAccess(
-        { id: 'c1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateConnectionAclAccess({ id: 'c1' }, { user: { sub: 'user1' }, rules });
       expect(result).toEqual({ allowed: false, access_label: 'No access', access_variant: 'none' });
     });
 
     it('deny takes precedence over allow', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'use' },
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'user1', effect: 'deny', action: 'use' },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'use',
+        },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
-      const result = evaluateConnectionAclAccess(
-        { id: 'c1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateConnectionAclAccess({ id: 'c1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(false);
     });
 
     it('group-based allow rule matches via userGroupIds', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+        {
+          connection_id: 'c1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+        },
       ];
       const result = evaluateConnectionAclAccess(
         { id: 'c1' },
@@ -260,7 +282,13 @@ describe('connection-acl', () => {
 
     it('group-based deny rule blocks access', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'group', principal_id: 'g1', effect: 'deny', action: 'use' },
+        {
+          connection_id: 'c1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
       const result = evaluateConnectionAclAccess(
         { id: 'c1' },
@@ -287,7 +315,13 @@ describe('connection-acl', () => {
 
     it('deny rule takes precedence even for admin', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'admin1', effect: 'deny', action: 'use' },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'admin1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
       const result = evaluateConnectionAclAccess(
         { id: 'c1' },
@@ -298,53 +332,62 @@ describe('connection-acl', () => {
 
     it('ignores rules with irrelevant action', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'unknown' },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'unknown',
+        },
       ];
-      const result = evaluateConnectionAclAccess(
-        { id: 'c1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateConnectionAclAccess({ id: 'c1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(false);
     });
 
     it('recognizes "manage" as a relevant action', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'manage' },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'manage',
+        },
       ];
-      const result = evaluateConnectionAclAccess(
-        { id: 'c1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateConnectionAclAccess({ id: 'c1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(true);
     });
 
     it('recognizes "admin" as a relevant action', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'admin' },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'admin',
+        },
       ];
-      const result = evaluateConnectionAclAccess(
-        { id: 'c1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateConnectionAclAccess({ id: 'c1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(true);
     });
 
     it('recognizes "read" as a relevant action', () => {
       const rules = [
-        { connection_id: 'c1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'read' },
+        {
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'read',
+        },
       ];
-      const result = evaluateConnectionAclAccess(
-        { id: 'c1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateConnectionAclAccess({ id: 'c1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(true);
     });
 
     it('handles null user', () => {
-      const result = evaluateConnectionAclAccess(
-        { source: 'system' },
-        { user: null, rules: [] }
-      );
+      const result = evaluateConnectionAclAccess({ source: 'system' }, { user: null, rules: [] });
       expect(result.allowed).toBe(false);
     });
 
@@ -495,8 +538,26 @@ describe('connection-acl', () => {
 
     it('loads rules for multiple connectionIds', async () => {
       const mockRows = [
-        { id: '1', connection_id: 'c1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '2', connection_id: 'c2', principal_type: 'user', principal_id: 'u1', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          connection_id: 'c1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '2',
+          connection_id: 'c2',
+          principal_type: 'user',
+          principal_id: 'u1',
+          effect: 'deny',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -508,7 +569,16 @@ describe('connection-acl', () => {
 
     it('loads all rules when no filter provided', async () => {
       const mockRows = [
-        { id: '1', connection_id: 'c1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          connection_id: 'c1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -537,9 +607,36 @@ describe('connection-acl', () => {
 
     it('filters out rows with empty connection_id or principal_id', async () => {
       const mockRows = [
-        { id: '1', connection_id: '', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '2', connection_id: 'c1', principal_type: 'user', principal_id: '', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '3', connection_id: 'c1', principal_type: 'user', principal_id: 'u1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          connection_id: '',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '2',
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: '',
+          effect: 'deny',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '3',
+          connection_id: 'c1',
+          principal_type: 'user',
+          principal_id: 'u1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -565,10 +662,7 @@ describe('connection-acl', () => {
       };
       await loadConnectionAclRules(db, 'c1', ['c2', 'c3']);
       // Should use singleFilter (connection_id = ?) not idFilter
-      expect(db.all).toHaveBeenCalledWith(
-        expect.stringContaining('connection_id = ?'),
-        ['c1']
-      );
+      expect(db.all).toHaveBeenCalledWith(expect.stringContaining('connection_id = ?'), ['c1']);
     });
   });
 
