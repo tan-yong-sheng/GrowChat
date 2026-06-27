@@ -6,21 +6,28 @@ export function parseJsonBody(req) {
   });
 }
 
-export function requireString(
-  value,
-  message,
-  { trim = true, minLength = 1, maxLength = null, allowEmpty = false } = {}
-) {
-  if (typeof value !== 'string') {
-    throw new ValidationError(message);
-  }
-  const normalized = trim ? value.trim() : value;
+// eslint-disable-next-line max-params -- internal helper: normalized/message/constraints is clean and stable
+function validateStringConstraints(normalized, message, constraints) {
+  const { minLength, maxLength, allowEmpty } = constraints;
   if (!allowEmpty && normalized.length < minLength) {
     throw new ValidationError(message);
   }
   if (maxLength != null && normalized.length > maxLength) {
     throw new ValidationError(message);
   }
+}
+
+// eslint-disable-next-line max-params -- value/message/options is clean; called from 20+ sites
+export function requireString(value, message, options = {}) {
+  if (typeof value !== 'string') {
+    throw new ValidationError(message);
+  }
+  const trim = options?.trim !== false;
+  const minLength = options?.minLength ?? 1;
+  const maxLength = options?.maxLength ?? null;
+  const allowEmpty = options?.allowEmpty === true;
+  const normalized = trim ? value.trim() : value;
+  validateStringConstraints(normalized, message, { minLength, maxLength, allowEmpty });
   return normalized;
 }
 
@@ -49,6 +56,7 @@ export function requirePlainObject(value, message) {
   return value;
 }
 
+// eslint-disable-next-line max-params -- opts pattern used (message is part of options, 3rd param is options object)
 export function parsePositiveInt(
   value,
   message,

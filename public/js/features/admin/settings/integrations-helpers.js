@@ -19,24 +19,42 @@ export function normalizeToolList(tools = []) {
     .filter((tool) => tool.name);
 }
 
+function buildAuthFields(server = {}) {
+  const s = server || {};
+  const defaults = {
+    auth_type: 'none',
+    auth_bearer_token: '',
+    auth_basic_username: '',
+    auth_basic_password: '',
+    oauth_client_name: '',
+    oauth_scope: '',
+    oauth_client_id: '',
+    oauth_client_secret: '',
+    oauth_token_auth_method: '',
+  };
+  // Coerce every auth field to a trimmed string. Without this, nullish or
+  // whitespace-padded values would survive into saved records and corrupt
+  // downstream auth (DB expects non-null strings; trailing space breaks
+  // bearer/OAuth matching). Matches sanitizeIntegrationsServers() history.
+  const out = {};
+  for (const key of Object.keys(defaults)) {
+    const value = s[key] !== undefined ? s[key] : defaults[key];
+    out[key] = String(value ?? '').trim();
+  }
+  if (!out.auth_type) out.auth_type = 'none';
+  return out;
+}
+
 export function normalizeToolServer(server = {}) {
-  return {
+  const base = {
     id: server.id || '',
     name: server.name || '',
     url: server.url || '',
     headers: server.headers || '',
     enabled: server.enabled !== false,
-    auth_type: server.auth_type || 'none',
-    auth_bearer_token: server.auth_bearer_token || '',
-    auth_basic_username: server.auth_basic_username || '',
-    auth_basic_password: server.auth_basic_password || '',
-    oauth_client_name: server.oauth_client_name || '',
-    oauth_scope: server.oauth_scope || '',
-    oauth_client_id: server.oauth_client_id || '',
-    oauth_client_secret: server.oauth_client_secret || '',
-    oauth_token_auth_method: server.oauth_token_auth_method || '',
     tools: normalizeToolList(server.tools).map((tool) => ({ ...tool, _expanded: false })),
   };
+  return { ...base, ...buildAuthFields(server) };
 }
 
 export function buildIntegrationsSnapshot(toolServers = []) {
@@ -53,25 +71,22 @@ export function buildIntegrationsSnapshot(toolServers = []) {
   );
 }
 
+function sanitizeSingleServer(server) {
+  const auth = buildAuthFields(server);
+  return {
+    id: server.id || '',
+    name: String(server.name || '').trim(),
+    url: String(server.url || '').trim(),
+    headers: String(server.headers || '').trim(),
+    enabled: server.enabled !== false,
+    tools: normalizeToolList(server.tools),
+    ...auth,
+  };
+}
+
 export function sanitizeIntegrationsServers(toolServers = []) {
   return (Array.isArray(toolServers) ? toolServers : [])
-    .map((server) => ({
-      id: server.id || '',
-      name: String(server.name || '').trim(),
-      url: String(server.url || '').trim(),
-      headers: String(server.headers || '').trim(),
-      enabled: server.enabled !== false,
-      auth_type: server.auth_type || 'none',
-      auth_bearer_token: String(server.auth_bearer_token || '').trim(),
-      auth_basic_username: String(server.auth_basic_username || '').trim(),
-      auth_basic_password: String(server.auth_basic_password || '').trim(),
-      oauth_client_name: String(server.oauth_client_name || '').trim(),
-      oauth_scope: String(server.oauth_scope || '').trim(),
-      oauth_client_id: String(server.oauth_client_id || '').trim(),
-      oauth_client_secret: String(server.oauth_client_secret || '').trim(),
-      oauth_token_auth_method: String(server.oauth_token_auth_method || '').trim(),
-      tools: normalizeToolList(server.tools),
-    }))
+    .map((server) => sanitizeSingleServer(server))
     .filter((server) => server.url);
 }
 

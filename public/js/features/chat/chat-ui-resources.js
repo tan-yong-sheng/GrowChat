@@ -133,7 +133,12 @@ export function createChatUiResources({
     if (!key) return null;
     if (attachmentImageUrlCache.has(key)) {
       const cached = attachmentImageUrlCache.get(key);
-      touchAttachmentCacheHelper(attachmentImageUrlCache, key, cached, maxAttachmentCache);
+      touchAttachmentCacheHelper({
+        cache: attachmentImageUrlCache,
+        key,
+        url: cached,
+        maxEntries: maxAttachmentCache,
+      });
       return cached;
     }
     if (attachmentImagePromiseCache.has(key)) return attachmentImagePromiseCache.get(key);
@@ -141,7 +146,12 @@ export function createChatUiResources({
     const promise = (async () => {
       const blob = await getFileBlob(key);
       const url = URL.createObjectURL(blob);
-      touchAttachmentCacheHelper(attachmentImageUrlCache, key, url, maxAttachmentCache);
+      touchAttachmentCacheHelper({
+        cache: attachmentImageUrlCache,
+        key,
+        url,
+        maxEntries: maxAttachmentCache,
+      });
       attachmentImagePromiseCache.delete(key);
       return url;
     })().catch((err) => {

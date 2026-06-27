@@ -12,7 +12,7 @@
 - `name` (string)
 - `baseUrl` (string)
 - `key` (string, encrypted/masked in transit)
-- `providerType` (enum: `openai-compatible`, `anthropic`, `google-vertex`)
+- `providerType` (enum: `openai-compatible`, `anthropic`, `google`, `gemini-compatible`, `claude-compatible`, `openai`)
 - `enabled` (boolean)
 - `manualModels` (array of explicitly added models)
 

@@ -244,4 +244,220 @@ describe('groupsRouter', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('returns null for non-group paths', async () => {
+    const res = await groupsRouter(
+      makeReq('/api/admin/other', 'GET'),
+      env,
+      {},
+      user,
+      '/api/admin/other'
+    );
+    expect(res).toBeNull();
+  });
+
+  it('returns 404 when group not found on GET', async () => {
+    mocks.db.first.mockResolvedValueOnce(null);
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/missing', 'GET'),
+      env,
+      {},
+      user,
+      '/api/admin/groups/missing'
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when group not found on PUT', async () => {
+    mocks.db.first.mockResolvedValueOnce(null);
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/missing', 'PUT', { name: 'Updated' }),
+      env,
+      {},
+      user,
+      '/api/admin/groups/missing'
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 when trying to modify system group', async () => {
+    mocks.db.first.mockResolvedValueOnce({ id: 'g1', name: 'Admin', is_system: 1 });
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/g1', 'PUT', { name: 'Updated' }),
+      env,
+      {},
+      user,
+      '/api/admin/groups/g1'
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when trying to delete system group', async () => {
+    mocks.db.first.mockResolvedValueOnce({ id: 'g1', name: 'Admin', is_system: 1 });
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/g1', 'DELETE'),
+      env,
+      {},
+      user,
+      '/api/admin/groups/g1'
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects group creation with name too long', async () => {
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups', 'POST', { name: 'a'.repeat(101) }),
+      env,
+      {},
+      user,
+      '/api/admin/groups'
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects group creation with description too long', async () => {
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups', 'POST', { name: 'Test', description: 'a'.repeat(501) }),
+      env,
+      {},
+      user,
+      '/api/admin/groups'
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects group update with name too long', async () => {
+    mocks.db.first.mockResolvedValueOnce({
+      id: 'g1',
+      name: 'Test',
+      description: null,
+      is_system: 0,
+    });
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/g1', 'PUT', { name: 'a'.repeat(101) }),
+      env,
+      {},
+      user,
+      '/api/admin/groups/g1'
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects group update with description too long', async () => {
+    mocks.db.first.mockResolvedValueOnce({
+      id: 'g1',
+      name: 'Test',
+      description: null,
+      is_system: 0,
+    });
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/g1', 'PUT', { name: 'Test', description: 'a'.repeat(501) }),
+      env,
+      {},
+      user,
+      '/api/admin/groups/g1'
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects duplicate group name on create', async () => {
+    mocks.db.first.mockResolvedValueOnce({ id: 'existing' });
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups', 'POST', { name: 'Existing Group' }),
+      env,
+      {},
+      user,
+      '/api/admin/groups'
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it('returns 404 when deleting nonexistent group', async () => {
+    mocks.db.first.mockResolvedValueOnce(null);
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/missing', 'DELETE'),
+      env,
+      {},
+      user,
+      '/api/admin/groups/missing'
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when adding member to nonexistent group', async () => {
+    mocks.db.first.mockResolvedValueOnce(null);
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/missing/users', 'POST', { user_id: 'u2' }),
+      env,
+      {},
+      user,
+      '/api/admin/groups/missing/users'
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when removing member from nonexistent group', async () => {
+    mocks.db.first.mockResolvedValueOnce(null);
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups/missing/users', 'DELETE', { user_id: 'u2' }),
+      env,
+      {},
+      user,
+      '/api/admin/groups/missing/users'
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 500 on list groups error', async () => {
+    mocks.db.all.mockRejectedValueOnce(new Error('DB error'));
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups', 'GET'),
+      env,
+      {},
+      user,
+      '/api/admin/groups'
+    );
+    expect(res.status).toBe(500);
+  });
+
+  it('returns 500 on create group error', async () => {
+    mocks.db.batch.mockRejectedValueOnce(new Error('DB error'));
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups', 'POST', { name: 'Test' }),
+      env,
+      {},
+      user,
+      '/api/admin/groups'
+    );
+    expect(res.status).toBe(500);
+  });
+
+  it('returns 403 for non-read methods without admin.user.write', async () => {
+    // First authorize call checks read permission, second checks write
+    mocks.authorize.mockImplementation(async (_env, _user, options = {}) => {
+      if (options.action === 'admin.user.write') return { allow: false, reason: 'no_write' };
+      return { allow: true };
+    });
+
+    const res = await groupsRouter(
+      makeReq('/api/admin/groups', 'POST', { name: 'Test' }),
+      env,
+      {},
+      user,
+      '/api/admin/groups'
+    );
+    expect(res.status).toBe(403);
+  });
 });

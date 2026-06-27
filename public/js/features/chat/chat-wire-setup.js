@@ -208,6 +208,7 @@ export function setupWireChatFeatures(ctx, deps) {
           updateToolCallState,
           updateMessageContentDom,
           matchPendingTempMessage,
+          replaceTempMessageId,
           getActiveStreamAbort: () => ctx.activeStreamAbort,
           setActiveStreamAbort: (value) => {
             activeStreamAbort = value;

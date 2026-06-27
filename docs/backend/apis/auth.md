@@ -28,7 +28,8 @@
 - DB writes to `user_roles` (via `ensureUserRoleBinding`)
 
 ### Side Effects
-- Creates a `users` record.
+- Creates a `users` record with `account_status`, `primary_role`.
+- Syncs `users.primary_role` column with the `user_roles` table (ensures consistency for admin first-user path).
 - Creates a `refresh_tokens` record.
 - Creates a `user_roles` record.
 
@@ -109,3 +110,18 @@
 - Updates `password_hash` in `users`.
 - Deletes the used token from `password_reset_tokens`.
 - **Security Action**: Deletes ALL active sessions for the user (`DELETE FROM refresh_tokens WHERE user_id = ?`) to force re-authentication everywhere.
+
+---
+
+## `POST /api/auth/resend-verification`
+**Responsibility**: Resends the email verification message for a pending account. Subject to rate limiting.
+
+### Request
+- `email` (string, required)
+
+### Errors
+- `429 Too Many Requests`: Rate limit exceeded.
+
+### Side Effects
+- Triggers `emailService.send()` to deliver the verification email.
+- Rate-limited via `checkRateLimit` with KV-backed counter.

@@ -32,12 +32,6 @@ export class NotFoundError extends HttpError {
   }
 }
 
-export class ConflictError extends HttpError {
-  constructor(message = 'Conflict', details = null) {
-    super(message, 409, 'conflict', details);
-  }
-}
-
 export function isHttpError(error) {
   return error instanceof HttpError;
 }

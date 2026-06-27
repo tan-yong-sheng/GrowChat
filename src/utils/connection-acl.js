@@ -63,10 +63,7 @@ function isConnectionAclActionRelevant(action) {
   return ['use', 'manage', 'admin', 'read'].includes(normalized);
 }
 
-export function evaluateConnectionAclAccess(
-  connection,
-  { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
-) {
+function evaluateConnectionAclCore(connection, rules, { user, userGroupIds, allowAdmin }) {
   if (connection?.source === 'user') {
     return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
   }
@@ -74,6 +71,7 @@ export function evaluateConnectionAclAccess(
   const normalizedRules = Array.isArray(rules)
     ? rules.map(normalizeConnectionAclRule).filter(Boolean)
     : [];
+
   const denyMatched = normalizedRules.some(
     (rule) =>
       rule.effect === 'deny' &&
@@ -99,6 +97,13 @@ export function evaluateConnectionAclAccess(
   }
 
   return { allowed: false, access_label: 'No access', access_variant: 'none' };
+}
+
+export function evaluateConnectionAclAccess(
+  connection,
+  { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
+) {
+  return evaluateConnectionAclCore(connection, rules, { user, userGroupIds, allowAdmin });
 }
 
 export async function ensureConnectionAclRulesTable(db) {
@@ -184,16 +189,35 @@ export function buildConnectionAclRuleSaveStatements(
   return { normalized, statements };
 }
 
+function buildConnectionAclFilter(connectionId, connectionIds) {
+  const idFilter =
+    connectionIds && !connectionId ? buildIdFilterClause('connection_id', connectionIds) : null;
+  const singleFilter = connectionId
+    ? { clause: 'connection_id = ?', values: [connectionId] }
+    : null;
+  return singleFilter || idFilter;
+}
+
+function normalizeConnectionAclRows(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      id: row.id,
+      connection_id: row.connection_id,
+      principal_type: normalizeConnectionAclPrincipalType(row.principal_type),
+      principal_id: String(row.principal_id || '').trim(),
+      effect: normalizeConnectionAclEffect(row.effect),
+      action: normalizeConnectionAclAction(row.action),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }))
+    .filter((row) => row.connection_id && row.principal_id);
+}
+
 export async function loadConnectionAclRules(db, connectionId = null, connectionIds = null) {
   if (!db) return [];
   try {
     await ensureConnectionAclRulesTable(db);
-    const idFilter =
-      connectionIds && !connectionId ? buildIdFilterClause('connection_id', connectionIds) : null;
-    const singleFilter = connectionId
-      ? { clause: 'connection_id = ?', values: [connectionId] }
-      : null;
-    const filter = singleFilter || idFilter;
+    const filter = buildConnectionAclFilter(connectionId, connectionIds);
     const rows = filter
       ? await db.all(
           `SELECT id, connection_id, principal_type, principal_id, effect, action, created_at, updated_at
@@ -207,18 +231,7 @@ export async function loadConnectionAclRules(db, connectionId = null, connection
            FROM connection_acl_rules
            ORDER BY connection_id ASC, effect DESC, principal_type ASC, principal_id ASC, action ASC`
         );
-    return (Array.isArray(rows) ? rows : [])
-      .map((row) => ({
-        id: row.id,
-        connection_id: row.connection_id,
-        principal_type: normalizeConnectionAclPrincipalType(row.principal_type),
-        principal_id: String(row.principal_id || '').trim(),
-        effect: normalizeConnectionAclEffect(row.effect),
-        action: normalizeConnectionAclAction(row.action),
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      }))
-      .filter((row) => row.connection_id && row.principal_id);
+    return normalizeConnectionAclRows(rows);
   } catch (err) {
     if (MISSING_TABLE_REGEX.test(String(err?.message || ''))) return [];
     throw err;

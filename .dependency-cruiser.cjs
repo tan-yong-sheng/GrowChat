@@ -94,6 +94,7 @@ module.exports = {
           '^public/js/features/admin/settings/connections-helpers\\.js$',
           '^public/js/features/admin/settings/connections-helpers-modal-models\\.js$',
           '^public/js/features/admin/settings/models-helpers\\.js$',
+          '^public/js/features/admin/settings/acl-modal-shared\\.js$',
         ],
       },
     },

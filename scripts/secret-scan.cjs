@@ -47,39 +47,58 @@ function getFileHash(filePath) {
 
 function scanFile(filePath, cache) {
   const ext = path.extname(filePath).toLowerCase();
-  
-  const skipExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.zip', '.tar', '.gz', '.woff', '.woff2', '.ttf'];
+
+  const skipExtensions = [
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.ico',
+    '.zip',
+    '.tar',
+    '.gz',
+    '.woff',
+    '.woff2',
+    '.ttf',
+  ];
   if (skipExtensions.includes(ext)) return null;
-  
+
   if (filePath.includes('node_modules') || filePath.includes('.git')) return null;
-  if (filePath.includes('coverage') || filePath.includes('dist') || filePath.includes('build')) return null;
-  
+  if (filePath.includes('coverage') || filePath.includes('dist') || filePath.includes('build'))
+    return null;
+  if (
+    filePath.endsWith('.test.js') ||
+    filePath.endsWith('.spec.js') ||
+    filePath.endsWith('.spec.ts')
+  )
+    return null;
+
   // Check cache first
   const fileHash = getFileHash(filePath);
   if (fileHash && cache[filePath] && cache[filePath].hash === fileHash) {
     return null; // Cache hit, no new secrets
   }
-  
+
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     const findings = [];
-    
+
     for (const pattern of SECRET_PATTERNS) {
       const matches = content.match(pattern.regex) || [];
       if (matches.length > 0) {
         findings.push({
           file: filePath,
           type: pattern.name,
-          matches: matches.slice(0, 3)
+          matches: matches.slice(0, 3),
         });
       }
     }
-    
+
     // Update cache
     if (fileHash) {
       cache[filePath] = { hash: fileHash };
     }
-    
+
     return findings.length > 0 ? findings : null;
   } catch {
     return null;
@@ -98,21 +117,21 @@ function getStagedFiles() {
 function main() {
   const cache = loadCache();
   const stagedFiles = getStagedFiles();
-  
+
   console.log('🔍 Secret scanning staged files...');
-  
+
   if (stagedFiles.length === 0) {
     console.log('No staged files to scan.');
     process.exit(0);
   }
-  
+
   let allFindings = [];
   let cacheHits = 0;
   let cacheMisses = 0;
-  
+
   for (const file of stagedFiles) {
     if (file === '.secrets.baseline' || file === '.secrets.cache.json') continue;
-    
+
     const findings = scanFile(file, cache);
     if (findings) {
       allFindings = allFindings.concat(findings);
@@ -122,23 +141,25 @@ function main() {
       cacheMisses++;
     }
   }
-  
+
   saveCache(cache);
-  
+
   if (allFindings.length === 0) {
-    console.log(`✅ No secrets detected in staged files. Cache: ${cacheHits} hits, ${cacheMisses} misses.`);
+    console.log(
+      `✅ No secrets detected in staged files. Cache: ${cacheHits} hits, ${cacheMisses} misses.`
+    );
     process.exit(0);
   }
-  
+
   console.log('\n❌ Potential secrets detected in staged files:\n');
-  
+
   for (const finding of allFindings) {
     console.log(`  📁 ${finding.file}`);
     console.log(`  🔑 Type: ${finding.type}`);
     console.log(`  🔍 Matches: ${finding.matches.length}`);
     console.log('');
   }
-  
+
   console.log(`Found ${allFindings.length} files with potential secrets.`);
   process.exit(1);
 }

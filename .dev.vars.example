@@ -1,0 +1,18 @@
+# Disable rate limit when local dev testing
+DISABLE_RATE_LIMIT=true
+
+# JWT signing secret (min 32 chars recommended)
+JWT_SECRET=my-super-jwt-secret-thirty-two-bytes!
+
+EMAIL_FROM=noreply@resend.dev
+EMAIL_PROVIDER=resend
+
+# Resend API key for email sending (get free at resend.com)
+RESEND_API_KEY=
+
+APP_PUBLIC_ORIGIN=http://localhost:8787
+APP_URL=http://localhost:8787
+ALLOWED_ORIGINS=*
+
+TEST_EMAIL=admin@localhost
+TEST_PASSWORD=admin123

@@ -1,10 +1,6 @@
 import { escapeHtml } from '../utils/dom-escape.js';
 import { renderButton } from './button.js';
 
-/**
- * Renders a section header with title, subtitle, and optional action button
- * Used consistently across admin and account settings pages
- */
 function renderDismissButton({ dataAttr, colorClass }) {
   return `<button type="button" ${dataAttr} class="${colorClass} transition"
     aria-label="Dismiss"
@@ -16,36 +12,47 @@ function renderDismissButton({ dataAttr, colorClass }) {
   </button>`;
 }
 
+function renderLabelDiv(label) {
+  return label
+    ? `<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">${label}</div>`
+    : '';
+}
+
+function renderTitleDiv(title, subtitle) {
+  return `
+    <h1 class="text-xl font-medium text-gray-900">${title}</h1>
+    ${subtitle ? `<div class="text-sm text-gray-500">${subtitle}</div>` : ''}
+  `;
+}
+
+function renderActionButton(button) {
+  return renderButton({
+    label: '+',
+    type: 'button',
+    variant: 'ghost',
+    className: `inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 ${button.className || ''}`,
+    ariaLabel: button.label,
+  }).replace(
+    '<button ',
+    `<button ${button.key ? `data-action="${escapeHtml(button.key)}"` : ''} ${button.attrs || ''} `
+  );
+}
+
 export function renderSectionHeader({
   title = '',
   subtitle = '',
-  label = '', // e.g., "LLM PROVIDERS"
-  actionButton = null, // { label, key, className, attrs }
+  label = '',
+  actionButton = null,
 } = {}) {
   const button = /** @type {any} */ (actionButton || {});
-
   return `
     <div class="pt-0.5 pb-6 bg-white">
       <div class="w-full flex items-center justify-between gap-3">
         <div>
-          ${label ? `<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">${label}</div>` : ''}
-          <h1 class="text-xl font-medium text-gray-900">${title}</h1>
-          ${subtitle ? `<div class="text-sm text-gray-500">${subtitle}</div>` : ''}
+          ${renderLabelDiv(label)}
+          ${renderTitleDiv(title, subtitle)}
         </div>
-        ${
-          actionButton
-            ? renderButton({
-                label: '+',
-                type: 'button',
-                variant: 'ghost',
-                className: `inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 ${button.className || ''}`,
-                ariaLabel: button.label,
-              }).replace(
-                '<button ',
-                `<button ${button.key ? `data-action="${escapeHtml(button.key)}"` : ''} ${button.attrs || ''} `
-              )
-            : ''
-        }
+        ${actionButton ? renderActionButton(button) : ''}
       </div>
     </div>
   `;

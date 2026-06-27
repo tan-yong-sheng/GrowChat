@@ -30,38 +30,64 @@ export function buildRateLimitKey(action, subject) {
   return `${DEFAULT_KEY_PREFIX}:${normalizedAction}:${normalizedSubject}`;
 }
 
+function extractClientIp(req) {
+  const headers = req && req.headers;
+  if (!headers) return null;
+  return (
+    headers.get('CF-Connecting-IP') ||
+    headers.get('x-forwarded-for') ||
+    headers.get('x-real-ip') ||
+    null
+  );
+}
+
 export function resolveRateLimitSubject(req, fallback = 'anonymous') {
   // NOTE: In local development (wrangler dev), none of these headers are present.
   // All local requests will share the 'anonymous' fallback rate limit key.
   // This means rate limits apply globally across all local users during dev.
   // To test per-IP rate limiting locally, set CF-Connecting-IP header manually.
-  const ip =
-    req?.headers?.get?.('CF-Connecting-IP') ||
-    req?.headers?.get?.('x-forwarded-for') ||
-    req?.headers?.get?.('x-real-ip');
+  const ip = extractClientIp(req);
   return String(ip || fallback).trim() || fallback;
 }
 
-export async function checkRateLimit(
-  store,
-  { action, subject, limit, windowSeconds, now = Date.now() }
-) {
+function buildBypassResult({ action, subject, limit, windowSeconds, now }) {
+  const maxRequests = normalizeLimit(limit);
+  const windowSize = normalizeWindowSeconds(windowSeconds);
+  return {
+    allowed: true,
+    remaining: maxRequests,
+    resetAt: now + windowSize * 1000,
+    key: buildRateLimitKey(action, subject),
+  };
+}
+
+function isRateLimitDisabled(env) {
+  const val = env && env.DISABLE_RATE_LIMIT;
+  return val === 'true' || val === '1';
+}
+
+function resolveStore(env) {
+  if (!env) return null;
+  const store = env.CACHE || env;
+  if (store.get && store.put) return store;
+  return null;
+}
+
+export async function checkRateLimit(env, opts) {
+  if (isRateLimitDisabled(env)) return buildBypassResult({ ...opts, now: opts.now || Date.now() });
+
+  const store = resolveStore(env);
+  if (!store) return buildBypassResult({ ...opts, now: opts.now || Date.now() });
+
+  const { action, subject, limit, windowSeconds } = opts;
+  const now = opts.now || Date.now();
   const maxRequests = normalizeLimit(limit);
   const windowSize = normalizeWindowSeconds(windowSeconds);
   const resetAt = now + windowSize * 1000;
 
-  if (!store?.get || !store?.put) {
-    return {
-      allowed: true,
-      remaining: maxRequests,
-      resetAt,
-      key: buildRateLimitKey(action, subject),
-    };
-  }
-
   const key = buildRateLimitKey(action, subject);
   const raw = await store.get(key);
-  const current = Number.parseInt(String(raw || '0'), 10);
+  const current = Number.parseInt(raw || '0', 10);
   const count = Number.isFinite(current) && current > 0 ? current : 0;
 
   if (count >= maxRequests) {

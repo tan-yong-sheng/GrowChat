@@ -377,8 +377,12 @@ pnpm test tests/rbac.integration.test.js
 ### E2E Tests
 
 ```bash
-pnpm run test:e2e
-# Tests: auth.spec.ts, chat.spec.ts, admin-settings.spec.ts
+pnpm run test:e2e              # scripts/test-e2e.js — starts wrangler dev (port 8788), seeds DB, runs Playwright
+pnpm run test:e2e:ui           # Playwright UI mode (interactive, requires separate dev server)
+pnpm run test:e2e:update-snapshots  # Update visual regression baselines
+# Specs: auth.setup.spec.ts, auth.spec.ts, auth-workflows.spec.ts, bootstrap.spec.ts,
+#        chat.spec.ts, admin-settings.spec.ts, connections.spec.ts,
+#        visual-regression.spec.ts, accessibility.spec.ts, button-responsive.spec.ts
 ```
 
 ---

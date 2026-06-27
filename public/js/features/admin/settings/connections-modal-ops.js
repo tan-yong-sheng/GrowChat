@@ -60,6 +60,7 @@ export function createConnectionsModalOps(deps) {
     fillModalFields,
     renderModalModels,
     addManualModalModel,
+    removeManualModalModel,
     loadModalModels,
     refreshModalModels,
     updateModalSaveButton,
@@ -70,6 +71,14 @@ export function createConnectionsModalOps(deps) {
     connectionsState.selectedConnection = connection || null;
     connectionsState.modalMode = connection ? 'update' : 'create';
     connectionsState.modalModelsQuery = '';
+    // Reset the manual-model tombstone list so deletions from a prior
+    // connection's modal don't leak into this one. The close and save
+    // handlers also reset it; openModal is the missing third reset point.
+    // Without this, two connections whose model ids collide (e.g. both
+    // openai-typed connections share the same upstream model names) would
+    // see the wrong models filtered out as "deleted" when the second
+    // modal opens.
+    connectionsState.deletedManualModelIds = [];
     const modal =
       container.querySelector('#edit-connection-modal') ||
       container.querySelector('#add-connection-modal');
@@ -99,6 +108,7 @@ export function createConnectionsModalOps(deps) {
     fillModalFields,
     renderModalModels,
     addManualModalModel,
+    removeManualModalModel,
     loadModalModels,
     refreshModalModels,
     updateModalSaveButton,

@@ -10,6 +10,7 @@ import {
   shouldShowAuthField,
 } from './integrations-helpers.js';
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
+import { renderLoadingSkeleton } from './acl-modal-shared.js';
 
 export function createIntegrationsModalOps(deps) {
   const { container, integrationsState } = deps;
@@ -47,31 +48,6 @@ export function createIntegrationsModalOps(deps) {
   };
 
   const sanitizeServers = () => sanitizeIntegrationsServers(integrationsState.toolServers);
-
-  const renderLoadingSkeleton = () => `
-    <div class="space-y-2">
-      ${Array.from({ length: 4 })
-        .map(
-          () => `
-        <div class="border-b border-gray-50 last:border-0">
-          <div class="py-2.5 flex items-center justify-between pr-2 animate-pulse">
-            <div class="flex flex-col min-w-0 flex-1 space-y-2">
-              <div class="h-3.5 w-40 bg-gray-200 rounded-full"></div>
-              <div class="h-2.5 w-64 bg-gray-100 rounded-full"></div>
-              <div class="h-2.5 w-56 bg-gray-100 rounded-full"></div>
-            </div>
-            <div class="flex items-center gap-3 shrink-0">
-              <div class="h-6 w-12 rounded-full bg-gray-100 border border-gray-200"></div>
-              <div class="h-6 w-6 rounded-full bg-gray-100 border border-gray-200"></div>
-              <div class="h-5 w-9 rounded-full bg-gray-100 border border-gray-200"></div>
-            </div>
-          </div>
-        </div>
-      `
-        )
-        .join('')}
-    </div>
-  `;
 
   const showFeedback = (message, type = 'success') => {
     const feedback = container.querySelector('#integrations-feedback');

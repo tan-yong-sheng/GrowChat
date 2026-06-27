@@ -1,22 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { countEnabledModels, filterEnabledModels, sortModelsByActiveThenName } from '../../public/js/shared/utils/model-state.js';
+import {
+  countEnabledModels,
+  filterEnabledModels,
+  sortModelsByActiveThenName,
+} from '../../public/js/shared/utils/model-state.js';
 
 describe('public model state helpers', () => {
   it('counts enabled models from arrays and ignores non-arrays', () => {
-    expect(countEnabledModels([
-      { id: 'a', enabled: true },
-      { id: 'b', enabled: false },
-      { id: 'c' },
-    ])).toBe(2);
+    expect(
+      countEnabledModels([{ id: 'a', enabled: true }, { id: 'b', enabled: false }, { id: 'c' }])
+    ).toBe(2);
     expect(countEnabledModels(null)).toBe(0);
   });
 
   it('filters enabled models from arrays and ignores non-arrays', () => {
-    const models = [
-      { id: 'a', enabled: true },
-      { id: 'b', enabled: false },
-      { id: 'c' },
-    ];
+    const models = [{ id: 'a', enabled: true }, { id: 'b', enabled: false }, { id: 'c' }];
 
     expect(filterEnabledModels(models).map((model) => model.id)).toEqual(['a', 'c']);
     expect(filterEnabledModels(null)).toEqual([]);
@@ -34,6 +32,16 @@ describe('public model state helpers', () => {
     expect(sorted.map((model) => model.id)).toEqual(['a', 'c', 'b', 'd', 'z']);
   });
 
+  it('places enabled models before disabled ones even when disabled is alphabetically earlier', () => {
+    const sorted = sortModelsByActiveThenName([
+      { id: 'a', name: 'Beta', enabled: true },
+      { id: 'x', name: 'Alpha', enabled: false },
+      { id: 'z', name: 'Zulu', enabled: true },
+    ]);
+
+    expect(sorted.map((model) => model.id)).toEqual(['a', 'z', 'x']);
+  });
+
   it('breaks ties on the connection name when labels and ids match', () => {
     const sorted = sortModelsByActiveThenName([
       { id: 'shared', name: 'Alpha', connection_name: 'z-conn', enabled: true },
@@ -49,8 +57,9 @@ describe('public model state helpers', () => {
       { connection_name: 'alpha-1', enabled: true },
     ]);
 
-    expect(sorted.map((model) => model.connection_name || model.connection_id)).toEqual(['alpha-1', 'beta-1']);
+    expect(sorted.map((model) => model.connection_name || model.connection_id)).toEqual([
+      'alpha-1',
+      'beta-1',
+    ]);
   });
 });
-
-

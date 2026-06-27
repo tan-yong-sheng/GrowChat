@@ -63,10 +63,8 @@ function isToolServerAclActionRelevant(action) {
   return ['use', 'manage', 'admin', 'read'].includes(normalized);
 }
 
-export function evaluateToolServerAclAccess(
-  toolServer,
-  { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
-) {
+// eslint-disable-next-line max-params -- 3 params (server, rules, opts) with destructured options object is clean API design
+function evaluateToolServerAclCore(toolServer, rules, { user, userGroupIds, allowAdmin }) {
   if (toolServer?.source === 'user') {
     return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
   }
@@ -74,6 +72,7 @@ export function evaluateToolServerAclAccess(
   const normalizedRules = Array.isArray(rules)
     ? rules.map(normalizeToolServerAclRule).filter(Boolean)
     : [];
+
   const denyMatched = normalizedRules.some(
     (rule) =>
       rule.effect === 'deny' &&
@@ -99,6 +98,13 @@ export function evaluateToolServerAclAccess(
   }
 
   return { allowed: false, access_label: 'No access', access_variant: 'none' };
+}
+
+export function evaluateToolServerAclAccess(
+  toolServer,
+  { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
+) {
+  return evaluateToolServerAclCore(toolServer, rules, { user, userGroupIds, allowAdmin });
 }
 
 export async function ensureToolServerAclRulesTable(db) {
@@ -128,6 +134,7 @@ export async function ensureToolServerAclRulesTable(db) {
   }
 }
 
+// eslint-disable-next-line max-params -- 4 params (db, toolServerId, rules, opts) by design for DB statement builder
 export function buildToolServerAclRuleSaveStatements(
   db,
   toolServerId,
@@ -184,16 +191,36 @@ export function buildToolServerAclRuleSaveStatements(
   return { normalized, statements };
 }
 
+function buildToolServerAclFilter(toolServerId, toolServerIds) {
+  const idFilter =
+    toolServerIds && !toolServerId ? buildIdFilterClause('tool_server_id', toolServerIds) : null;
+  const singleFilter = toolServerId
+    ? { clause: 'tool_server_id = ?', values: [toolServerId] }
+    : null;
+  return singleFilter || idFilter;
+}
+
+function normalizeToolServerAclRows(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      id: row.id,
+      tool_server_id: row.tool_server_id,
+      principal_type: normalizeToolServerAclPrincipalType(row.principal_type),
+      principal_id: String(row.principal_id || '').trim(),
+      effect: normalizeToolServerAclEffect(row.effect),
+      action: normalizeToolServerAclAction(row.action),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }))
+    .filter((row) => row.tool_server_id && row.principal_id);
+}
+
+// eslint-disable-next-line max-params -- 3 params (db, toolServerId, toolServerIds) for list/filter operations
 export async function loadToolServerAclRules(db, toolServerId = null, toolServerIds = null) {
   if (!db) return [];
   try {
     await ensureToolServerAclRulesTable(db);
-    const idFilter =
-      toolServerIds && !toolServerId ? buildIdFilterClause('tool_server_id', toolServerIds) : null;
-    const singleFilter = toolServerId
-      ? { clause: 'tool_server_id = ?', values: [toolServerId] }
-      : null;
-    const filter = singleFilter || idFilter;
+    const filter = buildToolServerAclFilter(toolServerId, toolServerIds);
     const rows = filter
       ? await db.all(
           `SELECT id, tool_server_id, principal_type, principal_id, effect, action, created_at, updated_at
@@ -207,24 +234,14 @@ export async function loadToolServerAclRules(db, toolServerId = null, toolServer
            FROM tool_server_acl_rules
            ORDER BY tool_server_id ASC, effect DESC, principal_type ASC, principal_id ASC, action ASC`
         );
-    return (Array.isArray(rows) ? rows : [])
-      .map((row) => ({
-        id: row.id,
-        tool_server_id: row.tool_server_id,
-        principal_type: normalizeToolServerAclPrincipalType(row.principal_type),
-        principal_id: String(row.principal_id || '').trim(),
-        effect: normalizeToolServerAclEffect(row.effect),
-        action: normalizeToolServerAclAction(row.action),
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      }))
-      .filter((row) => row.tool_server_id && row.principal_id);
+    return normalizeToolServerAclRows(rows);
   } catch (err) {
     if (MISSING_TABLE_REGEX.test(String(err?.message || ''))) return [];
     throw err;
   }
 }
 
+// eslint-disable-next-line max-params -- 3 params (db, toolServerId, rules) for save-with-reload pattern
 export async function saveToolServerAclRulesForToolServer(db, toolServerId, rules = []) {
   const { statements } = buildToolServerAclRuleSaveStatements(db, toolServerId, rules);
   await db.batch(statements);

@@ -55,31 +55,84 @@ function setMode(next) {
   updateSubmitAvailability();
 }
 
-async function submit(e) {
-  e.preventDefault();
-  if (isSubmitting) return;
-  err.classList.add('hidden');
-  err.classList.remove('text-green-600');
-  err.classList.add('text-red-600');
-
+function buildAuthPayload(currentMode) {
   const payload = {
     email: emailInput.value.trim(),
     password: passwordInput.value,
   };
-
-  if (mode === 'register') {
+  if (currentMode === 'register') {
     payload.name = nameInput.value.trim();
   }
+  return payload;
+}
 
-  const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
-  const label = mode === 'register' ? 'Signing up…' : 'Signing in…';
-  const originalText = authSubmit.textContent;
+function getAuthEndpoint(currentMode) {
+  return currentMode === 'register' ? '/api/auth/register' : '/api/auth/login';
+}
 
-  isSubmitting = true;
+function getAuthLabel(currentMode) {
+  return currentMode === 'register' ? 'Signing up…' : 'Signing in…';
+}
+
+function setAuthSubmitting(label) {
   authSubmit.textContent = label;
   authSubmit.disabled = true;
   authSubmit.classList.add('opacity-60', 'cursor-not-allowed');
   toggleModeBtn.disabled = true;
+}
+
+function resetAuthSubmit(originalText) {
+  isSubmitting = false;
+  authSubmit.textContent = originalText;
+  authSubmit.classList.remove('opacity-60', 'cursor-not-allowed');
+  toggleModeBtn.disabled = false;
+  updateButtonState(form, authSubmit, isSubmitting);
+  updateSubmitAvailability();
+}
+
+function showAuthError(message) {
+  err.textContent = message;
+  err.classList.remove('hidden');
+}
+
+function showAuthPending(message) {
+  err.textContent = message;
+  err.classList.remove('hidden', 'text-red-600');
+  err.classList.add('text-green-600');
+}
+
+function clearAuthError() {
+  err.classList.add('hidden');
+  err.classList.remove('text-green-600');
+  err.classList.add('text-red-600');
+}
+
+function handleAuthResult(res, data, currentMode) {
+  if (!res.ok) {
+    showAuthError(data.error || 'Authentication failed');
+    return false;
+  }
+  if (currentMode === 'register' && !data.access_token) {
+    showAuthPending(data.message || 'Your account is pending approval.');
+    return false;
+  }
+  setAuthState(data);
+  window.location.href = '/';
+  return true;
+}
+
+async function submit(e) {
+  e.preventDefault();
+  if (isSubmitting) return;
+  clearAuthError();
+
+  const payload = buildAuthPayload(mode);
+  const endpoint = getAuthEndpoint(mode);
+  const label = getAuthLabel(mode);
+  const originalText = authSubmit.textContent;
+
+  isSubmitting = true;
+  setAuthSubmitting(label);
 
   try {
     const res = await fetch(endpoint, {
@@ -87,33 +140,12 @@ async function submit(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      err.textContent = data.error || 'Authentication failed';
-      err.classList.remove('hidden');
-      return;
-    }
-
-    if (mode === 'register' && !data.access_token) {
-      err.textContent = data.message || 'Your account is pending approval.';
-      err.classList.remove('hidden', 'text-red-600');
-      err.classList.add('text-green-600');
-      return;
-    }
-
-    setAuthState(data);
-    window.location.href = '/';
+    handleAuthResult(res, data, mode);
   } catch {
-    err.textContent = 'Network error. Please try again.';
-    err.classList.remove('hidden');
+    showAuthError('Network error. Please try again.');
   } finally {
-    isSubmitting = false;
-    authSubmit.textContent = originalText;
-    authSubmit.classList.remove('opacity-60', 'cursor-not-allowed');
-    toggleModeBtn.disabled = false;
-    updateButtonState(form, authSubmit, isSubmitting);
-    updateSubmitAvailability();
+    resetAuthSubmit(originalText);
   }
 }
 
@@ -155,22 +187,51 @@ function closeForgotPasswordModal() {
   modalSuccess.classList.add('hidden');
 }
 
+function showForgotError(message) {
+  modalError.textContent = message;
+  modalError.classList.remove('hidden');
+}
+
+function clearForgotMessages() {
+  modalError.classList.add('hidden');
+  modalSuccess.classList.add('hidden');
+}
+
+function setForgotSubmitting() {
+  isSubmitting = true;
+  forgotSubmitBtn.disabled = true;
+  forgotSubmitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+}
+
+function resetForgotSubmit() {
+  isSubmitting = false;
+  forgotSubmitBtn.disabled = false;
+  forgotSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+}
+
+function handleForgotResult(res, data) {
+  if (!res.ok) {
+    showForgotError(data.error || 'Failed to send reset link');
+    return;
+  }
+  modalSuccess.textContent = 'Check your email for a password reset link';
+  modalSuccess.classList.remove('hidden');
+  forgotEmailInput.value = '';
+  setTimeout(() => closeForgotPasswordModal(), 2000);
+}
+
 async function handleForgotPasswordSubmit(e) {
   e.preventDefault();
   if (isSubmitting) return;
 
   const email = forgotEmailInput.value.trim();
   if (!email) {
-    modalError.textContent = 'Please enter your email';
-    modalError.classList.remove('hidden');
+    showForgotError('Please enter your email');
     return;
   }
 
-  isSubmitting = true;
-  forgotSubmitBtn.disabled = true;
-  forgotSubmitBtn.classList.add('opacity-60', 'cursor-not-allowed');
-  modalError.classList.add('hidden');
-  modalSuccess.classList.add('hidden');
+  setForgotSubmitting();
+  clearForgotMessages();
 
   try {
     const res = await fetch('/api/auth/forgot-password', {
@@ -178,25 +239,12 @@ async function handleForgotPasswordSubmit(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     });
-
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      modalError.textContent = data.error || 'Failed to send reset link';
-      modalError.classList.remove('hidden');
-      return;
-    }
-
-    modalSuccess.textContent = 'Check your email for a password reset link';
-    modalSuccess.classList.remove('hidden');
-    forgotEmailInput.value = '';
-    setTimeout(() => closeForgotPasswordModal(), 2000);
+    handleForgotResult(res, data);
   } catch {
-    modalError.textContent = 'Network error. Please try again.';
-    modalError.classList.remove('hidden');
+    showForgotError('Network error. Please try again.');
   } finally {
-    isSubmitting = false;
-    forgotSubmitBtn.disabled = false;
-    forgotSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    resetForgotSubmit();
   }
 }
 
@@ -217,6 +265,54 @@ function closeResetPasswordModal() {
   resetSuccess.classList.add('hidden');
 }
 
+function showResetError(message) {
+  resetError.textContent = message;
+  resetError.classList.remove('hidden');
+}
+
+function getUrlToken() {
+  return new URLSearchParams(window.location.search).get('token');
+}
+
+function beginResetSubmit() {
+  isSubmitting = true;
+  resetSubmitBtn.disabled = true;
+  resetSubmitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+  resetError.classList.add('hidden');
+  resetSuccess.classList.add('hidden');
+}
+
+function endResetSubmit() {
+  isSubmitting = false;
+  resetSubmitBtn.disabled = false;
+  resetSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+}
+
+function validateResetPassword(password, confirmPassword) {
+  if (!password || !confirmPassword) {
+    return 'Please fill in all fields';
+  }
+  if (password.length < 8) {
+    return 'Password must be at least 8 characters';
+  }
+  if (password !== confirmPassword) {
+    return 'Passwords do not match';
+  }
+  return null;
+}
+
+function handleResetResult(res, data) {
+  if (!res.ok) {
+    showResetError(data.error || 'Failed to reset password');
+    return;
+  }
+  resetSuccess.textContent = 'Password reset successful. Redirecting to login...';
+  resetSuccess.classList.remove('hidden');
+  setTimeout(() => {
+    window.location.href = '/auth.html';
+  }, 2000);
+}
+
 async function handleResetPasswordSubmit(e) {
   e.preventDefault();
   if (isSubmitting) return;
@@ -224,38 +320,19 @@ async function handleResetPasswordSubmit(e) {
   const password = newPasswordInput.value;
   const confirmPassword = confirmPasswordInput.value;
 
-  if (!password || !confirmPassword) {
-    resetError.textContent = 'Please fill in all fields';
-    resetError.classList.remove('hidden');
+  const validationError = validateResetPassword(password, confirmPassword);
+  if (validationError) {
+    showResetError(validationError);
     return;
   }
 
-  if (password.length < 8) {
-    resetError.textContent = 'Password must be at least 8 characters';
-    resetError.classList.remove('hidden');
-    return;
-  }
-
-  if (password !== confirmPassword) {
-    resetError.textContent = 'Passwords do not match';
-    resetError.classList.remove('hidden');
-    return;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get('token');
-
+  const token = getUrlToken();
   if (!token) {
-    resetError.textContent = 'Invalid reset link';
-    resetError.classList.remove('hidden');
+    showResetError('Invalid reset link');
     return;
   }
 
-  isSubmitting = true;
-  resetSubmitBtn.disabled = true;
-  resetSubmitBtn.classList.add('opacity-60', 'cursor-not-allowed');
-  resetError.classList.add('hidden');
-  resetSuccess.classList.add('hidden');
+  beginResetSubmit();
 
   try {
     const res = await fetch('/api/auth/reset-password', {
@@ -263,26 +340,12 @@ async function handleResetPasswordSubmit(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password }),
     });
-
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      resetError.textContent = data.error || 'Failed to reset password';
-      resetError.classList.remove('hidden');
-      return;
-    }
-
-    resetSuccess.textContent = 'Password reset successful. Redirecting to login...';
-    resetSuccess.classList.remove('hidden');
-    setTimeout(() => {
-      window.location.href = '/auth.html';
-    }, 2000);
+    handleResetResult(res, data);
   } catch {
-    resetError.textContent = 'Network error. Please try again.';
-    resetError.classList.remove('hidden');
+    showResetError('Network error. Please try again.');
   } finally {
-    isSubmitting = false;
-    resetSubmitBtn.disabled = false;
-    resetSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    endResetSubmit();
   }
 }
 

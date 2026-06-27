@@ -129,5 +129,97 @@ describe('Session Management', () => {
       );
       expect(result.status).toBe(200);
     });
+
+    it('returns 503 when env.SESSIONS missing on DELETE', async () => {
+      const result = await sessionManagementRouter(
+        mockDeleteReq,
+        {},
+        {},
+        { sub: 'user-1' },
+        '/api/user/sessions/session-1'
+      );
+      expect(result.status).toBe(503);
+      const body = await result.json();
+      expect(body.error).toContain('unavailable');
+    });
+
+    it('returns empty sessions when env.SESSIONS missing on GET', async () => {
+      const result = await sessionManagementRouter(
+        mockReq,
+        {},
+        {},
+        { sub: 'user-1' },
+        '/api/user/sessions'
+      );
+      expect(result.status).toBe(200);
+      const body = await result.json();
+      expect(body.sessions).toEqual([]);
+    });
+
+    it('returns null for exact DELETE /api/user/sessions with no id', async () => {
+      const result = await sessionManagementRouter(
+        mockDeleteReq,
+        { SESSIONS: mockKV },
+        {},
+        { sub: 'user-1' },
+        '/api/user/sessions'
+      );
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('mutation gaps', () => {
+    it('getSessions returns empty when kv.get returns null', async () => {
+      mockKV.list.mockResolvedValue({ keys: [{ name: 'session:user-1:s1' }] });
+      mockKV.get.mockResolvedValue(null);
+
+      const result = await getSessions({ userId: 'user-1', kv: mockKV });
+      const body = await result.json();
+      expect(body.sessions).toEqual([]);
+    });
+
+    it('getSessions skips corrupted metadata with parse error', async () => {
+      mockKV.list.mockResolvedValue({
+        keys: [{ name: 'session:user-1:good' }, { name: 'session:user-1:bad' }],
+      });
+      mockKV.get
+        .mockResolvedValueOnce(JSON.stringify({ device: 'Chrome', lastActive: 1000 }))
+        .mockResolvedValueOnce('not-json');
+
+      const result = await getSessions({ userId: 'user-1', kv: mockKV });
+      const body = await result.json();
+      expect(body.sessions).toHaveLength(1);
+      expect(body.sessions[0].id).toBe('good');
+    });
+
+    it('getSessions sorts with undefined lastActive', async () => {
+      mockKV.list.mockResolvedValue({
+        keys: [{ name: 'session:user-1:a' }, { name: 'session:user-1:b' }],
+      });
+      mockKV.get
+        .mockResolvedValueOnce(JSON.stringify({ device: 'A', lastActive: undefined }))
+        .mockResolvedValueOnce(JSON.stringify({ device: 'B' }));
+
+      const result = await getSessions({ userId: 'user-1', kv: mockKV });
+      const body = await result.json();
+      expect(body.sessions).toHaveLength(2);
+    });
+
+    it('revokeSession returns 410 when session data is corrupted JSON', async () => {
+      mockKV.get.mockResolvedValue('not-json');
+
+      const result = await revokeSession({ sessionId: 's1', userId: 'user-1', kv: mockKV });
+      expect(result.status).toBe(410);
+      const body = await result.json();
+      expect(body.error).toContain('corrupted');
+    });
+
+    it('returns empty sessions when kv.list returns empty keys', async () => {
+      mockKV.list.mockResolvedValue({ keys: [] });
+
+      const result = await getSessions({ userId: 'user-1', kv: mockKV });
+      const body = await result.json();
+      expect(body.sessions).toEqual([]);
+    });
   });
 });

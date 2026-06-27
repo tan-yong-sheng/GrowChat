@@ -99,7 +99,10 @@ async function persistSriHashes(env, hashes) {
   }
 }
 
-async function refreshMissingSriHashesInBackground(env, missingEntries = [], baseHashes = {}) {
+async function refreshMissingSriHashesInBackground(
+  env,
+  { missingEntries = [], baseHashes = {} } = {}
+) {
   if (!Array.isArray(missingEntries) || missingEntries.length === 0) return;
 
   const entries = await Promise.all(
@@ -134,6 +137,43 @@ async function refreshMissingSriHashesInBackground(env, missingEntries = [], bas
   await persistSriHashes(env, nextHashes);
 }
 
+function buildSriHashMap(persistedHashes) {
+  const hashes = {};
+  const missingEntries = [];
+
+  for (const [key, resource] of Object.entries(SRI_RESOURCES)) {
+    const cached = sriCache.get(key);
+    if (cached?.url === resource.url && cached.hash) {
+      hashes[key] = cached.hash;
+      continue;
+    }
+    if (persistedHashes?.[key]) {
+      sriCache.set(key, { url: resource.url, hash: persistedHashes[key] });
+      hashes[key] = persistedHashes[key];
+      continue;
+    }
+    hashes[key] = null;
+    missingEntries.push([key, resource]);
+  }
+
+  return { hashes, missingEntries };
+}
+
+async function commitSriHashState(env, { hashes, missingEntries }) {
+  const hasMissing = missingEntries.length > 0;
+  sriHashesState.value = hashes;
+  sriHashesState.expiresAt =
+    Date.now() + (hasMissing ? SRI_PARTIAL_CACHE_TTL_SECONDS : SRI_CACHE_TTL_SECONDS) * 1000;
+
+  if (hasMissing) {
+    void refreshMissingSriHashesInBackground(env, { missingEntries, baseHashes: hashes });
+  } else {
+    await persistSriHashes(env, hashes);
+  }
+
+  return hashes;
+}
+
 async function loadSriHashes(env) {
   if (sriHashesState.value && Date.now() < sriHashesState.expiresAt) return sriHashesState.value;
 
@@ -141,36 +181,8 @@ async function loadSriHashes(env) {
 
   sriHashesPromise = (async () => {
     const persistedHashes = await readPersistedSriHashes(env);
-    const hashes = {};
-    const missingEntries = [];
-
-    for (const [key, resource] of Object.entries(SRI_RESOURCES)) {
-      const cached = sriCache.get(key);
-      if (cached?.url === resource.url && cached.hash) {
-        hashes[key] = cached.hash;
-        continue;
-      }
-      if (persistedHashes?.[key]) {
-        sriCache.set(key, { url: resource.url, hash: persistedHashes[key] });
-        hashes[key] = persistedHashes[key];
-        continue;
-      }
-      hashes[key] = null;
-      missingEntries.push([key, resource]);
-    }
-
-    const hasMissing = missingEntries.length > 0;
-    sriHashesState.value = hashes;
-    sriHashesState.expiresAt =
-      Date.now() + (hasMissing ? SRI_PARTIAL_CACHE_TTL_SECONDS : SRI_CACHE_TTL_SECONDS) * 1000;
-
-    if (hasMissing) {
-      void refreshMissingSriHashesInBackground(env, missingEntries, hashes);
-    } else {
-      await persistSriHashes(env, hashes);
-    }
-
-    return hashes;
+    const { hashes, missingEntries } = buildSriHashMap(persistedHashes);
+    return commitSriHashState(env, { hashes, missingEntries });
   })().finally(() => {
     sriHashesPromise = null;
   });

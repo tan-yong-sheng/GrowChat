@@ -181,7 +181,7 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
       throw err;
     }
 
-    const loginLimit = await checkRateLimit(env.CACHE, {
+    const loginLimit = await checkRateLimit(env, {
       action: 'auth-login',
       subject: resolveRateLimitSubject(req),
       ...RATE_LIMITS.authLogin,
@@ -288,7 +288,7 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
   }
 
   if (req.method === 'POST' && path === '/api/auth/resend-verification') {
-    const resendLimit = await checkRateLimit(env.CACHE, {
+    const resendLimit = await checkRateLimit(env, {
       action: 'auth-resend-verification',
       subject: resolveRateLimitSubject(req),
       ...RATE_LIMITS.authResendVerification,

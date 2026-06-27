@@ -362,7 +362,7 @@ export async function chatMessageRouter({
       'SELECT id FROM messages WHERE chat_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
       [chatId]
     );
-    if (lastMsg) {
+    if (lastMsg && lastMsg.id !== msgId) {
       await db.run(
         'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
         [lastMsg.id, chatId, user.sub]

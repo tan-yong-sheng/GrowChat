@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 
+// Writable home directory for tools that try to write to ~/. (e.g., semgrep
+// settings files fail under bwrap sandbox protection on the real home dir.)
+const WRITABLE_HOME = process.env.HOME_SEMGREP || '/tmp/pi-home';
+
 // Trusted local helper: shell disabled, args fixed by caller, no user input path.
-function run(bin, args, options = {}) {
+function run(bin, args) {
   // nosemgrep: trusted local guardrail runner; no shell, fixed args only.
-  const result = spawnSync(bin, args, {
-    stdio: 'inherit',
-    shell: false,
-    ...options,
-  });
+  const result = spawnSync(bin, args, { stdio: 'inherit', shell: false });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
@@ -71,15 +71,23 @@ if (process.argv.includes('--semgrep')) {
   if (semgrepFiles.length > 0) {
     // Use --baseline-commit to only block on NEW findings not present in the base branch.
     // Pre-existing violations in changed files are reported but don't cause failure.
-    run('semgrep', [
-      'scan',
-      '--config',
-      '.semgrep/rules.yml',
-      '--error',
-      '--baseline-commit',
-      baseRef,
-      ...semgrepFiles,
-    ]);
+    // Pass writable HOME to avoid bwrap read-only filesystem errors on ~/.semgrep/.
+    const result = spawnSync(
+      'semgrep',
+      [
+        'scan',
+        '--config',
+        '.semgrep/rules.yml',
+        '--error',
+        '--baseline-commit',
+        baseRef,
+        ...semgrepFiles,
+      ],
+      { stdio: 'inherit', shell: false, env: { ...process.env, HOME: WRITABLE_HOME } }
+    );
+    if (result.status !== 0) {
+      process.exit(result.status ?? 1);
+    }
   }
 }
 if (process.argv.includes('--jscpd')) {

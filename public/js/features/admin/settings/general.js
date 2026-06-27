@@ -30,13 +30,13 @@ export function renderGeneralSettings(container, data) {
     showSettingsFeedback(container, message, isError);
 
   const updatePublicRegToggle = () =>
-    updateSettingsToggle(
+    updateSettingsToggle({
       container,
-      'public-reg-toggle',
-      'public-reg-status',
-      settingsState.currentValues.publicRegistration,
-      updateRegistrationStatusVisibility
-    );
+      toggleId: 'public-reg-toggle',
+      statusId: 'public-reg-status',
+      isOn: settingsState.currentValues.publicRegistration,
+      updateVisibility: updateRegistrationStatusVisibility,
+    });
 
   const updateRegistrationStatusVisibility = () => {
     const statusWrap = container.querySelector('#registration-status-wrap');

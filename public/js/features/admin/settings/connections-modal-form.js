@@ -20,10 +20,10 @@ import {
 } from './connections-helpers.js';
 import {
   updateApiTypeDisplay,
-  resolveConnectionModalSelectionMode,
   previewConnectionModalModels,
   buildModalConnectionPayload,
 } from './connections-helpers-modal-models.js';
+import { normalizeConnectionModelSelectionMode } from '../../../shared/utils/connection-model-selection.js';
 import { buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 
@@ -213,13 +213,57 @@ export function createConnectionsModalForm(deps) {
     }
     connectionsState.modalModelsError = null;
     connectionsState.modalModelsLoading = false;
-    connection.manualModels = nextManualModels;
+    // Note: we intentionally do NOT mutate connection.manualModels here. The
+    // modal-local modalModels + modalModelsSelection drives the save payload
+    // (buildSelectedConnectionModels), so writing to the live connection is
+    // unnecessary. Mutating it would also break the cancel/refresh-resurrects
+    // invariant: if the user cancels, the in-memory connection would still
+    // carry the new model even though nothing was persisted.
     connectionsState.modalModels = nextModels;
     connectionsState.modalModelsSelection = new Set(connectionsState.modalModelsSelection || []);
     connectionsState.modalModelsSelection.add(fullId);
     connectionsState.modalModelsOriginal = new Set(connectionsState.modalModelsOriginal || []);
     connectionsState.modalModelsOriginal.add(fullId);
+    // Clear any tombstone from a previous remove of the same model so the
+    // re-add isn't silently filtered out by buildSelectedConnectionModels().
+    if (Array.isArray(connectionsState.deletedManualModelIds)) {
+      connectionsState.deletedManualModelIds = connectionsState.deletedManualModelIds.filter(
+        (id) => id !== safe && id !== fullId
+      );
+    }
     input.value = '';
+    renderModalModels(modalRoot);
+  };
+
+  const removeManualModalModel = (modelId, scope = container) => {
+    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
+    const connection = connectionsState.selectedConnection;
+    if (!connection?.id || connection?.readOnly) return;
+    const models = Array.isArray(connectionsState.modalModels) ? connectionsState.modalModels : [];
+    const target = models.find((m) => m.id === modelId);
+    if (!target || !target.manual) return;
+    const deletedModelId = target.manualModelId || modelId;
+    connectionsState.modalModels = models.filter((m) => m.id !== modelId);
+    if (connectionsState.modalModelsSelection instanceof Set) {
+      connectionsState.modalModelsSelection.delete(modelId);
+    }
+    if (connectionsState.modalModelsOriginal instanceof Set) {
+      connectionsState.modalModelsOriginal.delete(modelId);
+    }
+    if (!Array.isArray(connectionsState.deletedManualModelIds)) {
+      connectionsState.deletedManualModelIds = [];
+    }
+    connectionsState.deletedManualModelIds.push(deletedModelId);
+    // Note: we intentionally do NOT mutate connection.manualModels here.
+    // The modal-local modalModels + deletedManualModelIds drives the save
+    // payload (buildSelectedConnectionModels + the delete filter in the
+    // save handler), so writing to the live connection is unnecessary.
+    // Mutating it would also break the cancel/refresh-resurrects invariant:
+    // if the user cancels, the in-memory connection would still carry the
+    // deletion even though nothing was persisted, and the next open would
+    // show a stale model list. refreshModalModels() filters the seeded
+    // manual models against deletedManualModelIds to keep the deleted
+    // model from resurrecting after a Test/Verify.
     renderModalModels(modalRoot);
   };
 
@@ -239,7 +283,7 @@ export function createConnectionsModalForm(deps) {
     const seedModels = inflateManualConnectionModels(connection);
     const seedSelection = new Set(seedModels.map((model) => model.id));
     const inferredMode =
-      resolveConnectionModalSelectionMode(
+      normalizeConnectionModelSelectionMode(
         connection?.manualModelsMode || connection?.manual_models_mode
       ) || (seedSelection.size > 0 ? 'some' : 'all');
     connectionsState.modalModelsLoading = true;
@@ -313,7 +357,11 @@ export function createConnectionsModalForm(deps) {
         connectionsState.modalModelsOriginal = preview.original;
         renderModalModels(modalRoot);
         const existingManualModels = connectionsState.selectedConnection
-          ? inflateManualConnectionModels(connectionsState.selectedConnection)
+          ? inflateManualConnectionModels(connectionsState.selectedConnection).filter(
+              (model) =>
+                !Array.isArray(connectionsState.deletedManualModelIds) ||
+                !connectionsState.deletedManualModelIds.includes(model.manualModelId)
+            )
           : [];
         if (existingManualModels.length > 0) {
           const merged = new Map(
@@ -368,6 +416,7 @@ export function createConnectionsModalForm(deps) {
     fillModalFields,
     renderModalModels,
     addManualModalModel,
+    removeManualModalModel,
     loadModalModels,
     refreshModalModels,
     updateModalSaveButton,

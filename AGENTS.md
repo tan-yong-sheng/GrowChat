@@ -6,7 +6,7 @@
 
 **Stack:** Cloudflare Workers (D1, KV, R2, Durable Objects) + Vanilla JS SPA + Tailwind CSS + Vitest + Playwright
 
-**Website:** local dev defaults to `localhost:8787`, but Playwright and browser tests should take the target URL from `TEST_URL` (with `PLAYWRIGHT_TEST_BASE_URL` as legacy fallback) plus `TEST_EMAIL`/`TEST_PASSWORD` for auth flows.
+**Website:** local dev defaults to `localhost:8787`, but Playwright and browser tests should take the target URL from `TEST_URL` (with `PLAYWRIGHT_TEST_BASE_URL` as legacy fallback) plus `TEST_EMAIL`/`TEST_PASSWORD` for auth flows. E2E credentials are read from `.dev.vars` (copy `.dev.vars.example` → `.dev.vars`).
 
 **ESM only** — `"type": "module"` in package.json.
 
@@ -41,10 +41,19 @@ pnpm run test:watch                 # Watch mode
 pnpm run test:coverage              # Coverage report (coverage/ folder)
 
 # E2E tests (Playwright) - tests exist in tests/e2e/frontend/
-# Note: Ensure `pnpm run dev` is running on port 8787 in another terminal before running E2E
-pnpm run test:e2e                   # Run E2E tests
-pnpm run test:e2e:ui                # Playwright UI mode
+# `pnpm run test:e2e` uses scripts/test-e2e.js which starts its own wrangler dev (port 8788),
+# initializes D1, applies migrations, enables public registration, seeds the test user,
+# and runs Playwright — no separate dev server needed.
+# E2E credentials: copy .dev.vars.example → .dev.vars
+pnpm run test:e2e                   # Run E2E tests (wrapper: scripts/test-e2e.js)
+pnpm run test:e2e:ui                # Playwright UI mode (requires separate dev server)
 pnpm run test:e2e:update-snapshots  # Update visual snapshots
+
+# Mutation testing
+pnpm run check:mutation             # Stryker mutation test (threshold break: 55%)
+
+# Full pre-push gate
+pnpm run prepush:checks             # Unit tests + typecheck + lint + all scoped checks
 ```
 
 ## Code Quality (ESLint & Prettier)
@@ -70,10 +79,13 @@ pnpm run deploy                     # Triggers predeploy → tests → coverage 
 
 ```bash
 # Local DB init applies migrations automatically via scripts/init-local-db.js
-# Schema in migrations/ (3 files)
+# Schema in migrations/ (6 files)
 001_initial.sql                    # Core tables (22 tables)
 002_settings_permissions.sql       # RBAC + settings
 003_password_reset_tokens.sql      # Password reset system
+004_email_verification.sql         # Email verification tokens
+005_message_editing.sql            # Message edit history
+006_audit_logging.sql              # Audit log schema
 
 # Validate migrations before deploy (included in predeploy)
 pnpm run validate:migrations
@@ -138,10 +150,11 @@ pnpm exec wrangler d1 migrations apply growchat --local  # Apply migrations manu
 
 1. **Coverage includes** only specific `public/js/` modules (not all frontend files)
 2. **Coverage excludes:** `*.test.js`, `components/`, `bootstrap/auth.js`, `chat.js`, `admin.js`
-3. **E2E tests serve static files** via an internal Python web server, and test against whatever URL is set in `TEST_URL` or `PLAYWRIGHT_TEST_BASE_URL`, not a hard-coded localhost URL.
-4. **E2E has 2 projects:** `chromium-guest` (auth.spec.ts) and `chromium-auth` (chat, admin-settings; storageState is generated at runtime from `TEST_EMAIL`/`TEST_PASSWORD` via `tests/shared/playwright-global-setup.js` so origin follows `TEST_URL`)
-5. **E2E test directory:** `tests/e2e/frontend/` with specs: auth.spec.ts, chat.spec.ts, admin-settings.spec.ts
-6. **No `.only()`/`.skip()` in test files** (checked by grep)
+3. **E2E tests** use `scripts/test-e2e.js` as the entry point. This wrapper starts `wrangler dev` on port 8788 (configurable via `TEST_PORT`), initializes D1 with migrations, enables public registration, seeds the test user from `.dev.vars`, then runs Playwright. No separate dev server needed.
+4. **E2E has 3 projects:** `setup` (auth.setup.spec.ts — generates `auth-state.json`), `chromium-guest` (auth.spec.ts, auth-workflows.spec.ts, bootstrap.spec.ts, accessibility.spec.ts), and `chromium-auth` (chat.spec.ts, admin-settings.spec.ts, connections.spec.ts, visual-regression.spec.ts; depends on `setup` for storageState).
+5. **E2E test specs:** `tests/e2e/frontend/` with: auth.spec.ts, auth-workflows.spec.ts, auth.setup.spec.ts, bootstrap.spec.ts, chat.spec.ts, admin-settings.spec.ts, connections.spec.ts, visual-regression.spec.ts, accessibility.spec.ts, button-responsive.spec.ts
+6. **Visual regression** uses Playwright's `toHaveScreenshot()`. Baselines stored in `tests/e2e/frontend/visual-regression.spec.ts-snapshots/`. Run `pnpm run test:e2e:update-snapshots` to update.
+7. **No `.only()`/`.skip()` in test files** (checked by grep)
 
 ### Development
 
@@ -150,6 +163,8 @@ pnpm exec wrangler d1 migrations apply growchat --local  # Apply migrations manu
 3. **Workers AI disabled:** Only OpenAI-compatible APIs via user connections
 4. **Durable Objects:** MessageQueueDO for real-time SSE (15s keepalive)
 5. **Predeploy hook** (`predeploy` in package.json) runs: lint → format check → test → coverage → build:css → validate migrations → wrangler deploy
+6. **ESLint max-params** enforced as `error` with max 2 (legacy multi-param functions in ignore list in eslint.config.cjs)
+7. **Lint-staged** runs `eslint --fix --max-warnings 0` — any warning or error blocks the commit
 
 ### Performance
 
@@ -172,8 +187,8 @@ pnpm exec wrangler d1 migrations apply growchat --local  # Apply migrations manu
 - **Frontend modules:** `public/js/bootstrap/` → `public/js/features/` → `public/js/shared/`
 - **LLM integration:** `src/llm/` + `src/chat/assistant-runner.js`
 - **DB migrations:** `migrations/`
-- **Build/scripts:** `scripts/` (init-local-db.js, pre-deploy.js, validate-graphs.js)
-- **E2E tests:** `tests/e2e/frontend/` — auth, chat, admin-settings, visual
+- **Build/scripts:** `scripts/` (init-local-db.js, pre-deploy.js, validate-graphs.js, test-e2e.js, seed-test-user.js, prepush-e2e.sh, secret-scan.cjs, parse-lint.js, check-jscpd-budgets.js, run-scoped-guardrails.js)
+- **E2E tests:** `tests/e2e/frontend/` — auth, auth-workflows, auth.setup, bootstrap, chat, admin-settings, connections, visual-regression, accessibility, button-responsive
 - **Unit tests:** `src/**/*.test.js` + `tests/unit/` + `tests/rbac.test.js`, `rbac.integration.test.js`
 
 <!-- gitnexus:start -->

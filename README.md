@@ -9,11 +9,11 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 - User authentication with JWT tokens and refresh token rotation
 - Multi-user chat management with persistent D1 database
 - Streaming LLM responses via Server-Sent Events (SSE)
-- Support for Workers AI and OpenAI-compatible APIs
+- Multi-provider LLM support via user-configured OpenAI-compatible connections
 - PBKDF2 password hashing with Web Crypto
 - Responsive web UI built with vanilla JS and Tailwind CSS
 
-✅ **Phase 2 (In Progress)**
+✅ **Phase 2 (Deployed)**
 
 - RAG with Cloudflare Vectorize for FAQ and document vector search
 - File uploads with R2 cloud storage
@@ -22,11 +22,13 @@ A multi-user Cloudflare Workers chat application with support for multiple LLM p
 - Admin panel for managing FAQs and documents
 - Citation tracking for LLM responses
 - Vector index management and reindexing
+- Comprehensive test suite (unit + E2E + mutation + visual regression)
+- Visual regression testing with Playwright native `toHaveScreenshot()`
+- CI quality gates (ESLint max-params, Stryker mutation score, jscpd, dependency-cruiser)
 
 🚀 **Phase 3 (Planned)**
 
 - PDF file support
-- Testing infrastructure
 - Chat sharing and exports
 - Advanced analytics dashboard
 
@@ -97,8 +99,7 @@ Open `http://localhost:8787` in your browser.
 
    ```bash
    wrangler secret put JWT_SECRET
-   wrangler secret put OPENAI_API_KEY
-   wrangler secret put OPENAI_BASE_URL
+   wrangler secret put RESEND_API_KEY
    ```
 
 6. **Deploy**
@@ -137,6 +138,9 @@ All routes (except auth) require `Authorization: Bearer <token>` header.
 - `POST /api/auth/login` - Login and get tokens
 - `POST /api/auth/refresh` - Refresh access token
 - `POST /api/auth/logout` - Logout
+- `POST /api/auth/forgot-password` - Request password reset email
+- `POST /api/auth/reset-password` - Reset password with token
+- `POST /api/auth/resend-verification` - Resend email verification
 
 ### Users
 
@@ -180,10 +184,19 @@ All routes (except auth) require `Authorization: Bearer <token>` header.
 ### Environment Variables
 
 ```env
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_API_KEY=sk-...  # Set via wrangler secret
-DEFAULT_MODEL=gpt-4
-JWT_SECRET=...  # Set via wrangler secret
+# Copy .dev.vars.example → .dev.vars for local development
+JWT_SECRET=...  # Set via wrangler secret or .dev.vars for local dev
+RESEND_API_KEY=...  # Set via wrangler secret (Resend email delivery)
+EMAIL_FROM=noreply@resend.dev
+APP_URL=http://localhost:8787
+ALLOWED_ORIGINS=*
+
+# E2E test credentials (read from .dev.vars by test-e2e.js)
+TEST_EMAIL=admin@localhost
+TEST_PASSWORD=admin123
+
+# Disable rate limiting in local dev
+DISABLE_RATE_LIMIT=true
 ```
 
 ### Model Selection
@@ -193,7 +206,7 @@ The system checks for models in this order:
 1. User-provided model in request
 2. Chat's stored model
 3. `DEFAULT_MODEL` environment variable
-4. Falls back to `@cf/meta/llama-3.1-8b-instruct` (free Workers AI)
+4. Available model from user's enabled connections (Workers AI disabled — only OpenAI-compatible APIs via user connections)
 
 ## Database Schema
 
@@ -204,7 +217,11 @@ users
   password_hash (PBKDF2)
   name
   role (admin|user)
+  account_status (active|pending)
+  primary_role (member|admin)
   settings (JSON)
+  preferences (JSON)
+  last_active_at (unix timestamp)
   created_at, updated_at
 
 chats
@@ -214,14 +231,17 @@ chats
   model
   pinned (0|1)
   tags (JSON array)
+  current_message_id (UUID, FK to messages)
   created_at, updated_at
 
 messages
   id (UUID)
   chat_id (foreign key)
+  parent_id (UUID, for branching)
   role (user|assistant)
   content
   model
+  status (streaming|completed|cancelled|error)
   citations (JSON array of FAQ IDs)
   created_at
 
@@ -279,26 +299,35 @@ pnpm run build:css
 ### Run Tests
 
 ```bash
-pnpm test               # Unit tests (Vitest)
-pnpm run test:coverage  # Coverage report
-pnpm run test:e2e       # E2E tests (Playwright)
+pnpm test                     # Unit tests (Vitest)
+pnpm run test:coverage        # Coverage report
+pnpm run test:e2e             # E2E tests (via scripts/test-e2e.js — starts wrangler dev, seeds DB, runs Playwright)
+pnpm run test:e2e:ui          # Playwright UI mode (interactive)
+pnpm run test:e2e:update-snapshots  # Update visual regression baselines
+pnpm run check:mutation       # Stryker mutation testing (threshold: 55% break)
 ```
 
 ### Code Quality
 
 ```bash
-pnpm run lint           # ESLint
-pnpm run lint:fix       # Auto-fix ESLint
-pnpm run format         # Prettier
-pnpm run format:check   # Check formatting
-pnpm run typecheck      # TypeScript guardrails
+pnpm run lint                     # ESLint (max-params enforced as error)
+pnpm run lint:fix                 # Auto-fix ESLint (fails on warnings with --max-warnings 0)
+pnpm run format                   # Prettier
+pnpm run format:check             # Check formatting
+pnpm run typecheck                # TypeScript guardrails
+pnpm run lint:logic:scoped        # Scoped ESLint logic checks
+pnpm run lint:dupes:scoped        # Scoped copy-paste detection (jscpd)
+pnpm run lint:dupes:budget        # jscpd budget check
+pnpm run arch:check:scoped        # Scoped dependency-cruiser check
+pnpm run format:check:scoped      # Scoped Prettier check
+pnpm run lint:hygiene             # knip dead file/dependency detection
+pnpm run prepush:checks           # Full pre-push gate (unit tests + typecheck + lint + all scoped checks)
 ```
 
 ## Deployment Status
 
 - **Latest Version**: Deployed to Cloudflare Workers
 - **URL**: `https://growchat.tanyongsheng-net.workers.dev`
-- **Test Status**: 177 test files, 1121 tests passing (Vitest + Playwright)
 
 ## Troubleshooting
 
@@ -309,10 +338,10 @@ wrangler secret put JWT_SECRET
 # Re-deploy: pnpm run deploy
 ```
 
-### OPENAI_API_KEY missing
+### RESEND_API_KEY missing
 
 ```bash
-wrangler secret put OPENAI_API_KEY
+wrangler secret put RESEND_API_KEY
 # Re-deploy: pnpm run deploy
 ```
 
@@ -331,28 +360,28 @@ Check that `wrangler.jsonc` has correct database ID from `wrangler d1 list`.
 - ✅ PBKDF2 password hashing
 - ✅ Responsive web UI
 
-### Phase 2 (🚀 In Progress)
+### Phase 2 (✅ Deployed)
 
-- 🚀 Vector embeddings with Cloudflare Vectorize (768-dim, cosine similarity)
-- 🚀 FAQ management with semantic search
-- 🚀 File uploads with R2 storage
-- 🚀 Document text extraction:
+- ✅ Vector embeddings with Cloudflare Vectorize (768-dim, cosine similarity)
+- ✅ FAQ management with semantic search
+- ✅ File uploads with R2 storage
+- ✅ Document text extraction:
   - Plain text and markdown: direct extraction
   - Images: OCR via Workers AI @cf/wit/ocr
   - PDF: deferred to Phase 3
-- 🚀 Semantic chunking (500-char chunks with 50-char overlap)
-- 🚀 RAG context injection into LLM prompts
-- 🚀 Citation tracking in messages
-- 🚀 Admin panel with statistics and vector management
+- ✅ Semantic chunking (500-char chunks with 50-char overlap)
+- ✅ RAG context injection into LLM prompts
+- ✅ Citation tracking in messages
+- ✅ Admin panel with statistics and vector management
+- ✅ Comprehensive test suite (unit + E2E + mutation + visual regression)
+- ✅ CI quality gates (ESLint, Stryker, jscpd, dependency-cruiser)
 
 ### Phase 3 (Planned)
 
 - [ ] PDF file support with text extraction
-- [ ] Testing infrastructure (unit + E2E)
 - [ ] Chat sharing and export
 - [ ] Advanced analytics dashboard
 - [ ] Prompt templates and workflows
-- [ ] Rate limiting and quotas
 
 ## License
 

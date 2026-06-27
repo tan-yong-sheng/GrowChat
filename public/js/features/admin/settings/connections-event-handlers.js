@@ -23,6 +23,7 @@ import {
   buildSelectedConnectionModels,
   updateApiTypeDisplay,
   buildModalConnectionPayload,
+  resolveConnectionModalSelectionMode,
 } from './connections-helpers-modal-models.js';
 
 export function createConnectionsEventHandlers(deps) {
@@ -37,6 +38,7 @@ export function createConnectionsEventHandlers(deps) {
     updateConnectionToggle,
     renderModalModels,
     addManualModalModel,
+    removeManualModalModel,
     showFeedback,
     setTestStatus,
     updateModalSaveButton,
@@ -155,6 +157,7 @@ export function createConnectionsEventHandlers(deps) {
     });
 
     container.querySelector('#close-modal')?.addEventListener('click', () => {
+      connectionsState.deletedManualModelIds = [];
       closeModal();
     });
 
@@ -219,12 +222,20 @@ export function createConnectionsEventHandlers(deps) {
           apiType: connectionApiTypeDetails(providerType).value,
           source: 'manual',
           enabled: connectionsState.selectedConnection?.enabled !== false,
-          manualModels: buildSelectedConnectionModels(
+          manualModels: (() => {
+            const models = buildSelectedConnectionModels(
+              connectionsState.modalModels || [],
+              connectionsState.modalModelsSelection || new Set(),
+              connectionsState.selectedConnection
+            );
+            const deleted = connectionsState.deletedManualModelIds || [];
+            if (!deleted.length) return models;
+            return models.filter((m) => !deleted.includes(m.modelId));
+          })(),
+          manualModelsMode: resolveConnectionModalSelectionMode(
             connectionsState.modalModels || [],
-            connectionsState.modalModelsSelection || new Set(),
-            connectionsState.selectedConnection
+            connectionsState.modalModelsSelection || new Set()
           ),
-          manualModelsMode: connectionsState.selectedConnection?.manualModelsMode,
         };
         const modelUpdates = (connectionsState.modalModels || []).map((m) => ({
           id: m.id || m.modelId,
@@ -261,6 +272,7 @@ export function createConnectionsEventHandlers(deps) {
         broadcastConnectionsInvalidation();
         if (data) data.modelsSettingsInvalidate = Date.now();
         // connectionsState.loaded = false; // removed: optimistic save
+        connectionsState.deletedManualModelIds = [];
         closeModal();
         loadConnections();
       } catch (err) {
@@ -309,6 +321,20 @@ export function createConnectionsEventHandlers(deps) {
       if (e.key === 'Enter') {
         e.preventDefault();
         addManualModalModel(container.querySelector('#edit-connection-modal') || container);
+      }
+    });
+
+    container.querySelector('#modal-models-list')?.addEventListener('click', (e) => {
+      const deleteBtn = e.target.closest('[data-delete-model-id]');
+      if (!deleteBtn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const modelId = deleteBtn.getAttribute('data-delete-model-id');
+      if (modelId) {
+        removeManualModalModel(
+          modelId,
+          container.querySelector('#edit-connection-modal') || container
+        );
       }
     });
 

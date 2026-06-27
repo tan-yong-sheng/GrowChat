@@ -31,7 +31,7 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     throw err;
   }
 
-  const forgotLimit = await checkRateLimit(env.CACHE, {
+  const forgotLimit = await checkRateLimit(env, {
     action: 'auth-forgot-password',
     subject: resolveRateLimitSubject(req),
     ...RATE_LIMITS.authForgotPassword,
@@ -120,7 +120,7 @@ export async function handleResetPassword(req, env, db) {
     return error(req, 'Password must be at least 8 characters', 400);
   }
 
-  const resetLimit = await checkRateLimit(env.CACHE, {
+  const resetLimit = await checkRateLimit(env, {
     action: 'auth-reset-password',
     subject: resolveRateLimitSubject(req),
     ...RATE_LIMITS.authResetPassword,

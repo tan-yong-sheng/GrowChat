@@ -147,3 +147,12 @@ vendor/
 semgrep-runtime.json
 semgrep-report.json
 .fuse_hidden*
+tests/e2e/fixtures/auth-state.json
+
+# Local act workflow testing artifacts
+.act-event.json
+.act-pr-event.json
+.stryker-tmp/
+coverage2/
+reports/
+.mutation-test-instructions.md
