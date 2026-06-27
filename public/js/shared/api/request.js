@@ -28,7 +28,10 @@ export async function apiFetch(path, options = {}) {
     headers,
   });
 
-  if ((response.status === 401 || response.status === 403) && auth?.refresh_token) {
+  // Only retry on 401 (unauthenticated). 403 is forbidden/RBAC denial — the
+  // user IS authenticated but not authorized for this resource, so refreshing
+  // the token cannot help and just causes unnecessary session churn.
+  if (response.status === 401 && auth?.refresh_token) {
     const refreshed = await refreshToken(auth.refresh_token, { signal: options.signal });
     if (refreshed) {
       headers.set('Authorization', `Bearer ${refreshed.access_token}`);
