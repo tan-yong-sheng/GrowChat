@@ -9,9 +9,8 @@ import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js
 import {
   cloneAclRules,
   getAclRulesSignature,
-  renderSummary,
   updateSaveButton,
-  renderAclGroupList,
+  bindAclModalBodyRender,
 } from './acl-modal-shared.js';
 
 export async function openModelAccessModal(model, { onApply } = {}) {
@@ -40,10 +39,25 @@ export async function openModelAccessModal(model, { onApply } = {}) {
     rulesByGroup: new Map(),
   };
 
+  // Single source of truth for the modal's body render. Called on load and
+  // again whenever a rule effect changes so the summary/count text stays
+  // in sync with rulesByGroup (otherwise toggling a rule leaves the
+  // visible summary stale until save or modal reopen).
+  const renderAll = bindAclModalBodyRender({
+    state,
+    summaryEl,
+    countEl,
+    reasonEl,
+    listEl,
+    errorEl,
+    effectClass: 'model-acl-effect',
+    resourceLabel: 'model',
+  });
+
   const loadAccess = async () => {
     state.loading = true;
     state.error = null;
-    renderAclGroupList({ listEl, errorEl, state, effectClass: 'model-acl-effect' });
+    renderAll();
     try {
       const res = await apiFetch(getAdminAclAccessPath('models', { resourceId: model.id }));
       if (!res.ok) {
@@ -70,8 +84,7 @@ export async function openModelAccessModal(model, { onApply } = {}) {
       state.error = err.message || 'Failed to load model access';
     } finally {
       state.loading = false;
-      renderSummary({ state, summaryEl, countEl, reasonEl, resourceLabel: 'model' });
-      renderAclGroupList({ listEl, errorEl, state, effectClass: 'model-acl-effect' });
+      renderAll();
     }
   };
 
@@ -103,8 +116,7 @@ export async function openModelAccessModal(model, { onApply } = {}) {
   });
 
   updateSaveButton(saveBtn, state);
-  renderSummary({ state, summaryEl, countEl, reasonEl, resourceLabel: 'model' });
-  renderAclGroupList({ listEl, errorEl, state, effectClass: 'model-acl-effect' });
+  renderAll();
   loadAccess();
   document.body.appendChild(modal);
 }

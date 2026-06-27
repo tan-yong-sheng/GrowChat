@@ -34,6 +34,10 @@ function findPreferredMatch(modelIds, preferredIds) {
 }
 
 function compareModels(a, b) {
+  const aEnabled = isModelEnabled(a);
+  const bEnabled = isModelEnabled(b);
+  if (aEnabled !== bEnabled) return aEnabled ? -1 : 1;
+
   const labelCompare = normalizeModelLabel(a).localeCompare(normalizeModelLabel(b));
   if (labelCompare !== 0) return labelCompare;
 

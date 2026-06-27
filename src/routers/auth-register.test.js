@@ -81,7 +81,7 @@ vi.mock('../bootstrap/router-registry.js', () => ({
 
 import { handleRegister } from './auth-register.js';
 
-const VALID_JWT_SECRET = '0123456789abcdef0123456789abcdef';
+const VALID_JWT_SECRET = 'test-jwt-secret-not-real-0123456789abcdef0123456789abcdef';
 
 function makeReq(body) {
   return new Request('https://example.com/api/auth/register', {
