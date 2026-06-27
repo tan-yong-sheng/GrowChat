@@ -31,7 +31,8 @@ function jsonResponse(body, status = 200) {
 }
 
 function makeJwt(exp) {
-  const encode = (value) => btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  const encode = (value) =>
+    btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ exp })}.sig`;
 }
 
@@ -74,7 +75,7 @@ describe('public api helpers', () => {
     expect(readModelsCache()).toEqual({ models: [{ id: 'm1' }] });
     expect(readChatsCache('u1')).toEqual({ chats: [{ id: 'c1' }], limit: 20 });
 
-    const staleAt = Date.now() - (16 * 60 * 1000);
+    const staleAt = Date.now() - 16 * 60 * 1000;
     localStorage.setItem(
       'growchat_models_cache_v1_global',
       JSON.stringify({ savedAt: staleAt, value: { models: [{ id: 'old' }] } })
@@ -98,11 +99,13 @@ describe('public api helpers', () => {
       });
 
       if (headerSnapshots.length === 1) {
-        return Promise.resolve(jsonResponse({
-          access_token: 'new-access',
-          refresh_token: 'new-refresh',
-          user: { id: 'u1' },
-        }));
+        return Promise.resolve(
+          jsonResponse({
+            access_token: 'new-access',
+            refresh_token: 'new-refresh',
+            user: { id: 'u1' },
+          })
+        );
       }
       return Promise.resolve(jsonResponse({ ok: true }));
     });
@@ -136,7 +139,8 @@ describe('public api helpers', () => {
   });
 
   it('builds chat and model requests with the expected query parameters', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ chats: [] }))
       .mockResolvedValueOnce(jsonResponse({ models: [{ id: 'm1' }] }))
       .mockResolvedValueOnce(jsonResponse({ chats: [] }))
@@ -167,7 +171,8 @@ describe('public api helpers', () => {
   });
 
   it('builds admin RBAC role requests with the expected methods and paths', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse({ roles: [] }))
       .mockResolvedValueOnce(jsonResponse({ role: { id: 'r1' } }))
       .mockResolvedValueOnce(jsonResponse({ role: { id: 'r1' } }))
@@ -188,6 +193,95 @@ describe('public api helpers', () => {
     expect(fetchMock.mock.calls[3][1]).toMatchObject({ method: 'DELETE' });
   });
 
+  it('does not refresh the token or retry on a 403 (RBAC denial) response', async () => {
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    setAuthState({
+      access_token: makeJwt(futureExp),
+      refresh_token: 'r1',
+      user: { id: 'u1' },
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'forbidden' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await apiFetch('/api/admin/users', { method: 'GET' });
+
+    // Only the original request — no refresh call, no retry.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/users');
+    // Auth header was set, but refreshToken endpoint was never hit.
+    expect(fetchMock.mock.calls[0][1].headers.get('Authorization')).toBe(
+      `Bearer ${makeJwt(futureExp)}`
+    );
+    // The 403 bubbles up unchanged so the UI can render a permission message.
+    expect(res.status).toBe(403);
+    // Auth state is untouched — no session churn.
+    expect(getAuthState()).toEqual({
+      access_token: makeJwt(futureExp),
+      refresh_token: 'r1',
+      user: { id: 'u1' },
+    });
+  });
+
+  it('refreshes the token and retries the request on a 401 (unauthenticated) response', async () => {
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    setAuthState({
+      access_token: makeJwt(futureExp),
+      refresh_token: 'r1',
+      user: { id: 'u1' },
+    });
+
+    const headerSnapshots = [];
+    const fetchMock = vi.fn((url, init = {}) => {
+      headerSnapshots.push({
+        url,
+        authorization: init.headers?.get?.('Authorization') || null,
+      });
+
+      if (url === '/api/auth/refresh') {
+        return Promise.resolve(
+          jsonResponse({
+            access_token: makeJwt(futureExp + 60),
+            refresh_token: 'r2',
+            user: { id: 'u1' },
+          })
+        );
+      }
+      // First /api/admin call returns 401; the retry returns 200.
+      const callIndex = headerSnapshots.filter((s) => s.url === url).length;
+      if (callIndex === 1) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: 'unauthenticated' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
+      }
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await apiFetch('/api/admin/overview', { method: 'GET' });
+
+    // initial request → 401 → refresh → retry
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(headerSnapshots[0]).toMatchObject({
+      url: '/api/admin/overview',
+      authorization: `Bearer ${makeJwt(futureExp)}`,
+    });
+    expect(headerSnapshots[1]).toMatchObject({
+      url: '/api/auth/refresh',
+      authorization: null,
+    });
+    expect(headerSnapshots[2]).toMatchObject({
+      url: '/api/admin/overview',
+      authorization: `Bearer ${makeJwt(futureExp + 60)}`,
+    });
+    expect(res.status).toBe(200);
+  });
 });
-
-
