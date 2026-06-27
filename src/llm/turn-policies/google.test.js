@@ -23,10 +23,10 @@ describe('resolveGoogleTurnContinuation', () => {
   it('delegates to shared when hasToolCalls is false', () => {
     expect(
       resolveGoogleTurnContinuation({
-        hasToolCalls: true,
-        finishReason: 'tool_calls',
+        hasToolCalls: false,
+        finishReason: 'stop',
       })
-    ).toEqual({ action: 'tool_loop' });
+    ).toEqual({ action: 'final' });
   });
 
   it('delegates to shared: returns follow_up for reasoning-only output', () => {

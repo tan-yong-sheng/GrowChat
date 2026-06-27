@@ -109,11 +109,11 @@ describe('SseLineParser', () => {
   describe('push — buffering and incomplete JSON', () => {
     it('buffers incomplete JSON and flushes on empty line', () => {
       const parser = new SseLineParser();
-      // Incomplete JSON on first data line
-      parser.push('data: {"choices":[{"delta":{"content":"first');
-      // Empty line triggers flush of data buffer, but incomplete JSON stays buffered
-      const text = parser.push('"}}]}\n\n');
-      expect(typeof text === 'string').toBe(true);
+      // Incomplete JSON on first data line (with newline to trigger line processing)
+      parser.push('data: {"choices":\n');
+      // Second data line completes the JSON; empty line triggers the flush
+      const text = parser.push('data: [{"delta":{"content":"first"}}]}\n\n');
+      expect(text).toBe('first');
     });
 
     it('handles partial chunk followed by complete chunk', () => {
@@ -128,8 +128,8 @@ describe('SseLineParser', () => {
     it('handles unparseable JSON by buffering it', () => {
       const parser = new SseLineParser();
       const text = parser.push('data: not-json\n\n');
-      // Should not throw; incomplete JSON gets buffered
-      expect(typeof text).toBe('string');
+      // Should not throw; unparseable payload is buffered and then discarded
+      expect(text).toBe('');
     });
 
     it('handles empty input', () => {
@@ -291,10 +291,10 @@ describe('SseLineParser', () => {
   describe('flush', () => {
     it('flushes remaining buffer', () => {
       const parser = new SseLineParser();
-      parser.push('data: {"choices":[{"delta":{"content":"hi"}}]}\n');
+      parser.push('data: {"choices":[{"delta":{"content":"hi"}}]}');
       // No trailing newline, so data is still in buffer
       const text = parser.flush();
-      expect(typeof text === 'string').toBe(true);
+      expect(text).toBe('hi');
     });
 
     it('flushes tag buffer as text when not in reasoning', () => {

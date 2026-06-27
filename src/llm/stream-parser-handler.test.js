@@ -167,20 +167,15 @@ describe('handleParsed', () => {
 
     it('handles delta.content as object with text field when response is null', () => {
       const parser = createMockParser();
-      // The code path for delta.content.text only fires when resolvedContent is falsy
-      // but delta.content is a non-array object with a .text string
-      // Set parsed.response to null so contentField = delta.content (object) but
-      // resolvedContent = delta.content = {text:'nested text'} which is truthy
-      // so this path is actually for when resolvedContent is falsy from other sources
-      // Let's construct a scenario: delta.content = {text: 'nested text'} and response is empty
+      // When delta.content is a non-array object with a .text string,
+      // the parser should extract the nested text instead of stringifying the object.
       const parsed = {
         response: null,
         choices: [{ delta: { content: { text: 'nested text' }, role: undefined } }],
       };
       const text = handleParsed(parser, parsed);
-      // resolvedContent = delta.content = {text:'nested text'} which is truthy,
-      // so it falls to String(resolvedContent) = '[object Object]'
-      expect(typeof text).toBe('string');
+      expect(text).toBe('nested text');
+      expect(parser.events).toContainEqual({ type: 'text_delta', delta: 'nested text' });
     });
 
     it('handles array content with text parts', () => {
