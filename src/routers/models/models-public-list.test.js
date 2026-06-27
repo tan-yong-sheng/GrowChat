@@ -184,7 +184,7 @@ describe('handlePublicModelsList', () => {
       expect(res.status).toBe(200);
     });
 
-    it('returns 500 on unexpected error', async () => {
+    it('gracefully degrades and returns 200 on unexpected error', async () => {
       // The handler gracefully degrades, so a DB failure returns empty results.
       // A truly unexpected error would come from something inside the try/catch.
       // Since the code has error handling, we test that it degrades gracefully.

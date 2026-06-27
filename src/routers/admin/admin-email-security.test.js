@@ -68,6 +68,10 @@ describe('handleAdminEmailSecurity', () => {
     mocks.setConfigValue.mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   describe('GET /api/admin/email-config', () => {
     it('returns email provider config', async () => {
       mocks.getConfigValue.mockResolvedValue('re_test_123');
@@ -221,17 +225,20 @@ describe('handleAdminEmailSecurity', () => {
     it('sends test email successfully', async () => {
       mocks.getConfigValue.mockResolvedValue('re_test');
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config/test',
-        { db, logger, _requestContext: {} }
-      );
-      expect(res.status).toBe(200);
-      expect(mocks.logAuditEvent).toHaveBeenCalled();
-      vi.unstubAllGlobals();
+      try {
+        const res = await handleAdminEmailSecurity(
+          makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
+          env,
+          ctx,
+          user,
+          '/api/admin/email-config/test',
+          { db, logger, _requestContext: {} }
+        );
+        expect(res.status).toBe(200);
+        expect(mocks.logAuditEvent).toHaveBeenCalled();
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it('handles Resend API failure', async () => {
@@ -240,31 +247,37 @@ describe('handleAdminEmailSecurity', () => {
         'fetch',
         vi.fn().mockResolvedValue(new Response('{"message":"error"}', { status: 422 }))
       );
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config/test',
-        { db, logger, _requestContext: {} }
-      );
-      expect(res.status).toBe(400);
-      vi.unstubAllGlobals();
+      try {
+        const res = await handleAdminEmailSecurity(
+          makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
+          env,
+          ctx,
+          user,
+          '/api/admin/email-config/test',
+          { db, logger, _requestContext: {} }
+        );
+        expect(res.status).toBe(400);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it('returns 500 on exception', async () => {
       mocks.getConfigValue.mockResolvedValue('re_test');
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
-        env,
-        ctx,
-        user,
-        '/api/admin/email-config/test',
-        { db, logger, _requestContext: {} }
-      );
-      expect(res.status).toBe(500);
-      vi.unstubAllGlobals();
+      try {
+        const res = await handleAdminEmailSecurity(
+          makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
+          env,
+          ctx,
+          user,
+          '/api/admin/email-config/test',
+          { db, logger, _requestContext: {} }
+        );
+        expect(res.status).toBe(500);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 
@@ -288,22 +301,23 @@ describe('handleAdminEmailSecurity', () => {
     });
 
     it('returns 500 on error', async () => {
-      // Force an error by making the response creation fail
-      const origError = Error;
-      global.Error = function (msg) {
-        throw new origError('crash');
-      };
-      const res = await handleAdminEmailSecurity(
-        makeReq('/api/admin/security-config', 'GET'),
-        env,
-        ctx,
-        user,
-        '/api/admin/security-config',
-        { db, logger, _requestContext: {} }
-      );
-      // The security config route shouldn't fail since it reads from static config
-      // but if it does, it should return 500
-      global.Error = origError;
+      // Force an error by making JSON.stringify fail during response creation
+      const stringifySpy = vi.spyOn(JSON, 'stringify').mockImplementationOnce(() => {
+        throw new Error('crash');
+      });
+      try {
+        const res = await handleAdminEmailSecurity(
+          makeReq('/api/admin/security-config', 'GET'),
+          env,
+          ctx,
+          user,
+          '/api/admin/security-config',
+          { db, logger, _requestContext: {} }
+        );
+        expect(res.status).toBe(500);
+      } finally {
+        stringifySpy.mockRestore();
+      }
     });
   });
 
