@@ -109,6 +109,7 @@ jobs:
       # and runs `git diff --name-only` locally — so it has no third-party
       # network dependency.
       - name: Run PR checks
+        if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
           # Prefix origin/ because actions/checkout creates the base branch
