@@ -32,6 +32,17 @@ import { spawnSync } from 'node:child_process';
 const MIN_BODY_LENGTH = 10;
 const DEFAULT_BASE_REF = 'origin/main';
 
+/** Validate that a user-supplied base ref looks like `<remote>/<branch>` and is safe for `git diff`. */
+function isValidBaseRef(ref) {
+  if (!ref) return false;
+  // Reject embedded/leading/trailing whitespace and leading/trailing slashes.
+  if (/\s/.test(ref) || ref.startsWith('/') || ref.endsWith('/')) return false;
+  const segments = ref.split('/');
+  // Require at least one remote and one branch segment, with no empty segments
+  // (this also rejects double slashes such as `origin//foo`).
+  return segments.length >= 2 && segments.every((segment) => segment.length > 0);
+}
+
 /** Run `git diff --name-only <base>...HEAD` and return the list of changed file paths. */
 function getChangedFiles(baseRef) {
   const result = spawnSync('git', ['diff', '--name-only', `${baseRef}...HEAD`], {
@@ -62,8 +73,7 @@ function runChecks() {
   // Defensive: push events set PR_BASE_REF to "origin/" (empty base.ref),
   // which would cause git diff origin/...HEAD to fail. Fall back to default
   // when the ref looks empty, bare "origin/", or has no slash at all.
-  const baseRef =
-    !rawBase || rawBase === 'origin/' || !rawBase.includes('/') ? DEFAULT_BASE_REF : rawBase;
+  const baseRef = isValidBaseRef(rawBase) ? rawBase : DEFAULT_BASE_REF;
   const files = getChangedFiles(baseRef);
   const warnings = validate(body, files);
 
