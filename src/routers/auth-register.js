@@ -44,25 +44,6 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
     return error(req, 'Public registration is disabled', 403);
   }
 
-  // Guard against first-user bootstrap race: two concurrent registrations
-  // could both observe an empty system and both claim admin. Use INSERT OR IGNORE
-  // on the UNIQUE app_config key — if meta.changes === 0, another request already
-  // claimed first-admin and the loser must retry (it will register as member).
-  if (!hasUsers) {
-    const claimResult = await db.run(
-      `INSERT OR IGNORE INTO app_config (key, value, updated_at) VALUES ('first_admin_claimed', '1', unixepoch())`,
-      []
-    );
-    // D1 returns meta.changes = 1 on insert, 0 on ignore (conflict).
-    // If meta is absent (e.g. test mock), treat as success for compatibility.
-    const claimSucceeded = claimResult?.meta ? claimResult.meta.changes > 0 : true;
-    if (!claimSucceeded) {
-      // Another request won the race — tell the client to retry.
-      // On retry, hasUsers will be > 0 so they register as member.
-      return error(req, 'Registration in progress, please retry', 409);
-    }
-  }
-
   const registerLimit = await checkRateLimit(env, {
     action: 'auth-register',
     subject: resolveRateLimitSubject(req),
@@ -100,11 +81,47 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
     return error(req, 'Password must be at least 8 characters', 400);
   }
 
+  // Guard against first-user bootstrap race: two concurrent registrations
+  // could both observe an empty system and both claim admin. Use INSERT OR IGNORE
+  // on the UNIQUE app_config key — if meta.changes === 0, another request already
+  // claimed first-admin and the loser must retry (it will register as member).
+  //
+  // The claim is intentionally AFTER rate limit + body validation so that a
+  // throttled or malformed first request cannot consume the sentinel and leave
+  // an empty deployment stuck behind 409s on retries. If user creation later
+  // throws after the claim succeeded, we roll the sentinel back below.
+  let claimedBootstrap = false;
+  if (!hasUsers) {
+    const claimResult = await db.run(
+      `INSERT OR IGNORE INTO app_config (key, value, updated_at) VALUES ('first_admin_claimed', '1', unixepoch())`,
+      []
+    );
+    // D1 returns meta.changes = 1 on insert, 0 on ignore (conflict).
+    // If meta is absent (e.g. test mock), treat as success for compatibility.
+    const claimSucceeded = claimResult?.meta ? claimResult.meta.changes > 0 : true;
+    if (!claimSucceeded) {
+      // Another request won the race — tell the client to retry.
+      // On retry, hasUsers will be > 0 so they register as member.
+      return error(req, 'Registration in progress, please retry', 409);
+    }
+    claimedBootstrap = true;
+  }
+
   const existing = await users.findByEmail(email, 'id');
-  if (existing) return error(req, 'Email already registered', 409);
+  if (existing) {
+    if (claimedBootstrap) {
+      // We claimed first-admin but this email is already taken — release the
+      // sentinel so a different request can claim it instead.
+      try {
+        await db.run(`DELETE FROM app_config WHERE key = 'first_admin_claimed'`, []);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+    return error(req, 'Email already registered', 409);
+  }
 
   const id = crypto.randomUUID();
-  const passwordHash = await hashPassword(password);
   const registrationStatusRaw = await getConfigValue(db, 'public_registration_status', 'pending');
   const registrationStatus =
     String(registrationStatusRaw || 'pending')
@@ -116,34 +133,51 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
   const finalRole = hasUsers ? 'member' : 'admin';
   const finalAccountStatus = finalRole === 'admin' ? 'active' : registrationStatus;
 
-  let user = await users.create({
-    id,
-    email,
-    passwordHash,
-    name,
-    accountStatus: finalAccountStatus,
-    settings: '{}',
-  });
-
-  if (finalRole === 'admin') {
-    await setConfigValue(db, 'public_registration', 'false');
-    user = { ...user, primary_role: 'admin', account_status: 'active' };
-  } else {
-    user = { ...user, primary_role: 'member', account_status: finalAccountStatus };
-  }
-
-  await ensureUserRoleBinding(db, id, finalRole, finalAccountStatus, logger);
-
-  // Sync users.primary_role in the DB (create() inserts with the column default,
-  // which is 'member'). Without this UPDATE the users table and user_roles table
-  // can disagree on the role for the first-admin path.
+  let user;
   try {
-    await db.run('UPDATE users SET primary_role = ? WHERE id = ?', [
-      normalizePublicRole(finalRole),
+    const passwordHash = await hashPassword(password);
+
+    user = await users.create({
       id,
-    ]);
-  } catch {
-    // Tolerate missing column in older schemas.
+      email,
+      passwordHash,
+      name,
+      accountStatus: finalAccountStatus,
+      settings: '{}',
+    });
+
+    if (finalRole === 'admin') {
+      await setConfigValue(db, 'public_registration', 'false');
+      user = { ...user, primary_role: 'admin', account_status: 'active' };
+    } else {
+      user = { ...user, primary_role: 'member', account_status: finalAccountStatus };
+    }
+
+    await ensureUserRoleBinding(db, id, finalRole, finalAccountStatus, logger);
+
+    // Sync users.primary_role in the DB (create() inserts with the column default,
+    // which is 'member'). Without this UPDATE the users table and user_roles table
+    // can disagree on the role for the first-admin path.
+    try {
+      await db.run('UPDATE users SET primary_role = ? WHERE id = ?', [
+        normalizePublicRole(finalRole),
+        id,
+      ]);
+    } catch {
+      // Tolerate missing column in older schemas.
+    }
+  } catch (err) {
+    // Roll back the bootstrap sentinel if user creation failed so a retry
+    // can succeed. Without this, a transient failure leaves the deployment
+    // stuck behind 409s for the lifetime of the DB.
+    if (claimedBootstrap) {
+      try {
+        await db.run(`DELETE FROM app_config WHERE key = 'first_admin_claimed'`, []);
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+    throw err;
   }
 
   if (finalAccountStatus === 'pending') {

@@ -200,11 +200,11 @@ async function cleanupDeadRunner(existingPid) {
   } catch {
     /* */
   }
-  try {
-    unlinkSync(RUNNER_PID_FILE);
-  } catch {
-    /* */
-  }
+  // Only remove RUNNER_PID_FILE if it still holds the stale PID. A fresh
+  // runner may have overwritten it during this cleanup window; removing it
+  // unconditionally would clobber their lock and reintroduce the concurrency
+  // race that the lock is meant to prevent.
+  releasePidLock(RUNNER_PID_FILE, existingPid);
 }
 
 /** Release the runner lock (called on exit / SIGINT / SIGTERM). */

@@ -18,10 +18,14 @@
  *   - O_EXCL semantics: cannot overwrite an existing file.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, openSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, openSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { acquirePidLockAtomic, tryWriteExclusive } from '../../scripts/lib/runner-lock.js';
+import {
+  acquirePidLockAtomic,
+  tryWriteExclusive,
+  releasePidLock,
+} from '../../scripts/lib/runner-lock.js';
 
 let tmpDir;
 let lockFile;
@@ -216,5 +220,36 @@ describe('atomic guarantee — O_EXCL prevents overwrite', () => {
       expect(tryWriteExclusive(lockFile, i)).toBe(true);
     }
     expect(readPid(lockFile)).toBe(49);
+  });
+});
+
+describe('releasePidLock', () => {
+  it('unlinks the lock file when it holds our pid', () => {
+    writeFileSync(lockFile, '1234');
+    releasePidLock(lockFile, 1234);
+    expect(existsSync(lockFile)).toBe(false);
+  });
+
+  it('does NOT unlink the lock file when it has been overwritten by another runner', () => {
+    // Regression test for the cleanup-race finding from the PR #173 review:
+    // if a fresh runner overwrites RUNNER_PID_FILE during our cleanup, we must
+    // NOT delete their lock out from under them. releasePidLock must check
+    // the pid before unlinking.
+    writeFileSync(lockFile, '9999'); // fresh runner already claimed the slot
+    releasePidLock(lockFile, 1234); // stale runner tries to clean up
+    expect(existsSync(lockFile)).toBe(true);
+    expect(readPid(lockFile)).toBe(9999); // untouched
+  });
+
+  it('is a no-op when the lock file does not exist', () => {
+    rmSync(lockFile, { force: true });
+    expect(() => releasePidLock(lockFile, 1234)).not.toThrow();
+  });
+
+  it('is a no-op when the lock file content is unreadable', () => {
+    // Edge case: the file exists but cannot be parsed. We must not throw.
+    writeFileSync(lockFile, 'not-a-pid');
+    expect(() => releasePidLock(lockFile, 1234)).not.toThrow();
+    expect(existsSync(lockFile)).toBe(true);
   });
 });
