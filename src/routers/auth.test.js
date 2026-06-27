@@ -899,4 +899,120 @@ describe('per-account brute-force protection', () => {
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toMatchObject({ error: 'Invalid credentials' });
   });
+
+  it('rejects locked accounts before password verification', async () => {
+    // Seed the KV store with the maximum number of failed attempts, then
+    // attempt to log in with the correct password. The handler must return
+    // 429 immediately without paying the PBKDF2 verifyPassword cost.
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+    const now = Date.now();
+    await kv.put(
+      'login_attempts:locked@example.com',
+      JSON.stringify({
+        email: 'locked@example.com',
+        attempts: [
+          now - 4 * 60 * 1000,
+          now - 3 * 60 * 1000,
+          now - 2 * 60 * 1000,
+          now - 1 * 60 * 1000,
+          now,
+        ],
+      })
+    );
+    queryResponses.loginUser = [activeUserRow({ email: 'locked@example.com' })];
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'locked@example.com',
+        password: 'correct',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error).toBe('Too many failed login attempts for this account');
+    expect(body.details.retry_after).toBeGreaterThan(0);
+    expect(body.details.retry_after).toBeLessThanOrEqual(3600);
+    expect(mocks.verifyPassword).not.toHaveBeenCalled();
+    expect(mocks.createRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('returns rolling-window retry_after based on the oldest blocking attempt', async () => {
+    // Five attempts spaced 10 minutes apart. The lockout should report the
+    // remaining time until the oldest of the five attempts ages out of the
+    // 1-hour window, not the hard-coded 3600 seconds.
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+    const now = Date.now();
+    await kv.put(
+      'login_attempts:rolling@example.com',
+      JSON.stringify({
+        email: 'rolling@example.com',
+        attempts: [
+          now - 50 * 60 * 1000,
+          now - 40 * 60 * 1000,
+          now - 30 * 60 * 1000,
+          now - 20 * 60 * 1000,
+          now - 10 * 60 * 1000,
+        ],
+      })
+    );
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'rolling@example.com',
+        password: 'whatever',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.details.retry_after).toBeGreaterThanOrEqual(590);
+    expect(body.details.retry_after).toBeLessThanOrEqual(3700);
+  });
+
+  it('does not clear failed attempts when the account is pending approval', async () => {
+    // A correct password for a pending account must not wipe the lockout
+    // history because the login path did not complete successfully.
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+    await kv.put(
+      'login_attempts:pending@example.com',
+      JSON.stringify({
+        email: 'pending@example.com',
+        attempts: [Date.now() - 1000],
+      })
+    );
+    queryResponses.loginUser = [
+      activeUserRow({ email: 'pending@example.com', account_status: 'pending' }),
+    ];
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'pending@example.com',
+        password: 'correct',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'pending_account',
+      message: 'Account pending approval.',
+    });
+    expect(kv._store.has('login_attempts:pending@example.com')).toBe(true);
+    expect(mocks.createRefreshToken).not.toHaveBeenCalled();
+  });
 });

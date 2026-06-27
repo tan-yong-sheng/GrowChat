@@ -61,6 +61,39 @@ export async function logSecurityEvent(env, eventType, details = {}) {
   }
 }
 
+const LOGIN_LOCKOUT_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * Read the list of failed login attempt timestamps currently stored for an
+ * email. Attempts outside the rolling 1-hour window are discarded.
+ *
+ * NOTE: Workers KV is not an atomic store. This helper performs a simple
+ * read of the stored array; concurrent writes from another request may
+ * race, so the count is best-effort rather than strictly linearizable.
+ * It is intentionally layered on top of the IP-based rate limit so that
+ * distributed brute-force is still meaningfully slowed.
+ *
+ * @param {Object} env - Worker environment
+ * @param {string} email - User email
+ * @returns {Promise<number[]>} Timestamps (ms since epoch) in ascending order
+ */
+export async function getFailedLoginAttempts(env, email) {
+  if (!env?.SESSIONS) return [];
+
+  const key = `login_attempts:${email}`;
+  const now = Date.now();
+  const windowStart = now - LOGIN_LOCKOUT_WINDOW_MS;
+
+  try {
+    const stored = await env.SESSIONS.get(key, 'json');
+    const attempts = stored?.attempts || [];
+    return attempts.filter((timestamp) => timestamp > windowStart);
+  } catch (err) {
+    logger.error('Failed to read login attempts', { error: err?.message || err });
+    return [];
+  }
+}
+
 /**
  * Track failed login attempts for rate limiting
  * @param {Object} env - Worker environment
@@ -72,24 +105,29 @@ export async function trackFailedLoginAttempt(env, email) {
 
   const key = `login_attempts:${email}`;
   const now = Date.now();
-  const oneHourAgo = now - 60 * 60 * 1000;
+  const windowStart = now - LOGIN_LOCKOUT_WINDOW_MS;
 
   try {
     const stored = await env.SESSIONS.get(key, 'json');
     let attempts = stored?.attempts || [];
 
     // Filter out attempts older than 1 hour
-    attempts = attempts.filter((timestamp) => timestamp > oneHourAgo);
+    attempts = attempts.filter((timestamp) => timestamp > windowStart);
 
     // Add current attempt
     attempts.push(now);
 
-    // Store updated attempts
-    await env.SESSIONS.put(
-      key,
-      JSON.stringify({ attempts, email }),
-      { expirationTtl: 3600 } // 1 hour
+    // Store updated attempts. TTL the key so it auto-expires once the oldest
+    // remaining attempt is outside the rolling window.
+    const oldestAttempt = attempts[0];
+    const expirationTtl = Math.max(
+      1,
+      Math.ceil((oldestAttempt + LOGIN_LOCKOUT_WINDOW_MS - now) / 1000)
     );
+
+    await env.SESSIONS.put(key, JSON.stringify({ attempts, email }), {
+      expirationTtl,
+    });
 
     return attempts.length;
   } catch (err) {
