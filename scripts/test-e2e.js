@@ -15,7 +15,8 @@
  *
  * Key invariants:
  *   - Port 8788 is the ONLY port used.
- *   - We never kill processes we don't own (no blind port-based kills).
+ *   - We never kill processes we don't own; port-based kills are limited to
+ *     processes that look like our own (wrangler / workerd / node).
  *   - Concurrent runners safely refuse instead of trampling each other.
  */
 
@@ -31,6 +32,7 @@ import {
 import { setTimeout as sleep } from 'node:timers/promises';
 import path from 'node:path';
 import { acquirePidLockAtomic, releasePidLock } from './lib/runner-lock.js';
+import { ensurePortAvailable } from './lib/port-check.js';
 
 const RAW_PORT = process.env.TEST_PORT || '8788';
 // Validate PORT is a numeric string to prevent shell-injection from env vars.
@@ -561,6 +563,7 @@ async function runTests() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  await ensurePortAvailable(PORT, { log }); // port pre-check — kill our zombies or fail fast
   await acquireRunnerLock(); // PID lock — refuses on concurrent runner
 
   const cleanup = () => killDevServer();
