@@ -411,6 +411,81 @@ test.describe('Admin Connections', () => {
     await expect(modal).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#modal-title')).toHaveText('Add Connection');
   });
+
+  test('manual-model delete + cancel does not resurrect the deleted model on reopen', async ({
+    page,
+  }) => {
+    // Mock the admin connections list with a connection that has a manual model.
+    await page.route(
+      (url) => url.pathname === '/api/admin/openai/connections',
+      async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            status: 200,
+            json: {
+              enabled: true,
+              connections: [
+                {
+                  id: 'conn_cancel',
+                  name: 'Cancel Test',
+                  url: 'https://api.openai.com/v1',
+                  provider_type: 'openai',
+                  enabled: true,
+                  source: 'manual',
+                  has_key: true,
+                  key_masked: 'sk-****0000',
+                  manualModels: [
+                    { modelId: 'gpt-3', name: 'gpt-3' },
+                    { modelId: 'gpt-4', name: 'gpt-4' },
+                  ],
+                },
+              ],
+            },
+          });
+        } else if (route.request().method() === 'PUT') {
+          await route.fulfill({ status: 200, json: { ok: true } });
+        } else {
+          await route.fallback();
+        }
+      }
+    );
+
+    await page.goto('/admin/settings/connections');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('[data-connection-row="conn_cancel"]', { timeout: 10000 });
+
+    // Open the edit modal — both manual models should be listed.
+    await page.locator('.edit-connection-btn[data-id="conn_cancel"]').click();
+    const modal = page.locator('#edit-connection-modal');
+    await expect(modal).toBeVisible({ timeout: 5000 });
+    await expect(modal.locator('[data-delete-model-id]')).toHaveCount(2);
+
+    // Delete the gpt-3 manual model.
+    const deleteGpt3 = modal.locator('[data-delete-model-id$=":gpt-3"]');
+    await deleteGpt3.first().click();
+    // After delete, only the gpt-4 delete button remains.
+    await expect(modal.locator('[data-delete-model-id]')).toHaveCount(1);
+    await expect(modal.locator('[data-delete-model-id]').first()).toHaveAttribute(
+      'data-delete-model-id',
+      /gpt-4$/
+    );
+
+    // Cancel — close the modal without saving.
+    await page.locator('#close-modal').click();
+    await expect(modal).toHaveClass(/hidden/, { timeout: 5000 });
+
+    // Reopen the modal — gpt-3 must still be listed because the cancel should
+    // not have mutated the live connection state, and the next open reseeds
+    // from connection.manualModels which is the DB view.
+    await page.locator('.edit-connection-btn[data-id="conn_cancel"]').click();
+    await expect(modal).toBeVisible({ timeout: 5000 });
+    await expect(modal.locator('[data-delete-model-id]')).toHaveCount(2);
+    const ids = await modal
+      .locator('[data-delete-model-id]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('data-delete-model-id')));
+    expect(ids.some((id) => /:gpt-3$/.test(id))).toBe(true);
+    expect(ids.some((id) => /:gpt-4$/.test(id))).toBe(true);
+  });
 });
 
 // ── Account Connections ───────────────────────────────────────────────────────

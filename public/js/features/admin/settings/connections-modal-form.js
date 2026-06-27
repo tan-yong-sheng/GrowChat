@@ -213,7 +213,12 @@ export function createConnectionsModalForm(deps) {
     }
     connectionsState.modalModelsError = null;
     connectionsState.modalModelsLoading = false;
-    connection.manualModels = nextManualModels;
+    // Note: we intentionally do NOT mutate connection.manualModels here. The
+    // modal-local modalModels + modalModelsSelection drives the save payload
+    // (buildSelectedConnectionModels), so writing to the live connection is
+    // unnecessary. Mutating it would also break the cancel/refresh-resurrects
+    // invariant: if the user cancels, the in-memory connection would still
+    // carry the new model even though nothing was persisted.
     connectionsState.modalModels = nextModels;
     connectionsState.modalModelsSelection = new Set(connectionsState.modalModelsSelection || []);
     connectionsState.modalModelsSelection.add(fullId);
@@ -249,14 +254,16 @@ export function createConnectionsModalForm(deps) {
       connectionsState.deletedManualModelIds = [];
     }
     connectionsState.deletedManualModelIds.push(deletedModelId);
-    // Keep selectedConnection.manualModels in sync — refreshModalModels()
-    // repopulates from there, so leaving it stale would resurrect the
-    // deleted model after a test/refresh and desync the save payload.
-    if (Array.isArray(connection.manualModels)) {
-      connection.manualModels = normalizeConnectionManualModels(connection.manualModels).filter(
-        (model) => model.modelId !== deletedModelId
-      );
-    }
+    // Note: we intentionally do NOT mutate connection.manualModels here.
+    // The modal-local modalModels + deletedManualModelIds drives the save
+    // payload (buildSelectedConnectionModels + the delete filter in the
+    // save handler), so writing to the live connection is unnecessary.
+    // Mutating it would also break the cancel/refresh-resurrects invariant:
+    // if the user cancels, the in-memory connection would still carry the
+    // deletion even though nothing was persisted, and the next open would
+    // show a stale model list. refreshModalModels() filters the seeded
+    // manual models against deletedManualModelIds to keep the deleted
+    // model from resurrecting after a Test/Verify.
     renderModalModels(modalRoot);
   };
 
@@ -350,7 +357,11 @@ export function createConnectionsModalForm(deps) {
         connectionsState.modalModelsOriginal = preview.original;
         renderModalModels(modalRoot);
         const existingManualModels = connectionsState.selectedConnection
-          ? inflateManualConnectionModels(connectionsState.selectedConnection)
+          ? inflateManualConnectionModels(connectionsState.selectedConnection).filter(
+              (model) =>
+                !Array.isArray(connectionsState.deletedManualModelIds) ||
+                !connectionsState.deletedManualModelIds.includes(model.manualModelId)
+            )
           : [];
         if (existingManualModels.length > 0) {
           const merged = new Map(
