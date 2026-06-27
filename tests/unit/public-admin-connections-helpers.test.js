@@ -54,6 +54,26 @@ describe('admin connection helpers', () => {
     });
   });
 
+  it('preserves the absence of manualModelsMode so loadModalModels can infer the mode', () => {
+    // PR #173 review thread (github-actions 09:19:15Z): the inferred
+    // manual-model selection mode can be lost because
+    // normalizeConnectionRecord() defaulted manualModelsMode to 'all' even
+    // when the API payload omitted it. For connections that actually have
+    // seeded manual models but no persisted mode, the modal reopened as
+    // 'all' and could overwrite the intended partial-selection state on save.
+    // The fix lets the field stay undefined when the payload omits it so
+    // downstream consumers can infer correctly (e.g. 'some' when seeded
+    // models exist, 'all' otherwise).
+    const withField = normalizeConnectionRecord({ manualModelsMode: 'some' });
+    expect(withField.manualModelsMode).toBe('some');
+
+    const withoutField = normalizeConnectionRecord({ manualModels: [{ modelId: 'a' }] });
+    expect(withoutField.manualModelsMode).toBeUndefined();
+
+    const withSnakeCaseField = normalizeConnectionRecord({ manual_models_mode: 'some' });
+    expect(withSnakeCaseField.manualModelsMode).toBe('some');
+  });
+
   it('creates stable connection model ids', () => {
     expect(getConnectionProviderId({ id: 'conn-1', providerType: 'openai-compatible' })).toBe(
       'openai/conn-1'

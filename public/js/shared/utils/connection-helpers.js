@@ -108,6 +108,12 @@ export function normalizeModelRecord(model = {}) {
 }
 export function normalizeConnectionRecord(conn = {}) {
   const providerType = normalizeProviderType(conn.providerType || conn.providerFamily || 'openai');
+  // Preserve the absence of manualModelsMode so consumers can infer the
+  // intended mode from the seed state (e.g. 'some' when seeded manual
+  // models exist). Defaulting to 'all' here used to clobber the inferred
+  // mode in loadModalModels() and could overwrite the partial-selection
+  // state on save for connections that had no persisted mode.
+  const rawMode = conn.manualModelsMode ?? conn.manual_models_mode;
   return {
     ...conn,
     providerType,
@@ -116,8 +122,9 @@ export function normalizeConnectionRecord(conn = {}) {
     providerId: conn.providerId || '',
     manualModels: normalizeConnectionManualModels(conn.manualModels),
     manualModelsMode:
-      normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
-      'all',
+      rawMode === undefined || rawMode === null
+        ? undefined
+        : normalizeConnectionModelSelectionMode(rawMode),
   };
 }
 export function cloneModelSelection(value = []) {
