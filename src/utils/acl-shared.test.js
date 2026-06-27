@@ -27,6 +27,12 @@ describe('acl-shared', () => {
         expect(ruleMatchesPrincipal(rule, 42, new Set())).toBe(true);
       });
 
+      it('preserves numeric id 0 instead of coercing to empty string', () => {
+        const rule = { principal_type: 'user', principal_id: 0 };
+        expect(ruleMatchesPrincipal(rule, 0, new Set())).toBe(true);
+        expect(ruleMatchesPrincipal(rule, '', new Set())).toBe(false);
+      });
+
       it('handles missing principal_id (empty string)', () => {
         const rule = { principal_type: 'user' };
         expect(ruleMatchesPrincipal(rule, 'user1', new Set())).toBe(false);
@@ -72,6 +78,12 @@ describe('acl-shared', () => {
       it('coerces principal_id to string when checking Set membership', () => {
         const rule = { principal_type: 'group', principal_id: 42 };
         expect(ruleMatchesPrincipal(rule, 'user1', new Set(['42']))).toBe(true);
+      });
+
+      it('preserves numeric group id 0 instead of coercing to empty string', () => {
+        const rule = { principal_type: 'group', principal_id: 0 };
+        expect(ruleMatchesPrincipal(rule, 'user1', new Set(['0']))).toBe(true);
+        expect(ruleMatchesPrincipal(rule, 'user1', new Set())).toBe(false);
       });
 
       it('handles empty Set', () => {
@@ -123,9 +135,9 @@ describe('acl-shared', () => {
       expect(result.values).toEqual(['42', 'true']);
     });
 
-    it('filters out falsy id 0 (or-coerced to empty)', () => {
-      // 0 || '' becomes '', which is filtered by .filter(Boolean)
-      expect(buildIdFilterClause('col', [0])).toBeNull();
+    it('preserves numeric id 0', () => {
+      const result = buildIdFilterClause('col', [0]);
+      expect(result).toEqual({ clause: 'col IN (?)', values: ['0'] });
     });
 
     it('handles non-array ids input (defaults to empty)', () => {

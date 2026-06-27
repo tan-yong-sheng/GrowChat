@@ -194,7 +194,11 @@ describe('model-acl', () => {
         { connection_source: 'user' },
         { user: { sub: 'user1' } }
       );
-      expect(result).toEqual({ allowed: true, access_label: 'Personal', access_variant: 'personal' });
+      expect(result).toEqual({
+        allowed: true,
+        access_label: 'Personal',
+        access_variant: 'personal',
+      });
     });
 
     it('returns no access when no rules match and user is not admin', () => {
@@ -207,41 +211,62 @@ describe('model-acl', () => {
 
     it('returns shared access when allow rule matches', () => {
       const rules = [
-        { model_id: 'm1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'use' },
+        {
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'use',
+        },
       ];
-      const result = evaluateModelAclAccess(
-        { id: 'm1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateModelAclAccess({ id: 'm1' }, { user: { sub: 'user1' }, rules });
       expect(result).toEqual({ allowed: true, access_label: 'Shared', access_variant: 'shared' });
     });
 
     it('returns no access when deny rule matches', () => {
       const rules = [
-        { model_id: 'm1', principal_type: 'user', principal_id: 'user1', effect: 'deny', action: 'use' },
+        {
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
-      const result = evaluateModelAclAccess(
-        { id: 'm1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateModelAclAccess({ id: 'm1' }, { user: { sub: 'user1' }, rules });
       expect(result).toEqual({ allowed: false, access_label: 'No access', access_variant: 'none' });
     });
 
     it('deny takes precedence over allow', () => {
       const rules = [
-        { model_id: 'm1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'use' },
-        { model_id: 'm1', principal_type: 'user', principal_id: 'user1', effect: 'deny', action: 'use' },
+        {
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'use',
+        },
+        {
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
-      const result = evaluateModelAclAccess(
-        { id: 'm1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateModelAclAccess({ id: 'm1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(false);
     });
 
     it('group-based allow rule matches via userGroupIds', () => {
       const rules = [
-        { model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use' },
+        {
+          model_id: 'm1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+        },
       ];
       const result = evaluateModelAclAccess(
         { id: 'm1' },
@@ -252,7 +277,13 @@ describe('model-acl', () => {
 
     it('group-based deny rule blocks access', () => {
       const rules = [
-        { model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'deny', action: 'use' },
+        {
+          model_id: 'm1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
       const result = evaluateModelAclAccess(
         { id: 'm1' },
@@ -279,7 +310,13 @@ describe('model-acl', () => {
 
     it('deny rule takes precedence even for admin', () => {
       const rules = [
-        { model_id: 'm1', principal_type: 'user', principal_id: 'admin1', effect: 'deny', action: 'use' },
+        {
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'admin1',
+          effect: 'deny',
+          action: 'use',
+        },
       ];
       const result = evaluateModelAclAccess(
         { id: 'm1' },
@@ -290,12 +327,15 @@ describe('model-acl', () => {
 
     it('ignores rules with irrelevant action', () => {
       const rules = [
-        { model_id: 'm1', principal_type: 'user', principal_id: 'user1', effect: 'allow', action: 'unknown' },
+        {
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'user1',
+          effect: 'allow',
+          action: 'unknown',
+        },
       ];
-      const result = evaluateModelAclAccess(
-        { id: 'm1' },
-        { user: { sub: 'user1' }, rules }
-      );
+      const result = evaluateModelAclAccess({ id: 'm1' }, { user: { sub: 'user1' }, rules });
       expect(result.allowed).toBe(false);
     });
 
@@ -304,10 +344,7 @@ describe('model-acl', () => {
         const rules = [
           { model_id: 'm1', principal_type: 'user', principal_id: 'u1', effect: 'allow', action },
         ];
-        const result = evaluateModelAclAccess(
-          { id: 'm1' },
-          { user: { sub: 'u1' }, rules }
-        );
+        const result = evaluateModelAclAccess({ id: 'm1' }, { user: { sub: 'u1' }, rules });
         expect(result.allowed).toBe(true);
       }
     });
@@ -357,23 +394,17 @@ describe('model-acl', () => {
 
   describe('buildModelAclRuleSaveStatements', () => {
     it('throws when db is null', () => {
-      expect(() => buildModelAclRuleSaveStatements(null, 'm1')).toThrow(
-        'Model id is required'
-      );
+      expect(() => buildModelAclRuleSaveStatements(null, 'm1')).toThrow('Model id is required');
     });
 
     it('throws when modelId is empty', () => {
       const db = { prepare: vi.fn() };
-      expect(() => buildModelAclRuleSaveStatements(db, '')).toThrow(
-        'Model id is required'
-      );
+      expect(() => buildModelAclRuleSaveStatements(db, '')).toThrow('Model id is required');
     });
 
     it('throws when modelId is null', () => {
       const db = { prepare: vi.fn() };
-      expect(() => buildModelAclRuleSaveStatements(db, null)).toThrow(
-        'Model id is required'
-      );
+      expect(() => buildModelAclRuleSaveStatements(db, null)).toThrow('Model id is required');
     });
 
     it('includes schema statements when includeSchemaStatements=true', () => {
@@ -381,8 +412,8 @@ describe('model-acl', () => {
       const { statements } = buildModelAclRuleSaveStatements(db, 'm1', [], {
         includeSchemaStatements: true,
       });
-      // 3 schema + 1 DELETE (expanded) = 4
-      expect(statements.length).toBeGreaterThanOrEqual(4);
+      // 3 schema + 1 DELETE = 4
+      expect(statements).toHaveLength(4);
     });
 
     it('excludes schema statements when includeSchemaStatements=false', () => {
@@ -390,8 +421,8 @@ describe('model-acl', () => {
       const { statements } = buildModelAclRuleSaveStatements(db, 'm1', [], {
         includeSchemaStatements: false,
       });
-      // DELETE only (may have 1 or 2 for encoded/decoded variants)
-      expect(statements.length).toBeGreaterThanOrEqual(1);
+      // DELETE only
+      expect(statements).toHaveLength(1);
     });
 
     it('generates INSERT for each valid rule', () => {
@@ -475,8 +506,26 @@ describe('model-acl', () => {
 
     it('loads rules for multiple modelIds', async () => {
       const mockRows = [
-        { id: '1', model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '2', model_id: 'm2', principal_type: 'user', principal_id: 'u1', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          model_id: 'm1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '2',
+          model_id: 'm2',
+          principal_type: 'user',
+          principal_id: 'u1',
+          effect: 'deny',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -488,7 +537,16 @@ describe('model-acl', () => {
 
     it('loads all rules when no filter provided', async () => {
       const mockRows = [
-        { id: '1', model_id: 'm1', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          model_id: 'm1',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -517,9 +575,36 @@ describe('model-acl', () => {
 
     it('filters out rows with empty model_id or principal_id', async () => {
       const mockRows = [
-        { id: '1', model_id: '', principal_type: 'group', principal_id: 'g1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '2', model_id: 'm1', principal_type: 'user', principal_id: '', effect: 'deny', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '3', model_id: 'm1', principal_type: 'user', principal_id: 'u1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
+        {
+          id: '1',
+          model_id: '',
+          principal_type: 'group',
+          principal_id: 'g1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '2',
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: '',
+          effect: 'deny',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '3',
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'u1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -531,8 +616,26 @@ describe('model-acl', () => {
 
     it('deduplicates rows with same composite key', async () => {
       const mockRows = [
-        { id: '1', model_id: 'm1', principal_type: 'user', principal_id: 'u1', effect: 'allow', action: 'use', created_at: 1, updated_at: 1 },
-        { id: '2', model_id: 'm1', principal_type: 'user', principal_id: 'u1', effect: 'allow', action: 'use', created_at: 2, updated_at: 2 },
+        {
+          id: '1',
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'u1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: '2',
+          model_id: 'm1',
+          principal_type: 'user',
+          principal_id: 'u1',
+          effect: 'allow',
+          action: 'use',
+          created_at: 2,
+          updated_at: 2,
+        },
       ];
       const db = {
         run: vi.fn().mockResolvedValue(),
@@ -558,10 +661,33 @@ describe('model-acl', () => {
       };
       await loadModelAclRules(db, 'm1', ['m2', 'm3']);
       // singleFilter uses buildIdFilterClause which produces IN clause
-      expect(db.all).toHaveBeenCalledWith(
-        expect.stringContaining('model_id IN (?)'),
-        ['m1']
-      );
+      expect(db.all).toHaveBeenCalledWith(expect.stringContaining('model_id IN (?)'), ['m1']);
+    });
+
+    it('round-trips encoded model IDs through save and load', async () => {
+      const db = {
+        run: vi.fn().mockResolvedValue(),
+        prepare: vi.fn().mockReturnValue('stmt'),
+        batch: vi.fn().mockResolvedValue(),
+        all: vi.fn().mockResolvedValue([
+          {
+            id: '1',
+            model_id: 'org/model',
+            principal_type: 'user',
+            principal_id: 'u1',
+            effect: 'allow',
+            action: 'use',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ]),
+      };
+
+      await saveModelAclRulesForModel(db, 'org%2Fmodel', [
+        { principal_id: 'u1', effect: 'allow', action: 'use' },
+      ]);
+
+      await expect(loadModelAclRules(db, 'org%2Fmodel')).resolves.toHaveLength(1);
     });
   });
 
