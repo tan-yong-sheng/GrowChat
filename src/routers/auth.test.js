@@ -620,3 +620,399 @@ describe('authRouter', () => {
     expect(res.status).toBe(405);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  Per-account brute-force protection (issue #145)                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Lightweight KV store that mimics the SESSIONS namespace behaviour
+ * required by trackFailedLoginAttempt / clearFailedLoginAttempts.
+ * Maintains an in-memory map keyed by the exact string the audit
+ * logging service writes (`login_attempts:<email>`).
+ */
+function makeKVStore() {
+  const store = new Map();
+  return {
+    get: vi.fn(async (key, type) => {
+      const raw = store.get(key);
+      if (raw === undefined) return null;
+      if (type === 'json') return JSON.parse(raw);
+      return raw;
+    }),
+    put: vi.fn(async (key, value) => {
+      store.set(key, value);
+    }),
+    delete: vi.fn(async (key) => {
+      store.delete(key);
+    }),
+    list: vi.fn(async () => ({ keys: [], objects: [] })),
+    _store: store,
+  };
+}
+
+function activeUserRow(overrides = {}) {
+  return {
+    id: 'u1',
+    email: 'user@example.com',
+    name: 'User',
+    role: 'member',
+    account_status: 'active',
+    password_hash: 'stored-hash',
+    settings: '{}',
+    created_at: 1,
+    updated_at: 1,
+    ...overrides,
+  };
+}
+
+describe('per-account brute-force protection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.loadPrimaryRole.mockResolvedValue('member');
+    queryResponses = {
+      countUsers: [],
+      appConfig: [],
+      existingUser: [],
+      userById: [],
+      loginUser: [],
+      refreshUser: [],
+    };
+    mocks.db.first.mockImplementation(async (sql) => {
+      const query = String(sql || '');
+      if (query.includes('SELECT COUNT(*) as count FROM users')) {
+        return queryResponses.countUsers.shift() ?? null;
+      }
+      if (query.includes('SELECT value FROM app_config WHERE key = ?')) {
+        return queryResponses.appConfig.shift() ?? null;
+      }
+      if (query.includes('SELECT id FROM users WHERE email = ?')) {
+        return queryResponses.existingUser.shift() ?? null;
+      }
+      if (query.includes('SELECT * FROM users WHERE email = ?')) {
+        return queryResponses.loginUser.shift() ?? null;
+      }
+      if (query.includes('SELECT * FROM users WHERE id = ?')) {
+        return queryResponses.userById.shift() ?? null;
+      }
+      return null;
+    });
+    mocks.hashPassword.mockResolvedValue('pbkdf2:hash');
+    mocks.verifyPassword.mockResolvedValue(true);
+    mocks.signJWT.mockResolvedValue('jwt-token');
+    mocks.createRefreshToken.mockResolvedValue({
+      token: 'refresh-token',
+      expiresAt: 1_700_000_000,
+    });
+    mocks.consumeRefreshToken.mockResolvedValue(null);
+    mocks.revokeRefreshToken.mockResolvedValue(undefined);
+    mocks.db.run.mockResolvedValue({ success: true });
+  });
+
+  it('returns 401 for the first four failed attempts and 429 on the fifth', async () => {
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+    for (let i = 0; i < 5; i += 1) {
+      queryResponses.loginUser.push(activeUserRow({ email: 'lock@example.com' }));
+    }
+    mocks.verifyPassword.mockResolvedValue(false);
+
+    for (let i = 0; i < 4; i += 1) {
+      const res = await authRouter(
+        makeReq('/api/auth/login', 'POST', { email: 'lock@example.com', password: 'wrong' }),
+        env,
+        {},
+        null,
+        '/api/auth/login'
+      );
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.error).toBe('Invalid credentials');
+    }
+
+    const fifth = await authRouter(
+      makeReq('/api/auth/login', 'POST', { email: 'lock@example.com', password: 'wrong' }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+    expect(fifth.status).toBe(429);
+    const body = await fifth.json();
+    expect(body.error).toBe('Too many failed login attempts for this account');
+    expect(body.details).toBeDefined();
+    expect(body.details.retry_after).toBeGreaterThan(0);
+    expect(mocks.verifyPassword).toHaveBeenCalledTimes(5);
+    expect(mocks.createRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 on the fifth failed attempt even for an unknown email', async () => {
+    // The 'user not found' branch must also count toward the per-account lockout
+    // so an attacker cannot probe for valid emails without consequence.
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+    mocks.verifyPassword.mockResolvedValue(false);
+
+    for (let i = 0; i < 4; i += 1) {
+      const res = await authRouter(
+        makeReq('/api/auth/login', 'POST', {
+          email: 'ghost@example.com',
+          password: 'whatever',
+        }),
+        env,
+        {},
+        null,
+        '/api/auth/login'
+      );
+      expect(res.status).toBe(401);
+    }
+
+    const fifth = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'ghost@example.com',
+        password: 'whatever',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+    expect(fifth.status).toBe(429);
+    const body = await fifth.json();
+    expect(body.error).toBe('Too many failed login attempts for this account');
+  });
+
+  it('clears the per-account counter after a successful login', async () => {
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+
+    // Three failures (call 1-3) — each consumes one queue entry.
+    mocks.verifyPassword.mockResolvedValueOnce(false);
+    mocks.verifyPassword.mockResolvedValueOnce(false);
+    mocks.verifyPassword.mockResolvedValueOnce(false);
+    for (let i = 0; i < 3; i += 1) {
+      queryResponses.loginUser.push(activeUserRow({ email: 'reset@example.com' }));
+      const res = await authRouter(
+        makeReq('/api/auth/login', 'POST', {
+          email: 'reset@example.com',
+          password: 'wrong',
+        }),
+        env,
+        {},
+        null,
+        '/api/auth/login'
+      );
+      expect(res.status).toBe(401);
+    }
+    expect(kv._store.has('login_attempts:reset@example.com')).toBe(true);
+
+    // Fourth attempt succeeds using the default mockResolvedValue(true).
+    queryResponses.loginUser.push(activeUserRow({ email: 'reset@example.com' }));
+    queryResponses.userById.push(activeUserRow({ email: 'reset@example.com' }));
+    const successRes = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'reset@example.com',
+        password: 'correct',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+    expect(successRes.status).toBe(200);
+    expect(kv._store.has('login_attempts:reset@example.com')).toBe(false);
+
+    // Fifth attempt fails — counter was cleared, so still 401 not 429.
+    mocks.verifyPassword.mockResolvedValueOnce(false);
+    queryResponses.loginUser.push(activeUserRow({ email: 'reset@example.com' }));
+    const resAfter = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'reset@example.com',
+        password: 'wrong',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+    expect(resAfter.status).toBe(401);
+    const body = await resAfter.json();
+    expect(body.error).toBe('Invalid credentials');
+  });
+
+  it('tracks failed attempts independently per email', async () => {
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+
+    // Lock email A with five failures.
+    for (let i = 0; i < 5; i += 1) {
+      queryResponses.loginUser.push(activeUserRow({ id: 'uA', email: 'a@example.com' }));
+    }
+    mocks.verifyPassword.mockResolvedValue(false);
+    for (let i = 0; i < 5; i += 1) {
+      const res = await authRouter(
+        makeReq('/api/auth/login', 'POST', { email: 'a@example.com', password: 'wrong' }),
+        env,
+        {},
+        null,
+        '/api/auth/login'
+      );
+      if (i < 4) {
+        expect(res.status).toBe(401);
+      } else {
+        expect(res.status).toBe(429);
+      }
+    }
+    expect(kv._store.has('login_attempts:a@example.com')).toBe(true);
+    expect(kv._store.has('login_attempts:b@example.com')).toBe(false);
+
+    // Email B must still respond with 401, not 429 — independent counter.
+    queryResponses.loginUser.push(activeUserRow({ id: 'uB', email: 'b@example.com' }));
+    const resB = await authRouter(
+      makeReq('/api/auth/login', 'POST', { email: 'b@example.com', password: 'wrong' }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+    expect(resB.status).toBe(401);
+    expect(kv._store.has('login_attempts:b@example.com')).toBe(true);
+  });
+
+  it('silently no-ops the lockout when the SESSIONS KV binding is missing', async () => {
+    // Existing tests construct env without SESSIONS. The login flow must remain
+    // functional even when the binding is unavailable — track/clear become no-ops.
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    queryResponses.loginUser = [activeUserRow({ email: 'nostore@example.com' })];
+    mocks.verifyPassword.mockResolvedValueOnce(false);
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'nostore@example.com',
+        password: 'wrong',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toMatchObject({ error: 'Invalid credentials' });
+  });
+
+  it('rejects locked accounts before password verification', async () => {
+    // Seed the KV store with the maximum number of failed attempts, then
+    // attempt to log in with the correct password. The handler must return
+    // 429 immediately without paying the PBKDF2 verifyPassword cost.
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+    const now = Date.now();
+    await kv.put(
+      'login_attempts:locked@example.com',
+      JSON.stringify({
+        email: 'locked@example.com',
+        attempts: [
+          now - 4 * 60 * 1000,
+          now - 3 * 60 * 1000,
+          now - 2 * 60 * 1000,
+          now - 1 * 60 * 1000,
+          now,
+        ],
+      })
+    );
+    queryResponses.loginUser = [activeUserRow({ email: 'locked@example.com' })];
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'locked@example.com',
+        password: 'correct',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error).toBe('Too many failed login attempts for this account');
+    expect(body.details.retry_after).toBeGreaterThan(0);
+    expect(body.details.retry_after).toBeLessThanOrEqual(3600);
+    expect(mocks.verifyPassword).not.toHaveBeenCalled();
+    expect(mocks.createRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('returns rolling-window retry_after based on the oldest blocking attempt', async () => {
+    // Five attempts spaced 10 minutes apart. The lockout should report the
+    // remaining time until the oldest of the five attempts ages out of the
+    // 1-hour window, not the hard-coded 3600 seconds.
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+    const now = Date.now();
+    await kv.put(
+      'login_attempts:rolling@example.com',
+      JSON.stringify({
+        email: 'rolling@example.com',
+        attempts: [
+          now - 50 * 60 * 1000,
+          now - 40 * 60 * 1000,
+          now - 30 * 60 * 1000,
+          now - 20 * 60 * 1000,
+          now - 10 * 60 * 1000,
+        ],
+      })
+    );
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'rolling@example.com',
+        password: 'whatever',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.details.retry_after).toBeGreaterThanOrEqual(590);
+    expect(body.details.retry_after).toBeLessThanOrEqual(3700);
+  });
+
+  it('does not clear failed attempts when the account is pending approval', async () => {
+    // A correct password for a pending account must not wipe the lockout
+    // history because the login path did not complete successfully.
+    const kv = makeKVStore();
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET, SESSIONS: kv };
+    await kv.put(
+      'login_attempts:pending@example.com',
+      JSON.stringify({
+        email: 'pending@example.com',
+        attempts: [Date.now() - 1000],
+      })
+    );
+    queryResponses.loginUser = [
+      activeUserRow({ email: 'pending@example.com', account_status: 'pending' }),
+    ];
+
+    const res = await authRouter(
+      makeReq('/api/auth/login', 'POST', {
+        email: 'pending@example.com',
+        password: 'correct',
+      }),
+      env,
+      {},
+      null,
+      '/api/auth/login'
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'pending_account',
+      message: 'Account pending approval.',
+    });
+    expect(kv._store.has('login_attempts:pending@example.com')).toBe(true);
+    expect(mocks.createRefreshToken).not.toHaveBeenCalled();
+  });
+});

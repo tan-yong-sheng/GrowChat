@@ -13,6 +13,43 @@ import { escapeHtml } from '../utils/sanitize.js';
 import { createLogger } from '../utils/logger.js';
 import { handleForgotPassword, handleResetPassword } from './auth-password-reset.js';
 import { handleRegister } from './auth-register.js';
+import {
+  trackFailedLoginAttempt,
+  clearFailedLoginAttempts,
+  getFailedLoginAttempts,
+} from '../services/audit-logging.js';
+
+/**
+ * Maximum number of failed login attempts allowed per email before the
+ * account is locked out. Layered on top of the IP-based rate limit so
+ * distributed brute-force attacks against a single account are also blocked.
+ */
+const MAX_LOGIN_ATTEMPTS_PER_ACCOUNT = 5;
+
+/**
+ * Length of the rolling window (in seconds) used to count failed attempts.
+ * Must match the TTL written by trackFailedLoginAttempt() in
+ * src/services/audit-logging.js so the retry-after hint is accurate.
+ */
+const LOGIN_LOCKOUT_WINDOW_SECONDS = 3600;
+
+/**
+ * Compute how many seconds remain until the account lockout for this email
+ * would naturally expire. The lockout is based on a rolling 1-hour window:
+ * the account unlocks once the number of attempts within the window drops
+ * below MAX_LOGIN_ATTEMPTS_PER_ACCOUNT, which happens when the
+ * (count - max + 1)-th oldest attempt ages out.
+ *
+ * @param {number[]} attempts - Ascending timestamps (ms) in the window
+ * @returns {number} Seconds until retry, capped at the full window length
+ */
+function computeAccountLockoutRetryAfter(attempts) {
+  if (attempts.length < MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) return 0;
+  const releaseIndex = attempts.length - MAX_LOGIN_ATTEMPTS_PER_ACCOUNT;
+  const releaseAt = attempts[releaseIndex] + LOGIN_LOCKOUT_WINDOW_SECONDS * 1000;
+  const remaining = Math.ceil((releaseAt - Date.now()) / 1000);
+  return Math.max(0, Math.min(remaining, LOGIN_LOCKOUT_WINDOW_SECONDS));
+}
 
 function normalizeAccountStatus(value, fallback = 'active') {
   const status = String(value || fallback)
@@ -192,16 +229,51 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
       });
     }
 
+    // Pre-check the per-account lockout before doing any expensive work
+    // (user lookup, role binding, PBKDF2 verification). This prevents an
+    // attacker from burning CPU on a known-locked account and rejects the
+    // request immediately with a rolling-window retry-after hint.
+    let priorAttempts = await getFailedLoginAttempts(env, email);
+    if (priorAttempts.length >= MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) {
+      return error(req, 'Too many failed login attempts for this account', 429, {
+        retry_after: computeAccountLockoutRetryAfter(priorAttempts),
+      });
+    }
+
     const user = await users.findByEmail(email);
-    if (!user) return error(req, 'Invalid credentials', 401);
+    if (!user) {
+      const attempts = await trackFailedLoginAttempt(env, email);
+      if (attempts >= MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) {
+        priorAttempts = await getFailedLoginAttempts(env, email);
+        return error(req, 'Too many failed login attempts for this account', 429, {
+          retry_after: computeAccountLockoutRetryAfter(priorAttempts),
+        });
+      }
+      return error(req, 'Invalid credentials', 401);
+    }
 
     const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
     await ensureUserRoleBinding(db, user.id, userRole, user.account_status, logger);
 
     const ok = await verifyPassword(password, user.password_hash);
-    if (!ok) return error(req, 'Invalid credentials', 401);
+    if (!ok) {
+      const attempts = await trackFailedLoginAttempt(env, email);
+      if (attempts >= MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) {
+        priorAttempts = await getFailedLoginAttempts(env, email);
+        return error(req, 'Too many failed login attempts for this account', 429, {
+          retry_after: computeAccountLockoutRetryAfter(priorAttempts),
+        });
+      }
+      return error(req, 'Invalid credentials', 401);
+    }
     const tokenResult = await checkActiveAccountAndGenerateTokens(req, db, env, user, jwtSecret);
     if (tokenResult instanceof Response) return tokenResult;
+
+    // Only clear failed attempts once the login has fully succeeded and
+    // tokens have been issued. Clearing earlier would erase lockout history
+    // for transient failures (e.g. pending account) or downstream errors.
+    await clearFailedLoginAttempts(env, email);
+
     return json(req, {
       user: sanitizeUser(tokenResult.user, tokenResult.primaryRole),
       access_token: tokenResult.accessToken,
