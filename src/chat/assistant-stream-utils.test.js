@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
   MAX_TOOL_STEPS,
   MAX_FOLLOW_UPS,
@@ -26,6 +26,10 @@ describe('constants', () => {
 });
 
 describe('readStreamChunkWithHeartbeat', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('reads a chunk from the reader', async () => {
     const reader = {
       read: vi.fn().mockResolvedValue({ value: new Uint8Array([1, 2, 3]), done: false }),
@@ -42,6 +46,7 @@ describe('readStreamChunkWithHeartbeat', () => {
   });
 
   it('sends heartbeat when controller and interval are provided', async () => {
+    vi.useFakeTimers();
     const enqueue = vi.fn();
     const controller = { enqueue };
     let resolveRead;
@@ -61,31 +66,33 @@ describe('readStreamChunkWithHeartbeat', () => {
       hardTimeoutMs: 0,
     });
 
-    // Wait enough for heartbeat to fire
-    await new Promise((r) => setTimeout(r, 120));
+    await vi.advanceTimersByTimeAsync(120);
     resolveRead({ value: 'data', done: false });
 
     const result = await readPromise;
     expect(result.value).toBe('data');
     expect(enqueue).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('throws on timeout', async () => {
+    vi.useFakeTimers();
     const reader = {
       read: vi.fn().mockImplementation(() => new Promise(() => {})),
       cancel: vi.fn().mockReturnValue(Promise.resolve()),
     };
 
-    await expect(
-      readStreamChunkWithHeartbeat(reader, {
-        keepAliveIntervalMs: 0,
-        hardTimeoutMs: 200,
-      })
-    ).rejects.toThrow('LLM stream timed out');
+    const readPromise = readStreamChunkWithHeartbeat(reader, {
+      keepAliveIntervalMs: 0,
+      hardTimeoutMs: 200,
+    });
+    readPromise.catch(() => {});
 
-    // Give the cancel call time to execute
-    await new Promise((r) => setTimeout(r, 10));
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(readPromise).rejects.toThrow('LLM stream timed out');
     expect(reader.cancel).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('throws when deadline is already exceeded', async () => {
@@ -99,43 +106,48 @@ describe('readStreamChunkWithHeartbeat', () => {
       readStreamChunkWithHeartbeat(reader, { deadlineAt: pastDeadline })
     ).rejects.toThrow('LLM stream timed out (deadline exceeded)');
 
-    await new Promise((r) => setTimeout(r, 10));
     expect(reader.cancel).toHaveBeenCalled();
   });
 
   it('uses remaining time from deadline when valid', async () => {
+    vi.useFakeTimers();
     const reader = {
       read: vi.fn().mockImplementation(() => new Promise(() => {})),
       cancel: vi.fn().mockReturnValue(Promise.resolve()),
     };
 
     const deadlineAt = Date.now() + 200;
-    await expect(
-      readStreamChunkWithHeartbeat(reader, {
-        deadlineAt,
-        keepAliveIntervalMs: 0,
-      })
-    ).rejects.toThrow('LLM stream timed out');
+    const readPromise = readStreamChunkWithHeartbeat(reader, {
+      deadlineAt,
+      keepAliveIntervalMs: 0,
+    });
+    readPromise.catch(() => {});
 
-    await new Promise((r) => setTimeout(r, 10));
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(readPromise).rejects.toThrow('LLM stream timed out');
     expect(reader.cancel).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('cancels reader on timeout', async () => {
+    vi.useFakeTimers();
     const reader = {
       read: vi.fn().mockImplementation(() => new Promise(() => {})),
       cancel: vi.fn().mockReturnValue(Promise.resolve()),
     };
 
-    await expect(
-      readStreamChunkWithHeartbeat(reader, {
-        keepAliveIntervalMs: 0,
-        hardTimeoutMs: 200,
-      })
-    ).rejects.toThrow();
+    const readPromise = readStreamChunkWithHeartbeat(reader, {
+      keepAliveIntervalMs: 0,
+      hardTimeoutMs: 200,
+    });
+    readPromise.catch(() => {});
 
-    await new Promise((r) => setTimeout(r, 10));
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(readPromise).rejects.toThrow();
     expect(reader.cancel).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('does not cancel reader on non-timeout error', async () => {
@@ -155,26 +167,38 @@ describe('readStreamChunkWithHeartbeat', () => {
   });
 
   it('cleans up heartbeat timer on success', async () => {
+    vi.useFakeTimers();
     const enqueue = vi.fn();
+    let resolveRead;
     const reader = {
-      read: vi.fn().mockResolvedValue({ value: 'data', done: false }),
+      read: vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveRead = resolve;
+          })
+      ),
       cancel: vi.fn().mockReturnValue(Promise.resolve()),
     };
 
-    await readStreamChunkWithHeartbeat(reader, {
+    const readPromise = readStreamChunkWithHeartbeat(reader, {
       controller: { enqueue },
       keepAliveIntervalMs: 100,
       hardTimeoutMs: 0,
     });
 
-    // Wait to ensure no more heartbeats fire
-    await new Promise((r) => setTimeout(r, 200));
-    const callCount = enqueue.mock.calls.length;
-    await new Promise((r) => setTimeout(r, 200));
-    expect(enqueue.mock.calls.length).toBe(callCount);
+    await vi.advanceTimersByTimeAsync(110);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+
+    resolveRead({ value: 'data', done: false });
+    await readPromise;
+
+    await vi.advanceTimersByTimeAsync(200);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it('skips heartbeat when keepAliveIntervalMs is 0', async () => {
+    vi.useFakeTimers();
     const enqueue = vi.fn();
     const reader = {
       read: vi.fn().mockResolvedValue({ value: 'data', done: false }),
@@ -186,8 +210,9 @@ describe('readStreamChunkWithHeartbeat', () => {
       keepAliveIntervalMs: 0,
     });
 
-    await new Promise((r) => setTimeout(r, 200));
+    await vi.advanceTimersByTimeAsync(200);
     expect(enqueue).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
 

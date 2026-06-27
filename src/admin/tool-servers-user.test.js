@@ -200,10 +200,28 @@ describe('createUserToolServer', () => {
     });
 
     const result = await createUserToolServer(db, 'u1', server);
-    expect(db.run).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO user_tool_servers'),
-      expect.any(Array)
+    expect(result).toMatchObject({
+      id: 'new-id',
+      name: 'MyMCP',
+      url: 'https://mcp.example.com',
+      source: 'user',
+      owner_user_id: 'u1',
+      personal: true,
+    });
+    const insertCall = db.run.mock.calls.find((call) =>
+      String(call[0]).includes('INSERT INTO user_tool_servers')
     );
+    expect(insertCall).toBeDefined();
+    expect(insertCall[1]).toEqual(expect.arrayContaining(['new-id', 'u1', expect.any(String)]));
+    const insertedJson = JSON.parse(insertCall[1][2]);
+    expect(insertedJson).toMatchObject({
+      id: 'new-id',
+      name: 'MyMCP',
+      url: 'https://mcp.example.com',
+      source: 'user',
+      owner_user_id: 'u1',
+      personal: true,
+    });
   });
 
   it('uses provided id or generates UUID', async () => {
@@ -262,8 +280,6 @@ describe('updateUserToolServer', () => {
     });
     mocks.mergeToolServer.mockReturnValueOnce({ name: 'Old', url: 'https://old.com' });
     mocks.mergeToolServer.mockReturnValueOnce({ name: '', url: 'https://new.com' });
-    // Second call in getUserToolServer
-    db.first.mockResolvedValueOnce(null);
 
     await expect(updateUserToolServer(db, 'u1', 's1', { name: '' })).rejects.toThrow(
       'name and url are required'
