@@ -85,7 +85,7 @@ describe('handleRegister', () => {
     findByEmail: vi.fn(),
     create: vi.fn(),
   };
-  const jwtSecret = 'test-secret-0123456789abcdef0123456789abcdef';
+  const jwtSecret = 'test-jwt-secret-not-real-0123456789abcdef0123456789abcdef';
   const sharedFns = {
     ensureUserRoleBinding: vi.fn(),
     createAccessToken: vi.fn(),
