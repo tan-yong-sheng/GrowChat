@@ -220,9 +220,13 @@ export function buildModelAclRuleSaveStatements(
 }
 
 function buildModelAclFilter(modelId, modelIds) {
-  const idFilter = modelIds && !modelId ? buildIdFilterClause('model_id', modelIds) : null;
-  const singleFilter = modelId ? buildIdFilterClause('model_id', [modelId]) : null;
-  return singleFilter || idFilter;
+  const canonicalModelId = modelId != null ? safeDecodeResourceId(modelId) : null;
+  if (canonicalModelId) {
+    return buildIdFilterClause('model_id', [canonicalModelId]);
+  }
+  const canonicalModelIds =
+    modelIds && canonicalModelId == null ? expandModelAclResourceIds(modelIds) : null;
+  return canonicalModelIds ? buildIdFilterClause('model_id', canonicalModelIds) : null;
 }
 
 function normalizeModelAclRows(rows) {

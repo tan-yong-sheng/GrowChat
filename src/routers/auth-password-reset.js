@@ -32,7 +32,7 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     throw err;
   }
 
-  const forgotLimit = await checkRateLimit(env.CACHE, {
+  const forgotLimit = await checkRateLimit(env, {
     action: 'auth-forgot-password',
     subject: resolveRateLimitSubject(req),
     ...RATE_LIMITS.authForgotPassword,
@@ -41,6 +41,11 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     return error(req, 'Too many password reset requests', 429, {
       retry_after: Math.ceil((forgotLimit.resetAt - Date.now()) / 1000),
     });
+  }
+
+  const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+  if (!origin) {
+    throw new Error('APP_PUBLIC_ORIGIN is not configured');
   }
 
   const user = await users.findByEmail(email);
@@ -64,11 +69,6 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, unixepoch())`,
     [crypto.randomUUID(), user.id, tokenHashHex, expiresAt]
   );
-
-  const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
-  if (!origin) {
-    throw new Error('APP_PUBLIC_ORIGIN is not configured');
-  }
 
   try {
     const emailService = createEmailService(env);
@@ -116,7 +116,7 @@ export async function handleResetPassword(req, env, db) {
     return error(req, 'Password must be at least 8 characters', 400);
   }
 
-  const resetLimit = await checkRateLimit(env.CACHE, {
+  const resetLimit = await checkRateLimit(env, {
     action: 'auth-reset-password',
     subject: resolveRateLimitSubject(req),
     ...RATE_LIMITS.authResetPassword,
@@ -144,14 +144,19 @@ export async function handleResetPassword(req, env, db) {
   // Invalidate all KV-backed refresh tokens before mutating the password.
   // consumeRefreshToken() checks session-version and rejects tokens with an
   // older version, so this effectively revokes all existing sessions.
+  // This must succeed before any DB mutation so we don't burn the user's
+  // reset token on a transient KV failure.
   await bumpSessionVersion(env, resetRecord.user_id, { required: true });
+
+  // Delete every reset token for the user before updating the password so a
+  // concurrent request with another valid token cannot reuse the window.
+  await db.run(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [resetRecord.user_id]);
 
   const passwordHash = await hashPassword(password);
   await db.run(`UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ?`, [
     passwordHash,
     resetRecord.user_id,
   ]);
-  await db.run(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [resetRecord.user_id]);
 
   return json(req, {
     message: 'Password reset successful. Please log in with your new password.',

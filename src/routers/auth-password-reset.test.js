@@ -118,6 +118,10 @@ describe('auth-password-reset: security regressions', () => {
 
     await handleForgotPassword(req, env, db, makeUsers());
 
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      env,
+      expect.objectContaining({ action: 'auth-forgot-password' })
+    );
     expect(mocks.emailSend).toHaveBeenCalledTimes(1);
     const emailHtml = mocks.emailSend.mock.calls[0][0].html;
     expect(emailHtml).toContain('https://app.growchat.example.com/auth/reset-password?token=');
@@ -132,6 +136,7 @@ describe('auth-password-reset: security regressions', () => {
     await expect(handleForgotPassword(req, env, db, makeUsers())).rejects.toThrow(
       'APP_PUBLIC_ORIGIN is not configured'
     );
+    expect(db.run).not.toHaveBeenCalled();
     expect(mocks.emailSend).not.toHaveBeenCalled();
   });
 
@@ -177,6 +182,26 @@ describe('auth-password-reset: security regressions', () => {
     expect(tokenDelete.params).toEqual(['user-123']);
   });
 
+  it('passes full env object to reset rate limit check', async () => {
+    const db = {
+      first: vi.fn(async () => ({ user_id: 'user-123' })),
+      run: vi.fn(async () => ({ success: true })),
+    };
+
+    const req = {
+      json: vi.fn(async () => ({ token: 'valid-reset-token', password: 'newpassword123' })),
+      headers: { get: vi.fn(() => null) },
+    };
+    const env = { CACHE: {} };
+
+    await handleResetPassword(req, env, db);
+
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+      env,
+      expect.objectContaining({ action: 'auth-reset-password' })
+    );
+  });
+
   it('requires session-version bump before password mutation', async () => {
     const db = {
       first: vi.fn(async () => ({ user_id: 'user-123' })),
@@ -197,14 +222,20 @@ describe('auth-password-reset: security regressions', () => {
       expect.objectContaining({ required: true })
     );
 
-    const bumpOrder = mocks.bumpSessionVersion.mock.invocationCallOrder[0];
+    const deleteCallIndex = db.run.mock.calls.findIndex(([sql]) =>
+      String(sql).includes('DELETE FROM password_reset_tokens')
+    );
     const updateCallIndex = db.run.mock.calls.findIndex(([sql]) =>
       String(sql).includes('UPDATE users SET password_hash')
     );
+    const deleteOrder = db.run.mock.invocationCallOrder[deleteCallIndex];
+    const bumpOrder = mocks.bumpSessionVersion.mock.invocationCallOrder[0];
     const updateOrder = db.run.mock.invocationCallOrder[updateCallIndex];
     expect(bumpOrder).toBeGreaterThan(0);
+    expect(deleteOrder).toBeGreaterThan(0);
     expect(updateOrder).toBeGreaterThan(0);
-    expect(bumpOrder).toBeLessThan(updateOrder);
+    expect(bumpOrder).toBeLessThan(deleteOrder);
+    expect(deleteOrder).toBeLessThan(updateOrder);
   });
 
   it('propagates session-version bump failures instead of ignoring them', async () => {
@@ -221,6 +252,10 @@ describe('auth-password-reset: security regressions', () => {
     const env = { CACHE: {} };
 
     await expect(handleResetPassword(req, env, db)).rejects.toThrow('KV down');
+
+    // No DB mutations should occur when the session-version bump fails, so
+    // the user's reset token remains usable for a retry.
+    expect(db.run).not.toHaveBeenCalled();
   });
 
   it('does not delete from the vestigial refresh_tokens SQL table', async () => {
