@@ -341,8 +341,9 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
       // can bump the session-version counter, which invalidates any
       // stolen clones still in flight (issue #146).
       const revokedUserId = await revokeRefreshToken(env, tokenFromBody);
-      if (revokedUserId) {
-        await bumpSessionVersion(env, revokedUserId);
+      const userId = revokedUserId || authUser?.sub || null;
+      if (userId) {
+        await bumpSessionVersion(env, userId);
       }
     }
     if (bearer && !tokenFromBody) {

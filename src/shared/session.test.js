@@ -88,6 +88,18 @@ describe('shared/session', () => {
     expect(userId).toBeNull();
   });
 
+  it('revokeRefreshToken returns null when SESSIONS KV is missing', async () => {
+    const userId = await revokeRefreshToken({}, 'some-token');
+    expect(userId).toBeNull();
+  });
+
+  it('revokeRefreshToken swallows KV delete errors and still returns userId', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce({ userId: 'u1', expiresAt: 9999999999 });
+    env.SESSIONS.delete.mockRejectedValueOnce(new Error('KV down'));
+    const userId = await revokeRefreshToken(env, 'some-token');
+    expect(userId).toBe('u1');
+  });
+
   it('bumpSessionVersion increments an existing counter', async () => {
     env.SESSIONS.get.mockResolvedValueOnce('3');
     await bumpSessionVersion(env, 'u1');
@@ -128,6 +140,14 @@ describe('shared/session', () => {
     expect(storedData.sessionVersion).toBe(3);
   });
 
+  it('createRefreshToken treats a poisoned session-version counter as 0', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce('not-a-number'); // poisoned counter
+    await createRefreshToken(env, 'u1');
+    const dataPut = env.SESSIONS.put.mock.calls[1];
+    const storedData = JSON.parse(dataPut[1]);
+    expect(storedData.sessionVersion).toBe(0);
+  });
+
   it('consumeRefreshToken rejects token when session version was bumped', async () => {
     // Create token with version 0 (default)
     const { token } = await createRefreshToken(env, 'u1');
@@ -153,6 +173,19 @@ describe('shared/session', () => {
 
     const result = await consumeRefreshToken(env, token);
     expect(result).toMatchObject({ userId: 'u1', sessionVersion: 2 });
+  });
+
+  it('consumeRefreshToken treats a poisoned current session-version as 0', async () => {
+    env.SESSIONS.get
+      .mockResolvedValueOnce({
+        userId: 'u1',
+        expiresAt: Math.floor(Date.now() / 1000) + 9999,
+        sessionVersion: 0,
+      })
+      .mockResolvedValueOnce('not-a-number'); // poisoned counter
+
+    const result = await consumeRefreshToken(env, 'poisoned-token');
+    expect(result).toMatchObject({ userId: 'u1', sessionVersion: 0 });
   });
 
   it('consumeRefreshToken accepts token when sessionVersion is undefined (legacy)', async () => {

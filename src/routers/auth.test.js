@@ -532,6 +532,22 @@ describe('authRouter', () => {
     expect(mocks.bumpSessionVersion).not.toHaveBeenCalled();
   });
 
+  it('logout falls back to authUser to bump session-version when token data is missing', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    mocks.revokeRefreshToken.mockResolvedValueOnce(null);
+
+    const res = await authRouter(
+      makeReq('/api/auth/logout', 'POST', { refresh_token: 'unknown' }),
+      env,
+      {},
+      { sub: 'u9', email: 'u9@example.com' },
+      '/api/auth/logout'
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.bumpSessionVersion).toHaveBeenCalledWith(env, 'u9');
+  });
+
   it('logout with no refresh token is a no-op for session-version bump', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
 

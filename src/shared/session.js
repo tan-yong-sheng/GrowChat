@@ -31,7 +31,8 @@ export async function createRefreshToken(env, userId) {
   let sessionVersion = 0;
   try {
     const raw = await env.SESSIONS.get(`session-version:${userId}`);
-    sessionVersion = Number(raw || 0);
+    const parsed = Number(raw);
+    sessionVersion = Number.isFinite(parsed) ? parsed : 0;
   } catch {
     // KV unavailability should not block login
   }
@@ -76,7 +77,8 @@ export async function consumeRefreshToken(env, token) {
   if (raw.sessionVersion !== undefined) {
     try {
       const currentVersionRaw = await env.SESSIONS.get(`session-version:${raw.userId}`);
-      const currentVersion = Number(currentVersionRaw || 0);
+      const parsed = Number(currentVersionRaw);
+      const currentVersion = Number.isFinite(parsed) ? parsed : 0;
       if (currentVersion > raw.sessionVersion) {
         return null;
       }
@@ -89,7 +91,7 @@ export async function consumeRefreshToken(env, token) {
 }
 
 export async function revokeRefreshToken(env, token) {
-  if (!token) return null;
+  if (!token || !env?.SESSIONS) return null;
   const tokenHash = await sha256Hex(token);
   const dataKey = `refresh-data:${tokenHash}`;
   // Read userId before deleting so the caller can fan out side-effects
@@ -101,10 +103,14 @@ export async function revokeRefreshToken(env, token) {
       userId = raw.userId || null;
     }
   } catch {
+    // KV unavailability or malformed JSON should not block revoke
+  }
+  try {
+    await env.SESSIONS.delete(`refresh:${tokenHash}`);
+    await env.SESSIONS.delete(dataKey);
+  } catch {
     // KV unavailability should not block revoke
   }
-  await env.SESSIONS.delete(`refresh:${tokenHash}`);
-  await env.SESSIONS.delete(dataKey);
   return userId;
 }
 
