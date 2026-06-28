@@ -95,6 +95,31 @@ describe('isSafeOutboundUrl', () => {
     expect(isSafeOutboundUrl('http://[fe80::1]/v1/models').safe).toBe(false);
   });
 
+  it('blocks IPv6 unique local addresses (fc00::/7)', () => {
+    expect(isSafeOutboundUrl('http://[fc00::1]/v1/models').safe).toBe(false);
+    expect(isSafeOutboundUrl('http://[fd00::1]/v1/models').safe).toBe(false);
+    expect(isSafeOutboundUrl('http://[fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff]/v1').safe).toBe(
+      false
+    );
+  });
+
+  it('does not block legitimate DNS hostnames starting with fc/fd', () => {
+    // Hostnames like 'fd.example.com' are not IPv6 literals — must not be rejected
+    expect(isSafeOutboundUrl('https://fd.example.com/oauth/token').safe).toBe(true);
+    expect(isSafeOutboundUrl('https://fc.example.com/v1/models').safe).toBe(true);
+    expect(isSafeOutboundUrl('https://fca-service.prod.internal/v1').safe).toBe(true);
+    expect(isSafeOutboundUrl('https://fda-api.staging/v1').safe).toBe(true);
+  });
+
+  it('blocks IPv4-mapped IPv6 literals to prevent bypass', () => {
+    // [::ffff:127.0.0.1] is normalized to hostname '[::ffff:7f00:1]' which would
+    // bypass the IPv4 range checks if not blocked here.
+    expect(isSafeOutboundUrl('http://[::ffff:127.0.0.1]/v1').safe).toBe(false);
+    expect(isSafeOutboundUrl('http://[::ffff:7f00:1]/v1').safe).toBe(false);
+    expect(isSafeOutboundUrl('http://[::ffff:10.0.0.1]/v1').safe).toBe(false);
+    expect(isSafeOutboundUrl('http://[::ffff:192.168.1.1]/v1').safe).toBe(false);
+  });
+
   it('blocks obfuscated IP addresses', () => {
     // Hex-encoded IP (0x7f000001 = 127.0.0.1)
     expect(isSafeOutboundUrl('http://0x7f000001/v1').safe).toBe(false);

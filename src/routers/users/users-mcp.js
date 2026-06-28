@@ -61,6 +61,10 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const tokenEndpoint =
       server.oauth_token_endpoint ||
       new URL('/token', server.oauth_authorization_server || server.url).toString();
+    const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
+    if (!tokenEndpointSafety.safe) {
+      return new Response(`Token exchange failed: ${tokenEndpointSafety.reason}`, { status: 400 });
+    }
     const clientId = String(server.oauth_client_id || '').trim();
     const clientSecret = String(server.oauth_client_secret || '').trim();
     const codeVerifier = String(server.oauth_code_verifier || '').trim();
@@ -234,6 +238,10 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const authServerUrl = String(
       body.oauth_authorization_server || existingServer.oauth_authorization_server || serverUrl
     ).trim();
+    const authServerUrlSafety = isSafeOutboundUrl(authServerUrl);
+    if (!authServerUrlSafety.safe) {
+      return error(req, authServerUrlSafety.reason, 400);
+    }
 
     let metadata;
     try {
@@ -249,6 +257,13 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const registrationEndpoint =
       metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
     const redirectUri = origin + '/api/users/me/resources/mcp-servers/oauth/callback';
+
+    if (registrationEndpoint) {
+      const registrationEndpointSafety = isSafeOutboundUrl(registrationEndpoint);
+      if (!registrationEndpointSafety.safe) {
+        return error(req, registrationEndpointSafety.reason, 400);
+      }
+    }
 
     if (!clientId) {
       if (!registrationEndpoint) {
@@ -301,6 +316,10 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const authorizationEndpoint =
       metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
     const tokenEndpoint = metadata?.token_endpoint || new URL('/token', authServerUrl).toString();
+    const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
+    if (!tokenEndpointSafety.safe) {
+      return error(req, tokenEndpointSafety.reason, 400);
+    }
 
     const authorizationUrl = buildAuthorizationUrl({
       authorizationEndpoint,
