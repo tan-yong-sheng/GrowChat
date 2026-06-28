@@ -26,6 +26,18 @@ export function initWireChat(root, deps, ctx) {
   const drawMessages = (...args) => ctx.drawMessagesImpl(...args);
   let openCitationImpl;
   const openCitation = (...args) => ctx.openCitationImpl(...args);
+
+  // Sync local impls to ctx so proxy functions have valid targets
+  // before setupWireChatControllers replaces them with real implementations.
+  ctx.syncChatUrlImpl = syncChatUrlImpl;
+  ctx.startNewChatImpl = startNewChatImpl;
+  ctx.refreshChatListObserverImpl = refreshChatListObserverImpl;
+  ctx.refreshShareStateImpl = refreshShareStateImpl;
+  ctx.loadChatsImpl = loadChatsImpl;
+  ctx.loadMessagesImpl = loadMessagesImpl;
+  ctx.drawMessagesImpl = drawMessagesImpl;
+  ctx.openCitationImpl = openCitationImpl;
+
   const MAX_CACHED_CHATS = 6;
   const recentChatIds = [];
   const cacheController =
