@@ -118,7 +118,7 @@ export function applyAttachmentCapsPatch(caps, update) {
   caps[modelId] = {
     ...current,
     attachments: nextAttachments,
-    updated_at: Date.now(),
+    updated_at: Math.floor(Date.now() / 1000),
   };
 }
 

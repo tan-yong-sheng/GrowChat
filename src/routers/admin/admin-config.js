@@ -236,7 +236,7 @@ export async function handleAdminConfig(
           nextCaps[normalizedId] = {
             ...(entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {}),
             attachments,
-            updated_at: Date.now(),
+            updated_at: Math.floor(Date.now() / 1000),
           };
         }
         await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(nextCaps));
@@ -284,7 +284,7 @@ export async function handleAdminConfig(
         caps[modelId] = {
           ...current,
           attachments: nextAttachments,
-          updated_at: Date.now(),
+          updated_at: Math.floor(Date.now() / 1000),
         };
       }
 
