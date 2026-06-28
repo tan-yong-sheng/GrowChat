@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   signJWT: vi.fn(),
   createRefreshToken: vi.fn(),
   consumeRefreshToken: vi.fn(),
-  revokeRefreshToken: vi.fn(),
+  revokeRefreshTokenForLogout: vi.fn(),
   loadPrimaryRole: vi.fn(),
 }));
 
@@ -35,7 +35,7 @@ vi.mock('../shared/auth.js', () => ({
 vi.mock('../shared/session.js', () => ({
   createRefreshToken: (...args) => mocks.createRefreshToken(...args),
   consumeRefreshToken: (...args) => mocks.consumeRefreshToken(...args),
-  revokeRefreshToken: (...args) => mocks.revokeRefreshToken(...args),
+  revokeRefreshTokenForLogout: (...args) => mocks.revokeRefreshTokenForLogout(...args),
 }));
 
 vi.mock('../repositories/user-repository.js', () => ({
@@ -119,7 +119,7 @@ describe('authRouter', () => {
       expiresAt: 1_700_000_000,
     });
     mocks.consumeRefreshToken.mockResolvedValue(null);
-    mocks.revokeRefreshToken.mockResolvedValue(undefined);
+    mocks.revokeRefreshTokenForLogout.mockResolvedValue(undefined);
     mocks.db.run.mockResolvedValue({ success: true });
   });
 
@@ -498,6 +498,7 @@ describe('authRouter', () => {
 
   it('returns ok on logout and revokes provided refresh token', async () => {
     const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    mocks.revokeRefreshTokenForLogout.mockResolvedValueOnce('u1');
 
     const res = await authRouter(
       makeReq('/api/auth/logout', 'POST', { refresh_token: 'bye' }),
@@ -509,7 +510,38 @@ describe('authRouter', () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({ ok: true });
-    expect(mocks.revokeRefreshToken).toHaveBeenCalledWith(env, 'bye');
+    expect(mocks.revokeRefreshTokenForLogout).toHaveBeenCalledWith(env, 'bye');
+  });
+
+  it('logout calls revokeRefreshTokenForLogout even when token has no userId', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+    mocks.revokeRefreshTokenForLogout.mockResolvedValueOnce(null);
+
+    const res = await authRouter(
+      makeReq('/api/auth/logout', 'POST', { refresh_token: 'unknown' }),
+      env,
+      {},
+      null,
+      '/api/auth/logout'
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.revokeRefreshTokenForLogout).toHaveBeenCalledWith(env, 'unknown');
+  });
+
+  it('logout does not invoke revoke when refresh token is absent', async () => {
+    const env = { DB: {}, JWT_SECRET: VALID_JWT_SECRET };
+
+    const res = await authRouter(
+      makeReq('/api/auth/logout', 'POST', {}),
+      env,
+      {},
+      null,
+      '/api/auth/logout'
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.revokeRefreshTokenForLogout).not.toHaveBeenCalled();
   });
 
   it('returns 500 when JWT_SECRET is missing', async () => {
@@ -705,7 +737,7 @@ describe('per-account brute-force protection', () => {
       expiresAt: 1_700_000_000,
     });
     mocks.consumeRefreshToken.mockResolvedValue(null);
-    mocks.revokeRefreshToken.mockResolvedValue(undefined);
+    mocks.revokeRefreshTokenForLogout.mockResolvedValue(undefined);
     mocks.db.run.mockResolvedValue({ success: true });
   });
 

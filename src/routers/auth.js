@@ -1,7 +1,11 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { signJWT, verifyPassword } from '../shared/auth.js';
-import { createRefreshToken, consumeRefreshToken, revokeRefreshToken } from '../shared/session.js';
+import {
+  createRefreshToken,
+  consumeRefreshToken,
+  revokeRefreshTokenForLogout,
+} from '../shared/session.js';
 import { getJwtSecret } from '../shared/jwt-secret.js';
 import { requireString, validateEmail } from '../validation/request.js';
 import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../services/rate-limit.js';
@@ -332,10 +336,17 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
     const tokenFromBody = body.refresh_token ? String(body.refresh_token) : null;
     const bearer = readBearerToken(req);
     if (tokenFromBody) {
-      await revokeRefreshToken(env, tokenFromBody);
+      // Revoke the presented refresh token and bump the session-version
+      // counter so any stolen clones are invalidated immediately.
+      // revokeRefreshTokenForLogout bumps the version before deleting the
+      // token keys to close the race with concurrent refresh attempts
+      // (issue #146).
+      await revokeRefreshTokenForLogout(env, tokenFromBody);
     }
     if (bearer && !tokenFromBody) {
-      // Optional compatibility path: no-op for bearer-only logout
+      // Optional compatibility path: bearer-only logout cannot fan out to
+      // session-version because we have no userId. The access token
+      // expires in 15 minutes regardless.
     }
     return json(req, { ok: true });
   }

@@ -1,4 +1,5 @@
 import { apiFetch } from '../api.js';
+import { logout } from '../api/auth.js';
 import { state, subscribe } from '../store.js';
 import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
 import { suspendSidebarVisibility, restoreSidebarVisibility } from '../utils/sidebar-visibility.js';
@@ -10,6 +11,19 @@ import {
 import { renderButton } from './button.js';
 
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'focus', 'visibilitychange'];
+
+function showLogoutToast(message, duration = 3000) {
+  const toast = document.createElement('div');
+  toast.className =
+    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.remove('opacity-0'));
+  setTimeout(() => {
+    toast.classList.add('opacity-0');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
 
 function getStoredAuthUser() {
   try {
@@ -211,8 +225,12 @@ export async function createUserProfileFooter({ guardNavigation = null } = {}) {
     } else if (action === 'archived') {
       window.dispatchEvent(new CustomEvent('growchat:open-archived'));
     } else if (action === 'logout') {
-      localStorage.removeItem('growchat_auth');
-      window.location.href = '/auth.html';
+      const ok = await logout();
+      if (ok) {
+        window.location.href = '/auth.html';
+      } else {
+        showLogoutToast('Logout failed. Please try again.');
+      }
     }
     menu.classList.add('hidden');
   });
