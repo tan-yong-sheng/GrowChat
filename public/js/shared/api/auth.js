@@ -71,16 +71,24 @@ export async function refreshToken(refreshTokenValue, options = {}) {
 
 export async function logout() {
   const auth = getAuthState();
-  if (auth?.refresh_token) {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: auth.refresh_token }),
-      });
-    } catch {
-      // Network errors should not block local logout
-    }
+  if (!auth?.refresh_token) {
+    clearAuthState();
+    return true;
   }
+
+  try {
+    const res = await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: auth.refresh_token }),
+    });
+    if (!res.ok) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
   clearAuthState();
+  return true;
 }
