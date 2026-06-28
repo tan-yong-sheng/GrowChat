@@ -1,5 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+const mockLogger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+};
+
 const mocks = vi.hoisted(() => ({
   hashPassword: vi.fn(async (pw) => `hashed_${pw}`),
   bumpSessionVersion: vi.fn(async () => {}),
@@ -12,11 +18,7 @@ const mocks = vi.hoisted(() => ({
   escapeHtml: vi.fn((s) => s),
   error: vi.fn((req, msg, status, extra) => ({ status, body: { error: msg, ...extra } })),
   json: vi.fn((req, data, status = 200) => ({ status, body: data })),
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  })),
+  createLogger: vi.fn(() => mockLogger),
   ValidationError: class ValidationError extends Error {},
 }));
 
@@ -90,11 +92,19 @@ function makeUsers(overrides = {}) {
 }
 
 function makeDb(overrides = {}) {
-  return {
+  const prepared = [];
+  const db = {
     first: vi.fn(async () => ({ user_id: 'user-123' })),
     run: vi.fn(async () => ({ success: true })),
+    prepare: vi.fn((sql, params) => {
+      prepared.push({ sql, params });
+      return { sql, params };
+    }),
+    batch: vi.fn(async () => ({ success: true })),
+    _prepared: prepared,
     ...overrides,
   };
+  return db;
 }
 
 describe('auth-password-reset: security regressions', () => {
@@ -128,13 +138,16 @@ describe('auth-password-reset: security regressions', () => {
     expect(emailHtml).not.toContain('untrusted-proxy');
   });
 
-  it('fails closed when APP_PUBLIC_ORIGIN is missing', async () => {
+  it('fails closed when APP_PUBLIC_ORIGIN is missing without generating a token', async () => {
     const req = makeForgotReq('https://untrusted-proxy.example.com');
     const db = makeDb();
     const env = { CACHE: {} };
 
-    await expect(handleForgotPassword(req, env, db, makeUsers())).rejects.toThrow(
-      'APP_PUBLIC_ORIGIN is not configured'
+    const result = await handleForgotPassword(req, env, db, makeUsers());
+
+    expect(result.body.message).toContain('If an account exists');
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'APP_PUBLIC_ORIGIN is not configured — password reset link origin unknown'
     );
     expect(db.run).not.toHaveBeenCalled();
     expect(mocks.emailSend).not.toHaveBeenCalled();
@@ -145,25 +158,14 @@ describe('auth-password-reset: security regressions', () => {
     const db = makeDb();
     const env = { CACHE: {} };
 
-    await expect(handleForgotPassword(req, env, db, makeUsers())).rejects.toThrow(
-      'APP_PUBLIC_ORIGIN is not configured'
-    );
+    const result = await handleForgotPassword(req, env, db, makeUsers());
+
+    expect(result.body.message).toContain('If an account exists');
+    expect(mocks.emailSend).not.toHaveBeenCalled();
   });
 
   it('deletes ALL reset tokens for the user, not just the presented one', async () => {
-    const deleteCalls = [];
-    const db = {
-      first: vi.fn(async (sql, params) => {
-        if (sql.includes('password_reset_tokens')) {
-          return { user_id: 'user-123' };
-        }
-        return null;
-      }),
-      run: vi.fn(async (sql, params) => {
-        deleteCalls.push({ sql, params });
-        return { success: true };
-      }),
-    };
+    const db = makeDb();
 
     const req = {
       json: vi.fn(async () => ({ token: 'valid-reset-token-hex', password: 'newpassword123' })),
@@ -173,8 +175,10 @@ describe('auth-password-reset: security regressions', () => {
 
     await handleResetPassword(req, env, db);
 
-    const tokenDelete = deleteCalls.find((c) =>
-      c.sql.includes('DELETE FROM password_reset_tokens')
+    expect(db.batch).toHaveBeenCalledTimes(1);
+    const batched = db.batch.mock.calls[0][0];
+    const tokenDelete = batched.find((stmt) =>
+      String(stmt.sql).includes('DELETE FROM password_reset_tokens')
     );
     expect(tokenDelete).toBeDefined();
     expect(tokenDelete.sql).toContain('user_id');
@@ -183,10 +187,7 @@ describe('auth-password-reset: security regressions', () => {
   });
 
   it('passes full env object to reset rate limit check', async () => {
-    const db = {
-      first: vi.fn(async () => ({ user_id: 'user-123' })),
-      run: vi.fn(async () => ({ success: true })),
-    };
+    const db = makeDb();
 
     const req = {
       json: vi.fn(async () => ({ token: 'valid-reset-token', password: 'newpassword123' })),
@@ -202,11 +203,8 @@ describe('auth-password-reset: security regressions', () => {
     );
   });
 
-  it('requires session-version bump before password mutation', async () => {
-    const db = {
-      first: vi.fn(async () => ({ user_id: 'user-123' })),
-      run: vi.fn(async () => ({ success: true })),
-    };
+  it('requires session-version bump before any DB mutation', async () => {
+    const db = makeDb();
 
     const req = {
       json: vi.fn(async () => ({ token: 'valid-reset-token', password: 'newpassword123' })),
@@ -222,28 +220,37 @@ describe('auth-password-reset: security regressions', () => {
       expect.objectContaining({ required: true })
     );
 
-    const deleteCallIndex = db.run.mock.calls.findIndex(([sql]) =>
-      String(sql).includes('DELETE FROM password_reset_tokens')
-    );
-    const updateCallIndex = db.run.mock.calls.findIndex(([sql]) =>
-      String(sql).includes('UPDATE users SET password_hash')
-    );
-    const deleteOrder = db.run.mock.invocationCallOrder[deleteCallIndex];
     const bumpOrder = mocks.bumpSessionVersion.mock.invocationCallOrder[0];
-    const updateOrder = db.run.mock.invocationCallOrder[updateCallIndex];
+    const batchOrder = db.batch.mock.invocationCallOrder[0];
     expect(bumpOrder).toBeGreaterThan(0);
-    expect(deleteOrder).toBeGreaterThan(0);
-    expect(updateOrder).toBeGreaterThan(0);
-    expect(bumpOrder).toBeLessThan(deleteOrder);
-    expect(deleteOrder).toBeLessThan(updateOrder);
+    expect(batchOrder).toBeGreaterThan(0);
+    expect(bumpOrder).toBeLessThan(batchOrder);
+  });
+
+  it('batches token deletion and password update atomically', async () => {
+    const db = makeDb();
+
+    const req = {
+      json: vi.fn(async () => ({ token: 'valid-reset-token', password: 'newpassword123' })),
+      headers: { get: vi.fn(() => null) },
+    };
+    const env = { CACHE: {} };
+
+    await handleResetPassword(req, env, db);
+
+    expect(db.batch).toHaveBeenCalledTimes(1);
+    const batched = db.batch.mock.calls[0][0];
+    expect(
+      batched.some((stmt) => String(stmt.sql).includes('DELETE FROM password_reset_tokens'))
+    ).toBe(true);
+    expect(
+      batched.some((stmt) => String(stmt.sql).includes('UPDATE users SET password_hash'))
+    ).toBe(true);
   });
 
   it('propagates session-version bump failures instead of ignoring them', async () => {
     mocks.bumpSessionVersion.mockRejectedValueOnce(new Error('KV down'));
-    const db = {
-      first: vi.fn(async () => ({ user_id: 'user-123' })),
-      run: vi.fn(async () => ({ success: true })),
-    };
+    const db = makeDb();
 
     const req = {
       json: vi.fn(async () => ({ token: 'valid-reset-token', password: 'newpassword123' })),
@@ -255,18 +262,11 @@ describe('auth-password-reset: security regressions', () => {
 
     // No DB mutations should occur when the session-version bump fails, so
     // the user's reset token remains usable for a retry.
-    expect(db.run).not.toHaveBeenCalled();
+    expect(db.batch).not.toHaveBeenCalled();
   });
 
   it('does not delete from the vestigial refresh_tokens SQL table', async () => {
-    const runCalls = [];
-    const db = {
-      first: vi.fn(async () => ({ user_id: 'user-123' })),
-      run: vi.fn(async (sql, params) => {
-        runCalls.push(sql);
-        return { success: true };
-      }),
-    };
+    const db = makeDb();
 
     const req = {
       json: vi.fn(async () => ({ token: 'valid-reset-token', password: 'newpassword123' })),
@@ -276,6 +276,10 @@ describe('auth-password-reset: security regressions', () => {
 
     await handleResetPassword(req, env, db);
 
-    expect(runCalls.some((sql) => String(sql).includes('refresh_tokens'))).toBe(false);
+    const allSql = [
+      ...db.run.mock.calls.map(([sql]) => String(sql)),
+      ...db._prepared.map((stmt) => String(stmt.sql)),
+    ];
+    expect(allSql.some((sql) => sql.includes('refresh_tokens'))).toBe(false);
   });
 });

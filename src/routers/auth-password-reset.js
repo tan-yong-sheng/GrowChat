@@ -45,7 +45,10 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
 
   const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
   if (!origin) {
-    throw new Error('APP_PUBLIC_ORIGIN is not configured');
+    logger.error('APP_PUBLIC_ORIGIN is not configured — password reset link origin unknown');
+    return json(req, {
+      message: 'If an account exists with this email, a reset link has been sent.',
+    });
   }
 
   const user = await users.findByEmail(email);
@@ -148,14 +151,18 @@ export async function handleResetPassword(req, env, db) {
   // reset token on a transient KV failure.
   await bumpSessionVersion(env, resetRecord.user_id, { required: true });
 
-  // Delete every reset token for the user before updating the password so a
-  // concurrent request with another valid token cannot reuse the window.
-  await db.run(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [resetRecord.user_id]);
-
+  // Hash the password before any destructive DB writes so a crypto failure
+  // doesn't consume the user's reset token.
   const passwordHash = await hashPassword(password);
-  await db.run(`UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ?`, [
-    passwordHash,
-    resetRecord.user_id,
+
+  // Batch the token deletion and password update so they succeed or fail
+  // together. This also closes the concurrent-reset-token reuse window.
+  await db.batch([
+    db.prepare(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [resetRecord.user_id]),
+    db.prepare(`UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ?`, [
+      passwordHash,
+      resetRecord.user_id,
+    ]),
   ]);
 
   return json(req, {
