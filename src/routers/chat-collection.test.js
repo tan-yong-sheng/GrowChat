@@ -110,6 +110,42 @@ describe('chatCollectionRouter', () => {
       expect(res.status).toBe(403);
     });
 
+    it('maps authorize server_error to 500', async () => {
+      mocks.authorize.mockResolvedValue({ allow: false, code: 'server_error', reason: 'DB down' });
+      const res = await chatCollectionRouter(
+        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env,
+        user,
+        '/api/chats',
+        's1'
+      );
+      expect(res.status).toBe(500);
+    });
+
+    it('maps authorize unauthorized to 401', async () => {
+      mocks.authorize.mockResolvedValue({ allow: false, code: 'unauthorized', reason: 'Expired token' });
+      const res = await chatCollectionRouter(
+        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env,
+        user,
+        '/api/chats',
+        's1'
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it('maps authorize not_found to 404', async () => {
+      mocks.authorize.mockResolvedValue({ allow: false, code: 'not_found', reason: 'Missing' });
+      const res = await chatCollectionRouter(
+        makeReq('/api/chats', 'POST', { title: 'New Chat' }),
+        env,
+        user,
+        '/api/chats',
+        's1'
+      );
+      expect(res.status).toBe(404);
+    });
+
     it('creates a new chat', async () => {
       db.run.mockResolvedValue(undefined);
       db.first.mockResolvedValue({

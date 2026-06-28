@@ -199,9 +199,15 @@ export async function requireAdmin(env, user, _logger = rootLogger) {
   });
 
   if (!decision.allow) {
+    const statusCodeMap = {
+      server_error: 500,
+      unauthorized: 401,
+      not_found: 404,
+    };
+    const statusCode = statusCodeMap[decision.code] || 403;
     const error = new Error(decision.reason || 'Forbidden');
     error.code = decision.code;
-    error.statusCode = 403;
+    error.statusCode = statusCode;
     throw error;
   }
 }

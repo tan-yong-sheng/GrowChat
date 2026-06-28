@@ -39,7 +39,13 @@ export async function handleAdminConnectionsSave(
 
     const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
     if (!aclDecision.allow) {
-      return error(req, aclDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[aclDecision.code] || 403;
+      return error(req, aclDecision.reason || 'Forbidden', statusCode);
     }
 
     const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
@@ -195,7 +201,13 @@ export async function handleAdminConnectionsSave(
       if (normalizedAccessUpdates.length > 0) {
         const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
         if (!aclDecision.allow) {
-          return error(req, aclDecision.reason || 'Forbidden', 403);
+          const statusCodeMap = {
+            server_error: 500,
+            unauthorized: 401,
+            not_found: 404,
+          };
+          const statusCode = statusCodeMap[aclDecision.code] || 403;
+          return error(req, aclDecision.reason || 'Forbidden', statusCode);
         }
       }
 

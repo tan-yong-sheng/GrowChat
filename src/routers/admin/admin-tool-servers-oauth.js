@@ -43,7 +43,13 @@ export async function handleAdminToolServersOAuth(
 
     const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
     if (!aclDecision.allow) {
-      return error(req, aclDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[aclDecision.code] || 403;
+      return error(req, aclDecision.reason || 'Forbidden', statusCode);
     }
 
     const serverId = String(body.id || '').trim();
