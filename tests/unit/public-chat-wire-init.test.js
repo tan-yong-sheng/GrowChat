@@ -111,6 +111,34 @@ describe('initWireChat', () => {
     expect(ctx.activeStreamAbort).toBeNull();
   });
 
+  it('sets ctx.openCitationImpl after init', () => {
+    const root = makeRoot();
+    const deps = makeDeps();
+    const ctx = { root };
+
+    initWireChat(root, deps, ctx);
+
+    expect(ctx.openCitationImpl).toBeDefined();
+    expect(typeof ctx.openCitationImpl).toBe('function');
+  });
+
+  it('keeps ctx.buildChatSidebarListFragmentImpl in sync after lazy load', async () => {
+    const root = makeRoot();
+    const builder = vi.fn(() => document.createDocumentFragment());
+    const deps = makeDeps({
+      loadChatSidebarListModule: vi.fn(async () => ({
+        buildChatSidebarListFragment: builder,
+      })),
+    });
+    const ctx = { root, drawChats: vi.fn() };
+
+    initWireChat(root, deps, ctx);
+
+    expect(ctx.buildChatSidebarListFragmentImpl).toBeNull();
+    await ctx.ensureChatSidebarListBuilder();
+    expect(ctx.buildChatSidebarListFragmentImpl).toBe(builder);
+  });
+
   it('proxies use latest ctx impl assignments (no stale closure)', async () => {
     const root = makeRoot();
     const deps = makeDeps();

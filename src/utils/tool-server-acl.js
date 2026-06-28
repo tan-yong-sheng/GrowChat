@@ -63,7 +63,6 @@ function isToolServerAclActionRelevant(action) {
   return ['use', 'manage', 'admin', 'read'].includes(normalized);
 }
 
-// eslint-disable-next-line max-params -- 3 params (server, rules, opts) with destructured options object is clean API design
 function evaluateToolServerAclCore(toolServer, rules, { user, userGroupIds, allowAdmin }) {
   if (toolServer?.source === 'user') {
     return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
@@ -134,7 +133,6 @@ export async function ensureToolServerAclRulesTable(db) {
   }
 }
 
-// eslint-disable-next-line max-params -- 4 params (db, toolServerId, rules, opts) by design for DB statement builder
 export function buildToolServerAclRuleSaveStatements(
   db,
   toolServerId,
@@ -215,7 +213,6 @@ function normalizeToolServerAclRows(rows) {
     .filter((row) => row.tool_server_id && row.principal_id);
 }
 
-// eslint-disable-next-line max-params -- 3 params (db, toolServerId, toolServerIds) for list/filter operations
 export async function loadToolServerAclRules(db, toolServerId = null, toolServerIds = null) {
   if (!db) return [];
   try {
@@ -241,7 +238,6 @@ export async function loadToolServerAclRules(db, toolServerId = null, toolServer
   }
 }
 
-// eslint-disable-next-line max-params -- 3 params (db, toolServerId, rules) for save-with-reload pattern
 export async function saveToolServerAclRulesForToolServer(db, toolServerId, rules = []) {
   const { statements } = buildToolServerAclRuleSaveStatements(db, toolServerId, rules);
   await db.batch(statements);

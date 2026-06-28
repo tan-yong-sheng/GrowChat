@@ -132,7 +132,7 @@ export async function revokeRefreshToken(env, token) {
   if (!token || !env?.SESSIONS) return null;
   const tokenHash = await sha256Hex(token);
   const dataKey = `refresh-data:${tokenHash}`;
-  // Read userId before deleting so the caller can fan out side-effects
+  // Read userId before deleting so the caller can fan out to side-effects
   // (e.g. bumping the session version to invalidate stolen clones).
   const userId = await readRefreshTokenUserId(env, dataKey);
   await deleteRefreshTokenKeys(env, tokenHash);
@@ -174,9 +174,18 @@ export async function revokeRefreshTokenForLogout(env, token) {
  * Read-modify-write has a tiny race window under concurrent bumps, but the
  * worst case is one lost increment — which is still sufficient to invalidate
  * older tokens for the threat model in #146.
+ *
+ * @param {object} env
+ * @param {string} userId
+ * @param {{ required?: boolean }} [options]
  */
-export async function bumpSessionVersion(env, userId) {
-  if (!userId || !env?.SESSIONS) return;
+export async function bumpSessionVersion(env, userId, options = {}) {
+  if (!userId || !env?.SESSIONS) {
+    if (options.required) {
+      throw new Error('Session store is not configured');
+    }
+    return;
+  }
   const versionKey = `${SESSION_VERSION_KEY_PREFIX}${userId}`;
   try {
     const currentVersionRaw = await env.SESSIONS.get(versionKey);
@@ -188,7 +197,10 @@ export async function bumpSessionVersion(env, userId) {
     await env.SESSIONS.put(versionKey, String(nextVersion), {
       expirationTtl: SESSION_VERSION_TTL_SECONDS,
     });
-  } catch {
+  } catch (err) {
+    if (options.required) {
+      throw err;
+    }
     // KV unavailability should not block the caller (logout / password reset)
   }
 }

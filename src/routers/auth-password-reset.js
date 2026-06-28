@@ -32,7 +32,7 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     throw err;
   }
 
-  const forgotLimit = await checkRateLimit(env, {
+  const forgotLimit = await checkRateLimit(env.CACHE, {
     action: 'auth-forgot-password',
     subject: resolveRateLimitSubject(req),
     ...RATE_LIMITS.authForgotPassword,
@@ -45,16 +45,6 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
 
   const user = await users.findByEmail(email);
   if (!user) {
-    return json(req, {
-      message: 'If an account exists with this email, a reset link has been sent.',
-    });
-  }
-
-  // Strip trailing slash so concatenations produce clean URLs
-  const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
-  if (!origin) {
-    logger.error('APP_PUBLIC_ORIGIN is not configured — password reset link origin unknown');
-    // Return same fake-OK as missing-user to avoid email enumeration
     return json(req, {
       message: 'If an account exists with this email, a reset link has been sent.',
     });
@@ -74,6 +64,11 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, unixepoch())`,
     [crypto.randomUUID(), user.id, tokenHashHex, expiresAt]
   );
+
+  const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+  if (!origin) {
+    throw new Error('APP_PUBLIC_ORIGIN is not configured');
+  }
 
   try {
     const emailService = createEmailService(env);
@@ -121,7 +116,7 @@ export async function handleResetPassword(req, env, db) {
     return error(req, 'Password must be at least 8 characters', 400);
   }
 
-  const resetLimit = await checkRateLimit(env, {
+  const resetLimit = await checkRateLimit(env.CACHE, {
     action: 'auth-reset-password',
     subject: resolveRateLimitSubject(req),
     ...RATE_LIMITS.authResetPassword,
@@ -146,16 +141,17 @@ export async function handleResetPassword(req, env, db) {
     return error(req, 'Invalid or expired reset token', 400);
   }
 
+  // Invalidate all KV-backed refresh tokens before mutating the password.
+  // consumeRefreshToken() checks session-version and rejects tokens with an
+  // older version, so this effectively revokes all existing sessions.
+  await bumpSessionVersion(env, resetRecord.user_id, { required: true });
+
   const passwordHash = await hashPassword(password);
   await db.run(`UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ?`, [
     passwordHash,
     resetRecord.user_id,
   ]);
   await db.run(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [resetRecord.user_id]);
-  // Invalidate all KV-backed refresh tokens by bumping the user's session version.
-  // consumeRefreshToken() checks session-version and rejects tokens with an
-  // older version, so this effectively revokes all existing sessions.
-  await bumpSessionVersion(env, resetRecord.user_id);
 
   return json(req, {
     message: 'Password reset successful. Please log in with your new password.',
