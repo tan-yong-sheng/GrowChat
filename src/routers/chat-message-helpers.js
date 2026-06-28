@@ -15,7 +15,12 @@ export async function ensureModelAllowed(req, env, db, user, model) {
     resourceId: model,
   });
   if (!useDecision.allow) {
-    const statusCode = useDecision.code === 'server_error' ? 500 : 403;
+    const statusCodeMap = {
+      server_error: 500,
+      unauthorized: 401,
+      not_found: 404,
+    };
+    const statusCode = statusCodeMap[useDecision.code] || 403;
     return {
       error: error(req, useDecision.reason || useDecision.message || 'Forbidden', statusCode),
     };
@@ -77,7 +82,12 @@ export async function requireChatPermission(req, env, user, action, chatId) {
     resourceId: chatId,
   });
   if (!authDecision.allow) {
-    const statusCode = authDecision.code === 'server_error' ? 500 : 403;
+    const statusCodeMap = {
+      server_error: 500,
+      unauthorized: 401,
+      not_found: 404,
+    };
+    const statusCode = statusCodeMap[authDecision.code] || 403;
     return error(req, authDecision.reason || authDecision.message || 'Forbidden', statusCode);
   }
   return null;

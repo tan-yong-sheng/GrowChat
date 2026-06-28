@@ -222,16 +222,20 @@ describe('requireChatPermission — mutation coverage', () => {
     expect(result.status).toBe(403);
   });
 
-  // Kill mutant: if  server_error  status code mapping were removed/changed
-  // to default to 403, this test would fail.
-  it('returns 500 only for server_error code, 403 for everything else', async () => {
+  // Kill mutant: if any mapped status code were removed/changed to default to
+  // 403, this test would fail.
+  it('maps authorize codes to the correct HTTP status codes', async () => {
     mocks.authorize.mockReturnValue({ allow: false, code: 'server_error' });
     const serverErrResult = await requireChatPermission(makeReq(), {}, makeUser(), 'a', 'c');
     expect(serverErrResult.status).toBe(500);
 
     mocks.authorize.mockReturnValue({ allow: false, code: 'unauthorized' });
     const unauthResult = await requireChatPermission(makeReq(), {}, makeUser(), 'a', 'c');
-    expect(unauthResult.status).toBe(403);
+    expect(unauthResult.status).toBe(401);
+
+    mocks.authorize.mockReturnValue({ allow: false, code: 'not_found' });
+    const notFoundResult = await requireChatPermission(makeReq(), {}, makeUser(), 'a', 'c');
+    expect(notFoundResult.status).toBe(404);
 
     mocks.authorize.mockReturnValue({ allow: false, code: 'quota_exceeded' });
     const quotaResult = await requireChatPermission(makeReq(), {}, makeUser(), 'a', 'c');
