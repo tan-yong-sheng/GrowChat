@@ -90,27 +90,66 @@ export async function consumeRefreshToken(env, token) {
   return raw;
 }
 
+async function readRefreshTokenUserId(env, dataKey) {
+  try {
+    const raw = await env.SESSIONS.get(dataKey, 'json');
+    if (raw && typeof raw === 'object') {
+      return raw.userId || null;
+    }
+  } catch {
+    // KV unavailability or malformed JSON should not block revoke
+  }
+  return null;
+}
+
+async function deleteRefreshTokenKeys(env, tokenHash) {
+  const dataKey = `refresh-data:${tokenHash}`;
+  try {
+    await env.SESSIONS.delete(`refresh:${tokenHash}`);
+  } catch {
+    // KV unavailability should not block revoke
+  }
+  try {
+    await env.SESSIONS.delete(dataKey);
+  } catch {
+    // KV unavailability should not block revoke
+  }
+}
+
 export async function revokeRefreshToken(env, token) {
   if (!token || !env?.SESSIONS) return null;
   const tokenHash = await sha256Hex(token);
   const dataKey = `refresh-data:${tokenHash}`;
   // Read userId before deleting so the caller can fan out side-effects
   // (e.g. bumping the session version to invalidate stolen clones).
-  let userId = null;
-  try {
-    const raw = await env.SESSIONS.get(dataKey, 'json');
-    if (raw && typeof raw === 'object') {
-      userId = raw.userId || null;
-    }
-  } catch {
-    // KV unavailability or malformed JSON should not block revoke
+  const userId = await readRefreshTokenUserId(env, dataKey);
+  await deleteRefreshTokenKeys(env, tokenHash);
+  return userId;
+}
+
+/**
+ * Revoke a single refresh token and immediately bump the user's session
+ * version so any stolen clone becomes invalid before its gate key is
+ * deleted. This closes the race where a concurrent refresh could succeed
+ * between the delete and the version bump (issue #146).
+ *
+ * @param {object} env
+ * @param {string} token
+ * @returns {Promise<string|null>} userId or null
+ */
+export async function revokeRefreshTokenForLogout(env, token) {
+  if (!token || !env?.SESSIONS) return null;
+  const tokenHash = await sha256Hex(token);
+  const dataKey = `refresh-data:${tokenHash}`;
+
+  // Read userId first so we can bump the session version before deleting
+  // the token. Bumping first ensures any concurrent refresh with a stolen
+  // clone sees the new version and is rejected.
+  const userId = await readRefreshTokenUserId(env, dataKey);
+  if (userId) {
+    await bumpSessionVersion(env, userId);
   }
-  try {
-    await env.SESSIONS.delete(`refresh:${tokenHash}`);
-    await env.SESSIONS.delete(dataKey);
-  } catch {
-    // KV unavailability should not block revoke
-  }
+  await deleteRefreshTokenKeys(env, tokenHash);
   return userId;
 }
 

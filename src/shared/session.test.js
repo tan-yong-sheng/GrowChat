@@ -5,6 +5,7 @@ import {
   createRefreshToken,
   generateOpaqueToken,
   revokeRefreshToken,
+  revokeRefreshTokenForLogout,
   sha256Hex,
 } from './session.js';
 
@@ -98,6 +99,30 @@ describe('shared/session', () => {
     env.SESSIONS.delete.mockRejectedValueOnce(new Error('KV down'));
     const userId = await revokeRefreshToken(env, 'some-token');
     expect(userId).toBe('u1');
+  });
+
+  it('revokeRefreshTokenForLogout bumps session version before deleting keys', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce({ userId: 'u1', expiresAt: 9999999999 });
+    env.SESSIONS.get.mockResolvedValueOnce('2');
+    const tokenHash = await sha256Hex('some-token');
+
+    const userId = await revokeRefreshTokenForLogout(env, 'some-token');
+
+    expect(userId).toBe('u1');
+    // Version bump must happen before the deletes.
+    const bumpOrder = env.SESSIONS.put.mock.invocationCallOrder[0];
+    const firstDeleteOrder = env.SESSIONS.delete.mock.invocationCallOrder[0];
+    expect(bumpOrder).toBeLessThan(firstDeleteOrder);
+    expect(env.SESSIONS.put).toHaveBeenCalledWith('session-version:u1', '3', expect.any(Object));
+    expect(env.SESSIONS.delete).toHaveBeenCalledWith(`refresh:${tokenHash}`);
+    expect(env.SESSIONS.delete).toHaveBeenCalledWith(`refresh-data:${tokenHash}`);
+  });
+
+  it('revokeRefreshTokenForLogout returns null and does not bump when token data is missing', async () => {
+    env.SESSIONS.get.mockResolvedValueOnce(null);
+    const userId = await revokeRefreshTokenForLogout(env, 'ghost-token');
+    expect(userId).toBeNull();
+    expect(env.SESSIONS.put).not.toHaveBeenCalled();
   });
 
   it('bumpSessionVersion increments an existing counter', async () => {

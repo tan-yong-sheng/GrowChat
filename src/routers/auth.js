@@ -4,8 +4,7 @@ import { signJWT, verifyPassword } from '../shared/auth.js';
 import {
   createRefreshToken,
   consumeRefreshToken,
-  revokeRefreshToken,
-  bumpSessionVersion,
+  revokeRefreshTokenForLogout,
 } from '../shared/session.js';
 import { getJwtSecret } from '../shared/jwt-secret.js';
 import { requireString, validateEmail } from '../validation/request.js';
@@ -337,13 +336,12 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
     const tokenFromBody = body.refresh_token ? String(body.refresh_token) : null;
     const bearer = readBearerToken(req);
     if (tokenFromBody) {
-      // Revoke the presented refresh token and capture its userId so we
-      // can bump the session-version counter, which invalidates any
-      // stolen clones still in flight (issue #146).
-      const revokedUserId = await revokeRefreshToken(env, tokenFromBody);
-      if (revokedUserId) {
-        await bumpSessionVersion(env, revokedUserId);
-      }
+      // Revoke the presented refresh token and bump the session-version
+      // counter so any stolen clones are invalidated immediately.
+      // revokeRefreshTokenForLogout bumps the version before deleting the
+      // token keys to close the race with concurrent refresh attempts
+      // (issue #146).
+      await revokeRefreshTokenForLogout(env, tokenFromBody);
     }
     if (bearer && !tokenFromBody) {
       // Optional compatibility path: bearer-only logout cannot fan out to

@@ -133,7 +133,7 @@ _Note: If account requires approval, returns 201 with `account_status: 'pending'
 
 - Updates `password_hash` in `users`.
 - Deletes the used token from `password_reset_tokens`.
-- **Security Action**: Deletes ALL active sessions for the user (`DELETE FROM refresh_tokens WHERE user_id = ?`) to force re-authentication everywhere.
+- **Security Action**: Invalidates all existing refresh tokens by bumping the per-user `session-version` counter in the `SESSIONS` KV namespace, causing `consumeRefreshToken` to reject any previously issued refresh tokens on their next use.
 
 ---
 

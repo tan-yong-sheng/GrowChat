@@ -1,4 +1,5 @@
 import { apiFetch } from '../api.js';
+import { logout } from '../api/auth.js';
 import { state, subscribe } from '../store.js';
 import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
 import { suspendSidebarVisibility, restoreSidebarVisibility } from '../utils/sidebar-visibility.js';
@@ -211,7 +212,7 @@ export async function createUserProfileFooter({ guardNavigation = null } = {}) {
     } else if (action === 'archived') {
       window.dispatchEvent(new CustomEvent('growchat:open-archived'));
     } else if (action === 'logout') {
-      localStorage.removeItem('growchat_auth');
+      await logout();
       window.location.href = '/auth.html';
     }
     menu.classList.add('hidden');

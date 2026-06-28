@@ -36,6 +36,7 @@
     "public/js/utils/storage.js",
     "public/js/utils/time-grouping.js",
     "public/js/features/admin/settings/connections-helpers.test.js",
+    "public/js/shared/api/auth.test.js",
     "public/js/shared/utils/model-filters.test.js",
     "src/async-session-processor.js",
     "src/realtime.js",

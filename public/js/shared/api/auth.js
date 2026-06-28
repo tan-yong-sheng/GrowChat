@@ -68,3 +68,19 @@ export async function refreshToken(refreshTokenValue, options = {}) {
   setAuthState(data);
   return data;
 }
+
+export async function logout() {
+  const auth = getAuthState();
+  if (auth?.refresh_token) {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: auth.refresh_token }),
+      });
+    } catch {
+      // Network errors should not block local logout
+    }
+  }
+  clearAuthState();
+}
