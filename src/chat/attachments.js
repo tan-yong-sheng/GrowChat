@@ -171,7 +171,7 @@ function attachFailureToCaps(caps, modelId, kind) {
   caps[modelId] = {
     ...current,
     attachments,
-    updated_at: Date.now(),
+    updated_at: Math.floor(Date.now() / 1000),
   };
 }
 
