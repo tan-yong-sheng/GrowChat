@@ -42,7 +42,7 @@ async function ensureUserConnectionsTable(db) {
     const columns = await db.all('PRAGMA table_info(user_connections)');
     const hasModeColumn =
       Array.isArray(columns) &&
-      columns.some((column) => String(column.name || '') === 'manual_models_mode');
+      columns.some((column) => column && String(column.name || '') === 'manual_models_mode');
     if (!hasModeColumn) {
       await db.run(
         "ALTER TABLE user_connections ADD COLUMN manual_models_mode TEXT NOT NULL DEFAULT 'all'"

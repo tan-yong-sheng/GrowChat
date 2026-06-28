@@ -137,16 +137,13 @@ export function handleParsed(parser, parsed) {
   const contentField = parsed?.response ?? delta.content;
   const messageContent = parsed?.choices?.[0]?.message?.content;
   let resolvedContent = contentField ?? messageContent ?? parsed?.choices?.[0]?.text;
-  if (
-    !resolvedContent &&
-    delta &&
-    typeof delta === 'object' &&
-    delta.content &&
-    typeof delta.content === 'object' &&
-    !Array.isArray(delta.content) &&
-    typeof delta.content.text === 'string'
-  ) {
-    resolvedContent = delta.content.text;
+  const isObjectWithText =
+    typeof resolvedContent === 'object' &&
+    !Array.isArray(resolvedContent) &&
+    resolvedContent !== null &&
+    typeof resolvedContent.text === 'string';
+  if (isObjectWithText) {
+    resolvedContent = resolvedContent.text;
   }
 
   if (Array.isArray(resolvedContent)) {
