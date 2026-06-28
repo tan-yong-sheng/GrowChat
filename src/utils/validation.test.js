@@ -103,6 +103,14 @@ describe('isSafeOutboundUrl', () => {
     );
   });
 
+  it('does not block legitimate DNS hostnames starting with fc/fd', () => {
+    // Hostnames like 'fd.example.com' are not IPv6 literals — must not be rejected
+    expect(isSafeOutboundUrl('https://fd.example.com/oauth/token').safe).toBe(true);
+    expect(isSafeOutboundUrl('https://fc.example.com/v1/models').safe).toBe(true);
+    expect(isSafeOutboundUrl('https://fca-service.prod.internal/v1').safe).toBe(true);
+    expect(isSafeOutboundUrl('https://fda-api.staging/v1').safe).toBe(true);
+  });
+
   it('blocks obfuscated IP addresses', () => {
     // Hex-encoded IP (0x7f000001 = 127.0.0.1)
     expect(isSafeOutboundUrl('http://0x7f000001/v1').safe).toBe(false);
