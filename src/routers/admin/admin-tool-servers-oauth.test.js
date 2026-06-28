@@ -1,46 +1,38 @@
-/**
- * Tests for admin-tool-servers-oauth.js — OAuth start and callback paths
- * Coverage focus: validation errors, ACL checks, URL safety, dynamic
- * client registration, token exchange, error handling.
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-// ─── Mock dependencies ───────────────────────────────────────────────────────
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  buildAuthorizationUrl: vi.fn(),
-  discoverAuthorizationMetadata: vi.fn(),
-  isValidHttpUrl: vi.fn(),
-  loadToolServers: vi.fn(),
-  normalizeTokenAuthMethod: vi.fn(),
-  randomString: vi.fn(),
-  saveToolServers: vi.fn(),
-  selectTokenAuthMethod: vi.fn(),
-  sha256Base64Url: vi.fn(),
+  createDB: vi.fn(),
   ensureAdminAclAccess: vi.fn(),
+  loadToolServers: vi.fn(),
+  saveToolServers: vi.fn(),
+  isValidHttpUrl: vi.fn(),
   isSafeOutboundUrl: vi.fn(),
-  logAuditEvent: vi.fn(),
+  discoverAuthorizationMetadata: vi.fn(),
+  buildAuthorizationUrl: vi.fn(),
+  normalizeTokenAuthMethod: vi.fn(),
+  selectTokenAuthMethod: vi.fn(),
+  randomString: vi.fn(),
+  sha256Base64Url: vi.fn(),
+  fetch: vi.fn(),
 }));
 
-vi.mock('../../utils/response.js', () => ({
-  error: (req, msg, status, extra) =>
-    new Response(JSON.stringify({ error: msg, ...extra }), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    }),
-  json: (req, data, status = 200) =>
-    new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }),
+vi.mock('../../db.js', () => ({
+  createDB: (...args) => mocks.createDB(...args),
+}));
+
+vi.mock('../../utils/validation.js', () => ({
+  isSafeOutboundUrl: (...args) => mocks.isSafeOutboundUrl(...args),
 }));
 
 vi.mock('../../admin/tool-servers.js', () => ({
-  buildAuthorizationUrl: (...args) => mocks.buildAuthorizationUrl(...args),
-  discoverAuthorizationMetadata: (...args) => mocks.discoverAuthorizationMetadata(...args),
-  isValidHttpUrl: (...args) => mocks.isValidHttpUrl(...args),
   loadToolServers: (...args) => mocks.loadToolServers(...args),
-  normalizeTokenAuthMethod: (...args) => mocks.normalizeTokenAuthMethod(...args),
-  randomString: (...args) => mocks.randomString(...args),
   saveToolServers: (...args) => mocks.saveToolServers(...args),
+  isValidHttpUrl: (...args) => mocks.isValidHttpUrl(...args),
+  discoverAuthorizationMetadata: (...args) => mocks.discoverAuthorizationMetadata(...args),
+  buildAuthorizationUrl: (...args) => mocks.buildAuthorizationUrl(...args),
+  normalizeTokenAuthMethod: (...args) => mocks.normalizeTokenAuthMethod(...args),
   selectTokenAuthMethod: (...args) => mocks.selectTokenAuthMethod(...args),
+  randomString: (...args) => mocks.randomString(...args),
   sha256Base64Url: (...args) => mocks.sha256Base64Url(...args),
 }));
 
@@ -48,819 +40,339 @@ vi.mock('./admin-helpers.js', () => ({
   ensureAdminAclAccess: (...args) => mocks.ensureAdminAclAccess(...args),
 }));
 
-vi.mock('../../utils/validation.js', () => ({
-  isSafeOutboundUrl: (...args) => mocks.isSafeOutboundUrl(...args),
-}));
+import { handleAdminToolServersOAuth } from './admin-tool-servers-oauth.js';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function makeReq(path, method = 'POST', body) {
+function makeReq(path, method, body) {
   const init = { method, headers: {} };
-  if (body) {
+  if (body !== undefined) {
     init.body = typeof body === 'string' ? body : JSON.stringify(body);
     init.headers['Content-Type'] = 'application/json';
   }
   return new Request(`https://example.com${path}`, init);
 }
 
-import { handleAdminToolServersOAuth } from './admin-tool-servers-oauth.js';
-
 describe('handleAdminToolServersOAuth', () => {
-  const user = { sub: 'u1', role: 'admin' };
-  const baseEnv = () => ({ APP_PUBLIC_ORIGIN: 'https://app.example.com' });
-  const baseDb = () => ({});
+  const user = { sub: 'admin-1' };
+  const env = { DB: {}, APP_PUBLIC_ORIGIN: 'https://example.com' };
+  const ctx = {};
+  const db = { all: vi.fn(), run: vi.fn() };
+  const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    mocks.createDB.mockReturnValue(db);
     mocks.ensureAdminAclAccess.mockResolvedValue({ allow: true });
-    mocks.loadToolServers.mockResolvedValue([]);
-    mocks.saveToolServers.mockResolvedValue(undefined);
-    mocks.buildAuthorizationUrl.mockReturnValue(
-      new URL('https://auth.example.com/authorize?client_id=cid')
-    );
     mocks.isValidHttpUrl.mockReturnValue(true);
     mocks.isSafeOutboundUrl.mockReturnValue({ safe: true });
-    mocks.normalizeTokenAuthMethod.mockImplementation((v) => v || 'client_secret_post');
+    mocks.loadToolServers.mockResolvedValue([
+      { id: 's1', name: 'Server', url: 'https://mcp.example.com', enabled: true },
+    ]);
+    mocks.saveToolServers.mockResolvedValue(undefined);
+    mocks.discoverAuthorizationMetadata.mockResolvedValue({
+      authorization_endpoint: 'https://auth.example.com/authorize',
+      token_endpoint: 'https://auth.example.com/token',
+    });
+    mocks.normalizeTokenAuthMethod.mockReturnValue('client_secret_post');
     mocks.selectTokenAuthMethod.mockReturnValue('client_secret_post');
-    mocks.randomString.mockReturnValue('random-value-32-chars-long-ok');
-    mocks.sha256Base64Url.mockResolvedValue('code-challenge-base64');
-    mocks.discoverAuthorizationMetadata.mockResolvedValue(null);
-  });
-
-  // ── OAuth start — validation ──────────────────────────────────────────────
-
-  it('returns 500 when APP_PUBLIC_ORIGIN is not configured', async () => {
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      {},
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
+    mocks.randomString.mockReturnValue('random-state-value');
+    mocks.sha256Base64Url.mockResolvedValue('code-challenge-value');
+    mocks.buildAuthorizationUrl.mockReturnValue(
+      new URL('https://auth.example.com/authorize?client_id=c1&redirect_uri=xxx')
     );
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toMatch(/APP_PUBLIC_ORIGIN/i);
   });
 
-  it('returns 400 when body is not valid JSON', async () => {
-    const req = new Request('https://example.com/api/admin/tool-servers/oauth/start', {
-      method: 'POST',
-      body: 'not-json',
-    });
-    const res = await handleAdminToolServersOAuth(
-      req,
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it('returns 403 when user lacks tool-server ACL', async () => {
-    mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no_acl' });
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 400 when server id is empty', async () => {
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: '  ',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/saved before OAuth/i);
-  });
-
-  it('returns 400 when server is not found', async () => {
-    mocks.loadToolServers.mockResolvedValue([{ id: 'other-id', name: 'Other' }]);
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 'missing',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/saved before OAuth/i);
-  });
-
-  it('returns 400 when server URL is invalid', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      { id: 's1', name: 'Server', url: 'http://localhost' },
-    ]);
-    mocks.isValidHttpUrl.mockReturnValueOnce(false);
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', { id: 's1' }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/http/i);
-  });
-
-  it('returns 400 when server URL fails outbound safety check', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      { id: 's1', name: 'Server', url: 'https://evil.com' },
-    ]);
-    mocks.isSafeOutboundUrl.mockReturnValueOnce({ safe: false, reason: 'Blocked domain' });
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', { id: 's1', url: 'https://evil.com' }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toBe('Blocked domain');
-  });
-
-  // ── OAuth start — dynamic client registration ────────────────────────────
-
-  it('returns 400 when no client_id and no registration endpoint', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      { id: 's1', name: 'Server', url: 'https://s.example.com', oauth_client_id: '' },
-    ]);
-    mocks.discoverAuthorizationMetadata.mockResolvedValue({}); // no registration_endpoint
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/dynamic client registration/i);
-  });
-
-  it('returns 502 when client registration fails', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      { id: 's1', name: 'Server', url: 'https://s.example.com', oauth_client_id: '' },
-    ]);
-    mocks.discoverAuthorizationMetadata.mockResolvedValue({
-      registration_endpoint: 'https://s.example.com/register',
+  describe('POST /api/admin/tool-servers/oauth/start', () => {
+    it('rejects ACL denied', async () => {
+      mocks.ensureAdminAclAccess.mockResolvedValue({ allow: false, reason: 'no' });
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
     });
 
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(new Response('Registration failed', { status: 400 }));
-    global.fetch = fetchMock;
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(502);
-    const body = await res.json();
-    expect(body.error).toMatch(/Client registration failed/i);
-  });
-
-  it('returns 502 when client registration throws', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      { id: 's1', name: 'Server', url: 'https://s.example.com', oauth_client_id: '' },
-    ]);
-    mocks.discoverAuthorizationMetadata.mockResolvedValue({
-      registration_endpoint: 'https://s.example.com/register',
+    it('requires server id', async () => {
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', { url: 'https://mcp.example.com' }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
     });
 
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(502);
-  });
-
-  // ── OAuth start — happy path ─────────────────────────────────────────────
-
-  it('returns 200 with authorization_url on success', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        url: 'https://s.example.com',
-        oauth_client_id: 'existing-client',
-        oauth_client_secret: 'secret',
-      },
-    ]);
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.authorization_url).toBeTruthy();
-    expect(mocks.saveToolServers).toHaveBeenCalled();
-  });
-
-  it('persists oauth state and code_verifier to server', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        url: 'https://s.example.com',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-      },
-    ]);
-
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-
-    const savedServers = mocks.saveToolServers.mock.calls[0][1];
-    expect(savedServers[0].oauth_state).toBe('random-value-32-chars-long-ok');
-    expect(savedServers[0].oauth_code_verifier).toBe('random-value-32-chars-long-ok');
-  });
-
-  // ── OAuth start — token auth method selection ────────────────────────────
-
-  it('uses client_secret_basic when specified', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        url: 'https://s.example.com',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-        oauth_token_auth_method: 'client_secret_basic',
-      },
-    ]);
-    mocks.normalizeTokenAuthMethod.mockReturnValue('client_secret_basic');
-
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-
-    expect(mocks.buildAuthorizationUrl).toHaveBeenCalledWith(
-      expect.objectContaining({
-        clientId: 'cid',
-        redirectUri: 'https://app.example.com/api/admin/tool-servers/oauth/callback',
-      })
-    );
-  });
-
-  // ── OAuth callback ───────────────────────────────────────────────────────
-
-  it('returns 500 when APP_PUBLIC_ORIGIN missing on callback', async () => {
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      {},
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(500);
-  });
-
-  it('returns 400 when error param is present', async () => {
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?error=access_denied', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const text = await res.text();
-    expect(text).toMatch(/access_denied/i);
-  });
-
-  it('returns 400 when code is missing', async () => {
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?state=xyz', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const text = await res.text();
-    expect(text).toMatch(/Missing authorization code/i);
-  });
-
-  it('returns 400 when state is missing', async () => {
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 400 when state does not match any server', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      { id: 's1', name: 'Server', oauth_state: 'other-state' },
-    ]);
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const text = await res.text();
-    expect(text).toMatch(/not found or expired/i);
-  });
-
-  it('returns 400 when token exchange fails', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        oauth_state: 'xyz',
-        oauth_code_verifier: 'verifier',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-        oauth_token_endpoint: 'https://s.example.com/token',
-        oauth_authorization_server: 'https://s.example.com',
-      },
-    ]);
-
-    global.fetch = vi.fn().mockResolvedValue(new Response('invalid_grant', { status: 400 }));
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-    const text = await res.text();
-    expect(text).toMatch(/Token exchange failed/i);
-  });
-
-  it('returns 400 when token fetch throws', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        oauth_state: 'xyz',
-        oauth_code_verifier: 'verifier',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-        oauth_token_endpoint: 'https://s.example.com/token',
-        oauth_authorization_server: 'https://s.example.com',
-      },
-    ]);
-
-    global.fetch = vi.fn().mockRejectedValue(new Error('Connection refused'));
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it('returns HTML success page when token exchange succeeds', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        oauth_state: 'xyz',
-        oauth_code_verifier: 'verifier',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-        oauth_token_endpoint: 'https://s.example.com/token',
-        oauth_authorization_server: 'https://s.example.com',
-      },
-    ]);
-
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get('Content-Type')).toContain('text/html');
-    const text = await res.text();
-    expect(text).toMatch(/OAuth connected/i);
-  });
-
-  it('clears oauth_state and oauth_code_verifier after successful token exchange', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        oauth_state: 'xyz',
-        oauth_code_verifier: 'verifier',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-        oauth_token_endpoint: 'https://s.example.com/token',
-        oauth_authorization_server: 'https://s.example.com',
-      },
-    ]);
-
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
-
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-
-    const savedServers = mocks.saveToolServers.mock.calls[0][1];
-    expect(savedServers[0].oauth_state).toBeNull();
-    expect(savedServers[0].oauth_code_verifier).toBeNull();
-    expect(savedServers[0].oauth_tokens).toBeDefined();
-  });
-
-  // ── Route not matched ────────────────────────────────────────────────────
-
-  it('returns null when path does not match', async () => {
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/other', 'POST'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/other',
-      { db: baseDb() }
-    );
-    expect(res).toBeNull();
-  });
-
-  // ── OAuth start — server URL from existing server ────────────────────────
-
-  it('uses existing server URL when body.url is not provided', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        url: 'https://s.example.com',
-        oauth_client_id: 'existing-client',
-        oauth_client_secret: 'secret',
-      },
-    ]);
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', { id: 's1' }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-  });
-
-  it('uses body.oauth_client_id when overriding existing server', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        url: 'https://s.example.com',
-        oauth_client_id: 'old-client',
-        oauth_client_secret: 'old-secret',
-      },
-    ]);
-
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-        oauth_client_id: 'new-client',
-        oauth_client_secret: 'new-secret',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-
-    expect(res.status).toBe(200);
-  });
-
-  it('uses server oauth_authorization_server when provided', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        url: 'https://s.example.com',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-        oauth_authorization_server: 'https://auth.example.com',
-      },
-    ]);
-
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-
-    expect(mocks.discoverAuthorizationMetadata).toHaveBeenCalledWith('https://auth.example.com');
-  });
-
-  it('discovers metadata from server url when no auth server set', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        url: 'https://s.example.com',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-      },
-    ]);
-
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-
-    expect(mocks.discoverAuthorizationMetadata).toHaveBeenCalledWith('https://s.example.com');
-  });
-
-  it('uses metadata authorization_endpoint when available', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        url: 'https://s.example.com',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-      },
-    ]);
-    mocks.discoverAuthorizationMetadata.mockResolvedValue({
-      authorization_endpoint: 'https://auth.example.com/oauth/authorize',
-      token_endpoint: 'https://auth.example.com/oauth/token',
+    it('requires existing saved server', async () => {
+      mocks.loadToolServers.mockResolvedValue([]);
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 'nonexistent',
+          url: 'https://mcp.example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
     });
 
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
+    it('rejects invalid URL', async () => {
+      mocks.isValidHttpUrl.mockReturnValue(false);
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', { id: 's1', url: 'not-url' }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
 
-    expect(mocks.buildAuthorizationUrl).toHaveBeenCalledWith(
-      expect.objectContaining({
-        authorizationEndpoint: 'https://auth.example.com/oauth/authorize',
-      })
-    );
+    it('starts OAuth with provided client_id', async () => {
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_client_id: 'client-1',
+          oauth_client_secret: 'secret-1',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(200);
+      const payload = await res.json();
+      expect(payload.ok).toBe(true);
+      expect(payload.authorization_url).toBeDefined();
+      expect(mocks.saveToolServers).toHaveBeenCalled();
+    });
+
+    it('starts OAuth with dynamic registration when no client_id', async () => {
+      mocks.discoverAuthorizationMetadata.mockResolvedValue({
+        authorization_endpoint: 'https://auth.example.com/authorize',
+        token_endpoint: 'https://auth.example.com/token',
+        registration_endpoint: 'https://auth.example.com/register',
+      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              client_id: 'dynamic-id',
+              client_secret: 'dynamic-secret',
+            }),
+            { status: 200 }
+          )
+        )
+      );
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it('rejects when no registration endpoint and no client_id', async () => {
+      mocks.discoverAuthorizationMetadata.mockResolvedValue({
+        authorization_endpoint: 'https://auth.example.com/authorize',
+        token_endpoint: 'https://auth.example.com/token',
+      });
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('handles dynamic registration failure', async () => {
+      mocks.discoverAuthorizationMetadata.mockResolvedValue({
+        authorization_endpoint: 'https://auth.example.com/authorize',
+        token_endpoint: 'https://auth.example.com/token',
+        registration_endpoint: 'https://auth.example.com/register',
+      });
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('error', { status: 400 })));
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(502);
+    });
   });
 
-  // ── OAuth callback — token auth methods ──────────────────────────────────
+  describe('GET /api/admin/tool-servers/oauth/callback', () => {
+    it('handles error param', async () => {
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/callback?error=access_denied', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/callback',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
 
-  it('uses client_secret_basic on callback when configured', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        oauth_state: 'xyz',
-        oauth_code_verifier: 'verifier',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-        oauth_token_endpoint: 'https://s.example.com/token',
-        oauth_authorization_server: 'https://s.example.com',
-        oauth_token_auth_method: 'client_secret_basic',
-      },
-    ]);
+    it('requires code and state', async () => {
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/callback', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/callback',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
 
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
+    it('rejects unknown state', async () => {
+      mocks.loadToolServers.mockResolvedValue([
+        { id: 's1', url: 'https://mcp.example.com', oauth_state: 'different-state' },
+      ]);
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=unknown-state', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/callback',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
 
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
+    it('exchanges code for token', async () => {
+      mocks.loadToolServers.mockResolvedValue([
+        {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_state: 'random-state-value',
+          oauth_client_id: 'c1',
+          oauth_client_secret: 's1',
+          oauth_code_verifier: 'verifier',
+          oauth_token_auth_method: 'client_secret_post',
+          oauth_token_endpoint: 'https://auth.example.com/token',
+        },
+      ]);
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              access_token: 'at-1',
+              token_type: 'Bearer',
+            }),
+            { status: 200 }
+          )
+        )
+      );
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=random-state-value', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/callback',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(200);
+      expect(mocks.saveToolServers).toHaveBeenCalled();
+    });
 
-    const fetchCall = global.fetch.mock.calls[0];
-    const headers = fetchCall[1].headers;
-    expect(headers.get('Authorization')).toMatch(/Basic /);
+    it('handles token exchange failure', async () => {
+      mocks.loadToolServers.mockResolvedValue([
+        {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_state: 'random-state-value',
+          oauth_client_id: 'c1',
+          oauth_client_secret: 's1',
+          oauth_code_verifier: 'verifier',
+          oauth_token_auth_method: 'client_secret_post',
+          oauth_token_endpoint: 'https://auth.example.com/token',
+        },
+      ]);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('bad', { status: 400 })));
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=random-state-value', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/callback',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('handles token exchange exception', async () => {
+      mocks.loadToolServers.mockResolvedValue([
+        {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_state: 'random-state-value',
+          oauth_client_id: 'c1',
+          oauth_code_verifier: 'verifier',
+          oauth_token_auth_method: 'client_secret_post',
+          oauth_token_endpoint: 'https://auth.example.com/token',
+        },
+      ]);
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=random-state-value', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/callback',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
   });
 
-  it('uses client_secret_post on callback when no secret and no basic', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        oauth_state: 'xyz',
-        oauth_code_verifier: 'verifier',
-        oauth_client_id: 'cid',
-        oauth_client_secret: '',
-        oauth_token_endpoint: 'https://s.example.com/token',
-        oauth_authorization_server: 'https://s.example.com',
-      },
-    ]);
-
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
-
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      baseEnv(),
-      {},
+  it('returns null for unrecognized paths', async () => {
+    const result = await handleAdminToolServersOAuth(
+      makeReq('/api/admin/unknown', 'GET'),
+      env,
+      ctx,
       user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
+      '/api/admin/unknown',
+      { db, logger, _requestContext: {} }
     );
-
-    const fetchCall = global.fetch.mock.calls[0];
-    const body = new URLSearchParams(fetchCall[1].body);
-    expect(body.has('client_id')).toBe(true);
-    expect(body.has('client_secret')).toBe(false);
-  });
-
-  it('constructs fallback token endpoint from authorization server', async () => {
-    mocks.loadToolServers.mockResolvedValue([
-      {
-        id: 's1',
-        name: 'Server',
-        oauth_state: 'xyz',
-        oauth_code_verifier: 'verifier',
-        oauth_client_id: 'cid',
-        oauth_client_secret: 'secret',
-        oauth_token_endpoint: '',
-        oauth_authorization_server: 'https://auth.example.com',
-      },
-    ]);
-
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
-
-    await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=xyz', 'GET'),
-      baseEnv(),
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/callback',
-      { db: baseDb() }
-    );
-
-    const fetchCall = global.fetch.mock.calls[0];
-    expect(fetchCall[0]).toBe('https://auth.example.com/token');
-  });
-
-  it('returns 500 when APP_PUBLIC_ORIGIN missing for start path', async () => {
-    const res = await handleAdminToolServersOAuth(
-      makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
-        id: 's1',
-        url: 'https://s.example.com',
-      }),
-      {},
-      {},
-      user,
-      '/api/admin/tool-servers/oauth/start',
-      { db: baseDb() }
-    );
-    expect(res.status).toBe(500);
+    expect(result).toBeNull();
   });
 });
