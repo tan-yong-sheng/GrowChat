@@ -71,7 +71,7 @@ function makeReq(path, method, body) {
 
 describe('handleUsersMcp', () => {
   const user = { sub: 'u1', primary_role: 'member' };
-  const env = { DB: {} };
+  const env = { DB: {}, APP_PUBLIC_ORIGIN: 'https://example.com' };
   const ctx = {};
   const db = { all: vi.fn(), run: vi.fn(), first: vi.fn() };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
