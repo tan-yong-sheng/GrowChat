@@ -48,7 +48,33 @@ describe('rate limit service', () => {
 
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
-    expect(store.put).not.toHaveBeenCalled();
+    expect(store.put).toHaveBeenCalledWith('rate-limit:login:ip:1-2-3-4', '3', {
+      expirationTtl: 60,
+    });
+  });
+
+  it('always increments the counter before checking (optimistic increment)', async () => {
+    const store = {
+      get: vi.fn().mockResolvedValue('0'),
+      put: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const result = await checkRateLimit(
+      { CACHE: store },
+      {
+        action: 'login',
+        subject: 'ip:1.2.3.4',
+        limit: 2,
+        windowSeconds: 60,
+        now: 0,
+      }
+    );
+
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(1);
+    expect(store.put).toHaveBeenCalledWith('rate-limit:login:ip:1-2-3-4', '1', {
+      expirationTtl: 60,
+    });
   });
 
   it('bypasses rate limiting when DISABLE_RATE_LIMIT is set', async () => {
