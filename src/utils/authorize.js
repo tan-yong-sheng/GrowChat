@@ -80,7 +80,7 @@ export async function authorize(env, user, options = {}, logger = rootLogger) {
   if (!user?.sub) {
     return {
       allow: false,
-      code: 'forbidden',
+      code: 'unauthorized',
       reason: DENIAL_REASONS.ACCOUNT_NOT_ACTIVE,
       action,
     };

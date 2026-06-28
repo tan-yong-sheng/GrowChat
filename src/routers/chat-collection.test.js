@@ -123,7 +123,11 @@ describe('chatCollectionRouter', () => {
     });
 
     it('maps authorize unauthorized to 401', async () => {
-      mocks.authorize.mockResolvedValue({ allow: false, code: 'unauthorized', reason: 'Expired token' });
+      mocks.authorize.mockResolvedValue({
+        allow: false,
+        code: 'unauthorized',
+        reason: 'Expired token',
+      });
       const res = await chatCollectionRouter(
         makeReq('/api/chats', 'POST', { title: 'New Chat' }),
         env,
