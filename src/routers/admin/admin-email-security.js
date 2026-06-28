@@ -48,7 +48,13 @@ export async function handleAdminEmailSecurity(
       'email-config'
     );
     if (!writeDecision.allow) {
-      return error(req, writeDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[writeDecision.code] || 403;
+      return error(req, writeDecision.reason || 'Forbidden', statusCode);
     }
 
     if (!body.resend_api_key) {

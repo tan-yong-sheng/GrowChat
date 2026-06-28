@@ -33,7 +33,13 @@ export async function handleUsersAdminCrud(
     });
 
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     const db = createDB(env.DB);
@@ -132,7 +138,13 @@ export async function handleUsersAdminCrud(
     });
 
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     let body;

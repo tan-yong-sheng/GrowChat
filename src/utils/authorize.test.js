@@ -167,7 +167,7 @@ describe('authorize.js - Authorization Core', () => {
 
       expect(result.allow).toBe(false);
       expect(result.reason).toBe(DENIAL_REASONS.ACCOUNT_NOT_ACTIVE);
-      expect(result.code).toBe('forbidden');
+      expect(result.code).toBe('unauthorized');
     });
 
     it('should deny request with undefined user', async () => {

@@ -90,7 +90,13 @@ export async function handleAdminConfig(
 
     const writeDecision = await ensureAdminMutationAccess(env, user, 'admin.user.write', 'admin');
     if (!writeDecision.allow) {
-      return error(req, writeDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[writeDecision.code] || 403;
+      return error(req, writeDecision.reason || 'Forbidden', statusCode);
     }
 
     const hasPublicRegistration = body.public_registration !== undefined;
@@ -202,7 +208,13 @@ export async function handleAdminConfig(
 
     const aclDecision = await ensureAdminAclAccess(env, user, 'model');
     if (!aclDecision.allow) {
-      return error(req, aclDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[aclDecision.code] || 403;
+      return error(req, aclDecision.reason || 'Forbidden', statusCode);
     }
 
     const replaceCaps = body.caps && typeof body.caps === 'object' && !Array.isArray(body.caps);

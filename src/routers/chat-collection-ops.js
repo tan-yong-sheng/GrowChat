@@ -16,7 +16,13 @@ export async function handleListChats(req, env, db, user) {
     resource: 'chat',
   });
   if (!authDecision.allow) {
-    return error(req, authDecision.reason || 'Forbidden', 403);
+    const statusCodeMap = {
+      server_error: 500,
+      unauthorized: 401,
+      not_found: 404,
+    };
+    const statusCode = statusCodeMap[authDecision.code] || 403;
+    return error(req, authDecision.reason || 'Forbidden', statusCode);
   }
 
   const url = new URL(req.url);
@@ -95,7 +101,13 @@ export async function handleGetChat(req, env, db, user, chatId) {
     resourceId: chatId,
   });
   if (!authDecision.allow) {
-    return error(req, authDecision.reason || 'Forbidden', 403);
+    const statusCodeMap = {
+      server_error: 500,
+      unauthorized: 401,
+      not_found: 404,
+    };
+    const statusCode = statusCodeMap[authDecision.code] || 403;
+    return error(req, authDecision.reason || 'Forbidden', statusCode);
   }
 
   const owned = await requireOwnedChat(req, db, chatId, user.sub);
@@ -139,7 +151,13 @@ export async function handleCloneChat(
     resourceId: sourceChatId,
   });
   if (!authDecision.allow) {
-    return error(req, authDecision.reason || 'Forbidden', 403);
+    const statusCodeMap = {
+      server_error: 500,
+      unauthorized: 401,
+      not_found: 404,
+    };
+    const statusCode = statusCodeMap[authDecision.code] || 403;
+    return error(req, authDecision.reason || 'Forbidden', statusCode);
   }
 
   const sourceOwned = await requireOwnedChat(req, db, sourceChatId, user.sub);

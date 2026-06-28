@@ -31,7 +31,13 @@ export async function handleAdminModelsAccess(
       resource: 'model',
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     try {
@@ -64,7 +70,13 @@ export async function handleAdminModelsAccess(
       resource: 'model',
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
     if (!env.DB) {
       return error(req, 'Database unavailable', 500);
@@ -174,7 +186,13 @@ export async function handleAdminModelsAccess(
     });
 
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     if (req.method === 'GET') {
