@@ -71,6 +71,15 @@ export function isSafeOutboundUrl(urlStr) {
   if (hostname.startsWith('fe80') || hostname.startsWith('[fe80')) {
     return { safe: false, reason: 'IPv6 link-local addresses are not allowed' };
   }
+  // Block IPv6 unique local addresses (fc00::/7)
+  if (
+    hostname.startsWith('fc') ||
+    hostname.startsWith('fd') ||
+    hostname.startsWith('[fc') ||
+    hostname.startsWith('[fd')
+  ) {
+    return { safe: false, reason: 'IPv6 unique local addresses are not allowed' };
+  }
 
   // Block hostnames that look like IP addresses with ports or other tricks
   // e.g. 0x7f000001 (hex), 2130706433 (decimal), 017700000001 (octal)
