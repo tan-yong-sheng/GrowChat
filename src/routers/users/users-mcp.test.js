@@ -506,6 +506,90 @@ describe('handleUsersMcp', () => {
     });
   });
 
+  describe('pending account_status', () => {
+    const pendingUser = { sub: 'u1', primary_role: 'member', account_status: 'pending' };
+
+    it('rejects GET /api/users/me/resources/mcp-servers with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers', 'GET'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+      const payload = await res.json();
+      expect(payload.error).toBe('Account pending approval.');
+    });
+
+    it('rejects POST /api/users/me/resources/mcp-servers with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers', 'POST', {
+          name: 'New',
+          url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects POST /api/users/me/resources/mcp-servers/test with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/test', 'POST', { url: 'https://example.com' }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers/test',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects POST /api/users/me/resources/mcp-servers/oauth/start with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers/oauth/start',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects PUT /api/users/me/resources/mcp-servers/:id with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/s1', 'PUT', { name: 'Updated' }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers/s1',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects DELETE /api/users/me/resources/mcp-servers/:id with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/s1', 'DELETE'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers/s1',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
   it('returns null for unrecognized paths', async () => {
     const result = await handleUsersMcp(
       makeReq('/api/unknown', 'GET'),

@@ -264,6 +264,72 @@ describe('handleUsersMe', () => {
     });
   });
 
+  describe('pending account_status', () => {
+    const pendingUser = { sub: 'u1', account_status: 'pending' };
+
+    it('rejects GET /api/users/me with 403', async () => {
+      const res = await handleUsersMe(
+        makeReq('/api/users/me', 'GET'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me',
+        { _db: db, _logger: logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+      const payload = await res.json();
+      expect(payload.error).toBe('Account pending approval.');
+    });
+
+    it('rejects GET /api/users/me/permissions with 403', async () => {
+      const res = await handleUsersMe(
+        makeReq('/api/users/me/permissions', 'GET'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/permissions',
+        { _db: db, _logger: logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects GET /api/users/me/roles with 403', async () => {
+      const res = await handleUsersMe(
+        makeReq('/api/users/me/roles', 'GET'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/roles',
+        { _db: db, _logger: logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects PUT /api/users/me with 403', async () => {
+      const res = await handleUsersMe(
+        makeReq('/api/users/me', 'PUT', { name: 'Updated' }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me',
+        { _db: db, _logger: logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects POST /api/users/me/update with 403', async () => {
+      const res = await handleUsersMe(
+        makeReq('/api/users/me/update', 'POST', { name: 'Updated' }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/update',
+        { _db: db, _logger: logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
   it('returns null for unrecognized paths', async () => {
     const result = await handleUsersMe(
       makeReq('/api/unknown', 'GET'),

@@ -15,18 +15,27 @@ import { buildSelfProfileUpdate, buildUserProfileResponse } from '../user-profil
  */
 export async function handleUsersMe(req, env, ctx, user, path, { _db, _logger, _requestContext }) {
   if (req.method === 'GET' && path === '/api/users/me/permissions') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     const db = createDB(env.DB);
     const permissions = await resolvePermissions(db, user);
     return json(req, { permissions });
   }
 
   if (req.method === 'GET' && path === '/api/users/me/roles') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     const db = createDB(env.DB);
     const roles = await getUserRoles(db, user.sub);
     return json(req, { roles });
   }
 
   if (req.method === 'GET' && path === '/api/users/me') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     const db = createDB(env.DB);
     const url = new URL(req.url);
     const includeParam = url.searchParams.get('include') || '';
@@ -81,6 +90,9 @@ export async function handleUsersMe(req, env, ctx, user, path, { _db, _logger, _
   }
 
   if (req.method === 'PUT' && path === '/api/users/me') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     const db = createDB(env.DB);
 
     let body;
@@ -116,6 +128,9 @@ export async function handleUsersMe(req, env, ctx, user, path, { _db, _logger, _
   }
 
   if (req.method === 'POST' && path === '/api/users/me/update') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     const db = createDB(env.DB);
 
     let body;
