@@ -3,6 +3,8 @@
  * KaTeX, Mermaid, and Graphviz code blocks.
  */
 
+import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs';
+
 import { escapeHtml, normalizeSpecialBlockMode } from './markdown-shared.js';
 
 import {
@@ -13,20 +15,21 @@ import {
 } from './markdown-special-block-ui.js';
 
 /**
- * Safely insert HTML into an element by parsing, sanitizing, and appending.
- * Uses DOMPurify (loaded via CDN) for sanitization, then parses and appends.
+ * Safely insert HTML into an element using DOMPurify.
+ *
+ * Library-generated output (KaTeX, Mermaid, Graphviz) is treated as untrusted
+ * because it is produced from user-provided source and rendered into the DOM.
+ * DOMPurify is the same sanitizer used by markdown-renderer.js and is kept
+ * up to date with browser-specific parsing quirks that are unsafe to replicate
+ * in a custom regex-based sanitizer.
  * @param {HTMLElement} el - Target element
  * @param {string} html - HTML string from a trusted library (KaTeX, Mermaid, etc.)
  */
-function setSafeHtml(el, html) {
-  // Sanitize HTML string with DOMPurify (recognized by CodeQL as a sanitizer)
-  const purify = typeof window !== 'undefined' ? window['DOMPurify'] : null;
-  const safeHtml = purify ? purify.sanitize(html, { RETURN_DOM_FRAGMENT: false }) : html;
-  const doc = new DOMParser().parseFromString(safeHtml, 'text/html');
-  el.innerHTML = '';
-  while (doc.body.firstChild) {
-    el.appendChild(doc.body.firstChild);
-  }
+export function setSafeHtml(el, html) {
+  el.innerHTML = DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true, svg: true },
+    ALLOW_DATA_ATTR: false,
+  });
 }
 
 const externalScriptPromises = new Map();

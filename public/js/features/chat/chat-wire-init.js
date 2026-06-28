@@ -10,35 +10,46 @@ export function initWireChat(root, deps, ctx) {
     loadChatSidebarListModule, loadChatStreamControllerModule
   } = deps;
 
-  // Impl variables are stored on ctx; proxy functions read from ctx so that
-  // late-bound replacements (ctx.syncChatUrlImpl = ...) take effect immediately.
+  let syncChatUrlImpl = () => {};
   const syncChatUrl = (...args) => ctx.syncChatUrlImpl(...args);
+  let startNewChatImpl = () => {};
   const startNewChat = (...args) => ctx.startNewChatImpl(...args);
+  let refreshChatListObserverImpl = () => {};
   const refreshChatListObserver = (...args) => ctx.refreshChatListObserverImpl(...args);
+  let refreshShareStateImpl = async () => {};
   const refreshShareState = (...args) => ctx.refreshShareStateImpl(...args);
+  let loadChatsImpl = async () => {};
   const loadChats = (...args) => ctx.loadChatsImpl(...args);
+  let loadMessagesImpl = async () => {};
   const loadMessages = (...args) => ctx.loadMessagesImpl(...args);
+  let drawMessagesImpl = () => {};
   const drawMessages = (...args) => ctx.drawMessagesImpl(...args);
+  let openCitationImpl;
   const openCitation = (...args) => ctx.openCitationImpl(...args);
 
-  // Initialize default impls on ctx so proxy functions have valid targets
+  // Sync local impls to ctx so proxy functions have valid targets
   // before setupWireChatControllers replaces them with real implementations.
-  ctx.syncChatUrlImpl = () => {};
-  ctx.startNewChatImpl = () => {};
-  ctx.refreshChatListObserverImpl = () => {};
-  ctx.refreshShareStateImpl = async () => {};
-  ctx.loadChatsImpl = async () => {};
-  ctx.loadMessagesImpl = async () => {};
-  ctx.drawMessagesImpl = () => {};
-  ctx.openCitationImpl = () => {};
+  ctx.syncChatUrlImpl = syncChatUrlImpl;
+  ctx.startNewChatImpl = startNewChatImpl;
+  ctx.refreshChatListObserverImpl = refreshChatListObserverImpl;
+  ctx.refreshShareStateImpl = refreshShareStateImpl;
+  ctx.loadChatsImpl = loadChatsImpl;
+  ctx.loadMessagesImpl = loadMessagesImpl;
+  ctx.drawMessagesImpl = drawMessagesImpl;
+  ctx.openCitationImpl = openCitationImpl;
+
   const MAX_CACHED_CHATS = 6;
   const recentChatIds = [];
-  const { schedulePrune } = createChatCacheController({
-    currentState: state,
-    setStateFn: setState,
-    recentChatIds,
-    maxCachedChats: MAX_CACHED_CHATS,
-  });
+  const cacheController =
+    typeof createChatCacheController === 'function'
+      ? createChatCacheController({
+          currentState: state,
+          setStateFn: setState,
+          recentChatIds,
+          maxCachedChats: MAX_CACHED_CHATS,
+        })
+      : { schedulePrune: () => {} };
+  const { schedulePrune } = cacheController;
   let streamSessionImpl = null;
   let streamSessionReadyPromise = null;
   const ensureStreamSession = () => {
@@ -185,13 +196,14 @@ export function initWireChat(root, deps, ctx) {
       isSupportedAttachmentType,
     });
   };
-  ctx.openCitationImpl = (...args) => {
+  openCitationImpl = (...args) => {
     if (typeof openCitationModalImpl === 'function') {
       return openCitationModalImpl(...args);
     }
     void ensureChatModals().then(() => openCitationModalImpl?.(...args));
     return undefined;
   };
+  ctx.openCitationImpl = openCitationImpl;
   const toggleChatsBtn = root.querySelector('#toggle-chats-btn');
   const toggleChatsIcon = root.querySelector('#toggle-chats-icon');
   const chatList = root.querySelector('#chat-list');
@@ -203,6 +215,8 @@ export function initWireChat(root, deps, ctx) {
   const newChatBtn = root.querySelector('#new-chat');
   const toggleSidebarMobile = root.querySelector('#toggle-sidebar-mobile');
   const toggleSidebarDesktop = root.querySelector('#toggle-sidebar-desktop');
+  const headerMenuBtn = root.querySelector('#header-menu-btn');
+  const headerMenuDropdown = root.querySelector('#header-menu-dropdown');
   const sidebar = root.querySelector('#sidebar');
   const sidebarBackdrop = root.querySelector('#sidebar-backdrop');
   const messagesContainer = root.querySelector('#messages-container');
@@ -222,7 +236,7 @@ export function initWireChat(root, deps, ctx) {
     chatSidebarListReadyPromise = loadChatSidebarListModule()
       .then(({ buildChatSidebarListFragment }) => {
         buildChatSidebarListFragmentImpl = buildChatSidebarListFragment;
-        ctx.buildChatSidebarListFragmentImpl = buildChatSidebarListFragment;
+        ctx.buildChatSidebarListFragmentImpl = buildChatSidebarListFragmentImpl;
         ctx.drawChats?.(state.chats, state.activeChatId);
         return buildChatSidebarListFragmentImpl;
       })
@@ -307,11 +321,10 @@ export function initWireChat(root, deps, ctx) {
   // prettier-ignore
   Object.assign(ctx, {
     activeStreamAbort: null,
-    ensureStreamSession,
- syncChatUrl, startNewChat,
-    refreshChatListObserver, refreshShareState, loadChats, loadMessages, drawMessages, openCitation, schedulePrune, streamSession, chatMessageFlow, uiResources,
+    syncChatUrlImpl, startNewChatImpl, refreshChatListObserverImpl, refreshShareStateImpl, loadChatsImpl, loadMessagesImpl, drawMessagesImpl, openCitationImpl, syncChatUrl, startNewChat,
+    refreshChatListObserver, refreshShareState, loadChats, loadMessages, drawMessages, openCitation, schedulePrune, ensureStreamSession, streamSession, chatMessageFlow, uiResources,
     consumeSseTextStream, renderShareModal, openArchivedModal, destroyChatFileEvents, ensureChatFileEvents, ensureChatModals, toggleChatsBtn, toggleChatsIcon, chatList, chatListContainerEl,
-    messagesList, welcomeScreenContainer, messageInputContainer, sidebarHomeBtn, newChatBtn, toggleSidebarMobile, toggleSidebarDesktop, sidebar,
+    messagesList, welcomeScreenContainer, messageInputContainer, sidebarHomeBtn, newChatBtn, toggleSidebarMobile, toggleSidebarDesktop, headerMenuBtn, headerMenuDropdown, sidebar,
     sidebarBackdrop, messagesContainer, openSearchBtn, searchModalContainer, filesModalContainer, shareModalContainer, archivedModalContainer, citationModalContainer, chatListObserverArmed, buildChatSidebarListFragmentImpl,
     sidebarHydrationWarmupTimer, chatSidebarListReadyPromise, ensureChatSidebarListBuilder, armChatListObserver, maybeRefreshChatListObserver, onChatListInteraction, scheduleSidebarHydrationWarmup, sharedByChatId, processedRealtimeEvents, getMessageSeq,
     notePayloadSeq, ensureMessageSequenceTracker, thinkingStartByMessageId, thinkingDurationByMessageId, thinkingCollapsedByKey, thinkingActiveByMessageId, errorExpandedByMessageId, toolCallsByMessageId, toolExpandedByKey, messageBlocksById,

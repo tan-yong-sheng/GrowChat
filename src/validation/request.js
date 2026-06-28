@@ -6,7 +6,6 @@ export function parseJsonBody(req) {
   });
 }
 
-// eslint-disable-next-line max-params -- internal helper: normalized/message/constraints is clean and stable
 function validateStringConstraints(normalized, message, constraints) {
   const { minLength, maxLength, allowEmpty } = constraints;
   if (!allowEmpty && normalized.length < minLength) {
@@ -17,7 +16,6 @@ function validateStringConstraints(normalized, message, constraints) {
   }
 }
 
-// eslint-disable-next-line max-params -- value/message/options is clean; called from 20+ sites
 export function requireString(value, message, options = {}) {
   if (typeof value !== 'string') {
     throw new ValidationError(message);
@@ -56,7 +54,6 @@ export function requirePlainObject(value, message) {
   return value;
 }
 
-// eslint-disable-next-line max-params -- opts pattern used (message is part of options, 3rd param is options object)
 export function parsePositiveInt(
   value,
   message,

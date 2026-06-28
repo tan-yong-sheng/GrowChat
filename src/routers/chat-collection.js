@@ -15,9 +15,10 @@ async function publishRealtimeNow(env, event) {
   }
 }
 
-async function reloadAndPublishChat(req, db, env, user, chatId, originSessionId) {
+async function reloadAndPublishChat(req, env, db, user, chatId, originSessionId) {
   const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
-  const updated = updatedOwned.chat || null;
+  if (updatedOwned.error) return updatedOwned.error;
+  const updated = updatedOwned.chat;
   await publishRealtimeNow(
     env,
     createRealtimeEvent({
@@ -146,7 +147,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         [title || 'New Chat', pinned, chatId, user.sub]
       );
 
-      return reloadAndPublishChat(req, db, env, user, chatId, originSessionId);
+      return await reloadAndPublishChat(req, env, db, user, chatId, originSessionId);
     }
     if (req.method === 'DELETE') {
       const authDecision = await authorize(env, user, {
@@ -209,7 +210,7 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       [nextPinned, chatId, user.sub]
     );
 
-    return reloadAndPublishChat(req, db, env, user, chatId, originSessionId);
+    return await reloadAndPublishChat(req, env, db, user, chatId, originSessionId);
   }
 
   const cloneMatch = path.match(/^\/api\/chats\/([^/]+)\/clone$/);
@@ -306,7 +307,8 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     );
 
     const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
-    const updated = updatedOwned.chat || null;
+    if (updatedOwned.error) return updatedOwned.error;
+    const updated = updatedOwned.chat;
 
     await publishRealtimeNow(
       env,
