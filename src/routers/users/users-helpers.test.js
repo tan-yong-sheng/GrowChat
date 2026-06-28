@@ -112,7 +112,7 @@ describe('users-helpers', () => {
 
     it('handles missing table gracefully', async () => {
       db.run.mockRejectedValueOnce(new Error('no such table: user_roles'));
-      await expect(syncGlobalRoleBinding(db, 'u1', 'member', 'active')).resolves.not.toThrow();
+      await expect(syncGlobalRoleBinding(db, 'u1', 'member', 'active')).resolves.toBeUndefined();
     });
   });
 

@@ -92,6 +92,7 @@ describe('chatCollectionRouter', () => {
         '/api/chats',
         's1'
       );
+      expect(res.status).toBe(200);
       expect(mocks.handleListChats).toHaveBeenCalled();
     });
   });
@@ -193,6 +194,7 @@ describe('chatCollectionRouter', () => {
         '/api/chats/c1',
         's1'
       );
+      expect(res.status).toBe(200);
       expect(db.run).toHaveBeenCalled();
     });
   });
@@ -233,6 +235,7 @@ describe('chatCollectionRouter', () => {
         '/api/chats/c1/pin',
         's1'
       );
+      expect(res.status).toBe(200);
       expect(db.run).toHaveBeenCalled();
     });
   });

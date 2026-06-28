@@ -166,6 +166,12 @@ describe('handleAdminEmailSecurity', () => {
         { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
+      expect(mocks.ensureAdminMutationAccess).toHaveBeenCalledWith(
+        env,
+        user,
+        'admin.rbac.admin',
+        'email-config'
+      );
       expect(mocks.setConfigValue).toHaveBeenCalledWith(db, 'resend_api_key', 're_test_123');
       expect(mocks.logAuditEvent).toHaveBeenCalled();
     });
@@ -224,10 +230,11 @@ describe('handleAdminEmailSecurity', () => {
 
     it('sends test email successfully', async () => {
       mocks.getConfigValue.mockResolvedValue('re_test');
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
       try {
         const res = await handleAdminEmailSecurity(
-          makeReq('/api/admin/email-config/test', 'POST', { email: 'test@example.com' }),
+          makeReq('/api/admin/email-config/test', 'POST', { email: '  Test@Example.COM  ' }),
           env,
           ctx,
           user,
@@ -235,6 +242,18 @@ describe('handleAdminEmailSecurity', () => {
           { db, logger, _requestContext: {} }
         );
         expect(res.status).toBe(200);
+        expect(fetchMock).toHaveBeenCalledOnce();
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toBe('https://api.resend.com/emails');
+        expect(init.method).toBe('POST');
+        expect(init.headers).toMatchObject({
+          Authorization: 'Bearer re_test',
+          'Content-Type': 'application/json',
+        });
+        const body = JSON.parse(init.body);
+        expect(body.to).toBe('test@example.com');
+        expect(body.from).toBe('noreply@growchat.app');
+        expect(body.subject).toBe('GrowChat Email Configuration Test');
         expect(mocks.logAuditEvent).toHaveBeenCalled();
       } finally {
         vi.unstubAllGlobals();
@@ -293,11 +312,18 @@ describe('handleAdminEmailSecurity', () => {
       );
       expect(res.status).toBe(200);
       const payload = await res.json();
-      expect(payload.rate_limits).toBeDefined();
-      expect(payload.token_ttls).toBeDefined();
-      expect(payload.rate_limits.chat_messages_per_minute).toBe(20);
-      expect(payload.token_ttls.access_token_display).toContain('minute');
-      expect(payload.token_ttls.refresh_token_display).toContain('day');
+      expect(payload.rate_limits).toEqual({
+        chat_messages_per_minute: 20,
+        login_attempts_per_10min: 5,
+        registrations_per_10min: 3,
+        file_uploads_per_hour: 50,
+      });
+      expect(payload.token_ttls).toEqual({
+        access_token_seconds: 900,
+        refresh_token_seconds: 604800,
+        access_token_display: '15 minutes',
+        refresh_token_display: '7 days',
+      });
     });
 
     it('returns 500 on error', async () => {

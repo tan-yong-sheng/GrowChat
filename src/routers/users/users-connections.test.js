@@ -215,7 +215,7 @@ describe('handleUsersConnections', () => {
       mocks.isConnectionUrlRequired.mockReturnValue(true);
       const res = await handleUsersConnections(
         makeReq('/api/users/me/resources/connections/test', 'POST', {
-          url: 'not-url',
+          base_url: 'not-url',
           provider_type: 'openai-compatible',
         }),
         env,

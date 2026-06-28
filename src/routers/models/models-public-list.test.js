@@ -152,9 +152,19 @@ describe('handlePublicModelsList', () => {
         { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
+      const payload = await res.json();
+      expect(payload.models).toHaveLength(1);
+      expect(payload.limit).toBe(1);
+      expect(payload.offset).toBe(0);
+      expect(payload.total).toBe(1);
     });
 
     it('supports search query', async () => {
+      mocks.fetchBaseModelsFromOpenAI.mockResolvedValue([
+        { id: 'm1', name: 'GPT-4o', provider: 'openai' },
+      ]);
+      mocks.toPublicModel.mockImplementation((m) => ({ ...m, enabled: true }));
+      mocks.countEnabledModels.mockReturnValue(1);
       const res = await handlePublicModelsList(
         makeReq('/api/models?q=gpt', 'GET'),
         env,
@@ -164,6 +174,9 @@ describe('handlePublicModelsList', () => {
         { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
+      const payload = await res.json();
+      expect(payload.models).toHaveLength(1);
+      expect(payload.models[0].name).toBe('GPT-4o');
     });
 
     it('supports effective scope', async () => {
@@ -182,6 +195,9 @@ describe('handlePublicModelsList', () => {
         { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
+      const payload = await res.json();
+      expect(payload.models).toHaveLength(1);
+      expect(payload.models[0].connection_source).toBe('config');
     });
 
     it('gracefully degrades and returns 200 on unexpected error', async () => {

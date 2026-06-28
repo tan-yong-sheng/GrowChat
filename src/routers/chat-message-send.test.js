@@ -213,7 +213,7 @@ describe('handleSendMessage', () => {
   });
 
   it('sends message successfully', async () => {
-    db.all.mockResolvedValue([]);
+    db.all.mockResolvedValue([{ role: 'user', content: 'hello' }]);
     db.batch.mockResolvedValue(undefined);
     const streamRunner = vi.fn().mockResolvedValue({ response: new Response('streaming') });
     const res = await handleSendMessage({
@@ -226,7 +226,22 @@ describe('handleSendMessage', () => {
       originSessionId,
       assistantStreamRunner: streamRunner,
     });
-    expect(streamRunner).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(db.batch).toHaveBeenCalledOnce();
+    const statements = db.batch.mock.calls[0][0];
+    expect(statements).toHaveLength(2);
+    expect(statements[0].sql).toContain('INSERT INTO messages');
+    expect(statements[1].sql).toContain('UPDATE chats SET current_message_id');
+    expect(streamRunner).toHaveBeenCalledOnce();
+    const runnerArgs = streamRunner.mock.calls[0][0];
+    expect(runnerArgs.model).toBe('gpt-4o');
+    expect(runnerArgs.chatId).toBe('c1');
+    expect(runnerArgs.history).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: 'system' }),
+        expect.objectContaining({ role: 'user', content: 'hello' }),
+      ])
+    );
   });
 
   it('rejects invalid JSON body', async () => {

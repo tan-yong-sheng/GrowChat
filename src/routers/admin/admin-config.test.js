@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../../chat/attachments.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ATTACHMENT_CAP_TYPES } from '../../chat/attachments.js';
 
 const mocks = vi.hoisted(() => ({
   createDB: vi.fn(),

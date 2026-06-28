@@ -126,7 +126,7 @@ describe('handleUsersAdminAccess', () => {
       });
       db.all.mockImplementation(async (sql, _params) => {
         if (sql.includes('group_members'))
-          return [{ group_id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }];
+          return [{ id: 'g1', name: 'Core', description: 'Core team', is_system: 0 }];
         return [];
       });
       const res = await handleUsersAdminAccess(
@@ -141,6 +141,7 @@ describe('handleUsersAdminAccess', () => {
       const payload = await res.json();
       expect(payload.user.id).toBe('u1');
       expect(payload.user.account_status).toBe('active');
+      expect(payload.groups).toEqual([{ id: 'g1', name: 'Core' }]);
       expect(payload.access).toBeDefined();
     });
 

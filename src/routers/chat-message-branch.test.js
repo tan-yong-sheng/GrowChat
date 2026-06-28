@@ -223,6 +223,7 @@ describe('handleBranchMessage', () => {
       citations: null,
     });
     db.batch.mockResolvedValue(undefined);
+    const assistantStreamRunner = vi.fn();
     const res = await handleBranchMessage({
       req: makeReq('/api/chats/c1/messages/m1/branch', 'POST', {
         content: 'test',
@@ -236,9 +237,10 @@ describe('handleBranchMessage', () => {
       chatId: 'c1',
       msgId: 'm1',
       originSessionId,
-      assistantStreamRunner: vi.fn(),
+      assistantStreamRunner,
     });
     expect(res.status).toBe(200);
+    expect(assistantStreamRunner).not.toHaveBeenCalled();
   });
 
   it('branches user message with stream runner', async () => {
@@ -257,6 +259,7 @@ describe('handleBranchMessage', () => {
       originSessionId,
       assistantStreamRunner: streamRunner,
     });
-    expect(streamRunner).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(streamRunner).toHaveBeenCalledOnce();
   });
 });

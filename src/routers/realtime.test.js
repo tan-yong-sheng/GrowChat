@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   connectRealtimeStream: vi.fn(),
@@ -11,50 +11,54 @@ vi.mock('../features/realtime/realtime.js', () => ({
 import { realtimeRouter } from './realtime.js';
 
 describe('realtimeRouter', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
   it('returns 401 for unauthenticated user', async () => {
-    const res = await realtimeRouter(
+    const result = await realtimeRouter(
       new Request('https://example.com/api/realtime/stream', { method: 'GET' }),
       { DB: {} },
       {},
       null,
       '/api/realtime/stream'
     );
-    expect(res.status).toBe(401);
+    expect(result.status).toBe(401);
   });
 
   it('returns 405 for unsupported method', async () => {
-    const res = await realtimeRouter(
+    const result = await realtimeRouter(
       new Request('https://example.com/api/realtime/stream', { method: 'DELETE' }),
       { DB: {} },
       {},
       { sub: 'u1' },
       '/api/realtime/stream'
     );
-    expect(res.status).toBe(405);
+    expect(result.status).toBe(405);
   });
 
   it('connects realtime stream for GET', async () => {
     mocks.connectRealtimeStream.mockResolvedValue(new Response('stream'));
-    const res = await realtimeRouter(
+    await realtimeRouter(
       new Request('https://example.com/api/realtime/stream', { method: 'GET' }),
       { DB: {} },
       {},
       { sub: 'u1' },
       '/api/realtime/stream'
     );
-    expect(mocks.connectRealtimeStream).toHaveBeenCalled();
+    expect(mocks.connectRealtimeStream).toHaveBeenCalledOnce();
   });
 
   it('connects realtime stream for POST', async () => {
     mocks.connectRealtimeStream.mockResolvedValue(new Response('stream'));
-    const res = await realtimeRouter(
+    await realtimeRouter(
       new Request('https://example.com/api/realtime/stream', { method: 'POST' }),
       { DB: {} },
       {},
       { sub: 'u1' },
       '/api/realtime/stream'
     );
-    expect(mocks.connectRealtimeStream).toHaveBeenCalled();
+    expect(mocks.connectRealtimeStream).toHaveBeenCalledOnce();
   });
 
   it('returns null for non-matching path', async () => {
