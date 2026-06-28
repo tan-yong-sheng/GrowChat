@@ -15,9 +15,9 @@
 export function ruleMatchesPrincipal(rule, userId, userGroupIds) {
   if (!rule) return false;
   if (rule.principal_type === 'user') {
-    return String(rule.principal_id || '') === String(userId || '');
+    return String(rule.principal_id ?? '') === String(userId ?? '');
   }
-  return userGroupIds instanceof Set && userGroupIds.has(String(rule.principal_id || ''));
+  return userGroupIds instanceof Set && userGroupIds.has(String(rule.principal_id ?? ''));
 }
 
 /**
@@ -27,7 +27,12 @@ export function ruleMatchesPrincipal(rule, userId, userGroupIds) {
  * @returns {{ clause: string, values: string[] } | null}
  */
 export function buildIdFilterClause(columnName, ids = []) {
-  const values = Array.isArray(ids) ? ids.map((id) => String(id || '').trim()).filter(Boolean) : [];
+  const values = Array.isArray(ids)
+    ? ids
+        .filter((id) => id != null)
+        .map((id) => String(id).trim())
+        .filter((id) => id !== '')
+    : [];
   if (!values.length) return null;
   return {
     clause: `${columnName} IN (${values.map(() => '?').join(', ')})`,

@@ -5,7 +5,7 @@ const logger = createRootLogger({});
 const MISSING_TABLE_REGEX = /no such table:\s*model_acl_rules/i;
 
 function safeDecodeResourceId(value) {
-  const raw = String(value || '').trim();
+  const raw = String(value ?? '').trim();
   if (!raw) return '';
   try {
     return decodeURIComponent(raw);
@@ -86,40 +86,27 @@ function isModelAclActionRelevant(action) {
   return ['use', 'manage', 'admin', 'read'].includes(normalized);
 }
 
-// eslint-disable-next-line max-params -- 3 params (model, rules, opts) is clean; opts is destructured options object
-function evaluateModelAclCore(model, rules, { user, userGroupIds, allowAdmin }) {
-  if (model?.connection_source === 'user') {
-    return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
-  }
-
-  const normalizedRules = Array.isArray(rules)
-    ? rules.map(normalizeModelAclRule).filter(Boolean)
-    : [];
-
-  const denyMatched = normalizedRules.some(
+// eslint-disable-next-line max-params -- 4 params (rules, effect, userSub, userGroupIds) for rule-matching helper
+function findModelAclRuleByEffect(rules, effect, userSub, userGroupIds) {
+  return rules.some(
     (rule) =>
-      rule.effect === 'deny' &&
+      rule.effect === effect &&
       isModelAclActionRelevant(rule.action) &&
-      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
+      ruleMatchesPrincipal(rule, userSub, userGroupIds)
   );
-  if (denyMatched) {
+}
+
+// eslint-disable-next-line max-params -- 4 params (rules, user, userGroupIds, allowAdmin) for ACL decision resolution
+function resolveModelAclDecision(rules, user, userGroupIds, allowAdmin) {
+  if (findModelAclRuleByEffect(rules, 'deny', user?.sub, userGroupIds)) {
     return { allowed: false, access_label: 'No access', access_variant: 'none' };
   }
-
-  const allowMatched = normalizedRules.some(
-    (rule) =>
-      rule.effect === 'allow' &&
-      isModelAclActionRelevant(rule.action) &&
-      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
-  );
-  if (allowMatched) {
+  if (findModelAclRuleByEffect(rules, 'allow', user?.sub, userGroupIds)) {
     return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
   }
-
   if (allowAdmin && user?.primary_role === 'admin') {
     return { allowed: true, access_label: 'Admin', access_variant: 'admin' };
   }
-
   return { allowed: false, access_label: 'No access', access_variant: 'none' };
 }
 
@@ -127,7 +114,14 @@ export function evaluateModelAclAccess(
   model,
   { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
 ) {
-  return evaluateModelAclCore(model, rules, { user, userGroupIds, allowAdmin });
+  if (model?.connection_source === 'user') {
+    return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
+  }
+
+  const normalizedRules = Array.isArray(rules)
+    ? rules.map(normalizeModelAclRule).filter(Boolean)
+    : [];
+  return resolveModelAclDecision(normalizedRules, user, userGroupIds, allowAdmin);
 }
 
 export async function ensureModelAclRulesTable(db) {
@@ -221,35 +215,14 @@ export function buildModelAclRuleSaveStatements(
   return { canonicalModelId, normalized, statements };
 }
 
-function buildModelAclFilter(modelId, modelIds) {
-  const idFilter = modelIds && !modelId ? buildIdFilterClause('model_id', modelIds) : null;
-  const singleFilter = modelId ? buildIdFilterClause('model_id', [modelId]) : null;
-  return singleFilter || idFilter;
-}
-
-function normalizeModelAclRows(rows) {
-  return (Array.isArray(rows) ? rows : [])
-    .map((row) => ({
-      id: row.id,
-      model_id: safeDecodeResourceId(row.model_id),
-      principal_type: normalizeModelAclPrincipalType(row.principal_type),
-      principal_id: String(row.principal_id || '').trim(),
-      effect: normalizeModelAclEffect(row.effect),
-      action: normalizeModelAclAction(row.action),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }))
-    .filter((row) => row.model_id && row.principal_id)
-    .reduce(
-      (acc, row) => {
-        const key = `${row.model_id}:${row.principal_type}:${row.principal_id}:${row.effect}:${row.action}`;
-        if (acc.seen.has(key)) return acc;
-        acc.seen.add(key);
-        acc.items.push(row);
-        return acc;
-      },
-      { seen: new Set(), items: [] }
-    ).items;
+function buildModelAclLoadFilter(modelId, modelIds) {
+  const canonicalModelId = modelId != null ? safeDecodeResourceId(modelId) : null;
+  if (canonicalModelId) {
+    return buildIdFilterClause('model_id', [canonicalModelId]);
+  }
+  const canonicalModelIds =
+    modelIds && canonicalModelId == null ? expandModelAclResourceIds(modelIds) : null;
+  return canonicalModelIds ? buildIdFilterClause('model_id', canonicalModelIds) : null;
 }
 
 // eslint-disable-next-line max-params -- 3 params (db, modelId, modelIds) for list/filter operations
@@ -257,7 +230,7 @@ export async function loadModelAclRules(db, modelId = null, modelIds = null) {
   if (!db) return [];
   try {
     await ensureModelAclRulesTable(db);
-    const filter = buildModelAclFilter(modelId, modelIds);
+    const filter = buildModelAclLoadFilter(modelId, modelIds);
     const rows = filter
       ? await db.all(
           `SELECT id, model_id, principal_type, principal_id, effect, action, created_at, updated_at
@@ -271,7 +244,28 @@ export async function loadModelAclRules(db, modelId = null, modelIds = null) {
            FROM model_acl_rules
            ORDER BY model_id ASC, effect DESC, principal_type ASC, principal_id ASC, action ASC`
         );
-    return normalizeModelAclRows(rows);
+    return (Array.isArray(rows) ? rows : [])
+      .map((row) => ({
+        id: row.id,
+        model_id: safeDecodeResourceId(row.model_id),
+        principal_type: normalizeModelAclPrincipalType(row.principal_type),
+        principal_id: String(row.principal_id || '').trim(),
+        effect: normalizeModelAclEffect(row.effect),
+        action: normalizeModelAclAction(row.action),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }))
+      .filter((row) => row.model_id && row.principal_id)
+      .reduce(
+        (acc, row) => {
+          const key = `${row.model_id}:${row.principal_type}:${row.principal_id}:${row.effect}:${row.action}`;
+          if (acc.seen.has(key)) return acc;
+          acc.seen.add(key);
+          acc.items.push(row);
+          return acc;
+        },
+        { seen: new Set(), items: [] }
+      ).items;
   } catch (err) {
     if (MISSING_TABLE_REGEX.test(String(err?.message || ''))) return [];
     throw err;
