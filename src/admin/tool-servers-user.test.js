@@ -323,6 +323,7 @@ describe('updateUserToolServer', () => {
     mocks.mergeToolServer.mockReturnValueOnce({ ...updated, url: 'https://updated.com' });
 
     const result = await updateUserToolServer(db, 'u1', 's1', updated);
+    expect(result).toMatchObject({ name: 'Updated', url: 'https://updated.com' });
     expect(db.run).toHaveBeenCalledWith(
       expect.stringContaining('UPDATE user_tool_servers'),
       expect.any(Array)

@@ -82,6 +82,7 @@ describe('executeToolCalls', () => {
         arguments: '{}',
       },
     ];
+    const toolCallRecords = [];
 
     const result = await executeToolCalls({
       validCalls,
@@ -92,7 +93,7 @@ describe('executeToolCalls', () => {
       stringifyToolPayload,
       lifecycle,
       assistantMsgId: 'msg-1',
-      toolCallRecords: [],
+      toolCallRecords,
       appendMessageBlock,
       fullText: '',
       fullReasoning: '',
@@ -105,6 +106,22 @@ describe('executeToolCalls', () => {
 
     expect(result.cancelled).toBe(false);
     expect(result.toolResultMessages[0].content).toBe('MCP connection failed');
+    expect(toolCallRecords[0].status).toBe('error');
+    expect(toolCallRecords[0].error).toBe('MCP connection failed');
+    expect(emitSse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'tool_result',
+        tool_call_id: 'tc-1',
+        status: 'error',
+        error: 'MCP connection failed',
+      }),
+      { persist: true }
+    );
+    expect(normalizeErrorMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'MCP connection failed' }),
+      'Tool call failed',
+      8000
+    );
   });
 
   it('handles unknown tool calls with error', async () => {

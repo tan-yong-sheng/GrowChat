@@ -46,6 +46,8 @@ describe('MessageQueueDO', () => {
       );
       expect(res.status).toBe(200);
       expect(res.headers.get('Content-Type')).toContain('text/event-stream');
+      await res.body?.cancel?.();
+      do_.stopKeepAlive();
     });
 
     it('routes POST /connect to handleConnect', async () => {
@@ -54,6 +56,8 @@ describe('MessageQueueDO', () => {
         createRequest('/connect', 'POST', { 'x-client-session-id': 's2' })
       );
       expect(res.status).toBe(200);
+      await res.body?.cancel?.();
+      do_.stopKeepAlive();
     });
 
     it('routes POST /publish to handlePublish', async () => {
@@ -86,6 +90,8 @@ describe('MessageQueueDO', () => {
       expect(mocks.sseHeaders).toHaveBeenCalled();
       // X-Accel-Buffering is set in handleConnect, not in sseHeaders mock
       expect(res.headers.get('X-Accel-Buffering')).toBe('no');
+      await res.body?.cancel?.();
+      do_.stopKeepAlive();
     });
 
     it('sends initial keepalive comment on connect', async () => {
@@ -96,6 +102,8 @@ describe('MessageQueueDO', () => {
       const reader = res.body.getReader();
       const { value } = await reader.read();
       expect(new TextDecoder().decode(value)).toBe(':\n\n');
+      await reader.cancel();
+      do_.stopKeepAlive();
     });
 
     it('closes existing session with same id before creating new one', async () => {
@@ -104,6 +112,7 @@ describe('MessageQueueDO', () => {
       const res1 = await do_.fetch(
         createRequest('/connect', 'GET', { 'x-client-session-id': 's1' })
       );
+      expect(res1.status).toBe(200);
       // Second connect with same session id - should close the first
       const res2 = await do_.fetch(
         createRequest('/connect', 'GET', { 'x-client-session-id': 's1' })
@@ -111,6 +120,8 @@ describe('MessageQueueDO', () => {
       expect(res2.status).toBe(200);
       // Only one session should exist
       expect(do_.sessions.size).toBe(1);
+      await res2.body?.cancel?.();
+      do_.stopKeepAlive();
     });
   });
 
@@ -118,7 +129,9 @@ describe('MessageQueueDO', () => {
     it('broadcasts event to connected sessions', async () => {
       const do_ = createDO();
       // Connect a session first
-      await do_.fetch(createRequest('/connect', 'GET', { 'x-client-session-id': 's1' }));
+      const connectRes = await do_.fetch(
+        createRequest('/connect', 'GET', { 'x-client-session-id': 's1' })
+      );
 
       const res = await do_.fetch(
         createRequest('/publish', 'POST', {}, { type: 'chat', data: 'hello' })
@@ -126,6 +139,8 @@ describe('MessageQueueDO', () => {
       const body = await res.json();
       expect(body.ok).toBe(true);
       expect(body.delivered).toBe(1);
+      await connectRes.body?.cancel?.();
+      do_.stopKeepAlive();
     });
 
     it('returns delivered: 0 when no sessions connected', async () => {
@@ -197,6 +212,7 @@ describe('MessageQueueDO', () => {
       const body = await res.json();
       expect(body.delivered).toBe(0);
       expect(do_.sessions.has('s1')).toBe(false);
+      expect(do_.keepAliveTimer).toBeNull();
     });
   });
 
@@ -208,6 +224,8 @@ describe('MessageQueueDO', () => {
       );
       expect(res.status).toBe(200);
       expect(do_.sessions.has('my-session')).toBe(true);
+      await res.body?.cancel?.();
+      do_.stopKeepAlive();
     });
 
     it('generates UUID when no session id header', async () => {
@@ -218,6 +236,8 @@ describe('MessageQueueDO', () => {
       const sessionId = do_.sessions.keys().next().value;
       // UUID format: 8-4-4-4-12
       expect(sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+      await res.body?.cancel?.();
+      do_.stopKeepAlive();
     });
 
     it('strips control characters from session id', async () => {
@@ -233,9 +253,13 @@ describe('MessageQueueDO', () => {
     it('truncates session id to 200 chars', async () => {
       const do_ = createDO();
       const longId = 'a'.repeat(300);
-      await do_.fetch(createRequest('/connect', 'GET', { 'x-client-session-id': longId }));
+      const res = await do_.fetch(
+        createRequest('/connect', 'GET', { 'x-client-session-id': longId })
+      );
       const sessionId = do_.sessions.keys().next().value;
       expect(sessionId.length).toBe(200);
+      await res.body?.cancel?.();
+      do_.stopKeepAlive();
     });
 
     it('removes DEL character (0x7F) from session id', async () => {

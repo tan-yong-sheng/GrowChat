@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { API_ROUTES, PUBLIC_ROUTES, isPublicRoute } from './router-registry.js';
 
 describe('API_ROUTES', () => {
-  it('is a non-empty array', () => {
-    expect(Array.isArray(API_ROUTES)).toBe(true);
-    expect(API_ROUTES.length).toBeGreaterThan(0);
+  it('contains the expected router set', () => {
+    expect(API_ROUTES).toHaveLength(12);
+    for (const router of API_ROUTES) {
+      expect(typeof router).toBe('function');
+    }
   });
 });
 
@@ -46,6 +48,23 @@ describe('PUBLIC_ROUTES', () => {
   it('includes model list route', () => {
     const models = PUBLIC_ROUTES.find((r) => r.path === '/api/models');
     expect(models).toBeDefined();
+  });
+
+  it('includes the full public auth surface', () => {
+    const paths = PUBLIC_ROUTES.map((r) => r.path);
+    expect(paths).toContain('/api/auth/register');
+    expect(paths).toContain('/api/auth/login');
+    expect(paths).toContain('/api/auth/refresh');
+    expect(paths).toContain('/api/auth/logout');
+    expect(paths).toContain('/api/auth/verify-email');
+    expect(paths).toContain('/api/auth/resend-verification');
+    expect(paths).toContain('/api/users/me/resources/mcp-servers/oauth/callback');
+    expect(paths).toContain('/api/health');
+    expect(paths).toContain('/api/models');
+    expect(paths.some((p) => p instanceof RegExp && p.source === '^\\/api\\/models\\/[^/]+$')).toBe(
+      true
+    );
+    expect(paths.some((p) => p instanceof RegExp && p.source === '^\\/s\\/[^/]+$')).toBe(true);
   });
 });
 
