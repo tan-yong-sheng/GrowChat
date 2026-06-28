@@ -1,4 +1,5 @@
 import { APP_TTLS } from '../config/app.js';
+import { createLogger } from '../utils/logger.js';
 
 const REFRESH_TTL_SECONDS = APP_TTLS.refreshTokenSeconds;
 const SESSION_VERSION_TTL_SECONDS = APP_TTLS.sessionVersionSeconds;
@@ -31,8 +32,7 @@ export async function createRefreshToken(env, userId) {
   let sessionVersion = 0;
   try {
     const raw = await env.SESSIONS.get(`session-version:${userId}`);
-    const parsed = Number(raw);
-    sessionVersion = Number.isFinite(parsed) ? parsed : 0;
+    sessionVersion = parseSessionVersion(env, raw);
   } catch {
     // KV unavailability should not block login
   }
@@ -77,8 +77,7 @@ export async function consumeRefreshToken(env, token) {
   if (raw.sessionVersion !== undefined) {
     try {
       const currentVersionRaw = await env.SESSIONS.get(`session-version:${raw.userId}`);
-      const parsed = Number(currentVersionRaw);
-      const currentVersion = Number.isFinite(parsed) ? parsed : 0;
+      const currentVersion = parseSessionVersion(env, currentVersionRaw);
       if (currentVersion > raw.sessionVersion) {
         return null;
       }
@@ -88,6 +87,19 @@ export async function consumeRefreshToken(env, token) {
   }
 
   return raw;
+}
+
+function parseSessionVersion(env, raw) {
+  if (raw === null || raw === undefined) return 0;
+  const parsed = Number(raw);
+  if (Number.isSafeInteger(parsed) && parsed >= 0) {
+    return parsed;
+  }
+  // A poisoned counter could silently reset revocation state to 0.
+  // Treat it as 0 (oldest possible version) and warn so operators notice.
+  const logger = createLogger(env);
+  logger.warn('Malformed session-version value in KV; treating as 0', { raw });
+  return 0;
 }
 
 async function readRefreshTokenUserId(env, dataKey) {
@@ -168,10 +180,10 @@ export async function bumpSessionVersion(env, userId) {
   const versionKey = `${SESSION_VERSION_KEY_PREFIX}${userId}`;
   try {
     const currentVersionRaw = await env.SESSIONS.get(versionKey);
-    // Use Number.isFinite so 'not-a-number' (NaN) and junk values fall back to 0
-    // instead of producing NaN + 1 = NaN and storing a poisoned counter.
-    const parsed = Number(currentVersionRaw);
-    const currentVersion = Number.isFinite(parsed) ? parsed : 0;
+    // Only non-negative safe integers are valid. NaN, Infinity, negatives,
+    // and non-integers are treated as 0 so a poisoned counter cannot
+    // silently reset revocation state.
+    const currentVersion = parseSessionVersion(env, currentVersionRaw);
     const nextVersion = currentVersion + 1;
     await env.SESSIONS.put(versionKey, String(nextVersion), {
       expirationTtl: SESSION_VERSION_TTL_SECONDS,
