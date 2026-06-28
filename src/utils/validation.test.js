@@ -111,6 +111,15 @@ describe('isSafeOutboundUrl', () => {
     expect(isSafeOutboundUrl('https://fda-api.staging/v1').safe).toBe(true);
   });
 
+  it('blocks IPv4-mapped IPv6 literals to prevent bypass', () => {
+    // [::ffff:127.0.0.1] is normalized to hostname '[::ffff:7f00:1]' which would
+    // bypass the IPv4 range checks if not blocked here.
+    expect(isSafeOutboundUrl('http://[::ffff:127.0.0.1]/v1').safe).toBe(false);
+    expect(isSafeOutboundUrl('http://[::ffff:7f00:1]/v1').safe).toBe(false);
+    expect(isSafeOutboundUrl('http://[::ffff:10.0.0.1]/v1').safe).toBe(false);
+    expect(isSafeOutboundUrl('http://[::ffff:192.168.1.1]/v1').safe).toBe(false);
+  });
+
   it('blocks obfuscated IP addresses', () => {
     // Hex-encoded IP (0x7f000001 = 127.0.0.1)
     expect(isSafeOutboundUrl('http://0x7f000001/v1').safe).toBe(false);
