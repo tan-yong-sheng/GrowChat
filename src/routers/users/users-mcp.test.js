@@ -163,6 +163,34 @@ describe('handleUsersMcp', () => {
       expect(res.status).toBe(200);
       expect(mocks.saveUserToolServerJson).toHaveBeenCalled();
     });
+
+    it('rejects unsafe token endpoint in callback', async () => {
+      mocks.isSafeOutboundUrl.mockImplementation((url) => {
+        if (url.includes('localhost')) {
+          return { safe: false, reason: 'Loopback addresses are not allowed' };
+        }
+        return { safe: true };
+      });
+      mocks.findUserToolServerByOauthState.mockResolvedValue({
+        id: 's1',
+        user_id: 'u1',
+        url: 'https://mcp.example.com',
+        oauth_client_id: 'c1',
+        oauth_client_secret: 'sec',
+        oauth_code_verifier: 'verifier',
+        oauth_token_auth_method: 'client_secret_post',
+        oauth_token_endpoint: 'http://localhost/token',
+      });
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/oauth/callback?code=abc&state=valid', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/callback',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('GET /api/users/me/resources/mcp-servers', () => {
@@ -313,6 +341,90 @@ describe('handleUsersMcp', () => {
         makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', {
           id: 's1',
           url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/start',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects unsafe authorization server URL', async () => {
+      mocks.loadUserToolServers.mockResolvedValue([
+        { id: 's1', url: 'https://mcp.example.com', user_id: 'u1' },
+      ]);
+      mocks.isSafeOutboundUrl.mockImplementation((url) => {
+        if (url.includes('localhost')) {
+          return { safe: false, reason: 'Loopback addresses are not allowed' };
+        }
+        return { safe: true };
+      });
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_authorization_server: 'http://localhost/auth',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/start',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects unsafe dynamic registration endpoint', async () => {
+      mocks.loadUserToolServers.mockResolvedValue([
+        { id: 's1', url: 'https://mcp.example.com', user_id: 'u1' },
+      ]);
+      mocks.isSafeOutboundUrl.mockImplementation((url) => {
+        if (url.includes('localhost')) {
+          return { safe: false, reason: 'Loopback addresses are not allowed' };
+        }
+        return { safe: true };
+      });
+      mocks.discoverAuthorizationMetadata.mockResolvedValue({
+        authorization_endpoint: 'https://auth.example.com/authorize',
+        token_endpoint: 'https://auth.example.com/token',
+        registration_endpoint: 'http://localhost/register',
+      });
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/start',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects unsafe token endpoint', async () => {
+      mocks.loadUserToolServers.mockResolvedValue([
+        { id: 's1', url: 'https://mcp.example.com', user_id: 'u1' },
+      ]);
+      mocks.isSafeOutboundUrl.mockImplementation((url) => {
+        if (url.includes('localhost')) {
+          return { safe: false, reason: 'Loopback addresses are not allowed' };
+        }
+        return { safe: true };
+      });
+      mocks.discoverAuthorizationMetadata.mockResolvedValue({
+        authorization_endpoint: 'https://auth.example.com/authorize',
+        token_endpoint: 'http://localhost/token',
+      });
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_client_id: 'client-1',
+          oauth_client_secret: 'secret-1',
         }),
         env,
         ctx,
