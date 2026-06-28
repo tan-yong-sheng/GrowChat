@@ -262,4 +262,43 @@ describe('handleBranchMessage', () => {
     expect(res.status).toBe(200);
     expect(streamRunner).toHaveBeenCalledOnce();
   });
+
+  it('uses new branch user message as assistant parent_id (regression #160)', async () => {
+    const randomUUIDSpy = vi.spyOn(crypto, 'randomUUID').mockReturnValue('new-user-msg-id');
+    db.first.mockResolvedValue({
+      role: 'user',
+      parent_id: 'old-parent-id',
+      model: 'gpt-4o',
+      citations: null,
+    });
+    db.all.mockResolvedValue([]);
+    db.batch.mockResolvedValue(undefined);
+    const streamRunner = vi.fn().mockResolvedValue({ response: new Response('streaming') });
+    const res = await handleBranchMessage({
+      req: makeReq('/api/chats/c1/messages/m1/branch', 'POST', { content: 'test' }),
+      env,
+      ctx,
+      db,
+      user,
+      chatId: 'c1',
+      msgId: 'm1',
+      originSessionId,
+      assistantStreamRunner: streamRunner,
+    });
+    expect(res.status).toBe(200);
+    expect(streamRunner).toHaveBeenCalledOnce();
+    const runnerCall = streamRunner.mock.calls[0][0];
+    expect(runnerCall.userMsgId).toBe('new-user-msg-id');
+    expect(runnerCall.parentId).toBe('new-user-msg-id');
+    expect(runnerCall.userMsgId).not.toBe('old-parent-id');
+
+    const statements = db.batch.mock.calls[0][0];
+    const userInsert = statements.find(
+      (s) => s.sql && s.sql.includes('INSERT INTO messages') && s.params[2] === 'user'
+    );
+    expect(userInsert).toBeDefined();
+    expect(userInsert.params[0]).toBe('new-user-msg-id');
+    expect(userInsert.params[5]).toBe('old-parent-id');
+    randomUUIDSpy.mockRestore();
+  });
 });
