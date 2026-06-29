@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { buildSettingsModalShellMarkup, createSettingsModalShell } from '../../public/js/shared/components/settings-modal-shell.js';
+import {
+  buildSettingsModalShellMarkup,
+  createSettingsModalShell,
+} from '../../public/js/shared/components/settings-modal-shell.js';
 
 describe('settings modal shell', () => {
   it('renders the shared admin-style modal shell markup', () => {

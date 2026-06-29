@@ -130,9 +130,10 @@ describe('account connections section', () => {
   it('disables connection actions when capability denies management', async () => {
     mocks.apiFetch.mockResolvedValue({
       ok: true,
-      json: async () => makeAccountState('Personal Conn', {
-        canManageConnections: false,
-      }),
+      json: async () =>
+        makeAccountState('Personal Conn', {
+          canManageConnections: false,
+        }),
     });
 
     const { renderAccountPage } = await loadModule();
@@ -144,8 +145,12 @@ describe('account connections section', () => {
     expect(document.body.textContent).not.toContain('Admin');
     expect(document.body.textContent).not.toContain('Shared providers');
     expect(document.body.textContent).not.toContain('Visible for you');
-    expect(document.querySelector('#manage-connections-section')?.className).not.toContain('overflow-y-auto');
-    expect(document.querySelector('#manage-connections-section')?.className).not.toContain('max-h-[calc(100dvh-18rem)]');
+    expect(document.querySelector('#manage-connections-section')?.className).not.toContain(
+      'overflow-y-auto'
+    );
+    expect(document.querySelector('#manage-connections-section')?.className).not.toContain(
+      'max-h-[calc(100dvh-18rem)]'
+    );
     const addButton = document.querySelector('[data-account-connection-add]');
     expect(addButton).not.toBeNull();
     expect(addButton?.disabled).toBe(true);
@@ -188,8 +193,14 @@ describe('account connections section', () => {
     await flush();
 
     expect(document.body.textContent).toContain('Hidden for you');
-    expect(document.querySelector('[data-connection-row="shared-1"]')?.textContent).toContain('Hidden for you');
-    expect(document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]')?.getAttribute('aria-label')).toBe('Show for me');
+    expect(document.querySelector('[data-connection-row="shared-1"]')?.textContent).toContain(
+      'Hidden for you'
+    );
+    expect(
+      document
+        .querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]')
+        ?.getAttribute('aria-label')
+    ).toBe('Show for me');
   });
 
   it('keeps shared visibility toggles available when connection management is disabled', async () => {
@@ -226,13 +237,18 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush();
 
-    const sharedToggle = document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]');
+    const sharedToggle = document.querySelector(
+      '[data-connection-row="shared-1"] [data-toggle-scope="shared"]'
+    );
     expect(sharedToggle).not.toBeNull();
     expect(sharedToggle?.getAttribute('aria-label')).toBe('Hide for me');
     expect(sharedToggle?.hasAttribute('disabled')).toBe(false);
     sharedToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(10);
-    expect(mocks.apiFetch).toHaveBeenCalledWith('/api/users/me', expect.objectContaining({ method: 'PUT' }));
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/api/users/me',
+      expect.objectContaining({ method: 'PUT' })
+    );
   });
 
   it('sorts enabled personal connections before disabled ones and keeps visible shared rows above hidden ones', async () => {
@@ -286,12 +302,18 @@ describe('account connections section', () => {
     await renderAccountPage(document.getElementById('app'));
     await flush();
 
-    const personalRows = Array.from(document.querySelectorAll('[data-account-personal-connections] [data-connection-row]'));
+    const personalRows = Array.from(
+      document.querySelectorAll('[data-account-personal-connections] [data-connection-row]')
+    );
     expect(personalRows.map((row) => row.getAttribute('data-id'))).toEqual(['conn-a', 'conn-b']);
 
-    const sharedRows = Array.from(document.querySelectorAll('#manage-connections-section [data-connection-row]'))
-      .filter((row) => row.closest('[data-account-personal-connections]') === null);
-    expect(sharedRows.map((row) => row.getAttribute('data-id'))).toEqual(['shared-visible', 'shared-hidden']);
+    const sharedRows = Array.from(
+      document.querySelectorAll('#manage-connections-section [data-connection-row]')
+    ).filter((row) => row.closest('[data-account-personal-connections]') === null);
+    expect(sharedRows.map((row) => row.getAttribute('data-id'))).toEqual([
+      'shared-visible',
+      'shared-hidden',
+    ]);
   }, 10000);
 
   it('opens the add connection modal with the shared admin-style shell', async () => {
@@ -343,25 +365,36 @@ describe('account connections section', () => {
 
     expect(document.querySelector('#account-main-footer #save-connections')).toBeNull();
 
-    const sharedToggle = document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]');
+    const sharedToggle = document.querySelector(
+      '[data-connection-row="shared-1"] [data-toggle-scope="shared"]'
+    );
     expect(sharedToggle).not.toBeNull();
     sharedToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flush(2);
 
     await flush(8);
 
-    const updateCall = mocks.apiFetch.mock.calls.find(([url, options]) => String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT');
+    const updateCall = mocks.apiFetch.mock.calls.find(
+      ([url, options]) =>
+        String(url) === '/api/users/me' && String(options?.method || '').toUpperCase() === 'PUT'
+    );
     expect(updateCall).toBeDefined();
-    expect(JSON.parse(updateCall[1].body)).toEqual(expect.objectContaining({
-      preferences: expect.objectContaining({
-        resource_overrides: expect.objectContaining({
-          connections: expect.objectContaining({
-            hidden_ids: ['shared-1'],
+    expect(JSON.parse(updateCall[1].body)).toEqual(
+      expect.objectContaining({
+        preferences: expect.objectContaining({
+          resource_overrides: expect.objectContaining({
+            connections: expect.objectContaining({
+              hidden_ids: ['shared-1'],
+            }),
           }),
         }),
-      }),
-    }));
-    expect(document.querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]')?.getAttribute('aria-label')).toBe('Show for me');
+      })
+    );
+    expect(
+      document
+        .querySelector('[data-connection-row="shared-1"] [data-toggle-scope="shared"]')
+        ?.getAttribute('aria-label')
+    ).toBe('Show for me');
   });
 
   it('saves an edited connection and refreshes the list', async () => {
@@ -387,14 +420,20 @@ describe('account connections section', () => {
     expect(document.body.textContent).not.toContain('Visible for you');
     expect(document.querySelector('#account-main-footer #save-connections')).toBeNull();
     document.querySelector('[data-account-connection-edit="conn-1"]')?.click();
-    expect(document.getElementById('account-connection-modal')?.textContent).toContain('Edit Connection');
+    expect(document.getElementById('account-connection-modal')?.textContent).toContain(
+      'Edit Connection'
+    );
 
     const modal = document.getElementById('account-connection-modal');
     const nameInput = modal?.querySelector('#modal-conn-name');
     expect(nameInput).not.toBeNull();
-    expect(modal?.querySelector('#modal-conn-key')?.getAttribute('placeholder')).toBe('Leave blank to keep current key');
+    expect(modal?.querySelector('#modal-conn-key')?.getAttribute('placeholder')).toBe(
+      'Leave blank to keep current key'
+    );
     expect(modal?.textContent).toContain('A key is already saved. Leave this blank to keep it.');
-    expect(modal?.querySelector('#modal-models-status')?.textContent).toContain('Models selected in this connection: 1');
+    expect(modal?.querySelector('#modal-models-status')?.textContent).toContain(
+      'Models selected in this connection: 1'
+    );
     expect(modal?.querySelector('#modal-models-list')?.textContent).toContain('GPT-4o');
     nameInput.value = 'Updated Conn';
 
@@ -403,17 +442,22 @@ describe('account connections section', () => {
     await flush(12);
 
     expect(mocks.updateUserConnection).toHaveBeenCalledTimes(1);
-    expect(mocks.updateUserConnection).toHaveBeenCalledWith('conn-1', expect.objectContaining({
-      name: 'Updated Conn',
-      provider_type: 'openai-compatible',
-      base_url: 'https://api.example.com/v1',
-      enabled: true,
-      auth_type: 'bearer',
-      headers: expect.stringContaining('"X-Test": "1"'),
-    }));
+    expect(mocks.updateUserConnection).toHaveBeenCalledWith(
+      'conn-1',
+      expect.objectContaining({
+        name: 'Updated Conn',
+        provider_type: 'openai-compatible',
+        base_url: 'https://api.example.com/v1',
+        enabled: true,
+        auth_type: 'bearer',
+        headers: expect.stringContaining('"X-Test": "1"'),
+      })
+    );
     expect(document.getElementById('account-connection-modal')).toBeNull();
     expect(window.location.hash).toBe('');
-    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings')).toHaveLength(2);
+    expect(
+      mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings')
+    ).toHaveLength(2);
   });
 
   it('deletes a connection after confirmation and refreshes the list', async () => {
@@ -458,6 +502,8 @@ describe('account connections section', () => {
     expect(mocks.deleteUserConnection).toHaveBeenCalledWith('conn-1');
     expect(document.querySelector('[data-connection-row="conn-1"]')).toBeNull();
     expect(document.querySelector('[data-connection-row="shared-1"]')).not.toBeNull();
-    expect(mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings')).toHaveLength(2);
+    expect(
+      mocks.apiFetch.mock.calls.filter(([url]) => String(url) === '/api/users/me/settings')
+    ).toHaveLength(2);
   });
 });

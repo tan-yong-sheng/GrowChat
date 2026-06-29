@@ -22,8 +22,10 @@ describe('admin modal save helpers', () => {
 
     setModalSaveButtonState(button, {
       enabled: true,
-      enabledClass: 'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
-      disabledClass: 'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+      enabledClass:
+        'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
+      disabledClass:
+        'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
     });
 
     expect(button.disabled).toBe(false);
