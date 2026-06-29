@@ -90,16 +90,18 @@ export async function checkRateLimit(env, opts) {
   const current = Number.parseInt(raw || '0', 10);
   const count = Number.isFinite(current) && current > 0 ? current : 0;
 
-  // Optimistic increment: write first, then check the result. This narrows the
-  // race window compared to read-check-write because concurrent requests still
-  // increment the counter instead of all reading a stale value and passing.
+  // Increment and write. Only refresh the TTL when the request is allowed.
+  // Denied requests leave the key untouched so the TTL naturally expires and
+  // the client cannot keep the key alive indefinitely with a trickle of
+  // denied requests.
   const nextCount = count + 1;
-  await store.put(key, String(nextCount), { expirationTtl: windowSize });
 
   if (nextCount > maxRequests) {
+    await store.put(key, String(nextCount));
     return { allowed: false, remaining: 0, resetAt, key };
   }
 
+  await store.put(key, String(nextCount), { expirationTtl: windowSize });
   return { allowed: true, remaining: Math.max(0, maxRequests - nextCount), resetAt, key };
 }
 
