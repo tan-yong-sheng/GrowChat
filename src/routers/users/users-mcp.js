@@ -58,6 +58,16 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
       });
     }
 
+    // Block token exchange for accounts that have become pending/deactivated
+    // since the OAuth flow started (issue #143).
+    const ownerRow = await db.first(
+      'SELECT account_status FROM users WHERE id = ?',
+      server.user_id
+    );
+    if (ownerRow?.account_status && ownerRow.account_status !== 'active') {
+      return new Response('Account pending approval.', { status: 403 });
+    }
+
     const tokenEndpoint =
       server.oauth_token_endpoint ||
       new URL('/token', server.oauth_authorization_server || server.url).toString();
@@ -126,6 +136,9 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
   if (!user) return error(req, 'Unauthorized', 401);
 
   if (req.method === 'GET' && path === '/api/users/me/resources/mcp-servers') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     const db = createDB(env.DB);
     try {
       const payload = await loadWorkspaceToolServersPayload({
@@ -140,6 +153,9 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
   }
 
   if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     let body;
     try {
       body = await req.json();
@@ -164,6 +180,9 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
   }
 
   if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers/test') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     let body;
     try {
       body = await req.json();
@@ -197,6 +216,9 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
   }
 
   if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers/oauth/start') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
     if (!origin) {
       return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
@@ -358,6 +380,9 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     const serverId = personalMcpMatch[1];
 
     if (req.method === 'PUT') {
+      if (user.account_status && user.account_status !== 'active') {
+        return error(req, 'Account pending approval.', 403);
+      }
       let body;
       try {
         body = await req.json();
@@ -383,6 +408,9 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
     }
 
     if (req.method === 'DELETE') {
+      if (user.account_status && user.account_status !== 'active') {
+        return error(req, 'Account pending approval.', 403);
+      }
       try {
         const db = createDB(env.DB);
         const deleted = await deleteUserToolServer(db, user.sub, serverId);
