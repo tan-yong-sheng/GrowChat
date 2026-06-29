@@ -129,7 +129,33 @@ describe('handleUsersMcp', () => {
       expect(res.status).toBe(400);
     });
 
+    it('blocks token exchange when owner account is pending (#143)', async () => {
+      db.first.mockResolvedValue({ account_status: 'pending' });
+      mocks.findUserToolServerByOauthState.mockResolvedValue({
+        id: 's1',
+        user_id: 'u1',
+        url: 'https://mcp.example.com',
+        oauth_client_id: 'c1',
+        oauth_client_secret: 'sec',
+        oauth_code_verifier: 'verifier',
+        oauth_token_auth_method: 'client_secret_post',
+        oauth_token_endpoint: 'https://auth.example.com/token',
+      });
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/oauth/callback?code=abc&state=valid', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/callback',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+      expect(mocks.saveUserToolServerJson).not.toHaveBeenCalled();
+    });
+
     it('exchanges code for tokens', async () => {
+      db.first.mockResolvedValue({ account_status: 'active' });
       mocks.findUserToolServerByOauthState.mockResolvedValue({
         id: 's1',
         user_id: 'u1',
@@ -165,6 +191,7 @@ describe('handleUsersMcp', () => {
     });
 
     it('rejects unsafe token endpoint in callback', async () => {
+      db.first.mockResolvedValue({ account_status: 'active' });
       mocks.isSafeOutboundUrl.mockImplementation((url) => {
         if (url.includes('localhost')) {
           return { safe: false, reason: 'Loopback addresses are not allowed' };
@@ -503,6 +530,90 @@ describe('handleUsersMcp', () => {
         { _db: db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(405);
+    });
+  });
+
+  describe('pending account_status', () => {
+    const pendingUser = { sub: 'u1', primary_role: 'member', account_status: 'pending' };
+
+    it('rejects GET /api/users/me/resources/mcp-servers with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers', 'GET'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+      const payload = await res.json();
+      expect(payload.error).toBe('Account pending approval.');
+    });
+
+    it('rejects POST /api/users/me/resources/mcp-servers with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers', 'POST', {
+          name: 'New',
+          url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects POST /api/users/me/resources/mcp-servers/test with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/test', 'POST', { url: 'https://example.com' }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers/test',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects POST /api/users/me/resources/mcp-servers/oauth/start with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://example.com',
+        }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers/oauth/start',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects PUT /api/users/me/resources/mcp-servers/:id with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/s1', 'PUT', { name: 'Updated' }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers/s1',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects DELETE /api/users/me/resources/mcp-servers/:id with 403', async () => {
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/s1', 'DELETE'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/mcp-servers/s1',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
     });
   });
 

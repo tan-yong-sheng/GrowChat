@@ -13,6 +13,10 @@ export async function userSettingsRouter(req, env, _ctx, user, path, requestCont
   if (!isUserSettingsPath) return null;
   if (!user) return error(req, 'Unauthorized', 401);
 
+  if (user.account_status && user.account_status !== 'active') {
+    return error(req, 'Account pending approval.', 403);
+  }
+
   if (req.method !== 'GET') {
     return error(req, 'Method not allowed', 405);
   }

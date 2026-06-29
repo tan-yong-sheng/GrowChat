@@ -270,6 +270,78 @@ describe('handleUsersConnections', () => {
     });
   });
 
+  describe('pending account_status', () => {
+    const pendingUser = { sub: 'u1', primary_role: 'member', account_status: 'pending' };
+
+    it('rejects GET /api/users/me/resources/connections with 403', async () => {
+      const res = await handleUsersConnections(
+        makeReq('/api/users/me/resources/connections', 'GET'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/connections',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+      const payload = await res.json();
+      expect(payload.error).toBe('Account pending approval.');
+    });
+
+    it('rejects POST /api/users/me/resources/connections with 403', async () => {
+      const res = await handleUsersConnections(
+        makeReq('/api/users/me/resources/connections', 'POST', {
+          name: 'Conn',
+          url: 'https://example.com/v1',
+        }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/connections',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects PUT /api/users/me/resources/connections/:id with 403', async () => {
+      const res = await handleUsersConnections(
+        makeReq('/api/users/me/resources/connections/c1', 'PUT', { name: 'Updated' }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/connections/c1',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects DELETE /api/users/me/resources/connections/:id with 403', async () => {
+      const res = await handleUsersConnections(
+        makeReq('/api/users/me/resources/connections/c1', 'DELETE'),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/connections/c1',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects POST /api/users/me/resources/connections/test with 403', async () => {
+      const res = await handleUsersConnections(
+        makeReq('/api/users/me/resources/connections/test', 'POST', {
+          provider_type: 'openai',
+          base_url: 'https://api.openai.com/v1',
+        }),
+        env,
+        ctx,
+        pendingUser,
+        '/api/users/me/resources/connections/test',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
   it('returns null for unrecognized paths', async () => {
     const result = await handleUsersConnections(
       makeReq('/api/unknown', 'GET'),
