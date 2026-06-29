@@ -68,7 +68,7 @@ export function renderPlaceholder(container, options = {}) {
       container.innerHTML = `
         <div id="welcome-screen" class="flex flex-col items-center justify-center text-center min-h-[40vh] px-6">
            <div class="w-full max-w-[720px] flex flex-col items-center">
-             <div class="w-14 h-14 rounded-xl bg-white flex items-center justify-center mb-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden group">
+             <div class="w-14 h-14 rounded-xl bg-surface flex items-center justify-center mb-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden group">
                 <img src="/logo.png" alt="GrowChat" class="w-9 h-9 object-contain" />
              </div>
 
@@ -100,7 +100,7 @@ export function renderPlaceholder(container, options = {}) {
           ? displayed
               .map(
                 (s) => `
-        <button class="suggestion-btn group p-5 border border-gray-200 hover:border-gray-300 hover:bg-white rounded-[18px] text-left transition-all duration-200 active:scale-[0.95] bg-[#f5f5f7]">
+        <button class="suggestion-btn group p-5 border border-gray-200 hover:border-gray-300 hover:bg-surface rounded-[18px] text-left transition-all duration-200 active:scale-[0.95] bg-surface-container">
            <div class="font-semibold text-[15px] text-gray-800 group-hover:text-black transition-colors mb-1">${s.title}</div>
            <div class="text-gray-500 text-sm transition-colors group-hover:text-gray-600 line-clamp-2">${s.subtitle}</div>
         </button>

@@ -142,7 +142,7 @@ export async function createUserProfileFooter({ guardNavigation = null } = {}) {
     user.status && user.status !== 'online' && user.status !== 'away' ? user.status : null;
 
   const element = document.createElement('div');
-  element.className = 'user-profile-footer border-t border-gray-100 p-4 bg-[#f9f9f9] z-20';
+  element.className = 'user-profile-footer border-t border-gray-100 p-4 bg-neutral-bg z-20';
 
   const hasAdminPerm = state.permissions?.includes('admin.rbac.admin') || false;
   element.innerHTML = buildFooterMarkup(user, hasAdminPerm);

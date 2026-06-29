@@ -11,11 +11,11 @@ export function renderWorkspaceSidebar({
 } = {}) {
   return `
     <div id="sidebar-backdrop" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-opacity duration-300 hidden md:hidden"></div>
-    <aside id="sidebar" aria-label="Workspace sidebar" class="fixed md:relative h-[100dvh] md:h-[100dvh] flex-shrink-0 bg-[#f9f9f9] border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
+    <aside id="sidebar" aria-label="Workspace sidebar" class="fixed md:relative h-[100dvh] md:h-[100dvh] flex-shrink-0 bg-neutral-bg border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
       <div class="p-3 flex-shrink-0">
         <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
           <a href="${homeHref}" id="${homeId}" class="flex items-center gap-3 sidebar-full-only rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300">
-            <div class="w-7 h-7 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
+            <div class="w-7 h-7 bg-surface rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
               <img src="/logo.png" alt="GrowChat" class="w-5 h-5 object-contain" />
             </div>
             <span class="font-bold text-lg text-gray-900 font-primary">${homeLabel}</span>
@@ -28,7 +28,7 @@ export function renderWorkspaceSidebar({
           ${
             showNewChat
               ? `
-            <button id="new-chat" class="flex items-center justify-between px-3 py-2 w-full hover:bg-white rounded-xl transition text-sm font-semibold text-[#0066cc] font-primary group/new-chat">
+            <button id="new-chat" class="flex items-center justify-between px-3 py-2 w-full hover:bg-surface rounded-xl transition text-sm font-semibold text-on-surface font-primary group/new-chat">
               <div class="flex items-center gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-collapsed-scale transition-transform duration-300"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
                 <span class="sidebar-full-only">New Chat</span>
@@ -41,7 +41,7 @@ export function renderWorkspaceSidebar({
           ${
             showSearch
               ? `
-            <button id="open-search" class="flex items-center gap-3 px-3 py-2 w-full hover:bg-white rounded-xl transition text-sm font-semibold text-gray-700 font-primary group/search">
+            <button id="open-search" class="flex items-center gap-3 px-3 py-2 w-full hover:bg-surface rounded-xl transition text-sm font-semibold text-gray-700 font-primary group/search">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sidebar-collapsed-scale transition-transform duration-300"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
               <span class="sidebar-full-only">Search</span>
             </button>
@@ -51,7 +51,7 @@ export function renderWorkspaceSidebar({
         </div>
       </div>
       <div class="flex-1 min-h-0"></div>
-      <div id="${footerId}" class="mt-auto w-full bg-[#f9f9f9]" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));"></div>
+      <div id="${footerId}" class="mt-auto w-full bg-neutral-bg" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));"></div>
     </aside>
   `;
 }
