@@ -13,7 +13,6 @@ test.describe('Accessibility audit', () => {
   // The SPA at / redirects unauthenticated users to /auth.html, so the home
   // page test waits for that redirect before scanning. Chat/admin routes
   // require auth and are not scannable in the guest project (see issue #123).
-  // landing.html has pre-existing color-contrast violations (see issue #131).
 
   test('should not have any automatically detectable accessibility issues on home page', async ({
     page,
@@ -44,6 +43,22 @@ test.describe('Accessibility audit', () => {
     }).analyze();
 
     // Blocking: any axe-core violation fails the test.
+    expect(accessibilityScanResults.violations).toEqual([]);
+  });
+
+  test('should not have any automatically detectable accessibility issues on /landing.html', async ({
+    page,
+  }) => {
+    await page.goto('/landing.html');
+    await page.waitForLoadState('networkidle');
+
+    const accessibilityScanResults = await new Builder({
+      page,
+    }).analyze();
+
+    // Blocking: any axe-core violation fails the test.
+    // Resolves 96 color-contrast violations from issue #131 by darkening
+    // text colors to meet WCAG 2 AA (4.5:1 normal, 3:1 large).
     expect(accessibilityScanResults.violations).toEqual([]);
   });
 });
