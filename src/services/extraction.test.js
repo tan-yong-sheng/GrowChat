@@ -350,7 +350,7 @@ describe('extractDocumentText', () => {
     });
     expect(db.run).toHaveBeenCalledWith(
       'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
-      [undefined, 'd18']
+      ['string error', 'd18']
     );
   });
 
@@ -369,8 +369,12 @@ describe('extractDocumentText', () => {
 
     expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
       documentId: 'd19',
-      error: 42,
+      error: '42',
     });
+    expect(db.run).toHaveBeenCalledWith(
+      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
+      ['42', 'd19']
+    );
   });
 
   it('handles object throw from parseDocument', async () => {
@@ -388,11 +392,15 @@ describe('extractDocumentText', () => {
 
     expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
       documentId: 'd20',
-      error: { custom: 'error' },
+      error: '[object Object]',
     });
+    expect(db.run).toHaveBeenCalledWith(
+      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
+      ['[object Object]', 'd20']
+    );
   });
 
-  it('handles null throw from parseDocument by propagating TypeError from err.message access', async () => {
+  it('handles null throw from parseDocument by normalizing error message', async () => {
     mockParseDocument.mockRejectedValue(null);
 
     await expect(
@@ -403,16 +411,19 @@ describe('extractDocumentText', () => {
         contentType: 'text/plain',
         buffer: new ArrayBuffer(8),
       })
-    ).rejects.toThrow(TypeError);
+    ).rejects.toBe(null);
 
     expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
       documentId: 'd21',
-      error: null,
+      error: 'null',
     });
-    expect(db.run).not.toHaveBeenCalled();
+    expect(db.run).toHaveBeenCalledWith(
+      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
+      ['null', 'd21']
+    );
   });
 
-  it('handles undefined throw from parseDocument by propagating TypeError from err.message access', async () => {
+  it('handles undefined throw from parseDocument by normalizing error message', async () => {
     mockParseDocument.mockRejectedValue(undefined);
 
     await expect(
@@ -423,13 +434,16 @@ describe('extractDocumentText', () => {
         contentType: 'text/plain',
         buffer: new ArrayBuffer(8),
       })
-    ).rejects.toThrow(TypeError);
+    ).rejects.toBe(undefined);
 
     expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
       documentId: 'd22',
-      error: undefined,
+      error: 'undefined',
     });
-    expect(db.run).not.toHaveBeenCalled();
+    expect(db.run).toHaveBeenCalledWith(
+      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
+      ['undefined', 'd22']
+    );
   });
 
   it('handles db.run failure during markExtractionSuccess and then calls markExtractionFailed', async () => {
@@ -529,7 +543,11 @@ describe('extractDocumentText', () => {
 
     expect(mockLogger.error).toHaveBeenCalledWith('Document extraction failed', {
       documentId: 'd27',
-      error: false,
+      error: 'false',
     });
+    expect(db.run).toHaveBeenCalledWith(
+      'UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?',
+      ['false', 'd27']
+    );
   });
 });

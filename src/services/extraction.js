@@ -64,8 +64,9 @@ export async function extractDocumentText({ env, db, documentId, contentType, bu
       excerptLength: excerpt.length,
     };
   } catch (err) {
-    logger.error('Document extraction failed', { documentId, error: err?.message || err });
-    await markExtractionFailed({ db, documentId, errorMessage: err.message });
+    const errorMessage = err?.message || String(err) || 'Unknown extraction error';
+    logger.error('Document extraction failed', { documentId, error: errorMessage });
+    await markExtractionFailed({ db, documentId, errorMessage });
     throw err;
   }
 }
