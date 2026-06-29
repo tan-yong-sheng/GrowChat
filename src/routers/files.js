@@ -203,6 +203,17 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
 
   // GET /api/files - List user's documents
   if (req.method === 'GET' && path === '/api/files') {
+    const listLimit = await checkRateLimit(env, {
+      action: 'file-list',
+      subject: user.sub,
+      ...RATE_LIMITS.fileList,
+    });
+    if (!listLimit.allowed) {
+      return error(req, 'Too many file lists', 429, {
+        retry_after: Math.ceil((listLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
     const db = createDB(env.DB);
     const limit = Math.min(parseInt(new URL(req.url).searchParams.get('limit') || '20'), 100);
     const offset = parseInt(new URL(req.url).searchParams.get('offset') || '0');
@@ -282,6 +293,17 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
 
   // GET /api/files/search - Search user's documents
   if (req.method === 'GET' && path === '/api/files/search') {
+    const searchLimit = await checkRateLimit(env, {
+      action: 'file-search',
+      subject: user.sub,
+      ...RATE_LIMITS.fileSearch,
+    });
+    if (!searchLimit.allowed) {
+      return error(req, 'Too many file searches', 429, {
+        retry_after: Math.ceil((searchLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
     const db = createDB(env.DB);
     const url = new URL(req.url);
     const q = (url.searchParams.get('q') || '').trim();
@@ -318,6 +340,17 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
   // GET /api/files/:id/blob - Get raw file contents (authorized)
   const blobMatch = path.match(/^\/api\/files\/([^/]+)\/blob$/);
   if (blobMatch && req.method === 'GET') {
+    const downloadLimit = await checkRateLimit(env, {
+      action: 'file-download',
+      subject: user.sub,
+      ...RATE_LIMITS.fileDownload,
+    });
+    if (!downloadLimit.allowed) {
+      return error(req, 'Too many file downloads', 429, {
+        retry_after: Math.ceil((downloadLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
     if (!env.FILES) {
       return error(req, 'FILES binding missing', 500);
     }
@@ -384,6 +417,17 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
   // GET /api/files/:id/content - Get safe text representation of file
   const contentMatch = path.match(/^\/api\/files\/([^/]+)\/content$/);
   if (contentMatch && req.method === 'GET') {
+    const downloadLimit = await checkRateLimit(env, {
+      action: 'file-download',
+      subject: user.sub,
+      ...RATE_LIMITS.fileDownload,
+    });
+    if (!downloadLimit.allowed) {
+      return error(req, 'Too many file downloads', 429, {
+        retry_after: Math.ceil((downloadLimit.resetAt - Date.now()) / 1000),
+      });
+    }
+
     const documentId = contentMatch[1];
     const db = createDB(env.DB);
 
