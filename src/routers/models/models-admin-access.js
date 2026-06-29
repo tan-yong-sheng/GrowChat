@@ -4,6 +4,7 @@
 import { error, json } from '../../utils/response.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
 import { createDB } from '../../db.js';
+import { chunkedBatch } from '../../utils/db-helpers.js';
 import {
   buildModelAclRuleSaveStatements,
   loadModelAclRules,
@@ -31,7 +32,13 @@ export async function handleAdminModelsAccess(
       resource: 'model',
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     try {
@@ -64,7 +71,13 @@ export async function handleAdminModelsAccess(
       resource: 'model',
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
     if (!env.DB) {
       return error(req, 'Database unavailable', 500);
@@ -136,7 +149,7 @@ export async function handleAdminModelsAccess(
         });
       }
 
-      await db.batch(statements);
+      await chunkedBatch(db, statements);
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'model_access_updated',
@@ -174,7 +187,13 @@ export async function handleAdminModelsAccess(
     });
 
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     if (req.method === 'GET') {

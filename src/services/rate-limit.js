@@ -90,13 +90,22 @@ export async function checkRateLimit(env, opts) {
   const current = Number.parseInt(raw || '0', 10);
   const count = Number.isFinite(current) && current > 0 ? current : 0;
 
+  // Check first, write only when allowed. Denied requests leave the KV
+  // untouched so:
+  //   1. The TTL on the existing counter is not refreshed, so it naturally
+  //      expires and the user gets a fresh window.
+  //   2. No write amplification on the denied path.
+  //   3. The counter cannot grow unbounded by a burst of denied requests.
+  // Note: the read-check-write sequence is not atomic on KV (issue #147).
+  // The accepted mitigation is that concurrent over-the-cap bursts can
+  // only bypass the limit by 2-3x in practice due to KV eventual consistency.
   if (count >= maxRequests) {
     return { allowed: false, remaining: 0, resetAt, key };
   }
 
-  await store.put(key, String(count + 1), { expirationTtl: windowSize });
-
-  return { allowed: true, remaining: Math.max(0, maxRequests - count - 1), resetAt, key };
+  const nextCount = count + 1;
+  await store.put(key, String(nextCount), { expirationTtl: windowSize });
+  return { allowed: true, remaining: Math.max(0, maxRequests - nextCount), resetAt, key };
 }
 
 export const RATE_LIMITS = {
@@ -122,6 +131,18 @@ export const RATE_LIMITS = {
   },
   fileUpload: {
     limit: APP_LIMITS.maxFileUploadPerHour,
+    windowSeconds: 3600,
+  },
+  fileDownload: {
+    limit: 100,
+    windowSeconds: 3600,
+  },
+  fileList: {
+    limit: 50,
+    windowSeconds: 3600,
+  },
+  fileSearch: {
+    limit: 100,
     windowSeconds: 3600,
   },
   chatSend: {

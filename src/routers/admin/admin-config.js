@@ -5,6 +5,7 @@ import { error, json } from '../../utils/response.js';
 import { logAuditEvent, getAuditLog } from '../../utils/authorize.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../../utils/app-config.js';
 import { ATTACHMENT_CAP_TYPES, MODEL_ATTACHMENT_CAPS_KEY } from '../../chat/attachments.js';
+import { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
 import { ensureAdminAclAccess, ensureAdminMutationAccess } from './admin-helpers.js';
 
@@ -90,7 +91,13 @@ export async function handleAdminConfig(
 
     const writeDecision = await ensureAdminMutationAccess(env, user, 'admin.user.write', 'admin');
     if (!writeDecision.allow) {
-      return error(req, writeDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[writeDecision.code] || 403;
+      return error(req, writeDecision.reason || 'Forbidden', statusCode);
     }
 
     const hasPublicRegistration = body.public_registration !== undefined;
@@ -172,15 +179,7 @@ export async function handleAdminConfig(
   if (req.method === 'GET' && path === '/api/admin/model-attachment-caps') {
     try {
       const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
-      let caps = {};
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          caps = parsed;
-        }
-      } catch {
-        caps = {};
-      }
+      const caps = loadAttachmentCapsFromRaw(raw);
       return json(req, {
         caps,
         supported_types: ATTACHMENT_CAP_TYPES,
@@ -202,7 +201,13 @@ export async function handleAdminConfig(
 
     const aclDecision = await ensureAdminAclAccess(env, user, 'model');
     if (!aclDecision.allow) {
-      return error(req, aclDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[aclDecision.code] || 403;
+      return error(req, aclDecision.reason || 'Forbidden', statusCode);
     }
 
     const replaceCaps = body.caps && typeof body.caps === 'object' && !Array.isArray(body.caps);
@@ -224,7 +229,7 @@ export async function handleAdminConfig(
           nextCaps[normalizedId] = {
             ...(entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {}),
             attachments,
-            updated_at: Date.now(),
+            updated_at: Math.floor(Date.now() / 1000),
           };
         }
         await setConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, JSON.stringify(nextCaps));
@@ -242,15 +247,7 @@ export async function handleAdminConfig(
       }
 
       const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
-      let caps = {};
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          caps = parsed;
-        }
-      } catch {
-        caps = {};
-      }
+      const caps = loadAttachmentCapsFromRaw(raw);
 
       for (const update of updates) {
         const modelId = normalizeModelId(update?.model_id);
@@ -272,7 +269,7 @@ export async function handleAdminConfig(
         caps[modelId] = {
           ...current,
           attachments: nextAttachments,
-          updated_at: Date.now(),
+          updated_at: Math.floor(Date.now() / 1000),
         };
       }
 

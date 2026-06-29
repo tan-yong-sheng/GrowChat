@@ -1,4 +1,5 @@
 import { getConfigValue, setConfigValue } from '../utils/app-config.js';
+import { loadAttachmentCapsFromRaw } from '../utils/attachment-caps.js';
 import { APP_LIMITS } from '../config/app.js';
 import { createRootLogger } from '../utils/logger.js';
 const logger = createRootLogger({});
@@ -91,9 +92,7 @@ export function mergeTextAttachmentParts(content, parts = []) {
 export async function loadModelAttachmentCaps(db) {
   try {
     const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return parsed;
+    return loadAttachmentCapsFromRaw(raw);
   } catch {
     return {};
   }
@@ -171,7 +170,7 @@ function attachFailureToCaps(caps, modelId, kind) {
   caps[modelId] = {
     ...current,
     attachments,
-    updated_at: Date.now(),
+    updated_at: Math.floor(Date.now() / 1000),
   };
 }
 

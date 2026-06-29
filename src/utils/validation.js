@@ -71,6 +71,18 @@ export function isSafeOutboundUrl(urlStr) {
   if (hostname.startsWith('fe80') || hostname.startsWith('[fe80')) {
     return { safe: false, reason: 'IPv6 link-local addresses are not allowed' };
   }
+  // Block IPv4-mapped IPv6 literals (e.g. [::ffff:127.0.0.1]) before the ULA
+  // check, since the mapped IPv4 would otherwise bypass the IPv4 range checks.
+  if (hostname.startsWith('[::ffff:')) {
+    return { safe: false, reason: 'IPv4-mapped IPv6 addresses are not allowed' };
+  }
+
+  // Block IPv6 unique local addresses (fc00::/7).
+  // Only match IPv6 literals (wrapped in brackets) so legitimate DNS hostnames
+  // like 'fd.example.com' or 'fca-service.prod' are not rejected.
+  if (hostname.startsWith('[fc') || hostname.startsWith('[fd')) {
+    return { safe: false, reason: 'IPv6 unique local addresses are not allowed' };
+  }
 
   // Block hostnames that look like IP addresses with ports or other tricks
   // e.g. 0x7f000001 (hex), 2130706433 (decimal), 017700000001 (octal)

@@ -143,6 +143,81 @@ describe('handleAdminToolServersOAuth', () => {
       expect(res.status).toBe(400);
     });
 
+    it('rejects unsafe authorization server URL', async () => {
+      mocks.isSafeOutboundUrl.mockImplementation((url) => {
+        if (url.includes('localhost')) {
+          return { safe: false, reason: 'Loopback addresses are not allowed' };
+        }
+        return { safe: true };
+      });
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_authorization_server: 'http://localhost/auth',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects unsafe dynamic registration endpoint', async () => {
+      mocks.isSafeOutboundUrl.mockImplementation((url) => {
+        if (url.includes('localhost')) {
+          return { safe: false, reason: 'Loopback addresses are not allowed' };
+        }
+        return { safe: true };
+      });
+      mocks.discoverAuthorizationMetadata.mockResolvedValue({
+        authorization_endpoint: 'https://auth.example.com/authorize',
+        token_endpoint: 'https://auth.example.com/token',
+        registration_endpoint: 'http://localhost/register',
+      });
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects unsafe token endpoint', async () => {
+      mocks.isSafeOutboundUrl.mockImplementation((url) => {
+        if (url.includes('localhost')) {
+          return { safe: false, reason: 'Loopback addresses are not allowed' };
+        }
+        return { safe: true };
+      });
+      mocks.discoverAuthorizationMetadata.mockResolvedValue({
+        authorization_endpoint: 'https://auth.example.com/authorize',
+        token_endpoint: 'http://localhost/token',
+      });
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_client_id: 'client-1',
+          oauth_client_secret: 'secret-1',
+        }),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/start',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
     it('starts OAuth with provided client_id', async () => {
       const res = await handleAdminToolServersOAuth(
         makeReq('/api/admin/tool-servers/oauth/start', 'POST', {
@@ -352,6 +427,36 @@ describe('handleAdminToolServersOAuth', () => {
         },
       ]);
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+      const res = await handleAdminToolServersOAuth(
+        makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=random-state-value', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/admin/tool-servers/oauth/callback',
+        { db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects unsafe token endpoint in callback', async () => {
+      mocks.isSafeOutboundUrl.mockImplementation((url) => {
+        if (url.includes('localhost')) {
+          return { safe: false, reason: 'Loopback addresses are not allowed' };
+        }
+        return { safe: true };
+      });
+      mocks.loadToolServers.mockResolvedValue([
+        {
+          id: 's1',
+          url: 'https://mcp.example.com',
+          oauth_state: 'random-state-value',
+          oauth_client_id: 'c1',
+          oauth_client_secret: 's1',
+          oauth_code_verifier: 'verifier',
+          oauth_token_auth_method: 'client_secret_post',
+          oauth_token_endpoint: 'http://localhost/token',
+        },
+      ]);
       const res = await handleAdminToolServersOAuth(
         makeReq('/api/admin/tool-servers/oauth/callback?code=abc&state=random-state-value', 'GET'),
         env,

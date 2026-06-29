@@ -55,7 +55,12 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 vi.mock('../services/rate-limit.js', () => ({
-  RATE_LIMITS: { fileUpload: { limit: 10, windowMs: 60_000 } },
+  RATE_LIMITS: {
+    fileUpload: { limit: 10, windowSeconds: 3600 },
+    fileDownload: { limit: 100, windowSeconds: 3600 },
+    fileList: { limit: 50, windowSeconds: 3600 },
+    fileSearch: { limit: 100, windowSeconds: 3600 },
+  },
   checkRateLimit: (...args) => mocks.checkRateLimit(...args),
 }));
 
@@ -396,6 +401,29 @@ describe('filesRouter', () => {
       mocks.listUserDocuments.mockResolvedValueOnce([]);
       await filesRouter(makeReq('/api/files?limit=200'), env, {}, user, '/api/files');
       expect(mocks.listUserDocuments).toHaveBeenCalledWith(expect.anything(), 'u1', 100, 0);
+    });
+
+    it('returns 429 when list rate limit exceeded', async () => {
+      const resetAt = Date.now() + 45_000;
+      mocks.checkRateLimit.mockResolvedValueOnce({ allowed: false, resetAt });
+      const res = await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files');
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body.error).toBe('Too many file lists');
+      expect(body.details.retry_after).toBeGreaterThanOrEqual(44);
+      expect(body.details.retry_after).toBeLessThanOrEqual(45);
+      expect(mocks.listUserDocuments).not.toHaveBeenCalled();
+    });
+
+    it('calls checkRateLimit with correct list params', async () => {
+      mocks.listUserDocuments.mockResolvedValueOnce([]);
+      await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files');
+      expect(mocks.checkRateLimit).toHaveBeenCalledWith(env, {
+        action: 'file-list',
+        subject: 'u1',
+        limit: 50,
+        windowSeconds: 3600,
+      });
     });
 
     it('returns empty list when documents table is missing', async () => {
@@ -1036,6 +1064,35 @@ describe('filesRouter', () => {
       expect(res.status).toBe(400);
     });
 
+    it('returns 429 when search rate limit exceeded', async () => {
+      const resetAt = Date.now() + 45_000;
+      mocks.checkRateLimit.mockResolvedValueOnce({ allowed: false, resetAt });
+      const res = await filesRouter(
+        makeReq('/api/files/search?q=report'),
+        env,
+        {},
+        user,
+        '/api/files/search'
+      );
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body.error).toBe('Too many file searches');
+      expect(body.details.retry_after).toBeGreaterThanOrEqual(44);
+      expect(body.details.retry_after).toBeLessThanOrEqual(45);
+      expect(mocks.db.all).not.toHaveBeenCalled();
+    });
+
+    it('calls checkRateLimit with correct search params', async () => {
+      mocks.db.all.mockResolvedValueOnce([]);
+      await filesRouter(makeReq('/api/files/search?q=test'), env, {}, user, '/api/files/search');
+      expect(mocks.checkRateLimit).toHaveBeenCalledWith(env, {
+        action: 'file-search',
+        subject: 'u1',
+        limit: 100,
+        windowSeconds: 3600,
+      });
+    });
+
     it('returns documents matching query', async () => {
       mocks.db.all.mockResolvedValueOnce([{ id: 'd1', filename: 'report.txt' }]);
       const res = await filesRouter(
@@ -1166,6 +1223,51 @@ describe('filesRouter', () => {
   // ── GET /api/files/:id/blob ───────────────────────────────────────────────
 
   describe('GET /api/files/:id/blob', () => {
+    it('returns 429 when download rate limit exceeded', async () => {
+      const resetAt = Date.now() + 45_000;
+      mocks.checkRateLimit.mockResolvedValueOnce({ allowed: false, resetAt });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        env,
+        {},
+        user,
+        '/api/files/d1/blob'
+      );
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body.error).toBe('Too many file downloads');
+      expect(body.details.retry_after).toBeGreaterThanOrEqual(44);
+      expect(body.details.retry_after).toBeLessThanOrEqual(45);
+    });
+
+    it('calls checkRateLimit with correct download params for blob', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: { id: 'd1', filename: 'a.txt', content_type: 'text/plain', r2_key: 'k1' },
+      });
+      const mockFiles = {
+        get: vi.fn().mockResolvedValue({
+          body: new ReadableStream(),
+          httpMetadata: {},
+        }),
+      };
+      await filesRouter(
+        makeReq('/api/files/d1/blob'),
+        { FILES: mockFiles },
+        {},
+        user,
+        '/api/files/d1/blob'
+      );
+      expect(mocks.checkRateLimit).toHaveBeenCalledWith(
+        { FILES: mockFiles },
+        {
+          action: 'file-download',
+          subject: 'u1',
+          limit: 100,
+          windowSeconds: 3600,
+        }
+      );
+    });
+
     it('returns 500 when FILES binding is missing', async () => {
       const res = await filesRouter(
         makeReq('/api/files/d1/blob'),
@@ -1930,7 +2032,7 @@ describe('filesRouter', () => {
         action: 'file-upload',
         subject: 'u1',
         limit: 10,
-        windowMs: 60000,
+        windowSeconds: 3600,
       });
     });
 
@@ -2554,6 +2656,42 @@ describe('filesRouter', () => {
   // ── Mutation coverage: GET /api/files/:id/content deep assertions ─────────
 
   describe('GET /api/files/:id/content mutation coverage', () => {
+    it('returns 429 when download rate limit exceeded', async () => {
+      const resetAt = Date.now() + 45_000;
+      mocks.checkRateLimit.mockResolvedValueOnce({ allowed: false, resetAt });
+      const res = await filesRouter(
+        makeReq('/api/files/d1/content'),
+        env,
+        {},
+        user,
+        '/api/files/d1/content'
+      );
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body.error).toBe('Too many file downloads');
+      expect(body.details.retry_after).toBeGreaterThanOrEqual(44);
+      expect(body.details.retry_after).toBeLessThanOrEqual(45);
+    });
+
+    it('calls checkRateLimit with correct download params for content', async () => {
+      mocks.requireOwnedDocument.mockResolvedValueOnce({
+        doc: {
+          id: 'd1',
+          filename: 'a.txt',
+          content_type: 'text/plain',
+          text_excerpt: 'hello',
+          extraction_status: 1,
+        },
+      });
+      await filesRouter(makeReq('/api/files/d1/content'), env, {}, user, '/api/files/d1/content');
+      expect(mocks.checkRateLimit).toHaveBeenCalledWith(env, {
+        action: 'file-download',
+        subject: 'u1',
+        limit: 100,
+        windowSeconds: 3600,
+      });
+    });
+
     it('returns exact JSON content body', async () => {
       mocks.requireOwnedDocument.mockResolvedValueOnce({
         doc: {

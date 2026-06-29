@@ -45,7 +45,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       resource: 'chat',
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     let body = {};
@@ -86,7 +92,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       resource: 'chat',
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
     const sharedChats = await db.all(
       'SELECT id, title, model, pinned, share_id, created_at, updated_at FROM chats WHERE user_id = ? AND share_id IS NOT NULL ORDER BY updated_at DESC',
@@ -101,7 +113,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       resource: 'chat',
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
     const archivedChats = await db.all(
       'SELECT id, title, model, pinned, created_at, updated_at FROM chats WHERE user_id = ? AND archived = 1 ORDER BY updated_at DESC',
@@ -125,7 +143,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         resourceId: chatId,
       });
       if (!authDecision.allow) {
-        return error(req, authDecision.reason || 'Forbidden', 403);
+        const statusCodeMap = {
+          server_error: 500,
+          unauthorized: 401,
+          not_found: 404,
+        };
+        const statusCode = statusCodeMap[authDecision.code] || 403;
+        return error(req, authDecision.reason || 'Forbidden', statusCode);
       }
 
       const owned = await requireOwnedChat(req, db, chatId, user.sub);
@@ -156,7 +180,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         resourceId: chatId,
       });
       if (!authDecision.allow) {
-        return error(req, authDecision.reason || 'Forbidden', 403);
+        const statusCodeMap = {
+          server_error: 500,
+          unauthorized: 401,
+          not_found: 404,
+        };
+        const statusCode = statusCodeMap[authDecision.code] || 403;
+        return error(req, authDecision.reason || 'Forbidden', statusCode);
       }
 
       const owned = await requireOwnedChat(req, db, chatId, user.sub);
@@ -197,7 +227,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       resourceId: chatId,
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
@@ -227,7 +263,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       resourceId: chatId,
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
@@ -267,7 +309,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       resourceId: chatId,
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     const owned = await requireOwnedChat(req, db, chatId, user.sub);
@@ -293,7 +341,13 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
       resourceId: chatId,
     });
     if (!authDecision.allow) {
-      return error(req, authDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[authDecision.code] || 403;
+      return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
 
     const owned = await requireOwnedChat(req, db, chatId, user.sub);

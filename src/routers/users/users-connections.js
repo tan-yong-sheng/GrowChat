@@ -35,6 +35,9 @@ export async function handleUsersConnections(
   { _db, logger, _requestContext }
 ) {
   if (req.method === 'GET' && path === '/api/users/me/resources/connections') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     const db = createDB(env.DB);
     try {
       const payload = await loadWorkspaceConnectionsPayload({
@@ -62,6 +65,9 @@ export async function handleUsersConnections(
     const connectionId = personalConnectionMatch[1];
 
     if (req.method === 'PUT') {
+      if (user.account_status && user.account_status !== 'active') {
+        return error(req, 'Account pending approval.', 403);
+      }
       let body;
       try {
         body = await req.json();
@@ -90,6 +96,9 @@ export async function handleUsersConnections(
     }
 
     if (req.method === 'DELETE') {
+      if (user.account_status && user.account_status !== 'active') {
+        return error(req, 'Account pending approval.', 403);
+      }
       try {
         const db = createDB(env.DB);
         const deleted = await deleteUserOpenAIConnection(db, user.sub, connectionId);
@@ -111,6 +120,9 @@ export async function handleUsersConnections(
   }
 
   if (req.method === 'POST' && path === '/api/users/me/resources/connections') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     let body;
     try {
       body = await req.json();
@@ -138,6 +150,9 @@ export async function handleUsersConnections(
   }
 
   if (req.method === 'POST' && path === '/api/users/me/resources/connections/test') {
+    if (user.account_status && user.account_status !== 'active') {
+      return error(req, 'Account pending approval.', 403);
+    }
     let body;
     try {
       body = await req.json();

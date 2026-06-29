@@ -15,6 +15,7 @@ import { normalizeConnectionModelSelectionMode } from '../../../public/js/shared
 import { ensureAdminAclAccess, isValidModelAccessId } from './admin-helpers.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { normalizeConnectionAclRule } from '../../utils/connection-acl.js';
+import { chunkedBatch } from '../../utils/db-helpers.js';
 import { isValidHttpUrl, normalizeHeaders } from '../../admin/tool-servers.js';
 
 /**
@@ -39,7 +40,13 @@ export async function handleAdminConnectionsSave(
 
     const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
     if (!aclDecision.allow) {
-      return error(req, aclDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[aclDecision.code] || 403;
+      return error(req, aclDecision.reason || 'Forbidden', statusCode);
     }
 
     const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
@@ -195,7 +202,13 @@ export async function handleAdminConnectionsSave(
       if (normalizedAccessUpdates.length > 0) {
         const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
         if (!aclDecision.allow) {
-          return error(req, aclDecision.reason || 'Forbidden', 403);
+          const statusCodeMap = {
+            server_error: 500,
+            unauthorized: 401,
+            not_found: 404,
+          };
+          const statusCode = statusCodeMap[aclDecision.code] || 403;
+          return error(req, aclDecision.reason || 'Forbidden', statusCode);
         }
       }
 
@@ -274,7 +287,7 @@ export async function handleAdminConnectionsSave(
         }
       }
 
-      await db.batch(statements);
+      await chunkedBatch(db, statements);
       await logAuditEvent(
         env,
         {

@@ -43,7 +43,13 @@ export async function handleAdminToolServersOAuth(
 
     const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
     if (!aclDecision.allow) {
-      return error(req, aclDecision.reason || 'Forbidden', 403);
+      const statusCodeMap = {
+        server_error: 500,
+        unauthorized: 401,
+        not_found: 404,
+      };
+      const statusCode = statusCodeMap[aclDecision.code] || 403;
+      return error(req, aclDecision.reason || 'Forbidden', statusCode);
     }
 
     const serverId = String(body.id || '').trim();
@@ -75,6 +81,10 @@ export async function handleAdminToolServersOAuth(
     const authServerUrl = String(
       body.oauth_authorization_server || server.oauth_authorization_server || serverUrl
     ).trim();
+    const authServerUrlSafety = isSafeOutboundUrl(authServerUrl);
+    if (!authServerUrlSafety.safe) {
+      return error(req, authServerUrlSafety.reason, 400);
+    }
     const redirectUri = origin + '/api/admin/tool-servers/oauth/callback';
 
     let metadata;
@@ -88,6 +98,13 @@ export async function handleAdminToolServersOAuth(
     let clientSecret = String(body.oauth_client_secret || server.oauth_client_secret || '').trim();
     let registrationEndpoint =
       metadata?.registration_endpoint || server.oauth_registration_endpoint || '';
+
+    if (registrationEndpoint) {
+      const registrationEndpointSafety = isSafeOutboundUrl(registrationEndpoint);
+      if (!registrationEndpointSafety.safe) {
+        return error(req, registrationEndpointSafety.reason, 400);
+      }
+    }
 
     if (!clientId) {
       if (!registrationEndpoint) {
@@ -138,6 +155,10 @@ export async function handleAdminToolServersOAuth(
     const authorizationEndpoint =
       metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
     const tokenEndpoint = metadata?.token_endpoint || new URL('/token', authServerUrl).toString();
+    const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
+    if (!tokenEndpointSafety.safe) {
+      return error(req, tokenEndpointSafety.reason, 400);
+    }
 
     const authorizationUrl = buildAuthorizationUrl({
       authorizationEndpoint,
@@ -208,6 +229,10 @@ export async function handleAdminToolServersOAuth(
     const tokenEndpoint =
       server.oauth_token_endpoint ||
       new URL('/token', server.oauth_authorization_server || server.url).toString();
+    const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
+    if (!tokenEndpointSafety.safe) {
+      return new Response(`Token exchange failed: ${tokenEndpointSafety.reason}`, { status: 400 });
+    }
     const clientId = server.oauth_client_id;
     const clientSecret = server.oauth_client_secret;
     const codeVerifier = server.oauth_code_verifier;

@@ -278,7 +278,9 @@ describe('handleAdminConnectionsAccess', () => {
         principal_type: 'group',
         principal_id: 'g1',
       }));
-      mocks.buildConnectionAclRuleSaveStatements.mockReturnValue({ statements: [] });
+      mocks.buildConnectionAclRuleSaveStatements.mockReturnValue({
+        statements: [{ sql: 'DELETE' }],
+      });
       db.batch.mockRejectedValue(new Error('batch fail'));
       const res = await handleAdminConnectionsAccess(
         makeReq('/api/admin/openai/connections/access', 'PUT', {
