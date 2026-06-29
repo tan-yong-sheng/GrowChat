@@ -58,6 +58,16 @@ export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _
       });
     }
 
+    // Block token exchange for accounts that have become pending/deactivated
+    // since the OAuth flow started (issue #143).
+    const ownerRow = await db.first(
+      'SELECT account_status FROM users WHERE id = ?',
+      server.user_id
+    );
+    if (ownerRow?.account_status && ownerRow.account_status !== 'active') {
+      return new Response('Account pending approval.', { status: 403 });
+    }
+
     const tokenEndpoint =
       server.oauth_token_endpoint ||
       new URL('/token', server.oauth_authorization_server || server.url).toString();

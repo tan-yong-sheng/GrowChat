@@ -129,7 +129,36 @@ describe('handleUsersMcp', () => {
       expect(res.status).toBe(400);
     });
 
+    it('blocks token exchange when owner account is pending (#143)', async () => {
+      db.first.mockResolvedValue({ account_status: 'pending' });
+      mocks.findUserToolServerByOauthState.mockResolvedValue({
+        id: 's1',
+        user_id: 'u1',
+        url: 'https://mcp.example.com',
+        oauth_client_id: 'c1',
+        oauth_client_secret: 'sec',
+        oauth_code_verifier: 'verifier',
+        oauth_token_auth_method: 'client_secret_post',
+        oauth_token_endpoint: 'https://auth.example.com/token',
+      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+      );
+      const res = await handleUsersMcp(
+        makeReq('/api/users/me/resources/mcp-servers/oauth/callback?code=abc&state=valid', 'GET'),
+        env,
+        ctx,
+        user,
+        '/api/users/me/resources/mcp-servers/oauth/callback',
+        { _db: db, logger, _requestContext: {} }
+      );
+      expect(res.status).toBe(403);
+      expect(mocks.saveUserToolServerJson).not.toHaveBeenCalled();
+    });
+
     it('exchanges code for tokens', async () => {
+      db.first.mockResolvedValue({ account_status: 'active' });
       mocks.findUserToolServerByOauthState.mockResolvedValue({
         id: 's1',
         user_id: 'u1',
@@ -165,6 +194,7 @@ describe('handleUsersMcp', () => {
     });
 
     it('rejects unsafe token endpoint in callback', async () => {
+      db.first.mockResolvedValue({ account_status: 'active' });
       mocks.isSafeOutboundUrl.mockImplementation((url) => {
         if (url.includes('localhost')) {
           return { safe: false, reason: 'Loopback addresses are not allowed' };
