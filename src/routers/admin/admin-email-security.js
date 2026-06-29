@@ -143,7 +143,7 @@ export async function handleAdminEmailSecurity(
           action: 'email_config_test_sent',
           resource_type: 'admin',
           resource_id: 'email-config',
-          metadata: { test_email: testEmail },
+          metadata: { email_tested: true },
         },
         logger
       );
