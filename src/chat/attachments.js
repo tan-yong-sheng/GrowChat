@@ -93,6 +93,17 @@ export async function loadModelAttachmentCaps(db) {
     const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    // Normalize legacy millisecond timestamps to Unix seconds (issue #126).
+    for (const [key, entry] of Object.entries(parsed)) {
+      if (
+        entry &&
+        typeof entry === 'object' &&
+        typeof entry.updated_at === 'number' &&
+        entry.updated_at > 1e12
+      ) {
+        parsed[key] = { ...entry, updated_at: Math.floor(entry.updated_at / 1000) };
+      }
+    }
     return parsed;
   } catch {
     return {};

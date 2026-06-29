@@ -12,6 +12,7 @@ import {
   isSupportedAttachmentType,
   isTextLikeContentType,
   isTransientModelError,
+  loadModelAttachmentCaps,
   mergeTextAttachmentParts,
   normalizeAttachmentIds,
   recordAttachmentCapabilityFailure,
@@ -106,5 +107,21 @@ describe('chat attachment helpers', () => {
     // Unix seconds are roughly 1.7e9; milliseconds would be 1.7e12
     expect(entry.updated_at).toBeLessThan(1e12);
     expect(entry.attachments.image).toBe(false);
+  });
+
+  it('normalizes legacy millisecond timestamps on read (#126)', async () => {
+    const { getConfigValue } = await import('../utils/app-config.js');
+    const legacyMs = Date.now(); // millisecond timestamp
+    const legacyBlob = JSON.stringify({
+      'legacy-model': {
+        attachments: { image: false },
+        updated_at: legacyMs,
+      },
+    });
+    getConfigValue.mockResolvedValue(legacyBlob);
+    const db = {};
+    const caps = await loadModelAttachmentCaps(db);
+    expect(caps['legacy-model'].updated_at).toBeLessThan(1e12);
+    expect(caps['legacy-model'].updated_at).toBe(Math.floor(legacyMs / 1000));
   });
 });
