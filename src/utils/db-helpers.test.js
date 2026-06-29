@@ -67,5 +67,31 @@ describe('db-helpers.js', () => {
       expect(db.batch).toHaveBeenCalledTimes(1);
       expect(result).toEqual([]);
     });
+
+    it('should preserve atomicity at the boundary: 100 statements = 1 batch call (#125)', async () => {
+      const statements = Array.from({ length: 100 }, (_, i) => ({ id: i }));
+      db.batch.mockResolvedValue(statements.map((s) => ({ id: s.id })));
+
+      const result = await chunkedBatch(db, statements);
+
+      expect(db.batch).toHaveBeenCalledTimes(1);
+      expect(db.batch).toHaveBeenCalledWith(statements);
+      expect(result).toHaveLength(100);
+    });
+
+    it('should chunk exactly at the boundary: 101 statements = 2 batch calls (#125)', async () => {
+      const statements = Array.from({ length: 101 }, (_, i) => ({ id: i }));
+      let callIndex = 0;
+      db.batch.mockImplementation((chunk) => {
+        return Promise.resolve(chunk.map((s) => ({ id: s.id, chunk: callIndex++ })));
+      });
+
+      const result = await chunkedBatch(db, statements);
+
+      expect(db.batch).toHaveBeenCalledTimes(2);
+      expect(db.batch.mock.calls[0][0]).toHaveLength(100);
+      expect(db.batch.mock.calls[1][0]).toHaveLength(1);
+      expect(result).toHaveLength(101);
+    });
   });
 });
