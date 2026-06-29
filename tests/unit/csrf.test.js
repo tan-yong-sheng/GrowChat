@@ -64,7 +64,11 @@ describe('CSRF Protection Service', () => {
     it('returns false for expired/non-existent token', async () => {
       mockKV.get.mockResolvedValue(null);
 
-      const isValid = await validateCsrfToken({ env, token: 'invalid-token', sessionId: 'session-123' });
+      const isValid = await validateCsrfToken({
+        env,
+        token: 'invalid-token',
+        sessionId: 'session-123',
+      });
 
       expect(isValid).toBe(false);
       expect(mockKV.delete).not.toHaveBeenCalled();
@@ -80,7 +84,11 @@ describe('CSRF Protection Service', () => {
 
     it('returns false if SESSIONS binding is missing', async () => {
       const envWithoutSessions = {};
-      const isValid = await validateCsrfToken({ env: envWithoutSessions, token: 'token', sessionId: 'session' });
+      const isValid = await validateCsrfToken({
+        env: envWithoutSessions,
+        token: 'token',
+        sessionId: 'session',
+      });
 
       expect(isValid).toBe(false);
     });
