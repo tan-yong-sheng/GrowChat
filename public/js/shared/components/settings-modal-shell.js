@@ -2,9 +2,9 @@ import { escapeHtml, escapeSelector } from '../utils/dom-escape.js';
 
 const DEFAULT_OUTER_CLASS =
   'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4';
-const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-black/25 backdrop-blur-sm transition-opacity';
+const DEFAULT_OVERLAY_CLASS = 'absolute inset-0 bg-primary/25 backdrop-blur-sm transition-opacity';
 const DEFAULT_SHELL_CLASS =
-  'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh]';
+  'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-lg overflow-hidden flex flex-col max-h-[90vh]';
 const DEFAULT_HEADER_CLASS =
   'flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-100 shrink-0';
 const DEFAULT_BODY_CLASS = 'p-5 sm:p-6 overflow-y-auto flex-1 min-h-0';
@@ -41,7 +41,7 @@ export function buildSettingsModalShellMarkup({
         <div class="${headerClass}" data-settings-modal-header>
           <div>
             <div class="text-lg font-semibold" id="${escapeHtml(ariaLabelledBy)}">${escapeHtml(title)}</div>
-            ${subtitle ? `<div class="text-[11px] text-gray-600 mt-1">${escapeHtml(subtitle)}</div>` : ''}
+            ${subtitle ? `<div class="text-label-sm text-gray-600 mt-1">${escapeHtml(subtitle)}</div>` : ''}
           </div>
           <button type="button" class="${closeClass}" ${closeAttr} aria-label="${escapeHtml(closeAriaLabel)}" id="${escapeHtml(closeId)}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-4">

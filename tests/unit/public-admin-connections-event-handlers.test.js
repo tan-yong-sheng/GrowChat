@@ -146,8 +146,8 @@ describe('createConnectionsEventHandlers delegation', () => {
 
     const toggleBtn = container.querySelector('.connection-toggle[data-id="conn_test1"]');
     expect(toggleBtn).toBeTruthy();
-    // Initial enabled state should be bg-black (not bg-gray-200)
-    expect(toggleBtn.className).toContain('bg-black');
+    // Initial enabled state should be bg-primary (not bg-gray-200)
+    expect(toggleBtn.className).toContain('bg-primary');
     expect(toggleBtn.className).not.toContain('bg-gray-200');
 
     toggleBtn.click();

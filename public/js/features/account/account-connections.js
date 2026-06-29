@@ -278,7 +278,7 @@ export function renderAccountConnectionsSection(
               <div class="py-2.5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between pr-2">
                 <div class="flex flex-col">
                   <div class="text-xs font-medium text-gray-900">LLM Providers</div>
-                  <div class="text-[10px] text-gray-400">Manage each provider directly below.</div>
+                  <div class="text-label-sm text-gray-400">Manage each provider directly below.</div>
                 </div>
               </div>
             </section>
@@ -300,7 +300,7 @@ export function renderAccountConnectionsSection(
               ${accessibleMarkup ? `<div class="mt-3 space-y-2">${accessibleMarkup}</div>` : ''}
             </section>
 
-            <div id="connections-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>
+            <div id="connections-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>
           </div>
         </div>
       </div>

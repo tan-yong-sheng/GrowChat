@@ -14,7 +14,7 @@ describe('admin modal save helpers', () => {
     setModalSaveButtonState(button, { enabled: true });
     expect(button.disabled).toBe(false);
     expect(button.textContent).toBe('Save');
-    expect(button.className).toContain('bg-black');
+    expect(button.className).toContain('bg-primary');
   });
 
   it('supports compact custom button styles', () => {
@@ -22,12 +22,14 @@ describe('admin modal save helpers', () => {
 
     setModalSaveButtonState(button, {
       enabled: true,
-      enabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
-      disabledClass: 'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+      enabledClass:
+        'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
+      disabledClass:
+        'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
     });
 
     expect(button.disabled).toBe(false);
     expect(button.className).toContain('rounded-full');
-    expect(button.className).toContain('text-[9px]');
+    expect(button.className).toContain('text-label-xs');
   });
 });

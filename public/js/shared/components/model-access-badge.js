@@ -8,7 +8,7 @@ export function renderModelAccessBadge({
 } = {}) {
   const modelAccessAttr = modelId ? ` data-model-access="${escapeHtml(modelId)}"` : '';
   return `
-    <span${modelAccessAttr} class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${className}">
+    <span${modelAccessAttr} class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide ${className}">
       ${escapeHtml(label)}
     </span>
   `;

@@ -105,9 +105,9 @@ export function renderRolesPage(container, data = {}) {
           </div>
         </div>
       </div>
-      <div class="flex flex-col flex-1 min-h-0 py-2.5 bg-white rounded-[2rem] border border-gray-100/50 shadow-sm">
+      <div class="flex flex-col flex-1 min-h-0 py-2.5 bg-white rounded-lg border border-gray-100/50 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center w-full gap-2 py-1 px-4 mb-1">
-          <div class="flex flex-1 items-center bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30">
+          <div class="flex flex-1 items-center bg-gray-50/50 px-3 py-1.5 rounded-md border border-gray-100/30">
             <div class="text-gray-400 mr-2.5">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
                 <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
@@ -115,7 +115,7 @@ export function renderRolesPage(container, data = {}) {
             </div>
             <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search Roles" id="roles-search" value="${escapeHtml(state.query)}">
             <div id="roles-clear-search-container" class="${state.query ? '' : 'hidden'} ml-1.5">
-              <button id="roles-clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
+              <button id="roles-clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>

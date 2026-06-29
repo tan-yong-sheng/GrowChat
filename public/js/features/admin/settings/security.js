@@ -38,8 +38,8 @@ export function renderSecuritySettings(container, data) {
     }
     feedback.textContent = message;
     feedback.className = isError
-      ? 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
-      : 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+      ? 'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
+      : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
     feedback.classList.remove('hidden');
     setTimeout(() => feedback.classList.add('hidden'), 3000);
   };
@@ -75,7 +75,7 @@ export function renderSecuritySettings(container, data) {
 
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">Resend API Key</div>
-                <div class="relative rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
+                <div class="relative rounded-md border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
                   <input
                     id="resend-api-key"
                     type="password"
@@ -84,13 +84,13 @@ export function renderSecuritySettings(container, data) {
                     class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder-gray-500"
                   />
                 </div>
-                <div class="text-[10px] text-gray-600 mt-1">${hintText}</div>
+                <div class="text-label-sm text-gray-600 mt-1">${hintText}</div>
               </div>
 
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-2">Send Test Email</div>
                 <div class="flex gap-2">
-                  <div class="relative flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
+                  <div class="relative flex-1 rounded-md border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
                     <input
                       id="test-email"
                       type="email"
@@ -100,7 +100,7 @@ export function renderSecuritySettings(container, data) {
                   </div>
                   <button
                     id="send-test-email"
-                    class="px-4 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    class="px-4 py-2.5 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20"
                   >
                     Send Test
                   </button>
@@ -108,7 +108,7 @@ export function renderSecuritySettings(container, data) {
               </div>
             </section>
 
-            <div id="settings-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>
+            <div id="settings-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>
           </div>
         </div>
       </div>

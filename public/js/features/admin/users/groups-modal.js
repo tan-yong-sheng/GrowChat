@@ -46,10 +46,10 @@ function renderGroupModal({
       <div class="flex flex-1 min-h-0 flex-col md:flex-row">
         <div class="w-full md:w-32 lg:w-36 ${theme.sidebar} border-r-0 md:border-r p-3 md:p-3.5 text-sm shrink-0 border-b md:border-b-0">
           <div class="flex flex-wrap md:flex-col gap-2 md:gap-1.5">
-            <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${theme.sidebarActive}" data-tab="general">
+            <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${theme.sidebarActive}" data-tab="general">
               <span class="flex items-center gap-2">General</span>
             </button>
-            <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${theme.sidebarInactive}" data-tab="members">
+            <button class="group-tab flex-1 md:w-full text-left px-3 py-2 rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${theme.sidebarInactive}" data-tab="members">
               <span class="flex items-center gap-2">Members</span>
             </button>
           </div>
@@ -58,22 +58,22 @@ function renderGroupModal({
           <div data-panel="general" class="space-y-5">
             <div class="space-y-2">
               <label class="text-xs uppercase tracking-wider text-gray-700 font-semibold">Name</label>
-              <input id="group-name-input" class="w-full ${theme.input} rounded-2xl px-4 py-3 text-sm outline-none" placeholder="Group Name" value="${escapeHtml(draft?.name || group?.name || '')}">
+              <input id="group-name-input" class="w-full ${theme.input} rounded-lg px-4 py-3 text-sm outline-none" placeholder="Group Name" value="${escapeHtml(draft?.name || group?.name || '')}">
             </div>
             <div class="space-y-2">
               <label class="text-xs uppercase tracking-wider text-gray-700 font-semibold">Description</label>
-              <textarea id="group-description-input" rows="3" class="w-full ${theme.input} rounded-2xl px-4 py-3 text-sm outline-none resize-none" placeholder="Group Description">${escapeHtml(draft?.description || group?.description || '')}</textarea>
+              <textarea id="group-description-input" rows="3" class="w-full ${theme.input} rounded-lg px-4 py-3 text-sm outline-none resize-none" placeholder="Group Description">${escapeHtml(draft?.description || group?.description || '')}</textarea>
             </div>
           </div>
           <div data-panel="members" class="space-y-4 hidden">
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-sm font-semibold text-gray-900">Members</div>
-                <div class="text-[11px] text-gray-700" id="members-count"></div>
+                <div class="text-label-sm text-gray-700" id="members-count"></div>
               </div>
-              <div class="text-[11px] text-gray-700">${usersTotal ? `Showing ${Math.min(allUsers.length, usersTotal)} of ${usersTotal}` : ''}</div>
+              <div class="text-label-sm text-gray-700">${usersTotal ? `Showing ${Math.min(allUsers.length, usersTotal)} of ${usersTotal}` : ''}</div>
             </div>
-            <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30">
+            <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-md border border-gray-100/30">
               <div class="flex-shrink-0 text-gray-700">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
                   <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
@@ -81,7 +81,7 @@ function renderGroupModal({
               </div>
               <input id="group-member-search" class="w-full bg-transparent text-sm text-gray-700 placeholder:text-gray-700 outline-none" placeholder="Search users">
               <div id="group-member-clear-container" class="hidden ml-1.5">
-                <button type="button" id="group-member-clear-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
+                <button type="button" id="group-member-clear-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 transition">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -97,9 +97,9 @@ function renderGroupModal({
     footer: `
       <div class="text-sm text-red-600" id="group-modal-error"></div>
       <div class="flex items-center gap-2">
-        ${isEdit ? `<button id="group-policies-btn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition">Manage Policies</button>` : ''}
+        ${isEdit ? `<button id="group-policies-btn" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 rounded transition">Manage Policies</button>` : ''}
         ${isEdit ? '<button id="group-delete-btn" class="px-4 py-2 text-sm text-red-500 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 rounded transition">Delete</button>' : ''}
-        <button type="button" id="group-save-btn" class="px-4 py-2 text-sm font-semibold rounded-xl transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Save</button>
+        <button type="button" id="group-save-btn" class="px-4 py-2 text-sm font-semibold rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20">Save</button>
       </div>
     `,
     closeAttr: 'data-close-group-modal',
@@ -181,18 +181,18 @@ function renderGroupModal({
             ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
             : 'bg-gray-100 text-gray-600 border-gray-200 hover:border-gray-300';
           return `
-          <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2">
+          <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
             <div class="flex items-center gap-3">
               <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">${escapeHtml(initials)}</div>
               <div class="flex flex-col">
                 <div class="text-sm font-medium text-gray-900">${escapeHtml(user.name || 'Unknown')}</div>
-                <div class="text-[11px] text-gray-700">${escapeHtml(user.email || '')}</div>
+                <div class="text-label-sm text-gray-700">${escapeHtml(user.email || '')}</div>
               </div>
             </div>
             ${renderButton({
               label: buttonLabel,
               variant: isSelected ? 'secondary' : 'ghost',
-              className: `member-toggle text-[11px] px-3 py-1 ${buttonClass}`,
+              className: `member-toggle text-label-sm px-3 py-1 ${buttonClass}`,
               dataAttrs: { 'user-id': user.id },
             })}
           </div>

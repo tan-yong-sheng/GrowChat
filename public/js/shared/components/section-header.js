@@ -102,7 +102,7 @@ export function renderSettingsPageLayout({
  */
 export function renderErrorBanner({ message = '', dismissible = true } = {}) {
   return `
-    <div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3">
+    <div data-error-banner class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3">
       <span>${message}</span>
       ${
         dismissible
@@ -121,7 +121,7 @@ export function renderErrorBanner({ message = '', dismissible = true } = {}) {
  */
 export function renderSuccessBanner({ message = '', dismissible = true } = {}) {
   return `
-    <div data-success-banner class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center justify-between gap-3">
+    <div data-success-banner class="rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center justify-between gap-3">
       <span>${message}</span>
       ${
         dismissible

@@ -98,7 +98,7 @@ describe('guardrail fixtures', () => {
     writeFixture(
       fixtureRoot,
       'public/js/features/account/account-connections.js',
-      'export const view = `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border-gray-200 bg-gray-50 text-gray-500">Shared</span>`;\n'
+      'export const view = `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide border-gray-200 bg-gray-50 text-gray-500">Shared</span>`;\n'
     );
     // Single --json run: avoids terminal line-wrapping issues with long rule IDs
     const result = run(
@@ -188,7 +188,7 @@ describe('guardrail fixtures', () => {
       fixtureRoot,
       'public/js/features/account/account-models.js',
       [
-        'export const row = `<span data-model-access="gpt-4" class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border-gray-200 bg-gray-50 text-gray-600">Shared</span>`;',
+        'export const row = `<span data-model-access="gpt-4" class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide border-gray-200 bg-gray-50 text-gray-600">Shared</span>`;',
       ].join('\n') + '\n'
     );
 

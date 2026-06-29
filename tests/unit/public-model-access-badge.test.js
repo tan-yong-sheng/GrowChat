@@ -15,7 +15,7 @@ describe('model-access-badge component', () => {
     expect(html).toContain('data-model-access="abc&quot;&lt;id&gt;"');
     expect(html).toContain('&lt;Admin&gt;');
     expect(html).toContain(
-      'class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border-sky-100 bg-sky-50 text-sky-700"'
+      'class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide border-sky-100 bg-sky-50 text-sky-700"'
     );
   });
 

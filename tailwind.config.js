@@ -91,6 +91,13 @@ export default {
         '2xl': '16px', // alias for lg — migration helper
         '3xl': '16px', // alias for lg — migration helper
       },
+      fontSize: {
+        'label-sm': ['11px', { lineHeight: '1.4', fontWeight: '500' }],
+        'label-xs': ['9px', { lineHeight: '1.4', fontWeight: '500' }],
+        'body-lg': ['16px', { lineHeight: '1.5', fontWeight: '400' }],
+        'body-md': ['14px', { lineHeight: '1.5', fontWeight: '400' }],
+        'body-sm': ['12px', { lineHeight: '1.5', fontWeight: '400' }],
+      },
     },
   },
   plugins: [

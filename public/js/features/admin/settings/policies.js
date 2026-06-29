@@ -228,7 +228,7 @@ export function renderPoliciesSettings(container, _data = {}) {
       return;
     }
     if (state.error) {
-      container.innerHTML = `<div class="flex items-center justify-center h-full p-6"><div class="max-w-md w-full rounded-3xl border border-red-100 bg-red-50/60 p-6 text-center"><div class="text-sm font-semibold text-red-700">Unable to load policies</div><div class="mt-2 text-sm text-red-600">${escapeHtml(state.error)}</div></div></div>`;
+      container.innerHTML = `<div class="flex items-center justify-center h-full p-6"><div class="max-w-md w-full rounded-lg border border-red-100 bg-red-50/60 p-6 text-center"><div class="text-sm font-semibold text-red-700">Unable to load policies</div><div class="mt-2 text-sm text-red-600">${escapeHtml(state.error)}</div></div></div>`;
       return;
     }
 

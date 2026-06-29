@@ -40,7 +40,7 @@ export function buildStickyHeaderHtml(ctx) {
       ${
         window.location.pathname.startsWith('/admin/users/policies')
           ? `
-      <div class="px-0.5 text-[11px] text-gray-500 leading-tight">
+      <div class="px-0.5 text-label-sm text-gray-500 leading-tight">
         Slim policy review view. Disabled resources stay hidden by default.
       </div>
       `
@@ -48,21 +48,21 @@ export function buildStickyHeaderHtml(ctx) {
       }
       <div class="flex flex-nowrap items-end gap-2 overflow-visible">
         <label class="min-w-0 flex-[0.95] space-y-1">
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Group</span>
+          <span class="text-label-sm font-semibold uppercase tracking-wider text-gray-500">Group</span>
           <select id="policy-group-filter"
             class="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-gray-400">
             ${groupOptions}
           </select>
         </label>
         <label class="min-w-[10rem] flex-[0.8] space-y-1">
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Resources</span>
+          <span class="text-label-sm font-semibold uppercase tracking-wider text-gray-500">Resources</span>
           <select id="policy-family-select"
             class="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-gray-400">
             ${familyOptions}
           </select>
         </label>
         <label class="min-w-0 flex-[1.5] space-y-1">
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Search</span>
+          <span class="text-label-sm font-semibold uppercase tracking-wider text-gray-500">Search</span>
           <input id="policy-search" value="${escapeHtml(query)}"
             class="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-gray-400"
             placeholder="Search resources">
@@ -74,7 +74,7 @@ export function buildStickyHeaderHtml(ctx) {
             <span class="flex items-center gap-1">
               ${
                 activeVisibilityCount
-                  ? '<span class="rounded-full bg-gray-900 px-1.5 py-0.5 text-[10px] text-white">' +
+                  ? '<span class="rounded-full bg-gray-900 px-1.5 py-0.5 text-label-sm text-white">' +
                     String(activeVisibilityCount) +
                     '</span>'
                   : ''
@@ -84,9 +84,9 @@ export function buildStickyHeaderHtml(ctx) {
               </svg>
             </span>
           </button>
-          <div data-policy-visibility-menu class="${filtersOpen ? '' : 'hidden'} absolute right-0 top-full z-[120] mt-2 w-64 rounded-2xl border border-gray-200 bg-white p-3 shadow-xl">
-            <div class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Visibility</div>
-            <div class="mt-1 text-[11px] text-gray-500">Applies to the selected group.</div>
+          <div data-policy-visibility-menu class="${filtersOpen ? '' : 'hidden'} absolute right-0 top-full z-[120] mt-2 w-64 rounded-lg border border-gray-200 bg-white p-3 shadow-xl">
+            <div class="text-label-sm font-semibold uppercase tracking-wider text-gray-400">Visibility</div>
+            <div class="mt-1 text-label-sm text-gray-500">Applies to the selected group.</div>
             ${buildVisibilityCheckbox('allowed', 'Allowed', 'Show allowlisted resources.', visibilityFilters)}
             ${buildVisibilityCheckbox('inaccessible', 'No access', 'Show resources with no matching ACL rule.', visibilityFilters)}
             ${buildVisibilityCheckbox('denied', 'Denied', 'Show explicit deny rules.', visibilityFilters)}
@@ -116,7 +116,7 @@ function buildVisibilityCheckbox(key, label, description, visibilityFilters) {
       data-policy-filter="${key}" ${visibilityFilters[key] ? 'checked' : ''}>
     <span>
       <span class="block">${resourceBadge(badge.label, badge.kind, true)}</span>
-      <span class="block text-[11px] text-gray-500">${description}</span>
+      <span class="block text-label-sm text-gray-500">${description}</span>
     </span>
   </label>
   `;

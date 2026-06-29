@@ -14,7 +14,7 @@ export function renderFormLabelWithHelper({
         <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
           ${label}${required ? ' <span class="text-red-500">*</span>' : ''}
         </div>
-        ${helper ? `<div class="text-[11px] text-gray-500 mb-2">${helper}</div>` : ''}
+        ${helper ? `<div class="text-label-sm text-gray-500 mb-2">${helper}</div>` : ''}
       </label>
     </div>
   `;
@@ -34,14 +34,14 @@ export function renderFormInput({
   disabled = false,
   className = '',
 } = {}) {
-  const inputClass = `w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gray-300 ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} ${className}`;
+  const inputClass = `w-full rounded-md border border-gray-200 px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gray-300 ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} ${className}`;
 
   return `
     <label class="block">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
         ${label}${required ? ' <span class="text-red-500">*</span>' : ''}
       </div>
-      ${helper ? `<div class="text-[11px] text-gray-500 mb-2">${helper}</div>` : ''}
+      ${helper ? `<div class="text-label-sm text-gray-500 mb-2">${helper}</div>` : ''}
       <input
         type="${type}"
         name="${name}"
@@ -69,14 +69,14 @@ export function renderFormSelect({
   disabled = false,
   className = '',
 } = {}) {
-  const selectClass = `w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gray-300 ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} ${className}`;
+  const selectClass = `w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-gray-300 ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} ${className}`;
 
   return `
     <label class="block">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
         ${label}${required ? ' <span class="text-red-500">*</span>' : ''}
       </div>
-      ${helper ? `<div class="text-[11px] text-gray-500 mb-2">${helper}</div>` : ''}
+      ${helper ? `<div class="text-label-sm text-gray-500 mb-2">${helper}</div>` : ''}
       <select
         name="${name}"
         class="${selectClass}"
@@ -103,14 +103,14 @@ export function renderFormTextarea({
   disabled = false,
   className = '',
 } = {}) {
-  const textareaClass = `w-full rounded-xl border border-gray-200 px-4 py-2.5 font-mono text-xs outline-none focus:ring-1 focus:ring-gray-300 ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} ${className}`;
+  const textareaClass = `w-full rounded-md border border-gray-200 px-4 py-2.5 font-mono text-xs outline-none focus:ring-1 focus:ring-gray-300 ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} ${className}`;
 
   return `
     <label class="block">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
         ${label}${required ? ' <span class="text-red-500">*</span>' : ''}
       </div>
-      ${helper ? `<div class="text-[11px] text-gray-500 mb-2">${helper}</div>` : ''}
+      ${helper ? `<div class="text-label-sm text-gray-500 mb-2">${helper}</div>` : ''}
       <textarea
         name="${name}"
         rows="${rows}"
@@ -134,7 +134,7 @@ export function renderFormCheckbox({
   disabled = false,
 } = {}) {
   return `
-    <label class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+    <label class="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
       <input
         type="checkbox"
         name="${name}"
@@ -144,7 +144,7 @@ export function renderFormCheckbox({
       />
       <div class="flex-1">
         <span class="text-sm text-gray-700">${label}</span>
-        ${helper ? `<div class="text-[11px] text-gray-500 mt-1">${helper}</div>` : ''}
+        ${helper ? `<div class="text-label-sm text-gray-500 mt-1">${helper}</div>` : ''}
       </div>
     </label>
   `;

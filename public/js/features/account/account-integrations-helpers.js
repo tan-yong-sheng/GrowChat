@@ -98,7 +98,7 @@ export function buildFormMarkup(server = null, modalMode = 'create', canManage =
 export function updateToolToggle(btn, enabled, serverEnabled) {
   if (!btn) return;
   btn.disabled = !serverEnabled;
-  btn.classList.toggle('bg-black', enabled);
+  btn.classList.toggle('bg-primary', enabled);
   btn.classList.toggle('bg-gray-200', !enabled);
   btn.classList.toggle('opacity-40', !serverEnabled);
   btn.classList.toggle('cursor-not-allowed', !serverEnabled);
@@ -136,7 +136,7 @@ export function buildListCard(
     'relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none';
   const toggleClass =
     canManageToolServers || isShared
-      ? `relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-black' : 'bg-gray-200'}`
+      ? `relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${serverEnabled ? 'bg-primary' : 'bg-gray-200'}`
       : 'relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
   const toggleOn = isShared ? !hiddenForUser : serverEnabled;
   const toggleLabel = isShared
@@ -158,11 +158,11 @@ export function buildListCard(
       const toolVisible = tool.visible_for_user !== false;
       const canToggleVisibility = tool.enabled !== false;
       return `
-        <div class="rounded-xl border border-gray-100 px-3 py-2 ${toolVisible ? 'bg-white' : 'bg-gray-50/60 opacity-75'}">
+        <div class="rounded-md border border-gray-100 px-3 py-2 ${toolVisible ? 'bg-white' : 'bg-gray-50/60 opacity-75'}">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <div class="text-xs font-medium text-gray-900">${escapeHtml(tool.title || tool.name || 'Tool')}</div>
-              <div class="text-[10px] text-gray-600 font-mono">${escapeHtml(tool.name || '')}</div>
+              <div class="text-label-sm text-gray-600 font-mono">${escapeHtml(tool.name || '')}</div>
             </div>
             <button
               type="button"
@@ -172,27 +172,27 @@ export function buildListCard(
               aria-pressed="${toolVisible ? 'true' : 'false'}"
               aria-label="${escapeHtml(toolVisible ? 'Hide for me' : 'Show for me')}"
               title="${escapeHtml(toolVisible ? 'Hide for me' : 'Show for me')}"
-              class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolVisible ? 'bg-black' : 'bg-gray-200'} ${canToggleVisibility ? '' : 'opacity-40 cursor-not-allowed'}"
+              class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolVisible ? 'bg-primary' : 'bg-gray-200'} ${canToggleVisibility ? '' : 'opacity-40 cursor-not-allowed'}"
               ${canToggleVisibility ? '' : 'disabled aria-disabled="true"'}
             >
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toolVisible ? 'translate-x-4' : 'translate-x-0'}"></span>
             </button>
           </div>
-          ${description ? `<div class="text-[11px] text-gray-600 mt-1">${escapeHtml(preview)}</div>` : ''}
+          ${description ? `<div class="text-label-sm text-gray-600 mt-1">${escapeHtml(preview)}</div>` : ''}
         </div>
       `;
     }
     return `
-      <div class="rounded-xl border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
+      <div class="rounded-md border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <div class="text-xs font-medium text-gray-900">${escapeHtml(tool.title || tool.name || 'Tool')}</div>
-            <div class="text-[10px] text-gray-600 font-mono">${escapeHtml(tool.name || '')}</div>
+            <div class="text-label-sm text-gray-600 font-mono">${escapeHtml(tool.name || '')}</div>
           </div>
           <button
             data-server-id="${escapeHtml(server.id)}"
             data-tool-name="${escapeHtml(tool.name || '')}"
-            class="tool-toggle relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolEnabled ? 'bg-black' : 'bg-gray-200'} ${serverEnabled && canManageToolServers ? '' : 'opacity-40 cursor-not-allowed'}"
+            class="tool-toggle relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolEnabled ? 'bg-primary' : 'bg-gray-200'} ${serverEnabled && canManageToolServers ? '' : 'opacity-40 cursor-not-allowed'}"
             ${serverEnabled && canManageToolServers ? '' : 'disabled aria-disabled="true"'}
             aria-pressed="${toolEnabled ? 'true' : 'false'}"
             aria-disabled="${serverEnabled && canManageToolServers ? 'false' : 'true'}"
@@ -204,8 +204,8 @@ export function buildListCard(
         ${
           description
             ? `
-          <div class="text-[11px] text-gray-700 mt-1">${escapeHtml(preview)}</div>
-          ${hasMore ? `<button data-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name || '')}" class="tool-desc-toggle text-[10px] text-gray-600 hover:text-gray-700 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
+          <div class="text-label-sm text-gray-700 mt-1">${escapeHtml(preview)}</div>
+          ${hasMore ? `<button data-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name || '')}" class="tool-desc-toggle text-label-sm text-gray-600 hover:text-gray-700 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
         `
             : ''
         }
@@ -219,10 +219,10 @@ export function buildListCard(
           <div class="flex items-center gap-2">
             <div class="text-xs font-medium text-gray-900">${escapeHtml(server.name || server.id || 'Integration')}</div>
             ${renderStatusBadge({ text: isShared ? 'Shared' : 'Personal', tone: isShared ? 'gray' : 'green' }).trim()}
-            <span data-server-disabled-badge class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${serverEnabled ? 'hidden' : ''} border-gray-200 bg-gray-100 text-gray-700">Disabled</span>
+            <span data-server-disabled-badge class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-label-xs font-semibold uppercase tracking-wide ${serverEnabled ? 'hidden' : ''} border-gray-200 bg-gray-100 text-gray-700">Disabled</span>
           </div>
-          <div class="text-[10px] text-gray-600 font-mono">${escapeHtml(server.url || '')}</div>
-          <div class="text-[10px] text-gray-600 mt-1">
+          <div class="text-label-sm text-gray-600 font-mono">${escapeHtml(server.url || '')}</div>
+          <div class="text-label-sm text-gray-600 mt-1">
             Tools: <span class="text-gray-900">${serverEnabled ? enabledCount : 0}</span> / <span class="text-gray-900">${totalCount}</span> ${serverEnabled ? 'enabled' : 'available'}
             ${server.toolsError ? '<span class="text-red-500 ml-2">Last verify failed</span>' : ''}
           </div>
@@ -246,7 +246,7 @@ export function buildListCard(
           `
               : ''
           }
-          <button data-id="${escapeHtml(server.id)}" data-toggle-scope="${scope}" class="server-toggle ${isShared ? `${sharedToggleClass} ${toggleOn ? 'bg-black' : 'bg-gray-200'}` : toggleClass}" ${isShared || canManageToolServers ? '' : 'disabled aria-disabled="true"'} aria-pressed="${toggleOn ? 'true' : 'false'}" aria-label="${escapeHtml(toggleLabel)}">
+          <button data-id="${escapeHtml(server.id)}" data-toggle-scope="${scope}" class="server-toggle ${isShared ? `${sharedToggleClass} ${toggleOn ? 'bg-primary' : 'bg-gray-200'}` : toggleClass}" ${isShared || canManageToolServers ? '' : 'disabled aria-disabled="true"'} aria-pressed="${toggleOn ? 'true' : 'false'}" aria-label="${escapeHtml(toggleLabel)}">
             <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toggleOn ? 'translate-x-4' : 'translate-x-0'}"></span>
           </button>
           ${
@@ -266,7 +266,7 @@ export function buildListCard(
         tools.length
           ? `
         <div class="px-2 pb-3 ${server.toolsExpanded ? '' : 'hidden'}">
-          ${server.toolsError ? `<div class="text-[11px] text-red-500 mb-2">${escapeHtml(server.toolsError)}</div>` : ''}
+          ${server.toolsError ? `<div class="text-label-sm text-red-500 mb-2">${escapeHtml(server.toolsError)}</div>` : ''}
           <div class="space-y-2">
             ${toolRows.join('')}
           </div>

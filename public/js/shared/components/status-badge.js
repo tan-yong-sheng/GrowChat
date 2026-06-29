@@ -13,11 +13,11 @@ export function renderStatusBadge({
     green: 'border-emerald-100 bg-emerald-50 text-emerald-700',
     amber: 'border-amber-100 bg-amber-50 text-amber-700',
     red: 'border-red-100 bg-red-50 text-red-600',
-    blue: 'border-blue-100 bg-blue-50 text-blue-700',
+    blue: 'border-blue-100 bg-blue-50 text-on-surface',
   };
 
   return `
-    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tones[tone] || tones.gray}">
+    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide ${tones[tone] || tones.gray}">
       ${text}
     </span>
   `;

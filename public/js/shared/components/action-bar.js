@@ -48,7 +48,7 @@ export function renderActionBar({ isSaving = false, helpText = '', showDelete = 
  */
 export function renderStickyActionBar({ isSaving = false, helpText = '' } = {}) {
   return `
-    <div class="sticky bottom-0 left-0 right-0 flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 bg-white shadow-lg">
+    <div class="sticky bottom-0 left-0 right-0 flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 bg-white shadow-sm">
       <div class="text-xs text-gray-400">
         ${helpText}
       </div>

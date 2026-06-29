@@ -15,7 +15,7 @@ export function renderButton({
     'inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed';
 
   const variants = {
-    primary: 'bg-neutral-900 text-white border-neutral-900 hover:bg-black active:scale-95',
+    primary: 'bg-neutral-900 text-white border-neutral-900 hover:bg-primary active:scale-95',
     secondary: 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
     ghost: 'border-transparent bg-transparent text-gray-600 hover:bg-gray-100',
   };

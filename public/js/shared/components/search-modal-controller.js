@@ -80,7 +80,7 @@ export function createSearchModalController(container, createChatFn, loadMessage
     previewContent.innerHTML = `
       <div class="p-6 border-b border-gray-50 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-md z-10">
         <div class="flex flex-col min-w-0">
-          <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Preview</div>
+          <div class="text-label-sm font-bold uppercase tracking-widest text-gray-400 mb-0.5">Preview</div>
           <div class="text-sm font-semibold text-gray-800 truncate" id="preview-title">Loading...</div>
         </div>
       </div>
@@ -88,7 +88,7 @@ export function createSearchModalController(container, createChatFn, loadMessage
         <div class="space-y-4">
           <div class="h-4 bg-gray-100 rounded w-3/4 animate-pulse"></div>
           <div class="h-4 bg-gray-100 rounded w-1/2 animate-pulse"></div>
-          <div class="h-24 bg-gray-50 rounded-2xl w-full animate-pulse"></div>
+          <div class="h-24 bg-gray-50 rounded-lg w-full animate-pulse"></div>
         </div>
       </div>
     `;
@@ -109,12 +109,12 @@ export function createSearchModalController(container, createChatFn, loadMessage
           (m) => `
         <div class="flex flex-col gap-2 ${m.role === 'user' ? 'items-end' : 'items-start'}">
           <div class="flex items-center gap-2 mb-1 ${m.role === 'user' ? 'flex-row-reverse' : ''}">
-            <div class="w-5 h-5 rounded-full ${m.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-[8px] font-bold">
+            <div class="w-5 h-5 rounded-full ${m.role === 'user' ? 'bg-surface-container text-blue-600' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-label-xs font-bold">
               ${m.role === 'user' ? 'U' : 'AI'}
             </div>
-            <span class="text-[10px] font-bold uppercase text-gray-400">${escapeHtml(m.role)}</span>
+            <span class="text-label-sm font-bold uppercase text-gray-400">${escapeHtml(m.role)}</span>
           </div>
-          <div class="max-w-[90%] ${m.role === 'user' ? 'bg-gray-100 rounded-[18px]' : 'bg-white border border-gray-100 rounded-[18px]'} px-4 py-2.5 text-xs text-gray-800 shadow-sm prose prose-p:my-1 prose-pre:my-2 prose-sm max-w-none break-words">
+          <div class="max-w-[90%] ${m.role === 'user' ? 'bg-gray-100 rounded-lg' : 'bg-white border border-gray-100 rounded-lg'} px-4 py-2.5 text-xs text-gray-800 shadow-sm prose prose-p:my-1 prose-pre:my-2 prose-sm max-w-none break-words">
             ${renderMessageContent(m.content, { interactive: false })}
           </div>
         </div>

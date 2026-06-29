@@ -82,7 +82,7 @@ export function renderModelsSettings(container, data) {
   const showError = (message) => {
     const errorSlot = container.querySelector('#models-error-container');
     if (errorSlot) {
-      errorSlot.innerHTML = `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${escapeHtml(String(message || ''))}</span></div>`;
+      errorSlot.innerHTML = `<div data-error-banner class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${escapeHtml(String(message || ''))}</span></div>`;
       setTimeout(() => {
         if (errorSlot.querySelector('[data-error-banner]')) {
           errorSlot.innerHTML = '';
@@ -189,7 +189,7 @@ export function renderModelsSettings(container, data) {
 
   const _updateModelToggle = (btn, enabled) => {
     if (!btn) return;
-    btn.classList.toggle('bg-black', enabled);
+    btn.classList.toggle('bg-primary', enabled);
     btn.classList.toggle('bg-gray-200', !enabled);
     const knob = btn.querySelector('span');
     if (knob) {
