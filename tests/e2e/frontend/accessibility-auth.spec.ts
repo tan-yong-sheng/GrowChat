@@ -15,7 +15,11 @@ test.describe('Authenticated accessibility', () => {
   test('chat workspace has no a11y violations', async ({ page }) => {
     // Use ?app=1 to bypass the landing page and load the SPA directly.
     await page.goto('/?app=1');
-    await page.waitForLoadState('networkidle');
+    // The chat SPA opens long-lived SSE connections that prevent
+    // networkidle from settling. Wait for the main app shell to render
+    // and a short settle delay for axe-core to finish scanning.
+    await page.waitForSelector('main#main, [id="chat-list"]', { timeout: 10000 });
+    await page.waitForTimeout(500);
 
     const accessibilityScanResults = await new Builder({
       page,
@@ -28,7 +32,9 @@ test.describe('Authenticated accessibility', () => {
   test('admin users overview has no a11y violations', async ({ page }) => {
     await page.goto('/admin/users');
     await page.waitForURL(/\/admin\/users\/overview$/, { timeout: 5000 });
-    await page.waitForLoadState('networkidle');
+    // Wait for the admin shell to render, then settle for axe.
+    await page.waitForSelector('main#main, [id="admin-users-list"]', { timeout: 10000 });
+    await page.waitForTimeout(500);
 
     const accessibilityScanResults = await new Builder({
       page,
