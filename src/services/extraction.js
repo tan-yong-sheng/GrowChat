@@ -9,7 +9,7 @@ import { parseDocument } from './parsers/index.js';
 import { createRootLogger } from '../utils/logger.js';
 const logger = createRootLogger({});
 
-async function handleSkippedExtraction({ db, documentId, reason }) {
+async function handleSkippedExtraction({ db, documentId, reason } = {}) {
   const message = reason || 'Document extraction skipped';
   await db.run(
     `UPDATE documents SET extraction_status = -1, extraction_error = ?, updated_at = unixepoch()
@@ -19,7 +19,7 @@ async function handleSkippedExtraction({ db, documentId, reason }) {
   return { extractedText: '', excerptLength: 0, skipped: true, reason: message };
 }
 
-async function markExtractionSuccess({ db, documentId, excerpt }) {
+async function markExtractionSuccess({ db, documentId, excerpt } = {}) {
   await db.run(
     `UPDATE documents SET extraction_status = 1, text_excerpt = ?, updated_at = unixepoch()
      WHERE id = ?`,
@@ -27,7 +27,7 @@ async function markExtractionSuccess({ db, documentId, excerpt }) {
   );
 }
 
-async function markExtractionFailed({ db, documentId, errorMessage }) {
+async function markExtractionFailed({ db, documentId, errorMessage } = {}) {
   await db.run(`UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?`, [
     errorMessage,
     documentId,

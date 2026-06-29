@@ -50,7 +50,7 @@ export async function generateCsrfToken(env, sessionId) {
  * @param {string} options.sessionId - Expected session identifier
  * @returns {Promise<boolean>} True if token is valid, false otherwise
  */
-export async function validateCsrfToken({ env, token, sessionId }) {
+export async function validateCsrfToken({ env, token, sessionId } = {}) {
   if (!env?.SESSIONS) {
     logger.warn('SESSIONS KV binding is required for CSRF validation');
     return false;
@@ -92,7 +92,7 @@ export async function validateCsrfToken({ env, token, sessionId }) {
  * @param {string} options.sessionId - Current session ID
  * @returns {Object|null} Error response if validation fails, null if valid
  */
-export async function requireCsrfToken({ req, env, sessionId }) {
+export async function requireCsrfToken({ req, env, sessionId } = {}) {
   // GET, HEAD, OPTIONS requests don't need CSRF protection
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     return null;

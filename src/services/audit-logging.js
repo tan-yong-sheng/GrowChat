@@ -35,7 +35,7 @@ export const SecurityEventTypes = {
  * @param {Object} details - Event details (userId, ip, endpoint, etc.)
  * @returns {Promise<void>}
  */
-export async function logSecurityEvent({ env, eventType, details = {} }) {
+export async function logSecurityEvent({ env, eventType, details = {} } = {}) {
   if (!env?.SESSIONS) {
     logger.warn('SESSIONS KV binding required for audit logging');
     return;
