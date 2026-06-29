@@ -48,12 +48,13 @@ describe('rate limit service', () => {
 
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
-    expect(store.put).toHaveBeenCalledWith('rate-limit:login:ip:1-2-3-4', '3', {
-      expirationTtl: 60,
-    });
+    // Denied requests must not write to KV (issue #147): the read-check-write
+    // race is unchanged, and writing on every denied request would refresh
+    // the TTL and amplify write traffic without any benefit.
+    expect(store.put).not.toHaveBeenCalled();
   });
 
-  it('always increments the counter before checking (optimistic increment)', async () => {
+  it('increments the counter and writes with TTL when allowed', async () => {
     const store = {
       get: vi.fn().mockResolvedValue('0'),
       put: vi.fn().mockResolvedValue(undefined),

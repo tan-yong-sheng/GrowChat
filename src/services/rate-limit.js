@@ -90,17 +90,20 @@ export async function checkRateLimit(env, opts) {
   const current = Number.parseInt(raw || '0', 10);
   const count = Number.isFinite(current) && current > 0 ? current : 0;
 
-  // Increment and write. Only refresh the TTL when the request is allowed.
-  // Denied requests leave the key untouched so the TTL naturally expires and
-  // the client cannot keep the key alive indefinitely with a trickle of
-  // denied requests.
-  const nextCount = count + 1;
-
-  if (nextCount > maxRequests) {
-    await store.put(key, String(nextCount), { expirationTtl: windowSize });
+  // Check first, write only when allowed. Denied requests leave the KV
+  // untouched so:
+  //   1. The TTL on the existing counter is not refreshed, so it naturally
+  //      expires and the user gets a fresh window.
+  //   2. No write amplification on the denied path.
+  //   3. The counter cannot grow unbounded by a burst of denied requests.
+  // Note: the read-check-write sequence is not atomic on KV (issue #147).
+  // The accepted mitigation is that concurrent over-the-cap bursts can
+  // only bypass the limit by 2-3x in practice due to KV eventual consistency.
+  if (count >= maxRequests) {
     return { allowed: false, remaining: 0, resetAt, key };
   }
 
+  const nextCount = count + 1;
   await store.put(key, String(nextCount), { expirationTtl: windowSize });
   return { allowed: true, remaining: Math.max(0, maxRequests - nextCount), resetAt, key };
 }
