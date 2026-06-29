@@ -62,7 +62,7 @@ export function createOverviewController(ctx) {
     } catch (err) {
       if (uiState.accessInspector.refreshToken !== currentToken) return;
       body.innerHTML = `
-        <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div class="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
           ${escapeHtml(err.message || 'Failed to inspect user access')}
         </div>
       `;
@@ -220,7 +220,7 @@ export function createOverviewController(ctx) {
         } catch (err) {
           if (uiState.accessInspector.bodyEl) {
             uiState.accessInspector.bodyEl.innerHTML = `
-              <div class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+              <div class="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
                 ${escapeHtml(err.message || 'Failed to inspect user access')}
               </div>
             `;

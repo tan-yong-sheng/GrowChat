@@ -44,7 +44,7 @@ export function createIntegrationsEvents(ctx) {
     feedback.textContent = sectionState.error || '';
     if (sectionState.error) {
       feedback.className =
-        'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
+        'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
     }
   };
 
@@ -82,7 +82,7 @@ export function createIntegrationsEvents(ctx) {
       const toggleOn = isShared
         ? !isResourceHidden(state.settings?.preferences || {}, 'tool_servers', serverId)
         : serverEnabled;
-      serverToggle.classList.toggle('bg-black', toggleOn);
+      serverToggle.classList.toggle('bg-primary', toggleOn);
       serverToggle.classList.toggle('bg-gray-200', !toggleOn);
       serverToggle.setAttribute('aria-pressed', toggleOn ? 'true' : 'false');
       const knob = serverToggle.querySelector('span');

@@ -27,7 +27,7 @@ export function createConnectionsModalOps(deps) {
 
   const updateConnectionToggle = (btn, enabled) => {
     if (!btn) return;
-    btn.classList.toggle('bg-black', enabled);
+    btn.classList.toggle('bg-primary', enabled);
     btn.classList.toggle('bg-gray-200', !enabled);
     const knob = btn.querySelector('span');
     if (knob) {
@@ -42,10 +42,10 @@ export function createConnectionsModalOps(deps) {
     feedback.textContent = message;
     if (type === 'success') {
       feedback.className =
-        'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+        'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
     } else if (type === 'error') {
       feedback.className =
-        'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
+        'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600';
     }
     feedback.classList.remove('hidden');
     setTimeout(() => feedback.classList.add('hidden'), 3000);

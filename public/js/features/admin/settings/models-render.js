@@ -99,7 +99,7 @@ export function createModelsRender(deps) {
                         <div class="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isDisabled || !canManageAcls ? 'hidden' : ''}"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${isDisabled || !canManageAcls ? 'hidden' : ''}"
                             data-model-acl="${escapeHtml(model.id)}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
@@ -119,7 +119,7 @@ export function createModelsRender(deps) {
     if (!ensureMounted()) {
       container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
-<div id="models-error-container">${modelsState.error ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>` : ''}</div>
+<div id="models-error-container">${modelsState.error ? `<div data-error-banner class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>` : ''}</div>
         ${renderModelsHeaderHtml({
           countTitle: 'Selected models',
           countLabel: 'Selected models',

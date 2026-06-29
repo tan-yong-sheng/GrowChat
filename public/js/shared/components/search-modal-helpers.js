@@ -72,20 +72,20 @@ export function renderSearchResultsMarkup(results = [], query = '') {
     .map(
       ([label, groupChats]) => `
     <div class="mt-4 first:mt-0">
-      <div class="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">${label}</div>
+      <div class="px-3 py-2 text-label-sm font-bold text-gray-400 uppercase tracking-widest">${label}</div>
       <div class="space-y-1.5">
         ${groupChats
           .map((c) => {
             const idx = results.findIndex((rc) => rc.id === c.id);
             const dateLabel = getSearchChatDateLabel(c.updated_at || c.created_at);
             return `
-            <button data-search-chat="${c.id}" data-index="${idx}" class="search-item w-full text-left px-3 py-3 rounded-2xl transition flex items-center gap-3 text-sm group outline-none focus:bg-gray-100 hover:bg-gray-50" role="option">
+            <button data-search-chat="${c.id}" data-index="${idx}" class="search-item w-full text-left px-3 py-3 rounded-lg transition flex items-center gap-3 text-sm group outline-none focus:bg-gray-100 hover:bg-gray-50" role="option">
               <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-white transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
               <div class="flex-grow min-w-0 flex flex-col">
                 <span class="truncate font-medium text-gray-700 group-hover:text-gray-900">${highlightText(c.title, query)}</span>
-                ${dateLabel === 'Unknown date' ? '' : `<span class="text-[10px] text-gray-400">${dateLabel}</span>`}
+                ${dateLabel === 'Unknown date' ? '' : `<span class="text-label-sm text-gray-400">${dateLabel}</span>`}
               </div>
             </button>
           `;

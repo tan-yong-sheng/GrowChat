@@ -46,7 +46,7 @@ rules:
       - javascript
 
   - id: no-raw-status-badge-markup-in-account-features
-    pattern-regex: '<span[^>]*class\s*=\s*["\x27`][^"\x27`]*inline-flex items-center rounded-full border px-2 py-0\.5 text-\[10px\] font-semibold uppercase tracking-wide[^"\x27`]*["\x27`]'
+    pattern-regex: '<span[^>]*class\s*=\s*["\x27`][^"\x27`]*inline-flex items-center rounded-full border px-2 py-0\.5 text-label-sm font-semibold uppercase tracking-wide[^"\x27`]*["\x27`]'
     paths:
       include:
         - '**/public/js/features/account/account-connections.js'
@@ -61,7 +61,7 @@ rules:
       - javascript
 
   - id: no-raw-model-access-badge-markup-in-model-settings-features
-    pattern-regex: '<span[^>]*data-model-access\s*=\s*["\x27`][^"\x27`]+["\x27`][^>]*class\s*=\s*["\x27`][^"\x27`]*inline-flex items-center rounded-full border px-2 py-0\.5 text-\[10px\] font-semibold uppercase tracking-wide[^"\x27`]*["\x27`]'
+    pattern-regex: '<span[^>]*data-model-access\s*=\s*["\x27`][^"\x27`]+["\x27`][^>]*class\s*=\s*["\x27`][^"\x27`]*inline-flex items-center rounded-full border px-2 py-0\.5 text-label-sm font-semibold uppercase tracking-wide[^"\x27`]*["\x27`]'
     paths:
       include:
         - '**/public/js/features/account/account-models.js'

@@ -142,7 +142,7 @@ export function createFilesModalController(container) {
     const count = currentState.files.selectedIds.length;
     selectedCount.textContent = count;
     attachBtn.disabled = count === 0;
-    attachBtn.classList.toggle('bg-black', count > 0);
+    attachBtn.classList.toggle('bg-primary', count > 0);
     attachBtn.classList.toggle('text-white', count > 0);
     attachBtn.classList.toggle('bg-gray-200', count === 0);
     attachBtn.classList.toggle('text-gray-500', count === 0);

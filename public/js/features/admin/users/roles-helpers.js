@@ -200,7 +200,7 @@ export function formatRoleSummary(role) {
 
 export function renderLoadingState() {
   return `
-    <div class="flex min-h-[320px] items-center justify-center rounded-[2rem] border border-gray-100 bg-white text-sm text-gray-700">
+    <div class="flex min-h-[320px] items-center justify-center rounded-lg border border-gray-100 bg-white text-sm text-gray-700">
       Loading roles...
     </div>
   `;
@@ -208,7 +208,7 @@ export function renderLoadingState() {
 
 export function renderErrorState(message) {
   return `
-    <div class="flex min-h-[320px] items-center justify-center rounded-[2rem] border border-red-100 bg-red-50/60 p-6 text-center">
+    <div class="flex min-h-[320px] items-center justify-center rounded-lg border border-red-100 bg-red-50/60 p-6 text-center">
       <div class="max-w-sm">
         <div class="text-sm font-semibold text-red-700">Unable to load roles</div>
         <div class="mt-1 text-sm text-red-600">${escapeHtml(message || 'Please try again.')}</div>
@@ -266,12 +266,12 @@ export function createModalShell({ title, subtitle, showDelete = false } = {}) {
     modalHash: 'role-modal',
     body: '<div data-modal-body></div>',
     footer: `
-      <div class="text-[9px] text-gray-700 leading-tight" data-modal-note></div>
+      <div class="text-label-xs text-gray-700 leading-tight" data-modal-note></div>
       <div class="flex items-center gap-1.5">
-        ${showDelete ? renderButton({ label: 'Delete', variant: 'secondary', className: 'px-2 py-0.75 text-[9px] text-red-600 border-red-200 hover:bg-red-50 focus:ring-red-500', dataAttrs: { 'role-modal-delete': '' } }) : ''}
-        ${renderButton({ label: 'Discard', variant: 'secondary', className: 'px-2 py-0.75 text-[9px]', dataAttrs: { 'modal-discard': '' } })}
-        ${renderButton({ label: 'Restore defaults', variant: 'secondary', className: 'px-2 py-0.75 text-[9px]', dataAttrs: { 'modal-reset': '' } })}
-        ${renderButton({ label: 'Save', variant: 'primary', className: 'px-2.5 py-0.75 text-[9px]', dataAttrs: { 'role-save': '' } })}
+        ${showDelete ? renderButton({ label: 'Delete', variant: 'secondary', className: 'px-2 py-0.75 text-label-xs text-red-600 border-red-200 hover:bg-red-50 focus:ring-red-500', dataAttrs: { 'role-modal-delete': '' } }) : ''}
+        ${renderButton({ label: 'Discard', variant: 'secondary', className: 'px-2 py-0.75 text-label-xs', dataAttrs: { 'modal-discard': '' } })}
+        ${renderButton({ label: 'Restore defaults', variant: 'secondary', className: 'px-2 py-0.75 text-label-xs', dataAttrs: { 'modal-reset': '' } })}
+        ${renderButton({ label: 'Save', variant: 'primary', className: 'px-2.5 py-0.75 text-label-xs', dataAttrs: { 'role-save': '' } })}
       </div>
     `,
     closeAttr: 'data-modal-close',
@@ -297,10 +297,10 @@ export function renderPermissionGroup(group, draft, modalState) {
     <div id="role-group-${escapeHtml(group.key)}" class="border-b border-gray-100 last:border-b-0 scroll-mt-20">
       <button type="button" data-group-toggle="${escapeHtml(group.key)}" class="flex w-full items-center justify-between px-2.5 py-1.25 hover:bg-gray-50 transition">
         <div class="flex items-center gap-2">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-gray-400">${escapeHtml(group.label)}</span>
-          ${group.sensitive ? '<span class="rounded-full border border-amber-200 bg-amber-100 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-amber-700">Sensitive</span>' : ''}
+          <span class="text-label-xs font-semibold uppercase tracking-wider text-gray-400">${escapeHtml(group.label)}</span>
+          ${group.sensitive ? '<span class="rounded-full border border-amber-200 bg-amber-100 px-1 py-0.5 text-label-xs font-semibold uppercase tracking-wide text-amber-700">Sensitive</span>' : ''}
         </div>
-        <div class="text-[10px] text-gray-400">${collapsed ? '▸' : '▾'}</div>
+        <div class="text-label-sm text-gray-400">${collapsed ? '▸' : '▾'}</div>
       </button>
       ${
         collapsed
@@ -312,12 +312,12 @@ export function renderPermissionGroup(group, draft, modalState) {
                 const isSensitive = group.sensitive || permission.key.startsWith('admin.');
                 const rowTitle = `${permission.label} · ${permission.key} · ${permission.note}`;
                 return `
-          <label title="${escapeHtml(rowTitle)}" class="flex items-center justify-between gap-2 border-t border-gray-50 px-2.5 py-1 text-[9px] ${isSensitive ? 'bg-amber-50/30' : ''}">
+          <label title="${escapeHtml(rowTitle)}" class="flex items-center justify-between gap-2 border-t border-gray-50 px-2.5 py-1 text-label-xs ${isSensitive ? 'bg-amber-50/30' : ''}">
             <div class="min-w-0 flex-1 flex items-center gap-1.5">
               <span class="font-medium text-gray-900 whitespace-nowrap">${escapeHtml(primary)}</span>
-              ${isSensitive ? '<span class="rounded-full border border-amber-200 bg-amber-100 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-amber-700 whitespace-nowrap">Sensitive</span>' : ''}
-              <span class="text-[8px] text-gray-400 whitespace-nowrap">· ${escapeHtml(secondary)}</span>
-              <span class="text-[8px] text-gray-500 whitespace-nowrap">· ${escapeHtml(permission.note)}</span>
+              ${isSensitive ? '<span class="rounded-full border border-amber-200 bg-amber-100 px-1 py-0.5 text-label-xs font-semibold uppercase tracking-wide text-amber-700 whitespace-nowrap">Sensitive</span>' : ''}
+              <span class="text-label-xs text-gray-400 whitespace-nowrap">· ${escapeHtml(secondary)}</span>
+              <span class="text-label-xs text-gray-500 whitespace-nowrap">· ${escapeHtml(permission.note)}</span>
             </div>
             <input
               type="checkbox"

@@ -208,7 +208,7 @@ describe('account integrations section', () => {
     expect(modalRoot).not.toBeNull();
     expect(modalRoot?.className).toContain('items-start');
     expect(modalRoot?.className).toContain('overflow-y-auto');
-    expect(modalRoot?.querySelector('[class*="rounded-3xl"]')).not.toBeNull();
+    expect(modalRoot?.querySelector('[class*="rounded-lg"]')).not.toBeNull();
     expect(modalRoot?.querySelector('#server-modal-title')).not.toBeNull();
     expect(modalRoot?.textContent).toContain('Add MCP Server');
     expect(modalRoot?.getAttribute('data-trace-route')).toBe('/account/settings/integrations');

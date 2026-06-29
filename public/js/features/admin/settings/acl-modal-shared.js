@@ -111,7 +111,7 @@ export function updateSaveButton(saveBtn, state) {
     saving: state.saving,
     label: 'Save',
     enabledClass:
-      'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+      'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-primary-hover',
     disabledClass:
       'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
   });
@@ -161,7 +161,7 @@ export function renderAclGroupList({ listEl, errorEl, state, effectClass, onChan
           ${Array.from({ length: 5 })
             .map(
               () => `
-            <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 animate-pulse">
+            <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 animate-pulse">
               <div class="flex flex-col min-w-0 flex-1 space-y-2">
                 <div class="h-3.5 w-40 bg-gray-200 rounded-full"></div>
                 <div class="h-2.5 w-64 bg-gray-100 rounded-full"></div>
@@ -188,18 +188,18 @@ export function renderAclGroupList({ listEl, errorEl, state, effectClass, onChan
       const groupId = group.id;
       const effect = state.rulesByGroup.get(groupId) || 'none';
       const badge = group.is_system
-        ? '<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">System</span>'
+        ? '<span class="text-label-sm font-semibold uppercase tracking-wide text-gray-400">System</span>'
         : '';
       return `
-        <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-2 hover:border-gray-300">
+        <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-gray-300">
           <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-2">
               <div class="text-sm font-semibold text-gray-900 truncate">${escapeHtml(group.name || group.id)}</div>
               ${badge}
             </div>
-            <div class="text-[11px] text-gray-500 truncate">${escapeHtml(group.description || group.id)}</div>
+            <div class="text-label-sm text-gray-500 truncate">${escapeHtml(group.description || group.id)}</div>
           </div>
-          <select class="${effectClass} rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-gray-400" data-group-id="${escapeHtml(groupId)}">
+          <select class="${effectClass} rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 outline-none focus:border-gray-400" data-group-id="${escapeHtml(groupId)}">
             <option value="none" ${effect === 'none' ? 'selected' : ''}>No access</option>
             <option value="allow" ${effect === 'allow' ? 'selected' : ''}>Allow</option>
             <option value="deny" ${effect === 'deny' ? 'selected' : ''}>Deny</option>

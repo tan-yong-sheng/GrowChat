@@ -236,7 +236,7 @@ export function createToolSelectionController({
             const key = buildToolKey(server.id, tool.name);
             const enabled = selectedSet.has(key);
             return `
-          <button type="button" data-tool-toggle data-tool-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name)}" aria-pressed="${enabled ? 'true' : 'false'}" class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50">
+          <button type="button" data-tool-toggle data-tool-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name)}" aria-pressed="${enabled ? 'true' : 'false'}" class="w-full flex items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50">
             <span class="min-w-0 flex-1 truncate">${escapeHtml(tool.title || tool.name)}</span>
             <span class="ml-3 inline-flex h-5 w-9 items-center rounded-full px-0.5 transition ${enabled ? 'bg-emerald-500' : 'bg-gray-200'}" aria-hidden="true">
               <span class="h-4 w-4 rounded-full bg-white shadow-sm transition ${enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
@@ -246,16 +246,16 @@ export function createToolSelectionController({
           })
           .join('');
         return `
-        <section class="rounded-2xl border border-gray-100 bg-white overflow-hidden" data-tool-server-card data-tool-server-id="${escapeHtml(server.id)}">
+        <section class="rounded-lg border border-gray-100 bg-white overflow-hidden" data-tool-server-card data-tool-server-id="${escapeHtml(server.id)}">
           <div class="flex items-center gap-2 px-2 py-1.5">
             <button type="button" data-tool-server-toggle data-tool-server-id="${escapeHtml(server.id)}" aria-pressed="${anyEnabled ? 'true' : 'false'}" aria-label="${anyEnabled ? 'Disable' : 'Enable'} ${escapeHtml(server.name)}" title="${anyEnabled ? 'Disable' : 'Enable'} ${escapeHtml(server.name)}" class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition ${anyEnabled ? 'bg-emerald-500' : 'bg-gray-200'}">
               <span class="h-4 w-4 rounded-full bg-white shadow-sm transition ${anyEnabled ? 'translate-x-4' : 'translate-x-0'}" aria-hidden="true"></span>
             </button>
-            <button type="button" data-tool-server-expand data-tool-server-id="${escapeHtml(server.id)}" class="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl px-2 py-2 text-left hover:bg-gray-50 transition">
+            <button type="button" data-tool-server-expand data-tool-server-id="${escapeHtml(server.id)}" class="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-2 text-left hover:bg-gray-50 transition">
               <div class="min-w-0">
                 <div class="flex items-center gap-2">
                   <div class="min-w-0 text-sm font-medium text-gray-900 truncate">${escapeHtml(server.name)}</div>
-                  <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scopeBadgeClass}">${escapeHtml(scopeLabel)}</span>
+                  <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide ${scopeBadgeClass}">${escapeHtml(scopeLabel)}</span>
                 </div>
                 <div class="text-xs text-gray-400">${enabledToolCount} tool${enabledToolCount === 1 ? '' : 's'}</div>
               </div>

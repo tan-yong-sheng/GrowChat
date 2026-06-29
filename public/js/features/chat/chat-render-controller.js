@@ -71,7 +71,7 @@ export function createChatRenderController({
         messagesList.innerHTML = `
           <div class="flex flex-col gap-5 py-6">
             <div class="flex justify-end">
-              <div class="h-8 w-2/3 rounded-2xl bg-gray-100 animate-pulse"></div>
+              <div class="h-8 w-2/3 rounded-lg bg-gray-100 animate-pulse"></div>
             </div>
             <div class="flex gap-4">
               <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>
@@ -82,7 +82,7 @@ export function createChatRenderController({
               </div>
             </div>
             <div class="flex justify-end">
-              <div class="h-8 w-1/2 rounded-2xl bg-gray-100 animate-pulse"></div>
+              <div class="h-8 w-1/2 rounded-lg bg-gray-100 animate-pulse"></div>
             </div>
             <div class="flex gap-4">
               <div class="w-7 h-7 rounded-lg bg-gray-100 animate-pulse"></div>

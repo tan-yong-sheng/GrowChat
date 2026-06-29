@@ -70,8 +70,8 @@ export function renderPendingQueueMarkup(pendingQueue = []) {
   return pendingQueue
     .map(
       (item, idx) => `
-    <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
-      <span class="text-[11px] text-gray-400 font-semibold">#${idx + 1}</span>
+    <div class="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
+      <span class="text-label-sm text-gray-400 font-semibold">#${idx + 1}</span>
       <span class="flex-1 truncate text-gray-700">${escapeHtml(item.text)}</span>
       <button type="button" data-q-send-now="${item.id}" class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded" title="Send next">
         ↟

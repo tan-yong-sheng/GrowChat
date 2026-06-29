@@ -5,7 +5,7 @@ export { escapeHtml } from '../../../shared/utils/dom-escape.js';
 
 export function getGroupModalTheme() {
   return {
-    overlay: 'bg-black/25',
+    overlay: 'bg-primary/25',
     container: 'bg-white text-gray-900 border border-gray-200 shadow-2xl',
     sidebar: 'border-r border-gray-200 bg-white',
     sidebarActive: 'bg-gray-100 text-gray-900',

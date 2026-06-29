@@ -3,9 +3,9 @@ import { escapeHtml, escapeSelector } from '../utils/dom-escape.js';
 const DEFAULT_OUTER_CLASS =
   'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4 pointer-events-none';
 const DEFAULT_OVERLAY_CLASS =
-  'absolute inset-0 bg-black/25 backdrop-blur-sm transition-opacity pointer-events-none';
+  'absolute inset-0 bg-primary/25 backdrop-blur-sm transition-opacity pointer-events-none';
 const DEFAULT_SHELL_CLASS =
-  'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto';
+  'relative z-10 w-full bg-white text-gray-900 border border-gray-200 shadow-2xl rounded-lg overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto';
 const DEFAULT_HEADER_CLASS = 'shrink-0';
 const DEFAULT_BODY_CLASS = 'overflow-y-auto flex-1 min-h-0';
 const DEFAULT_FOOTER_CLASS = 'shrink-0';

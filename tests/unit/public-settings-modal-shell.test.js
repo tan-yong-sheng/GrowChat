@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { buildSettingsModalShellMarkup, createSettingsModalShell } from '../../public/js/shared/components/settings-modal-shell.js';
+import {
+  buildSettingsModalShellMarkup,
+  createSettingsModalShell,
+} from '../../public/js/shared/components/settings-modal-shell.js';
 
 describe('settings modal shell', () => {
   it('renders the shared admin-style modal shell markup', () => {
@@ -18,7 +21,7 @@ describe('settings modal shell', () => {
     expect(html).toContain('data-settings-modal-footer');
     expect(html).toContain('text-lg font-semibold');
     expect(html).toContain('max-h-[90vh]');
-    expect(html).toContain('rounded-[2.5rem]');
+    expect(html).toContain('rounded-lg');
     expect(html).toContain('backdrop-blur-sm');
   });
 

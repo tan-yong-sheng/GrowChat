@@ -80,13 +80,13 @@ export async function openAccessModal({
 
   const body = `
   <div class="space-y-4">
-    <div class="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+    <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
       <div class="text-sm font-semibold text-gray-900">${escapeHtml(resourceLabel)}</div>
       <div class="text-xs text-gray-500">${escapeHtml(getResourceNote(targetResources[0], familyKey))}</div>
       ${
         resourceWarning
           ? `
-      <div class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] text-amber-800">
+      <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-label-sm text-amber-800">
         <div class="flex items-start gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mt-0.5 size-5 shrink-0 text-amber-500">
             <path fill-rule="evenodd" d="M8.485 2.495c.673-1.164 2.357-1.164 3.03 0l6.518 11.27c.673 1.164-.17 2.62-1.515 2.62H3.482c-1.345 0-2.188-1.456-1.515-2.62l6.518-11.27Zm1.515 3.505a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75Zm0 8.25a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
@@ -98,7 +98,7 @@ export async function openAccessModal({
               resourceWarning.linkHref
                 ? `
             <a href="${escapeHtml(resourceWarning.linkHref)}"
-              class="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
+              class="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-2.5 py-1 text-label-sm font-semibold text-amber-800 hover:bg-amber-100"
             >
               ${escapeHtml(resourceWarning.linkLabel || 'Open ACL')}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
@@ -108,7 +108,7 @@ export async function openAccessModal({
             `
                 : ''
             }
-            ${resourceWarning.extra ? `<div class="mt-1 text-[11px] text-amber-700">${escapeHtml(resourceWarning.extra)}</div>` : ''}
+            ${resourceWarning.extra ? `<div class="mt-1 text-label-sm text-amber-700">${escapeHtml(resourceWarning.extra)}</div>` : ''}
           </div>
         </div>
       </div>
@@ -118,10 +118,10 @@ export async function openAccessModal({
       ${
         bulkCount > 1
           ? `
-      <div class="mt-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+      <div class="mt-2 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
         Bulk editing ${escapeHtml(String(bulkCount))} ${escapeHtml(getFamilyBulkSummary(familyKey, bulkCount).toLowerCase())}. Existing rules will be replaced on every selected resource.
       </div>
-      <div class="mt-3 text-[11px] text-gray-500">
+      <div class="mt-3 text-label-sm text-gray-500">
         ${escapeHtml(summarizeSelectedResources(targetResources))}
       </div>
       `
@@ -131,7 +131,7 @@ export async function openAccessModal({
     <div class="space-y-3">
       <div class="flex items-center justify-between">
         <div class="text-sm font-semibold text-gray-900">Group access</div>
-        <div class="text-[11px] text-amber-600 font-medium">Deny overrides allow</div>
+        <div class="text-label-sm text-amber-600 font-medium">Deny overrides allow</div>
       </div>
       <div id="policy-acl-list" class="space-y-2"></div>
     </div>
@@ -149,7 +149,7 @@ export async function openAccessModal({
     body,
     footer: `
     <button type="button"
-      class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded transition"
+      class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 rounded transition"
       data-close-modal>Cancel</button>
     ${renderButton({ label: 'Save', variant: 'primary', id: 'policy-acl-save', className: 'px-5 py-2' })}
     `,
@@ -207,7 +207,7 @@ export async function openAccessModal({
       saving: true,
       label: 'Save',
       enabledClass:
-        'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+        'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-primary-hover',
       disabledClass:
         'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
     });
@@ -231,7 +231,7 @@ export async function openAccessModal({
         saving: false,
         label: 'Save',
         enabledClass:
-          'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-gray-800',
+          'px-5 py-2 text-sm font-semibold rounded-full bg-gray-900 text-white hover:bg-primary-hover',
         disabledClass:
           'px-5 py-2 text-sm font-semibold rounded-full bg-gray-300 text-gray-500 cursor-not-allowed',
       });
