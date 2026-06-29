@@ -28,7 +28,7 @@ export function renderAttachmentPills(attachments = [], align = 'end') {
       const fileId = String(file?.id || '');
       if (!fileId) return '';
       return `
-      <div class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden max-w-[120px] max-h-[120px]">
+      <div class="rounded-2xl border border-gray-200 bg-surface shadow-sm overflow-hidden max-w-[120px] max-h-[120px]">
         <img data-attachment-image="${escapeHtml(fileId)}" alt="${escapeHtml(label)}" title="${escapeHtml(label)}" class="block h-auto w-auto object-contain bg-gray-100 transition-opacity duration-200 max-w-[120px] max-h-[120px]" loading="lazy" />
       </div>
     `;
@@ -39,7 +39,7 @@ export function renderAttachmentPills(attachments = [], align = 'end') {
     .map((file) => {
       const label = String(file?.filename || 'Attachment');
       return `
-      <div class="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] text-gray-600 shadow-sm">
+      <div class="flex items-center gap-2 rounded-full border border-gray-200 bg-surface px-3 py-1 text-[11px] text-gray-600 shadow-sm">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
           <polyline points="14 2 14 8 20 8"/>
@@ -78,7 +78,7 @@ export function renderThinkingBlock({
     : '';
   const chevronClass = collapsed ? '-rotate-90' : 'rotate-0';
   return `
-    <div class="mt-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2">
+    <div class="mt-2 rounded-xl border border-gray-100 bg-neutral-bg/80 px-3 py-2">
       <button type="button" data-thinking-toggle="${toggleKey}" class="w-full flex items-center justify-between text-xs font-medium text-gray-500 hover:text-gray-700 transition">
         <span>${escapeHtml(label)}</span>
         <svg data-thinking-chevron="${toggleKey}" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform ${chevronClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -121,7 +121,7 @@ export function renderToolCallItem(messageId, call, toolExpandedByKey) {
       </svg>`
     : `<span class="inline-flex h-2 w-2 rounded-full ${dotClass}"></span>`;
   return `
-    <div class="mt-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
+    <div class="mt-2 rounded-xl border border-gray-200 bg-surface px-3 py-2 shadow-sm">
       <button type="button" data-tool-toggle="${key}" class="w-full flex items-center justify-between text-xs font-semibold text-gray-600 hover:text-gray-900 transition">
         <span class="flex items-center gap-2">
           ${statusIcon}
@@ -263,7 +263,7 @@ export function renderAssistantMessageBody({
     ? `<div data-error-overlay="${key}" class="pointer-events-none absolute inset-x-0 bottom-7 h-10 bg-gradient-to-t from-red-50 to-transparent ${overlayClass}"></div>`
     : '';
   return `${asyncNotice}
-    <div class="relative rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-sans">
+    <div class="relative rounded-lg border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-[14px] leading-[1.6] font-primary">
       <div data-error-body="${key}" class="${bodyClass}">${renderMessageContent(raw, chatId ? { specialBlockScope: chatId } : {})}</div>
       ${overlayHtml}
       ${toggleHtml}

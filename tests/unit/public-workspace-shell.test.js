@@ -10,7 +10,7 @@ describe('workspace shell', () => {
 
     expect(html).toContain('id="sidebar-slot"');
     expect(html).toContain('id="main-slot"');
-    expect(html).toContain('flex h-[100dvh] w-full bg-white overflow-hidden');
+    expect(html).toContain('flex h-[100dvh] w-full bg-surface overflow-hidden');
     expect(html).toContain('<main id="main" class="flex-1 flex flex-col min-w-0 overflow-y-auto">');
   });
 });

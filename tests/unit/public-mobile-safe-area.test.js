@@ -23,7 +23,7 @@ describe('mobile safe-area shell', () => {
     const shell = readText('../../public/js/shared/components/workspace-shell.js');
     const sidebar = readText('../../public/js/shared/components/workspace-sidebar.js');
 
-    expect(shell).toContain('h-[100dvh] w-full bg-white overflow-hidden');
+    expect(shell).toContain('h-[100dvh] w-full bg-surface overflow-hidden');
     expect(sidebar).toContain('padding-bottom: calc(1rem + env(safe-area-inset-bottom));');
   });
 });

@@ -4,7 +4,7 @@ export function renderSharedChatPage(container, data) {
   const chat = data?.chat || {};
   const messages = data?.messages || [];
   container.innerHTML = `
-    <main id="main" class="min-h-screen bg-[#fafafa] text-gray-900">
+    <main id="main" class="min-h-screen bg-neutral-bg text-gray-900">
       <div class="max-w-3xl mx-auto px-4 py-6">
         <div class="flex items-center justify-between mb-6">
           <a href="/" class="text-sm text-gray-600 hover:text-gray-800">← GrowChat</a>
@@ -17,7 +17,7 @@ export function renderSharedChatPage(container, data) {
             .map(
               (m) => `
             <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
-              <div class="${m.role === 'user' ? 'bg-[#f0f0f0]' : 'bg-white border border-gray-200'} rounded-2xl px-4 py-3 max-w-[85%]">
+              <div class="${m.role === 'user' ? 'bg-surface-container' : 'bg-surface border border-gray-200'} rounded-2xl px-4 py-3 max-w-[85%]">
                 <p class="text-xs uppercase text-gray-400 mb-1">${escapeHtml(m.role)}</p>
                 <div class="prose prose-sm max-w-none break-words">${renderMessageContent(m.content, { interactive: false })}</div>
               </div>
@@ -62,9 +62,9 @@ export function renderAdminSkeleton(container) {
 
 export function renderChatSkeleton(container) {
   container.innerHTML = `
-    <div class="h-full w-full bg-white overflow-hidden">
+    <div class="h-full w-full bg-surface overflow-hidden">
       <div class="flex h-full">
-        <aside aria-label="Chat sidebar" class="hidden md:flex w-[260px] flex-shrink-0 border-r border-gray-100 bg-[#f9f9f9] p-4">
+        <aside aria-label="Chat sidebar" class="hidden md:flex w-[260px] flex-shrink-0 border-r border-gray-100 bg-neutral-bg p-4">
           <div class="w-full space-y-4 animate-pulse">
             <div class="h-6 w-32 bg-gray-200 rounded"></div>
             <div class="h-10 w-full bg-gray-200 rounded-xl"></div>
@@ -78,7 +78,7 @@ export function renderChatSkeleton(container) {
           </div>
         </aside>
         <main id="main" class="flex-1 flex flex-col min-w-0">
-          <div class="h-[58px] border-b border-gray-100 bg-white/95 flex items-center px-4">
+          <div class="h-[58px] border-b border-gray-100 bg-surface/95 flex items-center px-4">
             <div class="h-6 w-40 bg-gray-200 rounded animate-pulse"></div>
           </div>
           <div class="flex-1 p-6">
