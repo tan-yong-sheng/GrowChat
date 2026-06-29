@@ -4,6 +4,7 @@
  * Shared utility functions for model configuration and management.
  */
 import { getConfigValue } from '../../utils/app-config.js';
+import { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
 import { normalizeConnectionManualModels } from '../../llm/connections.js';
 import { createRootLogger } from '../../utils/logger.js';
@@ -90,15 +91,7 @@ export async function getModelAccessMap(db, logger = rootLogger) {
   }
 }
 
-export function loadAttachmentCapsFromRaw(raw = '{}') {
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return parsed;
-  } catch {
-    return {};
-  }
-}
+export { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
 
 export function applyAttachmentCapsPatch(caps, update) {
   const modelId = normalizeModelId(update?.model_id || update?.modelId);
@@ -118,7 +111,7 @@ export function applyAttachmentCapsPatch(caps, update) {
   caps[modelId] = {
     ...current,
     attachments: nextAttachments,
-    updated_at: Date.now(),
+    updated_at: Math.floor(Date.now() / 1000),
   };
 }
 

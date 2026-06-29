@@ -11,6 +11,7 @@ import {
 } from '../../utils/tool-server-acl.js';
 import { ensureAdminAclAccess } from './admin-helpers.js';
 import { loadToolServers } from '../../admin/tool-servers.js';
+import { chunkedBatch } from '../../utils/db-helpers.js';
 
 /**
  * Handle handleAdminToolServersAccess routes.
@@ -129,7 +130,7 @@ export async function handleAdminToolServersAccess(
         });
       }
 
-      await db.batch(statements);
+      await chunkedBatch(db, statements);
       await logAuditEvent(
         env,
         {

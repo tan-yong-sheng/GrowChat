@@ -4,6 +4,7 @@
 import { error, json } from '../../utils/response.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
 import { createDB } from '../../db.js';
+import { chunkedBatch } from '../../utils/db-helpers.js';
 import { getConfigBool, getConfigValue } from '../../utils/app-config.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
 import { buildModelAclRuleSaveStatements, normalizeModelAclRule } from '../../utils/model-acl.js';
@@ -368,7 +369,7 @@ export async function handleAdminModelsSettings(
           });
         }
 
-        await db.batch(statements);
+        await chunkedBatch(db, statements);
         await logAuditEvent(env, {
           actor_id: user.sub,
           action: 'model_settings_updated',
@@ -388,7 +389,7 @@ export async function handleAdminModelsSettings(
         });
       }
 
-      await db.batch(statements);
+      await chunkedBatch(db, statements);
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'model_settings_updated',
