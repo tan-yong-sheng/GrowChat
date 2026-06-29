@@ -18,8 +18,8 @@ export function showSettingsFeedback(container, message, isError = false) {
   if (!feedback) return;
   feedback.textContent = message;
   feedback.className = isError
-    ? 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
-    : 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+    ? 'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
+    : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
   feedback.classList.remove('hidden');
   setTimeout(() => feedback.classList.add('hidden'), FEEDBACK_HIDE_DELAY_MS);
 }
@@ -34,7 +34,7 @@ export function getSettingsToggleState(isOn) {
     isOn: Boolean(isOn),
     ariaPressed: String(isOn),
     statusText: isOn ? 'On' : 'Off',
-    toggleClass: isOn ? 'bg-black' : 'bg-gray-200',
+    toggleClass: isOn ? 'bg-primary' : 'bg-gray-200',
     knobClass: isOn ? 'translate-x-4' : 'translate-x-0',
   };
 }
@@ -53,7 +53,7 @@ export function updateSettingsToggle({ container, toggleId, statusId, isOn, upda
   if (!toggle) return;
   const toggleState = getSettingsToggleState(isOn);
   toggle.setAttribute('aria-pressed', toggleState.ariaPressed);
-  toggle.classList.toggle('bg-black', toggleState.isOn);
+  toggle.classList.toggle('bg-primary', toggleState.isOn);
   toggle.classList.toggle('bg-gray-200', !toggleState.isOn);
   const knob = toggle.querySelector('span');
   if (knob) {
@@ -74,7 +74,7 @@ export function updateSettingsToggle({ container, toggleId, statusId, isOn, upda
  * @returns {string} HTML string
  */
 export function renderSettingsSelectBox(id, optionsHtml, { ariaLabel } = {}) {
-  return ` <div class="relative rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300"> <select id="${id}" aria-label="${ariaLabel || id}" class="w-full appearance-none bg-transparent pr-8 text-sm text-gray-900 outline-none"> ${optionsHtml} </select> <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-gray-500"> <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.942l3.71-3.71a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08Z" clip-rule="evenodd" /> </svg> </div> `;
+  return ` <div class="relative rounded-md border border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300"> <select id="${id}" aria-label="${ariaLabel || id}" class="w-full appearance-none bg-transparent pr-8 text-sm text-gray-900 outline-none"> ${optionsHtml} </select> <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-gray-500"> <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.942l3.71-3.71a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08Z" clip-rule="evenodd" /> </svg> </div> `;
 }
 
 function buildErrorMessage(errorPrefix, err) {

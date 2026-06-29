@@ -69,9 +69,9 @@ export function openRoleModal(
       saving: modalState.saving,
       label: 'Save',
       enabledClass:
-        'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
+        'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
       disabledClass:
-        'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+        'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
     });
   };
 
@@ -110,7 +110,7 @@ export function openRoleModal(
               .map((group) => renderPermissionGroup(group, modalState.draft, modalState))
               .join('')
           : `
-        <div class="px-3 py-6 text-center text-[10px] text-gray-500">No permissions match your search.</div>
+        <div class="px-3 py-6 text-center text-label-sm text-gray-500">No permissions match your search.</div>
       `
       }
     `;
@@ -150,13 +150,13 @@ export function openRoleModal(
     bodyEl.innerHTML = `
     <div class="space-y-1.5 p-1.5 sm:p-2">
       <div class="space-y-2">
-        <div class="rounded-2xl border border-gray-200 bg-gray-50 px-2 py-1">
+        <div class="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
               ${
                 isSystemRole
                   ? `
-                <div data-role-name-preview class="truncate text-[13px] font-semibold leading-tight text-gray-900">${escapeHtml(modalState.draft.name)}</div>
+                <div data-role-name-preview class="truncate text-body-md font-semibold leading-tight text-gray-900">${escapeHtml(modalState.draft.name)}</div>
               `
                   : `
                 <input
@@ -166,27 +166,27 @@ export function openRoleModal(
                   autocomplete="off"
                   autocapitalize="off"
                   aria-label="Role name"
-                  class="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-[13px] font-semibold leading-tight text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-400"
+                  class="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-body-md font-semibold leading-tight text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-400"
                   placeholder="Role name"
                 >
               `
               }
             </div>
             <div class="flex shrink-0 items-center gap-1.5">
-              <div data-role-summary-preview class="rounded-full border border-gray-200 bg-white px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">${escapeHtml(formatRoleSummary(modalState.draft))} · ${isSystemRole ? 'system' : 'custom'}</div>
+              <div data-role-summary-preview class="rounded-full border border-gray-200 bg-white px-1.5 py-0.5 text-label-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">${escapeHtml(formatRoleSummary(modalState.draft))} · ${isSystemRole ? 'system' : 'custom'}</div>
             </div>
           </div>
           ${
             isSystemRole
               ? `
-            <div data-role-system-note class="mt-0.5 text-[8px] leading-tight text-gray-500">System template names are fixed. Edit permissions only.</div>
+            <div data-role-system-note class="mt-0.5 text-label-xs leading-tight text-gray-500">System template names are fixed. Edit permissions only.</div>
           `
               : `
             `
           }
             <div class="mt-1 flex flex-wrap items-center gap-1.5">
               <div class="min-w-0 flex-[1.5]">
-                <div class="flex items-center gap-1.5 rounded-xl border border-gray-100/40 bg-gray-50/60 px-2 py-0.5">
+                <div class="flex items-center gap-1.5 rounded-md border border-gray-100/40 bg-gray-50/60 px-2 py-0.5">
                   <div class="flex-shrink-0 text-gray-400" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
                       <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
@@ -199,11 +199,11 @@ export function openRoleModal(
                     autocomplete="off"
                     autocapitalize="off"
                     aria-label="Search permissions"
-                    class="min-w-0 flex-1 bg-transparent text-[8px] outline-none text-gray-700 placeholder-gray-400"
+                    class="min-w-0 flex-1 bg-transparent text-label-xs outline-none text-gray-700 placeholder-gray-400"
                     placeholder="Search permissions"
                   >
                   <div id="role-permission-clear-container" class="${modalState.query ? '' : 'hidden'} ml-1.5">
-                    <button type="button" data-role-permission-clear class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
+                    <button type="button" data-role-permission-clear class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 transition">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
@@ -214,7 +214,7 @@ export function openRoleModal(
             </div>
           </div>
 
-          <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+          <div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
             <div data-role-permission-pane class="pr-1"></div>
           </div>
         </div>
@@ -273,9 +273,9 @@ export function openRoleModal(
         saving: true,
         label: 'Save',
         enabledClass:
-          'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
+          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
         disabledClass:
-          'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
       });
       const payload = {
         name: trimmedName,
@@ -295,9 +295,9 @@ export function openRoleModal(
         saving: false,
         label: 'Save',
         enabledClass:
-          'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-black text-white hover:bg-gray-900',
+          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
         disabledClass:
-          'rounded-full px-2.5 py-0.75 text-[9px] font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
       });
     }
   };

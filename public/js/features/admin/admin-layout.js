@@ -28,12 +28,12 @@ export function renderSettingsSkeleton() {
             <div class="max-w-2xl mx-auto w-full space-y-6 pb-6">
               <div class="space-y-3">
                 <div class="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
-                <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+                <div class="h-10 w-full bg-gray-100 rounded-md animate-pulse"></div>
+                <div class="h-10 w-full bg-gray-100 rounded-md animate-pulse"></div>
               </div>
               <div class="space-y-3">
                 <div class="h-4 w-28 bg-gray-100 rounded animate-pulse"></div>
-                <div class="h-10 w-full bg-gray-100 rounded-xl animate-pulse"></div>
+                <div class="h-10 w-full bg-gray-100 rounded-md animate-pulse"></div>
               </div>
             </div>
           </div>
@@ -46,7 +46,7 @@ export function renderSettingsSkeleton() {
 export function renderErrorState(message) {
   return `
     <div class="flex items-center justify-center h-full ${ADMIN_SHELL_BODY_PADDING_CLASS} p-6">
-      <div class="max-w-md w-full rounded-3xl border border-red-100 bg-red-50/60 p-6 text-center">
+      <div class="max-w-md w-full rounded-lg border border-red-100 bg-red-50/60 p-6 text-center">
         <div class="text-sm font-semibold text-red-700">Unable to load admin content</div>
         <div class="mt-2 text-sm text-red-600">${escapeHtml(String(message || ''))}</div>
       </div>
@@ -189,7 +189,7 @@ export function renderSettingsSubnavLinks(subTab) {
 export function renderUnderDevPlaceholder(sectionTitle) {
   return `
  <div class="flex flex-col items-center justify-center h-full text-center p-10">
- <div class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 text-gray-300">
+ <div class="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-4 text-gray-300">
  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
  <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.978 2.978 0 01-3.34-3.34L15 2.25 10.5 2.25l-4.5 4.5v1.5a1.5 1.5 0 001.5 1.5h1.5l3.93 3.93m2.856 2.856l1.5 1.5a1.5 1.5 0 001.5-1.5V10.5l-4.5-4.5H6" />
  </svg>
@@ -241,7 +241,7 @@ function buildUsersToolbar() {
         <div class="text-gray-500 font-normal ml-0.5" id="users-total-count"></div>
       </div>
       <div class="flex items-center gap-3">
-        <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-xl border border-gray-100/30 w-64">
+        <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-md border border-gray-100/30 w-64">
           <div class="flex-shrink-0 text-gray-400">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
               <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
@@ -249,14 +249,14 @@ function buildUsersToolbar() {
           </div>
           <input class="w-full text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" placeholder="Search users" id="user-search-input">
           <div id="clear-search-container" class="hidden ml-1.5">
-            <button id="clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
+            <button id="clear-search-btn" class="p-0.5 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 transition">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="size-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
-        <button id="open-add-user-modal" class="w-10 h-10 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center" title="Add User">
+        <button id="open-add-user-modal" class="w-10 h-10 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 flex items-center justify-center" title="Add User">
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
         </button>
       </div>
@@ -266,10 +266,10 @@ function buildUsersToolbar() {
 
 function buildUsersTable() {
   return `
-    <div class="relative w-full rounded-3xl border border-gray-100 bg-white">
+    <div class="relative w-full rounded-lg border border-gray-100 bg-white">
         <div class="min-w-[1120px]">
           <table class="w-full text-sm text-left text-gray-500 table-fixed">
-            <thead class="text-[11px] text-gray-900 font-bold uppercase bg-gray-50/50">
+            <thead class="text-label-sm text-gray-900 font-bold uppercase bg-gray-50/50">
               <tr class="border-b border-gray-100">
                 <th scope="col" class="px-3 py-3 w-24">Role</th>
                 <th scope="col" class="px-3 py-3 w-1/4">Name</th>
@@ -302,13 +302,13 @@ function buildUsersPagination() {
       <div class="flex items-center gap-4">
         <div class="text-xs text-gray-400" id="users-page-range"></div>
         <div class="flex items-center gap-2">
-          <button id="users-page-prev" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50">Prev</button>
+          <button id="users-page-prev" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 transition disabled:opacity-50">Prev</button>
           <div class="text-sm text-gray-600" id="users-page-label"></div>
-          <button id="users-page-next" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:opacity-50">Next</button>
+          <button id="users-page-next" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 transition disabled:opacity-50">Next</button>
         </div>
       </div>
     </div>
-    <div class="text-gray-400 text-[11px] flex items-center justify-end gap-1.5 px-0.5">
+    <div class="text-gray-400 text-label-sm flex items-center justify-end gap-1.5 px-0.5">
       <span>Users are managed through the admin workspace shell.</span>
     </div>
   `;

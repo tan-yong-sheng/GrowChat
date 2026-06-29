@@ -18,7 +18,7 @@ describe('settings modal shell', () => {
     expect(html).toContain('data-settings-modal-footer');
     expect(html).toContain('text-lg font-semibold');
     expect(html).toContain('max-h-[90vh]');
-    expect(html).toContain('rounded-[2.5rem]');
+    expect(html).toContain('rounded-lg');
     expect(html).toContain('backdrop-blur-sm');
   });
 

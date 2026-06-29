@@ -13,7 +13,7 @@ export function renderSearchInput(inputEl) {
   const dropdown = document.createElement('div');
   dropdown.id = 'search-token-suggestions';
   dropdown.className =
-    'absolute top-full left-0 mt-2 w-64 bg-white border border-gray-100 rounded-xl shadow-xl z-50 hidden flex flex-col p-1.5';
+    'absolute top-full left-0 mt-2 w-64 bg-white border border-gray-100 rounded-md shadow-xl z-50 hidden flex flex-col p-1.5';
   container.appendChild(dropdown);
   container.classList.add('relative');
 
@@ -33,7 +33,7 @@ export function renderSearchInput(inputEl) {
         (t, i) => `
       <button class="w-full text-left px-3 py-2 rounded-lg transition flex items-center justify-between text-sm group ${selectedIndex === i ? 'bg-gray-100 text-gray-900 font-medium' : 'hover:bg-gray-50 text-gray-700'}" data-index="${i}" tabindex="-1">
         <span class="font-mono text-xs bg-gray-100 px-1 rounded">${escapeHtml(t.label)}</span>
-        <span class="text-[10px] text-gray-400 group-hover:text-gray-500">${escapeHtml(t.description)}</span>
+        <span class="text-label-sm text-gray-400 group-hover:text-gray-500">${escapeHtml(t.description)}</span>
       </button>
     `
       )

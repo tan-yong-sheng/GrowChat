@@ -64,9 +64,9 @@ export function renderRegistrationSettings(container, data) {
 							<div class="py-2.5 flex items-center justify-between pr-2">
 								<div class="flex flex-col">
 									<div class="text-xs font-medium">Allow New Signups</div>
-									<div id="public-reg-status" class="text-[10px] text-gray-700">${regToggleState.statusText}</div>
+									<div id="public-reg-status" class="text-label-sm text-gray-700">${regToggleState.statusText}</div>
 								</div>
-								<button id="public-reg-toggle" aria-pressed="${regToggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${regToggleState.toggleClass}">
+								<button id="public-reg-toggle" aria-pressed="${regToggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${regToggleState.toggleClass}">
 									<span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${regToggleState.isOn ? 'translate-x-4' : 'translate-x-0'}"></span>
 								</button>
 							</div>
@@ -80,7 +80,7 @@ export function renderRegistrationSettings(container, data) {
 								`,
                   { ariaLabel: 'Registration Status' }
                 )}
-								<div class="text-[10px] text-gray-700 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
+								<div class="text-label-sm text-gray-700 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
 							</div>
 						</section>
 						<section class="space-y-1 mt-6">
@@ -89,15 +89,15 @@ export function renderRegistrationSettings(container, data) {
 							<div class="py-2">
 								<div class="text-xs font-medium mb-2">Email Verification</div>
 								<div class="flex items-center gap-3">
-									<button id="require-email-verification" type="button" role="switch" aria-pressed="${verifyToggleState.ariaPressed}" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${verifyToggleState.toggleClass}">
+									<button id="require-email-verification" type="button" role="switch" aria-pressed="${verifyToggleState.ariaPressed}" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${verifyToggleState.toggleClass}">
 										<span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${verifyToggleState.isOn ? 'translate-x-5' : 'translate-x-0'}"></span>
 									</button>
 									<span class="text-sm text-gray-700">Require email verification</span>
 								</div>
-								<div class="text-[10px] text-gray-600 mt-1">New users must verify their email before accessing the app. Requires Resend.</div>
+								<div class="text-label-sm text-gray-600 mt-1">New users must verify their email before accessing the app. Requires Resend.</div>
 							</div>
 						</section>
-						<div id="settings-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>
+						<div id="settings-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>
 					</div>
 				</div>
 			</div>

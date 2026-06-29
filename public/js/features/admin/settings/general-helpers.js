@@ -27,7 +27,7 @@ export function getGeneralSettingsToggleState(publicRegistration) {
     isOn,
     ariaPressed: String(isOn),
     statusText: isOn ? 'On' : 'Off',
-    toggleClass: isOn ? 'bg-black' : 'bg-gray-200',
+    toggleClass: isOn ? 'bg-primary' : 'bg-gray-200',
     knobClass: isOn ? 'translate-x-4' : 'translate-x-0',
   };
 }

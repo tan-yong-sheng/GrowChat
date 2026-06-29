@@ -124,7 +124,7 @@ export function buildListCard(connection, canManageConnections = true) {
     ? 'p-1 text-gray-400 hover:text-gray-600 transition-colors'
     : 'p-1 text-gray-300 opacity-50 cursor-not-allowed';
   const toggleClass = canManageConnections
-    ? `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${connection.enabled === false ? 'bg-gray-200' : 'bg-black'}`
+    ? `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${connection.enabled === false ? 'bg-gray-200' : 'bg-primary'}`
     : 'relative inline-flex h-5 w-9 items-center shrink-0 cursor-not-allowed rounded-full border-2 border-transparent bg-gray-200 opacity-50';
   return `
     <div data-connection-row="${escapeHtml(connection.id)}" data-id="${escapeHtml(connection.id)}" class="py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-2 border-b border-gray-50 last:border-0 ${connection.enabled === false ? 'opacity-70' : ''}">
@@ -133,10 +133,10 @@ export function buildListCard(connection, canManageConnections = true) {
           <div class="text-xs font-medium text-gray-900">${escapeHtml(connection.name || providerLabel)}</div>
           ${renderSummaryPill('Personal', 'green')}
         </div>
-        <div class="text-[10px] text-gray-500 font-mono">${escapeHtml(baseUrl)}</div>
-        <div class="text-[10px] text-gray-500 mt-0.5">${escapeHtml(providerLabel)}</div>
-        <div class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 ${connection.enabled === false ? '' : 'hidden'}">Disabled</div>
-        ${readOnlyText ? `<div class="text-[10px] text-gray-500 mt-0.5">${escapeHtml(readOnlyText)}</div>` : ''}
+        <div class="text-label-sm text-gray-500 font-mono">${escapeHtml(baseUrl)}</div>
+        <div class="text-label-sm text-gray-500 mt-0.5">${escapeHtml(providerLabel)}</div>
+        <div class="mt-0.5 inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-label-xs font-semibold uppercase tracking-wide text-gray-500 ${connection.enabled === false ? '' : 'hidden'}">Disabled</div>
+        ${readOnlyText ? `<div class="text-label-sm text-gray-500 mt-0.5">${escapeHtml(readOnlyText)}</div>` : ''}
       </div>
       <div class="flex items-center justify-end gap-3 self-end sm:self-auto flex-wrap">
         <button
@@ -160,7 +160,7 @@ export function buildListCard(connection, canManageConnections = true) {
 }
 
 export function buildAccessibleCard(connection, hiddenForUser = false) {
-  const toggleClass = `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${hiddenForUser ? 'bg-gray-200' : 'bg-black'}`;
+  const toggleClass = `relative inline-flex h-5 w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${hiddenForUser ? 'bg-gray-200' : 'bg-primary'}`;
   return `
     <div data-connection-row="${escapeHtml(connection.id)}" data-id="${escapeHtml(connection.id)}" class="py-2.5 border-b border-gray-50 last:border-0 ${hiddenForUser ? 'opacity-70' : ''}">
       <div class="flex items-center gap-2">

@@ -70,15 +70,15 @@ export function renderGeneralSettings(container, data) {
               <div class="py-2.5">
                 <div class="text-xs font-medium mb-1">App Title</div>
                 <input id="app-title" type="text" value="${settingsState.currentValues.title}" class="w-full bg-transparent border-none outline-none py-0.5 text-sm text-gray-700 placeholder-gray-700 cursor-not-allowed" placeholder="Set via deployment config" disabled>
-                <div class="text-[10px] text-gray-700 mt-1">Managed in server configuration.</div>
+                <div class="text-label-sm text-gray-700 mt-1">Managed in server configuration.</div>
               </div>
 
               <div class="py-2.5 flex items-center justify-between pr-2">
                 <div class="flex flex-col">
                   <div class="text-xs font-medium">Public Registration</div>
-                  <div id="public-reg-status" class="text-[10px] text-gray-700">${toggleState.statusText}</div>
+                  <div id="public-reg-status" class="text-label-sm text-gray-700">${toggleState.statusText}</div>
                 </div>
-                <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${toggleState.toggleClass}">
+                <button id="public-reg-toggle" aria-pressed="${toggleState.ariaPressed}" class="relative inline-flex h-6 w-11 sm:h-5 sm:w-9 items-center shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${toggleState.toggleClass}">
                   <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toggleState.knobClass}"></span>
                 </button>
               </div>
@@ -93,7 +93,7 @@ export function renderGeneralSettings(container, data) {
                 `,
                   { ariaLabel: 'Registration Status' }
                 )}
-                <div id="registration-status-hint" class="text-[10px] text-gray-700 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
+                <div id="registration-status-hint" class="text-label-sm text-gray-700 mt-1">Active lets users sign in immediately. Pending requires admin approval.</div>
               </div>
             </section>
 
@@ -114,7 +114,7 @@ export function renderGeneralSettings(container, data) {
               </div>
             </section>
 
-            <div id="settings-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>
+            <div id="settings-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>
           </div>
         </div>
       </div>

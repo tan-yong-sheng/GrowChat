@@ -91,7 +91,7 @@ export function renderOverview(state) {
   const preferences = state.settings?.preferences || {};
   return `
     <div class="grid gap-4 lg:grid-cols-2">
-      <section class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <section class="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
         <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Profile</div>
         <div class="mt-3 flex items-center gap-3">
           <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-lg font-semibold text-gray-700">${escapeHtml(user.avatar_emoji || user.name?.[0] || 'U')}</div>

@@ -117,7 +117,7 @@ export function createModelsSyncUi(deps) {
                         <div class="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${_isDisabled || !canManageAcls ? 'hidden' : ''}"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${_isDisabled || !canManageAcls ? 'hidden' : ''}"
                             data-model-acl="${escapeHtml(model.id)}"
                             title="Edit access rules"
                             aria-label="Edit access rules"
@@ -156,7 +156,7 @@ export function createModelsSyncUi(deps) {
     const errorSlot = container.querySelector('#models-error-container');
     if (errorSlot) {
       errorSlot.innerHTML = modelsState.error
-        ? `<div data-error-banner class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>`
+        ? `<div data-error-banner class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center justify-between gap-3"><span>${modelsState.error}</span></div>`
         : '';
     }
 

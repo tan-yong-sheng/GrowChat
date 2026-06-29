@@ -55,8 +55,8 @@ export function renderEmailDeliverySettings(container) {
     }
     feedback.textContent = message;
     feedback.className = isError
-      ? 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
-      : 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+      ? 'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
+      : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
     feedback.classList.remove('hidden');
     setTimeout(() => feedback.classList.add('hidden'), 3000);
   };
@@ -106,13 +106,13 @@ export function renderEmailDeliverySettings(container) {
 
               <div class="py-2">
                 <div class="text-xs font-medium mb-1">Email Provider</div>
-                <div class="relative rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
+                <div class="relative rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
                   <select id="email-provider-select" class="w-full appearance-none bg-transparent pr-8 text-sm text-gray-900 outline-none">
                     ${providerOptions}
                   </select>
                   <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-gray-500"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.942l3.71-3.71a.75.75 0 1 1 1.06 1.06l-4.24 4.24a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08Z" clip-rule="evenodd" /></svg>
                 </div>
-                <div class="text-[10px] text-gray-600 mt-1">The service used to send transactional emails.</div>
+                <div class="text-label-sm text-gray-600 mt-1">The service used to send transactional emails.</div>
               </div>
             </section>
 
@@ -122,10 +122,10 @@ export function renderEmailDeliverySettings(container) {
 
               <div class="py-2">
                 <div class="text-xs font-medium mb-1">API Key</div>
-                <div class="relative rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
+                <div class="relative rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
                   <input id="email-api-key" type="password" value="${escapedMaskedValue}" placeholder="Enter your API key" class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder-gray-500" />
                 </div>
-                <div class="text-[10px] text-gray-600 mt-1">${apiKeyHint}</div>
+                <div class="text-label-sm text-gray-600 mt-1">${apiKeyHint}</div>
               </div>
 
               ${
@@ -133,10 +133,10 @@ export function renderEmailDeliverySettings(container) {
                   ? `
               <div class="py-2">
                 <div class="text-xs font-medium mb-1">Sending Domain</div>
-                <div class="relative rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
+                <div class="relative rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
                   <input id="mailgun-domain" type="text" value="${escapedDomain}" placeholder="mg.yourdomain.com" class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder-gray-500" />
                 </div>
-                <div class="text-[10px] text-gray-600 mt-1">The domain configured in Mailgun for sending.</div>
+                <div class="text-label-sm text-gray-600 mt-1">The domain configured in Mailgun for sending.</div>
               </div>
               `
                   : ''
@@ -149,10 +149,10 @@ export function renderEmailDeliverySettings(container) {
 
               <div class="py-2">
                 <div class="text-xs font-medium mb-1">From Email</div>
-                <div class="relative rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
+                <div class="relative rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
                   <input id="email-from" type="email" value="${escapedFromEmail}" placeholder="noreply@yourdomain.com" class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder-gray-500" />
                 </div>
-                <div class="text-[10px] text-gray-600 mt-1">The email address shown as the sender. Must be verified with your provider.</div>
+                <div class="text-label-sm text-gray-600 mt-1">The email address shown as the sender. Must be verified with your provider.</div>
               </div>
             </section>
 
@@ -163,17 +163,17 @@ export function renderEmailDeliverySettings(container) {
               <div class="py-2">
                 <div class="text-xs font-medium mb-2">Send Test Email</div>
                 <div class="flex gap-2">
-                  <div class="relative flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
+                  <div class="relative flex-1 rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
                     <input id="test-email" type="email" placeholder="test@example.com" class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder-gray-500" />
                   </div>
-                  <button id="send-test-email" class="px-4 py-2 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                  <button id="send-test-email" class="px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20">
                     Send Test
                   </button>
                 </div>
               </div>
             </section>
 
-            <div id="settings-feedback" class="hidden mt-4 rounded-xl border px-4 py-3 text-sm"></div>
+            <div id="settings-feedback" class="hidden mt-4 rounded-md border px-4 py-3 text-sm"></div>
           </div>
         </div>
       </div>

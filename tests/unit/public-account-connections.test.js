@@ -314,7 +314,7 @@ describe('account connections section', () => {
     expect(modalRoot?.className).toContain('overflow-y-auto');
     expect(modalRoot?.querySelector('#modal-title')).not.toBeNull();
     expect(modalRoot?.querySelector('[class*="max-h-[70vh]"]')).not.toBeNull();
-    expect(modalRoot?.querySelector('[class*="rounded-3xl"]')).not.toBeNull();
+    expect(modalRoot?.querySelector('[class*="rounded-lg"]')).not.toBeNull();
     expect(modalRoot?.querySelector('#toggle-key-visibility')).not.toBeNull();
     expect(modalRoot?.textContent).toContain('Add Connection');
   });

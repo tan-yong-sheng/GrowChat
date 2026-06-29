@@ -27,7 +27,7 @@ export function renderModelsHeaderHtml({
       <div class="flex items-center text-xl font-medium px-0.5 gap-2">
         <div class="flex-shrink-0 text-gray-900">Models</div>
         <div class="flex flex-col items-start leading-tight">
-          ${countLabel ? `<div data-models-count-label class="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">${escapeHtml(countLabel)}</div>` : ''}
+          ${countLabel ? `<div data-models-count-label class="text-label-sm font-semibold uppercase tracking-[0.18em] text-gray-400">${escapeHtml(countLabel)}</div>` : ''}
           <div data-models-count-value class="text-gray-500 font-normal${countLabel ? '' : ' ml-0.5'}" title="${escapeHtml(countTitle)}">${escapeHtml(countValue)}</div>
         </div>
       </div>
@@ -40,7 +40,7 @@ export function renderModelsHeaderHtml({
           clearButtonId,
           clearHidden,
         })}
-        <select id="${escapeHtml(providerId)}" class="w-full sm:w-auto min-w-0 rounded-xl border border-gray-100/30 bg-gray-50/50 px-3 py-1.5 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
+        <select id="${escapeHtml(providerId)}" class="w-full sm:w-auto min-w-0 rounded-md border border-gray-100/30 bg-gray-50/50 px-3 py-1.5 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
           ${providerOptionsMarkup}
         </select>
       </div>
@@ -69,10 +69,10 @@ export function renderModelsTableShellHtml({
 
   return `
     <div class="pb-6">
-      <div class="relative w-full rounded-3xl border border-gray-100 bg-white">
+      <div class="relative w-full rounded-lg border border-gray-100 bg-white">
         <div class="max-h-[calc(100dvh-20rem)] overflow-y-scroll overflow-x-auto pb-24 scroll-pb-24" data-models-scroll="1" style="scrollbar-gutter: stable;">
           <table class="w-full text-sm text-left text-gray-500 table-fixed">
-            <thead class="text-[11px] text-gray-900 font-bold uppercase bg-white sticky top-0 z-10">
+            <thead class="text-label-sm text-gray-900 font-bold uppercase bg-white sticky top-0 z-10">
               <tr class="border-b border-gray-100">
                 <th scope="col" class="px-4 py-3 w-1/4">Name</th>
                 <th scope="col" class="px-4 py-3 w-1/3">Model ID</th>

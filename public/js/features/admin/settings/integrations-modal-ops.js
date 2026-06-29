@@ -17,7 +17,7 @@ export function createIntegrationsModalOps(deps) {
 
   const updateServerToggle = (btn, enabled) => {
     if (!btn) return;
-    btn.classList.toggle('bg-black', enabled);
+    btn.classList.toggle('bg-primary', enabled);
     btn.classList.toggle('bg-gray-200', !enabled);
     const knob = btn.querySelector('span');
     if (knob) {
@@ -29,7 +29,7 @@ export function createIntegrationsModalOps(deps) {
   const updateToolToggle = (btn, enabled, serverEnabled) => {
     if (!btn) return;
     btn.disabled = !serverEnabled;
-    btn.classList.toggle('bg-black', enabled);
+    btn.classList.toggle('bg-primary', enabled);
     btn.classList.toggle('bg-gray-200', !enabled);
     btn.classList.toggle('opacity-40', !serverEnabled);
     btn.classList.toggle('cursor-not-allowed', !serverEnabled);
@@ -55,8 +55,8 @@ export function createIntegrationsModalOps(deps) {
     feedback.textContent = message;
     const isError = type === 'error';
     feedback.className = isError
-      ? 'rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
-      : 'rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
+      ? 'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
+      : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
     feedback.classList.remove('hidden');
     setTimeout(() => feedback.classList.add('hidden'), 3000);
   };

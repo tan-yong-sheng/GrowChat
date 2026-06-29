@@ -10,7 +10,7 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
     zIndex: 100,
     title: '',
     shellClass:
-      'relative z-10 w-full max-w-3xl bg-white md:rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh] md:h-[600px]',
+      'relative z-10 w-full max-w-3xl bg-white md:rounded-lg shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh] md:h-[600px]',
     header: `
       <div class="p-4 border-b border-gray-100 flex items-center gap-3">
         <div class="flex-shrink-0 text-gray-500">
@@ -18,10 +18,10 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
         </div>
         <input type="text" id="modal-search-input" placeholder="Search chats..." class="flex-grow border-none placeholder:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white text-lg py-1 text-gray-800 bg-transparent" aria-label="Search chats" autocomplete="off" />
         <div class="flex items-center gap-2">
-          <div class="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-200 text-[10px] text-gray-400 font-medium">
+          <div class="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-200 text-label-sm text-gray-400 font-medium">
             <span>ESC</span>
           </div>
-          <button type="button" id="close-modal" class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white" aria-label="Close search">
+          <button type="button" id="close-modal" class="inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white" aria-label="Close search">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </div>
@@ -30,14 +30,14 @@ export function renderSearchModal(container, createChatFn, loadMessagesFn) {
     body: `
       <div class="flex-grow flex flex-col md:flex-row overflow-hidden relative bg-white min-h-0">
         <div class="w-full md:w-[45%] border-r border-gray-100 overflow-y-auto p-2 no-scrollbar h-1/2 md:h-full flex-shrink-0" id="search-results-list">
-           <div class="px-3 py-2 text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1" id="modal-title">Actions</div>
-           <button type="button" class="w-full min-h-11 text-left px-3 py-2.5 rounded-2xl hover:bg-gray-50 transition flex items-center gap-3 text-sm focus:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white group" id="action-new-chat" data-index="-1">
+           <div class="px-3 py-2 text-label-sm font-bold text-gray-500 uppercase tracking-wider mb-1" id="modal-title">Actions</div>
+           <button type="button" class="w-full min-h-11 text-left px-3 py-2.5 rounded-lg hover:bg-gray-50 transition flex items-center gap-3 text-sm focus:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white group" id="action-new-chat" data-index="-1">
               <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-white group-hover:shadow-sm transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
               </div>
               <div class="flex flex-col">
                 <span class="font-medium text-gray-800">New Chat</span>
-                <span class="text-[11px] text-gray-500">Start a fresh conversation</span>
+                <span class="text-label-sm text-gray-500">Start a fresh conversation</span>
               </div>
            </button>
            <div id="chats-search-grouped-list" role="listbox" class="mt-4"></div>

@@ -118,7 +118,7 @@ export function createIntegrationsModal(ctx) {
       const messageEl = bodyEl?.querySelector('#server-test-message');
       if (!messageEl) return;
       messageEl.textContent = message || '';
-      messageEl.className = 'text-[11px] hidden';
+      messageEl.className = 'text-label-sm hidden';
       if (!message) {
         return;
       }

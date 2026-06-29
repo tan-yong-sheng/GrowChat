@@ -87,7 +87,7 @@ export function connectionApiTypeDetails(providerType) {
 
 export const STANDARD_MODAL_PRESET = {
   outerClass: 'fixed inset-0 flex items-start justify-center overflow-y-auto p-3 sm:p-4',
-  overlayClass: 'absolute inset-0 bg-black/25 backdrop-blur-sm z-0',
+  overlayClass: 'absolute inset-0 bg-primary/25 backdrop-blur-sm z-0',
   zIndex: 150,
 };
 

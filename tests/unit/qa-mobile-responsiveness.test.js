@@ -89,11 +89,11 @@ describe("Mobile Responsiveness - Chat Interface", () => {
 
 		it("input fields should not have excessive border radius", () => {
 			const input = document.createElement("input");
-			input.className = "rounded-[20px]";
+			input.className = "rounded-lg";
 			document.body.appendChild(input);
 
 			// Border radius should be reasonable (20px is acceptable for rounded look)
-			expect(input.className).toContain("rounded-[20px]");
+			expect(input.className).toContain("rounded-lg");
 		});
 	});
 

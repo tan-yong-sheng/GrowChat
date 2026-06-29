@@ -64,13 +64,13 @@ export function createModelSelectorNoticeHelpers(elems) {
     if (!notice?.message) {
       noticeEl.classList.add('hidden');
       noticeEl.textContent = '';
-      noticeEl.className = 'hidden mx-2 mt-1 rounded-xl border px-3 py-2 text-xs';
+      noticeEl.className = 'hidden mx-2 mt-1 rounded-md border px-3 py-2 text-xs';
       return;
     }
     noticeEl.classList.remove('hidden');
     noticeEl.textContent = notice.message;
     noticeEl.className =
-      'mx-2 mt-1 rounded-xl border px-3 py-2 text-xs border-amber-200 bg-amber-50 text-amber-800';
+      'mx-2 mt-1 rounded-md border px-3 py-2 text-xs border-amber-200 bg-amber-50 text-amber-800';
   };
 
   const ensureModelsLoaded = async () => {

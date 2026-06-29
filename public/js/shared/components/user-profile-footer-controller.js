@@ -15,7 +15,7 @@ const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'focus', 'visi
 function showLogoutToast(message, duration = 3000) {
   const toast = document.createElement('div');
   toast.className =
-    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full shadow-lg z-[99999] transition-opacity duration-300 opacity-0';
+    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-full shadow-sm z-[99999] transition-opacity duration-300 opacity-0';
   toast.textContent = message;
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.remove('opacity-0'));
@@ -42,9 +42,9 @@ async function showPreferencesModal(user) {
   sidebarSuspended = true;
   const modal = document.createElement('div');
   modal.className =
-    'modal-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4';
+    'modal-overlay fixed inset-0 bg-primary/50 flex items-center justify-center z-[200] p-4';
   modal.innerHTML = `
-    <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
       <div class="modal-header flex items-center justify-between mb-6">
         <h3 class="text-xl font-bold text-gray-900 dark:text-white">Preferences</h3>
         ${renderButton({
@@ -59,11 +59,11 @@ async function showPreferencesModal(user) {
       <div class="space-y-5">
         <div class="form-group">
           <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Avatar Emoji</label>
-          <input type="text" value="${user.avatar_emoji || ''}" maxlength="2" class="pref-avatar w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+          <input type="text" value="${user.avatar_emoji || ''}" maxlength="2" class="pref-avatar w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-md dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all">
         </div>
         <div class="form-group">
           <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Status</label>
-          <select class="pref-status w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+          <select class="pref-status w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-md dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all">
             <option value="online" ${user.status === 'online' ? 'selected' : ''}>Online</option>
             <option value="away" ${user.status === 'away' ? 'selected' : ''}>Away</option>
             <option value="offline" ${user.status === 'offline' ? 'selected' : ''}>Offline</option>
@@ -71,7 +71,7 @@ async function showPreferencesModal(user) {
         </div>
         <div class="form-group">
           <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Theme</label>
-          <select class="pref-theme w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+          <select class="pref-theme w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-md dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all">
             <option value="light" ${user.preferences?.theme === 'light' ? 'selected' : ''}>Light</option>
             <option value="dark" ${user.preferences?.theme === 'dark' ? 'selected' : ''}>Dark</option>
             <option value="system" ${user.preferences?.theme === 'system' ? 'selected' : ''}>System</option>
@@ -79,7 +79,6 @@ async function showPreferencesModal(user) {
         </div>
       </div>
       <div class="mt-8">
-        <button class="save-preferences w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]">
           Save Changes
         </button>
       </div>

@@ -1,7 +1,7 @@
 const MODAL_SAVE_ENABLED_CLASS =
-  'px-4 py-2 rounded-xl text-sm font-semibold transition bg-black text-white hover:bg-gray-900';
+  'px-4 py-2 rounded-md text-sm font-semibold transition bg-primary text-white hover:bg-gray-900';
 const MODAL_SAVE_DISABLED_CLASS =
-  'px-4 py-2 rounded-xl text-sm font-semibold transition bg-gray-200 text-gray-700 cursor-not-allowed';
+  'px-4 py-2 rounded-md text-sm font-semibold transition bg-gray-200 text-gray-700 cursor-not-allowed';
 
 function isButtonActive(enabled, saving) {
   return Boolean(enabled) && !saving;

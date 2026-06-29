@@ -188,14 +188,14 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
         <div class="flex-1 min-w-[200px]">
           <label class="block text-xs font-medium text-gray-500 mb-1" for="filter-user">Filter by user</label>
           <input type="text" id="filter-user"
-                 class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                 class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-blue-500"
                  placeholder="User ID or email"
                  value="${escapeHtml(filters.userId)}">
         </div>
         <div class="w-48">
           <label class="block text-xs font-medium text-gray-500 mb-1" for="filter-action">Action type</label>
           <select id="filter-action"
-                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-blue-500">
             <option value="">All actions</option>
             <option value="auth" ${filters.action === 'auth' ? 'selected' : ''}>Authentication</option>
             <option value="user" ${filters.action === 'user' ? 'selected' : ''}>User changes</option>
