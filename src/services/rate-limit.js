@@ -97,7 +97,7 @@ export async function checkRateLimit(env, opts) {
   const nextCount = count + 1;
 
   if (nextCount > maxRequests) {
-    await store.put(key, String(nextCount));
+    await store.put(key, String(nextCount), { expirationTtl: windowSize });
     return { allowed: false, remaining: 0, resetAt, key };
   }
 

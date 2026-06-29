@@ -48,9 +48,9 @@ describe('rate limit service', () => {
 
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
-    expect(store.put).toHaveBeenCalledWith('rate-limit:login:ip:1-2-3-4', '3');
-    // No expirationTtl for denied requests (issue #147): over-limit requests
-    // should not refresh the TTL to prevent trickle-keepalive attacks.
+    expect(store.put).toHaveBeenCalledWith('rate-limit:login:ip:1-2-3-4', '3', {
+      expirationTtl: 60,
+    });
   });
 
   it('always increments the counter before checking (optimistic increment)', async () => {
