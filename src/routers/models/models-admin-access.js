@@ -4,6 +4,7 @@
 import { error, json } from '../../utils/response.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
 import { createDB } from '../../db.js';
+import { chunkedBatch } from '../../utils/db-helpers.js';
 import {
   buildModelAclRuleSaveStatements,
   loadModelAclRules,
@@ -148,7 +149,7 @@ export async function handleAdminModelsAccess(
         });
       }
 
-      await db.batch(statements);
+      await chunkedBatch(db, statements);
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'model_access_updated',

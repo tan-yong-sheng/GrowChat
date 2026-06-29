@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   applyAttachmentDefaults,
   arrayBufferToBase64,
@@ -12,9 +12,16 @@ import {
   isSupportedAttachmentType,
   isTextLikeContentType,
   isTransientModelError,
+  loadModelAttachmentCaps,
   mergeTextAttachmentParts,
   normalizeAttachmentIds,
+  recordAttachmentCapabilityFailure,
 } from './attachments.js';
+
+vi.mock('../utils/app-config.js', () => ({
+  getConfigValue: vi.fn(),
+  setConfigValue: vi.fn(),
+}));
 
 describe('chat attachment helpers', () => {
   it('normalizes attachment ids and caps the list', () => {
@@ -78,5 +85,43 @@ describe('chat attachment helpers', () => {
   it('encodes array buffers as base64', () => {
     const bytes = new Uint8Array([72, 105]);
     expect(arrayBufferToBase64(bytes.buffer)).toBe('SGk=');
+  });
+
+  it('records attachment capability failure with Unix-second timestamp (#126)', async () => {
+    const { getConfigValue, setConfigValue } = await import('../utils/app-config.js');
+    getConfigValue.mockResolvedValue('{}');
+    setConfigValue.mockResolvedValue(undefined);
+    const db = {};
+    await recordAttachmentCapabilityFailure(
+      db,
+      'model-1',
+      ['image'],
+      new Error('vision model does not support image attachments')
+    );
+    expect(setConfigValue).toHaveBeenCalledTimes(1);
+    const [, , serialized] = setConfigValue.mock.calls[0];
+    const saved = JSON.parse(serialized);
+    const entry = saved['model-1'];
+    expect(entry).toBeDefined();
+    expect(entry.updated_at).toBeTypeOf('number');
+    // Unix seconds are roughly 1.7e9; milliseconds would be 1.7e12
+    expect(entry.updated_at).toBeLessThan(1e12);
+    expect(entry.attachments.image).toBe(false);
+  });
+
+  it('normalizes legacy millisecond timestamps on read (#126)', async () => {
+    const { getConfigValue } = await import('../utils/app-config.js');
+    const legacyMs = Date.now(); // millisecond timestamp
+    const legacyBlob = JSON.stringify({
+      'legacy-model': {
+        attachments: { image: false },
+        updated_at: legacyMs,
+      },
+    });
+    getConfigValue.mockResolvedValue(legacyBlob);
+    const db = {};
+    const caps = await loadModelAttachmentCaps(db);
+    expect(caps['legacy-model'].updated_at).toBeLessThan(1e12);
+    expect(caps['legacy-model'].updated_at).toBe(Math.floor(legacyMs / 1000));
   });
 });

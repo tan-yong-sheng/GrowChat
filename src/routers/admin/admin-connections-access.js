@@ -11,6 +11,7 @@ import {
 } from '../../utils/connection-acl.js';
 import { ensureAdminAclAccess } from './admin-helpers.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
+import { chunkedBatch } from '../../utils/db-helpers.js';
 
 /**
  * Handle handleAdminConnectionsAccess routes.
@@ -131,7 +132,7 @@ export async function handleAdminConnectionsAccess(
         });
       }
 
-      await db.batch(statements);
+      await chunkedBatch(db, statements);
       await logAuditEvent(
         env,
         {
