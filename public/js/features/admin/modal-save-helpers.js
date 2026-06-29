@@ -1,5 +1,5 @@
 const MODAL_SAVE_ENABLED_CLASS =
-  'px-4 py-2 rounded-md text-sm font-semibold transition bg-primary text-white hover:bg-gray-900';
+  'px-4 py-2 rounded-md text-sm font-semibold transition bg-primary text-white hover:bg-primary-hover';
 const MODAL_SAVE_DISABLED_CLASS =
   'px-4 py-2 rounded-md text-sm font-semibold transition bg-gray-200 text-gray-700 cursor-not-allowed';
 

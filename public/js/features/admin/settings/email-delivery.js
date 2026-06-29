@@ -166,7 +166,7 @@ export function renderEmailDeliverySettings(container) {
                   <div class="relative flex-1 rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm transition-colors focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-300">
                     <input id="test-email" type="email" placeholder="test@example.com" class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder-gray-500" />
                   </div>
-                  <button id="send-test-email" class="px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20">
+                  <button id="send-test-email" class="px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20">
                     Send Test
                   </button>
                 </div>

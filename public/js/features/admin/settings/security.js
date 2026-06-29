@@ -100,7 +100,7 @@ export function renderSecuritySettings(container, data) {
                   </div>
                   <button
                     id="send-test-email"
-                    class="px-4 py-2.5 rounded-md bg-primary text-white text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20"
+                    class="px-4 py-2.5 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20"
                   >
                     Send Test
                   </button>

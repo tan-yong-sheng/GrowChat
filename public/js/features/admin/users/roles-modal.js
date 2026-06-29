@@ -69,7 +69,7 @@ export function openRoleModal(
       saving: modalState.saving,
       label: 'Save',
       enabledClass:
-        'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
+        'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
       disabledClass:
         'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
     });
@@ -273,7 +273,7 @@ export function openRoleModal(
         saving: true,
         label: 'Save',
         enabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
+          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
         disabledClass:
           'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
       });
@@ -295,7 +295,7 @@ export function openRoleModal(
         saving: false,
         label: 'Save',
         enabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-gray-900',
+          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
         disabledClass:
           'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
       });
