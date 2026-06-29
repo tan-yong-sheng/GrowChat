@@ -25,9 +25,13 @@ describe('Audit Logging Service', () => {
 
   describe('logSecurityEvent', () => {
     it('logs security event to KV', async () => {
-      await logSecurityEvent(env, SecurityEventTypes.LOGIN_SUCCESS, {
-        userId: 'user-123',
-        ip: '192.168.1.1',
+      await logSecurityEvent({
+        env,
+        eventType: SecurityEventTypes.LOGIN_SUCCESS,
+        details: {
+          userId: 'user-123',
+          ip: '192.168.1.1',
+        },
       });
 
       expect(mockKV.put).toHaveBeenCalledWith(
@@ -41,7 +45,10 @@ describe('Audit Logging Service', () => {
       const envWithoutSessions = {};
 
       // Should not throw
-      await logSecurityEvent(envWithoutSessions, SecurityEventTypes.LOGIN_FAILURE);
+      await logSecurityEvent({
+        env: envWithoutSessions,
+        eventType: SecurityEventTypes.LOGIN_FAILURE,
+      });
       expect(true).toBe(true);
     });
   });

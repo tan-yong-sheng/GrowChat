@@ -48,14 +48,14 @@ describe('CSRF Protection Service', () => {
 
       mockKV.get.mockResolvedValue({ sessionId, createdAt: Date.now() });
 
-      const isValid = await validateCsrfToken(env, token, sessionId);
+      const isValid = await validateCsrfToken({ env, token, sessionId });
 
       expect(isValid).toBe(true);
       expect(mockKV.delete).toHaveBeenCalledWith(expect.stringContaining(token));
     });
 
     it('returns false for missing token', async () => {
-      const isValid = await validateCsrfToken(env, '', 'session-123');
+      const isValid = await validateCsrfToken({ env, token: '', sessionId: 'session-123' });
 
       expect(isValid).toBe(false);
       expect(mockKV.get).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ describe('CSRF Protection Service', () => {
     it('returns false for expired/non-existent token', async () => {
       mockKV.get.mockResolvedValue(null);
 
-      const isValid = await validateCsrfToken(env, 'invalid-token', 'session-123');
+      const isValid = await validateCsrfToken({ env, token: 'invalid-token', sessionId: 'session-123' });
 
       expect(isValid).toBe(false);
       expect(mockKV.delete).not.toHaveBeenCalled();
@@ -73,14 +73,14 @@ describe('CSRF Protection Service', () => {
     it('returns false if session ID does not match', async () => {
       mockKV.get.mockResolvedValue({ sessionId: 'other-session' });
 
-      const isValid = await validateCsrfToken(env, 'token', 'my-session');
+      const isValid = await validateCsrfToken({ env, token: 'token', sessionId: 'my-session' });
 
       expect(isValid).toBe(false);
     });
 
     it('returns false if SESSIONS binding is missing', async () => {
       const envWithoutSessions = {};
-      const isValid = await validateCsrfToken(envWithoutSessions, 'token', 'session');
+      const isValid = await validateCsrfToken({ env: envWithoutSessions, token: 'token', sessionId: 'session' });
 
       expect(isValid).toBe(false);
     });
@@ -90,7 +90,7 @@ describe('CSRF Protection Service', () => {
     it('skips validation for GET requests', async () => {
       const req = new Request('http://localhost/api/data', { method: 'GET' });
 
-      const result = await requireCsrfToken(req, env, 'session-123');
+      const result = await requireCsrfToken({ req, env, sessionId: 'session-123' });
 
       expect(result).toBeNull();
       expect(mockKV.get).not.toHaveBeenCalled();
@@ -102,7 +102,7 @@ describe('CSRF Protection Service', () => {
         headers: { 'X-CSRF-Token': '' },
       });
 
-      const result = await requireCsrfToken(req, env, 'session-123');
+      const result = await requireCsrfToken({ req, env, sessionId: 'session-123' });
 
       expect(result).not.toBeNull();
       expect(result.status).toBe(403);
@@ -116,7 +116,7 @@ describe('CSRF Protection Service', () => {
         headers: { 'X-CSRF-Token': 'valid-token' },
       });
 
-      const result = await requireCsrfToken(req, env, 'session-123');
+      const result = await requireCsrfToken({ req, env, sessionId: 'session-123' });
 
       expect(result).toBeNull();
     });

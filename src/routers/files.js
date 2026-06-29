@@ -125,13 +125,19 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
       const fileSize = buffer.byteLength;
 
       // Validate file
-      const validation = validateFile(filename, contentType, fileSize);
+      const validation = validateFile({ filename, contentType, fileSize });
       if (!validation.valid) {
         return error(req, validation.error, 400);
       }
 
       // Upload to R2
-      const r2Result = await uploadFileToR2(env, user.sub, filename, contentType, buffer);
+      const r2Result = await uploadFileToR2({
+        env,
+        userId: user.sub,
+        filename,
+        contentType,
+        buffer,
+      });
 
       // Store metadata in D1
       const documentId = await storeFileMetadata(db, {
@@ -219,7 +225,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
     const offset = parseInt(new URL(req.url).searchParams.get('offset') || '0');
 
     try {
-      const documents = await listUserDocuments(db, user.sub, limit, offset);
+      const documents = await listUserDocuments({ db, userId: user.sub, limit, offset });
       return json(req, { documents });
     } catch (err) {
       if (isMissingDocumentsTable(err)) {
@@ -236,7 +242,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
     const db = createDB(env.DB);
 
     try {
-      const owned = await requireOwnedDocument(req, db, documentId, user.sub);
+      const owned = await requireOwnedDocument({ req, db, documentId, userId: user.sub });
       if (owned.error) return owned.error;
 
       return json(req, owned.doc);
@@ -269,7 +275,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
     const db = createDB(env.DB);
 
     try {
-      await deleteDocument(env, db, documentId, user.sub);
+      await deleteDocument({ env, db, documentId, userId: user.sub });
 
       // Log audit event
       await logAuditEvent(env, {
@@ -358,7 +364,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
     const db = createDB(env.DB);
 
     try {
-      const owned = await requireOwnedDocument(req, db, documentId, user.sub);
+      const owned = await requireOwnedDocument({ req, db, documentId, userId: user.sub });
       if (owned.error) return owned.error;
       const doc = owned.doc;
 
@@ -390,7 +396,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
     const db = createDB(env.DB);
 
     try {
-      const owned = await requireOwnedDocument(req, db, documentId, user.sub);
+      const owned = await requireOwnedDocument({ req, db, documentId, userId: user.sub });
       if (owned.error) return owned.error;
       const doc = owned.doc;
 
@@ -432,7 +438,7 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
     const db = createDB(env.DB);
 
     try {
-      const owned = await requireOwnedDocument(req, db, documentId, user.sub);
+      const owned = await requireOwnedDocument({ req, db, documentId, userId: user.sub });
       if (owned.error) return owned.error;
       const doc = owned.doc;
 

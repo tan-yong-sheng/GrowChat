@@ -377,30 +377,45 @@ describe('filesRouter', () => {
     it('uses default limit of 20', async () => {
       mocks.listUserDocuments.mockResolvedValueOnce([]);
       await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files');
-      expect(mocks.listUserDocuments).toHaveBeenCalledWith(expect.anything(), 'u1', 20, 0);
+      expect(mocks.listUserDocuments).toHaveBeenCalledWith({
+        db: expect.anything(),
+        userId: 'u1',
+        limit: 20,
+        offset: 0,
+      });
     });
 
     it('uses default offset of 0', async () => {
       mocks.listUserDocuments.mockResolvedValueOnce([]);
       await filesRouter(makeReq('/api/files'), env, {}, user, '/api/files');
-      expect(mocks.listUserDocuments).toHaveBeenCalledWith(
-        expect.anything(),
-        'u1',
-        expect.any(Number),
-        0
-      );
+      expect(mocks.listUserDocuments).toHaveBeenCalledWith({
+        db: expect.anything(),
+        userId: 'u1',
+        limit: expect.any(Number),
+        offset: 0,
+      });
     });
 
     it('parses limit and offset from query params', async () => {
       mocks.listUserDocuments.mockResolvedValueOnce([]);
       await filesRouter(makeReq('/api/files?limit=10&offset=5'), env, {}, user, '/api/files');
-      expect(mocks.listUserDocuments).toHaveBeenCalledWith(expect.anything(), 'u1', 10, 5);
+      expect(mocks.listUserDocuments).toHaveBeenCalledWith({
+        db: expect.anything(),
+        userId: 'u1',
+        limit: 10,
+        offset: 5,
+      });
     });
 
     it('caps limit at 100', async () => {
       mocks.listUserDocuments.mockResolvedValueOnce([]);
       await filesRouter(makeReq('/api/files?limit=200'), env, {}, user, '/api/files');
-      expect(mocks.listUserDocuments).toHaveBeenCalledWith(expect.anything(), 'u1', 100, 0);
+      expect(mocks.listUserDocuments).toHaveBeenCalledWith({
+        db: expect.anything(),
+        userId: 'u1',
+        limit: 100,
+        offset: 0,
+      });
     });
 
     it('returns 429 when list rate limit exceeded', async () => {
@@ -1823,7 +1838,11 @@ describe('filesRouter', () => {
         user,
         '/api/files/upload'
       );
-      expect(mocks.validateFile).toHaveBeenCalledWith('test.txt', 'text/plain', 11);
+      expect(mocks.validateFile).toHaveBeenCalledWith({
+        filename: 'test.txt',
+        contentType: 'text/plain',
+        fileSize: 11,
+      });
     });
 
     it('calls uploadFileToR2 with correct args', async () => {
@@ -1838,13 +1857,13 @@ describe('filesRouter', () => {
         user,
         '/api/files/upload'
       );
-      expect(mocks.uploadFileToR2).toHaveBeenCalledWith(
+      expect(mocks.uploadFileToR2).toHaveBeenCalledWith({
         env,
-        'u1',
-        'test.txt',
-        'text/plain',
-        expect.any(ArrayBuffer)
-      );
+        userId: 'u1',
+        filename: 'test.txt',
+        contentType: 'text/plain',
+        buffer: expect.any(ArrayBuffer),
+      });
     });
 
     it('calls storeFileMetadata with correct metadata object', async () => {
@@ -2078,14 +2097,14 @@ describe('filesRouter', () => {
     it('handles NaN limit by passing NaN to listUserDocuments', async () => {
       mocks.listUserDocuments.mockResolvedValueOnce([]);
       await filesRouter(makeReq('/api/files?limit=abc'), env, {}, user, '/api/files');
-      const [, , limitArg] = mocks.listUserDocuments.mock.calls[0];
+      const { limit: limitArg } = mocks.listUserDocuments.mock.calls[0][0];
       expect(Number.isNaN(limitArg)).toBe(true);
     });
 
     it('handles NaN offset by passing NaN to listUserDocuments', async () => {
       mocks.listUserDocuments.mockResolvedValueOnce([]);
       await filesRouter(makeReq('/api/files?offset=abc'), env, {}, user, '/api/files');
-      const [, , , offsetArg] = mocks.listUserDocuments.mock.calls[0];
+      const { offset: offsetArg } = mocks.listUserDocuments.mock.calls[0][0];
       expect(Number.isNaN(offsetArg)).toBe(true);
     });
 
@@ -2192,7 +2211,12 @@ describe('filesRouter', () => {
         user,
         '/api/files/d1'
       );
-      expect(mocks.deleteDocument).toHaveBeenCalledWith(env, expect.anything(), 'd1', 'u1');
+      expect(mocks.deleteDocument).toHaveBeenCalledWith({
+        env,
+        db: expect.anything(),
+        documentId: 'd1',
+        userId: 'u1',
+      });
     });
 
     it('logs audit event with exact delete metadata', async () => {

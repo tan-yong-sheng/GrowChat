@@ -11,12 +11,13 @@ const logger = createRootLogger({});
 
 /**
  * Validate file before upload
- * @param {string} filename - Original filename
- * @param {string} contentType - MIME type
- * @param {number} fileSize - Size in bytes
+ * @param {Object} options
+ * @param {string} options.filename - Original filename
+ * @param {string} options.contentType - MIME type
+ * @param {number} options.fileSize - Size in bytes
  * @returns {Object} - {valid: boolean, error?: string}
  */
-export function validateFile(filename, contentType, fileSize) {
+export function validateFile({ filename, contentType, fileSize }) {
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   const normalizedType = String(contentType || '').toLowerCase();
   const textLikeTypes = new Set([
@@ -118,14 +119,15 @@ function getExtensionFromContentType(contentType) {
 
 /**
  * Upload file to R2
- * @param {Object} env - Worker environment with R2 binding
- * @param {string} userId - User ID
- * @param {string} filename - Original filename
- * @param {string} contentType - MIME type
- * @param {ArrayBuffer} buffer - File buffer
+ * @param {Object} options
+ * @param {Object} options.env - Worker environment with R2 binding
+ * @param {string} options.userId - User ID
+ * @param {string} options.filename - Original filename
+ * @param {string} options.contentType - MIME type
+ * @param {ArrayBuffer} options.buffer - File buffer
  * @returns {Promise<Object>} - {r2Key, r2Url}
  */
-export async function uploadFileToR2(env, userId, filename, contentType, buffer) {
+export async function uploadFileToR2({ env, userId, filename, contentType, buffer }) {
   if (!env.FILES) throw new Error('R2 binding not configured');
 
   // Generate unique file key
@@ -237,7 +239,7 @@ export async function getFileMetadata(db, documentId) {
  * @param {string} userId - User ID
  * @returns {Promise<Object>} - Owned document metadata
  */
-export async function getOwnedDocument(db, documentId, userId) {
+export async function getOwnedDocument({ db, documentId, userId }) {
   return await db.first('SELECT * FROM documents WHERE id = ? AND user_id = ?', [
     documentId,
     userId,
@@ -252,8 +254,8 @@ export async function getOwnedDocument(db, documentId, userId) {
  * @param {string} userId - User ID
  * @returns {Promise<Object>} - { doc } or { error }
  */
-export async function requireOwnedDocument(req, db, documentId, userId) {
-  const doc = await getOwnedDocument(db, documentId, userId);
+export async function requireOwnedDocument({ req, db, documentId, userId }) {
+  const doc = await getOwnedDocument({ db, documentId, userId });
   if (!doc) {
     return { error: error(req, 'Document not found', 404) };
   }
@@ -268,7 +270,7 @@ export async function requireOwnedDocument(req, db, documentId, userId) {
  * @param {number} offset - Pagination offset
  * @returns {Promise<Array>} - Array of documents
  */
-export async function listUserDocuments(db, userId, limit = 20, offset = 0) {
+export async function listUserDocuments({ db, userId, limit = 20, offset = 0 }) {
   return await db.all(
     `SELECT id, filename, content_type, file_size, text_excerpt, extraction_status,
             created_at, updated_at
@@ -288,9 +290,9 @@ export async function listUserDocuments(db, userId, limit = 20, offset = 0) {
  * @param {string} userId - User ID (for authorization)
  * @returns {Promise<boolean>} - Success status
  */
-export async function deleteDocument(env, db, documentId, userId) {
+export async function deleteDocument({ env, db, documentId, userId }) {
   // Check ownership
-  const doc = await getOwnedDocument(db, documentId, userId);
+  const doc = await getOwnedDocument({ db, documentId, userId });
 
   if (!doc) {
     throw new Error('Document not found');
