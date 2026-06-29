@@ -35,7 +35,11 @@ describe('logSecurityEvent', () => {
     const kv = makeKV();
     const env = makeEnv({ SESSIONS: kv });
 
-    await logSecurityEvent(env, 'login_success', { userId: 'user-1', ip: '1.2.3.4' });
+    await logSecurityEvent({
+      env: env,
+      eventType: 'login_success',
+      details: { userId: 'user-1', ip: '1.2.3.4' },
+    });
 
     expect(kv.put).toHaveBeenCalledTimes(1);
     const [key, value, opts] = kv.put.mock.calls[0];
@@ -51,13 +55,13 @@ describe('logSecurityEvent', () => {
 
   it('returns early when SESSIONS binding is missing', async () => {
     const env = { SESSIONS: null };
-    await logSecurityEvent(env, 'login_success', {});
+    await logSecurityEvent({ env: env, eventType: 'login_success', details: {} });
     // Should not throw
   });
 
   it('returns early when SESSIONS binding is undefined', async () => {
     const env = {};
-    await logSecurityEvent(env, 'login_failure', {});
+    await logSecurityEvent({ env: env, eventType: 'login_failure', details: {} });
   });
 
   it('tolerates KV put failure gracefully', async () => {
@@ -67,7 +71,7 @@ describe('logSecurityEvent', () => {
 
     // Should not throw
     await expect(
-      logSecurityEvent(env, 'login_failure', { userId: 'user-1' })
+      logSecurityEvent({ env: env, eventType: 'login_failure', details: { userId: 'user-1' } })
     ).resolves.not.toThrow();
   });
 
@@ -76,7 +80,7 @@ describe('logSecurityEvent', () => {
     const env = makeEnv({ SESSIONS: kv });
     const before = Date.now();
 
-    await logSecurityEvent(env, 'login_success', { userId: 'user-1' });
+    await logSecurityEvent({ env: env, eventType: 'login_success', details: { userId: 'user-1' } });
 
     const value = JSON.parse(kv.put.mock.calls[0][1]);
     expect(value.id).toMatch(/^audit:/);
@@ -90,10 +94,14 @@ describe('logSecurityEvent', () => {
     const kv = makeKV();
     const env = makeEnv({ SESSIONS: kv });
 
-    await logSecurityEvent(env, 'api_key_created', {
-      userId: 'user-1',
-      apiKeyId: 'key-123',
-      ip: '10.0.0.1',
+    await logSecurityEvent({
+      env,
+      eventType: 'api_key_created',
+      details: {
+        userId: 'user-1',
+        apiKeyId: 'key-123',
+        ip: '10.0.0.1',
+      },
     });
 
     const event = JSON.parse(kv.put.mock.calls[0][1]);
@@ -107,7 +115,7 @@ describe('logSecurityEvent', () => {
     const kv = makeKV();
     const env = makeEnv({ SESSIONS: kv });
 
-    await logSecurityEvent(env, 'login_failure', {});
+    await logSecurityEvent({ env: env, eventType: 'login_failure', details: {} });
 
     const event = JSON.parse(kv.put.mock.calls[0][1]);
     expect(event.type).toBe('login_failure');
@@ -120,7 +128,7 @@ describe('logSecurityEvent', () => {
 
     for (const type of Object.values(SecurityEventTypes)) {
       kv.put.mockClear();
-      await logSecurityEvent(env, type, {});
+      await logSecurityEvent({ env, eventType: type, details: {} });
       const event = JSON.parse(kv.put.mock.calls[0][1]);
       expect(event.type).toBe(type);
     }

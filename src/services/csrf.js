@@ -44,12 +44,13 @@ export async function generateCsrfToken(env, sessionId) {
 
 /**
  * Validate a CSRF token and consume it (one-time use)
- * @param {Object} env - Worker environment with SESSIONS KV binding
- * @param {string} token - Token to validate
- * @param {string} sessionId - Expected session identifier
+ * @param {Object} options
+ * @param {Object} options.env - Worker environment with SESSIONS KV binding
+ * @param {string} options.token - Token to validate
+ * @param {string} options.sessionId - Expected session identifier
  * @returns {Promise<boolean>} True if token is valid, false otherwise
  */
-export async function validateCsrfToken(env, token, sessionId) {
+export async function validateCsrfToken({ env, token, sessionId } = {}) {
   if (!env?.SESSIONS) {
     logger.warn('SESSIONS KV binding is required for CSRF validation');
     return false;
@@ -85,12 +86,13 @@ export async function validateCsrfToken(env, token, sessionId) {
 
 /**
  * Middleware to require CSRF token on state-changing requests
- * @param {Request} req - The incoming request
- * @param {Object} env - Worker environment
- * @param {string} sessionId - Current session ID
+ * @param {Object} options
+ * @param {Request} options.req - The incoming request
+ * @param {Object} options.env - Worker environment
+ * @param {string} options.sessionId - Current session ID
  * @returns {Object|null} Error response if validation fails, null if valid
  */
-export async function requireCsrfToken(req, env, sessionId) {
+export async function requireCsrfToken({ req, env, sessionId } = {}) {
   // GET, HEAD, OPTIONS requests don't need CSRF protection
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     return null;
@@ -105,7 +107,7 @@ export async function requireCsrfToken(req, env, sessionId) {
     };
   }
 
-  const isValid = await validateCsrfToken(env, token, sessionId);
+  const isValid = await validateCsrfToken({ env, token, sessionId });
 
   if (!isValid) {
     return {

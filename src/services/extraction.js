@@ -9,7 +9,7 @@ import { parseDocument } from './parsers/index.js';
 import { createRootLogger } from '../utils/logger.js';
 const logger = createRootLogger({});
 
-async function handleSkippedExtraction(db, documentId, reason) {
+async function handleSkippedExtraction({ db, documentId, reason } = {}) {
   const message = reason || 'Document extraction skipped';
   await db.run(
     `UPDATE documents SET extraction_status = -1, extraction_error = ?, updated_at = unixepoch()
@@ -19,7 +19,7 @@ async function handleSkippedExtraction(db, documentId, reason) {
   return { extractedText: '', excerptLength: 0, skipped: true, reason: message };
 }
 
-async function markExtractionSuccess(db, documentId, excerpt) {
+async function markExtractionSuccess({ db, documentId, excerpt } = {}) {
   await db.run(
     `UPDATE documents SET extraction_status = 1, text_excerpt = ?, updated_at = unixepoch()
      WHERE id = ?`,
@@ -27,7 +27,7 @@ async function markExtractionSuccess(db, documentId, excerpt) {
   );
 }
 
-async function markExtractionFailed(db, documentId, errorMessage) {
+async function markExtractionFailed({ db, documentId, errorMessage } = {}) {
   await db.run(`UPDATE documents SET extraction_status = -1, extraction_error = ? WHERE id = ?`, [
     errorMessage,
     documentId,
@@ -48,7 +48,7 @@ export async function extractDocumentText({ env, db, documentId, contentType, bu
   try {
     const result = await parseDocument(env, { contentType, buffer });
     if (result?.skipped) {
-      return handleSkippedExtraction(db, documentId, result.reason);
+      return handleSkippedExtraction({ db, documentId, reason: result.reason });
     }
 
     const fullText = result?.text || '';
@@ -57,15 +57,16 @@ export async function extractDocumentText({ env, db, documentId, contentType, bu
     }
 
     const excerpt = fullText.slice(0, 500);
-    await markExtractionSuccess(db, documentId, excerpt);
+    await markExtractionSuccess({ db, documentId, excerpt });
 
     return {
       extractedText: fullText,
       excerptLength: excerpt.length,
     };
   } catch (err) {
-    logger.error('Document extraction failed', { documentId, error: err?.message || err });
-    await markExtractionFailed(db, documentId, err.message);
+    const errorMessage = err?.message || String(err) || 'Unknown extraction error';
+    logger.error('Document extraction failed', { documentId, error: errorMessage });
+    await markExtractionFailed({ db, documentId, errorMessage });
     throw err;
   }
 }
