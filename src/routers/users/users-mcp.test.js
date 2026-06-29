@@ -141,10 +141,7 @@ describe('handleUsersMcp', () => {
         oauth_token_auth_method: 'client_secret_post',
         oauth_token_endpoint: 'https://auth.example.com/token',
       });
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
-      );
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
       const res = await handleUsersMcp(
         makeReq('/api/users/me/resources/mcp-servers/oauth/callback?code=abc&state=valid', 'GET'),
         env,
