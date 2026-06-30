@@ -142,7 +142,12 @@ export function createAssistantRunner(deps) {
                   userRole: user?.primary_role || 'member',
                 });
               } catch (err) {
-                await recordAttachmentCapabilityFailure(db, model, attachmentKinds, err);
+                await recordAttachmentCapabilityFailure({
+                  db,
+                  modelId: model,
+                  attachmentKinds,
+                  err,
+                });
                 await lifecycle.sendErrorAndClose({
                   controller,
                   encoder,
