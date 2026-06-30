@@ -70,7 +70,7 @@ function parseUserConnectionManualModels(raw) {
   }
 }
 
-function normalizeUserConnectionRow(row, index = 0) {
+function normalizeUserConnectionRow({ row, index = 0 } = {}) {
   if (!row) return null;
   const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
   if (!baseUrl) return null;
@@ -116,7 +116,7 @@ function normalizeUserConnectionRow(row, index = 0) {
   };
 }
 
-function normalizeUserConnectionInput(input = {}, existing = null) {
+function normalizeUserConnectionInput({ input = {}, existing = null } = {}) {
   const name = String(input.name || existing?.name || '').trim();
   const providerType =
     String(
@@ -184,7 +184,7 @@ export async function loadUserOpenAIConnectionConfigs(
     );
     const rows = Array.isArray(rawRows) ? rawRows : [];
     const normalized = rows
-      .map((row, index) => normalizeUserConnectionRow(row, index))
+      .map((row, index) => normalizeUserConnectionRow({ row, index }))
       .filter(Boolean);
     if (includeDisabled) return normalized;
     return normalized.filter((conn) => conn.enabled !== false);
@@ -210,18 +210,18 @@ export async function getUserOpenAIConnectionConfig(
 			WHERE user_id = ? AND id = ?`,
       [userId, connectionId]
     );
-    return normalizeUserConnectionRow(row);
+    return normalizeUserConnectionRow({ row });
   } catch (err) {
     logger.warn('Failed to load user connection', { error: err?.message || err });
     return null;
   }
 }
 
-export async function createUserOpenAIConnection(db, userId, input = {}) {
+export async function createUserOpenAIConnection({ db, userId, input = {} } = {}) {
   if (!db || !userId) throw new Error('User id is required');
   await ensureUserConnectionsTable(db);
 
-  const connection = normalizeUserConnectionInput(input);
+  const connection = normalizeUserConnectionInput({ input });
   if (!connection.name) throw new Error('name is required');
   if (!connection.baseUrl) throw new Error('base_url is required');
 
@@ -249,14 +249,14 @@ export async function createUserOpenAIConnection(db, userId, input = {}) {
   return getUserOpenAIConnectionConfig(db, userId, id);
 }
 
-export async function updateUserOpenAIConnection(db, userId, connectionId, input = {}) {
+export async function updateUserOpenAIConnection({ db, userId, connectionId, input = {} } = {}) {
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
   const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
   if (!existing) return null;
 
-  const connection = normalizeUserConnectionInput(input, existing);
+  const connection = normalizeUserConnectionInput({ input, existing });
   if (!connection.name) throw new Error('name is required');
   if (!connection.baseUrl) throw new Error('base_url is required');
 
@@ -284,7 +284,7 @@ export async function updateUserOpenAIConnection(db, userId, connectionId, input
   return getUserOpenAIConnectionConfig(db, userId, connectionId);
 }
 
-export async function deleteUserOpenAIConnection(db, userId, connectionId) {
+export async function deleteUserOpenAIConnection({ db, userId, connectionId } = {}) {
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
