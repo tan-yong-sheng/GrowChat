@@ -70,5 +70,18 @@ describe('sanitize', () => {
     it('leaves plain text unchanged (trimmed)', () => {
       expect(stripHtml('  hello  ')).toBe('hello');
     });
+
+    it('removes residual angle brackets from partial tags (defense-in-depth)', () => {
+      // Partial tags like '<script' (no closing '>') are removed entirely
+      // so they cannot be re-rendered as HTML when the sanitized value is
+      // later inserted into a template. We drop (rather than HTML-encode)
+      // the residual brackets because stripHtml is meant to produce plain
+      // text for storage; encoding here would double-encode when downstream
+      // renderers apply escapeHtml() on output.
+      expect(stripHtml('<script')).toBe('script');
+      expect(stripHtml('text> more')).toBe('text more');
+      expect(stripHtml('a < b c')).toBe('a  b c');
+      expect(stripHtml('x > y')).toBe('x  y');
+    });
   });
 });

@@ -25,10 +25,16 @@ export function escapeHtml(text) {
  * Used to sanitize user input before storing in the database.
  *
  * Iterates until no tags remain to prevent reconstruction attacks
- * (e.g. `<<script>script>` → `<script>` after a single pass).
+ * (e.g. `<<script>script>` → `<script>` after a single pass) and
+ * then removes any leftover `<` / `>` characters as a defense-in-depth
+ * measure for partial tags like `<script` that lack a closing `>`.
+ *
+ * The result is plain text: callers may still apply `escapeHtml()`
+ * when rendering into HTML, but `stripHtml()` itself does not produce
+ * HTML entities (which would double-encode when re-escaped downstream).
  *
  * @param {string} text - Raw text that may contain HTML
- * @returns {string} Text with HTML tags removed
+ * @returns {string} Plain text with HTML tags and residual angle brackets removed
  */
 export function stripHtml(text) {
   let result = String(text ?? '');
@@ -37,5 +43,9 @@ export function stripHtml(text) {
     previous = result;
     result = result.replace(/<[^>]*>/g, '');
   } while (result !== previous);
-  return result.trim();
+  // Defense-in-depth: drop residual < and > from partial tags. We do NOT
+  // encode them as &lt;/&gt; because stripHtml is meant to produce plain
+  // text for storage; encoding here would double-encode when downstream
+  // renderers apply escapeHtml() on output.
+  return result.replace(/[<>]/g, '').trim();
 }
