@@ -71,7 +71,7 @@ export function renderSecurityOverview(container) {
               <div class="text-base font-medium text-gray-900 py-2">Rate Limits</div>
               ${renderRows(limitRows)}
               <div class="flex items-start gap-2 py-2">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-400 mt-0.5 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-600 mt-0.5 shrink-0">
                   <path fill-rule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v3.5c0 .199.079.39.22.53l2 2a.75.75 0 1 0 1.06-1.06L8.75 7.94V4.75Z" clip-rule="evenodd" />
                 </svg>
                 <span class="text-label-sm text-gray-600">Rate limits are configured in deployment config and cannot be changed here.</span>
@@ -83,7 +83,7 @@ export function renderSecurityOverview(container) {
               <div class="text-base font-medium text-gray-900 py-2">Authentication</div>
               ${renderRows(ttlRows)}
               <div class="flex items-start gap-2 py-2">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-400 mt-0.5 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-600 mt-0.5 shrink-0">
                   <path fill-rule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v3.5c0 .199.079.39.22.53l2 2a.75.75 0 1 0 1.06-1.06L8.75 7.94V4.75Z" clip-rule="evenodd" />
                 </svg>
                 <span class="text-label-sm text-gray-600">Token TTLs are configured in deployment config and cannot be changed here.</span>
@@ -97,7 +97,7 @@ export function renderSecurityOverview(container) {
                 .map(
                   (item) => `
                 <div class="flex items-center justify-between py-2 border-b border-gray-50">
-                  <span class="text-sm text-gray-400">${escapeHtml(item)}</span>
+                  <span class="text-sm text-gray-600">${escapeHtml(item)}</span>
                   <span class="text-sm text-gray-300">🔒</span>
                 </div>
               `
