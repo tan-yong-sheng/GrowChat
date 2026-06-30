@@ -245,9 +245,9 @@ test.describe('Admin Connections', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForSelector('[data-connection-row="conn_test1"]', { timeout: 10000 });
 
-    // Initially enabled — toggle should have bg-black (not bg-gray-200)
+    // Initially enabled — toggle should have bg-primary (not bg-gray-200)
     const toggle = page.locator('.connection-toggle[data-id="conn_test1"]');
-    await expect(toggle).toHaveClass(/bg-black/);
+    await expect(toggle).toHaveClass(/bg-primary/);
     await expect(toggle).not.toHaveClass(/bg-gray-200/);
 
     // Click the toggle to disable

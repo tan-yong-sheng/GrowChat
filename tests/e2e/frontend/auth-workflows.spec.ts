@@ -30,10 +30,10 @@ test.describe('Auth Workflows QA', () => {
     // Should show the reset password form
     await expect(page.locator('h2', { hasText: 'Create new password' })).toBeVisible();
 
-    // Submit button should be styled with the #0066cc color
+    // Submit button should be styled with the primary action color
     const submitBtn = page.locator('#reset-submit');
     await expect(submitBtn).toBeVisible();
-    await expect(submitBtn).toHaveClass(/bg-\[\#0066cc\]/);
+    await expect(submitBtn).toHaveClass(/bg-\[\#171717\]/);
   });
 
   test('Forgot Password - Modal Activation', async ({ page }) => {
@@ -49,10 +49,10 @@ test.describe('Auth Workflows QA', () => {
     // Should show the forgot password form
     await expect(page.locator('h2', { hasText: 'Reset your password' })).toBeVisible();
 
-    // Submit button should be styled with the #0066cc color
+    // Submit button should be styled with the primary action color
     const submitBtn = page.locator('#forgot-submit');
     await expect(submitBtn).toBeVisible();
-    await expect(submitBtn).toHaveClass(/bg-\[\#0066cc\]/);
+    await expect(submitBtn).toHaveClass(/bg-\[\#171717\]/);
   });
 
   test('Login flow with provided credentials', async ({ page }) => {

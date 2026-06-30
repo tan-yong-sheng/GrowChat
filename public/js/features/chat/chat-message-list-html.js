@@ -48,7 +48,7 @@ export function buildChatMessageListHtml({
       const roundsHtml =
         rounds && rounds.total > 1
           ? `
-      <div class="flex items-center gap-1 text-gray-400 ml-1">
+      <div class="flex items-center gap-1 text-gray-600 ml-1">
         <button type="button" data-round-prev="${msgId}" class="px-1 rounded hover:bg-gray-100 ${rounds.prevId ? '' : 'opacity-30 pointer-events-none'}">‹</button>
         <span class="text-[11px] min-w-[42px] text-center">${rounds.index} / ${rounds.total}</span>
         <button type="button" data-round-next="${msgId}" class="px-1 rounded hover:bg-gray-100 ${rounds.nextId ? '' : 'opacity-30 pointer-events-none'}">›</button>
@@ -107,16 +107,16 @@ export function buildChatMessageListHtml({
             </div>
             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               ${roundsHtml}
-              <button data-edit-message="${msgId}" data-index="${i}" class="p-1 hover:text-gray-600 hover:bg-neutral-bg rounded transition text-gray-400" title="Edit" aria-label="Edit message">
+              <button data-edit-message="${msgId}" data-index="${i}" class="p-1 hover:text-gray-600 hover:bg-neutral-bg rounded transition text-gray-600" title="Edit" aria-label="Edit message">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
               </button>
-              <button data-copy-message="${i}" class="p-1 hover:text-gray-600 hover:bg-neutral-bg rounded transition text-gray-400" title="Copy" aria-label="Copy message">
+              <button data-copy-message="${i}" class="p-1 hover:text-gray-600 hover:bg-neutral-bg rounded transition text-gray-600" title="Copy" aria-label="Copy message">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </button>
               ${
                 showDelete
                   ? `
-              <button data-delete-message="${msgId}" data-index="${i}" class="p-1 hover:text-red-600 hover:bg-red-50 rounded transition text-gray-400 ${deletePending ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}" title="Delete" ${deletePending ? 'disabled aria-disabled="true"' : ''}>
+              <button data-delete-message="${msgId}" data-index="${i}" class="p-1 hover:text-red-600 hover:bg-red-50 rounded transition text-gray-600 ${deletePending ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}" title="Delete" ${deletePending ? 'disabled aria-disabled="true"' : ''}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
               </button>
               `
@@ -161,7 +161,7 @@ export function buildChatMessageListHtml({
               })}
            </div>
            ${citationHtml}
-           <div class="flex items-center gap-1 mt-3 -ml-2 text-gray-400">
+           <div class="flex items-center gap-1 mt-3 -ml-2 text-gray-600">
               <div class="${showRoundNav ? 'opacity-100' : 'opacity-0'} transition-opacity">
                 ${roundsHtml}
               </div>
