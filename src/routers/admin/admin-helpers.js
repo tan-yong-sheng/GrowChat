@@ -22,7 +22,7 @@ export function isValidModelAccessId(value) {
  * Ensure the user has ACL admin access.
  * Keeps the permission policy explicit at the call site.
  */
-export async function ensureAdminAclAccess(env, user, resource = 'admin') {
+export async function ensureAdminAclAccess({ env, user, resource = 'admin' } = {}) {
   return authorize(env, user, {
     action: 'admin.rbac.admin',
     resource,
@@ -32,7 +32,12 @@ export async function ensureAdminAclAccess(env, user, resource = 'admin') {
 /**
  * Ensure the user has a specific mutation permission.
  */
-export async function ensureAdminMutationAccess(env, user, permission, resource = 'admin') {
+export async function ensureAdminMutationAccess({
+  env,
+  user,
+  permission,
+  resource = 'admin',
+} = {}) {
   return authorize(env, user, {
     action: permission,
     resource,

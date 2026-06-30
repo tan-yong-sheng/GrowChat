@@ -49,7 +49,11 @@ describe('isValidModelAccessId', () => {
 describe('ensureAdminAclAccess', () => {
   it('returns authorize result', async () => {
     mocks.authorize.mockResolvedValue({ allow: true });
-    const result = await ensureAdminAclAccess({ env: true }, { sub: 'admin-1' }, 'connection');
+    const result = await ensureAdminAclAccess({
+      env: { env: true },
+      user: { sub: 'admin-1' },
+      resource: 'connection',
+    });
     expect(result).toEqual({ allow: true });
     expect(mocks.authorize).toHaveBeenCalledWith(
       { env: true },
@@ -60,7 +64,7 @@ describe('ensureAdminAclAccess', () => {
 
   it('defaults resource to admin', async () => {
     mocks.authorize.mockResolvedValue({ allow: false });
-    const result = await ensureAdminAclAccess({}, { sub: 'u1' });
+    const result = await ensureAdminAclAccess({ env: {}, user: { sub: 'u1' } });
     expect(mocks.authorize).toHaveBeenCalledWith(
       {},
       { sub: 'u1' },
@@ -73,12 +77,12 @@ describe('ensureAdminAclAccess', () => {
 describe('ensureAdminMutationAccess', () => {
   it('passes custom permission and resource', async () => {
     mocks.authorize.mockResolvedValue({ allow: true });
-    const result = await ensureAdminMutationAccess(
-      { env: true },
-      { sub: 'admin-1' },
-      'admin.user.write',
-      'email-config'
-    );
+    const result = await ensureAdminMutationAccess({
+      env: { env: true },
+      user: { sub: 'admin-1' },
+      permission: 'admin.user.write',
+      resource: 'email-config',
+    });
     expect(result).toEqual({ allow: true });
     expect(mocks.authorize).toHaveBeenCalledWith(
       { env: true },
@@ -89,7 +93,11 @@ describe('ensureAdminMutationAccess', () => {
 
   it('defaults resource to admin when not specified', async () => {
     mocks.authorize.mockResolvedValue({ allow: false, reason: 'denied' });
-    const result = await ensureAdminMutationAccess({}, { sub: 'u1' }, 'some.perm');
+    const result = await ensureAdminMutationAccess({
+      env: {},
+      user: { sub: 'u1' },
+      permission: 'some.perm',
+    });
     expect(mocks.authorize).toHaveBeenCalledWith(
       {},
       { sub: 'u1' },
