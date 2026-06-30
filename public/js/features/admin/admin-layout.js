@@ -277,7 +277,7 @@ function buildUsersTable() {
                 <th scope="col" class="px-3 py-3 w-1/3">Email</th>
                 <th scope="col" class="px-3 py-3 w-24">Last Active</th>
                 <th scope="col" class="px-3 py-3 w-28">Created At</th>
-                <th scope="col" class="px-3 py-3 w-24 text-right"></th>
+                <th scope="col" class="px-3 py-3 w-24 text-right" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody id="users-table-body" class="divide-y divide-gray-50/50"></tbody>
