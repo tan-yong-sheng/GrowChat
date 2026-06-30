@@ -156,7 +156,7 @@ function wireChat(root) {
       const chatItems = Array.isArray(chats) ? chats : [];
       if (chatItems.length === 0 && !state?.chatsPagination?.loading) {
         const emptyState = document.createElement('div');
-        emptyState.className = 'px-3 py-4 text-sm text-gray-400 sidebar-full-only';
+        emptyState.className = 'px-3 py-4 text-sm text-gray-600 sidebar-full-only';
         emptyState.textContent = 'No chat sessions yet.';
         fallbackFragment.appendChild(emptyState);
       } else {
@@ -176,7 +176,7 @@ function wireChat(root) {
       }
       if (state?.chatsPagination?.loading) {
         const loadingRow = document.createElement('div');
-        loadingRow.className = 'px-3 py-3 text-xs text-gray-400';
+        loadingRow.className = 'px-3 py-3 text-xs text-gray-600';
         loadingRow.textContent = 'Loading more chats...';
         fallbackFragment.appendChild(loadingRow);
       } else if (state?.chatsPagination?.hasMore) {
