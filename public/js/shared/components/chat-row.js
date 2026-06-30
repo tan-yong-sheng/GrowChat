@@ -8,7 +8,7 @@ export function createChatRow(chat, handlers) {
   const isTempChat = String(chat.id || '').startsWith('temp-');
   const pinLabel = isPinned ? 'Unpin' : 'Pin';
   const pinnedGlyph = isPinned
-    ? `<span class="inline-flex items-center text-gray-400" title="Pinned">
+    ? `<span class="inline-flex items-center text-gray-600" title="Pinned">
          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
            <line x1="12" y1="2" x2="12" y2="22"></line>
            <path d="M17 10H7a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2Z"></path>
@@ -62,7 +62,7 @@ export function createChatRow(chat, handlers) {
             </span>
           </div>
         </div>
-        <div class="chat-time shrink-0 text-[10px] text-gray-400 group-hover:hidden sidebar-full-only">
+        <div class="chat-time shrink-0 text-[10px] text-gray-600 group-hover:hidden sidebar-full-only">
           ${formatRelativeTime(chat.updated_at)}
         </div>
       </div>
