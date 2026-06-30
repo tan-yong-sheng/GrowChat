@@ -366,8 +366,9 @@ function updateWranglerAllowedOrigins(value) {
 
   // Match "ALLOWED_ORIGINS": "..." or without quotes for bare identifiers.
   // Capture leading whitespace so we preserve template formatting.
+  // Use the global flag so we update both root vars and env.production.vars overrides.
   const updated = content.replace(
-    /("ALLOWED_ORIGINS"\s*:\s*")([^"]*)(")/,
+    /("ALLOWED_ORIGINS"\s*:\s*")([^"]*)(")/g,
     (_match, prefix, _old, suffix) => `${prefix}${trimmed}${suffix}`
   );
 
@@ -439,6 +440,12 @@ async function stepSetSecrets() {
     } else {
       jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
     }
+    if (!jwtSecret) {
+      console.error(
+        ' ❌ JWT_SECRET cannot be empty. Please re-run the wizard and provide a value.\n'
+      );
+      process.exit(1);
+    }
     setSecret('JWT_SECRET', jwtSecret);
     console.log(' ✅ JWT_SECRET set.\n');
   }
@@ -470,6 +477,7 @@ async function stepSetSecrets() {
       if (resendKey) {
         setSecret('RESEND_API_KEY', resendKey);
         console.log(' ✅ RESEND_API_KEY set.\n');
+        hasResend = true;
       }
     } else {
       console.log(' ⏭️ Skipped RESEND_API_KEY — emails will not work until this is set.\n');

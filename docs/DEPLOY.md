@@ -89,12 +89,12 @@ pnpm run setup
 
 ### Non-secret vars (in `wrangler.jsonc`)
 
-| Variable          | Default                    | Purpose                                     |
-| ----------------- | -------------------------- | ------------------------------------------- |
-| `APP_NAME`        | `GrowChat`                 | App display name                            |
-| `ENVIRONMENT`     | `production`               | Environment identifier                      |
-| `EMAIL_PROVIDER`  | `resend`                   | Email service provider                      |
-| `ALLOWED_ORIGINS` | `https://YOUR_WORKERS_URL` | CORS allowed origins (update after deploy!) |
+| Variable          | Default                            | Purpose                                     |
+| ----------------- | ---------------------------------- | ------------------------------------------- |
+| `APP_NAME`        | `GrowChat`                         | App display name                            |
+| `ENVIRONMENT`     | `production`                       | Environment identifier                      |
+| `EMAIL_PROVIDER`  | `resend`                           | Email service provider                      |
+| `ALLOWED_ORIGINS` | `https://REPLACE_WITH_YOUR_DOMAIN` | CORS allowed origins (update after deploy!) |
 
 > **Important:** After first deploy, update `ALLOWED_ORIGINS` in `wrangler.jsonc` to your actual Workers URL, then re-deploy with `pnpm run deploy`.
 
@@ -240,7 +240,7 @@ pnpm exec wrangler r2 bucket create growchat-files
 
 ### ALLOWED_ORIGINS still set to placeholder
 
-Edit `wrangler.jsonc` and replace `https://YOUR_WORKERS_URL` with your actual Workers URL, then:
+Edit `wrangler.jsonc` and replace `https://REPLACE_WITH_YOUR_DOMAIN` with your actual Workers URL, then:
 
 ```bash
 pnpm run deploy
