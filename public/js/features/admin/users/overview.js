@@ -32,7 +32,7 @@ export function renderUserOverview(container, data, actions) {
         </div>
         <div class="flex items-center gap-3">
           <div class="flex items-center gap-1.5 bg-gray-50/50 px-3 py-1.5 rounded-md border border-gray-100/30 w-64">
-            <div class="flex-shrink-0 text-gray-400">
+            <div class="flex-shrink-0 text-gray-600">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
                 <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
               </svg>
@@ -62,7 +62,7 @@ export function renderUserOverview(container, data, actions) {
                 <th scope="col" class="px-3 py-3 w-1/3">Email</th>
                 <th scope="col" class="px-3 py-3 w-24">Last Active</th>
                 <th scope="col" class="px-3 py-3 w-28">Created At</th>
-                <th scope="col" class="px-3 py-3 w-24 text-right"></th>
+                <th scope="col" class="px-3 py-3 w-24 text-right" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody id="users-table-body" class="divide-y divide-gray-50/50"></tbody>
@@ -80,7 +80,7 @@ export function renderUserOverview(container, data, actions) {
           <span>per page</span>
         </div>
         <div class="flex items-center gap-4">
-          <div class="text-xs text-gray-400" id="users-page-range"></div>
+          <div class="text-xs text-gray-600" id="users-page-range"></div>
           <div class="flex items-center gap-2">
             <button id="users-page-prev" class="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 transition disabled:opacity-50">Prev</button>
             <div class="text-sm text-gray-600" id="users-page-label"></div>
@@ -88,7 +88,7 @@ export function renderUserOverview(container, data, actions) {
           </div>
         </div>
       </div>
-      <div class="text-gray-400 text-label-sm flex items-center justify-end gap-1.5 px-0.5">
+      <div class="text-gray-600 text-label-sm flex items-center justify-end gap-1.5 px-0.5">
         <span>ⓘ</span>
         <span>Admins are listed first, then all users are sorted alphabetically.</span>
       </div>
@@ -245,13 +245,15 @@ export function renderUserOverview(container, data, actions) {
       modalState.activeTab = tab;
       form?.classList.toggle('hidden', !isForm);
       csvForm?.classList.toggle('hidden', isForm);
+      formTab?.setAttribute('aria-pressed', String(isForm));
+      csvTab?.setAttribute('aria-pressed', String(!isForm));
       formTab?.classList.toggle('text-gray-900', isForm);
       formTab?.classList.toggle('border-gray-900', isForm);
-      formTab?.classList.toggle('text-gray-400', !isForm);
+      formTab?.classList.toggle('text-gray-600', !isForm);
       formTab?.classList.toggle('border-transparent', !isForm);
       csvTab?.classList.toggle('text-gray-900', !isForm);
       csvTab?.classList.toggle('border-gray-900', !isForm);
-      csvTab?.classList.toggle('text-gray-400', isForm);
+      csvTab?.classList.toggle('text-gray-600', isForm);
       csvTab?.classList.toggle('border-transparent', isForm);
       syncDirty();
     };
