@@ -1,0 +1,83 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "growchat",
+  "main": "src/index.js",
+  "compatibility_date": "2025-12-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // Static Assets - serves the frontend SPA
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+  },
+
+  // D1 database — update database_id after running: wrangler d1 create growchat
+  // ⚠️ WARNING: preview_database_id uses the same DB as production. For local dev,
+  //   create a separate preview DB or use --local to avoid modifying production data.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "growchat",
+      "database_id": "YOUR_D1_DATABASE_ID",
+      "preview_database_id": "YOUR_D1_DATABASE_ID",
+    },
+  ],
+
+  // R2 bucket for file uploads — bucket created by: wrangler r2 bucket create growchat-files
+  // ⚠️ WARNING: preview_bucket_name uses the same bucket as production. For local dev,
+  //   create a separate preview bucket or use --local to avoid modifying production data.
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "growchat-files",
+      "preview_bucket_name": "growchat-files",
+    },
+  ],
+
+  // Durable Object for real-time SSE message delivery
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MESSAGE_QUEUE",
+        "class_name": "MessageQueueDO",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "message-queue-v1",
+      "new_sqlite_classes": ["MessageQueueDO"],
+    },
+  ],
+
+  // KV namespaces — update ids after running: wrangler kv:namespace create <NAME>
+  // ⚠️ WARNING: preview_id uses the same namespace as production. For local dev,
+  //   create separate preview namespaces or use --local to avoid modifying production data.
+  "kv_namespaces": [
+    {
+      "binding": "CHAT_SESSIONS",
+      "id": "YOUR_CHAT_SESSIONS_KV_ID",
+      "preview_id": "YOUR_CHAT_SESSIONS_KV_ID",
+    },
+    {
+      "binding": "SESSIONS",
+      "id": "YOUR_SESSIONS_KV_ID",
+      "preview_id": "YOUR_SESSIONS_KV_ID",
+    },
+    {
+      "binding": "CACHE",
+      "id": "YOUR_CACHE_KV_ID",
+      "preview_id": "YOUR_CACHE_KV_ID",
+    },
+  ],
+
+  // Non-secret environment variables
+  "vars": {
+    "APP_NAME": "GrowChat",
+    "ENVIRONMENT": "production",
+    "EMAIL_PROVIDER": "resend",
+    // TODO: Replace with your actual domain after first deploy (e.g., "https://growchat.your-domain.com")
+    "ALLOWED_ORIGINS": "https://YOUR_WORKERS_URL",
+  },
+}
