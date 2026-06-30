@@ -16,6 +16,6 @@ describe('workspace top tabs', () => {
     expect(html).toContain('data-nav="users"');
     expect(html).toContain('data-nav="settings"');
     expect(html).toContain('underline underline-offset-[10px] decoration-2');
-    expect(html).toContain('text-gray-300 hover:text-gray-700');
+    expect(html).toContain('text-gray-600 hover:text-gray-900');
   });
 });
