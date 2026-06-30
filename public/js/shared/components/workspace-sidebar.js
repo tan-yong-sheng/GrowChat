@@ -16,7 +16,7 @@ export function renderWorkspaceSidebar({
         <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
           <a href="${homeHref}" id="${homeId}" class="flex items-center gap-3 sidebar-full-only rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300">
             <div class="w-7 h-7 bg-surface rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
-              <img src="/logo.png" alt="GrowChat" class="w-5 h-5 object-contain" />
+              <img src="/logo.png" alt="" class="w-5 h-5 object-contain" />
             </div>
             <span class="font-bold text-lg text-gray-900 font-primary">${homeLabel}</span>
           </a>

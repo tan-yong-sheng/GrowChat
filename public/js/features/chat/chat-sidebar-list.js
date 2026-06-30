@@ -28,7 +28,9 @@ export function buildChatSidebarListFragment({
     const emptyState = document.createElement('div');
     emptyState.className = 'px-3 py-4 text-sm text-gray-600 sidebar-full-only';
     emptyState.textContent = 'No chat sessions yet.';
-    fragment.appendChild(emptyState);
+    const emptyItem = document.createElement('li');
+    emptyItem.appendChild(emptyState);
+    fragment.appendChild(emptyItem);
   }
 
   if (pinnedChats.length > 0) {
