@@ -101,7 +101,9 @@ function renderWeeklyTable(weekly = []) {
  * Fetch usage data and render the admin overview dashboard.
  */
 export async function renderUsageOverview(container) {
-  const renderId = String(Date.now());
+  // Combine Date.now() with Math.random() so back-to-back renders in the same
+  // millisecond still produce distinct tokens (CodeRabbit nitpick on PR #57).
+  const renderId = `${Date.now()}-${Math.random()}`;
   container.dataset.usageRenderId = renderId;
 
   container.innerHTML = `
