@@ -297,7 +297,7 @@ export function createAdminController(ctx) {
         ctx.updateRouteInfo();
         ctx.container.querySelectorAll('a[data-nav]').forEach((navLink) => {
           const active = navLink.dataset.nav === ctx.mainTab;
-          navLink.className = `min-w-fit p-1.5 transition select-none ${active ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}`;
+          navLink.className = `min-w-fit p-1.5 transition select-none ${active ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-600 hover:text-gray-900'}`;
         });
         mountShell();
         renderSubContent();

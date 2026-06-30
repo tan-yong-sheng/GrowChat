@@ -10,7 +10,7 @@ export function renderWorkspaceTopTabs({
         ${tabs
           .map((tab) => {
             const active = tab.key === activeKey;
-            return `<a href="${escapeHtml(tab.href)}" ${dataAttrName}="${escapeHtml(tab.key)}" class="min-w-fit p-1.5 transition select-none ${active ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-300 hover:text-gray-700'}">${escapeHtml(tab.label)}</a>`;
+            return `<a href="${escapeHtml(tab.href)}" ${dataAttrName}="${escapeHtml(tab.key)}" class="min-w-fit p-1.5 transition select-none ${active ? 'text-gray-900 underline underline-offset-[10px] decoration-2' : 'text-gray-600 hover:text-gray-900'}">${escapeHtml(tab.label)}</a>`;
           })
           .join('')}
       </div>
