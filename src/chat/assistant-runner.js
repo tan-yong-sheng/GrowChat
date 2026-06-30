@@ -172,7 +172,7 @@ export function createAssistantRunner(deps) {
                   const delta = String(event.delta || '');
                   if (!delta) return;
                   stepReasoningOutput = true;
-                  appendMessageBlock('thinking', delta);
+                  appendMessageBlock({ type: 'thinking', content: delta });
                   fullReasoning += delta;
                   void lifecycle.persistAssistantContent({
                     fullText,
@@ -217,7 +217,7 @@ export function createAssistantRunner(deps) {
                 if (delta) {
                   fullText += delta;
                   stepTextOutput = true;
-                  appendMessageBlock('text', delta);
+                  appendMessageBlock({ type: 'text', content: delta });
                   await lifecycle.persistAssistantContent({
                     fullText,
                     fullReasoning,
@@ -250,7 +250,7 @@ export function createAssistantRunner(deps) {
               if (finalDelta) {
                 fullText += finalDelta;
                 stepTextOutput = true;
-                appendMessageBlock('text', finalDelta);
+                appendMessageBlock({ type: 'text', content: finalDelta });
                 await lifecycle.persistAssistantContent({ fullText, fullReasoning, messageBlocks });
                 const persisted = await emitSse({ response: finalDelta }, { persist: true });
                 await publishRealtimeNow(

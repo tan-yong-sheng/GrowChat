@@ -17,11 +17,11 @@ function calculateContentSize(fullText, fullReasoning) {
   return safeString(fullText).length + safeString(fullReasoning).length;
 }
 
-function hasGrownEnough(currentSize, lastPersistSize, minGrowth) {
+function hasGrownEnough({ currentSize, lastPersistSize, minGrowth } = {}) {
   return currentSize - lastPersistSize >= minGrowth;
 }
 
-function hasEnoughTimePassed(now, lastPersistAt, minIntervalMs) {
+function hasEnoughTimePassed({ now, lastPersistAt, minIntervalMs } = {}) {
   return now - lastPersistAt >= minIntervalMs;
 }
 
@@ -63,8 +63,8 @@ export function shouldPersistAssistantContent(options = {}) {
   } = resolvePersistOptions(options);
   if (force) return true;
   const size = calculateContentSize(fullText, fullReasoning);
-  const enoughTime = hasEnoughTimePassed(now, lastPersistAt, minIntervalMs);
-  const enoughGrowth = hasGrownEnough(size, lastPersistSize, minGrowth);
+  const enoughTime = hasEnoughTimePassed({ now, lastPersistAt, minIntervalMs });
+  const enoughGrowth = hasGrownEnough({ currentSize: size, lastPersistSize, minGrowth });
   return enoughTime || enoughGrowth;
 }
 

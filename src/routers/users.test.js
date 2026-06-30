@@ -461,9 +461,10 @@ describe('usersRouter', () => {
       access_variant: 'personal',
     });
     expect(mocks.createUserOpenAIConnection).toHaveBeenCalledWith(
-      expect.anything(),
-      'u1',
-      expect.objectContaining({ name: 'My Connection' })
+      expect.objectContaining({
+        userId: 'u1',
+        input: expect.objectContaining({ name: 'My Connection' }),
+      })
     );
   });
 
@@ -481,9 +482,10 @@ describe('usersRouter', () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
     expect(mocks.deleteUserOpenAIConnection).toHaveBeenCalledWith(
-      expect.anything(),
-      'u1',
-      'conn-personal'
+      expect.objectContaining({
+        userId: 'u1',
+        connectionId: 'conn-personal',
+      })
     );
   });
 
@@ -554,9 +556,10 @@ describe('usersRouter', () => {
 
     expect(res.status).toBe(200);
     expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(
-      expect.anything(),
-      'u1',
-      'conn-personal'
+      expect.objectContaining({
+        userId: 'u1',
+        connectionId: 'conn-personal',
+      })
     );
     expect(mocks.discoverConnectionModels).toHaveBeenCalledWith(
       expect.objectContaining({
