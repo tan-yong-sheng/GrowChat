@@ -116,7 +116,9 @@ function normalizeUserConnectionRow({ row, index = 0 } = {}) {
   };
 }
 
-function normalizeUserConnectionInput({ input = {}, existing = null } = {}) {
+function normalizeUserConnectionInput(opts = {}) {
+  const input = opts.input ?? {};
+  const existing = opts.existing ?? null;
   const name = String(input.name || existing?.name || '').trim();
   const providerType =
     String(
@@ -217,11 +219,13 @@ export async function getUserOpenAIConnectionConfig(
   }
 }
 
-export async function createUserOpenAIConnection({ db, userId, input = {} } = {}) {
+export async function createUserOpenAIConnection(opts = {}) {
+  const { db, userId } = opts;
+  const input = opts.input ?? {};
   if (!db || !userId) throw new Error('User id is required');
   await ensureUserConnectionsTable(db);
 
-  const connection = normalizeUserConnectionInput({ input });
+  const connection = normalizeUserConnectionInput({ input, existing: null });
   if (!connection.name) throw new Error('name is required');
   if (!connection.baseUrl) throw new Error('base_url is required');
 
@@ -249,7 +253,9 @@ export async function createUserOpenAIConnection({ db, userId, input = {} } = {}
   return getUserOpenAIConnectionConfig(db, userId, id);
 }
 
-export async function updateUserOpenAIConnection({ db, userId, connectionId, input = {} } = {}) {
+export async function updateUserOpenAIConnection(opts = {}) {
+  const { db, userId, connectionId } = opts;
+  const input = opts.input ?? {};
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
