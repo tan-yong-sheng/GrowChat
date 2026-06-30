@@ -266,6 +266,14 @@ describe('connections-user', () => {
       ).rejects.toThrow('User id is required');
     });
 
+    it('handles null input gracefully', async () => {
+      const db = createMockDb([makeRow({ id: 'test-uuid-0001' })]);
+      // Passing null explicitly should be treated as empty input
+      await expect(
+        createUserOpenAIConnection({ db: createMockDb(), userId: 'user-1', input: null })
+      ).rejects.toThrow('name is required');
+    });
+
     it('throws when userId is null', async () => {
       await expect(
         createUserOpenAIConnection({ db: createMockDb(), userId: null, input: {} })
@@ -376,6 +384,19 @@ describe('connections-user', () => {
           input: {},
         })
       ).rejects.toThrow('Connection id is required');
+    });
+
+    it('handles null input gracefully', async () => {
+      const db = createMockDb([makeRow()]);
+      // Passing null explicitly should be treated as empty input - preserves existing name
+      const result = await updateUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        connectionId: 'conn-test-001',
+        input: null,
+      });
+      expect(result).not.toBeNull();
+      expect(result.name).toBe('My Connection');
     });
 
     it('returns null when connection does not exist', async () => {
