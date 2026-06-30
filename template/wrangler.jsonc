@@ -73,11 +73,18 @@
   ],
 
   // Non-secret environment variables
+  //
+  // SECURITY: ALLOWED_ORIGINS is intentionally a non-resolving placeholder.
+  // The setup wizard (pnpm run setup) prompts for your domain(s) and
+  // auto-updates this value before first deploy. Replace it manually with a
+  // comma-separated list of allowed origin URLs (e.g. "https://chat.example.com")
+  // if you skip the wizard. Never set this to "*" in production — that allows
+  // any website to make cross-origin requests to your Worker (CSRF risk).
   "vars": {
     "APP_NAME": "GrowChat",
     "ENVIRONMENT": "production",
     "EMAIL_PROVIDER": "resend",
-    // TODO: Replace with your actual domain after first deploy (e.g., "https://growchat.your-domain.com")
-    "ALLOWED_ORIGINS": "https://YOUR_WORKERS_URL",
+    // TODO: Wizard auto-replaces this; manual edit needed if skipping the wizard.
+    "ALLOWED_ORIGINS": "https://REPLACE_WITH_YOUR_DOMAIN",
   },
 }

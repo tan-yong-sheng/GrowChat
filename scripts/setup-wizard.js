@@ -48,6 +48,10 @@ async function prompt(label, { default: def } = {}) {
  * Prompt for a secret value without echoing it to the terminal.
  * Uses a no-echo input mode so the secret doesn't appear in
  * terminal scrollback or screen recordings.
+ *
+ * Implementation: temporarily replaces process.stdout.write to mask
+ * non-newline output with '*'. A try/finally guarantees stdout is
+ * restored even if the underlying readline rejects.
  */
 async function secretPrompt(label) {
   console.log(`${label}: `);
@@ -55,21 +59,20 @@ async function secretPrompt(label) {
     input: process.stdin,
     output: process.stdout,
   });
-  // Mute echo so typed characters aren't visible
   const origWrite = process.stdout.write.bind(process.stdout);
-  let muted = false;
   process.stdout.write = (chunk, ...args) => {
-    if (muted && typeof chunk === 'string' && chunk !== '\n' && chunk !== '\r\n') {
+    if (typeof chunk === 'string' && chunk !== '\n' && chunk !== '\r\n') {
       return origWrite('*', ...args);
     }
     return origWrite(chunk, ...args);
   };
-  muted = true;
-  const answer = await secretRl.question('');
-  muted = false;
-  process.stdout.write = origWrite;
-  secretRl.close();
-  return answer.trim();
+  try {
+    const answer = await secretRl.question('');
+    return answer.trim();
+  } finally {
+    process.stdout.write = origWrite;
+    secretRl.close();
+  }
 }
 
 /**
@@ -167,7 +170,8 @@ async function stepWelcome() {
   ║   1. Create D1 database, R2 bucket, KV namespaces   ║
   ║   2. Apply database migrations                       ║
   ║   3. Set your secrets (JWT, API keys)                ║
-  ║   4. Deploy to Cloudflare                            ║
+  ║   4. Configure ALLOWED_ORIGINS for CORS              ║
+  ║   5. Deploy to Cloudflare                            ║
  ║                                                     ║
  ║ Tip: Set env vars JWT_SECRET, RESEND_API_KEY,      ║
  ║      RESEND_FROM_EMAIL to skip interactive prompts  ║
@@ -338,6 +342,42 @@ function updateWranglerKvIds(ids) {
 }
 
 /**
+ * Update wrangler.jsonc ALLOWED_ORIGINS in-place.
+ * Takes a string (comma-separated origins) or null to leave unchanged.
+ *
+ * Rejects the placeholder values shipped in template/wrangler.jsonc so the
+ * user can't accidentally deploy with the placeholder intact (which would
+ * block all CORS requests at runtime).
+ */
+function updateWranglerAllowedOrigins(value) {
+  if (value == null || value === '') return false;
+
+  const trimmed = String(value).trim();
+  if (!trimmed) return false;
+
+  // Refuse to write the placeholder — callers must obtain a real value first.
+  const forbidden = ['https://YOUR_WORKERS_URL', 'https://REPLACE_WITH_YOUR_DOMAIN', '*'];
+  if (forbidden.includes(trimmed) || /REPLACE_WITH|YOUR_|PLACEHOLDER/i.test(trimmed)) {
+    return false;
+  }
+
+  const wranglerPath = resolve(ROOT, 'wrangler.jsonc');
+  const content = readFileSync(wranglerPath, 'utf-8');
+
+  // Match "ALLOWED_ORIGINS": "..." or without quotes for bare identifiers.
+  // Capture leading whitespace so we preserve template formatting.
+  const updated = content.replace(
+    /("ALLOWED_ORIGINS"\s*:\s*")([^"]*)(")/,
+    (_match, prefix, _old, suffix) => `${prefix}${trimmed}${suffix}`
+  );
+
+  if (updated === content) return false;
+
+  writeFileSync(wranglerPath, updated);
+  return true;
+}
+
+/**
  * Step 2: Apply D1 migrations.
  */
 async function stepApplyMigrations() {
@@ -459,6 +499,70 @@ async function stepSetSecrets() {
  * API and then promoting via D1 — both of which need the app to be deployed
  * first. This step therefore provides clear post-deploy instructions.
  */
+/**
+ * Step 4: Configure ALLOWED_ORIGINS for production.
+ *
+ * The template ships a non-resolving placeholder so a user can't accidentally
+ * deploy with the old `"*"` wildcard (CSRF risk). This step prompts for the
+ * real production origin(s) and writes them to wrangler.jsonc so the first
+ * deploy already runs with a restrictive CORS policy.
+ *
+ * Format: comma-separated origins, e.g. "https://chat.example.com,https://staging.example.com"
+ */
+async function stepConfigureOrigins() {
+  console.log('\n🌐 Step 4: Configure ALLOWED_ORIGINS\n');
+  console.log(' GrowChat blocks cross-origin requests from origins that aren\u2019t on this list.');
+  console.log(' This is a security control against CSRF and unauthorized API access.\n');
+  console.log(' Enter one or more origins separated by commas. Examples:');
+  console.log('   https://chat.example.com');
+  console.log('   https://chat.example.com,https://staging.example.com');
+  console.log('   https://<your-subdomain>.workers.dev  (for the default Workers URL)\n');
+
+  let configured = false;
+  let attempts = 0;
+  const maxAttempts = 3;
+
+  while (!configured && attempts < maxAttempts) {
+    attempts += 1;
+    const answer = await prompt('ALLOWED_ORIGINS (comma-separated, no quotes)', {
+      default: 'https://<your-subdomain>.workers.dev',
+    });
+
+    if (!answer || /REPLACE_WITH|YOUR_|PLACEHOLDER|<.*>/i.test(answer)) {
+      console.log('  ⚠️ That looks like a placeholder. Enter a real https:// origin.');
+      continue;
+    }
+
+    // Basic validation: every entry must start with http:// or https://
+    const entries = answer
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const invalid = entries.filter((e) => !/^https?:\/\//.test(e));
+    if (invalid.length > 0) {
+      console.log(
+        `  ⚠️ Each origin must start with http:// or https://. Invalid: ${invalid.join(', ')}`
+      );
+      continue;
+    }
+
+    const ok = updateWranglerAllowedOrigins(entries.join(','));
+    if (!ok) {
+      console.log('  ⚠️ Could not update wrangler.jsonc \u2014 check the file is writable.');
+      continue;
+    }
+
+    configured = true;
+    console.log(`  \u2705 ALLOWED_ORIGINS set to: ${entries.join(', ')}\n`);
+  }
+
+  if (!configured) {
+    console.error('\n\u274c Failed to configure ALLOWED_ORIGINS after 3 attempts.');
+    console.error('   Edit wrangler.jsonc \u2192 vars.ALLOWED_ORIGINS manually before deploying.');
+    process.exit(1);
+  }
+}
+
 async function stepCreateAdmin() {
   console.log('\n👤 Step 4: Create admin account\n');
   console.log(' After deployment, register your admin account at the app URL.');
@@ -518,6 +622,7 @@ async function main() {
     await stepCreateResources();
     await stepApplyMigrations();
     await stepSetSecrets();
+    await stepConfigureOrigins();
     await stepCreateAdmin();
     await stepDeploy();
     await stepSummary();
