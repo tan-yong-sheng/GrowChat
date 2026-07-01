@@ -237,7 +237,7 @@ function buildUsersToolbar() {
   return `
     <div class="pt-0.5 pb-2.5 flex justify-between items-center bg-white">
       <div class="flex items-center text-xl font-medium px-0.5 gap-2">
-        <div class="flex-shrink-0 text-gray-900">Users</div>
+        <h1 class="flex-shrink-0 text-gray-900">Users</h1>
         <div class="text-gray-500 font-normal ml-0.5" id="users-total-count"></div>
       </div>
       <div class="flex items-center gap-3">
@@ -277,7 +277,7 @@ function buildUsersTable() {
                 <th scope="col" class="px-3 py-3 w-1/3">Email</th>
                 <th scope="col" class="px-3 py-3 w-24">Last Active</th>
                 <th scope="col" class="px-3 py-3 w-28">Created At</th>
-                <th scope="col" class="px-3 py-3 w-24 text-right" aria-label="Actions"></th>
+                <th scope="col" class="px-3 py-3 w-24 text-right"><span class="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody id="users-table-body" class="divide-y divide-gray-50/50"></tbody>
@@ -292,7 +292,7 @@ function buildUsersPagination() {
     <div class="flex items-center justify-between gap-4 py-4 px-0.5 text-sm text-gray-500">
       <div class="flex items-center gap-3">
         <span>Show</span>
-        <select id="users-page-size" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
+        <select id="users-page-size" aria-label="Users per page" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:ring-1 focus:ring-gray-300">
           <option value="20">20</option>
           <option value="50">50</option>
           <option value="100">100</option>
