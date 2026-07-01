@@ -261,21 +261,33 @@ describe('connections-user', () => {
 
   describe('createUserOpenAIConnection', () => {
     it('throws when db is null', async () => {
-      await expect(createUserOpenAIConnection(null, 'user-1', {})).rejects.toThrow(
-        'User id is required'
-      );
+      await expect(
+        createUserOpenAIConnection({ db: null, userId: 'user-1', input: {} })
+      ).rejects.toThrow('User id is required');
+    });
+
+    it('handles null input gracefully', async () => {
+      const db = createMockDb([makeRow({ id: 'test-uuid-0001' })]);
+      // Passing null explicitly should be treated as empty input
+      await expect(
+        createUserOpenAIConnection({ db: createMockDb(), userId: 'user-1', input: null })
+      ).rejects.toThrow('name is required');
     });
 
     it('throws when userId is null', async () => {
-      await expect(createUserOpenAIConnection(createMockDb(), null, {})).rejects.toThrow(
-        'User id is required'
-      );
+      await expect(
+        createUserOpenAIConnection({ db: createMockDb(), userId: null, input: {} })
+      ).rejects.toThrow('User id is required');
     });
 
     it('throws when name is missing', async () => {
       await expect(
-        createUserOpenAIConnection(createMockDb(), 'user-1', {
-          base_url: 'https://api.openai.com/v1',
+        createUserOpenAIConnection({
+          db: createMockDb(),
+          userId: 'user-1',
+          input: {
+            base_url: 'https://api.openai.com/v1',
+          },
         })
       ).rejects.toThrow('name is required');
     });
@@ -284,9 +296,13 @@ describe('connections-user', () => {
       // When base_url is empty/falsy, the code falls back to getConnectionDefaultBaseUrl
       // which returns a non-empty URL, so no error is thrown
       const db = createMockDb([makeRow({ id: 'test-uuid-0001' })]);
-      const result = await createUserOpenAIConnection(db, 'user-1', {
-        name: 'Test',
-        base_url: '',
+      const result = await createUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        input: {
+          name: 'Test',
+          base_url: '',
+        },
       });
       // Falls back to default base URL, no error
       expect(db.run).toHaveBeenCalled();
@@ -300,10 +316,14 @@ describe('connections-user', () => {
 
     it('creates a connection and returns it', async () => {
       const db = createMockDb([makeRow({ id: 'test-uuid-0001' })]);
-      const result = await createUserOpenAIConnection(db, 'user-1', {
-        name: 'My Connection',
-        base_url: 'https://api.openai.com/v1',
-        key: 'sk-test',
+      const result = await createUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        input: {
+          name: 'My Connection',
+          base_url: 'https://api.openai.com/v1',
+          key: 'sk-test',
+        },
       });
       expect(db.run).toHaveBeenCalled();
       expect(result).not.toBeNull();
@@ -311,18 +331,26 @@ describe('connections-user', () => {
 
     it('generates a UUID for the connection id', async () => {
       const db = createMockDb([makeRow({ id: 'test-uuid-0001' })]);
-      await createUserOpenAIConnection(db, 'user-1', {
-        name: 'Test',
-        base_url: 'https://api.openai.com/v1',
+      await createUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        input: {
+          name: 'Test',
+          base_url: 'https://api.openai.com/v1',
+        },
       });
       expect(mockUuid).toHaveBeenCalled();
     });
 
     it('sets enabled to 1 by default', async () => {
       const db = createMockDb([makeRow({ id: 'test-uuid-0001' })]);
-      await createUserOpenAIConnection(db, 'user-1', {
-        name: 'Test',
-        base_url: 'https://api.openai.com/v1',
+      await createUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        input: {
+          name: 'Test',
+          base_url: 'https://api.openai.com/v1',
+        },
       });
       const insertCall = db.run.mock.calls.find((c) => c[0]?.includes('INSERT'));
       expect(insertCall).toBeDefined();
@@ -332,10 +360,14 @@ describe('connections-user', () => {
 
     it('sets enabled to 0 when input.enabled is false', async () => {
       const db = createMockDb([makeRow({ id: 'test-uuid-0001' })]);
-      await createUserOpenAIConnection(db, 'user-1', {
-        name: 'Test',
-        base_url: 'https://api.openai.com/v1',
-        enabled: false,
+      await createUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        input: {
+          name: 'Test',
+          base_url: 'https://api.openai.com/v1',
+          enabled: false,
+        },
       });
       const insertCall = db.run.mock.calls.find((c) => c[0]?.includes('INSERT'));
       expect(insertCall[1][8]).toBe(0);
@@ -344,23 +376,51 @@ describe('connections-user', () => {
 
   describe('updateUserOpenAIConnection', () => {
     it('throws when connectionId is null', async () => {
-      await expect(updateUserOpenAIConnection(createMockDb(), 'user-1', null, {})).rejects.toThrow(
-        'Connection id is required'
-      );
+      await expect(
+        updateUserOpenAIConnection({
+          db: createMockDb(),
+          userId: 'user-1',
+          connectionId: null,
+          input: {},
+        })
+      ).rejects.toThrow('Connection id is required');
+    });
+
+    it('handles null input gracefully', async () => {
+      const db = createMockDb([makeRow()]);
+      // Passing null explicitly should be treated as empty input - preserves existing name
+      const result = await updateUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        connectionId: 'conn-test-001',
+        input: null,
+      });
+      expect(result).not.toBeNull();
+      expect(result.name).toBe('My Connection');
     });
 
     it('returns null when connection does not exist', async () => {
       const db = createMockDb([]);
-      const result = await updateUserOpenAIConnection(db, 'user-1', 'nonexistent', {
-        name: 'Updated',
+      const result = await updateUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        connectionId: 'nonexistent',
+        input: {
+          name: 'Updated',
+        },
       });
       expect(result).toBeNull();
     });
 
     it('updates and returns the connection', async () => {
       const db = createMockDb([makeRow()]);
-      const result = await updateUserOpenAIConnection(db, 'user-1', 'conn-test-001', {
-        name: 'Updated Name',
+      const result = await updateUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        connectionId: 'conn-test-001',
+        input: {
+          name: 'Updated Name',
+        },
       });
       expect(db.run).toHaveBeenCalled();
       const updateCall = db.run.mock.calls.find((c) => c[0]?.includes('UPDATE'));
@@ -369,8 +429,13 @@ describe('connections-user', () => {
 
     it('preserves existing values when not provided in input', async () => {
       const db = createMockDb([makeRow()]);
-      await updateUserOpenAIConnection(db, 'user-1', 'conn-test-001', {
-        name: 'New Name',
+      await updateUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        connectionId: 'conn-test-001',
+        input: {
+          name: 'New Name',
+        },
       });
       const updateCall = db.run.mock.calls.find((c) => c[0]?.includes('UPDATE'));
       expect(updateCall).toBeDefined();
@@ -380,27 +445,40 @@ describe('connections-user', () => {
     it('throws when name is empty after normalization', async () => {
       const db = createMockDb([makeRow()]);
       await expect(
-        updateUserOpenAIConnection(db, 'user-1', 'conn-test-001', { name: '   ' })
+        updateUserOpenAIConnection({
+          db: db,
+          userId: 'user-1',
+          connectionId: 'conn-test-001',
+          input: { name: '   ' },
+        })
       ).rejects.toThrow('name is required');
     });
   });
 
   describe('deleteUserOpenAIConnection', () => {
     it('throws when connectionId is null', async () => {
-      await expect(deleteUserOpenAIConnection(createMockDb(), 'user-1', null)).rejects.toThrow(
-        'Connection id is required'
-      );
+      await expect(
+        deleteUserOpenAIConnection({ db: createMockDb(), userId: 'user-1', connectionId: null })
+      ).rejects.toThrow('Connection id is required');
     });
 
     it('returns false when connection does not exist', async () => {
       const db = createMockDb([]);
-      const result = await deleteUserOpenAIConnection(db, 'user-1', 'nonexistent');
+      const result = await deleteUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        connectionId: 'nonexistent',
+      });
       expect(result).toBe(false);
     });
 
     it('deletes and returns true when connection exists', async () => {
       const db = createMockDb([makeRow()]);
-      const result = await deleteUserOpenAIConnection(db, 'user-1', 'conn-test-001');
+      const result = await deleteUserOpenAIConnection({
+        db: db,
+        userId: 'user-1',
+        connectionId: 'conn-test-001',
+      });
       expect(result).toBe(true);
       const deleteCall = db.run.mock.calls.find((c) => c[0]?.startsWith('DELETE FROM'));
       expect(deleteCall).toBeDefined();
@@ -408,9 +486,9 @@ describe('connections-user', () => {
     });
 
     it('throws when db is null', async () => {
-      await expect(deleteUserOpenAIConnection(null, 'user-1', 'conn-1')).rejects.toThrow(
-        'Connection id is required'
-      );
+      await expect(
+        deleteUserOpenAIConnection({ db: null, userId: 'user-1', connectionId: 'conn-1' })
+      ).rejects.toThrow('Connection id is required');
     });
   });
 });

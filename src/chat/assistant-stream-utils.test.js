@@ -333,8 +333,8 @@ describe('createStreamHelpers', () => {
       sseData: mockSseData,
     });
 
-    appendMessageBlock('text', 'Hello ');
-    appendMessageBlock('text', 'World');
+    appendMessageBlock({ type: 'text', content: 'Hello ' });
+    appendMessageBlock({ type: 'text', content: 'World' });
     expect(messageBlocks).toHaveLength(1);
     expect(messageBlocks[0].content).toBe('Hello World');
   });
@@ -347,8 +347,8 @@ describe('createStreamHelpers', () => {
       sseData: mockSseData,
     });
 
-    appendMessageBlock('text', 'Hello');
-    appendMessageBlock('code', 'console.log()');
+    appendMessageBlock({ type: 'text', content: 'Hello' });
+    appendMessageBlock({ type: 'code', content: 'console.log()' });
     expect(messageBlocks).toHaveLength(2);
   });
 
@@ -360,8 +360,8 @@ describe('createStreamHelpers', () => {
       sseData: mockSseData,
     });
 
-    appendMessageBlock('tool', '', 'tc-1');
-    appendMessageBlock('text', 'After tool');
+    appendMessageBlock({ type: 'tool', toolCallId: 'tc-1' });
+    appendMessageBlock({ type: 'text', content: 'After tool' });
     expect(messageBlocks).toHaveLength(2);
   });
 
@@ -373,8 +373,8 @@ describe('createStreamHelpers', () => {
       sseData: mockSseData,
     });
 
-    appendMessageBlock('tool', '', 'tc-1');
-    appendMessageBlock('tool', '', 'tc-1');
+    appendMessageBlock({ type: 'tool', toolCallId: 'tc-1' });
+    appendMessageBlock({ type: 'tool', toolCallId: 'tc-1' });
     expect(messageBlocks).toHaveLength(1);
   });
 
@@ -386,8 +386,8 @@ describe('createStreamHelpers', () => {
       sseData: mockSseData,
     });
 
-    appendMessageBlock('', 'content');
-    appendMessageBlock(null, 'content');
+    appendMessageBlock({ type: '', content: 'content' });
+    appendMessageBlock({ type: null, content: 'content' });
     expect(messageBlocks).toHaveLength(0);
   });
 

@@ -85,7 +85,7 @@ export async function handleAdminConnectionsList(
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const aclDecision = await ensureAdminAclAccess(env, user, 'connection');
+    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
     if (!aclDecision.allow) {
       const statusCodeMap = {
         server_error: 500,

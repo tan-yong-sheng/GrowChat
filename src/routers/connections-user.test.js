@@ -532,7 +532,11 @@ describe('handleUsersConnections', () => {
         deps
       );
       expect(res.status).toBe(200);
-      expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(db, 'u1', 'conn-1');
+      expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith({
+        db,
+        userId: 'u1',
+        connectionId: 'conn-1',
+      });
     });
 
     it('uses providerType from existing connection', async () => {
@@ -691,7 +695,11 @@ describe('handleUsersConnections', () => {
         deps
       );
       expect(res.status).toBe(200);
-      expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(db, 'u1', 'conn-2');
+      expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith({
+        db,
+        userId: 'u1',
+        connectionId: 'conn-2',
+      });
     });
 
     it('uses providerType fallback from body.providerType', async () => {

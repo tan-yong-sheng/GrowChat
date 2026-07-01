@@ -89,7 +89,12 @@ export async function handleAdminConfig(
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const writeDecision = await ensureAdminMutationAccess(env, user, 'admin.user.write', 'admin');
+    const writeDecision = await ensureAdminMutationAccess({
+      env,
+      user,
+      permission: 'admin.user.write',
+      resource: 'admin',
+    });
     if (!writeDecision.allow) {
       const statusCodeMap = {
         server_error: 500,
@@ -199,7 +204,7 @@ export async function handleAdminConfig(
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const aclDecision = await ensureAdminAclAccess(env, user, 'model');
+    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'model' });
     if (!aclDecision.allow) {
       const statusCodeMap = {
         server_error: 500,

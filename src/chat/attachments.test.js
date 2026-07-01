@@ -92,12 +92,12 @@ describe('chat attachment helpers', () => {
     getConfigValue.mockResolvedValue('{}');
     setConfigValue.mockResolvedValue(undefined);
     const db = {};
-    await recordAttachmentCapabilityFailure(
+    await recordAttachmentCapabilityFailure({
       db,
-      'model-1',
-      ['image'],
-      new Error('vision model does not support image attachments')
-    );
+      modelId: 'model-1',
+      attachmentKinds: ['image'],
+      err: new Error('vision model does not support image attachments'),
+    });
     expect(setConfigValue).toHaveBeenCalledTimes(1);
     const [, , serialized] = setConfigValue.mock.calls[0];
     const saved = JSON.parse(serialized);
