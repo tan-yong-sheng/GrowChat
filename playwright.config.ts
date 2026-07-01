@@ -24,10 +24,10 @@ export default defineConfig({
       name: 'chromium-guest',
       use: { ...devices['Desktop Chrome'] },
       testMatch: [
-        /(?<!-)auth\.spec\.ts/,
+        /(?:^|\/)auth\.spec\.ts$/,
         /bootstrap\.spec\.ts/,
         /auth-workflows\.spec\.ts/,
-        /(?<!-)accessibility\.spec\.ts/,
+        /(?:^|\/)accessibility\.spec\.ts$/,
       ],
     },
     {
