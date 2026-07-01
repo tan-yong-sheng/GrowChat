@@ -139,7 +139,7 @@ export function renderRuleList(rules = [], { showDisabled = false } = {}) {
     ? rules.filter((rule) => showDisabled || rule?.resource_enabled !== false)
     : [];
   if (!visibleRules.length) {
-    return '<div class="rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-3 text-xs text-gray-400">No matching ACL rules</div>';
+    return '<div class="rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-3 text-xs text-gray-600">No matching ACL rules</div>';
   }
   return `
     <div class="space-y-2">
@@ -152,7 +152,7 @@ export function renderRuleList(rules = [], { showDisabled = false } = {}) {
           ${renderChip(rule.effect || 'allow', rule.effect)}
           ${renderChip(rule.principal_label || rule.principal_type, 'neutral')}
           <span class="font-semibold text-gray-900">${escapeHtml(rule.resource_id || 'All resources')}</span>
-          <span class="text-gray-400">·</span>
+          <span class="text-gray-600">·</span>
           <span class="text-gray-500">${escapeHtml(rule.action || 'use')}</span>
           ${rule?.hidden_for_user ? '<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide text-amber-700">Hidden for user</span>' : ''}
           ${rule?.resource_enabled === false ? '<span class="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-label-sm font-semibold uppercase tracking-wide text-gray-500">Disabled</span>' : ''}

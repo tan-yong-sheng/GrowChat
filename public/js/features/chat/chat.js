@@ -158,7 +158,9 @@ function wireChat(root) {
         const emptyState = document.createElement('div');
         emptyState.className = 'px-3 py-4 text-sm text-gray-600 sidebar-full-only';
         emptyState.textContent = 'No chat sessions yet.';
-        fallbackFragment.appendChild(emptyState);
+        const emptyItem = document.createElement('li');
+        emptyItem.appendChild(emptyState);
+        fallbackFragment.appendChild(emptyItem);
       } else {
         chatItems.slice(0, 24).forEach((chat) => {
           const handlers = getChatHandlers(chat);
@@ -178,12 +180,16 @@ function wireChat(root) {
         const loadingRow = document.createElement('div');
         loadingRow.className = 'px-3 py-3 text-xs text-gray-600';
         loadingRow.textContent = 'Loading more chats...';
-        fallbackFragment.appendChild(loadingRow);
+        const loadingItem = document.createElement('li');
+        loadingItem.appendChild(loadingRow);
+        fallbackFragment.appendChild(loadingItem);
       } else if (state?.chatsPagination?.hasMore) {
         const sentinel = document.createElement('div');
         sentinel.id = 'chat-list-load-more';
         sentinel.className = 'h-6';
-        fallbackFragment.appendChild(sentinel);
+        const sentinelItem = document.createElement('li');
+        sentinelItem.appendChild(sentinel);
+        fallbackFragment.appendChild(sentinelItem);
       }
       chatList.innerHTML = '';
       chatList.appendChild(fallbackFragment);
