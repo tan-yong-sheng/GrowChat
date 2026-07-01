@@ -14,7 +14,7 @@ export function renderWorkspaceSidebar({
     <aside id="sidebar" aria-label="Workspace sidebar" class="fixed md:relative h-[100dvh] md:h-[100dvh] flex-shrink-0 bg-neutral-bg border-r border-gray-100 flex flex-col transition-all duration-500 ease-in-out z-40 md:ml-0 overflow-visible group/sidebar" style="width: 260px; min-width: 260px;">
       <div class="p-3 flex-shrink-0">
         <div id="sidebar-header" class="flex items-center justify-between mb-4 px-2 mt-1 transition-all duration-300">
-          <a href="${homeHref}" id="${homeId}" class="flex items-center gap-3 sidebar-full-only rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300">
+          <a href="${homeHref}" id="${homeId}" class="flex items-center gap-3 sidebar-full-only rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300" aria-label="GrowChat home">
             <div class="w-7 h-7 bg-surface rounded-full flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
               <img src="/logo.png" alt="" class="w-5 h-5 object-contain" />
             </div>
