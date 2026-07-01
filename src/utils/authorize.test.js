@@ -393,7 +393,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const result = await hasPermission(mockEnv, user, 'chat.read');
+      const result = await hasPermission({ env: mockEnv, user, permission: 'chat.read' });
 
       expect(result).toBe(true);
     });
@@ -407,7 +407,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const result = await hasPermission(mockEnv, user, 'admin.rbac.admin');
+      const result = await hasPermission({ env: mockEnv, user, permission: 'admin.rbac.admin' });
 
       expect(result).toBe(false);
     });
@@ -421,9 +421,14 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      const result = await hasPermission(mockEnv, user, 'chat.read', {
-        resource: 'chat',
-        resourceId: 'chat-123',
+      const result = await hasPermission({
+        env: mockEnv,
+        user,
+        permission: 'chat.read',
+        context: {
+          resource: 'chat',
+          resourceId: 'chat-123',
+        },
       });
 
       expect(result).toBe(true);
@@ -440,7 +445,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      await expect(requireAdmin(mockEnv, user)).resolves.not.toThrow();
+      await expect(requireAdmin({ env: mockEnv, user })).resolves.not.toThrow();
     });
 
     it('should throw when user lacks admin permission', async () => {
@@ -452,7 +457,7 @@ describe('authorize.js - Authorization Core', () => {
       });
       mockDB.prepare.mockReturnValue(mockStatement);
 
-      await expect(requireAdmin(mockEnv, user)).rejects.toThrow();
+      await expect(requireAdmin({ env: mockEnv, user })).rejects.toThrow();
     });
 
     it('should throw error with statusCode 403', async () => {
@@ -463,7 +468,7 @@ describe('authorize.js - Authorization Core', () => {
       mockDB.prepare.mockReturnValue(mockStatement);
 
       try {
-        await requireAdmin(mockEnv, user);
+        await requireAdmin({ env: mockEnv, user });
         expect.fail('Should have thrown');
       } catch (err) {
         expect(err.statusCode).toBe(403);
@@ -478,7 +483,7 @@ describe('authorize.js - Authorization Core', () => {
       mockDB.prepare.mockReturnValue(mockStatement);
 
       try {
-        await requireAdmin(mockEnv, user);
+        await requireAdmin({ env: mockEnv, user });
         expect.fail('Should have thrown');
       } catch (err) {
         expect(err.code).toBeDefined();
