@@ -558,9 +558,11 @@ describe('usersRouter', () => {
 
     expect(res.status).toBe(200);
     expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(
-      expect.anything(),
-      'u1',
-      'conn-personal'
+      expect.objectContaining({
+        db: expect.anything(),
+        userId: 'u1',
+        connectionId: 'conn-personal',
+      })
     );
     expect(mocks.discoverConnectionModels).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -177,7 +177,11 @@ export async function handleUsersConnections(
     const db = createDB(env.DB);
     let existingConnection = null;
     if (connectionId) {
-      existingConnection = await getUserOpenAIConnectionConfig(db, user.sub, connectionId);
+      existingConnection = await getUserOpenAIConnectionConfig({
+        db,
+        userId: user.sub,
+        connectionId,
+      });
     }
 
     const providerType =

@@ -167,12 +167,21 @@ function normalizeUserConnectionInput(opts = {}) {
 }
 
 export async function loadUserOpenAIConnectionConfigs(
-  db,
-  userId,
-  options = {},
-  logger = createRootLogger({})
+  opts,
+  legacyUserId,
+  legacyOptions,
+  legacyLogger
 ) {
-  const includeDisabled = options.includeDisabled === true;
+  // Backward-compatible: accept both options-object and legacy positional
+  // signature (db, userId, options, logger). We detect the options-object
+  // form by the presence of `userId`; if it is missing we assume the first
+  // argument is `db`. Falls back to a default logger when none provided.
+  const isOptionsObject = opts && typeof opts === 'object' && 'userId' in opts;
+  const db = isOptionsObject ? opts.db : opts;
+  const userId = isOptionsObject ? opts.userId : legacyUserId;
+  const options = isOptionsObject ? opts.options : legacyOptions;
+  const logger = (isOptionsObject ? opts.logger : legacyLogger) || createRootLogger({});
+  const includeDisabled = options?.includeDisabled === true;
   if (!db || !userId) return [];
 
   try {
@@ -197,11 +206,19 @@ export async function loadUserOpenAIConnectionConfigs(
 }
 
 export async function getUserOpenAIConnectionConfig(
-  db,
-  userId,
-  connectionId,
-  logger = createRootLogger({})
+  opts,
+  legacyUserId,
+  legacyConnectionId,
+  legacyLogger
 ) {
+  // Backward-compatible: accept both options-object and legacy positional
+  // signature (db, userId, connectionId, logger). Detect the options-object
+  // form by the presence of `userId`. Falls back to a default logger.
+  const isOptionsObject = opts && typeof opts === 'object' && 'userId' in opts;
+  const db = isOptionsObject ? opts.db : opts;
+  const userId = isOptionsObject ? opts.userId : legacyUserId;
+  const connectionId = isOptionsObject ? opts.connectionId : legacyConnectionId;
+  const logger = (isOptionsObject ? opts.logger : legacyLogger) || createRootLogger({});
   if (!db || !userId || !connectionId) return null;
 
   try {
@@ -252,7 +269,7 @@ export async function createUserOpenAIConnection(opts) {
     ]
   );
 
-  return getUserOpenAIConnectionConfig(db, userId, id);
+  return getUserOpenAIConnectionConfig({ db, userId, connectionId: id });
 }
 
 export async function updateUserOpenAIConnection(opts) {
@@ -263,7 +280,7 @@ export async function updateUserOpenAIConnection(opts) {
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
-  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
+  const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return null;
 
   const connection = normalizeUserConnectionInput({ input, existing });
@@ -301,7 +318,7 @@ export async function deleteUserOpenAIConnection(options) {
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
-  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
+  const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return false;
 
   await db.run('DELETE FROM user_connections WHERE user_id = ? AND id = ?', [userId, connectionId]);
