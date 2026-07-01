@@ -171,13 +171,14 @@ function generateId(prefix) {
 /**
  * Check if user has specific permission
  *
- * @param {Object} env - Cloudflare environment with DB binding
- * @param {Object} user - User object
- * @param {string} permission - Permission key to check
- * @param {Object} context - Optional context
+ * @param {Object} options - Options object {env, user, permission, context}
+ * @param {Object} options.env - Cloudflare environment with DB binding
+ * @param {Object} options.user - User object
+ * @param {string} options.permission - Permission key to check
+ * @param {Object} [options.context] - Optional context
  * @returns {Promise<boolean>} True if user has permission
  */
-export async function hasPermission(env, user, permission, context, _logger = rootLogger) {
+export async function hasPermission({ env, user, permission, context }) {
   const decision = await authorize(env, user, {
     action: permission,
     context,
@@ -189,11 +190,12 @@ export async function hasPermission(env, user, permission, context, _logger = ro
  * Require admin permission
  * Throws error if user doesn't have admin.rbac.admin permission
  *
- * @param {Object} env - Cloudflare environment with DB binding
- * @param {Object} user - User object
+ * @param {Object} options - Options object {env, user}
+ * @param {Object} options.env - Cloudflare environment with DB binding
+ * @param {Object} options.user - User object
  * @throws {Error} If permission denied
  */
-export async function requireAdmin(env, user, _logger = rootLogger) {
+export async function requireAdmin({ env, user }) {
   const decision = await authorize(env, user, {
     action: 'admin.rbac.admin',
   });
