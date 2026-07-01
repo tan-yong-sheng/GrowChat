@@ -219,9 +219,11 @@ export async function getUserOpenAIConnectionConfig(
   }
 }
 
-export async function createUserOpenAIConnection(opts = {}) {
-  const { db, userId } = opts;
-  const input = opts.input ?? {};
+export async function createUserOpenAIConnection(opts) {
+  // Normalize null/undefined to {} so destructuring remains null-safe;
+  // the existing fail-soft validation below produces the canonical error.
+  const { db, userId } = opts ?? {};
+  const input = opts?.input ?? {};
   if (!db || !userId) throw new Error('User id is required');
   await ensureUserConnectionsTable(db);
 
@@ -253,9 +255,11 @@ export async function createUserOpenAIConnection(opts = {}) {
   return getUserOpenAIConnectionConfig(db, userId, id);
 }
 
-export async function updateUserOpenAIConnection(opts = {}) {
-  const { db, userId, connectionId } = opts;
-  const input = opts.input ?? {};
+export async function updateUserOpenAIConnection(opts) {
+  // Normalize null/undefined to {} so destructuring remains null-safe;
+  // the existing fail-soft validation below produces the canonical error.
+  const { db, userId, connectionId } = opts ?? {};
+  const input = opts?.input ?? {};
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
@@ -290,7 +294,10 @@ export async function updateUserOpenAIConnection(opts = {}) {
   return getUserOpenAIConnectionConfig(db, userId, connectionId);
 }
 
-export async function deleteUserOpenAIConnection({ db, userId, connectionId } = {}) {
+export async function deleteUserOpenAIConnection(options) {
+  // Normalize null/undefined to {} so destructuring remains null-safe;
+  // the existing fail-soft validation below produces the canonical error.
+  const { db, userId, connectionId } = options ?? {};
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 

@@ -829,6 +829,28 @@ describe('connections-user', () => {
       const result = await deleteUserOpenAIConnection({ db: db, userId: 'u1', connectionId: 'c1' });
       expect(result).toBe(false);
     });
+
+    it('does not throw TypeError when called with explicit null options', async () => {
+      // Regression: destructuring `null` previously raised TypeError before
+      // the fail-soft validation could throw the canonical error.
+      await expect(deleteUserOpenAIConnection(null)).rejects.toThrow('Connection id is required');
+    });
+  });
+});
+
+describe('null-safety for options-object signatures', () => {
+  it('createUserOpenAIConnection tolerates explicit null opts', async () => {
+    // Regression: destructuring `null` previously raised TypeError before
+    // the fail-soft validation could throw the canonical error.
+    await expect(createUserOpenAIConnection(null)).rejects.toThrow('User id is required');
+  });
+
+  it('updateUserOpenAIConnection tolerates explicit null opts', async () => {
+    await expect(updateUserOpenAIConnection(null)).rejects.toThrow('Connection id is required');
+  });
+
+  it('deleteUserOpenAIConnection tolerates explicit null opts', async () => {
+    await expect(deleteUserOpenAIConnection(null)).rejects.toThrow('Connection id is required');
   });
 });
 
