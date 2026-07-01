@@ -28,7 +28,9 @@ export function buildChatSidebarListFragment({
     const emptyState = document.createElement('div');
     emptyState.className = 'px-3 py-4 text-sm text-gray-600 sidebar-full-only';
     emptyState.textContent = 'No chat sessions yet.';
-    fragment.appendChild(emptyState);
+    const emptyItem = document.createElement('li');
+    emptyItem.appendChild(emptyState);
+    fragment.appendChild(emptyItem);
   }
 
   if (pinnedChats.length > 0) {
@@ -66,12 +68,12 @@ export function buildChatSidebarListFragment({
   });
 
   if (state?.chatsPagination?.loading) {
-    const loadingRow = document.createElement('div');
+    const loadingRow = document.createElement('li');
     loadingRow.className = 'px-3 py-3 text-xs text-gray-600';
     loadingRow.textContent = 'Loading more chats...';
     fragment.appendChild(loadingRow);
   } else if (state?.chatsPagination?.hasMore) {
-    const sentinel = document.createElement('div');
+    const sentinel = document.createElement('li');
     sentinel.id = 'chat-list-load-more';
     sentinel.className = 'h-6';
     fragment.appendChild(sentinel);
