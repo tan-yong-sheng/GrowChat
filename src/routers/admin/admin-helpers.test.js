@@ -108,40 +108,77 @@ describe('ensureAdminAclAccess', () => {
     expect(result.allow).toBe(false);
   });
 
-  it('returns graceful denial for missing env', async () => {
-    const result = await ensureAdminAclAccess({ user: { sub: 'u1' }, resource: 'admin' });
-    expect(result).toEqual({
+  it('delegates missing env to authorize so it can return server_error', async () => {
+    mocks.authorize.mockResolvedValue({
       allow: false,
-      code: 'unauthorized',
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'admin.rbac.admin',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    const result = await ensureAdminAclAccess({ user: { sub: 'u1' }, resource: 'admin' });
+    expect(result).toEqual({
+      allow: false,
+      code: 'server_error',
+      reason: 'invalid_request',
+      action: 'admin.rbac.admin',
+    });
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      undefined,
+      { sub: 'u1' },
+      { action: 'admin.rbac.admin', resource: 'admin' }
+    );
   });
 
-  it('returns graceful denial for missing user', async () => {
+  it('delegates missing user to authorize so it can return unauthorized', async () => {
+    mocks.authorize.mockResolvedValue({
+      allow: false,
+      code: 'unauthorized',
+      reason: 'account_not_active',
+      action: 'admin.rbac.admin',
+    });
     const result = await ensureAdminAclAccess({ env: {}, resource: 'admin' });
     expect(result).toEqual({
       allow: false,
       code: 'unauthorized',
+      reason: 'account_not_active',
+      action: 'admin.rbac.admin',
+    });
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith({}, undefined, {
+      action: 'admin.rbac.admin',
+      resource: 'admin',
+    });
+  });
+
+  it('normalizes null options to {} and delegates to authorize', async () => {
+    mocks.authorize.mockResolvedValue({
+      allow: false,
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'admin.rbac.admin',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
-  });
-
-  it('returns graceful denial for null options', async () => {
     const result = await ensureAdminAclAccess(null);
     expect(result).toEqual({
       allow: false,
-      code: 'unauthorized',
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'admin.rbac.admin',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith(undefined, undefined, {
+      action: 'admin.rbac.admin',
+      resource: 'admin',
+    });
   });
 
-  it('returns graceful denial for non-object env', async () => {
+  it('delegates non-object env to authorize', async () => {
+    mocks.authorize.mockResolvedValue({
+      allow: false,
+      code: 'server_error',
+      reason: 'invalid_request',
+      action: 'admin.rbac.admin',
+    });
     const result = await ensureAdminAclAccess({
       env: 'string',
       user: { sub: 'u1' },
@@ -149,22 +186,38 @@ describe('ensureAdminAclAccess', () => {
     });
     expect(result).toEqual({
       allow: false,
-      code: 'unauthorized',
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'admin.rbac.admin',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      'string',
+      { sub: 'u1' },
+      { action: 'admin.rbac.admin', resource: 'admin' }
+    );
   });
 
-  it('returns graceful denial for null env in legacy positional signature', async () => {
+  it('normalizes null env in legacy positional signature and delegates to authorize', async () => {
+    mocks.authorize.mockResolvedValue({
+      allow: false,
+      code: 'server_error',
+      reason: 'invalid_request',
+      action: 'admin.rbac.admin',
+    });
     const result = await ensureAdminAclAccess(null, { sub: 'u1' }, 'connection');
     expect(result).toEqual({
       allow: false,
-      code: 'unauthorized',
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'admin.rbac.admin',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      {},
+      { sub: 'u1' },
+      { action: 'admin.rbac.admin', resource: 'connection' }
+    );
   });
 });
 
@@ -235,7 +288,13 @@ describe('ensureAdminMutationAccess', () => {
     expect(result.allow).toBe(false);
   });
 
-  it('returns graceful denial for missing env', async () => {
+  it('delegates missing env to authorize so it can return server_error', async () => {
+    mocks.authorize.mockResolvedValue({
+      allow: false,
+      code: 'server_error',
+      reason: 'invalid_request',
+      action: 'some.perm',
+    });
     const result = await ensureAdminMutationAccess({
       user: { sub: 'u1' },
       permission: 'some.perm',
@@ -243,14 +302,25 @@ describe('ensureAdminMutationAccess', () => {
     });
     expect(result).toEqual({
       allow: false,
-      code: 'unauthorized',
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'some.perm',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      undefined,
+      { sub: 'u1' },
+      { action: 'some.perm', resource: 'admin' }
+    );
   });
 
-  it('returns graceful denial for missing user', async () => {
+  it('delegates missing user to authorize so it can return unauthorized', async () => {
+    mocks.authorize.mockResolvedValue({
+      allow: false,
+      code: 'unauthorized',
+      reason: 'account_not_active',
+      action: 'some.perm',
+    });
     const result = await ensureAdminMutationAccess({
       env: {},
       permission: 'some.perm',
@@ -259,24 +329,44 @@ describe('ensureAdminMutationAccess', () => {
     expect(result).toEqual({
       allow: false,
       code: 'unauthorized',
-      reason: 'invalid_request',
+      reason: 'account_not_active',
       action: 'some.perm',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith({}, undefined, {
+      action: 'some.perm',
+      resource: 'admin',
+    });
   });
 
-  it('returns graceful denial for null options', async () => {
-    const result = await ensureAdminMutationAccess(null);
-    expect(result).toEqual({
+  it('normalizes null options to {} and delegates to authorize', async () => {
+    mocks.authorize.mockResolvedValue({
       allow: false,
-      code: 'unauthorized',
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'unknown',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    const result = await ensureAdminMutationAccess(null);
+    expect(result).toEqual({
+      allow: false,
+      code: 'server_error',
+      reason: 'invalid_request',
+      action: 'unknown',
+    });
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith(undefined, undefined, {
+      action: undefined,
+      resource: 'admin',
+    });
   });
 
-  it('returns graceful denial for non-object env', async () => {
+  it('delegates non-object env to authorize', async () => {
+    mocks.authorize.mockResolvedValue({
+      allow: false,
+      code: 'server_error',
+      reason: 'invalid_request',
+      action: 'some.perm',
+    });
     const result = await ensureAdminMutationAccess({
       env: 'string',
       user: { sub: 'u1' },
@@ -284,21 +374,37 @@ describe('ensureAdminMutationAccess', () => {
     });
     expect(result).toEqual({
       allow: false,
-      code: 'unauthorized',
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'some.perm',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      'string',
+      { sub: 'u1' },
+      { action: 'some.perm', resource: 'admin' }
+    );
   });
 
-  it('returns graceful denial for null env in legacy positional signature', async () => {
+  it('normalizes null env in legacy positional signature and delegates to authorize', async () => {
+    mocks.authorize.mockResolvedValue({
+      allow: false,
+      code: 'server_error',
+      reason: 'invalid_request',
+      action: 'some.perm',
+    });
     const result = await ensureAdminMutationAccess(null, { sub: 'u1' }, 'some.perm', 'admin');
     expect(result).toEqual({
       allow: false,
-      code: 'unauthorized',
+      code: 'server_error',
       reason: 'invalid_request',
       action: 'some.perm',
     });
-    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.authorize).toHaveBeenCalledTimes(1);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      {},
+      { sub: 'u1' },
+      { action: 'some.perm', resource: 'admin' }
+    );
   });
 });

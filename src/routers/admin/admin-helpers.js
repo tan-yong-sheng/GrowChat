@@ -28,42 +28,23 @@ export function isValidModelAccessId(value) {
  * @param {string} [legacyResource='admin'] - Resource type (legacy third arg)
  */
 export async function ensureAdminAclAccess(options = {}, legacyUser, legacyResource = 'admin') {
+  // Normalize null/undefined to {} so destructuring is safe; delegate
+  // validation of env/user to authorize() so it can return the proper
+  // server_error vs unauthorized distinction instead of masking both
+  // as INVALID_REQUEST here.
+  const opts = options ?? {};
+
   // Detect legacy positional signature: (env, user, resource)
   // When user is explicitly passed as object, treat as legacy mode
   if (legacyUser !== undefined && typeof legacyUser === 'object') {
-    // Validate legacy env in legacy mode too
-    if (options == null || typeof options !== 'object') {
-      return {
-        allow: false,
-        code: 'unauthorized',
-        reason: DENIAL_REASONS.INVALID_REQUEST,
-        action: 'admin.rbac.admin',
-      };
-    }
-    return authorize(options, legacyUser, {
+    return authorize(opts, legacyUser, {
       action: 'admin.rbac.admin',
       resource: legacyResource,
     });
   }
 
   // Options-object signature
-  if (options == null || typeof options !== 'object') {
-    return {
-      allow: false,
-      code: 'unauthorized',
-      reason: DENIAL_REASONS.INVALID_REQUEST,
-      action: 'admin.rbac.admin',
-    };
-  }
-  const { env, user, resource = 'admin' } = options;
-  if (!env || !user || typeof env !== 'object' || typeof user !== 'object') {
-    return {
-      allow: false,
-      code: 'unauthorized',
-      reason: DENIAL_REASONS.INVALID_REQUEST,
-      action: 'admin.rbac.admin',
-    };
-  }
+  const { env, user, resource = 'admin' } = opts;
   return authorize(env, user, {
     action: 'admin.rbac.admin',
     resource,
@@ -85,41 +66,22 @@ export async function ensureAdminMutationAccess(
   legacyPermission,
   legacyResource = 'admin'
 ) {
+  // Normalize null/undefined to {} so destructuring is safe; delegate
+  // validation of env/user to authorize() so it can return the proper
+  // server_error vs unauthorized distinction instead of masking both
+  // as INVALID_REQUEST here.
+  const opts = options ?? {};
+
   // Detect legacy positional signature: (env, user, permission, resource)
   if (legacyUser !== undefined && typeof legacyUser === 'object') {
-    // Validate legacy env in legacy mode too
-    if (options == null || typeof options !== 'object') {
-      return {
-        allow: false,
-        code: 'unauthorized',
-        reason: DENIAL_REASONS.INVALID_REQUEST,
-        action: legacyPermission || 'unknown',
-      };
-    }
-    return authorize(options, legacyUser, {
+    return authorize(opts, legacyUser, {
       action: legacyPermission,
       resource: legacyResource,
     });
   }
 
   // Options-object signature
-  if (options == null || typeof options !== 'object') {
-    return {
-      allow: false,
-      code: 'unauthorized',
-      reason: DENIAL_REASONS.INVALID_REQUEST,
-      action: 'unknown',
-    };
-  }
-  const { env, user, permission, resource = 'admin' } = options;
-  if (!env || !user || typeof env !== 'object' || typeof user !== 'object') {
-    return {
-      allow: false,
-      code: 'unauthorized',
-      reason: DENIAL_REASONS.INVALID_REQUEST,
-      action: permission || 'unknown',
-    };
-  }
+  const { env, user, permission, resource = 'admin' } = opts;
   return authorize(env, user, {
     action: permission,
     resource,
