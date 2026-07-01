@@ -41,12 +41,12 @@ export async function handleAdminEmailSecurity(
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const writeDecision = await ensureAdminMutationAccess(
+    const writeDecision = await ensureAdminMutationAccess({
       env,
       user,
-      'admin.rbac.admin',
-      'email-config'
-    );
+      permission: 'admin.rbac.admin',
+      resource: 'email-config',
+    });
     if (!writeDecision.allow) {
       const statusCodeMap = {
         server_error: 500,
