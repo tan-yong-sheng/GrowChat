@@ -3,7 +3,7 @@
  *
  * Shared authorization and validation helpers for admin sub-handlers.
  */
-import { authorize, DENIAL_REASONS } from '../../utils/authorize.js';
+import { authorize } from '../../utils/authorize.js';
 
 /**
  * Check if a value is a valid model access ID.
