@@ -46,13 +46,13 @@ function makeMockDb(overrides = {}) {
 describe('connections-user', () => {
   describe('loadUserOpenAIConnectionConfigs', () => {
     it('returns empty array when db is missing', async () => {
-      const result = await loadUserOpenAIConnectionConfigs({ db: null, userId: 'u1' });
+      const result = await loadUserOpenAIConnectionConfigs(null, 'u1');
       expect(result).toEqual([]);
     });
 
     it('returns empty array when userId is missing', async () => {
       const db = makeMockDb();
-      const result = await loadUserOpenAIConnectionConfigs({ db, userId: null });
+      const result = await loadUserOpenAIConnectionConfigs(db, null);
       expect(result).toEqual([]);
     });
 
@@ -90,7 +90,7 @@ describe('connections-user', () => {
           updated_at: 1,
         },
       ]);
-      const result = await loadUserOpenAIConnectionConfigs({ db, userId: 'u1' });
+      const result = await loadUserOpenAIConnectionConfigs(db, 'u1');
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('c1');
       expect(result[0].enabled).toBe(true);
@@ -130,18 +130,14 @@ describe('connections-user', () => {
           updated_at: 1,
         },
       ]);
-      const result = await loadUserOpenAIConnectionConfigs({
-        db,
-        userId: 'u1',
-        options: { includeDisabled: true },
-      });
+      const result = await loadUserOpenAIConnectionConfigs(db, 'u1', { includeDisabled: true });
       expect(result).toHaveLength(2);
     });
 
     it('returns empty array when rawRows is not an array', async () => {
       const db = makeMockDb();
       db.all.mockResolvedValue(null);
-      const result = await loadUserOpenAIConnectionConfigs({ db, userId: 'u1' });
+      const result = await loadUserOpenAIConnectionConfigs(db, 'u1');
       expect(result).toEqual([]);
     });
 
@@ -149,7 +145,7 @@ describe('connections-user', () => {
       const db = makeMockDb();
       db.all.mockRejectedValue(new Error('db crash'));
       const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const result = await loadUserOpenAIConnectionConfigs({ db, userId: 'u1' });
+      const result = await loadUserOpenAIConnectionConfigs(db, 'u1');
       expect(result).toEqual([]);
       consoleWarn.mockRestore();
     });
@@ -157,30 +153,26 @@ describe('connections-user', () => {
 
   describe('getUserOpenAIConnectionConfig', () => {
     it('returns null when db is missing', async () => {
-      const result = await getUserOpenAIConnectionConfig({
-        db: null,
-        userId: 'u1',
-        connectionId: 'c1',
-      });
+      const result = await getUserOpenAIConnectionConfig(null, 'u1', 'c1');
       expect(result).toBeNull();
     });
 
     it('returns null when userId is missing', async () => {
       const db = makeMockDb();
-      const result = await getUserOpenAIConnectionConfig({ db, userId: null, connectionId: 'c1' });
+      const result = await getUserOpenAIConnectionConfig(db, null, 'c1');
       expect(result).toBeNull();
     });
 
     it('returns null when connectionId is missing', async () => {
       const db = makeMockDb();
-      const result = await getUserOpenAIConnectionConfig({ db, userId: 'u1', connectionId: null });
+      const result = await getUserOpenAIConnectionConfig(db, 'u1', null);
       expect(result).toBeNull();
     });
 
     it('returns null when connection is not found', async () => {
       const db = makeMockDb();
       db._setRows([]);
-      const result = await getUserOpenAIConnectionConfig({ db, userId: 'u1', connectionId: 'c1' });
+      const result = await getUserOpenAIConnectionConfig(db, 'u1', 'c1');
       expect(result).toBeNull();
     });
 
@@ -203,7 +195,7 @@ describe('connections-user', () => {
           updated_at: 1,
         },
       ]);
-      const result = await getUserOpenAIConnectionConfig({ db, userId: 'u1', connectionId: 'c1' });
+      const result = await getUserOpenAIConnectionConfig(db, 'u1', 'c1');
       expect(result).toBeNull();
     });
 
@@ -226,7 +218,7 @@ describe('connections-user', () => {
           updated_at: 1,
         },
       ]);
-      const result = await getUserOpenAIConnectionConfig({ db, userId: 'u1', connectionId: 'c1' });
+      const result = await getUserOpenAIConnectionConfig(db, 'u1', 'c1');
       expect(result).toMatchObject({
         id: 'c1',
         name: 'My Connection',
@@ -243,7 +235,7 @@ describe('connections-user', () => {
       const db = makeMockDb();
       db.first.mockRejectedValue(new Error('db crash'));
       const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const result = await getUserOpenAIConnectionConfig({ db, userId: 'u1', connectionId: 'c1' });
+      const result = await getUserOpenAIConnectionConfig(db, 'u1', 'c1');
       expect(result).toBeNull();
       consoleWarn.mockRestore();
     });
@@ -264,7 +256,7 @@ describe('connections-user', () => {
       const db = makeMockDb();
       await expect(
         createUserOpenAIConnection({
-          db,
+          db: db,
           userId: null,
           input: { name: 'Test', base_url: 'https://x.com' },
         })
@@ -275,7 +267,7 @@ describe('connections-user', () => {
       const db = makeMockDb();
       await expect(
         createUserOpenAIConnection({
-          db,
+          db: db,
           userId: 'u1',
           input: { name: '', base_url: 'https://x.com' },
         })
@@ -286,7 +278,7 @@ describe('connections-user', () => {
       const db = makeMockDb();
       await expect(
         createUserOpenAIConnection({
-          db,
+          db: db,
           userId: 'u1',
           input: { name: '   ', base_url: 'https://x.com' },
         })
@@ -296,14 +288,18 @@ describe('connections-user', () => {
     it('throws when name is missing', async () => {
       const db = makeMockDb();
       await expect(
-        createUserOpenAIConnection({ db, userId: 'u1', input: { base_url: 'https://x.com' } })
+        createUserOpenAIConnection({ db: db, userId: 'u1', input: { base_url: 'https://x.com' } })
       ).rejects.toThrow('name is required');
     });
 
     it('throws when base_url is whitespace only (normalizes to empty)', async () => {
       const db = makeMockDb();
       await expect(
-        createUserOpenAIConnection({ db, userId: 'u1', input: { name: 'Test', base_url: '   ' } })
+        createUserOpenAIConnection({
+          db: db,
+          userId: 'u1',
+          input: { name: 'Test', base_url: '   ' },
+        })
       ).rejects.toThrow('base_url is required');
     });
 
@@ -327,7 +323,7 @@ describe('connections-user', () => {
         },
       ]);
       const result = await createUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         input: { name: 'Test', base_url: '' },
       });
@@ -358,7 +354,7 @@ describe('connections-user', () => {
         },
       ]);
       const result = await createUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         input: { name: 'Test' },
       });
@@ -389,7 +385,7 @@ describe('connections-user', () => {
         },
       ]);
       const result = await createUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         input: {
           name: 'Test',
@@ -425,7 +421,7 @@ describe('connections-user', () => {
         },
       ]);
       const result = await createUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         input: {
           name: 'Test',
@@ -463,7 +459,7 @@ describe('connections-user', () => {
       ]);
 
       const result = await createUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         input: {
           name: 'Test Conn',
@@ -486,7 +482,7 @@ describe('connections-user', () => {
     it('inserts correct values including manual_models and manual_models_mode', async () => {
       const db = makeMockDb();
       await createUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         input: {
           name: 'Test',
@@ -527,7 +523,7 @@ describe('connections-user', () => {
       const db = makeMockDb();
       await expect(
         updateUserOpenAIConnection({
-          db,
+          db: db,
           userId: null,
           connectionId: 'c1',
           input: { name: 'Test' },
@@ -539,7 +535,7 @@ describe('connections-user', () => {
       const db = makeMockDb();
       await expect(
         updateUserOpenAIConnection({
-          db,
+          db: db,
           userId: 'u1',
           connectionId: null,
           input: { name: 'Test' },
@@ -551,7 +547,7 @@ describe('connections-user', () => {
       const db = makeMockDb();
       db._setRows([]);
       const result = await updateUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         connectionId: 'c1',
         input: { name: 'Updated' },
@@ -579,7 +575,7 @@ describe('connections-user', () => {
         },
       ]);
       const result = await updateUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         connectionId: 'c1',
         input: { name: '' },
@@ -608,7 +604,12 @@ describe('connections-user', () => {
         },
       ]);
       await expect(
-        updateUserOpenAIConnection({ db, userId: 'u1', connectionId: 'c1', input: { name: '   ' } })
+        updateUserOpenAIConnection({
+          db: db,
+          userId: 'u1',
+          connectionId: 'c1',
+          input: { name: '   ' },
+        })
       ).rejects.toThrow('name is required');
     });
 
@@ -632,7 +633,7 @@ describe('connections-user', () => {
         },
       ]);
       const result = await updateUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         connectionId: 'c1',
         input: { base_url: '' },
@@ -662,7 +663,7 @@ describe('connections-user', () => {
       ]);
       await expect(
         updateUserOpenAIConnection({
-          db,
+          db: db,
           userId: 'u1',
           connectionId: 'c1',
           input: { base_url: '   ' },
@@ -691,7 +692,7 @@ describe('connections-user', () => {
       ]);
 
       const result = await updateUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         connectionId: 'c1',
         input: { name: 'New Name' },
@@ -733,7 +734,7 @@ describe('connections-user', () => {
       ]);
 
       const result = await updateUserOpenAIConnection({
-        db,
+        db: db,
         userId: 'u1',
         connectionId: 'c1',
         input: {
@@ -761,21 +762,21 @@ describe('connections-user', () => {
     it('throws when userId is missing', async () => {
       const db = makeMockDb();
       await expect(
-        deleteUserOpenAIConnection({ db, userId: null, connectionId: 'c1' })
+        deleteUserOpenAIConnection({ db: db, userId: null, connectionId: 'c1' })
       ).rejects.toThrow('Connection id is required');
     });
 
     it('throws when connectionId is missing', async () => {
       const db = makeMockDb();
       await expect(
-        deleteUserOpenAIConnection({ db, userId: 'u1', connectionId: null })
+        deleteUserOpenAIConnection({ db: db, userId: 'u1', connectionId: null })
       ).rejects.toThrow('Connection id is required');
     });
 
     it('returns false when connection not found', async () => {
       const db = makeMockDb();
       db._setRows([]);
-      const result = await deleteUserOpenAIConnection({ db, userId: 'u1', connectionId: 'c1' });
+      const result = await deleteUserOpenAIConnection({ db: db, userId: 'u1', connectionId: 'c1' });
       expect(result).toBe(false);
     });
 
@@ -798,7 +799,7 @@ describe('connections-user', () => {
           updated_at: 1,
         },
       ]);
-      const result = await deleteUserOpenAIConnection({ db, userId: 'u1', connectionId: 'c1' });
+      const result = await deleteUserOpenAIConnection({ db: db, userId: 'u1', connectionId: 'c1' });
       expect(result).toBe(true);
       expect(db.run).toHaveBeenCalledWith(
         'DELETE FROM user_connections WHERE user_id = ? AND id = ?',
@@ -825,9 +826,31 @@ describe('connections-user', () => {
           updated_at: 1,
         },
       ]);
-      const result = await deleteUserOpenAIConnection({ db, userId: 'u1', connectionId: 'c1' });
+      const result = await deleteUserOpenAIConnection({ db: db, userId: 'u1', connectionId: 'c1' });
       expect(result).toBe(false);
     });
+
+    it('does not throw TypeError when called with explicit null options', async () => {
+      // Regression: destructuring `null` previously raised TypeError before
+      // the fail-soft validation could throw the canonical error.
+      await expect(deleteUserOpenAIConnection(null)).rejects.toThrow('Connection id is required');
+    });
+  });
+});
+
+describe('null-safety for options-object signatures', () => {
+  it('createUserOpenAIConnection tolerates explicit null opts', async () => {
+    // Regression: destructuring `null` previously raised TypeError before
+    // the fail-soft validation could throw the canonical error.
+    await expect(createUserOpenAIConnection(null)).rejects.toThrow('User id is required');
+  });
+
+  it('updateUserOpenAIConnection tolerates explicit null opts', async () => {
+    await expect(updateUserOpenAIConnection(null)).rejects.toThrow('Connection id is required');
+  });
+
+  it('deleteUserOpenAIConnection tolerates explicit null opts', async () => {
+    await expect(deleteUserOpenAIConnection(null)).rejects.toThrow('Connection id is required');
   });
 });
 

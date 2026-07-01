@@ -462,6 +462,7 @@ describe('usersRouter', () => {
     });
     expect(mocks.createUserOpenAIConnection).toHaveBeenCalledWith(
       expect.objectContaining({
+        db: expect.anything(),
         userId: 'u1',
         input: expect.objectContaining({ name: 'My Connection' }),
       })
@@ -483,6 +484,7 @@ describe('usersRouter', () => {
     await expect(res.json()).resolves.toEqual({ success: true });
     expect(mocks.deleteUserOpenAIConnection).toHaveBeenCalledWith(
       expect.objectContaining({
+        db: expect.anything(),
         userId: 'u1',
         connectionId: 'conn-personal',
       })
@@ -557,6 +559,7 @@ describe('usersRouter', () => {
     expect(res.status).toBe(200);
     expect(mocks.getUserOpenAIConnectionConfig).toHaveBeenCalledWith(
       expect.objectContaining({
+        db: expect.anything(),
         userId: 'u1',
         connectionId: 'conn-personal',
       })

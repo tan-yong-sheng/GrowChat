@@ -141,7 +141,11 @@ export async function handleUsersConnections(
 
     try {
       const db = createDB(env.DB);
-      const created = await createUserOpenAIConnection({ db, userId: user.sub, input: body });
+      const created = await createUserOpenAIConnection({
+        db,
+        userId: user.sub,
+        input: body,
+      });
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'user_connection_created',
