@@ -166,12 +166,12 @@ describe('handleAdminEmailSecurity', () => {
         { db, logger, _requestContext: {} }
       );
       expect(res.status).toBe(200);
-      expect(mocks.ensureAdminMutationAccess).toHaveBeenCalledWith(
+      expect(mocks.ensureAdminMutationAccess).toHaveBeenCalledWith({
         env,
         user,
-        'admin.rbac.admin',
-        'email-config'
-      );
+        permission: 'admin.rbac.admin',
+        resource: 'email-config',
+      });
       expect(mocks.setConfigValue).toHaveBeenCalledWith(db, 'resend_api_key', 're_test_123');
       expect(mocks.logAuditEvent).toHaveBeenCalled();
     });
