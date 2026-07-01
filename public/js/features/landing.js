@@ -15,17 +15,30 @@
   // ── Auth redirect ──────────────────────────────────────────────
   // If the user already has a valid access token in localStorage,
   // redirect to the SPA instead of showing the landing page.
+  //
+  // If a stale auth blob is present (expired access_token, or a value that
+  // cannot be parsed at all), clear it so subsequent API calls do not silently
+  // attempt with dead credentials and so the next visitor to this device does
+  // not inherit a half-session.
   function checkAuthRedirect() {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return;
+    let auth;
     try {
-      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!raw) return;
-      const auth = JSON.parse(raw);
-      if (auth?.access_token && isTokenUsable(auth.access_token)) {
-        window.location.replace('/?app=1');
-      }
+      auth = JSON.parse(raw);
     } catch {
-      // Not logged in or corrupt state — stay on landing page
+      // Boundary: the landing page can safely treat a corrupt blob as
+      // "not logged in". Clear it so it does not linger as a dead credential.
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      return;
     }
+    if (auth?.access_token && isTokenUsable(auth.access_token)) {
+      window.location.replace('/chat');
+      return;
+    }
+    // Access token expired (refresh token may or may not be valid). Clear the
+    // dead blob — the SPA will redirect to /auth.html via ensureSession().
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   }
 
   function isTokenUsable(token) {
