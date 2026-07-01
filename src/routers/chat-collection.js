@@ -7,6 +7,28 @@ import { authorize } from '../utils/authorize.js';
 import { resolveDefaultModel, requireOwnedChat } from './chat-core.js';
 import { handleListChats, handleGetChat, handleCloneChat } from './chat-collection-ops.js';
 
+const MAX_TITLE_LENGTH = 200;
+const MAX_MODEL_ID_LENGTH = 200;
+
+function sanitizeTitle(raw) {
+  if (typeof raw !== 'string') return 'New Chat';
+  const stripped = stripHtml(raw.trim());
+  if (!stripped) return 'New Chat';
+  return stripped.slice(0, MAX_TITLE_LENGTH) || 'New Chat';
+}
+
+function sanitizeModelId(raw, fallback) {
+  if (typeof raw !== 'string') return fallback;
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+  // Reject literal string sentinels like "null" or "undefined" — a non-string
+  // JSON value that slips through body parsing would coerce to these otherwise.
+  const lower = trimmed.toLowerCase();
+  if (lower === 'null' || lower === 'undefined') return fallback;
+  if (trimmed.length > MAX_MODEL_ID_LENGTH) return fallback;
+  return trimmed;
+}
+
 async function publishRealtimeNow(env, event) {
   try {
     return await createRealtimeBus(env).publish(event);
@@ -62,9 +84,9 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
     }
 
     const id = crypto.randomUUID();
-    const title = stripHtml(String(body.title || 'New Chat').trim()) || 'New Chat';
+    const title = sanitizeTitle(body.title);
     const fallbackModel = await resolveDefaultModel(env, db, user.sub);
-    const model = String(body.model || fallbackModel).trim() || fallbackModel;
+    const model = sanitizeModelId(body.model, fallbackModel);
 
     await db.run(
       'INSERT INTO chats (id, user_id, title, model, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, 0, unixepoch(), unixepoch())',
@@ -163,12 +185,12 @@ export async function chatCollectionRouter(req, env, user, path, originSessionId
         return error(req, 'Invalid JSON body', 400);
       }
 
-      const title = body.title !== undefined ? stripHtml(String(body.title).trim()) : chat.title;
+      const title = body.title !== undefined ? sanitizeTitle(body.title) : chat.title;
       const pinned = body.pinned !== undefined ? (body.pinned ? 1 : 0) : chat.pinned;
 
       await db.run(
         'UPDATE chats SET title = ?, pinned = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
-        [title || 'New Chat', pinned, chatId, user.sub]
+        [title, pinned, chatId, user.sub]
       );
 
       return await reloadAndPublishChat(req, env, db, user, chatId, originSessionId);
