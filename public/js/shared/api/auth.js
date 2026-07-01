@@ -7,6 +7,15 @@ import {
 
 const STORAGE_KEY = 'growchat_auth';
 const CLIENT_SESSION_KEY = 'growchat_client_session_id';
+const PER_USER_LOCAL_KEYS = new Set([
+  'drafts',
+  'defaultModelId',
+  'toolSelectionsByChat',
+  'sidebarCollapsed',
+  'sidebarWidth',
+  'newChatDraft',
+  'remove-me',
+]);
 
 export function getAuthState() {
   return readStoredJson(localStorage, STORAGE_KEY, null);
@@ -18,6 +27,22 @@ export function setAuthState(state) {
 
 export function clearAuthState() {
   removeStoredValue(localStorage, STORAGE_KEY);
+  removeStoredValue(sessionStorage, CLIENT_SESSION_KEY);
+}
+
+export function clearPerUserLocalState() {
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.startsWith('growchat_') || PER_USER_LOCAL_KEYS.has(key)) {
+      keysToRemove.push(key);
+    }
+  }
+  for (const key of keysToRemove) {
+    removeStoredValue(localStorage, key);
+  }
+  removeStoredValue(sessionStorage, CLIENT_SESSION_KEY);
 }
 
 function decodeJwtPayload(token) {
@@ -71,24 +96,25 @@ export async function refreshToken(refreshTokenValue, options = {}) {
 
 export async function logout() {
   const auth = getAuthState();
-  if (!auth?.refresh_token) {
-    clearAuthState();
-    return true;
+  const refreshTokenValue = auth?.refresh_token;
+
+  // Always wipe local session state first so a network-broken logout
+  // cannot leave a JWT behind for the next user of this device.
+  clearAuthState();
+  clearPerUserLocalState();
+
+  if (!refreshTokenValue) {
+    return { ok: true, serverNotified: false };
   }
 
   try {
     const res = await fetch('/api/auth/logout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: auth.refresh_token }),
+      body: JSON.stringify({ refresh_token: refreshTokenValue }),
     });
-    if (!res.ok) {
-      return false;
-    }
+    return { ok: res.ok, serverNotified: res.ok };
   } catch {
-    return false;
+    return { ok: false, serverNotified: false };
   }
-
-  clearAuthState();
-  return true;
 }
