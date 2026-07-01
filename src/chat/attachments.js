@@ -163,7 +163,7 @@ export function inferUnsupportedAttachmentKind(message, attachmentKinds = []) {
   return null;
 }
 
-function attachFailureToCaps(caps, modelId, kind) {
+function attachFailureToCaps({ caps, modelId, kind } = {}) {
   const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
   const attachments = { ...(current.attachments || {}) };
   attachments[kind] = false;
@@ -174,13 +174,18 @@ function attachFailureToCaps(caps, modelId, kind) {
   };
 }
 
-export async function recordAttachmentCapabilityFailure(db, modelId, attachmentKinds, err) {
+export async function recordAttachmentCapabilityFailure({
+  db,
+  modelId,
+  attachmentKinds,
+  err,
+} = {}) {
   const message = String(err?.message || err || '');
   if (!modelId || !attachmentKinds?.length || isTransientModelError(message)) return;
   const inferred = inferUnsupportedAttachmentKind(message, attachmentKinds);
   if (!inferred) return;
   const caps = await loadModelAttachmentCaps(db);
-  attachFailureToCaps(caps, modelId, inferred);
+  attachFailureToCaps({ caps, modelId, kind: inferred });
   await saveModelAttachmentCaps(db, caps);
 }
 

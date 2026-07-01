@@ -164,12 +164,12 @@ function normalizeUserConnectionInput(input = {}, existing = null) {
   };
 }
 
-export async function loadUserOpenAIConnectionConfigs(
+export async function loadUserOpenAIConnectionConfigs({
   db,
   userId,
   options = {},
-  logger = createRootLogger({})
-) {
+  logger = createRootLogger({}),
+} = {}) {
   const includeDisabled = options.includeDisabled === true;
   if (!db || !userId) return [];
 
@@ -194,12 +194,12 @@ export async function loadUserOpenAIConnectionConfigs(
   }
 }
 
-export async function getUserOpenAIConnectionConfig(
+export async function getUserOpenAIConnectionConfig({
   db,
   userId,
   connectionId,
-  logger = createRootLogger({})
-) {
+  logger = createRootLogger({}),
+} = {}) {
   if (!db || !userId || !connectionId) return null;
 
   try {
@@ -217,7 +217,7 @@ export async function getUserOpenAIConnectionConfig(
   }
 }
 
-export async function createUserOpenAIConnection(db, userId, input = {}) {
+export async function createUserOpenAIConnection({ db, userId, input = {} } = {}) {
   if (!db || !userId) throw new Error('User id is required');
   await ensureUserConnectionsTable(db);
 
@@ -246,14 +246,14 @@ export async function createUserOpenAIConnection(db, userId, input = {}) {
     ]
   );
 
-  return getUserOpenAIConnectionConfig(db, userId, id);
+  return getUserOpenAIConnectionConfig({ db, userId, connectionId: id });
 }
 
-export async function updateUserOpenAIConnection(db, userId, connectionId, input = {}) {
+export async function updateUserOpenAIConnection({ db, userId, connectionId, input = {} } = {}) {
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
-  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
+  const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return null;
 
   const connection = normalizeUserConnectionInput(input, existing);
@@ -281,14 +281,14 @@ export async function updateUserOpenAIConnection(db, userId, connectionId, input
     ]
   );
 
-  return getUserOpenAIConnectionConfig(db, userId, connectionId);
+  return getUserOpenAIConnectionConfig({ db, userId, connectionId });
 }
 
-export async function deleteUserOpenAIConnection(db, userId, connectionId) {
+export async function deleteUserOpenAIConnection({ db, userId, connectionId } = {}) {
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
-  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
+  const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return false;
 
   await db.run('DELETE FROM user_connections WHERE user_id = ? AND id = ?', [userId, connectionId]);

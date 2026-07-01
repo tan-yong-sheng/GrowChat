@@ -40,7 +40,7 @@ export async function executeToolCalls({
       status: 'error',
     };
     toolCallRecords.push(record);
-    appendMessageBlock('tool', '', call.toolCallId);
+    appendMessageBlock({ type: 'tool', toolCallId: call.toolCallId });
     await lifecycle.persistToolCalls(toolCallRecords);
     await lifecycle.persistAssistantContent({ fullText, fullReasoning, messageBlocks });
     await emitSse(
@@ -90,7 +90,7 @@ export async function executeToolCalls({
       ...(call.providerMetadata ? { providerMetadata: call.providerMetadata } : {}),
     };
     toolCallRecords.push(record);
-    appendMessageBlock('tool', '', call.toolCallId);
+    appendMessageBlock({ type: 'tool', toolCallId: call.toolCallId });
     await lifecycle.persistToolCalls(toolCallRecords);
 
     try {
