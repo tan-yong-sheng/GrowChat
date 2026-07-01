@@ -53,7 +53,7 @@ export function createOverviewController(ctx) {
     const currentToken = String(Date.now());
     uiState.accessInspector.userId = userId;
     uiState.accessInspector.refreshToken = currentToken;
-    body.innerHTML = '<div class="text-sm text-gray-400">Refreshing ACL inspector...</div>';
+    body.innerHTML = '<div class="text-sm text-gray-600">Refreshing ACL inspector...</div>';
     try {
       const payload = await fetchAdminUserAccess(userId);
       if (uiState.accessInspector.refreshToken !== currentToken) return;
@@ -190,7 +190,7 @@ export function createOverviewController(ctx) {
             primary_role: String(btn.dataset.userRole || 'member').trim(),
             account_status: btn.dataset.userAccountStatus || 'active',
           },
-          '<div class="text-sm text-gray-400">Loading ACL inspector...</div>',
+          '<div class="text-sm text-gray-600">Loading ACL inspector...</div>',
           () => {
             uiState.accessInspector.userId = null;
             uiState.accessInspector.refreshToken = null;
