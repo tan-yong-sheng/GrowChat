@@ -107,7 +107,7 @@ export function createStreamHelpers({ db, assistantMsgId, encoder, sseData }) {
     return outgoing;
   };
 
-  const appendMessageBlock = (type, content = '', toolCallId = null) => {
+  const appendMessageBlock = ({ type, content = '', toolCallId = null } = {}) => {
     if (!type) return;
     const last = messageBlocks.length ? messageBlocks[messageBlocks.length - 1] : null;
     if (type === 'tool') {

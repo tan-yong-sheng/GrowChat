@@ -280,8 +280,10 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
   if (userId && env?.DB) {
     try {
       const db = createDB(env.DB);
-      userConnections = await loadUserOpenAIConnectionConfigs(db, userId, {
-        includeDisabled,
+      userConnections = await loadUserOpenAIConnectionConfigs({
+        db,
+        userId,
+        options: { includeDisabled },
       });
     } catch (err) {
       logger.warn('Failed to load user-owned connections', {
