@@ -70,7 +70,7 @@ function parseUserConnectionManualModels(raw) {
   }
 }
 
-function normalizeUserConnectionRow(row, index = 0) {
+function normalizeUserConnectionRow({ row, index = 0 } = {}) {
   if (!row) return null;
   const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
   if (!baseUrl) return null;
@@ -116,7 +116,9 @@ function normalizeUserConnectionRow(row, index = 0) {
   };
 }
 
-function normalizeUserConnectionInput(input = {}, existing = null) {
+function normalizeUserConnectionInput(opts = {}) {
+  const input = opts.input ?? {};
+  const existing = opts.existing ?? null;
   const name = String(input.name || existing?.name || '').trim();
   const providerType =
     String(
@@ -165,12 +167,21 @@ function normalizeUserConnectionInput(input = {}, existing = null) {
 }
 
 export async function loadUserOpenAIConnectionConfigs(
-  db,
-  userId,
-  options = {},
-  logger = createRootLogger({})
+  opts,
+  legacyUserId,
+  legacyOptions,
+  legacyLogger
 ) {
-  const includeDisabled = options.includeDisabled === true;
+  // Backward-compatible: accept both options-object and legacy positional
+  // signature (db, userId, options, logger). We detect the options-object
+  // form by the presence of `userId`; if it is missing we assume the first
+  // argument is `db`. Falls back to a default logger when none provided.
+  const isOptionsObject = opts && typeof opts === 'object' && 'userId' in opts;
+  const db = isOptionsObject ? opts.db : opts;
+  const userId = isOptionsObject ? opts.userId : legacyUserId;
+  const options = isOptionsObject ? opts.options : legacyOptions;
+  const logger = (isOptionsObject ? opts.logger : legacyLogger) || createRootLogger({});
+  const includeDisabled = options?.includeDisabled === true;
   if (!db || !userId) return [];
 
   try {
@@ -184,7 +195,7 @@ export async function loadUserOpenAIConnectionConfigs(
     );
     const rows = Array.isArray(rawRows) ? rawRows : [];
     const normalized = rows
-      .map((row, index) => normalizeUserConnectionRow(row, index))
+      .map((row, index) => normalizeUserConnectionRow({ row, index }))
       .filter(Boolean);
     if (includeDisabled) return normalized;
     return normalized.filter((conn) => conn.enabled !== false);
@@ -195,11 +206,19 @@ export async function loadUserOpenAIConnectionConfigs(
 }
 
 export async function getUserOpenAIConnectionConfig(
-  db,
-  userId,
-  connectionId,
-  logger = createRootLogger({})
+  opts,
+  legacyUserId,
+  legacyConnectionId,
+  legacyLogger
 ) {
+  // Backward-compatible: accept both options-object and legacy positional
+  // signature (db, userId, connectionId, logger). Detect the options-object
+  // form by the presence of `userId`. Falls back to a default logger.
+  const isOptionsObject = opts && typeof opts === 'object' && 'userId' in opts;
+  const db = isOptionsObject ? opts.db : opts;
+  const userId = isOptionsObject ? opts.userId : legacyUserId;
+  const connectionId = isOptionsObject ? opts.connectionId : legacyConnectionId;
+  const logger = (isOptionsObject ? opts.logger : legacyLogger) || createRootLogger({});
   if (!db || !userId || !connectionId) return null;
 
   try {
@@ -210,18 +229,22 @@ export async function getUserOpenAIConnectionConfig(
 			WHERE user_id = ? AND id = ?`,
       [userId, connectionId]
     );
-    return normalizeUserConnectionRow(row);
+    return normalizeUserConnectionRow({ row });
   } catch (err) {
     logger.warn('Failed to load user connection', { error: err?.message || err });
     return null;
   }
 }
 
-export async function createUserOpenAIConnection(db, userId, input = {}) {
+export async function createUserOpenAIConnection(opts) {
+  // Normalize null/undefined to {} so destructuring remains null-safe;
+  // the existing fail-soft validation below produces the canonical error.
+  const { db, userId } = opts ?? {};
+  const input = opts?.input ?? {};
   if (!db || !userId) throw new Error('User id is required');
   await ensureUserConnectionsTable(db);
 
-  const connection = normalizeUserConnectionInput(input);
+  const connection = normalizeUserConnectionInput({ input, existing: null });
   if (!connection.name) throw new Error('name is required');
   if (!connection.baseUrl) throw new Error('base_url is required');
 
@@ -246,17 +269,21 @@ export async function createUserOpenAIConnection(db, userId, input = {}) {
     ]
   );
 
-  return getUserOpenAIConnectionConfig(db, userId, id);
+  return getUserOpenAIConnectionConfig({ db, userId, connectionId: id });
 }
 
-export async function updateUserOpenAIConnection(db, userId, connectionId, input = {}) {
+export async function updateUserOpenAIConnection(opts) {
+  // Normalize null/undefined to {} so destructuring remains null-safe;
+  // the existing fail-soft validation below produces the canonical error.
+  const { db, userId, connectionId } = opts ?? {};
+  const input = opts?.input ?? {};
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
-  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
+  const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return null;
 
-  const connection = normalizeUserConnectionInput(input, existing);
+  const connection = normalizeUserConnectionInput({ input, existing });
   if (!connection.name) throw new Error('name is required');
   if (!connection.baseUrl) throw new Error('base_url is required');
 
@@ -284,11 +311,14 @@ export async function updateUserOpenAIConnection(db, userId, connectionId, input
   return getUserOpenAIConnectionConfig(db, userId, connectionId);
 }
 
-export async function deleteUserOpenAIConnection(db, userId, connectionId) {
+export async function deleteUserOpenAIConnection(options) {
+  // Normalize null/undefined to {} so destructuring remains null-safe;
+  // the existing fail-soft validation below produces the canonical error.
+  const { db, userId, connectionId } = options ?? {};
   if (!db || !userId || !connectionId) throw new Error('Connection id is required');
   await ensureUserConnectionsTable(db);
 
-  const existing = await getUserOpenAIConnectionConfig(db, userId, connectionId);
+  const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return false;
 
   await db.run('DELETE FROM user_connections WHERE user_id = ? AND id = ?', [userId, connectionId]);

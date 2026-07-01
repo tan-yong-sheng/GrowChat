@@ -55,7 +55,7 @@ export async function handleAdminToolServersCrud(
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
+    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
     if (!aclDecision.allow) {
       const statusCodeMap = {
         server_error: 500,
@@ -216,7 +216,7 @@ export async function handleAdminToolServersCrud(
       return error(req, 'Invalid JSON body', 400);
     }
 
-    const aclDecision = await ensureAdminAclAccess(env, user, 'tool-server');
+    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
     if (!aclDecision.allow) {
       const statusCodeMap = {
         server_error: 500,
