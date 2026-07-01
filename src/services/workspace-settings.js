@@ -237,7 +237,11 @@ export async function loadWorkspaceConnectionsPayload({
     throw new TypeError('db, env, and userId are required');
   }
 
-  const ownConnections = await loadUserOpenAIConnectionConfigs(db, userId, { includeDisabled });
+  const ownConnections = await loadUserOpenAIConnectionConfigs({
+    db,
+    userId,
+    options: { includeDisabled },
+  });
   const connections = await getAllOpenAIConnectionConfigs(env, {
     userId,
     userRole: String(primaryRole || 'member').trim(),
@@ -313,7 +317,11 @@ export async function loadWorkspaceSettingsPayload({
   const [permissions, roles, ownConnections, allConnections, allToolServers] = await Promise.all([
     resolvePermissions(db, { sub: userId }),
     getUserRoles(db, userId),
-    loadUserOpenAIConnectionConfigs(db, userId, { includeDisabled: true }),
+    loadUserOpenAIConnectionConfigs({
+      db,
+      userId,
+      options: { includeDisabled: true },
+    }),
     getAllOpenAIConnectionConfigs(env, {
       userId,
       userRole: primaryRole,

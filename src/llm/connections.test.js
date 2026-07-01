@@ -224,7 +224,7 @@ describe('openai connection helpers', () => {
       ]),
     };
 
-    const connections = await loadUserOpenAIConnectionConfigs(db, 'u1');
+    const connections = await loadUserOpenAIConnectionConfigs({ db, userId: 'u1' });
 
     expect(db.run).toHaveBeenCalled();
     expect(connections).toHaveLength(1);

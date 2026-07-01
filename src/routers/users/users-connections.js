@@ -77,7 +77,12 @@ export async function handleUsersConnections(
 
       try {
         const db = createDB(env.DB);
-        const updated = await updateUserOpenAIConnection(db, user.sub, connectionId, body);
+        const updated = await updateUserOpenAIConnection({
+          db,
+          userId: user.sub,
+          connectionId,
+          input: body,
+        });
         if (!updated) return error(req, 'Connection not found', 404);
         await logAuditEvent(env, {
           actor_id: user.sub,
@@ -101,7 +106,11 @@ export async function handleUsersConnections(
       }
       try {
         const db = createDB(env.DB);
-        const deleted = await deleteUserOpenAIConnection(db, user.sub, connectionId);
+        const deleted = await deleteUserOpenAIConnection({
+          db,
+          userId: user.sub,
+          connectionId,
+        });
         if (!deleted) return error(req, 'Connection not found', 404);
         await logAuditEvent(env, {
           actor_id: user.sub,
@@ -132,7 +141,7 @@ export async function handleUsersConnections(
 
     try {
       const db = createDB(env.DB);
-      const created = await createUserOpenAIConnection(db, user.sub, body);
+      const created = await createUserOpenAIConnection({ db, userId: user.sub, input: body });
       await logAuditEvent(env, {
         actor_id: user.sub,
         action: 'user_connection_created',
@@ -164,7 +173,11 @@ export async function handleUsersConnections(
     const db = createDB(env.DB);
     let existingConnection = null;
     if (connectionId) {
-      existingConnection = await getUserOpenAIConnectionConfig(db, user.sub, connectionId);
+      existingConnection = await getUserOpenAIConnectionConfig({
+        db,
+        userId: user.sub,
+        connectionId,
+      });
     }
 
     const providerType =
