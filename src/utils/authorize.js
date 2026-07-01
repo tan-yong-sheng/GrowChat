@@ -171,13 +171,23 @@ function generateId(prefix) {
 /**
  * Check if user has specific permission
  *
- * @param {Object} env - Cloudflare environment with DB binding
- * @param {Object} user - User object
- * @param {string} permission - Permission key to check
- * @param {Object} context - Optional context
+ * Backward-compatible: accepts either an options-object ({env, user,
+ * permission, context}) or the legacy positional signature
+ * (env, user, permission, context, logger). Detects the options-object
+ * form by the presence of `permission` on the first argument.
+ *
+ * @param {Object} opts - Options object {env, user, permission, context}
+ * @param {Object} [legacyUser] - Legacy second arg (user)
+ * @param {string} [legacyPermission] - Legacy third arg (permission key)
+ * @param {Object} [legacyContext] - Legacy fourth arg (context)
  * @returns {Promise<boolean>} True if user has permission
  */
-export async function hasPermission(env, user, permission, context, _logger = rootLogger) {
+export async function hasPermission(opts, legacyUser, legacyPermission, legacyContext) {
+  const isOptionsObject = opts && typeof opts === 'object' && 'permission' in opts;
+  const env = isOptionsObject ? opts.env : opts;
+  const user = isOptionsObject ? opts.user : legacyUser;
+  const permission = isOptionsObject ? opts.permission : legacyPermission;
+  const context = isOptionsObject ? opts.context : legacyContext;
   const decision = await authorize(env, user, {
     action: permission,
     context,
@@ -189,11 +199,17 @@ export async function hasPermission(env, user, permission, context, _logger = ro
  * Require admin permission
  * Throws error if user doesn't have admin.rbac.admin permission
  *
- * @param {Object} env - Cloudflare environment with DB binding
- * @param {Object} user - User object
+ * Backward-compatible: accepts either an options-object ({env, user}) or
+ * the legacy positional signature (env, user, logger).
+ *
+ * @param {Object} opts - Options object {env, user}
+ * @param {Object} [legacyUser] - Legacy second arg (user)
  * @throws {Error} If permission denied
  */
-export async function requireAdmin(env, user, _logger = rootLogger) {
+export async function requireAdmin(opts, legacyUser) {
+  const isOptionsObject = opts && typeof opts === 'object' && 'user' in opts;
+  const env = isOptionsObject ? opts.env : opts;
+  const user = isOptionsObject ? opts.user : legacyUser;
   const decision = await authorize(env, user, {
     action: 'admin.rbac.admin',
   });
