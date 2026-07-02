@@ -16,6 +16,7 @@
 piolium/
 .gstack/
 .pi/
+.qa/
 .pi-lens/
 .ralph/
 .playwright/
@@ -156,3 +157,4 @@ tests/e2e/fixtures/auth-state.json
 coverage2/
 reports/
 .mutation-test-instructions.md
+.pi/swarm/state/
