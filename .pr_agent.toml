@@ -2,6 +2,13 @@
 model = "opencode/deepseek-v4-flash"
 fallback_models = ["kilo/step-3.7-flash"]
 
+[github_action_config]
+# Override the default PR actions to include 'synchronize' (new commits pushed).
+# The default in pr-agent's bundled configuration.toml is:
+#   ["opened", "reopened", "ready_for_review", "review_requested"]
+# which silently skips the 'synchronize' event. See pr_agent/servers/github_action_runner.py:114
+pr_actions = ["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]
+
 [pr_reviewer]
 # Run review automatically on every PR event (opened, synchronize, etc.)
 auto_review = true
