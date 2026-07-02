@@ -1,19 +1,8 @@
 # PR Agent — Automated AI code review
-# Uses PR-Agent (The-PR-Agent/pr-agent) with any OpenAI-compatible endpoint
-# via CLIProxyAPI or direct provider.
+# Uses the-pr-agent/pr-agent with a custom OpenAI-compatible endpoint.
 #
-# All configuration uses PR_AGENT_* prefix for clarity.
-#
-# Configuration (set in repo Settings > Secrets and variables > Actions):
-#
-# Secrets:
-#   PR_AGENT_API_KEY        - Your OpenAI-compatible API key (sensitive, never exposed in logs)
-#
-# Variables (non-sensitive, visible in workflow logs):
-#   PR_AGENT_BASE_URL       - Base URL of your OpenAI-compatible endpoint
-#   PR_AGENT_MODEL           - Model ID to use for reviews
-#                             Defaults to "gpt-5-mini" if not set
-#   PR_AGENT_FALLBACK        - Comma-separated fallback models
+# The runner reads OPENAI_KEY for auth and GITHUB_TOKEN for posting.
+# The API base URL is set via OPENAI_API_BASE (used by litellm).
 
 name: PR Agent
 
@@ -54,17 +43,14 @@ jobs:
 
       # Run PR-Agent
       # Pinned to specific SHA for supply-chain safety.
-      # Configured to use your custom OpenAI-compatible endpoint:
-      #   CLIProxyAPI (router-for-me/CLIProxyAPI) or any OpenAI-compatible proxy
       #
-      # PR-Agent uses Dynaconf config + litellm under the hood:
-      #   - OPENAI_KEY           = your API key
-      #   - OPENAI_API_BASE     = your base URL (used by litellm)
-      #   - Model name           = set via PR_AGENT_MODEL repo var or PR_AGENT_* vars
+      # The PR-Agent GitHub Action runner reads these env vars:
+      #   - OPENAI_KEY         = API key (from Secrets)
+      #   - OPENAI_API_BASE   = Base URL (used by litellm for routing)
+      #   - GITHUB_TOKEN       = GitHub API token (for posting comments)
       #
-      # Note: The PR-Agent GitHub Action runner only reads OPENAI_KEY and
-      # OPENAI_ORG from env. All other config (model, base URL) is set via
-      # the repo's .pr_agent.toml config file or litellm's env var conventions.
+      # Model name and fallbacks are configured via the default
+      # configuration.toml bundled in the PR-Agent Docker image.
       - name: Run PR-Agent
         id: pr-agent
         uses: The-PR-Agent/pr-agent@4263175b521a15b7dbe9caad6a60fe9803817aeb # v2026.07.01

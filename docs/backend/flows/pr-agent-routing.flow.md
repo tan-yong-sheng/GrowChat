@@ -4,7 +4,7 @@
 
 PR-Agent ([The-PR-Agent/pr-agent](https://github.com/The-PR-Agent/pr-agent)) is an open-source AI code
 review tool that runs on pull requests. It uses **litellm** as its model backend, which means it
-supports **any OpenAI-compatible endpoint** — including custom proxies like CLIProxyAPI.
+supports **any OpenAI-compatible endpoint**.
 
 ## How Model Selection Works
 
@@ -17,9 +17,9 @@ Model name and fallback models are **not** passed through env vars — they come
 **repo-local `.pr_agent.toml` config file** or from the default `configuration.toml` bundled
 in the PR-Agent Docker image.
 
-## Custom OpenAI-Compatible Endpoint (CLIProxyAPI)
+## Custom OpenAI-Compatible Endpoint
 
-To use PR-Agent with CLIProxyAPI (or any custom OpenAI-compatible proxy):
+To use PR-Agent with any custom OpenAI-compatible proxy:
 
 1. **Set the API key** in `OPENAI_KEY` (env var in the workflow):
 
