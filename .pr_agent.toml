@@ -18,6 +18,24 @@ pr_actions = ["opened", "reopened", "ready_for_review", "review_requested", "syn
 # Run review automatically on every PR event (opened, synchronize, etc.)
 auto_review = true
 
+# Surface security labels in review output
+enable_review_labels_security = true
+
+# Check if PR actually addresses linked tickets (extracted from branch/description)
+require_ticket_analysis_review = true
+
+# Estimate effort to review (time cost) — shown as a score in the output header
+require_estimate_effort_to_review = true
+
+# Estimate contribution time cost (how long the change took to write)
+require_estimate_contribution_time_cost = true
+
 [pr_description]
 # Also auto-generate/update description on sync
 enable_pr_type = true
+
+# Publish auto-labels on PR (bug fix, enhancement, security, etc.)
+publish_labels = true
+
+# Generate AI title from PR content (override PR title if it's a draft)
+generate_ai_title = true

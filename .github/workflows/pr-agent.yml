@@ -60,5 +60,7 @@ jobs:
           OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_AGENT_CONFIG_BRANCH: ${{ github.head_ref }}
+          # Enable auto-improve (inline code suggestions) on each PR event
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: true
         # Full output — includes review summary + inline comments
         # Available as step output for downstream processing
