@@ -52,31 +52,25 @@ jobs:
         with:
           node-version: '24'
 
-      # Run PR-Agent via Docker (official image)
+      # Run PR-Agent
+      # Pinned to specific SHA for supply-chain safety.
       # Configured to use your custom OpenAI-compatible endpoint:
       #   CLIProxyAPI (router-for-me/CLIProxyAPI) or any OpenAI-compatible proxy
       #
-      # Model name is passed via PR_AGENT_MODEL env var (repo variable)
-      # Fallback models via PR_AGENT_FALLBACK (comma-separated)
+      # PR-Agent uses Dynaconf config + litellm under the hood:
+      #   - OPENAI_KEY           = your API key
+      #   - OPENAI_API_BASE     = your base URL (used by litellm)
+      #   - Model name           = set via PR_AGENT_MODEL repo var or PR_AGENT_* vars
       #
-      # PR-Agent uses litellm under the hood:
-      #   - OPENAI__API_BASE = your base URL
-      #   - OPENAI__KEY     = your API key
-      #   - model name      = PR_AGENT_MODEL (defaults to gpt-5-mini if not set)
+      # Note: The PR-Agent GitHub Action runner only reads OPENAI_KEY and
+      # OPENAI_ORG from env. All other config (model, base URL) is set via
+      # the repo's .pr_agent.toml config file or litellm's env var conventions.
       - name: Run PR-Agent
         id: pr-agent
-        uses: the-pr-agent/pr-agent@main
+        uses: The-PR-Agent/pr-agent@4263175b521a15b7dbe9caad6a60fe9803817aeb # v2026.07.01
         env:
-          OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
           OPENAI_KEY: ${{ secrets.PR_AGENT_API_KEY }}
+          OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Model config via env vars (double underscore = nested TOML key)
-          # PR_AGENT__CONFIG__MODEL maps to [config] model in configuration.toml
-          # PR_AGENT__CONFIG__FALLBACK_MODELS maps to [config] fallback_models
-          PR_AGENT__CONFIG__MODEL: ${{ vars.PR_AGENT_MODEL || 'gpt-5-mini' }}
-          PR_AGENT__CONFIG__FALLBACK_MODELS: ${{ vars.PR_AGENT_FALLBACK || 'gpt-4o-mini,gpt-4.1-nano' }}
-          PR_AGENT__CONFIG__MAX_DESCRIPTION_TOKENS: '500'
-          PR_AGENT__CONFIG__AI_TIMEOUT: '120'
-          PR_AGENT__CONFIG__VERBOSITY_LEVEL: '0'
         # Full output — includes review summary + inline comments
         # Available as step output for downstream processing
