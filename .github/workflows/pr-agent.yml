@@ -48,6 +48,7 @@ jobs:
       #   - OPENAI_KEY         = API key (from Secrets)
       #   - OPENAI_API_BASE   = Base URL (used by litellm for routing)
       #   - GITHUB_TOKEN       = GitHub API token (for posting comments)
+      #   - PR_AGENT_CONFIG_BRANCH  = read .pr_agent.toml from PR branch
       #
       # Model name and fallbacks are configured via the default
       # configuration.toml bundled in the PR-Agent Docker image.
@@ -58,5 +59,6 @@ jobs:
           OPENAI_KEY: ${{ secrets.PR_AGENT_API_KEY }}
           OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_AGENT_CONFIG_BRANCH: ${{ github.head_ref }}
         # Full output — includes review summary + inline comments
         # Available as step output for downstream processing
