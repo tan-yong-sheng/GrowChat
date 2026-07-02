@@ -30,6 +30,16 @@ require_estimate_effort_to_review = true
 # Estimate contribution time cost (how long the change took to write)
 require_estimate_contribution_time_cost = true
 
+[pr_code_suggestions]
+# Push inline ``suggestion`` blocks on PR Files Changed tab
+# so you can apply changes with one click from GitHub
+commitable_code_suggestions = true
+
+# On top of inline suggestions, also publish the summary table
+# to get the score overview, reasoning (score_why), and category labels
+# Threshold: score >= 1 means all non-stale suggestions get both outputs
+dual_publishing_score_threshold = 1
+
 [pr_description]
 # Also auto-generate/update description on sync
 enable_pr_type = true
