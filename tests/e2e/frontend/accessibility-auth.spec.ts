@@ -16,10 +16,15 @@ test.describe('Authenticated accessibility', () => {
     // Use ?app=1 to bypass the landing page and load the SPA directly.
     await page.goto('/?app=1');
     // The chat SPA opens long-lived SSE connections that prevent
-    // networkidle from settling. Wait for the main app shell to render
-    // and a short settle delay for axe-core to finish scanning.
+    // networkidle from settling. Wait for the main app shell to render.
     await page.waitForSelector('main#main, [id="chat-list"]', { timeout: 10000 });
-    await page.waitForTimeout(500);
+
+    // Wait for the visible workspace heading to be present before scanning.
+    // This ensures axe-core evaluates the rendered chat UI, not an
+    // intermediate state where the h1 has not yet mounted.
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'How can I help you today?' })
+    ).toBeAttached({ timeout: 5000 });
 
     const accessibilityScanResults = await new Builder({
       page,
@@ -40,14 +45,14 @@ test.describe('Authenticated accessibility', () => {
     await page.goto('/?app=1');
     // Wait for the main app shell to render
     await page.waitForSelector('main#main, [id="chat-list"]', { timeout: 10000 });
-    await page.waitForTimeout(500);
 
-    // First: assert at least one h1 is present in the rendered DOM.
-    // The SPA renders two h1 elements: the sr-only "GrowChat" heading
-    // for screen readers, and the visible "How can I help you today?"
-    // heading. Either one satisfies the page-has-heading-one rule.
-    // Use first() since there are exactly two, and both are attached.
-    await expect(page.locator('h1').first()).toBeAttached({ timeout: 5000 });
+    // Wait for the visible workspace heading — the one that would
+    // satisfy page-has-heading-one — to be present.
+    // Use getByRole with the exact heading name to ensure we
+    // target the visible content heading, not the sr-only brand heading.
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'How can I help you today?' })
+    ).toBeAttached({ timeout: 5000 });
 
     const accessibilityScanResults = await new Builder({
       page,

@@ -25,12 +25,18 @@ test('login with valid credentials', async ({ page }) => {
 
 test('navigating to /verify loads verification UI', async ({ page }) => {
   await page.route('**/api/auth/verify-email*', async (route) => {
-    // Delay slightly to ensure loading state is visible
-    await new Promise((resolve) => setTimeout(resolve, 500));
     await route.fulfill({ status: 200, json: { success: true } });
   });
 
   await page.goto('/verify?token=test-token');
-  // Wait for the verification loading state to appear
-  await expect(page.locator('text=Verifying your email')).toBeVisible({ timeout: 5000 });
+
+  // Wait for the API response to settle before checking the DOM.
+  // The route handler resolves immediately (no artificial delay),
+  // so the success state replaces the loading UI. Use waitForResponse
+  // to gate on the network request, then assert the success card.
+  const responsePromise = page.waitForResponse('**/api/auth/verify-email*');
+  await responsePromise;
+
+  // After the response, assert the verification success state.
+  await expect(page.locator('text=Email verified!')).toBeVisible({ timeout: 5000 });
 });
