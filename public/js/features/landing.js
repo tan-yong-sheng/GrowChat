@@ -32,12 +32,22 @@
       localStorage.removeItem(AUTH_STORAGE_KEY);
       return;
     }
+    // Hand off to /chat in two cases:
+    //  1. Valid access_token → user is mid-session, skip the marketing page.
+    //  2. Expired access_token + present refresh_token → ensureSession() in
+    //     the SPA can refresh; the SPA itself decides whether to land on /chat
+    //     or bounce to /auth.html.
     if (auth?.access_token && isTokenUsable(auth.access_token)) {
       window.location.replace('/chat');
       return;
     }
-    // Access token expired (refresh token may or may not be valid). Clear the
-    // dead blob — the SPA will redirect to /auth.html via ensureSession().
+    if (auth?.refresh_token) {
+      window.location.replace('/chat');
+      return;
+    }
+    // No refresh_token and the access_token is expired/unusable (or missing) —
+    // the blob is truly unrecoverable. Clear it so the next visitor to this
+    // device does not inherit a dead credential.
     localStorage.removeItem(AUTH_STORAGE_KEY);
   }
 
