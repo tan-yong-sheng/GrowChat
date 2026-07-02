@@ -24,10 +24,10 @@ assignees: ''
 ## Configuration
 
 ```yaml
+# In repo Settings > Secrets and variables > Actions:
 env:
-  OPENAI__API_BASE: '${{ secrets.MY_PROVIDER_URL }}'
-  OPENAI__KEY: '${{ secrets.MY_PROVIDER_KEY }}'
-  PR_AGENT__CONFIG__MODEL: 'my-model-name'
+  OPENAI_KEY: '${{ secrets.MY_PROVIDER_KEY }}' # API key (Secret)
+  OPENAI_API_BASE: '${{ vars.MY_PROVIDER_URL }}' # Base URL (Variable)
 ```
 
 ## Checklist
@@ -35,4 +35,4 @@ env:
 - [ ] Provider has an OpenAI-compatible `/v1/chat/completions` endpoint
 - [ ] PR-Agent can reach this provider via litellm
 - [ ] I have tested this model on real PRs in my repo
-- [ ] Documentation updated in `changing_a_model.md`
+- [ ] Documentation updated in `docs/backend/flows/pr-agent-routing.flow.md`

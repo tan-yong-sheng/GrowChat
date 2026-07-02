@@ -8,71 +8,72 @@ supports **any OpenAI-compatible endpoint** — including custom proxies like CL
 
 ## How Model Selection Works
 
-PR-Agent reads its model from the `[config]` section of `configuration.toml`:
+PR-Agent's GitHub Action runner reads two key env vars:
 
-```toml
-[config]
-model = "gpt-5-mini"               # Primary model for review
-fallback_models = ["gpt-4o-mini"]   # Fallback if primary fails
-```
+- `OPENAI_KEY` — your API key (sets `openai.key` in Dynaconf config)
+- `OPENAI_API_BASE` — your base URL (used by litellm for routing)
 
-These values can be **overridden by environment variables** in the GitHub Action:
-
-```yaml
-env:
-  PR_AGENT__CONFIG__MODEL: 'gpt-5-mini' # → [config] model
-  PR_AGENT__CONFIG__FALLBACK_MODELS: 'gpt-4o-mini' # → [config] fallback_models
-```
-
-The double-underscore (`__`) pattern maps the env var to the nested TOML key.
+Model name and fallback models are **not** passed through env vars — they come from the
+**repo-local `.pr_agent.toml` config file** or from the default `configuration.toml` bundled
+in the PR-Agent Docker image.
 
 ## Custom OpenAI-Compatible Endpoint (CLIProxyAPI)
 
 To use PR-Agent with CLIProxyAPI (or any custom OpenAI-compatible proxy):
 
-1. **Set the endpoint URL** in `OPENAI__API_BASE`:
+1. **Set the API key** in `OPENAI_KEY` (env var in the workflow):
 
    ```yaml
-   OPENAI__API_BASE: http://your-cliproxyapi:port/v1
+   env:
+     OPENAI_KEY: ${{ secrets.PR_AGENT_API_KEY }}
    ```
 
-2. **Set the API key** in `OPENAI__KEY`:
+2. **Set the base URL** in `OPENAI_API_BASE` (used by litellm for routing):
 
    ```yaml
-   OPENAI__KEY: sk-your-key-here
+   env:
+     OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
    ```
 
-3. **Set the model name** (exposed by CLIProxyAPI):
-   ```yaml
-   PR_AGENT__CONFIG__MODEL: gpt-5-mini
+3. **Set the model** via a **repo-local `.pr_agent.toml`** file:
+
+   ```toml
+   [openai]
+   api_base = "${{ vars.PR_AGENT_BASE_URL }}"
+   model = "${{ vars.PR_AGENT_MODEL }}"
    ```
 
-## Supported Providers
+4. **Alternative: use `.pr_agent.toml` in the repo root** with:
 
-PR-Agent (via litellm) supports any provider with an OpenAI-compatible `/v1/chat/completions`
-endpoint. This includes:
+   ```toml
+   [config]
+   model = "gpt-5-mini"
+   fallback_models = ["gpt-4o-mini"]
+   ```
 
-| Provider         | API format            | Notes                                            |
-| ---------------- | --------------------- | ------------------------------------------------ |
-| OpenAI           | `openai/` + model     | Default                                          |
-| Azure            | `azure/` + deployment | Requires `api_type`, `api_base`, `deployment_id` |
-| OpenRouter       | `openai/` + model     | Routes through OpenAI-compatible endpoint        |
-| **CLIProxyAPI**  | `openai/` + model     | Custom endpoint at `OPENAI_BASE_URL`             |
-| Any custom proxy | `openai/` + model     | Must implement OpenAI `/v1` spec                 |
+## PR-Agent GitHub Action Runner
 
-## Configuration Reference
+The PR-Agent Docker-based GitHub Action (`action.yaml`) runs its own entrypoint
+(`github_action_runner.py`) which only reads these env vars:
 
-### Environment variables (GitHub Action)
+| Env var           | What it sets            | Required? |
+| ----------------- | ----------------------- | --------- |
+| `OPENAI_KEY`      | `openai.key`            | Yes       |
+| `OPENAI_API_BASE` | Used by litellm router  | Yes       |
+| `GITHUB_TOKEN`    | For posting PR comments | Yes       |
 
-| Env var                             | Maps to                    | Default        | Description                     |
-| ----------------------------------- | -------------------------- | -------------- | ------------------------------- |
-| `PR_AGENT__CONFIG__MODEL`           | `[config] model`           | `gpt-5-mini`   | Primary LLM for reviews         |
-| `PR_AGENT__CONFIG__FALLBACK_MODELS` | `[config] fallback_models` | `gpt-4o-mini`  | Comma-separated fallbacks       |
-| `OPENAI__API_BASE`                  | `[openai] api_base`        | (required)     | Your OpenAI-compatible endpoint |
-| `OPENAI__KEY`                       | `[openai] api_key`         | (required)     | API key for the endpoint        |
-| `GITHUB_TOKEN`                      | GitHub API                 | `github.token` | For posting PR comments         |
+All other model configuration (model name, fallbacks, token limits, AI timeout)
+is set via **`configuration.toml`** in the repo at `pr_agent/settings/`.
 
-### Recommended model choices for code review
+## Environment Variable Reference
+
+| Env var           | Where to set | Purpose                      |
+| ----------------- | ------------ | ---------------------------- |
+| `OPENAI_KEY`      | Secret       | API key for your endpoint    |
+| `OPENAI_API_BASE` | Variable     | Base URL for litellm routing |
+| `GITHUB_TOKEN`    | Built-in     | GitHub API token (automatic) |
+
+## Recommended model choices for code review
 
 | Model               | Quality (SWE-bench) | Cost ($/1M) | Latency | Best for                      |
 | ------------------- | ------------------- | ----------- | ------- | ----------------------------- |
@@ -81,6 +82,4 @@ endpoint. This includes:
 | `gpt-4o-mini`       | 76%                 | $0.15/$0.60 | Fast    | Fallback (cheap)              |
 | `gpt-4.1-nano`      | 72%                 | $0.10/$0.40 | Fastest | Lightweight / skip simple PRs |
 
-**Tip:** Set `model` to your best model and `fallback_models` to cheaper ones for
-cost optimization. PR-Agent uses the fallback when the primary is rate-limited or
-times out.
+**Tip:** Set model via `.pr_agent.toml` in the repo root or via repo variables.

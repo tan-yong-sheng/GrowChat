@@ -22,7 +22,9 @@ PR (GitHub) ──► PR-Agent (GitHub Action) ──► litellm ──► OPENA
 - **PR-Agent** runs as a Docker container in GitHub Actions
 - **litellm** (embedded in PR-Agent) handles model routing
 - **CLIProxyAPI** (`OPENAI_BASE_URL`) is the OpenAI-compatible endpoint
-- **Model name** is passed via `PR_AGENT__CONFIG__MODEL` env var
+- **Model name** is set via `OPENAI_KEY` env (API key) — the model is configured
+  in the repo's `.pr_agent.toml` config file or in the PR-Agent Docker image's
+  `configuration.toml`
 
 ### Key files
 
