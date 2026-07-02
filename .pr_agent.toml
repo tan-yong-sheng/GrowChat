@@ -1,8 +1,8 @@
 [config]
-model = "opencode/deepseek-v4-flash"
-fallback_models = ["kilo/step-3.7-flash"]
-# custom_model_max_tokens must be set because neither "opencode/deepseek-v4-flash"
-# nor "kilo/step-3.7-flash" is in PR-Agent's built-in MAX_TOKENS dict.
+model = "openai/opencode/deepseek-v4-flash"
+fallback_models = ["openai/kilo/step-3.7-flash"]
+# custom_model_max_tokens must be set because neither model is in
+# PR-Agent's built-in MAX_TOKENS dict.
 # Without this, get_max_tokens() raises in pr_agent/algo/utils.py:1008.
 # Value: 1M tokens (matches deepseek/deepseek-v4-flash's entry at line 72).
 custom_model_max_tokens = 1000000
