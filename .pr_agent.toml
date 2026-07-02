@@ -1,3 +1,11 @@
 [config]
 model = "opencode/deepseek-v4-flash"
 fallback_models = ["kilo/step-3.7-flash"]
+
+[pr_reviewer]
+# Run review automatically on every PR event (opened, synchronize, etc.)
+auto_review = true
+
+[pr_description]
+# Also auto-generate/update description on sync
+enable_pr_type = true
