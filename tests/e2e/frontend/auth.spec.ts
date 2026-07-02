@@ -31,5 +31,6 @@ test('navigating to /verify loads verification UI', async ({ page }) => {
   });
 
   await page.goto('/verify?token=test-token');
-  await expect(page.locator('text=Verifying')).toBeVisible({ timeout: 5000 });
+  // Wait for the verification loading state to appear
+  await expect(page.locator('text=Verifying your email')).toBeVisible({ timeout: 5000 });
 });
