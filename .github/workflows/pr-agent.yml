@@ -69,10 +69,10 @@ jobs:
       #   - model name      = PR_AGENT_MODEL (defaults to gpt-5-mini if not set)
       - name: Run PR-Agent
         id: pr-agent
-        uses: docker://pragent/pr-agent:latest
+        uses: the-pr-agent/pr-agent@main
         env:
-          OPENAI__API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
-          OPENAI__KEY: ${{ secrets.PR_AGENT_API_KEY }}
+          OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
+          OPENAI_KEY: ${{ secrets.PR_AGENT_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Model config via env vars (double underscore = nested TOML key)
           # PR_AGENT__CONFIG__MODEL maps to [config] model in configuration.toml
@@ -84,12 +84,3 @@ jobs:
           PR_AGENT__CONFIG__VERBOSITY_LEVEL: '0'
         # Full output — includes review summary + inline comments
         # Available as step output for downstream processing
-
-      # Optional: upload PR-Agent session artifact for debugging
-      - name: Upload PR-Agent artifact
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: pr-agent-review
-          path: /tmp/pr-agent-*.json
-          retention-days: 7
