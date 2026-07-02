@@ -20,8 +20,6 @@ name: PR Agent
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  pull_request_review:
-    types: [requested]
 
 # Cancel in-progress runs for the same PR
 concurrency:
@@ -40,9 +38,7 @@ jobs:
     timeout-minutes: 20
 
     # Skip drafts (review when marked ready)
-    if: >-
-      github.event_name != 'pull_request_review' &&
-      !github.event.pull_request.draft
+    if: ${{ !github.event.pull_request.draft }}
 
     steps:
       - name: Checkout
