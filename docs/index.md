@@ -38,6 +38,7 @@ The `backend` directory maps APIs, background jobs, database schemas, and data f
 - **[System Flows](backend/flows/)**: End-to-end sequence diagrams mapping requests through the system.
   - [Chat Streaming & SSE](backend/flows/chat-streaming.flow.md)
   - [Model Discovery & Merging](backend/flows/model-discovery.flow.md)
+  - [PR-Agent Model Routing](backend/flows/pr-agent-routing.flow.md)
   - [User Login & Auth](backend/flows/user-login.flow.md)
   - [RBAC Authorization Engine](backend/flows/rbac-authorization.flow.md)
 - **[Data Models](backend/data-models/)**: Database schemas and their implicit relationships.
