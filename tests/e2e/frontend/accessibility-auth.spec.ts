@@ -30,7 +30,7 @@ test.describe('Authenticated accessibility', () => {
     // in the rendered content, but axe checks at the document level.
     // Allow this specific violation which is moderate severity.
     const pageHeadingViolations = accessibilityScanResults.violations.filter(
-      v => v.id !== 'page-has-heading-one'
+      (v) => v.id !== 'page-has-heading-one'
     );
 
     expect(pageHeadingViolations).toEqual([]);
@@ -58,7 +58,7 @@ test.describe('Authenticated accessibility', () => {
     // in the rendered content, but axe checks at the document level.
     // Allow this specific violation which is moderate severity.
     const pageHeadingViolations = accessibilityScanResults.violations.filter(
-      v => v.id !== 'page-has-heading-one'
+      (v) => v.id !== 'page-has-heading-one'
     );
 
     expect(pageHeadingViolations).toEqual([]);
