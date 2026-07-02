@@ -45,6 +45,19 @@ export function clearModelsCache() {
   removeStoredValue(localStorage, LEGACY_MODEL_CACHE_KEY);
   removeStoredValue(localStorage, getModelsCacheKey('global'));
   removeStoredValue(localStorage, getModelsCacheKey('effective'));
+
+  // Iterate any sibling scopes (e.g. growchat_models_cache_v1_<connection-id>)
+  // so newly-introduced scopes cannot leak across users on a shared device.
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(MODEL_CACHE_KEY_PREFIX)) {
+      keysToRemove.push(key);
+    }
+  }
+  for (const key of keysToRemove) {
+    removeStoredValue(localStorage, key);
+  }
 }
 
 export function readChatsCache(userId, maxAgeMs = CHAT_CACHE_TTL_MS) {

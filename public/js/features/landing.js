@@ -15,17 +15,40 @@
   // ── Auth redirect ──────────────────────────────────────────────
   // If the user already has a valid access token in localStorage,
   // redirect to the SPA instead of showing the landing page.
+  //
+  // If a stale auth blob is present (expired access_token, or a value that
+  // cannot be parsed at all), clear it so subsequent API calls do not silently
+  // attempt with dead credentials and so the next visitor to this device does
+  // not inherit a half-session.
   function checkAuthRedirect() {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return;
+    let auth;
     try {
-      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!raw) return;
-      const auth = JSON.parse(raw);
-      if (auth?.access_token && isTokenUsable(auth.access_token)) {
-        window.location.replace('/?app=1');
-      }
+      auth = JSON.parse(raw);
     } catch {
-      // Not logged in or corrupt state — stay on landing page
+      // Boundary: the landing page can safely treat a corrupt blob as
+      // "not logged in". Clear it so it does not linger as a dead credential.
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      return;
     }
+    // Hand off to /chat in two cases:
+    //  1. Valid access_token → user is mid-session, skip the marketing page.
+    //  2. Expired access_token + present refresh_token → ensureSession() in
+    //     the SPA can refresh; the SPA itself decides whether to land on /chat
+    //     or bounce to /auth.html.
+    if (auth?.access_token && isTokenUsable(auth.access_token)) {
+      window.location.replace('/chat');
+      return;
+    }
+    if (auth?.refresh_token) {
+      window.location.replace('/chat');
+      return;
+    }
+    // No refresh_token and the access_token is expired/unusable (or missing) —
+    // the blob is truly unrecoverable. Clear it so the next visitor to this
+    // device does not inherit a dead credential.
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   }
 
   function isTokenUsable(token) {

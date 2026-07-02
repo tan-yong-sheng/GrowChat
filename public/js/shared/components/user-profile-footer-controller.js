@@ -1,5 +1,5 @@
 import { apiFetch } from '../api.js';
-import { logout } from '../api/auth.js';
+import { getAuthState, logout } from '../api/auth.js';
 import { state, subscribe } from '../store.js';
 import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
 import { suspendSidebarVisibility, restoreSidebarVisibility } from '../utils/sidebar-visibility.js';
@@ -26,14 +26,9 @@ function showLogoutToast(message, duration = 3000) {
 }
 
 function getStoredAuthUser() {
-  try {
-    const raw = localStorage.getItem('growchat_auth');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.user || null;
-  } catch {
-    return null;
-  }
+  // Delegate to the canonical auth-state parser so the auth blob schema
+  // is owned in one place (api/auth.js).
+  return getAuthState()?.user ?? null;
 }
 
 async function showPreferencesModal(user) {
@@ -224,12 +219,13 @@ export async function createUserProfileFooter({ guardNavigation = null } = {}) {
     } else if (action === 'archived') {
       window.dispatchEvent(new CustomEvent('growchat:open-archived'));
     } else if (action === 'logout') {
-      const ok = await logout();
-      if (ok) {
-        window.location.href = '/auth.html';
-      } else {
-        showLogoutToast('Logout failed. Please try again.');
+      const result = await logout();
+      // Local state is wiped inside logout() regardless of server outcome,
+      // so always redirect — the next page must start from a clean session.
+      if (!result.serverNotified) {
+        showLogoutToast('Logged out locally. Server notification failed.');
       }
+      window.location.href = '/auth.html';
     }
     menu.classList.add('hidden');
   });

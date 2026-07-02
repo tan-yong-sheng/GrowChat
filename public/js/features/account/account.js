@@ -23,6 +23,8 @@ import {
   loadAccountState,
 } from './account-utils.js';
 
+export { resolveAccountSectionFromPath };
+
 function getAccountNavItems(section) {
   const activeSection = normalizeAccountSection(section);
 
