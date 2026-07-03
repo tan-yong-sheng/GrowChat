@@ -50,15 +50,15 @@ jobs:
       #   - GITHUB_TOKEN       = GitHub API token (for posting comments)
       #   - PR_AGENT_CONFIG_BRANCH  = read .pr_agent.toml from PR branch
       #
-      # The runner also reads settings (in priority order):
-      #   - env vars like `GITHUB_ACTION_CONFIG.AUTO_REVIEW` (note: dots
-      #     are not allowed in GitHub Actions env var keys, so these are
-      #     effectively unreachable from this workflow)
-      #   - .pr_agent.toml (via PR_AGENT_CONFIG_BRANCH), e.g.
-      #     [github_action_config].auto_improve = true
+      # The runner loads settings from the bundled configuration.toml
+      # and does NOT read .pr_agent.toml from the PR branch (removed
+      # PR_AGENT_CONFIG_BRANCH after review feedback flagged the
+      # supply-chain risk of letting untrusted branches control the
+      # review bot's behavior). Config changes in .pr_agent.toml take
+      # effect after they land in main.
       #
-      # When all three auto_* flags are unset, the runner invokes
-      # PRDescription, PRReviewer, and PRCodeSuggestions by default.
+      # When auto_* flags are unset, the runner invokes PRDescription,
+      # PRReviewer, and PRCodeSuggestions by default.
       # See pr_agent/servers/github_action_runner.py:118-145.
       - name: Run PR-Agent
         id: pr-agent
@@ -67,6 +67,5 @@ jobs:
           OPENAI_KEY: ${{ secrets.PR_AGENT_API_KEY }}
           OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_AGENT_CONFIG_BRANCH: ${{ github.head_ref }}
         # Full output — includes review summary + inline comments
         # Available as step output for downstream processing
