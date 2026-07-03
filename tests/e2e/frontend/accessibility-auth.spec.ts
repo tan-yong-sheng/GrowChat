@@ -12,6 +12,23 @@ test.describe('Authenticated accessibility', () => {
   };
   const Builder = AxeBuilder as unknown as AxeCtor;
 
+  // Axe reports page-has-heading-one because our SPA renders the visible h1
+  // inside the dynamic chat workspace, but axe-core evaluates the document at
+  // page load. We allow only that specific violation and guard its severity.
+  function assertAllowedA11yViolations(results: { violations: unknown[] }) {
+    const otherViolations = results.violations.filter(
+      (v) => (v as { id: string }).id !== 'page-has-heading-one'
+    );
+    expect(otherViolations).toEqual([]);
+
+    const headingViolation = results.violations.find(
+      (v) => (v as { id: string }).id === 'page-has-heading-one'
+    );
+    if (headingViolation) {
+      expect((headingViolation as { impact: string }).impact).toBe('moderate');
+    }
+  }
+
   test('chat workspace has no a11y violations', async ({ page }) => {
     // Use ?app=1 to bypass the landing page and load the SPA directly.
     await page.goto('/?app=1');
@@ -19,54 +36,31 @@ test.describe('Authenticated accessibility', () => {
     // networkidle from settling. Wait for the main app shell to render.
     await page.waitForSelector('main#main, [id="chat-list"]', { timeout: 10000 });
 
-    // Wait for the visible workspace heading to be present before scanning.
+    // Wait for the visible workspace heading to be rendered before scanning.
     // This ensures axe-core evaluates the rendered chat UI, not an
     // intermediate state where the h1 has not yet mounted.
     await expect(
       page.getByRole('heading', { level: 1, name: 'How can I help you today?' })
-    ).toBeAttached({ timeout: 5000 });
+    ).toBeVisible({ timeout: 5000 });
 
     const accessibilityScanResults = await new Builder({
       page,
     }).analyze();
 
-    // The page-has-heading-one rule is a best-practice check.
-    // Our SPA loads a dynamically-rendered chat UI that has an h1
-    // in the rendered content, but axe checks at the document level.
-    // Allow this specific violation which is moderate severity.
-    const pageHeadingViolations = accessibilityScanResults.violations.filter(
-      (v) => v.id !== 'page-has-heading-one'
-    );
-
-    expect(pageHeadingViolations).toEqual([]);
+    assertAllowedA11yViolations(accessibilityScanResults);
   });
 
-  test('chat workspace has an h1 for page-has-heading-one', async ({ page }) => {
+  test('chat workspace has a visible h1 heading', async ({ page }) => {
     await page.goto('/?app=1');
     // Wait for the main app shell to render
     await page.waitForSelector('main#main, [id="chat-list"]', { timeout: 10000 });
 
-    // Wait for the visible workspace heading — the one that would
-    // satisfy page-has-heading-one — to be present.
+    // Assert the visible workspace heading is present.
     // Use getByRole with the exact heading name to ensure we
     // target the visible content heading, not the sr-only brand heading.
     await expect(
       page.getByRole('heading', { level: 1, name: 'How can I help you today?' })
-    ).toBeAttached({ timeout: 5000 });
-
-    const accessibilityScanResults = await new Builder({
-      page,
-    }).analyze();
-
-    // The page-has-heading-one rule is a best-practice check.
-    // Our SPA loads a dynamically-rendered chat UI that has an h1
-    // in the rendered content, but axe checks at the document level.
-    // Allow this specific violation which is moderate severity.
-    const pageHeadingViolations = accessibilityScanResults.violations.filter(
-      (v) => v.id !== 'page-has-heading-one'
-    );
-
-    expect(pageHeadingViolations).toEqual([]);
+    ).toBeVisible({ timeout: 5000 });
   });
 
   test('admin users overview has no a11y violations', async ({ page }) => {
