@@ -36,7 +36,15 @@ test('navigating to /verify loads verification UI', async ({ page }) => {
     await route.fulfill({ status: 200, json: { success: true } });
   });
 
-  await page.goto('/verify?token=test-token');
+  // waitUntil: 'commit' returns as soon as the navigation request is
+  // committed, so we can observe the loading state during the 50ms
+  // mocked route delay before the response resolves.
+  await page.goto('/verify?token=test-token', { waitUntil: 'commit' });
+
+  // The SPA mounts the loading UI while the API call is in flight.
+  await expect(page.locator('text=Verifying your email')).toBeVisible({
+    timeout: 5000,
+  });
 
   await responsePromise;
 

@@ -50,8 +50,16 @@ jobs:
       #   - GITHUB_TOKEN       = GitHub API token (for posting comments)
       #   - PR_AGENT_CONFIG_BRANCH  = read .pr_agent.toml from PR branch
       #
-      # Model name and fallbacks are configured via the default
-      # configuration.toml bundled in the PR-Agent Docker image.
+      # The runner also reads settings (in priority order):
+      #   - env vars like `GITHUB_ACTION_CONFIG.AUTO_REVIEW` (note: dots
+      #     are not allowed in GitHub Actions env var keys, so these are
+      #     effectively unreachable from this workflow)
+      #   - .pr_agent.toml (via PR_AGENT_CONFIG_BRANCH), e.g.
+      #     [github_action_config].auto_improve = true
+      #
+      # When all three auto_* flags are unset, the runner invokes
+      # PRDescription, PRReviewer, and PRCodeSuggestions by default.
+      # See pr_agent/servers/github_action_runner.py:118-145.
       - name: Run PR-Agent
         id: pr-agent
         uses: The-PR-Agent/pr-agent@4263175b521a15b7dbe9caad6a60fe9803817aeb # v2026.07.01
@@ -60,7 +68,5 @@ jobs:
           OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_AGENT_CONFIG_BRANCH: ${{ github.head_ref }}
-          # Enable auto-improve (inline code suggestions) on each PR event
-          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: true
         # Full output — includes review summary + inline comments
         # Available as step output for downstream processing

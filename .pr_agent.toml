@@ -41,7 +41,8 @@ commitable_code_suggestions = true
 dual_publishing_score_threshold = 1
 
 [pr_description]
-# Also auto-generate/update description on sync
+# Include the PR type (Bug fix, Enhancement, Security, etc.)
+# in the generated description body text
 enable_pr_type = true
 
 # Publish auto-labels on PR (bug fix, enhancement, security, etc.)
