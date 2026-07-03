@@ -51,11 +51,10 @@ jobs:
       #   - PR_AGENT_CONFIG_BRANCH  = read .pr_agent.toml from PR branch
       #
       # The runner loads settings from the bundled configuration.toml
-      # and does NOT read .pr_agent.toml from the PR branch (removed
-      # PR_AGENT_CONFIG_BRANCH after review feedback flagged the
-      # supply-chain risk of letting untrusted branches control the
-      # review bot's behavior). Config changes in .pr_agent.toml take
-      # effect after they land in main.
+      # and optionally reads .pr_agent.toml from the config branch.
+      # Set to main (the repo default branch) so merged config takes
+      # effect. Not set to github.head_ref to prevent PR authors from
+      # altering review behavior via their branch's .pr_agent.toml.
       #
       # When auto_* flags are unset, the runner invokes PRDescription,
       # PRReviewer, and PRCodeSuggestions by default.
@@ -67,5 +66,6 @@ jobs:
           OPENAI_KEY: ${{ secrets.PR_AGENT_API_KEY }}
           OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_AGENT_CONFIG_BRANCH: main
         # Full output — includes review summary + inline comments
         # Available as step output for downstream processing
