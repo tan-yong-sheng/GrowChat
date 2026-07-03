@@ -48,9 +48,17 @@ jobs:
       #   - OPENAI_KEY         = API key (from Secrets)
       #   - OPENAI_API_BASE   = Base URL (used by litellm for routing)
       #   - GITHUB_TOKEN       = GitHub API token (for posting comments)
+      #   - PR_AGENT_CONFIG_BRANCH  = read .pr_agent.toml from PR branch
       #
-      # Model name and fallbacks are configured via the default
-      # configuration.toml bundled in the PR-Agent Docker image.
+      # The runner loads settings from the bundled configuration.toml
+      # and optionally reads .pr_agent.toml from the config branch.
+      # Set to main (the repo default branch) so merged config takes
+      # effect. Not set to github.head_ref to prevent PR authors from
+      # altering review behavior via their branch's .pr_agent.toml.
+      #
+      # When auto_* flags are unset, the runner invokes PRDescription,
+      # PRReviewer, and PRCodeSuggestions by default.
+      # See pr_agent/servers/github_action_runner.py:118-145.
       - name: Run PR-Agent
         id: pr-agent
         uses: The-PR-Agent/pr-agent@4263175b521a15b7dbe9caad6a60fe9803817aeb # v2026.07.01
@@ -58,5 +66,6 @@ jobs:
           OPENAI_KEY: ${{ secrets.PR_AGENT_API_KEY }}
           OPENAI_API_BASE: ${{ vars.PR_AGENT_BASE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_AGENT_CONFIG_BRANCH: main
         # Full output — includes review summary + inline comments
         # Available as step output for downstream processing

@@ -24,12 +24,30 @@ test('login with valid credentials', async ({ page }) => {
 });
 
 test('navigating to /verify loads verification UI', async ({ page }) => {
+  // Register the response waiter BEFORE navigating, so it doesn't
+  // miss the fulfillment if the route handles it synchronously.
+  // Then short-delay the route to ensure loading state is visible.
+  // Use a 50ms delay to let the SPA mount the loading state before
+  // the response arrives.
+  const responsePromise = page.waitForResponse('**/api/auth/verify-email*');
+
   await page.route('**/api/auth/verify-email*', async (route) => {
-    // Delay slightly to ensure loading state is visible
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 50));
     await route.fulfill({ status: 200, json: { success: true } });
   });
 
-  await page.goto('/verify?token=test-token');
-  await expect(page.locator('text=Verifying')).toBeVisible({ timeout: 5000 });
+  // Navigate to the verify page. The SPA is a deferred module script
+  // (type="module"), so it runs before DOMContentLoaded fires.
+  // After DOMContentLoaded the SPA has mounted and the API call is
+  // in-flight (with a 50ms route delay), so the loading state is
+  // still visible when we assert it.
+  await page.goto('/verify?token=test-token', { waitUntil: 'domcontentloaded' });
+
+  // Wait for the loading heading to appear during the 50ms delay.
+  await expect(page.locator('text=Verifying your email')).toBeVisible({ timeout: 5000 });
+
+  await responsePromise;
+
+  // After the response, assert the verification success state.
+  await expect(page.locator('text=Email verified!')).toBeVisible({ timeout: 5000 });
 });
