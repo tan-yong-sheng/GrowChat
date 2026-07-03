@@ -36,10 +36,12 @@ test('navigating to /verify loads verification UI', async ({ page }) => {
     await route.fulfill({ status: 200, json: { success: true } });
   });
 
-  // Navigate to the verify page. The SPA boots and makes the API call
-  // (with a 50ms route delay), so the loading state renders and stays
-  // visible while the response is in-flight.
-  await page.goto('/verify?token=test-token');
+  // Navigate to the verify page. The SPA is a deferred module script
+  // (type="module"), so it runs before DOMContentLoaded fires.
+  // After DOMContentLoaded the SPA has mounted and the API call is
+  // in-flight (with a 50ms route delay), so the loading state is
+  // still visible when we assert it.
+  await page.goto('/verify?token=test-token', { waitUntil: 'domcontentloaded' });
 
   // Wait for the loading heading to appear during the 50ms delay.
   await expect(page.locator('text=Verifying your email')).toBeVisible({ timeout: 5000 });
