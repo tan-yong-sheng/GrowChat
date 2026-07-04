@@ -73,6 +73,9 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
     [crypto.randomUUID(), user.id, tokenHashHex, expiresAt]
   );
 
+  // Create the email service inside the try/catch so that missing
+  // RESEND_API_KEY returns the safe "If an account exists…" message
+  // instead of a 500 error.
   try {
     const emailService = createEmailService(env);
     const userNameEscaped = escapeHtml(user.name);

@@ -97,10 +97,36 @@ jobs:
       - name: Validate migrations
         run: pnpm run validate:migrations
 
+      - name: Check required secrets
+        run: |
+          echo "Checking production secrets..."
+          SECRETS=$(pnpm exec wrangler secret list --env production 2>/dev/null || echo "[]")
+          if ! echo "$SECRETS" | grep -q "JWT_SECRET"; then
+            echo "::error::JWT_SECRET is missing in production environment — set it with: wrangler secret put JWT_SECRET --env production"
+            exit 1
+          fi
+          if ! echo "$SECRETS" | grep -q "RESEND_API_KEY"; then
+            echo "::error::RESEND_API_KEY is missing in production environment — set it with: wrangler secret put RESEND_API_KEY --env production"
+            exit 1
+          fi
+
       - name: Deploy to Cloudflare Workers
         run: pnpm exec wrangler deploy --env production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Post-deploy smoke test
+        run: |
+          echo "Running post-deploy smoke test..."
+          HEALTH=$(curl -sS "https://chat.tanyongsheng.qzz.io/api/health")
+          if ! echo "$HEALTH" | grep -q '"ok":true'; then
+            echo "::error::Health check failed — response: $HEALTH"
+            exit 1
+          fi
+          if ! echo "$HEALTH" | grep -q '"authConfigured":true'; then
+            echo "::warning::JWT_SECRET may not be configured — deploy might have failed"
+          fi
+          echo "Post-deploy smoke test passed."
 
   # Placeholder that reports success when deploy is not needed.
   # Required because "Deploy to Cloudflare Workers" is a required

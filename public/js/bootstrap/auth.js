@@ -12,6 +12,7 @@ const toggleText = document.getElementById('toggle-text');
 const authTitle = document.getElementById('auth-title');
 const authSubmit = document.getElementById('auth-submit');
 const forgotPasswordBtn = document.getElementById('forgot-password');
+// configWarning and configWarningText are resolved via inline document.getElementById
 
 const forgotPasswordModal = document.getElementById('forgot-password-modal');
 const forgotPasswordForm = document.getElementById('forgot-password-form');
@@ -161,6 +162,16 @@ async function bootstrapAuthMode() {
 
     const initialized = data?.initialized === true;
     const publicRegistration = data?.publicRegistrationEnabled !== false;
+    const authConfigured = data?.authConfigured === true;
+    const emailConfigured = data?.emailConfigured === true;
+
+    if (!authConfigured) {
+      document.getElementById('config-warning-text').textContent =
+        'Authentication system not fully configured — JWT_SECRET is missing';
+      document.getElementById('config-warning').classList.remove('hidden');
+    } else {
+      document.getElementById('config-warning').classList.add('hidden');
+    }
 
     if (!initialized) {
       // Case A: Fresh install (zero users) — sign-up only, no toggle, no forgot password
@@ -184,12 +195,26 @@ async function bootstrapAuthMode() {
       toggleModeBtn.classList.remove('hidden');
       toggleModeBtn.removeAttribute('aria-hidden');
       toggleModeBtn.removeAttribute('tabindex');
+
+      // Hide forgot-password button if email provider is not configured
+      if (!emailConfigured) {
+        forgotPasswordBtn.classList.add('hidden');
+        forgotPasswordBtn.setAttribute('aria-hidden', 'true');
+        forgotPasswordBtn.setAttribute('tabindex', '-1');
+      }
     } else {
       // Case B: Has users but public registration is disabled — login only
+      // Also hide forgot-password when email is not configured
       setMode('login');
-      forgotPasswordBtn.classList.remove('hidden');
-      forgotPasswordBtn.removeAttribute('aria-hidden');
-      forgotPasswordBtn.removeAttribute('tabindex');
+      if (emailConfigured) {
+        forgotPasswordBtn.classList.remove('hidden');
+        forgotPasswordBtn.removeAttribute('aria-hidden');
+        forgotPasswordBtn.removeAttribute('tabindex');
+      } else {
+        forgotPasswordBtn.classList.add('hidden');
+        forgotPasswordBtn.setAttribute('aria-hidden', 'true');
+        forgotPasswordBtn.setAttribute('tabindex', '-1');
+      }
       // Hide sign-up toggle — no point showing a link to a disabled registration
       toggleText.classList.add('hidden');
       toggleModeBtn.classList.add('hidden');

@@ -103,6 +103,7 @@ describe('account shell tabs', () => {
       'Connections',
       'Models',
       'Integrations',
+      'Security',
     ]);
   }, 10000);
 
@@ -136,6 +137,7 @@ describe('account shell tabs', () => {
       'Connections',
       'Models',
       'Integrations',
+      'Security',
     ]);
   });
 

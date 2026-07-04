@@ -17,6 +17,21 @@ export async function publicRouter(req, env, _ctx, _user, path, requestContext =
 
     let initialized = false;
     let publicRegistrationEnabled = true;
+
+    // Check whether auth/email dependencies are properly configured.
+    // JWT_SECRET is required for token-based auth; RESEND_API_KEY is
+    // required for the email provider (Resend). If either is missing,
+    // the frontend should display a warning or hide relevant controls.
+    const jwtConfigured = !!env.JWT_SECRET;
+
+    // Resolve the effective email provider (defaults to 'resend' — same
+    // logic as createEmailService() in src/services/email/email-service.js)
+    // then report configured only when the corresponding API key is present.
+    // If EMAIL_PROVIDER is unset or empty, it defaults to 'resend', so
+    // RESEND_API_KEY must be present for email to be functional.
+    const emailProvider = (env.EMAIL_PROVIDER || 'resend').toLowerCase();
+    const emailConfigured = emailProvider === 'resend' ? !!env.RESEND_API_KEY : false;
+
     if (env.DB) {
       try {
         const db = createDB(env.DB);
@@ -34,6 +49,8 @@ export async function publicRouter(req, env, _ctx, _user, path, requestContext =
       ok: true,
       initialized,
       publicRegistrationEnabled,
+      authConfigured: jwtConfigured,
+      emailConfigured,
       service: env.APP_NAME || 'GrowChat',
       timestamp: new Date().toISOString(),
       bindings: {

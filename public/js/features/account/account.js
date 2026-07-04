@@ -47,6 +47,12 @@ function getAccountNavItems(section) {
       label: 'Integrations',
       active: activeSection === 'integrations',
     },
+    {
+      href: '#security',
+      key: 'security',
+      label: 'Security',
+      active: activeSection === 'security',
+    },
   ];
 }
 /* eslint-disable max-statements */
@@ -106,6 +112,16 @@ async function renderAccountSection({
     });
     return;
   }
+
+  if (section === 'security') {
+    const renderSecuritySection = await loadAccountSectionRenderer('security');
+    renderSecuritySection(content, accountState, {
+      footerHost,
+      routeCache: settingsRouteCache,
+    });
+    return;
+  }
+
   content.innerHTML = renderOverview(accountState);
   if (footerHost) footerHost.innerHTML = '';
 }

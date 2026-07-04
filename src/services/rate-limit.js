@@ -125,6 +125,10 @@ export const RATE_LIMITS = {
     limit: 5,
     windowSeconds: 3600,
   },
+  authChangePassword: {
+    limit: 5,
+    windowSeconds: 3600,
+  },
   authResendVerification: {
     limit: 5,
     windowSeconds: 3600,

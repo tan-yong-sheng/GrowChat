@@ -54,6 +54,12 @@ describe('public auth bootstrap', () => {
     const authError = document.createElement('p');
     authError.id = 'auth-error';
     authError.className = 'hidden';
+    const configWarning = document.createElement('div');
+    configWarning.id = 'config-warning';
+    configWarning.className = 'hidden';
+    const configWarningText = document.createElement('p');
+    configWarningText.id = 'config-warning-text';
+    configWarning.appendChild(configWarningText);
 
     const forgotPasswordModal = document.createElement('div');
     forgotPasswordModal.id = 'forgot-password-modal';
@@ -108,6 +114,7 @@ describe('public auth bootstrap', () => {
       toggleText,
       authTitle,
       authError,
+      configWarning,
       forgotPasswordModal,
       resetPasswordModal
     );
@@ -126,10 +133,17 @@ describe('public auth bootstrap', () => {
       vi.fn(async (input) => {
         const url = typeof input === 'string' ? input : input.url;
         if (url.endsWith('/api/health')) {
-          return new Response(JSON.stringify({ initialized: false }), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          });
+          return new Response(
+            JSON.stringify({
+              initialized: false,
+              authConfigured: true,
+              emailConfigured: true,
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            }
+          );
         }
         return new Response(
           JSON.stringify({
@@ -152,6 +166,8 @@ describe('public auth bootstrap', () => {
     );
     expect(document.getElementById('auth-submit').textContent).toBe('Sign up');
     expect(document.getElementById('name-wrap').classList.contains('hidden')).toBe(false);
+    // Config warning should be hidden when auth is configured
+    expect(document.getElementById('config-warning').classList.contains('hidden')).toBe(true);
   });
 
   it('keeps login mode when workspace has users and public registration enabled', async () => {
@@ -161,7 +177,12 @@ describe('public auth bootstrap', () => {
         const url = typeof input === 'string' ? input : input.url;
         if (url.endsWith('/api/health')) {
           return new Response(
-            JSON.stringify({ initialized: true, publicRegistrationEnabled: true }),
+            JSON.stringify({
+              initialized: true,
+              publicRegistrationEnabled: true,
+              authConfigured: true,
+              emailConfigured: true,
+            }),
             {
               status: 200,
               headers: { 'content-type': 'application/json' },
@@ -193,6 +214,8 @@ describe('public auth bootstrap', () => {
     );
     expect(document.getElementById('auth-submit').textContent).toBe('Sign in');
     expect(document.getElementById('name-wrap').classList.contains('hidden')).toBe(true);
+    // Config warning should be hidden when auth is configured
+    expect(document.getElementById('config-warning').classList.contains('hidden')).toBe(true);
     // Forgot password should be visible
     expect(document.getElementById('forgot-password').classList.contains('hidden')).toBe(false);
     // Toggle mode should be visible
@@ -207,7 +230,12 @@ describe('public auth bootstrap', () => {
         const url = typeof input === 'string' ? input : input.url;
         if (url.endsWith('/api/health')) {
           return new Response(
-            JSON.stringify({ initialized: true, publicRegistrationEnabled: false }),
+            JSON.stringify({
+              initialized: true,
+              publicRegistrationEnabled: false,
+              authConfigured: true,
+              emailConfigured: true,
+            }),
             {
               status: 200,
               headers: { 'content-type': 'application/json' },
