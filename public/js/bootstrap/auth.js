@@ -172,6 +172,8 @@ async function bootstrapAuthMode() {
       // The toggle section should also be hidden on fresh install
       toggleText.classList.add('hidden');
       toggleModeBtn.classList.add('hidden');
+      toggleModeBtn.setAttribute('aria-hidden', 'true');
+      toggleModeBtn.setAttribute('tabindex', '-1');
     } else if (publicRegistration) {
       // Case C: Normal (has users + public registration enabled) — show both modes
       setMode('login');
@@ -180,6 +182,8 @@ async function bootstrapAuthMode() {
       forgotPasswordBtn.removeAttribute('tabindex');
       toggleText.classList.remove('hidden');
       toggleModeBtn.classList.remove('hidden');
+      toggleModeBtn.removeAttribute('aria-hidden');
+      toggleModeBtn.removeAttribute('tabindex');
     } else {
       // Case B: Has users but public registration is disabled — login only
       setMode('login');
@@ -189,6 +193,8 @@ async function bootstrapAuthMode() {
       // Hide sign-up toggle — no point showing a link to a disabled registration
       toggleText.classList.add('hidden');
       toggleModeBtn.classList.add('hidden');
+      toggleModeBtn.setAttribute('aria-hidden', 'true');
+      toggleModeBtn.setAttribute('tabindex', '-1');
     }
   } catch {
     bootstrapReady = true;
