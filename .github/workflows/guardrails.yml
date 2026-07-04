@@ -136,7 +136,7 @@ jobs:
         run: pnpm run lint:hygiene
 
       - name: Fallow — regression baseline
-        run: fallow dead-code --baseline .fallow/baseline.json --format json --quiet
+        run: fallow dead-code --baseline .fallow/baseline.json --format json --quiet --fail-on-issues
 
       # Tier 3: Fallow — duplication budget
       - name: Fallow — duplication budget
