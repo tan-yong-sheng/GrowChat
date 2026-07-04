@@ -36,23 +36,18 @@ test.describe('Auth Workflows QA', () => {
     await expect(submitBtn).toHaveClass(/bg-\[\#171717\]/);
   });
 
-  test('Forgot Password - Modal Activation', async ({ page }) => {
+  test('Forgot Password - Hidden when email not configured', async ({ page }) => {
     await page.goto('/auth.html');
 
-    // Click the forgot password link
-    await page.locator('#forgot-password').click();
+    // When no email provider is configured, the forgot-password button
+    // is hidden by the bootstrap state check (emailConfigured === false)
+    const forgotPasswordBtn = page.locator('#forgot-password');
+    await expect(forgotPasswordBtn).toHaveAttribute('aria-hidden', 'true');
+    await expect(forgotPasswordBtn).toHaveClass(/hidden/);
 
-    // The forgot password modal should open
+    // The modal should also remain hidden
     const modal = page.locator('#forgot-password-modal');
-    await expect(modal).not.toHaveClass(/hidden/);
-
-    // Should show the forgot password form
-    await expect(page.locator('h2', { hasText: 'Reset your password' })).toBeVisible();
-
-    // Submit button should be styled with the primary action color
-    const submitBtn = page.locator('#forgot-submit');
-    await expect(submitBtn).toBeVisible();
-    await expect(submitBtn).toHaveClass(/bg-\[\#171717\]/);
+    await expect(modal).toHaveClass(/hidden/);
   });
 
   test('Login flow with provided credentials', async ({ page }) => {

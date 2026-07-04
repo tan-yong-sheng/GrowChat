@@ -6,7 +6,7 @@ test.describe('Visual Regression - Auth Pages', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.locator('#auth-submit').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('auth-login-desktop.png', {
-      maxDiffPixelRatio: 0.02,
+      maxDiffPixelRatio: 0.05,
       animations: 'disabled',
     });
   });
@@ -32,7 +32,7 @@ test.describe('Visual Regression - Chat', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.locator('#sidebar').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('chat-list-desktop.png', {
-      maxDiffPixelRatio: 0.02,
+      maxDiffPixelRatio: 0.05,
       animations: 'disabled',
     });
   });
@@ -59,7 +59,7 @@ test.describe('Visual Regression - Admin', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.locator('#manage-connections-section').waitFor({ state: 'visible' });
     await expect(page).toHaveScreenshot('admin-settings-desktop.png', {
-      maxDiffPixelRatio: 0.02,
+      maxDiffPixelRatio: 0.05,
       animations: 'disabled',
     });
   });

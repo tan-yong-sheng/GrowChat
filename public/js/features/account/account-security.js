@@ -1,5 +1,5 @@
 import { apiFetch } from '../../shared/api.js';
-import { escapeHtml } from '../../shared/utils/dom-escape.js';
+import { renderButton } from '../../shared/components/button.js';
 
 export function renderAccountSecuritySection(
   container,
@@ -68,12 +68,7 @@ export function renderAccountSecuritySection(
             </div>
 
             <div class="flex justify-end">
-              <button
-                type="submit"
-                class="inline-flex items-center justify-center rounded-full bg-[#0066cc] px-4 py-2 text-sm font-medium text-white hover:bg-[#0055a8] active:scale-95"
-              >
-                Change Password
-              </button>
+              ${renderButton({ label: 'Change Password', type: 'submit', className: 'bg-[#0066cc]' })}
             </div>
           </form>
 

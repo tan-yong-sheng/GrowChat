@@ -357,6 +357,7 @@ module.exports = [
           ignoreDefaultValues: true,
         },
       ],
+      
       'max-classes-per-file': ['warn', { max: 1 }],
       'max-params': ['warn', { max: 4 }],
       'max-statements': ['warn', { max: 20 }],
@@ -426,6 +427,7 @@ module.exports = [
       'src/routers/chat-collection.js',
       'src/routers/chat-collection-ops.js',
       'src/routers/auth.js',
+      'src/routers/auth-change-password.js',
       'src/routers/auth-password-reset.js',
       'src/routers/auth-register.js',
       'src/routers/files.js',
