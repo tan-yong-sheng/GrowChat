@@ -37,6 +37,10 @@ test.describe('Auth Workflows QA', () => {
   });
 
   test('Forgot Password - Hidden when email not configured', async ({ page }) => {
+    test.skip(
+      !!(process.env.TEST_EMAIL && process.env.TEST_PASSWORD),
+      'This test only applies when no seeded email provider is configured'
+    );
     await page.goto('/auth.html');
 
     // When no email provider is configured, the forgot-password button
