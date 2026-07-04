@@ -104,8 +104,18 @@
           aria-live="polite"
           role="alert"
         ></p>
+
+        <!-- Config warning — shown when JWT_SECRET or email provider is missing -->
+        <div
+          id="config-warning"
+          class="hidden mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-[16px] text-sm text-yellow-800"
+          role="alert"
+        >
+          <p id="config-warning-text" class="text-center"></p>
+        </div>
       </div>
-    </div>
+
+        </div>
 
     <!-- Forgot Password Modal -->
     <div

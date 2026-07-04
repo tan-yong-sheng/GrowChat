@@ -153,3 +153,42 @@ _Note: If account requires approval, returns 201 with `account_status: 'pending'
 
 - Triggers `emailService.send()` to deliver the verification email.
 - Rate-limited via `checkRateLimit` with KV-backed counter.
+
+---
+
+## `POST /api/auth/change-password`
+
+**Responsibility**: Changes the current user's password while authenticated. Requires an active session and a valid user record.
+
+### Request
+
+- `currentPassword` (string, required)
+- `newPassword` (string, required, min 8 chars)
+- `confirmNewPassword` (string, required, must match `newPassword`)
+
+### Response (200 OK)
+
+- `message` (string): `"Password changed successfully"`
+
+### Errors
+
+- `400 Bad Request`: Invalid JSON body, missing field, or `confirmNewPassword` does not match `newPassword`.
+- `400 Bad Request`: `newPassword` shorter than 8 characters.
+- `401 Unauthorized`: `currentPassword` is incorrect.
+- `404 Not Found`: Authenticated user not found in the database.
+- `429 Too Many Requests`: Rate limit exceeded (5 requests per hour per IP).
+
+### Dependencies / Internal Calls
+
+- `requireString` from `src/validation/request.js`
+- `verifyPassword` / `hashPassword` from `src/shared/auth.js`
+- `checkRateLimit` / `resolveRateLimitSubject` from `src/services/rate-limit.js`
+- `bumpSessionVersion` from `src/shared/session.js`
+- `error` / `json` from `src/utils/response.js`
+- `createLogger` from `src/utils/logger.js`
+
+### Side Effects
+
+- Updates `users.password_hash` in the database.
+- **Security Action**: Bumps the per-user `session-version` in the `SESSIONS` KV namespace **before** the password write, so any concurrently held refresh tokens are rejected on their next use by `consumeRefreshToken`.
+- Rate-limited via `checkRateLimit` with the `auth-change-password` action key.

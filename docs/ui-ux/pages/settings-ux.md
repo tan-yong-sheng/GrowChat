@@ -137,6 +137,12 @@ These should remain shared underneath both surfaces:
 - scope badge component, if not already present
 - drawer route state helper
 
+### Modified
+
+- Added `Security` tab to `My Settings` drawer with a Change Password form.
+  - Form fields: `currentPassword`, `newPassword`, `confirmNewPassword`.
+  - Submits to `POST /api/auth/change-password`.
+
 ### Modify
 
 - `public/js/features/account/account.js` — render `My Settings` as a drawer-backed surface

@@ -7,12 +7,19 @@ export const accountSectionRenderers = {
   connections: null,
   models: null,
   integrations: null,
+  security: null,
 };
 
 export async function loadAccountSectionRenderer(section) {
   const normalized = normalizeAccountSection(section);
   if (accountSectionRenderers[normalized]) {
     return accountSectionRenderers[normalized];
+  }
+  if (normalized === 'security') {
+    accountSectionRenderers.security = import('./account-security.js').then(
+      ({ renderAccountSecuritySection }) => renderAccountSecuritySection
+    );
+    return accountSectionRenderers.security;
   }
   if (normalized === 'connections') {
     accountSectionRenderers.connections = import('./account-connections.js').then(
@@ -34,7 +41,12 @@ export async function loadAccountSectionRenderer(section) {
 
 export function normalizeAccountSection(section) {
   const value = String(section || '').trim();
-  if (value === 'connections' || value === 'models' || value === 'integrations') {
+  if (
+    value === 'connections' ||
+    value === 'models' ||
+    value === 'integrations' ||
+    value === 'security'
+  ) {
     return value;
   }
   return 'connections';
@@ -52,6 +64,7 @@ export function resolveAccountSectionFromPath(pathname) {
   if (pathname.startsWith('/account/settings/connections')) return 'connections';
   if (pathname.startsWith('/account/settings/models')) return 'models';
   if (pathname.startsWith('/account/settings/integrations')) return 'integrations';
+  if (pathname.startsWith('/account/settings/security')) return 'security';
   return 'connections';
 }
 
@@ -63,6 +76,8 @@ export function getAccountSectionPath(section) {
       return '/account/settings/models';
     case 'integrations':
       return '/account/settings/integrations';
+    case 'security':
+      return '/account/settings/security';
     default:
       return '/account/settings/connections';
   }

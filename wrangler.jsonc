@@ -71,7 +71,7 @@
     "APP_NAME": "GrowChat",
     "ENVIRONMENT": "dev",
     "EMAIL_PROVIDER": "resend",
-    "EMAIL_FROM": "noreply@growchat.app",
+    "EMAIL_FROM": "noreply@resend.dev",
     "ALLOWED_ORIGINS": "*",
     "LOG_LEVEL": "debug",
     "APP_PUBLIC_ORIGIN": "http://localhost:8787",

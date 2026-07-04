@@ -16,6 +16,7 @@ import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { createLogger } from '../utils/logger.js';
 import { handleForgotPassword, handleResetPassword } from './auth-password-reset.js';
+import { handleChangePassword } from './auth-change-password.js';
 import { handleRegister } from './auth-register.js';
 import {
   trackFailedLoginAttempt,
@@ -395,6 +396,14 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
     return resendVerification({ email, env });
   }
 
+  // POST /api/auth/change-password - Change the current user's password
+  if (req.method === 'POST' && path === '/api/auth/change-password') {
+    if (!authUser?.sub) {
+      return error(req, 'Authentication required', 401);
+    }
+    return handleChangePassword(req, env, db, authUser, requestContext);
+  }
+
   // GET /api/auth/me - Return the authenticated user profile
   if (req.method === 'GET' && path === '/api/auth/me') {
     if (!authUser?.sub) {
@@ -421,6 +430,7 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
     '/api/auth/verify-email',
     '/api/auth/resend-verification',
     '/api/auth/me',
+    '/api/auth/change-password',
   ];
   if (authPaths.includes(path)) {
     return error(req, 'Method not allowed', 405);
