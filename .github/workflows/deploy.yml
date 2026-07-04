@@ -1,0 +1,117 @@
+# Conditional Deploy — only runs wrangler deploy when deploy-relevant
+# paths change. Skips on doc-only/safe-only changes.
+#
+# Uses dorny/paths-filter to detect which source paths actually changed.
+# When no deploy-relevant paths exist, the deploy job is skipped.
+#
+# Also includes a placeholder-skip job so the required status check
+# reports success (not "skipped" — GitHub blocks merge on skipped checks).
+
+name: Conditional Deploy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    # Check deploy-relevance on PRs too — so reviewers see whether
+    # deployment is needed before merging.
+    types: [opened, synchronize, reopened]
+
+# Cancel in-progress runs when a new push arrives
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Detect whether deploy-relevant files changed.
+  # Uses dorny/paths-filter with explicit path lists.
+  # Only src/, migrations/, wrangler.jsonc, and package.json trigger
+  # a real deploy. Pure doc-only changes (docs/, README.md, AGENTS.md)
+  # skip entirely.
+  #
+  # IMPORTANT: This uses positive-filters (not predicate-quantifier).
+  # If ANY of these paths match, deploy is needed. If NONE match,
+  # the deploy job is skipped.
+  changes:
+    name: Detect deploy-relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.filter.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          # 'some' — any matching path triggers deploy
+          predicate-quantifier: 'some'
+          filters: |
+            deploy:
+              - 'src/**'
+              - 'migrations/**'
+              - 'wrangler.jsonc'
+              - 'package.json'
+              # Explicitly NOT: docs/, README.md, AGENTS.md — those
+              # are doc-only changes that never need a real deploy.
+              # Also excluded by default: *.md, *.yml, *.yaml,
+              # .editorconfig, .gitignore, LICENSE
+
+  # Deploy to Cloudflare Workers — only when deploy-relevant paths change
+  deploy:
+    name: Deploy to Cloudflare Workers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm cache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build CSS
+        run: pnpm run build:css
+
+      - name: Validate migrations
+        run: pnpm run validate:migrations
+
+      - name: Deploy to Cloudflare Workers
+        run: pnpm exec wrangler deploy
+
+  # Placeholder that reports success when deploy is not needed.
+  # Required because "Deploy to Cloudflare Workers" is a required
+  # status check — if the real job is skipped, GitHub won't see
+  # a passing status and blocks merge.
+  deploy-skip:
+    name: Deploy to Cloudflare Workers
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.deploy == 'false'
+    steps:
+      - run: echo "No deploy-relevant changes — skipping wrangler deploy."
