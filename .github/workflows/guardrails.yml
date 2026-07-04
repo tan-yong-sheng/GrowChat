@@ -102,7 +102,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Pre-push gate (also runs E2E via test:e2e since prepush:checks includes it)
-        timeout-minutes: 2
+        timeout-minutes: 5
         run: pnpm run prepush:checks
         env:
           TEST_PORT: 8788

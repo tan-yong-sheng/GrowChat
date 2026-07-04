@@ -23,7 +23,14 @@ export async function publicRouter(req, env, _ctx, _user, path, requestContext =
     // required for the email provider (Resend). If either is missing,
     // the frontend should display a warning or hide relevant controls.
     const jwtConfigured = !!env.JWT_SECRET;
-    const emailConfigured = !!(env.EMAIL_PROVIDER === 'resend' ? env.RESEND_API_KEY : true);
+
+    // Resolve the effective email provider (defaults to 'resend' — same
+    // logic as createEmailService() in src/services/email/email-service.js)
+    // then report configured only when the corresponding API key is present.
+    // If EMAIL_PROVIDER is unset or empty, it defaults to 'resend', so
+    // RESEND_API_KEY must be present for email to be functional.
+    const emailProvider = (env.EMAIL_PROVIDER || 'resend').toLowerCase();
+    const emailConfigured = emailProvider === 'resend' ? !!env.RESEND_API_KEY : false;
 
     if (env.DB) {
       try {
