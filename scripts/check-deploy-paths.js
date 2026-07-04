@@ -30,7 +30,7 @@ const SKIP_PATTERNS = [
   /\.yaml$/,
 ];
 
-const ref = process.argv[2] ?? 'HEAD~1';
+const ref = process.argv[2] ?? 'origin/main';
 
 try {
   const diffOutput = execSync(`git diff --name-only ${ref}`, {
