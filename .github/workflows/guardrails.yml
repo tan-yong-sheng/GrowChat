@@ -132,18 +132,15 @@ jobs:
         run: node scripts/pr-checks.js
 
       # Tier 3: Fallow codebase intelligence (unused code, duplication, complexity)
-      - name: Fallow — dead code audit
+      - name: Fallow — dead code audit (baseline comparison — only new issues fail)
         run: pnpm run lint:hygiene
+
+      - name: Fallow — regression baseline
+        run: fallow dead-code --baseline .fallow/baseline.json --format json --quiet
 
       # Tier 3: Fallow — duplication budget
       - name: Fallow — duplication budget
         run: pnpm run lint:dupes:budget
-
-      # Tier 3: Fallow — regression baseline (save & compare)
-      - name: Fallow — regression baseline
-        run: |-
-          fallow dead-code --save-baseline .fallow/baseline.json
-          fallow dead-code --baseline .fallow/baseline.json --fail-on-regression
 
       # Tier 3: Performance regression audit (with Lighthouse CI budget assertions)
       - name: Performance regression audit
