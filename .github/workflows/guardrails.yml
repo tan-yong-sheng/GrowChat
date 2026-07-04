@@ -150,6 +150,18 @@ jobs:
       - name: Fallow — feature flag detection
         run: pnpm run lint:flags
 
+      # Tier 3: Fallow — scoped health (regression catch)
+      - name: Fallow — scoped health
+        run: pnpm run lint:health:scoped
+
+      # Tier 3: Fallow — scoped security (regression catch)
+      - name: Fallow — scoped security
+        run: pnpm run lint:security:scoped
+
+      # Tier 3: Fallow — scoped flags (regression catch)
+      - name: Fallow — scoped flags
+        run: pnpm run lint:flags:scoped
+
       # Tier 3: Fallow — duplication budget
       - name: Fallow — duplication budget
         run: pnpm run lint:dupes:budget
