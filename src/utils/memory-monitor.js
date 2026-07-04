@@ -17,6 +17,8 @@ import { createLogger } from './logger.js';
  * Wrap an async function with performance timing and optional
  * request-size estimation.
  *
+ * Logs even when `fn()` throws (via `finally` block).
+ *
  * @template T
  * @param {string} label — Short label for the log entry
  * @param {() => Promise<T>} fn — The async function to time
@@ -27,19 +29,26 @@ import { createLogger } from './logger.js';
  */
 export async function withMemoryCheck(label, fn, options = {}) {
   const start = performance.now();
-  const result = await fn();
-  const durationMs = performance.now() - start;
-
   const logger = options.logger || createLogger({});
-  const entry = { durationMs };
+  const entry = { durationMs: 0 };
 
   if (options.extra && typeof options.extra === 'object') {
     Object.assign(entry, options.extra);
   }
 
-  logger.info(`[memory] ${label}`, entry);
-
-  return result;
+  try {
+    const result = await fn();
+    const durationMs = performance.now() - start;
+    entry.durationMs = durationMs;
+    logger.info(`[memory] ${label}`, entry);
+    return result;
+  } catch (err) {
+    const durationMs = performance.now() - start;
+    entry.durationMs = durationMs;
+    entry.error = err?.message || String(err);
+    logger.warn(`[memory] ${label} (failed)`, entry);
+    throw err;
+  }
 }
 
 /**

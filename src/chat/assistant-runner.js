@@ -9,6 +9,7 @@ import {
 } from './assistant-stream-utils.js';
 import { executeToolCalls } from './assistant-tool-executor.js';
 import { withMemoryCheck } from '../utils/memory-monitor.js';
+import { createLogger } from '../utils/logger.js';
 
 // Re-export for backward compatibility
 export { readStreamChunkWithHeartbeat } from './assistant-stream-utils.js';
@@ -71,6 +72,7 @@ export function createAssistantRunner(deps) {
       normalizeProviderFamily(providerFamily) || ''
     );
     const toolsEnabled = tools.length > 0 && providerSupportsTools;
+    const requestLogger = createLogger(env, { requestId: req?.headers?.get('x-request-id') || '' });
 
     const encoder = new TextEncoder();
     let fullText = '';
@@ -145,7 +147,10 @@ export function createAssistantRunner(deps) {
                       userId: user?.sub || '',
                       userRole: user?.primary_role || 'member',
                     }),
-                  { extra: { model, messagesLen: messagesForModel.length } }
+                  {
+                    logger: requestLogger,
+                    extra: { model, messagesLen: messagesForModel.length },
+                  }
                 );
               } catch (err) {
                 await recordAttachmentCapabilityFailure({

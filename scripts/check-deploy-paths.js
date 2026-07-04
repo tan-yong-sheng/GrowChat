@@ -13,15 +13,13 @@
  *
  * Exit code 0 = deploy needed, 1 = no deploy needed.
  */
-// Import kept for future use (readFileSync not needed yet)
-// eslint-disable-next-line no-unused-vars
-import { existsSync } from 'node:fs';
+
 import { execSync } from 'node:child_process';
 
 const DEPLOY_PATHS = ['src/', 'migrations/', 'wrangler.jsonc', 'package.json'];
 
 const SKIP_PATTERNS = [
-  /\/docs\//,
+  /^docs\//,
   /^README\.md$/,
   /^AGENTS\.md$/,
   /^\.(github|editorconfig|gitignore|prettierrc|secrets)/,
@@ -33,7 +31,7 @@ const SKIP_PATTERNS = [
 const ref = process.argv[2] ?? 'origin/main';
 
 try {
-  const diffOutput = execSync(`git diff --name-only ${ref}`, {
+  const diffOutput = execSync('git diff --name-only ' + JSON.stringify(ref), {
     encoding: 'utf-8',
     stdio: 'pipe',
   }).trim();

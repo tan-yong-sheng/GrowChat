@@ -1,23 +1,27 @@
-#!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+#!/usr/env/bin node
+import { execSync } from 'node:child_process';
 
 const steps = [
-  ['lint', ['pnpm', ['run', 'lint']]],
-  ['format-check', ['pnpm', ['run', 'format:check']]],
-  ['test', ['pnpm', ['run', 'test']]],
-  ['coverage', ['pnpm', ['run', 'test:coverage']]],
-  ['css', ['pnpm', ['run', 'build:css']]],
-  ['migrations', ['node', ['scripts/validate-migrations.js']]],
-  ['deploy-paths', ['node', ['scripts/check-deploy-paths.js']]],
+  ['lint', `pnpm run lint`],
+  ['format-check', `pnpm run format:check`],
+  ['test', `pnpm run test`],
+  ['coverage', `pnpm run test:coverage`],
+  ['css', `pnpm run build:css`],
+  ['migrations', `node scripts/validate-migrations.js`],
+  ['deploy-paths', `node scripts/check-deploy-paths.js`],
 ];
 
 const CONCURRENT_CHECK_COUNT = 4;
 console.log('Running first 4 checks in parallel...');
 const first4 = await Promise.all(
-  steps.slice(0, CONCURRENT_CHECK_COUNT).map(async ([label, [cmd, args]]) => {
+  steps.slice(0, CONCURRENT_CHECK_COUNT).map(async ([label, cmd]) => {
     console.log(`  ${label}...`);
-    const result = spawnSync(cmd, args, { stdio: 'inherit', shell: true });
-    return { label, status: result.status };
+    try {
+      execSync(cmd, { stdio: 'inherit' });
+      return { label, status: 0 };
+    } catch {
+      return { label, status: 1 };
+    }
   })
 );
 
@@ -31,11 +35,12 @@ if (failures.length > 0) {
 
 console.log('First 4 checks passed. Running CSS + migrations...');
 for (let i = 4; i < steps.length; i++) {
-  const [label, [cmd, args]] = steps[i];
+  const [label, cmd] = steps[i];
   console.log(`  ${label}...`);
-  const result = spawnSync(cmd, args, { stdio: 'inherit', shell: true });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+  try {
+    execSync(cmd, { stdio: 'inherit' });
+  } catch {
+    process.exit(1);
   }
 }
 
