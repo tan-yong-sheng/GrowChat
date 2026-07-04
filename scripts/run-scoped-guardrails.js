@@ -93,12 +93,48 @@ if (process.argv.includes('--semgrep')) {
 if (process.argv.includes('--fallow')) {
   const fallowFiles = files.filter((file) => /\.(?:js|mjs|cjs|ts|tsx)$/.test(file));
   if (fallowFiles.length > 0) {
-    // fallaudit --changed-since baseRef returns pass/warn/fail for changed files
+    // fallow audit --changed-since baseRef returns pass/warn/fail verdict
     const result = spawnSync('fallow', ['audit', '--changed-since', baseRef, ...fallowFiles], {
       stdio: 'inherit',
       shell: false,
     });
     if (result.status !== 0 && result.status !== 1) {
+      process.exit(result.status ?? 1);
+    }
+  }
+}
+if (process.argv.includes('--fallow:health')) {
+  const fallowFiles = files.filter((file) => /\.(?:js|mjs|cjs|ts|tsx)$/.test(file));
+  if (fallowFiles.length > 0) {
+    const result = spawnSync('fallow', ['health', '--changed-since', baseRef, ...fallowFiles], {
+      stdio: 'inherit',
+      shell: false,
+    });
+    if (result.status !== 0) {
+      process.exit(result.status ?? 1);
+    }
+  }
+}
+if (process.argv.includes('--fallow:security')) {
+  const fallowFiles = files.filter((file) => /\.(?:js|mjs|cjs|ts|tsx)$/.test(file));
+  if (fallowFiles.length > 0) {
+    const result = spawnSync('fallow', ['security', '--changed-since', baseRef, ...fallowFiles], {
+      stdio: 'inherit',
+      shell: false,
+    });
+    if (result.status !== 0) {
+      process.exit(result.status ?? 1);
+    }
+  }
+}
+if (process.argv.includes('--fallow:flags')) {
+  const fallowFiles = files.filter((file) => /\.(?:js|mjs|cjs|ts|tsx)$/.test(file));
+  if (fallowFiles.length > 0) {
+    const result = spawnSync('fallow', ['flags', '--changed-since', baseRef, ...fallowFiles], {
+      stdio: 'inherit',
+      shell: false,
+    });
+    if (result.status !== 0) {
       process.exit(result.status ?? 1);
     }
   }

@@ -138,6 +138,18 @@ jobs:
       - name: Fallow — regression baseline
         run: fallow dead-code --baseline .fallow/baseline.json --format json --quiet --fail-on-issues
 
+      # Tier 3: Fallow — health & maintainability
+      - name: Fallow — health & maintainability
+        run: pnpm run lint:health
+
+      # Tier 3: Fallow — security surface
+      - name: Fallow — security surface
+        run: pnpm run lint:security
+
+      # Tier 3: Fallow — feature flag detection
+      - name: Fallow — feature flag detection
+        run: pnpm run lint:flags
+
       # Tier 3: Fallow — duplication budget
       - name: Fallow — duplication budget
         run: pnpm run lint:dupes:budget

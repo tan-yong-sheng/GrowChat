@@ -40,11 +40,18 @@
     "lint:dupes:scoped": "fallow dupes --changed-since HEAD~1 --format json --quiet --fail-on-issues",
     "lint:design": "npx @google/design.md lint DESIGN.md",
     "lint:hygiene": "fallow dead-code --baseline .fallow/baseline.json --format json --quiet --fail-on-issues",
+    "lint:health": "fallow health --format json --quiet --ci",
+    "lint:security": "fallow security --format json --quiet --ci",
+    "lint:flags": "fallow flags --format json --quiet --ci",
+    "lint:health:scoped": "fallow health --changed-since HEAD~1 --format json --quiet",
+    "lint:security:scoped": "fallow security --changed-since HEAD~1 --format json --quiet",
+    "lint:flags:scoped": "fallow flags --changed-since HEAD~1 --format json --quiet",
+    "lint:all": "fallow audit --changed-since HEAD~1 --format json --quiet",
     "lint:workflows": "github-actionlint",
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
     "prepush": "pnpm run prepush:checks",
     "prepare": "husky",
-    "prepush:checks": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run test:e2e"
+    "prepush:checks": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run lint:health && pnpm run lint:security && pnpm run lint:flags && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run test:e2e"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
