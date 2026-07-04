@@ -98,12 +98,12 @@ jobs:
       # Tier 1 + Tier 2 guardrails (unit tests, typecheck, eslint incl. complexity,
       # semgrep, jscpd dupe budgets, depcruise circular deps, prettier, knip hygiene)
       # E2E is in its own job (see `e2e` job below) since it requires wrangler dev + DB.
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Pre-push gate (also runs E2E via test:e2e since prepush:checks includes it)
         timeout-minutes: 2
         run: pnpm run prepush:checks
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
 
       # Tier 2: Vitest coverage thresholds (currently 30% lines/branches/functions/statements; planned to increase)
       - name: Coverage threshold check
