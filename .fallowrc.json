@@ -1,0 +1,21 @@
+{
+  "entry": ["src/index.js", "public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
+  "ignoreDependencies": [
+    "dompurify",
+    "@commitlint/config-conventional",
+    "autoprefixer",
+    "postcss",
+    "@lhci/cli",
+    "@stryker-mutator/core",
+    "danger",
+    "serve",
+    "wait-on",
+    "github-actionlint"
+  ],
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/playwright-report/**"
+  ]
+}

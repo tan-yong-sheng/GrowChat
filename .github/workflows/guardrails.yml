@@ -96,7 +96,7 @@ jobs:
           docker run --rm -v "$PWD:/path" ghcr.io/gitleaks/gitleaks:v8.30.0 detect --source /path --no-git --verbose
 
       # Tier 1 + Tier 2 guardrails (unit tests, typecheck, eslint incl. complexity,
-      # semgrep, jscpd dupe budgets, depcruise circular deps, prettier, knip hygiene)
+      # fallow dupes, depcruise circular deps, prettier, fallow dead-code)
       # E2E is in its own job (see `e2e` job below) since it requires wrangler dev + DB.
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
@@ -131,9 +131,19 @@ jobs:
           PR_BASE_REF: origin/${{ github.event.pull_request.base.ref }}
         run: node scripts/pr-checks.js
 
-      # Tier 3: Code duplication audit (budget-enforced)
-      - name: Code duplication audit
+      # Tier 3: Fallow codebase intelligence (unused code, duplication, complexity)
+      - name: Fallow — dead code audit
+        run: pnpm run lint:hygiene
+
+      # Tier 3: Fallow — duplication budget
+      - name: Fallow — duplication budget
         run: pnpm run lint:dupes:budget
+
+      # Tier 3: Fallow — regression baseline (save & compare)
+      - name: Fallow — regression baseline
+        run: |-
+          fallow dead-code --save-baseline .fallow/baseline.json
+          fallow dead-code --baseline .fallow/baseline.json --fail-on-regression
 
       # Tier 3: Performance regression audit (with Lighthouse CI budget assertions)
       - name: Performance regression audit

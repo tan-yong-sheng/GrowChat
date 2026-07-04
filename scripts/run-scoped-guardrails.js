@@ -90,11 +90,16 @@ if (process.argv.includes('--semgrep')) {
     }
   }
 }
-if (process.argv.includes('--jscpd')) {
-  // jscpd exits with code 1 when duplicates exceed threshold, which is expected.
-  // Only propagate truly unexpected errors (code > 1).
-  const result = spawnSync('npx', ['jscpd', 'public/js'], { stdio: 'inherit', shell: false });
-  if (result.status !== 0 && result.status !== 1) {
-    process.exit(result.status ?? 1);
+if (process.argv.includes('--fallow')) {
+  const fallowFiles = files.filter((file) => /\.(?:js|mjs|cjs|ts|tsx)$/.test(file));
+  if (fallowFiles.length > 0) {
+    // fallaudit --changed-since baseRef returns pass/warn/fail for changed files
+    const result = spawnSync('fallow', ['audit', '--changed-since', baseRef, ...fallowFiles], {
+      stdio: 'inherit',
+      shell: false,
+    });
+    if (result.status !== 0 && result.status !== 1) {
+      process.exit(result.status ?? 1);
+    }
   }
 }

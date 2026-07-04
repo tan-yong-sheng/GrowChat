@@ -1,4 +1,6 @@
 # ── AI tool directories ──
+.fallow/
+fallow-out/
 .agents/*
 .claude/*
 .codex/*
