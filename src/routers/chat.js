@@ -1,3 +1,4 @@
+import { createLogger } from '../utils/logger.js';
 import { createDB } from '../db.js';
 import { json, sseData, sseHeaders } from '../utils/response.js';
 import { createRealtimeEvent, getOriginSessionId } from '../features/realtime/realtime.js';
@@ -94,6 +95,7 @@ const assistantStreamRunner = createAssistantRunner({
   getOwnedChat,
   normalizeErrorMessage,
   sleep,
+  createLogger,
 });
 
 export async function chatRouter(req, env, ctx, user, path, _requestContext = {}) {

@@ -83,7 +83,7 @@
         "APP_NAME": "GrowChat",
         "ENVIRONMENT": "production",
         "EMAIL_PROVIDER": "resend",
-        "ALLOWED_ORIGINS": "https://growchat.example.com",
+        "ALLOWED_ORIGINS": "https://chat.tanyongsheng.qzz.io",
         "APP_PUBLIC_ORIGIN": "https://chat.tanyongsheng.qzz.io",
         "APP_URL": "https://chat.tanyongsheng.qzz.io",
         "LOG_LEVEL": "info",
