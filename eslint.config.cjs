@@ -357,7 +357,7 @@ module.exports = [
           ignoreDefaultValues: true,
         },
       ],
-      
+
       'max-classes-per-file': ['warn', { max: 1 }],
       'max-params': ['warn', { max: 4 }],
       'max-statements': ['warn', { max: 20 }],
