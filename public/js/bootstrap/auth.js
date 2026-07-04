@@ -199,6 +199,14 @@ async function bootstrapAuthMode() {
   } catch {
     bootstrapReady = true;
     setMode('login');
+    // Safe fallback — show both controls on health check failure
+    forgotPasswordBtn.classList.remove('hidden');
+    forgotPasswordBtn.removeAttribute('aria-hidden');
+    forgotPasswordBtn.removeAttribute('tabindex');
+    toggleText.classList.remove('hidden');
+    toggleModeBtn.classList.remove('hidden');
+    toggleModeBtn.removeAttribute('aria-hidden');
+    toggleModeBtn.removeAttribute('tabindex');
   } finally {
     updateButtonState(form, authSubmit, isSubmitting);
     updateSubmitAvailability();
