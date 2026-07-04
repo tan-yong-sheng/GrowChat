@@ -1,6 +1,7 @@
 import { createDB } from '../db.js';
 import { error, json } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
+import { getConfigBool } from '../utils/app-config.js';
 
 /**
  * Public routes handler for shared chats.
@@ -15,11 +16,13 @@ export async function publicRouter(req, env, _ctx, _user, path, requestContext =
     }
 
     let initialized = false;
+    let publicRegistrationEnabled = true;
     if (env.DB) {
       try {
         const db = createDB(env.DB);
         const row = await db.first('SELECT COUNT(*) as count FROM users');
         initialized = Number(row?.count || 0) > 0;
+        publicRegistrationEnabled = await getConfigBool(db, 'public_registration', true);
       } catch (err) {
         if (!/no such table:\s*users/i.test(String(err?.message || ''))) {
           logger.warn('Health check bootstrap probe failed', { error: err?.message || err });
@@ -30,6 +33,7 @@ export async function publicRouter(req, env, _ctx, _user, path, requestContext =
     return json(req, {
       ok: true,
       initialized,
+      publicRegistrationEnabled,
       service: env.APP_NAME || 'GrowChat',
       timestamp: new Date().toISOString(),
       bindings: {

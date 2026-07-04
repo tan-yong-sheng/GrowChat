@@ -548,7 +548,7 @@ async function seedUser() {
 
 async function runTests() {
   return new Promise((resolve) => {
-    const proc = spawn('pnpm', ['exec', 'playwright', 'test'], {
+    const proc = spawn('pnpm', ['exec', 'playwright', 'test', ...process.argv.slice(2)], {
       stdio: 'inherit',
       env: { ...process.env, TEST_URL: BASE_URL, PLAYWRIGHT_TEST_BASE_URL: BASE_URL },
     });

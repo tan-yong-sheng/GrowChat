@@ -158,14 +158,55 @@ async function bootstrapAuthMode() {
     const res = await fetch('/api/health', { cache: 'no-store' });
     const data = await res.json().catch(() => ({}));
     bootstrapReady = true;
-    if (data?.initialized === false) {
+
+    const initialized = data?.initialized === true;
+    const publicRegistration = data?.publicRegistrationEnabled !== false;
+
+    if (!initialized) {
+      // Case A: Fresh install (zero users) — sign-up only, no toggle, no forgot password
       setMode('register');
-    } else {
+      // The 'Forgot Password' button should not appear when no users exist
+      forgotPasswordBtn.classList.add('hidden');
+      forgotPasswordBtn.setAttribute('aria-hidden', 'true');
+      forgotPasswordBtn.setAttribute('tabindex', '-1');
+      // The toggle section should also be hidden on fresh install
+      toggleText.classList.add('hidden');
+      toggleModeBtn.classList.add('hidden');
+      toggleModeBtn.setAttribute('aria-hidden', 'true');
+      toggleModeBtn.setAttribute('tabindex', '-1');
+    } else if (publicRegistration) {
+      // Case C: Normal (has users + public registration enabled) — show both modes
       setMode('login');
+      forgotPasswordBtn.classList.remove('hidden');
+      forgotPasswordBtn.removeAttribute('aria-hidden');
+      forgotPasswordBtn.removeAttribute('tabindex');
+      toggleText.classList.remove('hidden');
+      toggleModeBtn.classList.remove('hidden');
+      toggleModeBtn.removeAttribute('aria-hidden');
+      toggleModeBtn.removeAttribute('tabindex');
+    } else {
+      // Case B: Has users but public registration is disabled — login only
+      setMode('login');
+      forgotPasswordBtn.classList.remove('hidden');
+      forgotPasswordBtn.removeAttribute('aria-hidden');
+      forgotPasswordBtn.removeAttribute('tabindex');
+      // Hide sign-up toggle — no point showing a link to a disabled registration
+      toggleText.classList.add('hidden');
+      toggleModeBtn.classList.add('hidden');
+      toggleModeBtn.setAttribute('aria-hidden', 'true');
+      toggleModeBtn.setAttribute('tabindex', '-1');
     }
   } catch {
     bootstrapReady = true;
     setMode('login');
+    // Safe fallback — show both controls on health check failure
+    forgotPasswordBtn.classList.remove('hidden');
+    forgotPasswordBtn.removeAttribute('aria-hidden');
+    forgotPasswordBtn.removeAttribute('tabindex');
+    toggleText.classList.remove('hidden');
+    toggleModeBtn.classList.remove('hidden');
+    toggleModeBtn.removeAttribute('aria-hidden');
+    toggleModeBtn.removeAttribute('tabindex');
   } finally {
     updateButtonState(form, authSubmit, isSubmitting);
     updateSubmitAvailability();

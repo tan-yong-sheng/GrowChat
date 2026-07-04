@@ -22,7 +22,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "node scripts/test-e2e.js",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:update-snapshots": "playwright test --update-snapshots",
+    "test:e2e:update-snapshots": "node scripts/test-e2e.js --update-snapshots",
     "lint": "eslint \"src/**/*.js\" \"public/js/**/*.js\" --ignore-pattern node_modules",
     "lint:fix": "eslint \"src/**/*.js\" \"public/js/**/*.js\" --fix",
     "format": "prettier --write \"src/**/*.js\" \"public/js/**/*.js\"",
