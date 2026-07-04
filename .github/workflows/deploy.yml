@@ -102,7 +102,9 @@ jobs:
         run: pnpm run validate:migrations
 
       - name: Deploy to Cloudflare Workers
-        run: pnpm exec wrangler deploy
+        run: pnpm exec wrangler deploy --env production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
   # Placeholder that reports success when deploy is not needed.
   # Required because "Deploy to Cloudflare Workers" is a required
