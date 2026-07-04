@@ -104,6 +104,11 @@ jobs:
       - name: Pre-push gate (also runs E2E via test:e2e since prepush:checks includes it)
         timeout-minutes: 2
         run: pnpm run prepush:checks
+        env:
+          TEST_PORT: 8788
+          TEST_EMAIL: admin@localhost
+          TEST_PASSWORD: admin123
+          TEST_URL: http://localhost:8788
 
       # Tier 2: Vitest coverage thresholds (currently 30% lines/branches/functions/statements; planned to increase)
       - name: Coverage threshold check
