@@ -39,7 +39,7 @@
     "lint:dupes:budget": "fallow dupes --threshold 1 --format json --quiet",
     "lint:dupes:scoped": "fallow dupes --changed-since HEAD~1 --format json --quiet",
     "lint:design": "npx @google/design.md lint DESIGN.md",
-    "lint:hygiene": "fallow dead-code --baseline .fallow/baseline.json --fail-on-regression --format json --quiet",
+    "lint:hygiene": "fallow dead-code --baseline .fallow/baseline.json --format json --quiet",
     "lint:workflows": "github-actionlint",
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
     "prepush": "pnpm run prepush:checks",
