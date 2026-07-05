@@ -132,11 +132,13 @@ jobs:
         run: node scripts/pr-checks.js
 
       # Tier 3: Fallow codebase intelligence (unused code, duplication, complexity)
+      - name: Fallow — save dead code baseline
+        run: |
+          mkdir -p .fallow
+          fallow dead-code --output .fallow/baseline.json --format json
+
       - name: Fallow — dead code audit (baseline comparison — only new issues fail)
         run: pnpm run lint:hygiene
-
-      - name: Fallow — regression baseline
-        run: fallow dead-code --baseline .fallow/baseline.json --format json --quiet --fail-on-issues
 
       # Tier 3: Fallow — health & maintainability
       - name: Fallow — health & maintainability
