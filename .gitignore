@@ -14,19 +14,11 @@ fallow-out/
 !.claude/skills/**
 
 # ── Pi / gstack / dev tool state ──
-.archon/artifacts/
 piolium/
-.gstack/
 .pi/
 .qa/
-.pi-lens/
-.ralph/
 .playwright/
 .playwright-cli/
-.mcp.json
-.gsd
-.gsd-id
-.bg-shell/
 .actrc
 git-worktree-spec.md
 CHANGELOG.md

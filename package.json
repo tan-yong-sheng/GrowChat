@@ -17,8 +17,9 @@
     "snapshots:clean": "node scripts/cleanup-snapshots.js",
     "snapshots:audit": "node scripts/audit-snapshots.js .",
     "check:performance": "lhci autorun",
-    "test": "vitest run --changed",
+    "test": "vitest run",
     "test:watch": "vitest",
+    "test:scoped": "vitest run --changed",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "node scripts/test-e2e.js",
     "test:e2e:ui": "playwright test --ui",
@@ -52,7 +53,7 @@
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
     "prepush": "pnpm run prepush:checks",
     "prepare": "husky",
-    "prepush:checks": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run lint:health:scoped && pnpm run lint:security:scoped && pnpm run lint:flags:scoped && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run test:e2e"
+    "prepush:checks": "pnpm run test:scoped && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run lint:health:scoped && pnpm run lint:security:scoped && pnpm run lint:flags:scoped && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run test:e2e"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",

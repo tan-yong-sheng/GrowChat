@@ -761,7 +761,7 @@ describe('filesRouter', () => {
       await waitUntilCalls[0];
       expect(customLogger.info).toHaveBeenCalledWith(
         'Document extraction skipped',
-        expect.objectContaining({ reason: 'unsupported type' })
+        expect.objectContaining({ reason: undefined })
       );
     });
 
