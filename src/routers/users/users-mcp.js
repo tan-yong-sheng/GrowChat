@@ -13,62 +13,87 @@
  *   PUT    /api/users/me/resources/mcp-servers/:id             → handleUpdateMcpServer
  *   DELETE /api/users/me/resources/mcp-servers/:id             → handleDeleteMcpServer
  */
-import { createDB } from '../../db.js';
-import { error, json } from '../../utils/response.js';
+import { error } from '../../utils/response.js';
 import { handleOauthCallback, handleOauthStart } from './mcp-oauth.js';
 import { handleListMcpServers } from './mcp-list-servers.js';
 import { handleCreateMcpServer } from './mcp-create-server.js';
 import { handleTestMcpServer } from './mcp-test-server.js';
 import { handleUpdateMcpServer, handleDeleteMcpServer } from './mcp-update-delete-server.js';
 
+const OAUTH_CALLBACK_ROUTE = {
+  method: 'GET',
+  path: '/api/users/me/resources/mcp-servers/oauth/callback',
+};
+
+const AUTH_ROUTES = [
+  {
+    method: 'GET',
+    path: '/api/users/me/resources/mcp-servers',
+    handler: (req, env, _ctx, user, _path, _origin, logger) =>
+      handleListMcpServers(req, env, user.sub, logger),
+  },
+  {
+    method: 'POST',
+    path: '/api/users/me/resources/mcp-servers',
+    handler: (req, env, _ctx, user) => handleCreateMcpServer(req, env, user.sub),
+  },
+  {
+    method: 'POST',
+    path: '/api/users/me/resources/mcp-servers/test',
+    handler: (req) => handleTestMcpServer(req),
+  },
+  {
+    method: 'POST',
+    path: '/api/users/me/resources/mcp-servers/oauth/start',
+    handler: (req, env, _ctx, user, _path, origin) => handleOauthStart(req, env, user, origin),
+    needsOrigin: true,
+  },
+];
+
+function getOrigin(env) {
+  return (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+}
+
+function checkMcpAuth(req, user) {
+  if (!user) return error(req, 'Unauthorized', 401);
+  if (user.account_status && user.account_status !== 'active') {
+    return error(req, 'Account pending approval.', 403);
+  }
+  return null;
+}
+
+function handleMcpById(req, env, user, path) {
+  const match = path.match(/^\/api\/users\/me\/resources\/mcp-servers\/([^/]+)$/);
+  if (!match) return null;
+  const serverId = match[1];
+  if (req.method === 'PUT') return handleUpdateMcpServer(req, env, user.sub, serverId);
+  if (req.method === 'DELETE') return handleDeleteMcpServer(req, env, user.sub, serverId);
+  return error(req, 'Method not allowed', 405);
+}
+
 /**
  * Users MCP dispatcher — routes to per-handler services.
  * Returns Response if handled, null if path doesn't match.
  */
 export async function handleUsersMcp(req, env, ctx, user, path, { _db, logger, _requestContext }) {
-  const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+  const origin = getOrigin(env);
 
-  // OAuth callback (unauthenticated — no user check)
-  if (req.method === 'GET' && path === '/api/users/me/resources/mcp-servers/oauth/callback') {
+  if (req.method === OAUTH_CALLBACK_ROUTE.method && path === OAUTH_CALLBACK_ROUTE.path) {
     if (!origin) return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
     return handleOauthCallback(req, env, origin);
   }
-  if (!user) return error(req, 'Unauthorized', 401);
 
-  // Account status check
-  if (user.account_status && user.account_status !== 'active') {
-    return error(req, 'Account pending approval.', 403);
+  const authError = checkMcpAuth(req, user);
+  if (authError) return authError;
+
+  for (const route of AUTH_ROUTES) {
+    if (route.method === req.method && route.path === path) {
+      if (route.needsOrigin && !origin) {
+        return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+      }
+      return route.handler(req, env, ctx, user, path, origin, logger);
+    }
   }
 
-  // List MCP servers
-  if (req.method === 'GET' && path === '/api/users/me/resources/mcp-servers') {
-    return handleListMcpServers(req, env, user.sub, logger);
-  }
-
-  // Create MCP server
-  if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers') {
-    return handleCreateMcpServer(req, env, user.sub);
-  }
-
-  // Test MCP server
-  if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers/test') {
-    return handleTestMcpServer(req);
-  }
-
-  // Start OAuth flow
-  if (req.method === 'POST' && path === '/api/users/me/resources/mcp-servers/oauth/start') {
-    if (!origin) return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
-    return handleOauthStart(req, env, user, origin);
-  }
-
-  // Update/delete by ID
-  const mcpMatch = path.match(/^\/api\/users\/me\/resources\/mcp-servers\/([^/]+)$/);
-  if (mcpMatch) {
-    const serverId = mcpMatch[1];
-    if (req.method === 'PUT') return handleUpdateMcpServer(req, env, user.sub, serverId);
-    if (req.method === 'DELETE') return handleDeleteMcpServer(req, env, user.sub, serverId);
-    return error(req, 'Method not allowed', 405);
-  }
-
-  return null;
+  return handleMcpById(req, env, user, path);
 }

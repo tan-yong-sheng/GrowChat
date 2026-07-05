@@ -1,11 +1,6 @@
 /**
  * MCP OAuth flow handlers — extracted from handleUsersMcp.
  * Handles the OAuth authorization code exchange and OAuth start flow.
- *
- * handleOauthCallback:  Lines 32-130 of old file (98 lines, ~25 cyclomatic)
- *   Exchanges authorization_code for tokens and updates the server record.
- * handleOauthStart:     Lines 218-290 of old file (72 lines, ~30 cyclomatic)
- *   Initiates OAuth flow by discovering metadata and building authorization URL.
  */
 import { createDB } from '../../db.js';
 import {
@@ -21,51 +16,48 @@ import { findUserToolServerByOauthState, saveUserToolServerJson } from './users-
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 import { json, error } from '../../utils/response.js';
 
-/**
- * Handle OAuth authorization_code token exchange (callback).
- * Called from handleUsersMcp when path matches /oauth/callback.
- */
-export async function handleOauthCallback(req, env, origin) {
-  const db = createDB(env.DB);
+/* -------------------------------------------------------------------------- */
+/* OAuth callback helpers                                                     */
+/* -------------------------------------------------------------------------- */
+
+function parseCallbackQuery(req) {
   const url = new URL(req.url);
-  const code = url.searchParams.get('code');
-  const state = url.searchParams.get('state');
-  const errParam = url.searchParams.get('error');
+  return {
+    code: url.searchParams.get('code'),
+    state: url.searchParams.get('state'),
+    error: url.searchParams.get('error'),
+  };
+}
 
-  if (errParam) {
-    return new Response(`Authorization failed: ${errParam}`, {
-      status: 400,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
-  }
-  if (!code || !state) {
-    return new Response('Missing authorization code or state', { status: 400 });
-  }
+function oauthCallbackError(message, status = 400) {
+  return new Response(message, { status });
+}
 
+async function loadCallbackServer(db, state) {
   const server = await findUserToolServerByOauthState(db, state);
-  if (!server) {
-    return new Response('OAuth session not found or expired', { status: 400 });
-  }
-
-  const ownerRow = await db.first('SELECT account_status FROM users WHERE id = ?', server.user_id);
+  if (!server) return null;
+  const ownerRow = await db.first('SELECT account_status FROM users WHERE id = ?', [
+    server.user_id,
+  ]);
   if (ownerRow?.account_status && ownerRow.account_status !== 'active') {
-    return new Response('Account pending approval.', { status: 403 });
+    return { blocked: true };
   }
+  return { server };
+}
 
-  const tokenEndpoint =
+function resolveTokenEndpoint(server) {
+  return (
     server.oauth_token_endpoint ||
-    new URL('/token', server.oauth_authorization_server || server.url).toString();
-  const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
-  if (!tokenEndpointSafety.safe) {
-    return new Response(`Token exchange failed: ${tokenEndpointSafety.reason}`, { status: 400 });
-  }
+    new URL('/token', server.oauth_authorization_server || server.url).toString()
+  );
+}
 
+function buildTokenRequest(server, code, redirectUri) {
   const clientId = String(server.oauth_client_id || '').trim();
   const clientSecret = String(server.oauth_client_secret || '').trim();
   const codeVerifier = String(server.oauth_code_verifier || '').trim();
   const tokenAuthMethod =
     normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
-  const redirectUri = origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -87,32 +79,229 @@ export async function handleOauthCallback(req, env, origin) {
     params.set('client_secret', clientSecret);
   }
 
+  return { tokenEndpoint: resolveTokenEndpoint(server), params, headers };
+}
+
+async function exchangeCodeForTokens(tokenEndpoint, params, headers) {
+  // URL is validated via isSafeOutboundUrl before this helper is called.
+  // fallow-ignore-next-line security-sink
+  const tokenRes = await fetch(tokenEndpoint, { method: 'POST', headers, body: params });
+  if (!tokenRes.ok) {
+    const text = await tokenRes.text().catch(() => '');
+    throw new Error(`Token exchange failed: ${text}`);
+  }
+  return tokenRes.json();
+}
+
+async function persistConnectedServer(db, server, tokenData) {
+  const connectedAt = new Date().toISOString();
+  const updatedServer = {
+    ...server,
+    oauth_tokens: { ...tokenData, connected_at: connectedAt },
+    oauth_connected_at: connectedAt,
+    oauth_state: null,
+    oauth_code_verifier: null,
+  };
+  await saveUserToolServerJson(db, server.user_id, server.id, updatedServer);
+}
+
+/* -------------------------------------------------------------------------- */
+/* OAuth start helpers                                                        */
+/* -------------------------------------------------------------------------- */
+
+async function parseJsonBody(req) {
   try {
-    const tokenRes = await fetch(tokenEndpoint, {
-      method: 'POST',
-      headers,
-      body: params,
-    });
-    if (!tokenRes.ok) {
-      const text = await tokenRes.text().catch(() => '');
-      return new Response(`Token exchange failed: ${text}`, { status: 400 });
-    }
-    const tokenData = await tokenRes.json();
-    const connectedAt = new Date().toISOString();
-    const updatedServer = {
-      ...server,
-      oauth_tokens: { ...tokenData, connected_at: connectedAt },
-      oauth_connected_at: connectedAt,
-      oauth_state: null,
-      oauth_code_verifier: null,
-    };
-    await saveUserToolServerJson(db, server.user_id, server.id, updatedServer);
+    return await req.json();
+  } catch {
+    return null;
+  }
+}
+
+function resolveServerId(body) {
+  const serverId = String(body?.id || '').trim();
+  return serverId || null;
+}
+
+async function loadExistingServer(db, userSub, serverId) {
+  const servers = await loadUserToolServers(db, userSub);
+  return servers.find((entry) => String(entry.id) === serverId);
+}
+
+function resolveServerUrl(body, existingServer) {
+  const url = String(body?.url || existingServer?.url || '').trim();
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  return url;
+}
+
+function resolveClientCredentials(body, existingServer, metadata) {
+  let clientId = String(body?.oauth_client_id || existingServer?.oauth_client_id || '').trim();
+  let clientSecret = String(
+    body?.oauth_client_secret || existingServer?.oauth_client_secret || ''
+  ).trim();
+  return { clientId, clientSecret, registrationEndpoint: metadata?.registration_endpoint || '' };
+}
+
+async function registerOAuthClient(registrationEndpoint, redirectUri, body) {
+  const payload = {
+    client_name: body?.oauth_client_name || 'GrowChat MCP Client',
+    redirect_uris: [redirectUri],
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+  };
+  // URL is validated via isSafeOutboundUrl before dynamic registration is attempted.
+  // fallow-ignore-next-line security-sink
+  const res = await fetch(registrationEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Client registration failed');
+  const data = await res.json();
+  return {
+    clientId: String(data.client_id || '').trim(),
+    clientSecret: String(data.client_secret || '').trim(),
+  };
+}
+
+async function ensureClientCredentials(
+  body,
+  existingServer,
+  metadata,
+  registrationEndpoint,
+  redirectUri
+) {
+  const { clientId, clientSecret } = resolveClientCredentials(body, existingServer, metadata);
+  if (clientId) return { clientId, clientSecret };
+  if (!registrationEndpoint) {
+    throw new Error('Authorization server does not support dynamic client registration');
+  }
+  return registerOAuthClient(registrationEndpoint, redirectUri, body);
+}
+
+function resolveTokenAuthMethod(body, existingServer, metadata, clientSecret) {
+  return (
+    normalizeTokenAuthMethod(
+      body?.oauth_token_auth_method || existingServer?.oauth_token_auth_method
+    ) ||
+    selectTokenAuthMethod(
+      metadata?.token_endpoint_auth_methods_supported || [],
+      Boolean(clientSecret)
+    )
+  );
+}
+
+async function discoverOauthMetadata(serverUrl) {
+  try {
+    return await discoverAuthorizationMetadata(serverUrl);
+  } catch {
+    return null;
+  }
+}
+
+async function validateOauthStartRequest(req, env, user) {
+  const body = await parseJsonBody(req);
+  if (body === null) return { error: error(req, 'Invalid JSON body', 400) };
+
+  const serverId = resolveServerId(body);
+  if (!serverId) return { error: error(req, 'Server must be saved before OAuth connect', 400) };
+
+  const db = createDB(env.DB);
+  const existingServer = await loadExistingServer(db, user.sub, serverId);
+  if (!existingServer) {
+    return { error: error(req, 'Server must be saved before OAuth connect', 400) };
+  }
+
+  const serverUrl = resolveServerUrl(body, existingServer);
+  if (!serverUrl) {
+    return { error: error(req, 'Server URL must start with http:// or https://', 400) };
+  }
+
+  const metadata = await discoverOauthMetadata(serverUrl);
+  const registrationEndpoint =
+    metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
+  if (registrationEndpoint) {
+    const regSafety = isSafeOutboundUrl(registrationEndpoint);
+    if (!regSafety.safe) return { error: error(req, regSafety.reason, 400) };
+  }
+
+  return { db, body, serverId, existingServer, serverUrl, metadata, registrationEndpoint };
+}
+
+function resolveClientRegistrationError(req, err) {
+  const status = err?.message?.includes('does not support') ? 400 : 502;
+  return error(req, err?.message || 'OAuth client registration failed', status);
+}
+
+async function generatePkceState() {
+  const codeVerifier = randomString(64);
+  const codeChallenge = await sha256Base64Url(codeVerifier);
+  return { codeVerifier, codeChallenge, state: randomString(32) };
+}
+
+function buildPersistedServer(
+  existingServer,
+  body,
+  serverUrl,
+  clientId,
+  clientSecret,
+  metadata,
+  registrationEndpoint,
+  tokenAuthMethod,
+  state,
+  codeVerifier
+) {
+  return {
+    ...existingServer,
+    auth_type: 'oauth',
+    oauth_client_name: body?.oauth_client_name || '',
+    oauth_scope: body?.oauth_scope || '',
+    oauth_client_id: clientId,
+    oauth_client_secret: clientSecret,
+    oauth_authorization_server: serverUrl,
+    oauth_token_endpoint: metadata?.token_endpoint || '/token',
+    oauth_registration_endpoint: registrationEndpoint,
+    oauth_token_auth_method: tokenAuthMethod,
+    oauth_state: state,
+    oauth_code_verifier: codeVerifier,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Handlers                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Handle OAuth authorization_code token exchange (callback).
+ * Called from handleUsersMcp when path matches /oauth/callback.
+ */
+export async function handleOauthCallback(req, env, origin) {
+  const db = createDB(env.DB);
+  const { code, state, error: errParam } = parseCallbackQuery(req);
+
+  if (errParam) return oauthCallbackError(`Authorization failed: ${errParam}`);
+  if (!code || !state) return oauthCallbackError('Missing authorization code or state');
+
+  const serverLookup = await loadCallbackServer(db, state);
+  if (!serverLookup) return oauthCallbackError('OAuth session not found or expired');
+  if (serverLookup.blocked) return oauthCallbackError('Account pending approval.', 403);
+
+  const server = serverLookup.server;
+  const { tokenEndpoint, params, headers } = buildTokenRequest(server, code, origin);
+
+  const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
+  if (!tokenEndpointSafety.safe) {
+    return oauthCallbackError(`Token exchange failed: ${tokenEndpointSafety.reason}`);
+  }
+
+  try {
+    const tokenData = await exchangeCodeForTokens(tokenEndpoint, params, headers);
+    await persistConnectedServer(db, server, tokenData);
     return new Response(
       '<html><body><h2>OAuth connected.</h2><p>You can return to GrowChat and click Verify.</p></body></html>',
       { headers: { 'Content-Type': 'text/html' } }
     );
   } catch (err) {
-    return new Response(`Token exchange failed: ${err?.message || String(err)}`, { status: 400 });
+    return oauthCallbackError(`Token exchange failed: ${err?.message || String(err)}`);
   }
 }
 
@@ -121,121 +310,61 @@ export async function handleOauthCallback(req, env, origin) {
  * Called from handleUsersMcp when path matches /oauth/start.
  */
 export async function handleOauthStart(req, env, user, origin) {
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return error(req, 'Invalid JSON body', 400);
-  }
+  const startCtx = await validateOauthStartRequest(req, env, user);
+  if (startCtx.error) return startCtx.error;
 
-  const serverId = String(body.id || '').trim();
-  if (!serverId) {
-    return error(req, 'Server must be saved before OAuth connect', 400);
-  }
-
-  const db = createDB(env.DB);
-  const servers = await loadUserToolServers(db, user.sub);
-  const existingServer = servers.find((entry) => String(entry.id) === serverId);
-  if (!existingServer) {
-    return error(req, 'Server must be saved before OAuth connect', 400);
-  }
-
-  const serverUrl = String(body.url || existingServer?.url || '').trim();
-  if (!serverUrl || !/^https?:\/\//i.test(serverUrl)) {
-    return error(req, 'Server URL must start with http:// or https://', 400);
-  }
-
-  let metadata;
-  try {
-    metadata = await discoverAuthorizationMetadata(serverUrl);
-  } catch {
-    metadata = null;
-  }
-
-  let clientId = String(body.oauth_client_id || existingServer.oauth_client_id || '').trim();
-  let clientSecret = String(
-    body.oauth_client_secret || existingServer.oauth_client_secret || ''
-  ).trim();
-  const registrationEndpoint =
-    metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
   const redirectUri = origin + '/api/users/me/resources/mcp-servers/oauth/callback';
 
-  // Validate registration endpoint before dynamic client registration
-  if (registrationEndpoint) {
-    const regSafety = isSafeOutboundUrl(registrationEndpoint);
-    if (!regSafety.safe) return error(req, regSafety.reason, 400);
-  }
-
-  if (!clientId) {
-    if (!registrationEndpoint) {
-      return error(req, 'Authorization server does not support dynamic client registration', 400);
-    }
-    // Dynamic client registration
-    const registrationPayload = {
-      client_name: body.oauth_client_name || 'GrowChat MCP Client',
-      redirect_uris: [redirectUri],
-      grant_types: ['authorization_code', 'refresh_token'],
-      response_types: ['code'],
-    };
-    const registrationRes = await fetch(registrationEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(registrationPayload),
-    });
-    if (!registrationRes.ok) {
-      return error(req, 'Client registration failed', 502);
-    }
-    const registrationData = await registrationRes.json();
-    clientId = String(registrationData.client_id || '').trim();
-    clientSecret = String(registrationData.client_secret || '').trim();
+  let clientId;
+  let clientSecret;
+  try {
+    ({ clientId, clientSecret } = await ensureClientCredentials(
+      startCtx.body,
+      startCtx.existingServer,
+      startCtx.metadata,
+      startCtx.registrationEndpoint,
+      redirectUri
+    ));
+  } catch (err) {
+    return resolveClientRegistrationError(req, err);
   }
 
   if (!clientId) return error(req, 'OAuth client ID is required', 400);
 
-  const tokenAuthMethod =
-    normalizeTokenAuthMethod(
-      body.oauth_token_auth_method || existingServer.oauth_token_auth_method
-    ) ||
-    selectTokenAuthMethod(
-      metadata?.token_endpoint_auth_methods_supported || [],
-      Boolean(clientSecret)
-    );
-
-  // Validate token endpoint before building auth URL
-  const tokenEndpoint = metadata?.token_endpoint || '/token';
+  const tokenAuthMethod = resolveTokenAuthMethod(
+    startCtx.body,
+    startCtx.existingServer,
+    startCtx.metadata,
+    Boolean(clientSecret)
+  );
+  const tokenEndpoint = startCtx.metadata?.token_endpoint || '/token';
   const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
   if (!tokenEndpointSafety.safe) return error(req, tokenEndpointSafety.reason, 400);
 
-  const codeVerifier = randomString(64);
-  const codeChallenge = await sha256Base64Url(codeVerifier);
-  const state = randomString(32);
-  const authorizationEndpoint = metadata?.authorization_endpoint || '/authorize';
-
+  const { codeVerifier, codeChallenge, state } = await generatePkceState();
+  const authorizationEndpoint = startCtx.metadata?.authorization_endpoint || '/authorize';
   const authorizationUrl = buildAuthorizationUrl({
     authorizationEndpoint,
     clientId,
     redirectUri,
-    scope: body.oauth_scope || '',
+    scope: startCtx.body.oauth_scope || '',
     state,
     codeChallenge,
   });
 
-  const persistedServer = {
-    ...existingServer,
-    auth_type: 'oauth',
-    oauth_client_name: body.oauth_client_name || '',
-    oauth_scope: body.oauth_scope || '',
-    oauth_client_id: clientId,
-    oauth_client_secret: clientSecret,
-    oauth_authorization_server: serverUrl,
-    oauth_token_endpoint: tokenEndpoint,
-    oauth_registration_endpoint: registrationEndpoint,
-    oauth_token_auth_method: tokenAuthMethod,
-    oauth_state: state,
-    oauth_code_verifier: codeVerifier,
-  };
-
-  await saveUserToolServerJson(db, user.sub, serverId, persistedServer);
+  const persistedServer = buildPersistedServer(
+    startCtx.existingServer,
+    startCtx.body,
+    startCtx.serverUrl,
+    clientId,
+    clientSecret,
+    startCtx.metadata,
+    startCtx.registrationEndpoint,
+    tokenAuthMethod,
+    state,
+    codeVerifier
+  );
+  await saveUserToolServerJson(startCtx.db, user.sub, startCtx.serverId, persistedServer);
 
   return json(req, { ok: true, authorization_url: authorizationUrl.toString() });
 }
