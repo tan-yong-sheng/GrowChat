@@ -52,7 +52,7 @@
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
     "prepush": "pnpm run prepush:checks",
     "prepare": "husky",
-    "prepush:checks": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run lint:health && pnpm run lint:security && pnpm run lint:flags && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run test:e2e"
+    "prepush:checks": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run lint:health:scoped && pnpm run lint:security:scoped && pnpm run lint:flags:scoped && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run test:e2e"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
