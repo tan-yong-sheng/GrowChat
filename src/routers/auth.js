@@ -20,16 +20,48 @@ import { handleMe } from './auth/auth-me.js';
 import { createAccessToken, ensureUserRoleBinding } from './auth/auth-helpers.js';
 
 const ROUTE_MAP = [
-  { method: 'POST', path: '/api/auth/register', handler: (c) => handleRegister(c.req, c.env, c.db, c.users, c.jwtSecret, c.logger, c.sharedFns) },
-  { method: 'POST', path: '/api/auth/login', handler: (c) => handleLogin(c.req, c.env, c.db, c.users, c.jwtSecret) },
-  { method: 'POST', path: '/api/auth/refresh', handler: (c) => handleRefresh(c.req, c.env, c.db, c.users, c.jwtSecret) },
+  {
+    method: 'POST',
+    path: '/api/auth/register',
+    handler: (c) => handleRegister(c.req, c.env, c.db, c.users, c.jwtSecret, c.logger, c.sharedFns),
+  },
+  {
+    method: 'POST',
+    path: '/api/auth/login',
+    handler: (c) => handleLogin(c.req, c.env, c.db, c.users, c.jwtSecret),
+  },
+  {
+    method: 'POST',
+    path: '/api/auth/refresh',
+    handler: (c) => handleRefresh(c.req, c.env, c.db, c.users, c.jwtSecret),
+  },
   { method: 'POST', path: '/api/auth/logout', handler: (c) => handleLogout(c.req, c.env) },
-  { method: 'POST', path: '/api/auth/forgot-password', handler: (c) => handleForgotPassword(c.req, c.env, c.db, c.users, c.requestContext) },
-  { method: 'POST', path: '/api/auth/reset-password', handler: (c) => handleResetPassword(c.req, c.env, c.db) },
+  {
+    method: 'POST',
+    path: '/api/auth/forgot-password',
+    handler: (c) => handleForgotPassword(c.req, c.env, c.db, c.users, c.requestContext),
+  },
+  {
+    method: 'POST',
+    path: '/api/auth/reset-password',
+    handler: (c) => handleResetPassword(c.req, c.env, c.db),
+  },
   { method: 'GET', path: '/api/auth/verify-email', handler: (c) => handleVerifyEmail(c.req) },
-  { method: 'POST', path: '/api/auth/resend-verification', handler: (c) => handleResendVerification(c.req, c.env) },
-  { method: 'POST', path: '/api/auth/change-password', handler: (c) => handleChangePassword(c.req, c.env, c.db, c.authUser, c.requestContext) },
-  { method: 'GET', path: '/api/auth/me', handler: (c) => handleMe(c.req, c.env, c.db, c.users, c.authUser) },
+  {
+    method: 'POST',
+    path: '/api/auth/resend-verification',
+    handler: (c) => handleResendVerification(c.req, c.env),
+  },
+  {
+    method: 'POST',
+    path: '/api/auth/change-password',
+    handler: (c) => handleChangePassword(c.req, c.env, c.db, c.authUser, c.requestContext),
+  },
+  {
+    method: 'GET',
+    path: '/api/auth/me',
+    handler: (c) => handleMe(c.req, c.env, c.db, c.users, c.authUser),
+  },
 ];
 
 const AUTH_PATHS = ROUTE_MAP.map((route) => route.path);
@@ -44,7 +76,8 @@ function resolveRoute(method, path) {
 }
 
 export async function authRouter(req, env, _ctx, authUser, path, requestContext = {}) {
-  const logger = requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
+  const logger =
+    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const db = createDB(env.DB);
   const users = createUserRepository(db);
 

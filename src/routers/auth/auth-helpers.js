@@ -29,7 +29,13 @@ export function isActiveAccount(user) {
   return normalizeAccountStatus(user.account_status) === 'active';
 }
 
-export async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active', logger = null) {
+export async function ensureUserRoleBinding(
+  db,
+  userId,
+  role,
+  accountStatus = 'active',
+  logger = null
+) {
   if (!userId) return;
   if (normalizeAccountStatus(accountStatus) !== 'active') {
     try {

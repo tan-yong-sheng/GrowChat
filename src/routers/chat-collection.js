@@ -17,10 +17,26 @@ import { handleArchiveChat } from './chat/chat-collection-archive.js';
 import { publishRealtimeNow } from './chat-message-helpers.js';
 
 const EXACT_ROUTES = [
-  { method: 'GET', path: '/api/chats', handler: (c) => handleListChats(c.req, c.env, c.db, c.user) },
-  { method: 'POST', path: '/api/chats', handler: (c) => handleCreateChat(c.req, c.env, c.db, c.user, c.originSessionId) },
-  { method: 'GET', path: '/api/chats/shared', handler: (c) => handleListSharedChats(c.req, c.env, c.db, c.user) },
-  { method: 'GET', path: '/api/chats/archived', handler: (c) => handleListArchivedChats(c.req, c.env, c.db, c.user) },
+  {
+    method: 'GET',
+    path: '/api/chats',
+    handler: (c) => handleListChats(c.req, c.env, c.db, c.user),
+  },
+  {
+    method: 'POST',
+    path: '/api/chats',
+    handler: (c) => handleCreateChat(c.req, c.env, c.db, c.user, c.originSessionId),
+  },
+  {
+    method: 'GET',
+    path: '/api/chats/shared',
+    handler: (c) => handleListSharedChats(c.req, c.env, c.db, c.user),
+  },
+  {
+    method: 'GET',
+    path: '/api/chats/archived',
+    handler: (c) => handleListArchivedChats(c.req, c.env, c.db, c.user),
+  },
 ];
 
 const PATTERN_ROUTES = [
@@ -29,7 +45,8 @@ const PATTERN_ROUTES = [
     handlers: {
       GET: (c, chatId) => handleGetChat(c.req, c.env, c.db, c.user, chatId),
       PUT: (c, chatId) => handleUpdateChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId),
-      DELETE: (c, chatId) => handleDeleteChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId),
+      DELETE: (c, chatId) =>
+        handleDeleteChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId),
     },
   },
   {
@@ -41,7 +58,8 @@ const PATTERN_ROUTES = [
   {
     pattern: /^\/api\/chats\/([^/]+)\/clone$/,
     handlers: {
-      POST: (c, chatId) => handleCloneChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId, publishRealtimeNow),
+      POST: (c, chatId) =>
+        handleCloneChat(c.req, c.env, c.db, c.user, chatId, c.originSessionId, publishRealtimeNow),
     },
   },
   {
@@ -78,7 +96,14 @@ function resolvePatternRoute(method, path) {
   return null;
 }
 
-export async function chatCollectionRouter(req, env, user, path, originSessionId, db = createDB(env.DB)) {
+export async function chatCollectionRouter(
+  req,
+  env,
+  user,
+  path,
+  originSessionId,
+  db = createDB(env.DB)
+) {
   const context = {
     req,
     env,

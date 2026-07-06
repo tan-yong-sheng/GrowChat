@@ -3,7 +3,11 @@ import { consumeRefreshToken } from '../../shared/session.js';
 import { requireString } from '../../validation/request.js';
 import { ValidationError } from '../../errors/http-errors.js';
 import { loadPrimaryRole } from '../../utils/user-role.js';
-import { checkActiveAccountAndGenerateTokens, ensureUserRoleBinding, sanitizeUser } from './auth-helpers.js';
+import {
+  checkActiveAccountAndGenerateTokens,
+  ensureUserRoleBinding,
+  sanitizeUser,
+} from './auth-helpers.js';
 
 export async function handleRefresh(req, env, db, users, jwtSecret) {
   let body;
@@ -33,7 +37,14 @@ export async function handleRefresh(req, env, db, users, jwtSecret) {
 
   const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
   await ensureUserRoleBinding(db, user.id, userRole, user.account_status);
-  const tokenResult = await checkActiveAccountAndGenerateTokens(req, db, env, users, user, jwtSecret);
+  const tokenResult = await checkActiveAccountAndGenerateTokens(
+    req,
+    db,
+    env,
+    users,
+    user,
+    jwtSecret
+  );
   if (tokenResult instanceof Response) return tokenResult;
   return json(req, {
     user: sanitizeUser(tokenResult.user, tokenResult.primaryRole),

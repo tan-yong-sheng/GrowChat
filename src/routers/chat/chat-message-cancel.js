@@ -3,15 +3,7 @@ import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { getMessageSnapshot, requireOwnedChat } from '../chat-core.js';
 import { publishRealtimeNow, requireChatPermission } from '../chat-message-helpers.js';
 
-export async function handleCancelMessage({
-  req,
-  env,
-  db,
-  user,
-  chatId,
-  msgId,
-  originSessionId,
-}) {
+export async function handleCancelMessage({ req, env, db, user, chatId, msgId, originSessionId }) {
   const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
   if (permissionError) return permissionError;
 
@@ -19,13 +11,12 @@ export async function handleCancelMessage({
   if (owned.error) return owned.error;
   const chat = owned.chat;
 
-  const msg = await db.first(
-    'SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?',
-    [msgId, chatId]
-  );
+  const msg = await db.first('SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?', [
+    msgId,
+    chatId,
+  ]);
   if (!msg) return error(req, 'Message not found', 404);
-  if (msg.role !== 'assistant')
-    return error(req, 'Only assistant messages can be cancelled', 400);
+  if (msg.role !== 'assistant') return error(req, 'Only assistant messages can be cancelled', 400);
 
   const status = String(msg.status || '');
   if (!['streaming', 'tool_running'].includes(status)) {

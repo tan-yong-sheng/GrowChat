@@ -4,10 +4,7 @@ import { getConfigValue } from '../../utils/app-config.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
-import {
-  buildModelAclRuleSaveStatements,
-  normalizeModelAclRule,
-} from '../../utils/model-acl.js';
+import { buildModelAclRuleSaveStatements, normalizeModelAclRule } from '../../utils/model-acl.js';
 import {
   applyAttachmentCapsPatch,
   buildModelAttachmentCapSaveStatement,
@@ -158,18 +155,21 @@ function processAccessUpdate(db, update, nextAccessMap, validGroupIds, includeSc
     });
   }
 
-  const { statements: aclStatements } = buildModelAclRuleSaveStatements(db, modelId, filteredRules, {
-    includeSchemaStatements,
-  });
-  return { statements: aclStatements, normalizedUpdate: { model_id: modelId, rules: filteredRules } };
+  const { statements: aclStatements } = buildModelAclRuleSaveStatements(
+    db,
+    modelId,
+    filteredRules,
+    {
+      includeSchemaStatements,
+    }
+  );
+  return {
+    statements: aclStatements,
+    normalizedUpdate: { model_id: modelId, rules: filteredRules },
+  };
 }
 
-async function buildAccessUpdateStatements(
-  db,
-  sanitizedAccessUpdates,
-  nextAccessMap,
-  _logger
-) {
+async function buildAccessUpdateStatements(db, sanitizedAccessUpdates, nextAccessMap, _logger) {
   const validGroupIds = await loadValidGroupIds(db);
   let includeSchemaStatements = true;
   const normalizedAccessUpdates = [];
@@ -231,11 +231,7 @@ async function parseRequestBody(req) {
   }
 }
 
-async function prepareAttachmentAndAccessUpdates(
-  db,
-  attachmentUpdatesInput,
-  accessUpdatesInput
-) {
+async function prepareAttachmentAndAccessUpdates(db, attachmentUpdatesInput, accessUpdatesInput) {
   let attachmentCaps;
   let sanitizedAttachmentUpdates;
   try {
@@ -366,14 +362,7 @@ async function validateUpdateRequest(req, env, user) {
   };
 }
 
-export async function handleAdminModelsSettingsUpdate(
-  req,
-  env,
-  _ctx,
-  user,
-  _path,
-  { logger }
-) {
+export async function handleAdminModelsSettingsUpdate(req, env, _ctx, user, _path, { logger }) {
   const validation = await validateUpdateRequest(req, env, user);
   if (validation.error) return validation.error;
 
@@ -400,7 +389,12 @@ export async function handleAdminModelsSettingsUpdate(
   } catch (err) {
     logger.error('Model settings update failed', { error: err?.message || err });
     if (err.status) {
-      return error(req, err.message, err.status, err.invalid ? { invalid: err.invalid } : undefined);
+      return error(
+        req,
+        err.message,
+        err.status,
+        err.invalid ? { invalid: err.invalid } : undefined
+      );
     }
     return error(req, 'Failed to update model settings', 500);
   }

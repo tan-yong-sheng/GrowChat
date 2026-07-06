@@ -85,7 +85,14 @@ export async function handleLogin(req, env, db, users, jwtSecret) {
     }
     return error(req, 'Invalid credentials', 401);
   }
-  const tokenResult = await checkActiveAccountAndGenerateTokens(req, db, env, users, user, jwtSecret);
+  const tokenResult = await checkActiveAccountAndGenerateTokens(
+    req,
+    db,
+    env,
+    users,
+    user,
+    jwtSecret
+  );
   if (tokenResult instanceof Response) return tokenResult;
 
   await clearFailedLoginAttempts(env, email);

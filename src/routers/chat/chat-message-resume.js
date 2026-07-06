@@ -20,10 +20,10 @@ async function fetchAndEnqueueDeltas(db, msgId, cursor, encoder, controller) {
 }
 
 async function isMessageRunning(db, msgId, chatId) {
-  const statusRow = await db.first(
-    'SELECT status FROM messages WHERE id = ? AND chat_id = ?',
-    [msgId, chatId]
-  );
+  const statusRow = await db.first('SELECT status FROM messages WHERE id = ? AND chat_id = ?', [
+    msgId,
+    chatId,
+  ]);
   const status = String(statusRow?.status || '');
   return status === 'streaming' || status === 'tool_running';
 }
@@ -43,10 +43,10 @@ export async function handleResumeMessage({ req, env, db, user, chatId, msgId })
   const owned = await requireOwnedChat(req, db, chatId, user.sub);
   if (owned.error) return owned.error;
 
-  const msg = await db.first(
-    'SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?',
-    [msgId, chatId]
-  );
+  const msg = await db.first('SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?', [
+    msgId,
+    chatId,
+  ]);
   if (!msg) return error(req, 'Message not found', 404);
   if (msg.role !== 'assistant') return error(req, 'Only assistant messages can be resumed', 400);
 

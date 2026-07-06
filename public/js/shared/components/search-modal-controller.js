@@ -39,6 +39,17 @@ export function createSearchModalController(container, createChatFn, loadMessage
   };
 
   const close = () => setState({ showSearch: false });
+  const selectChat = (id) => {
+    close();
+    setState({ activeChatId: id });
+    loadMessagesFn(id);
+  };
+  const stopSearches = () => {
+    if (searchAbortController) searchAbortController.abort();
+    if (previewAbortController) previewAbortController.abort();
+  };
+  const resetSearchState = () =>
+    setState({ search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true } });
 
   function updateSelectionUI() {
     const { selectedIndex, results } = state.search;
@@ -104,6 +115,9 @@ export function createSearchModalController(container, createChatFn, loadMessage
       previewContent.querySelector('#preview-title').textContent = data.chat.title;
       const messagesBox = previewContent.querySelector('#preview-messages');
 
+      // Preview renders chat messages fetched from the authenticated API; role is escaped
+      // and message content is passed through the existing markdown renderer.
+      // fallow-ignore-next-line security-sink
       messagesBox.innerHTML = data.messages
         .map(
           (m) => `
@@ -144,12 +158,7 @@ export function createSearchModalController(container, createChatFn, loadMessage
     searchList.innerHTML = renderSearchResultsMarkup(results, query);
 
     searchList.querySelectorAll('[data-search-chat]').forEach((btn) => {
-      btn.onclick = () => {
-        const id = btn.getAttribute('data-search-chat');
-        close();
-        setState({ activeChatId: id });
-        loadMessagesFn(id);
-      };
+      btn.onclick = () => selectChat(btn.getAttribute('data-search-chat'));
       btn.onmouseover = () => {
         const idx = parseInt(btn.getAttribute('data-index'));
         if (state.search.selectedIndex !== idx) {
@@ -157,6 +166,14 @@ export function createSearchModalController(container, createChatFn, loadMessage
         }
       };
     });
+  }
+
+  function selectResultByIndex(selectedIndex) {
+    if (selectedIndex === -1) {
+      newChatBtn.click();
+    } else if (state.search.results[selectedIndex]) {
+      selectChat(state.search.results[selectedIndex].id);
+    }
   }
 
   async function runSearch(query, append = false) {
@@ -194,89 +211,89 @@ export function createSearchModalController(container, createChatFn, loadMessage
     }
   }
 
-  closeBtn.onclick = close;
-  overlay.onclick = close;
+  function bindDomEvents() {
+    closeBtn.onclick = close;
+    overlay.onclick = close;
 
-  newChatBtn.onclick = () => {
-    close();
-    createChatFn();
-  };
+    newChatBtn.onclick = () => {
+      close();
+      createChatFn();
+    };
 
-  resultsContainer.onscroll = () => {
-    const { loading, hasMore, query } = state.search;
-    if (loading || !hasMore) return;
-    if (
-      resultsContainer.scrollHeight - resultsContainer.scrollTop - resultsContainer.clientHeight <
-      50
-    ) {
-      runSearch(query, true);
+    resultsContainer.onscroll = () => {
+      const { loading, hasMore, query } = state.search;
+      if (loading || !hasMore) return;
+      if (
+        resultsContainer.scrollHeight - resultsContainer.scrollTop - resultsContainer.clientHeight <
+        50
+      ) {
+        runSearch(query, true);
+      }
+    };
+
+    searchInput.oninput = (e) => {
+      const q = e.target.value.trim();
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => runSearch(q), 300);
+    };
+
+    searchInput.onkeydown = (e) => {
+      const { selectedIndex, results } = state.search;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (selectedIndex < results.length - 1) {
+          setState({ search: { selectedIndex: selectedIndex + 1 } });
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (selectedIndex > -1) {
+          setState({ search: { selectedIndex: selectedIndex - 1 } });
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        selectResultByIndex(selectedIndex);
+      }
+    };
+  }
+
+  bindDomEvents();
+
+  function openModal() {
+    setModalHash('search-modal');
+    if (!modalRoot.classList.contains('hidden')) return;
+    previousFocus = document.activeElement;
+    if (!sidebarSuspended) {
+      suspendSidebarVisibility();
+      sidebarSuspended = true;
     }
-  };
+    document.body.style.overflow = 'hidden';
+    modalRoot.classList.remove('hidden');
+    resetSearchState();
+    runSearch('');
+    setTimeout(() => searchInput.focus(), 50);
+  }
 
-  searchInput.oninput = (e) => {
-    const q = e.target.value.trim();
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => runSearch(q), 300);
-  };
-
-  searchInput.onkeydown = (e) => {
-    const { selectedIndex, results } = state.search;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (selectedIndex < results.length - 1) {
-        setState({ search: { selectedIndex: selectedIndex + 1 } });
+  function closeModal() {
+    if (!modalRoot.classList.contains('hidden')) {
+      document.body.style.overflow = '';
+      if (sidebarSuspended) {
+        restoreSidebarVisibility();
+        sidebarSuspended = false;
       }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (selectedIndex > -1) {
-        setState({ search: { selectedIndex: selectedIndex - 1 } });
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (selectedIndex === -1) {
-        newChatBtn.click();
-      } else if (results[selectedIndex]) {
-        const id = results[selectedIndex].id;
-        close();
-        setState({ activeChatId: id });
-        loadMessagesFn(id);
-      }
+      if (previousFocus) previousFocus.focus();
+      clearModalHash('search-modal');
     }
-  };
+    modalRoot.classList.add('hidden');
+    searchInput.value = '';
+    stopSearches();
+  }
 
   unsubscribe = subscribe((currentState) => {
     if (currentState.showSearch) {
-      setModalHash('search-modal');
-      if (modalRoot.classList.contains('hidden')) {
-        previousFocus = document.activeElement;
-        if (!sidebarSuspended) {
-          suspendSidebarVisibility();
-          sidebarSuspended = true;
-        }
-        document.body.style.overflow = 'hidden';
-        modalRoot.classList.remove('hidden');
-        setState({
-          search: { query: '', results: [], selectedIndex: -1, offset: 0, hasMore: true },
-        });
-        runSearch('');
-      }
-      setTimeout(() => searchInput.focus(), 50);
+      openModal();
     } else {
-      if (!modalRoot.classList.contains('hidden')) {
-        document.body.style.overflow = '';
-        if (sidebarSuspended) {
-          restoreSidebarVisibility();
-          sidebarSuspended = false;
-        }
-        if (previousFocus) previousFocus.focus();
-        clearModalHash('search-modal');
-      }
-      modalRoot.classList.add('hidden');
-      searchInput.value = '';
-      if (searchAbortController) searchAbortController.abort();
-      if (previewAbortController) previewAbortController.abort();
+      closeModal();
     }
-
     updateSelectionUI();
   });
 
@@ -288,8 +305,7 @@ export function createSearchModalController(container, createChatFn, loadMessage
       restoreSidebarVisibility();
       sidebarSuspended = false;
     }
-    if (searchAbortController) searchAbortController.abort();
-    if (previewAbortController) previewAbortController.abort();
+    stopSearches();
     if (debounceTimer) clearTimeout(debounceTimer);
     clearModalHash('search-modal');
   };

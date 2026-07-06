@@ -1,7 +1,11 @@
 import { error } from '../../utils/response.js';
 import { authorize } from '../../utils/authorize.js';
 import { requireOwnedChat } from '../chat-core.js';
-import { mapAuthCodeToStatus, sanitizeTitle, reloadAndPublishChat } from './chat-collection-helpers.js';
+import {
+  mapAuthCodeToStatus,
+  sanitizeTitle,
+  reloadAndPublishChat,
+} from './chat-collection-helpers.js';
 
 export async function handleUpdateChat(req, env, db, user, chatId, originSessionId) {
   const authDecision = await authorize(env, user, {

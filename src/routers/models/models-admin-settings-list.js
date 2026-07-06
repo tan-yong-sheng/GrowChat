@@ -30,7 +30,9 @@ function parseListParams(req) {
   const includeDisabled = TRUTHY_VALUES.has(
     String(url.searchParams.get('include_disabled') || '').toLowerCase()
   );
-  const providerParam = String(url.searchParams.get('provider') || '').trim().toLowerCase();
+  const providerParam = String(url.searchParams.get('provider') || '')
+    .trim()
+    .toLowerCase();
   const providerFilter = providerParam && providerParam !== 'all' ? providerParam : '';
   return { limit, offset, query, includeDisabled, providerFilter };
 }
@@ -41,7 +43,10 @@ function matchesModelQuery(model, query) {
   const connection = String(model?.connection_name || '').toLowerCase();
   const provider = String(model?.provider || '').toLowerCase();
   return (
-    name.includes(query) || id.includes(query) || connection.includes(query) || provider.includes(query)
+    name.includes(query) ||
+    id.includes(query) ||
+    connection.includes(query) ||
+    provider.includes(query)
   );
 }
 
