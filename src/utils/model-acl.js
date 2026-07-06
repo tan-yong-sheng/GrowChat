@@ -1,4 +1,4 @@
-import { ruleMatchesPrincipal, buildIdFilterClause } from './acl-shared.js';
+import { buildIdFilterClause, evaluateAclAccess } from './acl-shared.js';
 import { createRootLogger } from './logger.js';
 const logger = createRootLogger({});
 
@@ -79,54 +79,19 @@ export function buildModelAclIndex(rules = []) {
   return index;
 }
 
-function isModelAclActionRelevant(action) {
-  const normalized = String(action || 'use')
-    .trim()
-    .toLowerCase();
-  return ['use', 'manage', 'admin', 'read'].includes(normalized);
-}
-
-function evaluateModelAclCore(model, rules, { user, userGroupIds, allowAdmin }) {
-  if (model?.connection_source === 'user') {
-    return { allowed: true, access_label: 'Personal', access_variant: 'personal' };
-  }
-
-  const normalizedRules = Array.isArray(rules)
-    ? rules.map(normalizeModelAclRule).filter(Boolean)
-    : [];
-
-  const denyMatched = normalizedRules.some(
-    (rule) =>
-      rule.effect === 'deny' &&
-      isModelAclActionRelevant(rule.action) &&
-      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
-  );
-  if (denyMatched) {
-    return { allowed: false, access_label: 'No access', access_variant: 'none' };
-  }
-
-  const allowMatched = normalizedRules.some(
-    (rule) =>
-      rule.effect === 'allow' &&
-      isModelAclActionRelevant(rule.action) &&
-      ruleMatchesPrincipal(rule, user?.sub, userGroupIds)
-  );
-  if (allowMatched) {
-    return { allowed: true, access_label: 'Shared', access_variant: 'shared' };
-  }
-
-  if (allowAdmin && user?.primary_role === 'admin') {
-    return { allowed: true, access_label: 'Admin', access_variant: 'admin' };
-  }
-
-  return { allowed: false, access_label: 'No access', access_variant: 'none' };
-}
-
 export function evaluateModelAclAccess(
   model,
   { user = null, userGroupIds = new Set(), rules = [], allowAdmin = true } = {}
 ) {
-  return evaluateModelAclCore(model, rules, { user, userGroupIds, allowAdmin });
+  return evaluateAclAccess({
+    resource: model,
+    rules,
+    normalizeRule: normalizeModelAclRule,
+    user,
+    userGroupIds,
+    allowAdmin,
+    isPersonal: (resource) => resource?.connection_source === 'user',
+  });
 }
 
 export async function ensureModelAclRulesTable(db) {
