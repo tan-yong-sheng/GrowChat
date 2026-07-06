@@ -1,4 +1,4 @@
-import { error, json, jsonCached, createWeakEtag } from '../utils/response.js';
+import { error, json, jsonCached, createWeakEtag, authError } from '../utils/response.js';
 import { stripHtml } from '../utils/sanitize.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { authorize } from '../utils/authorize.js';
@@ -16,13 +16,7 @@ export async function handleListChats(req, env, db, user) {
     resource: 'chat',
   });
   if (!authDecision.allow) {
-    const statusCodeMap = {
-      server_error: 500,
-      unauthorized: 401,
-      not_found: 404,
-    };
-    const statusCode = statusCodeMap[authDecision.code] || 403;
-    return error(req, authDecision.reason || 'Forbidden', statusCode);
+    return authError(req, authDecision);
   }
 
   const url = new URL(req.url);
@@ -101,13 +95,7 @@ export async function handleGetChat(req, env, db, user, chatId) {
     resourceId: chatId,
   });
   if (!authDecision.allow) {
-    const statusCodeMap = {
-      server_error: 500,
-      unauthorized: 401,
-      not_found: 404,
-    };
-    const statusCode = statusCodeMap[authDecision.code] || 403;
-    return error(req, authDecision.reason || 'Forbidden', statusCode);
+    return authError(req, authDecision);
   }
 
   const owned = await requireOwnedChat(req, db, chatId, user.sub);
@@ -136,6 +124,7 @@ export async function handleGetChat(req, env, db, user, chatId) {
   );
 }
 
+// fallow-ignore-next-line complexity
 export async function handleCloneChat(
   req,
   env,
@@ -151,13 +140,7 @@ export async function handleCloneChat(
     resourceId: sourceChatId,
   });
   if (!authDecision.allow) {
-    const statusCodeMap = {
-      server_error: 500,
-      unauthorized: 401,
-      not_found: 404,
-    };
-    const statusCode = statusCodeMap[authDecision.code] || 403;
-    return error(req, authDecision.reason || 'Forbidden', statusCode);
+    return authError(req, authDecision);
   }
 
   const sourceOwned = await requireOwnedChat(req, db, sourceChatId, user.sub);

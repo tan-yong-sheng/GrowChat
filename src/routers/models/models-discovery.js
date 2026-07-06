@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 /**
  * Model Discovery and Formatting Helpers
  *

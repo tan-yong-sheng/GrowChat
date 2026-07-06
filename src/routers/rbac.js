@@ -3,7 +3,7 @@
  *
  * Routes requests to per-route handlers based on method + path
  */
-import { error, json } from '../utils/response.js';
+import { error, json, authError } from '../utils/response.js';
 import { createDB } from '../db.js';
 import { createLogger } from '../utils/logger.js';
 import { authorize, getAuditLog, logAuditEvent } from '../utils/authorize.js';
@@ -50,13 +50,7 @@ export async function rbacRouter(req, env, _ctx, user, path, requestContext = {}
   });
 
   if (!authDecision.allow) {
-    const statusCodeMap = {
-      server_error: 500,
-      unauthorized: 401,
-      not_found: 404,
-    };
-    const statusCode = statusCodeMap[authDecision.code] || 403;
-    return error(req, authDecision.reason || 'Forbidden', statusCode);
+    return authError(req, authDecision);
   }
 
   const db = createDB(env.DB);

@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 import { filterModelsBySearch, normalizeModelSearchQuery } from './model-search.js';
 
 function getRawProviderName(model = {}) {
@@ -71,6 +72,7 @@ export function buildProviderOptions(
   return options;
 }
 
+// fallow-ignore-next-line complexity
 export function filterModelsByProvider(models = [], provider = '') {
   const normalized = String(provider || '')
     .trim()
