@@ -15,6 +15,7 @@ import { normalizeConnectionModelSelectionMode } from '../../../public/js/shared
 import { ensureAdminAclAccess, isValidModelAccessId } from './admin-helpers.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { normalizeConnectionAclRule } from '../../utils/connection-acl.js';
+import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
 import { isValidHttpUrl, normalizeHeaders } from '../../admin/tool-servers.js';
 
@@ -166,26 +167,21 @@ export async function handleAdminConnectionsSave(
         if (currentConnection.enabled === false) {
           return error(req, 'Disabled connections cannot be edited', 409);
         }
-        const incomingRules = Array.isArray(entry?.rules) ? entry.rules : [];
-        const filteredRules = [];
-        const invalidPrincipalTypes = [];
-        for (const rule of incomingRules) {
-          const normalized = normalizeConnectionAclRule({
-            ...rule,
-            connection_id: connectionId,
+        let filteredRules;
+        try {
+          filteredRules = filterAclRulesByGroup({
+            rules: entry?.rules,
+            resourceId: connectionId,
+            resourceIdKey: 'connection_id',
+            normalizeRule: normalizeConnectionAclRule,
+            validGroupIds,
+            invalidTypeMessage: 'Invalid principal_type for connection access',
           });
-          if (!normalized) continue;
-          if (normalized.principal_type !== 'group') {
-            invalidPrincipalTypes.push(normalized.principal_type);
-            continue;
+        } catch (err) {
+          if (err.status === 400) {
+            return error(req, err.message, 400, { invalid: err.invalid });
           }
-          if (!validGroupIds.has(normalized.principal_id)) continue;
-          filteredRules.push(normalized);
-        }
-        if (invalidPrincipalTypes.length) {
-          return error(req, 'Invalid principal_type for connection access', 400, {
-            invalid: Array.from(new Set(invalidPrincipalTypes)),
-          });
+          throw err;
         }
         normalizedAccessUpdates.push({
           connection_id: connectionId,

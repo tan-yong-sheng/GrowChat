@@ -3,6 +3,7 @@
  */
 import { authError, error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
+import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
 import {
   buildToolServerAclRuleSaveStatements,
   loadToolServerAclRules,
@@ -89,26 +90,21 @@ export async function handleAdminToolServersAccess(
         if (!currentServer || currentServer.enabled === false) {
           return error(req, 'Disabled MCP servers cannot be edited', 409);
         }
-        const incomingRules = Array.isArray(update?.rules) ? update.rules : [];
-        const filteredRules = [];
-        const invalidPrincipalTypes = [];
-        for (const rule of incomingRules) {
-          const normalized = normalizeToolServerAclRule({
-            ...rule,
-            tool_server_id: toolServerId,
+        let filteredRules;
+        try {
+          filteredRules = filterAclRulesByGroup({
+            rules: update?.rules,
+            resourceId: toolServerId,
+            resourceIdKey: 'tool_server_id',
+            normalizeRule: normalizeToolServerAclRule,
+            validGroupIds,
+            invalidTypeMessage: 'Invalid principal_type for MCP server access',
           });
-          if (!normalized) continue;
-          if (normalized.principal_type !== 'group') {
-            invalidPrincipalTypes.push(normalized.principal_type);
-            continue;
+        } catch (err) {
+          if (err.status === 400) {
+            return error(req, err.message, 400, { invalid: err.invalid });
           }
-          if (!validGroupIds.has(normalized.principal_id)) continue;
-          filteredRules.push(normalized);
-        }
-        if (invalidPrincipalTypes.length) {
-          return error(req, 'Invalid principal_type for MCP server access', 400, {
-            invalid: Array.from(new Set(invalidPrincipalTypes)),
-          });
+          throw err;
         }
         const { statements: aclStatements } = buildToolServerAclRuleSaveStatements(
           db,
@@ -198,27 +194,22 @@ export async function handleAdminToolServersAccess(
         }
         const groups = await db.all('SELECT id FROM groups');
         const validGroupIds = new Set(groups.map((group) => group.id));
-        const incomingRules = Array.isArray(body.rules) ? body.rules : [];
-        const filteredRules = [];
-        const invalidPrincipalTypes = [];
-        for (const rule of incomingRules) {
-          const normalized = normalizeToolServerAclRule({
-            ...rule,
-            tool_server_id: toolServerId,
-            action: 'use',
+        let filteredRules;
+        try {
+          filteredRules = filterAclRulesByGroup({
+            rules: body.rules,
+            resourceId: toolServerId,
+            resourceIdKey: 'tool_server_id',
+            normalizeRule: normalizeToolServerAclRule,
+            validGroupIds,
+            invalidTypeMessage: 'Invalid principal_type for MCP server access',
+            extraRuleFields: { action: 'use' },
           });
-          if (!normalized) continue;
-          if (normalized.principal_type !== 'group') {
-            invalidPrincipalTypes.push(normalized.principal_type);
-            continue;
+        } catch (err) {
+          if (err.status === 400) {
+            return error(req, err.message, 400, { invalid: err.invalid });
           }
-          if (!validGroupIds.has(normalized.principal_id)) continue;
-          filteredRules.push(normalized);
-        }
-        if (invalidPrincipalTypes.length) {
-          return error(req, 'Invalid principal_type for MCP server access', 400, {
-            invalid: Array.from(new Set(invalidPrincipalTypes)),
-          });
+          throw err;
         }
 
         const savedRules = await saveToolServerAclRulesForToolServer(

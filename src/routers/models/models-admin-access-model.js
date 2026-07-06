@@ -1,6 +1,7 @@
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { createDB } from '../../db.js';
+import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
 import {
   loadModelAclRules,
   normalizeModelAclRule,
@@ -16,25 +17,14 @@ import {
 } from './models-admin-access-helpers.js';
 
 function filterRulesForModel(modelId, rules, validGroupIds) {
-  const filteredRules = [];
-  const invalidPrincipalTypes = [];
-  for (const rule of Array.isArray(rules) ? rules : []) {
-    const normalized = normalizeModelAclRule({ ...rule, model_id: modelId });
-    if (!normalized) continue;
-    if (normalized.principal_type !== 'group') {
-      invalidPrincipalTypes.push(normalized.principal_type);
-      continue;
-    }
-    if (!validGroupIds.has(normalized.principal_id)) continue;
-    filteredRules.push(normalized);
-  }
-  if (invalidPrincipalTypes.length) {
-    throw Object.assign(new Error('Invalid principal_type for model access'), {
-      status: 400,
-      invalid: Array.from(new Set(invalidPrincipalTypes)),
-    });
-  }
-  return filteredRules;
+  return filterAclRulesByGroup({
+    rules,
+    resourceId: modelId,
+    resourceIdKey: 'model_id',
+    normalizeRule: normalizeModelAclRule,
+    validGroupIds,
+    invalidTypeMessage: 'Invalid principal_type for model access',
+  });
 }
 
 async function handleModelAccessGet(req, env, _ctx, user, path, { logger }) {

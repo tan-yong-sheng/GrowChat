@@ -163,38 +163,40 @@ export function bindChatMessageActions({
       setActiveStreamAbort(() => controller.abort());
       setGlobalStreamAbort(getActiveStreamAbort());
       const runBranchRequest = async (sourceId) => {
-        let assistantMessageId = tempAssistantId;
-        let errorMessage = null;
-        let errorActive = false;
-        let assistantText = '';
-        function applyAssistantText(streaming = true) {
-          streamingOverrideByChat.set(chatId, {
-            targetMsgId: assistantMessageId,
-            content: assistantText,
-          });
-          const currentMessages = [...(state.messagesByChat[chatId] || [])];
-          const targetIdx = currentMessages.findIndex(
-            (m) => String(m.id) === String(assistantMessageId)
-          );
-          if (targetIdx >= 0) {
-            currentMessages[targetIdx] = {
-              ...currentMessages[targetIdx],
-              content: assistantText,
-              status: errorActive ? 'error' : currentMessages[targetIdx].status,
-              error_message: errorActive ? errorMessage : currentMessages[targetIdx].error_message,
-            };
-            setState((prev) => ({
-              messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
-            }));
-          }
-          if (state.activeChatId === chatId) {
-            updateMessageContentDom(assistantMessageId, assistantText, {
-              isError: errorActive,
-              isStreaming: streaming,
+        const { onEvent, onDelta, getStreamState } = createSseStreamHandlers({
+          chatId,
+          tempAssistantId,
+          tempUserId,
+          replaceTempMessageId,
+          applyAssistantText: (streaming = true) => {
+            const { assistantMessageId, assistantText, errorActive, errorMessage } =
+              getStreamState();
+            applyStreamingAssistantText({
+              state,
+              setState,
+              streamingOverrideByChat,
+              updateMessageContentDom,
+              chatId,
+              messageId: assistantMessageId,
+              assistantText,
+              errorActive,
+              errorMessage,
+              streaming,
             });
-          }
-        }
-        const { getStreamState } = createSseStreamHandlers({ chatId, setState });
+          },
+          ensureThinkingBlock,
+          appendBlock,
+          updateToolCallState,
+          notePayloadSeq,
+          thinkingStartByMessageId,
+          thinkingDurationByMessageId,
+          thinkingActiveByMessageId,
+          toolCallsByMessageId,
+          messageBlocksById,
+          resolveTempMessageId,
+          errorStrategy: 'reset',
+        });
+
         try {
           setStreamingState(chatId, true);
           const res = await apiFetch(`/api/chats/${chatId}/messages/${sourceId}/branch`, {
@@ -209,90 +211,29 @@ export function bindChatMessageActions({
           if (!res.ok || !res.body) {
             const err = await res.json().catch(() => ({}));
             const message = formatApiErrorMessage(err, 'Failed to connect to the server.');
-            applyAssistantErrorMessage(chatId, assistantMessageId, message);
+            applyAssistantErrorMessage(chatId, tempAssistantId, message);
             return;
           }
-          await consumeSseTextStream(res.body, {
-            onEvent: (payload) => {
-              if (payload?.event === 'start' && payload?.user_message_id) {
-                replaceTempMessageId(chatId, tempUserId, String(payload.user_message_id));
-              }
-              if (payload?.event === 'start' && payload?.message_id) {
-                assistantMessageId = String(payload.message_id);
-                replaceTempMessageId(chatId, tempAssistantId, assistantMessageId);
-                if (!thinkingActiveByMessageId.has(String(assistantMessageId))) {
-                  thinkingActiveByMessageId.set(String(assistantMessageId), true);
-                }
-                if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-                  thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-                }
-                applyAssistantText(true);
-              }
-              if (payload?.event === 'reasoning_start') {
-                if (!thinkingStartByMessageId.has(String(assistantMessageId))) {
-                  thinkingStartByMessageId.set(String(assistantMessageId), Date.now());
-                }
-                thinkingActiveByMessageId.set(String(assistantMessageId), true);
-                ensureThinkingBlock(messageBlocksById, assistantMessageId);
-                applyAssistantText();
-              }
-              if (payload?.event === 'reasoning_delta') {
-                const delta = String(payload.delta || '');
-                if (delta) {
-                  appendBlock(messageBlocksById, assistantMessageId, 'thinking', delta);
-                  thinkingActiveByMessageId.set(String(assistantMessageId), true);
-                  applyAssistantText();
-                }
-              }
-              if (payload?.event === 'reasoning_end') {
-                const duration = Number(payload.duration_ms);
-                if (Number.isFinite(duration) && duration > 0) {
-                  thinkingDurationByMessageId.set(String(assistantMessageId), duration);
-                }
-                thinkingActiveByMessageId.delete(String(assistantMessageId));
-              }
-              if (payload?.event === 'tool_status' || payload?.event === 'tool_result') {
-                const targetId = resolveTempMessageId(
-                  chatId,
-                  payload?.message_id || assistantMessageId
-                );
-                updateToolCallState(toolCallsByMessageId, messageBlocksById, targetId, payload);
-                applyAssistantText();
-              }
-              if (payload?.error) {
-                errorMessage = payload.message || payload.error || 'LLM request failed';
-                errorActive = true;
-                assistantText = '';
-                applyAssistantText();
-              }
-              notePayloadSeq(payload, assistantMessageId);
-            },
-            onDelta: (delta) => {
-              if (!delta) return;
-              assistantText += delta;
-              appendBlock(messageBlocksById, assistantMessageId, 'text', delta);
-              applyAssistantText();
-            },
-          });
-          const startedAt = thinkingStartByMessageId.get(String(assistantMessageId));
-          if (startedAt && !thinkingDurationByMessageId.has(String(assistantMessageId))) {
-            thinkingDurationByMessageId.set(String(assistantMessageId), Date.now() - startedAt);
-          }
-          thinkingActiveByMessageId.delete(String(assistantMessageId));
-          applyAssistantText(false);
-          streamingOverrideByChat.delete(chatId);
-          const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-            content: assistantText,
-            errorActive,
-            errorMessage,
-            model: state.activeModelId,
-            parentId: resolveTempMessageId(chatId, tempUserId),
-          });
-          await loadMessages(chatId, {
-            draw: state.activeChatId === chatId,
-            updateActiveModel: state.activeChatId === chatId,
-            preferredLeafId: assistantMessageId,
-            fallbackMessage: fallback,
+          await consumeSseTextStream(res.body, { onEvent, onDelta });
+          await finalizeStreamAndLoadMessages({
+            getStreamState,
+            thinkingStartByMessageId,
+            thinkingDurationByMessageId,
+            thinkingActiveByMessageId,
+            applyStreamingAssistantText,
+            state,
+            setState,
+            streamingOverrideByChat,
+            updateMessageContentDom,
+            chatId,
+            buildFallbackAssistantMessage,
+            resolveTempMessageId,
+            tempUserId,
+            loadMessages,
+            activeModelId: state.activeModelId,
+            activeChatId: state.activeChatId,
+            preferredLeafId: getStreamState().assistantMessageId,
+            streaming: false,
           });
         } catch (e) {
           if (e?.name !== 'AbortError') {
@@ -312,7 +253,7 @@ export function bindChatMessageActions({
               loadMessages,
               activeModelId: state.activeModelId,
               activeChatId: state.activeChatId,
-              preferredLeafId: assistantMessageId,
+              preferredLeafId: getStreamState().assistantMessageId,
             });
           }
         } finally {
