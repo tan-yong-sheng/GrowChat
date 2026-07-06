@@ -1,7 +1,7 @@
 /**
  * Admin Connections Access Handlers - /api/admin/openai/connections/access/*
  */
-import { authError, error, json } from '../../utils/response.js';
+import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
 import {
@@ -10,7 +10,7 @@ import {
   normalizeConnectionAclRule,
   saveConnectionAclRulesForConnection,
 } from '../../utils/connection-acl.js';
-import { ensureAdminAclAccess } from './admin-helpers.js';
+import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
 
@@ -51,17 +51,8 @@ export async function handleAdminConnectionsAccess(
   }
 
   if (req.method === 'PUT' && path === '/api/admin/openai/connections/access') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
-    if (!aclDecision.allow) {
-      return authError(req, aclDecision);
-    }
+    const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'connection');
+    if (denied) return denied;
 
     const updates = Array.isArray(body.updates) ? body.updates : [];
     if (!updates.length) {
@@ -174,17 +165,13 @@ export async function handleAdminConnectionsAccess(
     }
 
     if (req.method === 'PUT') {
-      let body;
-      try {
-        body = await req.json();
-      } catch {
-        return error(req, 'Invalid JSON body', 400);
-      }
-
-      const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
-      if (!aclDecision.allow) {
-        return authError(req, aclDecision);
-      }
+      const { body, error: denied } = await parseJsonAndRequireAdminAcl(
+        req,
+        env,
+        user,
+        'connection'
+      );
+      if (denied) return denied;
 
       try {
         const allConnections = await getAllOpenAIConnectionConfigs(env, {

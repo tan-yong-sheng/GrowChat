@@ -12,7 +12,11 @@ import {
 } from '../../llm/connections.js';
 import { normalizeProviderFamily } from '../../llm/provider-registry.js';
 import { normalizeConnectionModelSelectionMode } from '../../../public/js/shared/utils/connection-model-selection.js';
-import { ensureAdminAclAccess, isValidModelAccessId } from './admin-helpers.js';
+import {
+  ensureAdminAclAccess,
+  isValidModelAccessId,
+  parseJsonAndRequireAdminAcl,
+} from './admin-helpers.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { normalizeConnectionAclRule } from '../../utils/connection-acl.js';
 import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
@@ -32,17 +36,8 @@ export async function handleAdminConnectionsSave(
   { db, logger, _requestContext }
 ) {
   if (req.method === 'PUT' && path === '/api/admin/openai/connections') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
-    if (!aclDecision.allow) {
-      return authError(req, aclDecision);
-    }
+    const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'connection');
+    if (denied) return denied;
 
     const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
     const connections = Array.isArray(body.connections) ? body.connections : [];

@@ -1,7 +1,7 @@
 /**
  * Admin Connections List & Test Handlers - GET/POST /api/admin/openai/connections
  */
-import { authError, error, getConnectionTestFailureMessage, json } from '../../utils/response.js';
+import { error, getConnectionTestFailureMessage, json } from '../../utils/response.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 import { getConfigValue } from '../../utils/app-config.js';
 import {
@@ -14,7 +14,7 @@ import {
   isConnectionUrlRequired,
 } from '../../llm/connections.js';
 import { normalizeProviderFamily } from '../../llm/provider-registry.js';
-import { ensureAdminAclAccess } from './admin-helpers.js';
+import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import {
   isValidHttpUrl,
   normalizeBaseUrl,
@@ -78,17 +78,8 @@ export async function handleAdminConnectionsList(
 
   // POST /api/admin/openai/connections/test - Test OpenAI connection
   if (req.method === 'POST' && path === '/api/admin/openai/connections/test') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
-    if (!aclDecision.allow) {
-      return authError(req, aclDecision);
-    }
+    const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'connection');
+    if (denied) return denied;
 
     const providerType = String(body.providerType || 'openai').toLowerCase();
     const providerFamily =
