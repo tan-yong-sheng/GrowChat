@@ -6,6 +6,22 @@
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 
+/**
+ * Update a toggle button's visual state (background, knob position).
+ * @param {HTMLElement|null} btn
+ * @param {boolean} enabled
+ */
+export function updateToggleButton(btn, enabled) {
+  if (!btn) return;
+  btn.classList.toggle('bg-primary', enabled);
+  btn.classList.toggle('bg-gray-200', !enabled);
+  const knob = btn.querySelector('span');
+  if (knob) {
+    knob.classList.toggle('translate-x-4', enabled);
+    knob.classList.toggle('translate-x-0', !enabled);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // ACL rule helpers
 // ---------------------------------------------------------------------------

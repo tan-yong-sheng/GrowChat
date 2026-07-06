@@ -6,6 +6,7 @@
  */
 
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
+import { updateToggleButton } from './acl-modal-shared.js';
 import { getAdminModalPreset } from '../modal-shell.js';
 import { createConnectionsModalForm } from './connections-modal-form.js';
 
@@ -25,16 +26,7 @@ export function createConnectionsModalOps(deps) {
     }
   };
 
-  const updateConnectionToggle = (btn, enabled) => {
-    if (!btn) return;
-    btn.classList.toggle('bg-primary', enabled);
-    btn.classList.toggle('bg-gray-200', !enabled);
-    const knob = btn.querySelector('span');
-    if (knob) {
-      knob.classList.toggle('translate-x-4', enabled);
-      knob.classList.toggle('translate-x-0', !enabled);
-    }
-  };
+  const updateConnectionToggle = (btn, enabled) => updateToggleButton(btn, enabled);
 
   const showFeedback = (message, type = 'success') => {
     const feedback = container.querySelector('#connections-feedback');
