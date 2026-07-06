@@ -49,41 +49,20 @@ export async function handleSendMessage({
     });
   }
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return error(req, 'Invalid JSON body', 400);
-  }
-
-  const content = String(body.message || '').trim();
-  if (!content) return error(req, 'message is required', 400);
-
-  const selectedToolNames = normalizeSelectedToolNames(
-    body.selected_tool_names || body.tool_names || body.tools
-  );
-
-  let model = String(body.model || chat.model || '').trim();
-  if (!model) {
-    model = await resolveDefaultModel(env, db, user.sub);
-  }
+  const parsed = await parseSendBody({ req, env, db, user, chat });
+  if (parsed.error) return parsed.error;
+  const { content, selectedToolNames, model } = parsed;
 
   const modelDecision = await ensureModelAllowed(req, env, db, user, model);
   if (modelDecision?.error) return modelDecision.error;
   const providerInfo = modelDecision.providerInfo;
-
-  const rawAttachmentIds = Array.isArray(body.attachments) ? body.attachments : [];
-  if (rawAttachmentIds.length > MAX_ATTACHMENTS) {
-    return error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400);
-  }
-  const attachmentIds = normalizeAttachmentIds(rawAttachmentIds);
 
   const attachmentResult = await loadAndValidateAttachments(
     req,
     env,
     db,
     user,
-    attachmentIds,
+    parsed.attachmentIds,
     model
   );
   if (attachmentResult.error) return attachmentResult.error;
@@ -92,42 +71,20 @@ export async function handleSendMessage({
   const userMsgId = crypto.randomUUID();
   const parentId = chat.current_message_id || null;
 
-  const sendStatements = [
-    db
-      .prepare(
-        'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
-      )
-      .bind(userMsgId, chatId, 'user', content, model, parentId),
-    db
-      .prepare(
-        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
-      )
-      .bind(userMsgId, chatId, user.sub),
-  ];
-  // Include attachment links in the same atomic batch
-  for (const doc of attachmentDocs) {
-    sendStatements.push(
-      db
-        .prepare(
-          'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
-        )
-        .bind(crypto.randomUUID(), userMsgId, doc.id, 'attachment')
-    );
-  }
-  await db.batch(sendStatements);
+  await insertUserMessageWithAttachments(
+    db,
+    chatId,
+    user.sub,
+    userMsgId,
+    parentId,
+    content,
+    model,
+    attachmentDocs
+  );
 
   const createdUserMessage = await getMessageSnapshot(db, userMsgId);
-  const updatedChatAfterUserMessage =
-    (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
-
-  if (createdUserMessage && attachmentDocs.length > 0) {
-    createdUserMessage.attachments = attachmentDocs.map((doc) => ({
-      id: doc.id,
-      filename: doc.filename,
-      content_type: doc.content_type,
-      file_size: doc.file_size,
-    }));
-  }
+  const updatedChat = (await requireOwnedChat(req, db, chatId, user.sub)).chat || null;
+  attachDocMetadata(createdUserMessage, attachmentDocs);
 
   await publishRealtimeNow(
     env,
@@ -141,48 +98,20 @@ export async function handleSendMessage({
         role: 'user',
         model,
         message: createdUserMessage,
-        chat: updatedChatAfterUserMessage,
+        chat: updatedChat,
       },
     })
   );
 
-  const history = await db.all(
-    'SELECT role, content FROM messages WHERE chat_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 30',
-    [chatId]
-  );
-
-  const metadataPrompt = buildMetadataSystemPrompt({
-    appName: env.APP_NAME || 'GrowChat',
+  const enhancedHistory = await buildEnhancedHistory({
+    db,
+    chatId,
+    content,
     model,
     providerFamily: providerInfo.providerFamily,
-    timeZone: env.TIME_ZONE || env.TZ,
+    env,
+    attachmentParts,
   });
-
-  let enhancedHistory = [
-    {
-      role: 'system',
-      content: metadataPrompt,
-    },
-  ];
-  enhancedHistory.push(...history);
-
-  if (attachmentParts.length > 0) {
-    const lastIdx = enhancedHistory.length - 1;
-    if (lastIdx >= 0 && enhancedHistory[lastIdx]?.role === 'user') {
-      const hasNonText = attachmentParts.some((part) => part?.type && part.type !== 'text');
-      if (hasNonText) {
-        enhancedHistory[lastIdx] = {
-          role: 'user',
-          content: [{ type: 'text', text: content }, ...attachmentParts],
-        };
-      } else {
-        enhancedHistory[lastIdx] = {
-          role: 'user',
-          content: mergeTextAttachmentParts(content, attachmentParts),
-        };
-      }
-    }
-  }
 
   const { response } = await assistantStreamRunner({
     req,
@@ -202,4 +131,131 @@ export async function handleSendMessage({
   });
 
   return response;
+}
+
+async function parseSendBody({ req, env, db, user, chat }) {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return { error: error(req, 'Invalid JSON body', 400) };
+  }
+
+  const content = String(body.message || '').trim();
+  if (!content) {
+    return { error: error(req, 'message is required', 400) };
+  }
+
+  const selectedToolNames = normalizeSelectedToolNames(
+    body.selected_tool_names || body.tool_names || body.tools
+  );
+
+  let model = String(body.model || chat.model || '').trim();
+  if (!model) {
+    model = await resolveDefaultModel(env, db, user.sub);
+  }
+
+  const rawAttachmentIds = Array.isArray(body.attachments) ? body.attachments : [];
+  if (rawAttachmentIds.length > MAX_ATTACHMENTS) {
+    return { error: error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400) };
+  }
+
+  return {
+    content,
+    selectedToolNames,
+    model,
+    attachmentIds: normalizeAttachmentIds(rawAttachmentIds),
+  };
+}
+
+async function insertUserMessageWithAttachments(
+  db,
+  chatId,
+  userId,
+  messageId,
+  parentId,
+  content,
+  model,
+  attachmentDocs
+) {
+  const statements = [
+    db
+      .prepare(
+        'INSERT INTO messages (id, chat_id, role, content, model, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, unixepoch())'
+      )
+      .bind(messageId, chatId, 'user', content, model, parentId),
+    db
+      .prepare(
+        'UPDATE chats SET current_message_id = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?'
+      )
+      .bind(messageId, chatId, userId),
+  ];
+  for (const doc of attachmentDocs) {
+    statements.push(
+      db
+        .prepare(
+          'INSERT INTO message_documents (id, message_id, document_id, mention_type, created_at) VALUES (?, ?, ?, ?, unixepoch())'
+        )
+        .bind(crypto.randomUUID(), messageId, doc.id, 'attachment')
+    );
+  }
+  await db.batch(statements);
+}
+
+function attachDocMetadata(message, attachmentDocs) {
+  if (message && attachmentDocs.length > 0) {
+    message.attachments = attachmentDocs.map((doc) => ({
+      id: doc.id,
+      filename: doc.filename,
+      content_type: doc.content_type,
+      file_size: doc.file_size,
+    }));
+  }
+}
+
+async function buildEnhancedHistory({
+  db,
+  chatId,
+  content,
+  model,
+  providerFamily,
+  env,
+  attachmentParts,
+}) {
+  const history = await db.all(
+    'SELECT role, content FROM messages WHERE chat_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 30',
+    [chatId]
+  );
+
+  const metadataPrompt = buildMetadataSystemPrompt({
+    appName: env.APP_NAME || 'GrowChat',
+    model,
+    providerFamily,
+    timeZone: env.TIME_ZONE || env.TZ,
+  });
+
+  const enhancedHistory = [{ role: 'system', content: metadataPrompt }, ...history];
+
+  if (attachmentParts.length > 0) {
+    const lastIdx = enhancedHistory.length - 1;
+    if (lastIdx >= 0 && enhancedHistory[lastIdx]?.role === 'user') {
+      enhancedHistory[lastIdx] = buildUserMessageContent(content, attachmentParts);
+    }
+  }
+
+  return enhancedHistory;
+}
+
+function buildUserMessageContent(content, attachmentParts) {
+  const hasNonText = attachmentParts.some((part) => part?.type && part.type !== 'text');
+  if (hasNonText) {
+    return {
+      role: 'user',
+      content: [{ type: 'text', text: content }, ...attachmentParts],
+    };
+  }
+  return {
+    role: 'user',
+    content: mergeTextAttachmentParts(content, attachmentParts),
+  };
 }
