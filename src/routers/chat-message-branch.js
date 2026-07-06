@@ -1,27 +1,13 @@
 import { error, json } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
-import {
-  requireOwnedChat,
-  getMessageSnapshot,
-  normalizeErrorMessage,
-  resolveDefaultModel,
-  loadAttachmentDocuments,
-  buildAttachmentParts,
-} from './chat-core.js';
+import { requireOwnedChat, getMessageSnapshot, resolveDefaultModel } from './chat-core.js';
 import {
   MAX_ATTACHMENTS,
-  STRICT_ATTACHMENT_CAPS,
-  formatUnsupportedAttachmentMessage,
-  getAttachmentKinds,
-  getModelAttachmentCapsEntry,
-  getUnsupportedAttachmentKinds,
-  getUnsupportedAttachmentKindsStrict,
-  loadModelAttachmentCaps,
   mergeTextAttachmentParts,
   normalizeAttachmentIds,
-  isSupportedAttachmentType,
 } from '../chat/attachments.js';
+import { loadAndValidateAttachments } from './chat-attachment-helpers.js';
 import {
   ensureModelAllowed,
   normalizeSelectedToolNames,
@@ -164,9 +150,9 @@ export async function handleBranchMessage({
   if (modelDecision?.error) return modelDecision.error;
   const providerInfo = modelDecision.providerInfo;
 
-  let attachmentParts = [];
-  let attachmentDocs = [];
-  let attachmentKinds = [];
+  let attachmentDocs;
+  let attachmentParts;
+  let attachmentKinds;
   let attachmentIds = normalizeAttachmentIds(
     Array.isArray(body.attachments) ? body.attachments : []
   );
@@ -191,58 +177,16 @@ export async function handleBranchMessage({
     return error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400);
   }
 
-  if (attachmentIds.length > 0) {
-    if (!env.FILES) {
-      return error(req, 'FILES binding missing', 500);
-    }
-    try {
-      attachmentDocs = await loadAttachmentDocuments(db, user.sub, attachmentIds);
-    } catch (err) {
-      return error(req, normalizeErrorMessage(err, 'Invalid attachments'), 400);
-    }
-
-    const unsupported = attachmentDocs.filter((doc) => {
-      const type = String(doc.content_type || '').trim();
-      return !isSupportedAttachmentType(type);
-    });
-    if (unsupported.length > 0) {
-      const list = unsupported.map((doc) => doc.filename || doc.id).join(', ');
-      return error(req, `Unsupported attachment type for: ${list}`, 400);
-    }
-
-    try {
-      attachmentParts = await buildAttachmentParts(env, attachmentDocs);
-    } catch (err) {
-      return error(req, normalizeErrorMessage(err, 'Failed to load attachments'), 400);
-    }
-  }
-
-  if (attachmentDocs.length > 0) {
-    attachmentKinds = getAttachmentKinds(attachmentDocs);
-    const nonLocalKinds = attachmentKinds.filter((kind) => kind !== 'text');
-    const caps = await loadModelAttachmentCaps(db);
-    const modelCaps = getModelAttachmentCapsEntry(caps, model);
-
-    const unsupported = nonLocalKinds.length
-      ? STRICT_ATTACHMENT_CAPS
-        ? getUnsupportedAttachmentKindsStrict(modelCaps, nonLocalKinds)
-        : getUnsupportedAttachmentKinds(modelCaps, nonLocalKinds)
-      : [];
-    if (attachmentKinds.includes('text') && modelCaps?.text !== true) {
-      unsupported.push('text');
-    }
-
-    if (unsupported.length > 0) {
-      return error(req, 'attachments_not_supported', 400, {
-        message: modelCaps
-          ? formatUnsupportedAttachmentMessage(unsupported)
-          : 'Attachment capabilities not configured for this model.',
-        unsupported_types: unsupported,
-        resumable: false,
-      });
-    }
-    attachmentKinds = nonLocalKinds;
-  }
+  const attachmentResult = await loadAndValidateAttachments(
+    req,
+    env,
+    db,
+    user,
+    attachmentIds,
+    model
+  );
+  if (attachmentResult.error) return attachmentResult.error;
+  ({ attachmentDocs, attachmentParts, attachmentKinds } = attachmentResult);
 
   const newUserMsgId = crypto.randomUUID();
   const branchStatements = [
