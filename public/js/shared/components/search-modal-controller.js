@@ -133,10 +133,14 @@ export function createSearchModalController(container, createChatFn, loadMessage
   function renderList() {
     const { results, query } = state.search;
     if (results.length === 0 && !state.search.loading) {
+      // renderSearchEmptyStateMarkup escapes the query before interpolating it.
+      // fallow-ignore-next-line security-sink
       searchList.innerHTML = renderSearchEmptyStateMarkup(query);
       return;
     }
 
+    // renderSearchResultsMarkup escapes chat titles, date labels, and the query highlight.
+    // fallow-ignore-next-line security-sink
     searchList.innerHTML = renderSearchResultsMarkup(results, query);
 
     searchList.querySelectorAll('[data-search-chat]').forEach((btn) => {
