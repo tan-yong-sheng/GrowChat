@@ -1,148 +1,50 @@
+/**
+ * Auth Router — Dispatcher
+ *
+ * Delegates to per-route handlers for authentication operations.
+ */
 import { createDB } from '../db.js';
-import { error, json } from '../utils/response.js';
-import { signJWT, verifyPassword } from '../shared/auth.js';
-import {
-  createRefreshToken,
-  consumeRefreshToken,
-  revokeRefreshTokenForLogout,
-} from '../shared/session.js';
-import { getJwtSecret } from '../shared/jwt-secret.js';
-import { requireString, validateEmail } from '../validation/request.js';
-import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../services/rate-limit.js';
-import { createUserRepository } from '../repositories/user-repository.js';
-import { APP_TTLS } from '../config/app.js';
-import { ValidationError } from '../errors/http-errors.js';
-import { loadPrimaryRole, normalizePublicRole } from '../utils/user-role.js';
-import { escapeHtml } from '../utils/sanitize.js';
+import { error } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
+import { createUserRepository } from '../repositories/user-repository.js';
+import { getJwtSecret } from '../shared/jwt-secret.js';
+import { handleRegister } from './auth-register.js';
 import { handleForgotPassword, handleResetPassword } from './auth-password-reset.js';
 import { handleChangePassword } from './auth-change-password.js';
-import { handleRegister } from './auth-register.js';
-import {
-  trackFailedLoginAttempt,
-  clearFailedLoginAttempts,
-  getFailedLoginAttempts,
-} from '../services/audit-logging.js';
+import { handleLogin } from './auth/auth-login.js';
+import { handleRefresh } from './auth/auth-refresh.js';
+import { handleLogout } from './auth/auth-logout.js';
+import { handleVerifyEmail } from './auth/auth-verify-email.js';
+import { handleResendVerification } from './auth/auth-resend-verification.js';
+import { handleMe } from './auth/auth-me.js';
+import { createAccessToken, ensureUserRoleBinding } from './auth/auth-helpers.js';
 
-/**
- * Maximum number of failed login attempts allowed per email before the
- * account is locked out. Layered on top of the IP-based rate limit so
- * distributed brute-force attacks against a single account are also blocked.
- */
-const MAX_LOGIN_ATTEMPTS_PER_ACCOUNT = 5;
+const ROUTE_MAP = [
+  { method: 'POST', path: '/api/auth/register', handler: (c) => handleRegister(c.req, c.env, c.db, c.users, c.jwtSecret, c.logger, c.sharedFns) },
+  { method: 'POST', path: '/api/auth/login', handler: (c) => handleLogin(c.req, c.env, c.db, c.users, c.jwtSecret) },
+  { method: 'POST', path: '/api/auth/refresh', handler: (c) => handleRefresh(c.req, c.env, c.db, c.users, c.jwtSecret) },
+  { method: 'POST', path: '/api/auth/logout', handler: (c) => handleLogout(c.req, c.env) },
+  { method: 'POST', path: '/api/auth/forgot-password', handler: (c) => handleForgotPassword(c.req, c.env, c.db, c.users, c.requestContext) },
+  { method: 'POST', path: '/api/auth/reset-password', handler: (c) => handleResetPassword(c.req, c.env, c.db) },
+  { method: 'GET', path: '/api/auth/verify-email', handler: (c) => handleVerifyEmail(c.req) },
+  { method: 'POST', path: '/api/auth/resend-verification', handler: (c) => handleResendVerification(c.req, c.env) },
+  { method: 'POST', path: '/api/auth/change-password', handler: (c) => handleChangePassword(c.req, c.env, c.db, c.authUser, c.requestContext) },
+  { method: 'GET', path: '/api/auth/me', handler: (c) => handleMe(c.req, c.env, c.db, c.users, c.authUser) },
+];
 
-/**
- * Length of the rolling window (in seconds) used to count failed attempts.
- * Must match the TTL written by trackFailedLoginAttempt() in
- * src/services/audit-logging.js so the retry-after hint is accurate.
- */
-const LOGIN_LOCKOUT_WINDOW_SECONDS = 3600;
+const AUTH_PATHS = ROUTE_MAP.map((route) => route.path);
 
-/**
- * Compute how many seconds remain until the account lockout for this email
- * would naturally expire. The lockout is based on a rolling 1-hour window:
- * the account unlocks once the number of attempts within the window drops
- * below MAX_LOGIN_ATTEMPTS_PER_ACCOUNT, which happens when the
- * (count - max + 1)-th oldest attempt ages out.
- *
- * @param {number[]} attempts - Ascending timestamps (ms) in the window
- * @returns {number} Seconds until retry, capped at the full window length
- */
-function computeAccountLockoutRetryAfter(attempts) {
-  if (attempts.length < MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) return 0;
-  const releaseIndex = attempts.length - MAX_LOGIN_ATTEMPTS_PER_ACCOUNT;
-  const releaseAt = attempts[releaseIndex] + LOGIN_LOCKOUT_WINDOW_SECONDS * 1000;
-  const remaining = Math.ceil((releaseAt - Date.now()) / 1000);
-  return Math.max(0, Math.min(remaining, LOGIN_LOCKOUT_WINDOW_SECONDS));
-}
-
-function normalizeAccountStatus(value, fallback = 'active') {
-  const status = String(value || fallback)
-    .trim()
-    .toLowerCase();
-  if (status === 'active') return 'active';
-  return 'pending';
-}
-
-function isActiveAccount(user) {
-  if (!user) return false;
-  return normalizeAccountStatus(user.account_status) === 'active';
-}
-
-async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active', logger = null) {
-  if (!userId) return;
-  if (normalizeAccountStatus(accountStatus) !== 'active') {
-    try {
-      await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
-    } catch {
-      // Ignore missing RBAC tables during migrations.
+function resolveRoute(method, path) {
+  for (const route of ROUTE_MAP) {
+    if (route.method === method && route.path === path) {
+      return route.handler;
     }
-    return;
   }
-  if (!role) return;
-  const mappedRole = normalizePublicRole(role);
-  try {
-    await db.batch([
-      db.prepare('DELETE FROM user_roles WHERE user_id = ?').bind(userId),
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
-					SELECT ?, ?, r.id, unixepoch()
-					FROM roles r WHERE r.name = ?`
-        )
-        .bind(crypto.randomUUID(), userId, mappedRole),
-    ]);
-  } catch (err) {
-    if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      (logger || console).warn('RBAC role binding skipped: run migrations/001_initial.sql');
-      return;
-    }
-    throw err;
-  }
-}
-
-function sanitizeUser(user, primaryRole = 'member') {
-  let settings;
-  try {
-    settings = user.settings ? JSON.parse(user.settings) : {};
-  } catch {
-    settings = {};
-  }
-  return {
-    id: user.id,
-    email: user.email,
-    name: escapeHtml(String(user.name || '')),
-    account_status: normalizeAccountStatus(user.account_status),
-    primary_role: normalizePublicRole(primaryRole),
-    settings,
-    created_at: user.created_at,
-    last_active_at: user.last_active_at,
-    updated_at: user.updated_at,
-  };
-}
-
-function readBearerToken(req) {
-  const header = req.headers.get('Authorization');
-  if (!header?.startsWith('Bearer ')) return null;
-  return header.slice('Bearer '.length).trim();
-}
-
-async function createAccessToken(secret, user, primaryRole) {
-  return signJWT(
-    {
-      sub: user.id,
-      email: user.email,
-      primary_role: normalizePublicRole(primaryRole),
-      name: escapeHtml(String(user.name || '')),
-    },
-    secret,
-    APP_TTLS.accessTokenSeconds
-  );
+  return null;
 }
 
 export async function authRouter(req, env, _ctx, authUser, path, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
+  const logger = requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
   const db = createDB(env.DB);
   const users = createUserRepository(db);
 
@@ -158,281 +60,23 @@ export async function authRouter(req, env, _ctx, authUser, path, requestContext 
     return error(req, 'JWT_SECRET is not configured', 500);
   }
 
-  /**
-   * Check account status, refresh user data, and generate tokens.
-   * @returns {{ accessToken, refreshToken, user, primaryRole } | Response}
-   */
-  async function checkActiveAccountAndGenerateTokens(req, db, env, user, jwtSecret) {
-    if (!isActiveAccount(user)) {
-      return json(req, { error: 'pending_account', message: 'Account pending approval.' }, 403);
-    }
-    await users.touchLastActive(user.id);
-    const freshUser = await users.findById(user.id);
-    if (!freshUser) {
-      return error(req, 'User not found', 404);
-    }
-    const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
-    const accessToken = await signJWT(
-      {
-        sub: freshUser.id,
-        email: freshUser.email,
-        primary_role: primaryRole,
-        name: freshUser.name,
-      },
-      jwtSecret,
-      APP_TTLS.accessTokenSeconds
-    );
-    const refresh = await createRefreshToken(env, freshUser.id);
-    return {
-      accessToken,
-      refreshToken: refresh.token,
-      refreshExpiresAt: refresh.expiresAt,
-      user: freshUser,
-      primaryRole,
-    };
-  }
+  const sharedFns = { ensureUserRoleBinding, createAccessToken };
+  const context = {
+    req,
+    env,
+    db,
+    users,
+    jwtSecret,
+    authUser,
+    logger,
+    requestContext,
+    sharedFns,
+  };
 
-  if (req.method === 'POST' && path === '/api/auth/register') {
-    return handleRegister(req, env, db, users, jwtSecret, logger, {
-      ensureUserRoleBinding,
-      createAccessToken,
-    });
-  }
+  const handler = resolveRoute(req.method, path);
+  if (handler) return handler(context);
 
-  if (req.method === 'POST' && path === '/api/auth/login') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    let email;
-    let password;
-    try {
-      email = validateEmail(
-        requireString(body.email, 'email and password are required').toLowerCase()
-      );
-      password = requireString(body.password, 'email and password are required', {
-        trim: false,
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        return error(req, err.message, 400);
-      }
-      throw err;
-    }
-
-    const loginLimit = await checkRateLimit(env, {
-      action: 'auth-login',
-      subject: resolveRateLimitSubject(req),
-      ...RATE_LIMITS.authLogin,
-    });
-    if (!loginLimit.allowed) {
-      return error(req, 'Too many login attempts', 429, {
-        retry_after: Math.ceil((loginLimit.resetAt - Date.now()) / 1000),
-      });
-    }
-
-    // Pre-check the per-account lockout before doing any expensive work
-    // (user lookup, role binding, PBKDF2 verification). This prevents an
-    // attacker from burning CPU on a known-locked account and rejects the
-    // request immediately with a rolling-window retry-after hint.
-    let priorAttempts = await getFailedLoginAttempts(env, email);
-    if (priorAttempts.length >= MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) {
-      return error(req, 'Too many failed login attempts for this account', 429, {
-        retry_after: computeAccountLockoutRetryAfter(priorAttempts),
-      });
-    }
-
-    const user = await users.findByEmail(email);
-    if (!user) {
-      const attempts = await trackFailedLoginAttempt(env, email);
-      if (attempts >= MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) {
-        priorAttempts = await getFailedLoginAttempts(env, email);
-        return error(req, 'Too many failed login attempts for this account', 429, {
-          retry_after: computeAccountLockoutRetryAfter(priorAttempts),
-        });
-      }
-      return error(req, 'Invalid credentials', 401);
-    }
-
-    const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
-    await ensureUserRoleBinding(db, user.id, userRole, user.account_status, logger);
-
-    const ok = await verifyPassword(password, user.password_hash);
-    if (!ok) {
-      const attempts = await trackFailedLoginAttempt(env, email);
-      if (attempts >= MAX_LOGIN_ATTEMPTS_PER_ACCOUNT) {
-        priorAttempts = await getFailedLoginAttempts(env, email);
-        return error(req, 'Too many failed login attempts for this account', 429, {
-          retry_after: computeAccountLockoutRetryAfter(priorAttempts),
-        });
-      }
-      return error(req, 'Invalid credentials', 401);
-    }
-    const tokenResult = await checkActiveAccountAndGenerateTokens(req, db, env, user, jwtSecret);
-    if (tokenResult instanceof Response) return tokenResult;
-
-    // Only clear failed attempts once the login has fully succeeded and
-    // tokens have been issued. Clearing earlier would erase lockout history
-    // for transient failures (e.g. pending account) or downstream errors.
-    await clearFailedLoginAttempts(env, email);
-
-    return json(req, {
-      user: sanitizeUser(tokenResult.user, tokenResult.primaryRole),
-      access_token: tokenResult.accessToken,
-      refresh_token: tokenResult.refreshToken,
-      expires_in: 900,
-      refresh_expires_at: tokenResult.refreshExpiresAt,
-    });
-  }
-
-  if (req.method === 'POST' && path === '/api/auth/refresh') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    let refreshToken;
-    try {
-      refreshToken = requireString(body.refresh_token, 'refresh_token is required', {
-        trim: false,
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        return error(req, err.message, 400);
-      }
-      throw err;
-    }
-
-    const session = await consumeRefreshToken(env, refreshToken);
-    if (!session?.userId) return error(req, 'Invalid refresh token', 401);
-
-    const user = await users.findById(session.userId);
-    if (!user) return error(req, 'User not found', 404);
-
-    const userRole = (await loadPrimaryRole(db, user.id)) || 'member';
-    await ensureUserRoleBinding(db, user.id, userRole, user.account_status, logger);
-    const tokenResult = await checkActiveAccountAndGenerateTokens(req, db, env, user, jwtSecret);
-    if (tokenResult instanceof Response) return tokenResult;
-    return json(req, {
-      user: sanitizeUser(tokenResult.user, tokenResult.primaryRole),
-      access_token: tokenResult.accessToken,
-      refresh_token: tokenResult.refreshToken,
-      expires_in: 900,
-      refresh_expires_at: tokenResult.refreshExpiresAt,
-    });
-  }
-
-  if (req.method === 'POST' && path === '/api/auth/logout') {
-    let body = {};
-    try {
-      body = await req.json();
-    } catch {
-      // Allow empty body
-    }
-    const tokenFromBody = body.refresh_token ? String(body.refresh_token) : null;
-    const bearer = readBearerToken(req);
-    if (tokenFromBody) {
-      // Revoke the presented refresh token and bump the session-version
-      // counter so any stolen clones are invalidated immediately.
-      // revokeRefreshTokenForLogout bumps the version before deleting the
-      // token keys to close the race with concurrent refresh attempts
-      // (issue #146).
-      await revokeRefreshTokenForLogout(env, tokenFromBody);
-    }
-    if (bearer && !tokenFromBody) {
-      // Optional compatibility path: bearer-only logout cannot fan out to
-      // session-version because we have no userId. The access token
-      // expires in 15 minutes regardless.
-    }
-    return json(req, { ok: true });
-  }
-
-  if (req.method === 'POST' && path === '/api/auth/forgot-password') {
-    return handleForgotPassword(req, env, db, users, requestContext);
-  }
-
-  if (req.method === 'POST' && path === '/api/auth/reset-password') {
-    return handleResetPassword(req, env, db);
-  }
-
-  // Email verification endpoints
-  if (req.method === 'GET' && path === '/api/auth/verify-email') {
-    const url = new URL(req.url);
-    const token = url.searchParams.get('token');
-    if (!token) {
-      return error(req, 'Token is required', 400);
-    }
-    const { verifyEmail } = await import('./email-verification.js');
-    return verifyEmail({ token });
-  }
-
-  if (req.method === 'POST' && path === '/api/auth/resend-verification') {
-    const resendLimit = await checkRateLimit(env, {
-      action: 'auth-resend-verification',
-      subject: resolveRateLimitSubject(req),
-      ...RATE_LIMITS.authResendVerification,
-    });
-    if (!resendLimit.allowed) {
-      return error(req, 'Too many resend attempts', 429, {
-        retry_after: Math.ceil((resendLimit.resetAt - Date.now()) / 1000),
-      });
-    }
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-    const email = body?.email;
-    if (!email) {
-      return error(req, 'Email is required', 400);
-    }
-    const { resendVerification } = await import('./email-verification.js');
-    return resendVerification({ email, env });
-  }
-
-  // POST /api/auth/change-password - Change the current user's password
-  if (req.method === 'POST' && path === '/api/auth/change-password') {
-    if (!authUser?.sub) {
-      return error(req, 'Authentication required', 401);
-    }
-    return handleChangePassword(req, env, db, authUser, requestContext);
-  }
-
-  // GET /api/auth/me - Return the authenticated user profile
-  if (req.method === 'GET' && path === '/api/auth/me') {
-    if (!authUser?.sub) {
-      return error(req, 'Authentication required', 401);
-    }
-    const db = createDB(env.DB);
-    const users = createUserRepository(db);
-    const user = await users.findById(authUser.sub);
-    if (!user) {
-      return error(req, 'User not found', 404);
-    }
-    const primaryRole = await loadPrimaryRole(env, authUser.sub);
-    return json(req, sanitizeUser(user, primaryRole));
-  }
-
-  // Return 405 for method mismatches on known auth paths
-  const authPaths = [
-    '/api/auth/register',
-    '/api/auth/login',
-    '/api/auth/refresh',
-    '/api/auth/logout',
-    '/api/auth/forgot-password',
-    '/api/auth/reset-password',
-    '/api/auth/verify-email',
-    '/api/auth/resend-verification',
-    '/api/auth/me',
-    '/api/auth/change-password',
-  ];
-  if (authPaths.includes(path)) {
+  if (AUTH_PATHS.includes(path)) {
     return error(req, 'Method not allowed', 405);
   }
 
