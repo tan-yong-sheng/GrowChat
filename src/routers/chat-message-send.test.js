@@ -57,6 +57,12 @@ vi.mock('./chat-core.js', () => ({
 }));
 
 vi.mock('./chat-message-helpers.js', () => ({
+  buildUserMessageContent: (content, attachmentParts) => ({
+    role: 'user',
+    content: attachmentParts.length
+      ? [{ type: 'text', text: content }, ...attachmentParts]
+      : content,
+  }),
   ensureModelAllowed: mocks.ensureModelAllowed,
   normalizeSelectedToolNames: vi.fn((x) => (Array.isArray(x) ? x : null)),
   publishRealtimeNow: mocks.publishRealtimeNow,

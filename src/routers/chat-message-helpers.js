@@ -1,7 +1,8 @@
 import { error } from '../utils/response.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { authorize } from '../utils/authorize.js';
-import { requireOwnedChat, resolveProviderForModel } from './chat-core.js';
+import { requireOwnedChat, resolveDefaultModel, resolveProviderForModel } from './chat-core.js';
+import { mergeTextAttachmentParts } from '../chat/attachments.js';
 import {
   buildModelAclIndex,
   evaluateModelAclAccess,
@@ -99,4 +100,28 @@ export async function requireOwnedChatWithPermission(req, env, db, user, action,
   const owned = await requireOwnedChat(req, db, chatId, user.sub);
   if (owned.error) return { error: owned.error };
   return { chat: owned.chat };
+}
+
+export async function resolveChatModel(req, env, db, user, modelOrChat) {
+  let model = String(modelOrChat.model || '').trim();
+  if (!model) {
+    model = await resolveDefaultModel(env, db, user.sub);
+  }
+  const modelDecision = await ensureModelAllowed(req, env, db, user, model);
+  if (modelDecision?.error) return modelDecision;
+  return { model, providerInfo: modelDecision.providerInfo };
+}
+
+export function buildUserMessageContent(content, attachmentParts) {
+  const hasNonText = attachmentParts.some((part) => part?.type && part.type !== 'text');
+  if (hasNonText) {
+    return {
+      role: 'user',
+      content: [{ type: 'text', text: content }, ...attachmentParts],
+    };
+  }
+  return {
+    role: 'user',
+    content: mergeTextAttachmentParts(content, attachmentParts),
+  };
 }

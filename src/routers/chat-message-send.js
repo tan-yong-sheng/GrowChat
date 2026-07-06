@@ -4,13 +4,10 @@ import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
 import { buildMetadataSystemPrompt } from '../llm/system-prompt.js';
 import { requireOwnedChat, getMessageSnapshot, resolveDefaultModel } from './chat-core.js';
-import {
-  MAX_ATTACHMENTS,
-  mergeTextAttachmentParts,
-  normalizeAttachmentIds,
-} from '../chat/attachments.js';
+import { MAX_ATTACHMENTS, normalizeAttachmentIds } from '../chat/attachments.js';
 import { loadAndValidateAttachments } from './chat-attachment-helpers.js';
 import {
+  buildUserMessageContent,
   ensureModelAllowed,
   normalizeSelectedToolNames,
   publishRealtimeNow,
@@ -247,18 +244,4 @@ async function buildEnhancedHistory({
   }
 
   return enhancedHistory;
-}
-
-function buildUserMessageContent(content, attachmentParts) {
-  const hasNonText = attachmentParts.some((part) => part?.type && part.type !== 'text');
-  if (hasNonText) {
-    return {
-      role: 'user',
-      content: [{ type: 'text', text: content }, ...attachmentParts],
-    };
-  }
-  return {
-    role: 'user',
-    content: mergeTextAttachmentParts(content, attachmentParts),
-  };
 }

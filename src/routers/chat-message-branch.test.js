@@ -33,10 +33,17 @@ vi.mock('./chat-core.js', () => ({
 }));
 
 vi.mock('./chat-message-helpers.js', () => ({
+  buildUserMessageContent: (content, attachmentParts) => ({
+    role: 'user',
+    content: attachmentParts.length
+      ? [{ type: 'text', text: content }, ...attachmentParts]
+      : content,
+  }),
   ensureModelAllowed: (...args) => mocks.ensureModelAllowed(...args),
   normalizeSelectedToolNames: (...args) => mocks.normalizeSelectedToolNames(...args),
   publishRealtimeNow: (...args) => mocks.publishRealtimeNow(...args),
   requireChatPermission: (...args) => mocks.requireChatPermission(...args),
+  resolveChatModel: (...args) => mocks.ensureModelAllowed(...args),
 }));
 
 vi.mock('../chat/attachments.js', () => ({

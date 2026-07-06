@@ -1,10 +1,9 @@
 import { error } from '../../utils/response.js';
 import { trimTrailingAssistantMessages } from '../chat-history.js';
-import { resolveDefaultModel } from '../chat-core.js';
 import {
-  ensureModelAllowed,
   normalizeSelectedToolNames,
   requireOwnedChatWithPermission,
+  resolveChatModel,
 } from '../chat-message-helpers.js';
 
 export async function handleRegenerateMessage({
@@ -36,14 +35,9 @@ export async function handleRegenerateMessage({
   if (sourceMsg.role !== 'assistant')
     return error(req, 'Can only regenerate assistant messages', 400);
 
-  let model = String(chat.model || '').trim();
-  if (!model) {
-    model = await resolveDefaultModel(env, db, user.sub);
-  }
-
-  const modelDecision = await ensureModelAllowed(req, env, db, user, model);
-  if (modelDecision?.error) return modelDecision.error;
-  const providerInfo = modelDecision.providerInfo;
+  const modelResult = await resolveChatModel(req, env, db, user, chat);
+  if (modelResult?.error) return modelResult.error;
+  const { model, providerInfo } = modelResult;
 
   let body;
   try {

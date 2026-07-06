@@ -1,18 +1,15 @@
 import { error, json } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
 import { createRealtimeEvent } from '../features/realtime/realtime.js';
-import { requireOwnedChat, getMessageSnapshot, resolveDefaultModel } from './chat-core.js';
-import {
-  MAX_ATTACHMENTS,
-  mergeTextAttachmentParts,
-  normalizeAttachmentIds,
-} from '../chat/attachments.js';
+import { requireOwnedChat, getMessageSnapshot } from './chat-core.js';
+import { MAX_ATTACHMENTS, normalizeAttachmentIds } from '../chat/attachments.js';
 import { loadAndValidateAttachments } from './chat-attachment-helpers.js';
 import {
-  ensureModelAllowed,
+  buildUserMessageContent,
   normalizeSelectedToolNames,
   publishRealtimeNow,
   requireChatPermission,
+  resolveChatModel,
 } from './chat-message-helpers.js';
 
 async function getBranchHistory(db, leafMessageId, chatId) {
@@ -182,13 +179,7 @@ async function parseBranchBody(req, sourceMsg) {
 }
 
 async function resolveBranchModel(req, env, db, user, chat, body) {
-  let model = String(body.model || chat.model || '').trim();
-  if (!model) {
-    model = await resolveDefaultModel(env, db, user.sub);
-  }
-  const modelDecision = await ensureModelAllowed(req, env, db, user, model);
-  if (modelDecision?.error) return modelDecision;
-  return { model, providerInfo: modelDecision.providerInfo };
+  return resolveChatModel(req, env, db, user, { model: body.model || chat.model });
 }
 
 async function resolveBranchAttachments({ req, env, db, user, msgId, model, providedIds, logger }) {
@@ -352,15 +343,5 @@ async function buildBranchHistory({ db, chatId, newUserMsgId, content, attachmen
 }
 
 function buildUserBranchContent(content, attachmentParts) {
-  const hasNonText = attachmentParts.some((part) => part?.type && part.type !== 'text');
-  if (hasNonText) {
-    return {
-      role: 'user',
-      content: [{ type: 'text', text: content }, ...attachmentParts],
-    };
-  }
-  return {
-    role: 'user',
-    content: mergeTextAttachmentParts(content, attachmentParts),
-  };
+  return buildUserMessageContent(content, attachmentParts);
 }
