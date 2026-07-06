@@ -1,7 +1,7 @@
 /**
  * Admin Tool Servers OAuth Handlers - /api/admin/tool-servers/oauth/*
  */
-import { authError, error, json } from '../../utils/response.js';
+import { error, json } from '../../utils/response.js';
 import {
   buildAuthorizationUrl,
   discoverAuthorizationMetadata,
@@ -13,7 +13,7 @@ import {
   selectTokenAuthMethod,
   sha256Base64Url,
 } from '../../admin/tool-servers.js';
-import { ensureAdminAclAccess } from './admin-helpers.js';
+import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 
 /**
@@ -34,17 +34,13 @@ export async function handleAdminToolServersOAuth(
     if (!origin) {
       return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
     }
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
-    if (!aclDecision.allow) {
-      return authError(req, aclDecision);
-    }
+    const { body, error: denied } = await parseJsonAndRequireAdminAcl(
+      req,
+      env,
+      user,
+      'tool-server'
+    );
+    if (denied) return denied;
 
     const serverId = String(body.id || '').trim();
     if (!serverId) {

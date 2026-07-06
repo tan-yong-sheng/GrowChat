@@ -1,7 +1,7 @@
 /**
  * Admin Tool Servers CRUD Handlers - GET/POST/PUT /api/admin/tool-servers
  */
-import { authError, error, json } from '../../utils/response.js';
+import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import {
   isValidHttpUrl,
@@ -14,7 +14,7 @@ import {
   saveToolServers,
 } from '../../admin/tool-servers.js';
 import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../../mcp/client.js';
-import { ensureAdminAclAccess } from './admin-helpers.js';
+import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 
 /**
@@ -48,17 +48,13 @@ export async function handleAdminToolServersCrud(
 
   // POST /api/admin/tool-servers/test - Test MCP tool server connection + list tools
   if (req.method === 'POST' && path === '/api/admin/tool-servers/test') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
-    if (!aclDecision.allow) {
-      return authError(req, aclDecision);
-    }
+    const { body, error: denied } = await parseJsonAndRequireAdminAcl(
+      req,
+      env,
+      user,
+      'tool-server'
+    );
+    if (denied) return denied;
 
     const url = String(body.url || '').trim();
     if (!url || !isValidHttpUrl(url)) {
@@ -203,17 +199,13 @@ export async function handleAdminToolServersCrud(
   }
 
   if (req.method === 'PUT' && path === '/api/admin/tool-servers') {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
-    if (!aclDecision.allow) {
-      return authError(req, aclDecision);
-    }
+    const { body, error: denied } = await parseJsonAndRequireAdminAcl(
+      req,
+      env,
+      user,
+      'tool-server'
+    );
+    if (denied) return denied;
 
     const servers = Array.isArray(body.servers) ? body.servers : [];
     const existing = await loadToolServers(db);

@@ -3,6 +3,7 @@
  *
  * Shared authorization and validation helpers for admin sub-handlers.
  */
+import { authError, error } from '../../utils/response.js';
 import { authorize } from '../../utils/authorize.js';
 
 /**
@@ -49,6 +50,26 @@ export async function ensureAdminAclAccess(options = {}, legacyUser, legacyResou
     action: 'admin.rbac.admin',
     resource,
   });
+}
+
+/**
+ * Parse the request body as JSON and ensure the user has admin ACL access.
+ * Returns { body } on success or { error: Response } on failure.
+ */
+export async function parseJsonAndRequireAdminAcl(req, env, user, resource) {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return { error: error(req, 'Invalid JSON body', 400) };
+  }
+
+  const aclDecision = await ensureAdminAclAccess({ env, user, resource });
+  if (!aclDecision.allow) {
+    return { error: authError(req, aclDecision) };
+  }
+
+  return { body };
 }
 
 /**
