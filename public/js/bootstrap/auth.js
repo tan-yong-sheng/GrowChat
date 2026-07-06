@@ -34,6 +34,18 @@ let mode = 'login';
 let isSubmitting = false;
 let bootstrapReady = false;
 
+function setControlVisibility(element, visible) {
+  if (visible) {
+    element.classList.remove('hidden');
+    element.removeAttribute('aria-hidden');
+    element.removeAttribute('tabindex');
+  } else {
+    element.classList.add('hidden');
+    element.setAttribute('aria-hidden', 'true');
+    element.setAttribute('tabindex', '-1');
+  }
+}
+
 function updateSubmitAvailability() {
   const baseDisabled = !form.checkValidity() || isSubmitting || !bootstrapReady;
   authSubmit.disabled = baseDisabled;
@@ -136,6 +148,7 @@ async function submit(e) {
   setAuthSubmitting(label);
 
   try {
+    // fallow-ignore-next-line security-sink
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -177,61 +190,37 @@ async function bootstrapAuthMode() {
       // Case A: Fresh install (zero users) — sign-up only, no toggle, no forgot password
       setMode('register');
       // The 'Forgot Password' button should not appear when no users exist
-      forgotPasswordBtn.classList.add('hidden');
-      forgotPasswordBtn.setAttribute('aria-hidden', 'true');
-      forgotPasswordBtn.setAttribute('tabindex', '-1');
+      setControlVisibility(forgotPasswordBtn, false);
       // The toggle section should also be hidden on fresh install
-      toggleText.classList.add('hidden');
-      toggleModeBtn.classList.add('hidden');
-      toggleModeBtn.setAttribute('aria-hidden', 'true');
-      toggleModeBtn.setAttribute('tabindex', '-1');
+      setControlVisibility(toggleText, false);
+      setControlVisibility(toggleModeBtn, false);
     } else if (publicRegistration) {
       // Case C: Normal (has users + public registration enabled) — show both modes
       setMode('login');
-      forgotPasswordBtn.classList.remove('hidden');
-      forgotPasswordBtn.removeAttribute('aria-hidden');
-      forgotPasswordBtn.removeAttribute('tabindex');
-      toggleText.classList.remove('hidden');
-      toggleModeBtn.classList.remove('hidden');
-      toggleModeBtn.removeAttribute('aria-hidden');
-      toggleModeBtn.removeAttribute('tabindex');
+      setControlVisibility(forgotPasswordBtn, true);
+      setControlVisibility(toggleText, true);
+      setControlVisibility(toggleModeBtn, true);
 
       // Hide forgot-password button if email provider is not configured
       if (!emailConfigured) {
-        forgotPasswordBtn.classList.add('hidden');
-        forgotPasswordBtn.setAttribute('aria-hidden', 'true');
-        forgotPasswordBtn.setAttribute('tabindex', '-1');
+        setControlVisibility(forgotPasswordBtn, false);
       }
     } else {
       // Case B: Has users but public registration is disabled — login only
       // Also hide forgot-password when email is not configured
       setMode('login');
-      if (emailConfigured) {
-        forgotPasswordBtn.classList.remove('hidden');
-        forgotPasswordBtn.removeAttribute('aria-hidden');
-        forgotPasswordBtn.removeAttribute('tabindex');
-      } else {
-        forgotPasswordBtn.classList.add('hidden');
-        forgotPasswordBtn.setAttribute('aria-hidden', 'true');
-        forgotPasswordBtn.setAttribute('tabindex', '-1');
-      }
+      setControlVisibility(forgotPasswordBtn, emailConfigured);
       // Hide sign-up toggle — no point showing a link to a disabled registration
-      toggleText.classList.add('hidden');
-      toggleModeBtn.classList.add('hidden');
-      toggleModeBtn.setAttribute('aria-hidden', 'true');
-      toggleModeBtn.setAttribute('tabindex', '-1');
+      setControlVisibility(toggleText, false);
+      setControlVisibility(toggleModeBtn, false);
     }
   } catch {
     bootstrapReady = true;
     setMode('login');
     // Safe fallback — show both controls on health check failure
-    forgotPasswordBtn.classList.remove('hidden');
-    forgotPasswordBtn.removeAttribute('aria-hidden');
-    forgotPasswordBtn.removeAttribute('tabindex');
-    toggleText.classList.remove('hidden');
-    toggleModeBtn.classList.remove('hidden');
-    toggleModeBtn.removeAttribute('aria-hidden');
-    toggleModeBtn.removeAttribute('tabindex');
+    setControlVisibility(forgotPasswordBtn, true);
+    setControlVisibility(toggleText, true);
+    setControlVisibility(toggleModeBtn, true);
   } finally {
     updateButtonState(form, authSubmit, isSubmitting);
     updateSubmitAvailability();

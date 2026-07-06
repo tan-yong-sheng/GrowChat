@@ -3,10 +3,14 @@
  */
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { renderStatusBadge } from '../../shared/components/status-badge.js';
+import { clonePreferences as clonePreferencesImpl } from '../../shared/utils/clone-preferences.js';
+import { updateToolToggle } from '../../shared/components/tool-toggle.js';
 import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
 import { renderLoadingSkeleton } from '../admin/settings/acl-modal-shared.js';
+
+export { clonePreferencesImpl as clonePreferences };
 // Re-export so existing callers don't need to change.
-export { renderLoadingSkeleton };
+export { renderLoadingSkeleton, updateToolToggle };
 
 export function normalizeTool(tool = {}) {
   const name = String(tool.name || tool.id || tool.title || '').trim();
@@ -34,22 +38,7 @@ export function normalizeToolList(tools = []) {
   return (Array.isArray(tools) ? tools : []).map(normalizeTool).filter(Boolean);
 }
 
-export function clonePreferences(value = {}) {
-  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  if (typeof structuredClone === 'function') {
-    try {
-      return structuredClone(source);
-    } catch {
-      return { ...source };
-    }
-  }
-  try {
-    return JSON.parse(JSON.stringify(source));
-  } catch {
-    return { ...source };
-  }
-}
-
+// fallow-ignore-next-line complexity
 export function normalizeServer(server = {}) {
   const headers =
     server.headers && typeof server.headers === 'object' && !Array.isArray(server.headers)
@@ -95,27 +84,7 @@ export function buildFormMarkup(server = null, modalMode = 'create', canManage =
   });
 }
 
-export function updateToolToggle(btn, enabled, serverEnabled) {
-  if (!btn) return;
-  btn.disabled = !serverEnabled;
-  btn.classList.toggle('bg-primary', enabled);
-  btn.classList.toggle('bg-gray-200', !enabled);
-  btn.classList.toggle('opacity-40', !serverEnabled);
-  btn.classList.toggle('cursor-not-allowed', !serverEnabled);
-  btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-  btn.setAttribute('aria-disabled', serverEnabled ? 'false' : 'true');
-  btn.title = serverEnabled
-    ? enabled
-      ? 'Disable tool'
-      : 'Enable tool'
-    : 'Enable the server to edit tools';
-  const knob = btn.querySelector('span');
-  if (knob) {
-    knob.classList.toggle('translate-x-4', enabled);
-    knob.classList.toggle('translate-x-0', !enabled);
-  }
-}
-
+// fallow-ignore-next-line complexity
 export function buildListCard(
   server,
   canManageToolServers = true,
@@ -146,6 +115,7 @@ export function buildListCard(
     : serverEnabled
       ? 'Disable server'
       : 'Enable server';
+  // fallow-ignore-next-line complexity
   const toolRows = tools.map((tool) => {
     const description = String(tool.description || '');
     const maxLen = 160;

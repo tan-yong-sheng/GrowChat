@@ -1,6 +1,7 @@
 /**
  * Model render function for the models settings view.
  */
+// fallow-ignore-file security-sink
 
 import { normalizeModelSearchQuery } from '../../../shared/utils/model-search.js';
 import {

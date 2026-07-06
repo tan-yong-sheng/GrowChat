@@ -1,11 +1,15 @@
 import { apiFetch } from './request.js';
-import { readJsonResponse } from './response.js';
+import { parseApiError, readJsonResponse } from './response.js';
 
-export async function fetchFiles({ limit = 20, offset = 0, signal } = {}) {
+function buildPaginationParams({ limit, offset }) {
   const params = new URLSearchParams();
   params.set('limit', String(limit));
   params.set('offset', String(offset));
+  return params;
+}
 
+export async function fetchFiles({ limit = 20, offset = 0, signal } = {}) {
+  const params = buildPaginationParams({ limit, offset });
   const res = await apiFetch(`/api/files?${params.toString()}`, { signal });
   return readJsonResponse(res, `Failed to fetch files (${res.status})`);
 }
@@ -49,16 +53,7 @@ export async function uploadFile(file, chatId = null, options = {}) {
   }
 
   if (!res.ok) {
-    let message = `Failed to upload file (${res.status})`;
-    try {
-      const payload = await res.json();
-      message = payload?.error || payload?.message || message;
-    } catch {
-      // ignore
-    }
-    const err = new Error(message, { cause: null });
-    err.status = res.status;
-    throw err;
+    return parseApiError(res, `Failed to upload file (${res.status})`);
   }
 
   return res.json();
@@ -75,10 +70,8 @@ export async function getFileMetadata(id) {
 }
 
 export async function searchFiles({ q = '', limit = 20, offset = 0, signal } = {}) {
-  const params = new URLSearchParams();
+  const params = buildPaginationParams({ limit, offset });
   params.set('q', q.trim());
-  params.set('limit', String(limit));
-  params.set('offset', String(offset));
 
   const res = await apiFetch(`/api/files/search?${params.toString()}`, {
     signal,
@@ -94,9 +87,7 @@ export async function getFileContent(id) {
 export async function getFileBlob(id) {
   const res = await apiFetch(`/api/files/${id}/blob`);
   if (!res.ok) {
-    const err = new Error(`Failed to get file blob (${res.status})`);
-    err.status = res.status;
-    throw err;
+    return parseApiError(res, `Failed to get file blob (${res.status})`);
   }
   return res.blob();
 }

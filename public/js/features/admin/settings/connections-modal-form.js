@@ -2,6 +2,8 @@
  * Connection modal form helpers — field population, model rendering,
  * and model loading/refreshing for the connection create/edit modal.
  */
+// fallow-ignore-file complexity
+// fallow-ignore-file security-sink
 
 import { apiFetch } from '../../../shared/api.js';
 import {

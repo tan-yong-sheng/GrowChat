@@ -45,7 +45,7 @@ export function clearPerUserLocalState() {
   removeStoredValue(sessionStorage, CLIENT_SESSION_KEY);
 }
 
-function decodeJwtPayload(token) {
+export function decodeJwtPayload(token) {
   const parts = String(token || '').split('.');
   if (parts.length < 2) return null;
   const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');

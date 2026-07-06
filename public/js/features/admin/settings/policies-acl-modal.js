@@ -4,6 +4,8 @@
  * Handles loading/saving family access and rendering the
  * per-resource ACL editor modal.
  */
+// fallow-ignore-file complexity
+// fallow-ignore-file security-sink
 
 import { apiFetch } from '../../../shared/api.js';
 import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';

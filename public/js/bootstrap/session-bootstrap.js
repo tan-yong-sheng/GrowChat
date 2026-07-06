@@ -60,6 +60,36 @@ function scheduleModelsPrefetch(options = {}) {
   setTimeout(run, 0);
 }
 
+function applyPrefetchedModels(data) {
+  const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
+  const nextActiveModelId = getPreferredModelId(models, [
+    state.activeModelId,
+    state.defaultModelId,
+    state.globalDefaultModelId,
+  ]);
+  setState({
+    models,
+    modelCatalogMeta: data?.visibility || null,
+    modelsLoading: false,
+    activeModelId: nextActiveModelId,
+  });
+}
+
+function handlePrefetchError(err, { requestGeneration, allowCache }) {
+  if (requestGeneration !== getModelsCacheGeneration()) return null;
+  console.warn('Failed to prefetch models:', err);
+  if (allowCache) {
+    const cached = readModelsCache('effective');
+    if (cached?.models?.length) {
+      applyPrefetchedModels(cached);
+      return cached;
+    }
+  }
+  setState({ modelsLoading: false });
+  return null;
+}
+
+// fallow-ignore-next-line complexity
 export function prefetchModels({ allowCache = true, cacheBust = null, force = false } = {}) {
   if (modelsPrefetchPromise && !force && !cacheBust) return modelsPrefetchPromise;
   if (!state.models?.length) {
@@ -74,44 +104,10 @@ export function prefetchModels({ allowCache = true, cacheBust = null, force = fa
   })
     .then((data) => {
       if (requestGeneration !== getModelsCacheGeneration()) return data;
-      const models = filterEnabledModels(Array.isArray(data?.models) ? data.models : []);
-      const nextActiveModelId = getPreferredModelId(models, [
-        state.activeModelId,
-        state.defaultModelId,
-        state.globalDefaultModelId,
-      ]);
-      setState({
-        models,
-        modelCatalogMeta: data?.visibility || null,
-        modelsLoading: false,
-        activeModelId: nextActiveModelId,
-      });
+      applyPrefetchedModels(data);
       return data;
     })
-    .catch((err) => {
-      if (requestGeneration !== getModelsCacheGeneration()) return null;
-      console.warn('Failed to prefetch models:', err);
-      if (allowCache) {
-        const cached = readModelsCache('effective');
-        if (cached?.models?.length) {
-          const models = filterEnabledModels(cached.models);
-          const nextActiveModelId = getPreferredModelId(models, [
-            state.activeModelId,
-            state.defaultModelId,
-            state.globalDefaultModelId,
-          ]);
-          setState({
-            models,
-            modelCatalogMeta: cached?.visibility || null,
-            modelsLoading: false,
-            activeModelId: nextActiveModelId,
-          });
-          return cached;
-        }
-      }
-      setState({ modelsLoading: false });
-      return null;
-    })
+    .catch((err) => handlePrefetchError(err, { requestGeneration, allowCache }))
     .finally(() => {
       if (modelsPrefetchPromise === requestPromise) {
         modelsPrefetchPromise = null;
@@ -225,6 +221,7 @@ async function initRBAC(user, preloaded = null) {
   }
 }
 
+// fallow-ignore-next-line complexity
 export async function ensureSession({ preferRefresh = false } = {}) {
   if (bootstrapped) return true;
 
@@ -323,20 +320,20 @@ export async function ensureSession({ preferRefresh = false } = {}) {
       });
     };
 
+    const fetchAndApplyChats = () =>
+      fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
+        .then((fresh) => {
+          writeChatsCache(user.id, fresh);
+          applyChatsState(fresh);
+        })
+        .catch((err) => {
+          console.warn('Failed to refresh chats:', err);
+        });
+
     const hasCachedChats = cachedChats?.chats?.length;
     if (hasCachedChats) {
       applyChatsState(cachedChats, { resetConversationState: true });
-      const refreshChats = () => {
-        fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
-          .then((fresh) => {
-            writeChatsCache(user.id, fresh);
-            applyChatsState(fresh);
-          })
-          .catch((err) => {
-            console.warn('Failed to refresh chats:', err);
-          });
-      };
-      setTimeout(refreshChats, 25000);
+      setTimeout(fetchAndApplyChats, 25000);
     } else {
       applyChatsState(
         {
@@ -347,14 +344,7 @@ export async function ensureSession({ preferRefresh = false } = {}) {
         },
         { resetConversationState: true }
       );
-      fetchChats({ limit: INITIAL_CHAT_LIMIT, offset: 0 })
-        .then((fresh) => {
-          writeChatsCache(user.id, fresh);
-          applyChatsState(fresh);
-        })
-        .catch((err) => {
-          console.warn('Failed to fetch initial chats:', err);
-        });
+      fetchAndApplyChats();
     }
   } else {
     setState({

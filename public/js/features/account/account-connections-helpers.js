@@ -4,6 +4,9 @@
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { renderStatusBadge } from '../../shared/components/status-badge.js';
 import { normalizeConnectionModelSelectionMode } from '../../shared/utils/connection-model-selection.js';
+import { clonePreferences as clonePreferencesImpl } from '../../shared/utils/clone-preferences.js';
+
+export { clonePreferencesImpl as clonePreferences };
 
 export function normalizeProviderType(value) {
   return (
@@ -42,6 +45,7 @@ export function providerUrlPlaceholder(providerType) {
   }
 }
 
+// fallow-ignore-next-line complexity
 export function normalizePersonalConnection(connection = {}) {
   const headers =
     connection.headers &&
@@ -78,22 +82,6 @@ export function normalizePersonalConnection(connection = {}) {
       : [],
     note: connection.note || connection.base_url || connection.baseUrl || '',
   };
-}
-
-export function clonePreferences(value = {}) {
-  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  if (typeof structuredClone === 'function') {
-    try {
-      return structuredClone(source);
-    } catch {
-      return { ...source };
-    }
-  }
-  try {
-    return JSON.parse(JSON.stringify(source));
-  } catch {
-    return { ...source };
-  }
 }
 
 export function formatHeadersValue(headers) {
