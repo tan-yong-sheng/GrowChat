@@ -67,6 +67,15 @@ vi.mock('../../utils/response.js', () => ({
       headers: { 'Content-Type': 'application/json' },
     });
   },
+  authError: (req, decision, defaultMessage = 'Forbidden') => {
+    const statusCodeMap = { server_error: 500, unauthorized: 401, not_found: 404 };
+    const statusCode = statusCodeMap[decision.code] || 403;
+    const message = decision.reason || defaultMessage;
+    return new Response(JSON.stringify({ error: message }), {
+      status: statusCode,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
   getConnectionTestFailureMessage: (...args) => mocks.getConnectionTestFailureMessage(...args),
 }));
 

@@ -1,7 +1,7 @@
 /**
  * Admin Connections List & Test Handlers - GET/POST /api/admin/openai/connections
  */
-import { error, getConnectionTestFailureMessage, json } from '../../utils/response.js';
+import { authError, error, getConnectionTestFailureMessage, json } from '../../utils/response.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 import { getConfigValue } from '../../utils/app-config.js';
 import {
@@ -87,13 +87,7 @@ export async function handleAdminConnectionsList(
 
     const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
     if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
+      return authError(req, aclDecision);
     }
 
     const providerType = String(body.providerType || 'openai').toLowerCase();

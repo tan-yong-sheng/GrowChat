@@ -1,7 +1,7 @@
 /**
  * Admin Connections Save Handler - PUT /api/admin/openai/connections
  */
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 import {
   getAllOpenAIConnectionConfigs,
@@ -40,13 +40,7 @@ export async function handleAdminConnectionsSave(
 
     const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
     if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
+      return authError(req, aclDecision);
     }
 
     const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
@@ -202,13 +196,7 @@ export async function handleAdminConnectionsSave(
       if (normalizedAccessUpdates.length > 0) {
         const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
         if (!aclDecision.allow) {
-          const statusCodeMap = {
-            server_error: 500,
-            unauthorized: 401,
-            not_found: 404,
-          };
-          const statusCode = statusCodeMap[aclDecision.code] || 403;
-          return error(req, aclDecision.reason || 'Forbidden', statusCode);
+          return authError(req, aclDecision);
         }
       }
 

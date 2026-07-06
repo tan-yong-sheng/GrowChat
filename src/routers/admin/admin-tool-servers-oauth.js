@@ -1,7 +1,7 @@
 /**
  * Admin Tool Servers OAuth Handlers - /api/admin/tool-servers/oauth/*
  */
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import {
   buildAuthorizationUrl,
   discoverAuthorizationMetadata,
@@ -43,13 +43,7 @@ export async function handleAdminToolServersOAuth(
 
     const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
     if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
+      return authError(req, aclDecision);
     }
 
     const serverId = String(body.id || '').trim();

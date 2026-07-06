@@ -1,7 +1,7 @@
 /**
  * Admin Tool Servers Access Handlers - /api/admin/tool-servers/access/*
  */
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import {
   buildToolServerAclRuleSaveStatements,
@@ -59,13 +59,7 @@ export async function handleAdminToolServersAccess(
 
     const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
     if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
+      return authError(req, aclDecision);
     }
 
     const updates = Array.isArray(body.updates) ? body.updates : [];
@@ -191,13 +185,7 @@ export async function handleAdminToolServersAccess(
 
       const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
       if (!aclDecision.allow) {
-        const statusCodeMap = {
-          server_error: 500,
-          unauthorized: 401,
-          not_found: 404,
-        };
-        const statusCode = statusCodeMap[aclDecision.code] || 403;
-        return error(req, aclDecision.reason || 'Forbidden', statusCode);
+        return authError(req, aclDecision);
       }
 
       try {

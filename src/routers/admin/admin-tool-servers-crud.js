@@ -1,7 +1,7 @@
 /**
  * Admin Tool Servers CRUD Handlers - GET/POST/PUT /api/admin/tool-servers
  */
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import {
   isValidHttpUrl,
@@ -57,13 +57,7 @@ export async function handleAdminToolServersCrud(
 
     const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
     if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
+      return authError(req, aclDecision);
     }
 
     const url = String(body.url || '').trim();
@@ -218,13 +212,7 @@ export async function handleAdminToolServersCrud(
 
     const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'tool-server' });
     if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
+      return authError(req, aclDecision);
     }
 
     const servers = Array.isArray(body.servers) ? body.servers : [];

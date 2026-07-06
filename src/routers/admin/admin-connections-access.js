@@ -1,7 +1,7 @@
 /**
  * Admin Connections Access Handlers - /api/admin/openai/connections/access/*
  */
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import {
   buildConnectionAclRuleSaveStatements,
@@ -59,13 +59,7 @@ export async function handleAdminConnectionsAccess(
 
     const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
     if (!aclDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[aclDecision.code] || 403;
-      return error(req, aclDecision.reason || 'Forbidden', statusCode);
+      return authError(req, aclDecision);
     }
 
     const updates = Array.isArray(body.updates) ? body.updates : [];
@@ -191,16 +185,9 @@ export async function handleAdminConnectionsAccess(
         return error(req, 'Invalid JSON body', 400);
       }
 
-      // Connection access writes are ACL-sensitive and must stay explicit here.
       const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'connection' });
       if (!aclDecision.allow) {
-        const statusCodeMap = {
-          server_error: 500,
-          unauthorized: 401,
-          not_found: 404,
-        };
-        const statusCode = statusCodeMap[aclDecision.code] || 403;
-        return error(req, aclDecision.reason || 'Forbidden', statusCode);
+        return authError(req, aclDecision);
       }
 
       try {
