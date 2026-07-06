@@ -8,7 +8,7 @@ import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
 import { authorize, resolvePermissions } from '../../utils/authorize.js';
 import { loadConnectionAclRules } from '../../utils/connection-acl.js';
 import { loadModelAclRules } from '../../utils/model-acl.js';
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { loadToolServerAclRules } from '../../utils/tool-server-acl.js';
 import { loadPrimaryRole } from '../../utils/user-role.js';
 import { loadModelEnabledMap, normalizeAccountStatus } from './users-helpers.js';
@@ -34,13 +34,7 @@ export async function handleUsersAdminAccess(
     });
 
     if (!authDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
-      return error(req, authDecision.reason || 'Forbidden', statusCode);
+      return authError(req, authDecision);
     }
 
     const db = createDB(env.DB);

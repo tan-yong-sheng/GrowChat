@@ -3,7 +3,7 @@
  */
 import { createDB } from '../../db.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { parsePagination } from '../../validation/request.js';
 import { normalizeAccountStatus, normalizeRole, parseSettings } from './users-helpers.js';
 
@@ -27,13 +27,7 @@ export async function handleUsersAdminList(
     });
 
     if (!authDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
-      return error(req, authDecision.reason || 'Forbidden', statusCode);
+      return authError(req, authDecision);
     }
 
     const db = createDB(env.DB);

@@ -5,7 +5,7 @@ import { createDB } from '../../db.js';
 import { ValidationError } from '../../errors/http-errors.js';
 import { hashPassword } from '../../shared/auth.js';
 import { authorize, isLastOwnerOfRole, logAuditEvent } from '../../utils/authorize.js';
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { escapeHtml, stripHtml } from '../../utils/sanitize.js';
 import { loadPrimaryRole } from '../../utils/user-role.js';
 import { requirePlainObject, validateEmail } from '../../validation/request.js';
@@ -38,13 +38,7 @@ export async function handleUsersAdminById(
     });
 
     if (!authDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
-      return error(req, authDecision.reason || 'Forbidden', statusCode);
+      return authError(req, authDecision);
     }
 
     const db = createDB(env.DB);
@@ -97,13 +91,7 @@ export async function handleUsersAdminById(
     });
 
     if (!authDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
-      return error(req, authDecision.reason || 'Forbidden', statusCode);
+      return authError(req, authDecision);
     }
 
     const db = createDB(env.DB);
@@ -302,13 +290,7 @@ export async function handleUsersAdminById(
     });
 
     if (!authDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
-      return error(req, authDecision.reason || 'Forbidden', statusCode);
+      return authError(req, authDecision);
     }
 
     const db = createDB(env.DB);

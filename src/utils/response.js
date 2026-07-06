@@ -191,6 +191,19 @@ export function getConnectionTestFailureMessage(status) {
   return 'Connection failed \u2014 check your settings and try again';
 }
 
+/**
+ * Build an error Response from an authorization decision.
+ * Maps known decision codes to HTTP status codes and falls back to 403.
+ */
+export function authError(req, decision, defaultMessage = 'Forbidden') {
+  const statusCodeMap = {
+    server_error: 500,
+    unauthorized: 401,
+    not_found: 404,
+  };
+  return error(req, decision.reason || defaultMessage, statusCodeMap[decision.code] || 403);
+}
+
 export function error(req, message, status = 500, details = undefined) {
   if (isHttpError(message)) {
     const payload = toHttpErrorPayload(message);

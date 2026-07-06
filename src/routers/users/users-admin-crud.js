@@ -5,7 +5,7 @@ import { createDB } from '../../db.js';
 import { ValidationError } from '../../errors/http-errors.js';
 import { hashPassword } from '../../shared/auth.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { isValidEmail, requireString, validateEmail } from '../../validation/request.js';
 import {
   normalizeAccountStatus,
@@ -33,13 +33,7 @@ export async function handleUsersAdminCrud(
     });
 
     if (!authDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
-      return error(req, authDecision.reason || 'Forbidden', statusCode);
+      return authError(req, authDecision);
     }
 
     const db = createDB(env.DB);
@@ -138,13 +132,7 @@ export async function handleUsersAdminCrud(
     });
 
     if (!authDecision.allow) {
-      const statusCodeMap = {
-        server_error: 500,
-        unauthorized: 401,
-        not_found: 404,
-      };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
-      return error(req, authDecision.reason || 'Forbidden', statusCode);
+      return authError(req, authDecision);
     }
 
     let body;
