@@ -2,6 +2,7 @@ import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 import { apiFetch } from '../../../shared/api.js';
 import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
 import { buildProviderOptions } from '../../../shared/utils/model-filters.js';
+import { updateToggleButton } from './acl-modal-shared.js';
 import {
   extractAttachmentCapsFromModels,
   getAttachmentCapTooltip as getCapTooltip,
@@ -187,16 +188,7 @@ export function renderModelsSettings(container, data) {
     }
   };
 
-  const _updateModelToggle = (btn, enabled) => {
-    if (!btn) return;
-    btn.classList.toggle('bg-primary', enabled);
-    btn.classList.toggle('bg-gray-200', !enabled);
-    const knob = btn.querySelector('span');
-    if (knob) {
-      knob.classList.toggle('translate-x-4', enabled);
-      knob.classList.toggle('translate-x-0', !enabled);
-    }
-  };
+  const _updateModelToggle = (btn, enabled) => updateToggleButton(btn, enabled);
 
   const _updateCapButton = (btn, enabled) => {
     if (!btn) return;

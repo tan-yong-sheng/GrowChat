@@ -10,21 +10,12 @@ import {
   shouldShowAuthField,
 } from './integrations-helpers.js';
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
-import { renderLoadingSkeleton } from './acl-modal-shared.js';
+import { renderLoadingSkeleton, updateToggleButton } from './acl-modal-shared.js';
 
 export function createIntegrationsModalOps(deps) {
   const { container, integrationsState } = deps;
 
-  const updateServerToggle = (btn, enabled) => {
-    if (!btn) return;
-    btn.classList.toggle('bg-primary', enabled);
-    btn.classList.toggle('bg-gray-200', !enabled);
-    const knob = btn.querySelector('span');
-    if (knob) {
-      knob.classList.toggle('translate-x-4', enabled);
-      knob.classList.toggle('translate-x-0', !enabled);
-    }
-  };
+  const updateServerToggle = (btn, enabled) => updateToggleButton(btn, enabled);
 
   const updateToolToggle = (btn, enabled, serverEnabled) => {
     if (!btn) return;
