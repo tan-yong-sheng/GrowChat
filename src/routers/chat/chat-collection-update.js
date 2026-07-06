@@ -1,21 +1,10 @@
 import { error } from '../../utils/response.js';
-import { authorize } from '../../utils/authorize.js';
 import { requireOwnedChat } from '../chat-core.js';
-import {
-  mapAuthCodeToStatus,
-  sanitizeTitle,
-  reloadAndPublishChat,
-} from './chat-collection-helpers.js';
+import { sanitizeTitle, reloadAndPublishChat, requireChatAuth } from './chat-collection-helpers.js';
 
 export async function handleUpdateChat(req, env, db, user, chatId, originSessionId) {
-  const authDecision = await authorize(env, user, {
-    action: 'chat.write',
-    resource: 'chat',
-    resourceId: chatId,
-  });
-  if (!authDecision.allow) {
-    return error(req, authDecision.reason || 'Forbidden', mapAuthCodeToStatus(authDecision.code));
-  }
+  const denied = await requireChatAuth(req, env, user, 'chat.write', chatId);
+  if (denied) return denied;
 
   const owned = await requireOwnedChat(req, db, chatId, user.sub);
   if (owned.error) return owned.error;

@@ -1,4 +1,5 @@
-import { json } from '../../utils/response.js';
+import { error, json } from '../../utils/response.js';
+import { authorize } from '../../utils/authorize.js';
 import { stripHtml } from '../../utils/sanitize.js';
 import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { publishRealtimeNow } from '../chat-message-helpers.js';
@@ -10,6 +11,18 @@ export const MAX_MODEL_ID_LENGTH = 200;
 export function mapAuthCodeToStatus(code) {
   const map = { server_error: 500, unauthorized: 401, not_found: 404 };
   return map[code] || 403;
+}
+
+export async function requireChatAuth(req, env, user, action, chatId) {
+  const authDecision = await authorize(env, user, {
+    action,
+    resource: 'chat',
+    resourceId: chatId,
+  });
+  if (!authDecision.allow) {
+    return error(req, authDecision.reason || 'Forbidden', mapAuthCodeToStatus(authDecision.code));
+  }
+  return null;
 }
 
 export function sanitizeTitle(raw) {
