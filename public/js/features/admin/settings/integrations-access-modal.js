@@ -6,10 +6,15 @@ import { fetchAdminToolServerAccess } from '../../../shared/admin-access.js';
 import { createAdminAclModalShell } from '../acl-modal.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
 import {
-  cloneAclRules,
-  getAclRulesSignature,
-  updateSaveButton,
   bindAclModalBodyRender,
+  buildAclSaveRules,
+  buildRulesByGroup,
+  cloneAclRules,
+  createAclModalState,
+  getAclRulesSignature,
+  loadAdminAclModalAccess,
+  queryAclModalElements,
+  updateSaveButton,
 } from './acl-modal-shared.js';
 
 export async function openToolServerAccessModal(server, { onApply } = {}) {
@@ -20,22 +25,11 @@ export async function openToolServerAccessModal(server, { onApply } = {}) {
     closeAttr: 'data-close-tool-server-access',
   });
 
-  const listEl = modal.querySelector('#tool-server-acl-list');
-  const errorEl = modal.querySelector('#tool-server-acl-error');
-  const saveErrorEl = modal.querySelector('#tool-server-acl-save-error');
-  const summaryEl = modal.querySelector('#tool-server-acl-summary');
-  const countEl = modal.querySelector('#tool-server-acl-count');
-  const reasonEl = modal.querySelector('#tool-server-acl-reason');
-  const saveBtn = modal.querySelector('#tool-server-acl-save-btn');
+  const { listEl, errorEl, saveErrorEl, summaryEl, countEl, reasonEl, saveBtn } =
+    queryAclModalElements(modal, 'tool-server-acl');
   let baseRules = [];
 
-  const state = {
-    loading: true,
-    saving: false,
-    error: null,
-    groups: [],
-    rulesByGroup: new Map(),
-  };
+  const state = createAclModalState();
 
   // Single source of truth for the modal's body render. Called on load and
   // again whenever a rule effect changes so the summary/count text stays
@@ -52,32 +46,13 @@ export async function openToolServerAccessModal(server, { onApply } = {}) {
   });
 
   const loadAccess = async () => {
-    state.loading = true;
-    state.error = null;
-    renderAll();
-    try {
-      const payload = await fetchAdminToolServerAccess(server.id);
-      state.groups = Array.isArray(payload.groups) ? payload.groups : [];
-      baseRules = cloneAclRules(payload.rules || []);
-      state.rulesByGroup = new Map(
-        (Array.isArray(payload.rules) ? payload.rules : [])
-          .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
-          .map((rule) => [
-            String(rule.principal_id || '').trim(),
-            String(rule.effect || 'allow')
-              .trim()
-              .toLowerCase() === 'deny'
-              ? 'deny'
-              : 'allow',
-          ])
-          .filter(([groupId]) => Boolean(groupId))
-      );
-    } catch (err) {
-      state.error = err?.message || 'Failed to load MCP server access';
-    } finally {
-      state.loading = false;
-      renderAll();
-    }
+    const result = await loadAdminAclModalAccess({
+      fetchAccess: () => fetchAdminToolServerAccess(server.id),
+      state,
+      renderAll,
+    });
+    baseRules = cloneAclRules(result.rules || []);
+    state.rulesByGroup = buildRulesByGroup(baseRules);
   };
 
   saveBtn?.addEventListener('click', async () => {
@@ -86,12 +61,7 @@ export async function openToolServerAccessModal(server, { onApply } = {}) {
     state.saving = true;
     updateSaveButton(saveBtn, state);
     try {
-      const rules = Array.from(state.rulesByGroup.entries()).map(([groupId, effect]) => ({
-        principal_type: 'group',
-        principal_id: groupId,
-        effect,
-        action: 'use',
-      }));
+      const rules = buildAclSaveRules(state.rulesByGroup);
       const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
       if (sameAsBase) {
         broadcastToolServersInvalidation();

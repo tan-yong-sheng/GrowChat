@@ -153,6 +153,70 @@ export function bindAclModalBodyRender({
   return renderAll;
 }
 
+export function createAclModalState() {
+  return {
+    loading: true,
+    saving: false,
+    error: null,
+    groups: [],
+    rulesByGroup: new Map(),
+  };
+}
+
+export function buildRulesByGroup(rules) {
+  return new Map(
+    (Array.isArray(rules) ? rules : [])
+      .filter((rule) => String(rule?.principal_type || '').toLowerCase() === 'group')
+      .map((rule) => [
+        String(rule.principal_id || '').trim(),
+        String(rule.effect || 'allow')
+          .trim()
+          .toLowerCase() === 'deny'
+          ? 'deny'
+          : 'allow',
+      ])
+      .filter(([groupId]) => Boolean(groupId))
+  );
+}
+
+export function buildAclSaveRules(rulesByGroup) {
+  return Array.from(rulesByGroup.entries()).map(([groupId, effect]) => ({
+    principal_type: 'group',
+    principal_id: groupId,
+    effect,
+    action: 'use',
+  }));
+}
+
+export async function loadAdminAclModalAccess({ fetchAccess, state, renderAll }) {
+  state.loading = true;
+  state.error = null;
+  renderAll();
+  try {
+    const payload = await fetchAccess();
+    state.groups = Array.isArray(payload.groups) ? payload.groups : [];
+    return { rules: cloneAclRules(payload.rules || []), groups: state.groups };
+  } catch (err) {
+    state.error = err?.message || 'Failed to load access';
+    return { rules: [], groups: state.groups };
+  } finally {
+    state.loading = false;
+    renderAll();
+  }
+}
+
+export function queryAclModalElements(modal, prefix) {
+  return {
+    listEl: modal.querySelector(`#${prefix}-list`),
+    errorEl: modal.querySelector(`#${prefix}-error`),
+    saveErrorEl: modal.querySelector(`#${prefix}-save-error`),
+    summaryEl: modal.querySelector(`#${prefix}-summary`),
+    countEl: modal.querySelector(`#${prefix}-count`),
+    reasonEl: modal.querySelector(`#${prefix}-reason`),
+    saveBtn: modal.querySelector(`#${prefix}-save-btn`),
+  };
+}
+
 export function renderAclGroupList({ listEl, errorEl, state, effectClass, onChange }) {
   if (!listEl) return;
   if (state.loading) {
