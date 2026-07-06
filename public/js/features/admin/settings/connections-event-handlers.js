@@ -5,7 +5,7 @@
  * related event handlers, bound to the shared state.
  */
 
-import { apiFetch } from '../../../shared/api.js';
+import { apiFetch, parseApiError } from '../../../shared/api.js';
 import { broadcastModelsInvalidation } from '../../../shared/utils/model-sync.js';
 import { broadcastConnectionsInvalidation } from '../../../shared/utils/connection-sync.js';
 import {
@@ -19,10 +19,10 @@ import {
   providerUrlPlaceholder,
   resolveKeyLabel,
 } from './connections-helpers.js';
+import { buildTestableConnectionPayload } from '../../../shared/utils/connection-helpers.js';
 import {
   buildSelectedConnectionModels,
   updateApiTypeDisplay,
-  buildModalConnectionPayload,
   resolveConnectionModalSelectionMode,
 } from './connections-helpers-modal-models.js';
 
@@ -44,6 +44,22 @@ export function createConnectionsEventHandlers(deps) {
     updateModalSaveButton,
     data,
   } = deps;
+
+  const buildManualConnections = (excludeId = null) =>
+    connectionsState.openai.connections
+      .filter((c) => !c.readOnly && (!excludeId || c.id !== excludeId))
+      .map((conn) => ({
+        ...conn,
+        manualModels: normalizeConnectionManualModels(conn.manualModels),
+      }));
+
+  const buildConnectionsSaveBody = (excludeId = null) =>
+    JSON.stringify({
+      enabled: connectionsState.openai.enabled,
+      connections: buildManualConnections(excludeId),
+      model_updates: [],
+      access_updates: [],
+    });
 
   const bindEvents = () => {
     container.querySelector('#add-connection')?.addEventListener('click', () => {
@@ -72,25 +88,11 @@ export function createConnectionsEventHandlers(deps) {
           }
           (async () => {
             try {
-              const manualConnections = connectionsState.openai.connections
-                .filter((c) => !c.readOnly)
-                .map((conn) => ({
-                  ...conn,
-                  manualModels: normalizeConnectionManualModels(conn.manualModels),
-                }));
               const res = await apiFetch('/api/admin/openai/connections', {
                 method: 'PUT',
-                body: JSON.stringify({
-                  enabled: connectionsState.openai.enabled,
-                  connections: manualConnections,
-                  model_updates: [],
-                  access_updates: [],
-                }),
+                body: buildConnectionsSaveBody(),
               });
-              if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || err.message || 'Failed to save connection');
-              }
+              if (!res.ok) await parseApiError(res, 'Failed to save connection');
               broadcastModelsInvalidation();
               broadcastConnectionsInvalidation();
               if (data) data.modelsSettingsInvalidate = Date.now();
@@ -130,25 +132,11 @@ export function createConnectionsEventHandlers(deps) {
       connectionsState.openai.enabled = e.target.checked;
       (async () => {
         try {
-          const manualConnections = connectionsState.openai.connections
-            .filter((c) => !c.readOnly)
-            .map((conn) => ({
-              ...conn,
-              manualModels: normalizeConnectionManualModels(conn.manualModels),
-            }));
           const res = await apiFetch('/api/admin/openai/connections', {
             method: 'PUT',
-            body: JSON.stringify({
-              enabled: connectionsState.openai.enabled,
-              connections: manualConnections,
-              model_updates: [],
-              access_updates: [],
-            }),
+            body: buildConnectionsSaveBody(),
           });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || err.message || 'Failed to save');
-          }
+          if (!res.ok) await parseApiError(res, 'Failed to save');
           broadcastConnectionsInvalidation();
         } catch (err) {
           showFeedback(err?.message || 'Failed to save', 'error');
@@ -162,14 +150,15 @@ export function createConnectionsEventHandlers(deps) {
     });
 
     container.querySelector('#test-connection')?.addEventListener('click', async () => {
-      const modalRoot = container.querySelector('#edit-connection-modal') || container;
-      const payload = buildModalConnectionPayload(modalRoot, connectionsState.selectedConnection);
-      const resolvedUrl = resolveModalUrl(payload.providerType, payload.url);
-      if (!resolvedUrl) {
-        setTestStatus('error', 'URL is required for compatible providers', modalRoot);
+      const testable = buildTestableConnectionPayload(
+        container,
+        connectionsState.selectedConnection
+      );
+      if (!testable) {
+        setTestStatus('error', 'URL is required for compatible providers', container);
         return;
       }
-      payload.url = resolvedUrl;
+      const { modalRoot, payload } = testable;
       setTestStatus('testing', 'Testing connection...', modalRoot);
       try {
         const res = await apiFetch('/api/admin/openai/connections/test', {
@@ -264,10 +253,7 @@ export function createConnectionsEventHandlers(deps) {
             access_updates: accessUpdates,
           }),
         });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || 'Failed to save connection');
-        }
+        if (!res.ok) await parseApiError(res, 'Failed to save connection');
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
         if (data) data.modelsSettingsInvalidate = Date.now();
@@ -360,25 +346,11 @@ export function createConnectionsEventHandlers(deps) {
       if (!connectionsState.selectedConnection) return;
       if (!confirm('Delete this connection? This cannot be undone.')) return;
       try {
-        const manualConnections = connectionsState.openai.connections
-          .filter((c) => !c.readOnly && c.id !== connectionsState.selectedConnection.id)
-          .map((conn) => ({
-            ...conn,
-            manualModels: normalizeConnectionManualModels(conn.manualModels),
-          }));
         const res = await apiFetch('/api/admin/openai/connections', {
           method: 'PUT',
-          body: JSON.stringify({
-            enabled: connectionsState.openai.enabled,
-            connections: manualConnections,
-            model_updates: [],
-            access_updates: [],
-          }),
+          body: buildConnectionsSaveBody(connectionsState.selectedConnection.id),
         });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || err.message || 'Failed to delete connection');
-        }
+        if (!res.ok) await parseApiError(res, 'Failed to delete connection');
         broadcastModelsInvalidation();
         broadcastConnectionsInvalidation();
         if (data) data.modelsSettingsInvalidate = Date.now();

@@ -348,3 +348,12 @@ export function buildModalConnectionPayload(scope = null, selectedConnection = n
     authType: selectedConnection?.authType || selectedConnection?.auth_type || '',
   };
 }
+
+export function buildTestableConnectionPayload(scope = null, selectedConnection = null) {
+  const modalRoot = scope?.querySelector('#edit-connection-modal') || scope;
+  const payload = buildModalConnectionPayload(modalRoot, selectedConnection);
+  const resolvedUrl = resolveModalUrl(payload.providerType, payload.url);
+  if (!resolvedUrl) return null;
+  payload.url = resolvedUrl;
+  return { modalRoot, payload };
+}

@@ -31,3 +31,12 @@ export function setModalSaveButtonState(
   button.textContent = getButtonLabel(saving, label);
   button.className = getButtonClass(active, enabledClass, disabledClass);
 }
+
+export function updateTestMessage(element, status, message = '') {
+  if (!element) return;
+  element.textContent = message || '';
+  element.classList.toggle('hidden', !message);
+  element.classList.toggle('text-red-500', status === 'error');
+  element.classList.toggle('text-gray-900', status === 'success');
+  element.classList.toggle('text-gray-400', status === 'idle' || status === 'testing');
+}

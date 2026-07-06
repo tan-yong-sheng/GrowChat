@@ -7,6 +7,7 @@
 
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
 import { updateToggleButton } from './acl-modal-shared.js';
+import { updateTestMessage } from '../modal-save-helpers.js';
 import { getAdminModalPreset } from '../modal-shell.js';
 import { createConnectionsModalForm } from './connections-modal-form.js';
 
@@ -17,13 +18,7 @@ export function createConnectionsModalOps(deps) {
 
   const setTestStatus = (status, message = '', scope = container) => {
     const messageEl = scope.querySelector('#connection-test-message');
-    if (messageEl) {
-      messageEl.textContent = message || '';
-      messageEl.classList.toggle('hidden', !message);
-      messageEl.classList.toggle('text-red-500', status === 'error');
-      messageEl.classList.toggle('text-gray-900', status === 'success');
-      messageEl.classList.toggle('text-gray-400', status === 'idle' || status === 'testing');
-    }
+    updateTestMessage(messageEl, status, message);
   };
 
   const updateConnectionToggle = (btn, enabled) => updateToggleButton(btn, enabled);

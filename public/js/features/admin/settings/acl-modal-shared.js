@@ -22,6 +22,16 @@ export function updateToggleButton(btn, enabled) {
   }
 }
 
+export function bindAclEffectListeners(listEl, effectClass, onChange) {
+  listEl.querySelectorAll(`.${effectClass}`).forEach((select) => {
+    select.addEventListener('change', () => {
+      const groupId = select.getAttribute('data-group-id');
+      if (!groupId) return;
+      onChange(groupId, String(select.value || 'none'));
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // ACL rule helpers
 // ---------------------------------------------------------------------------
@@ -289,22 +299,17 @@ export function renderAclGroupList({ listEl, errorEl, state, effectClass, onChan
     })
     .join('');
 
-  listEl.querySelectorAll(`.${effectClass}`).forEach((select) => {
-    select.addEventListener('change', () => {
-      const groupId = select.getAttribute('data-group-id');
-      if (!groupId) return;
-      const effect = String(select.value || 'none');
-      if (effect === 'none') {
-        state.rulesByGroup.delete(groupId);
-      } else {
-        state.rulesByGroup.set(groupId, effect === 'deny' ? 'deny' : 'allow');
-      }
-      // Notify the caller so it can re-render the summary / counts.
-      // Without this, the summary text stays stale until the user saves
-      // or reopens the modal.
-      if (typeof onChange === 'function') {
-        onChange();
-      }
-    });
+  bindAclEffectListeners(listEl, effectClass, (groupId, effect) => {
+    if (effect === 'none') {
+      state.rulesByGroup.delete(groupId);
+    } else {
+      state.rulesByGroup.set(groupId, effect === 'deny' ? 'deny' : 'allow');
+    }
+    // Notify the caller so it can re-render the summary / counts.
+    // Without this, the summary text stays stale until the user saves
+    // or reopens the modal.
+    if (typeof onChange === 'function') {
+      onChange();
+    }
   });
 }

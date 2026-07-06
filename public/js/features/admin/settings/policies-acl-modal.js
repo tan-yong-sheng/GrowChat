@@ -8,6 +8,7 @@
 import { apiFetch } from '../../../shared/api.js';
 import { getAdminAclAccessPath } from '../../../shared/admin-acl.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
+import { bindAclEffectListeners } from './acl-modal-shared.js';
 import { renderButton } from '../../../shared/components/button.js';
 import {
   cloneAclRules,
@@ -186,17 +187,12 @@ export async function openAccessModal({
       return;
     }
     listEl.innerHTML = buildAclRows(groups, rules);
-    listEl.querySelectorAll('.resource-acl-effect').forEach((select) => {
-      select.addEventListener('change', () => {
-        const groupId = select.getAttribute('data-group-id');
-        if (!groupId) return;
-        const effect = String(select.value || 'none');
-        if (effect === 'none') {
-          rulesByGroup.delete(groupId);
-        } else {
-          rulesByGroup.set(groupId, effect);
-        }
-      });
+    bindAclEffectListeners(listEl, 'resource-acl-effect', (groupId, effect) => {
+      if (effect === 'none') {
+        rulesByGroup.delete(groupId);
+      } else {
+        rulesByGroup.set(groupId, effect);
+      }
     });
   };
 

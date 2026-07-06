@@ -16,12 +16,11 @@ import {
   resolveKeyLabel,
   cloneModelSelection,
   inflateManualConnectionModels,
-  resolveModalUrl,
 } from './connections-helpers.js';
+import { buildTestableConnectionPayload } from '../../../shared/utils/connection-helpers.js';
 import {
   updateApiTypeDisplay,
   previewConnectionModalModels,
-  buildModalConnectionPayload,
 } from './connections-helpers-modal-models.js';
 import { normalizeConnectionModelSelectionMode } from '../../../shared/utils/connection-model-selection.js';
 import { buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
@@ -319,14 +318,12 @@ export function createConnectionsModalForm(deps) {
   };
 
   const refreshModalModels = async (scope = container) => {
-    const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
-    const payload = buildModalConnectionPayload(modalRoot, connectionsState.selectedConnection);
-    const resolvedUrl = resolveModalUrl(payload.providerType, payload.url);
-    if (!resolvedUrl) {
-      setTestStatus('error', 'URL is required for compatible providers', modalRoot);
+    const testable = buildTestableConnectionPayload(scope, connectionsState.selectedConnection);
+    if (!testable) {
+      setTestStatus('error', 'URL is required for compatible providers', scope);
       return;
     }
-    payload.url = resolvedUrl;
+    const { modalRoot, payload } = testable;
     connectionsState.modalModelsLoading = true;
     connectionsState.modalModelsError = null;
     renderModalModels(modalRoot);
