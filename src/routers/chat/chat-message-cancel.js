@@ -1,15 +1,18 @@
 import { error, json } from '../../utils/response.js';
 import { createRealtimeEvent } from '../../features/realtime/realtime.js';
-import { getMessageSnapshot, requireOwnedChat } from '../chat-core.js';
-import { publishRealtimeNow, requireChatPermission } from '../chat-message-helpers.js';
+import { getMessageSnapshot } from '../chat-core.js';
+import { publishRealtimeNow, requireOwnedChatWithPermission } from '../chat-message-helpers.js';
 
 export async function handleCancelMessage({ req, env, db, user, chatId, msgId, originSessionId }) {
-  const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
-  if (permissionError) return permissionError;
-
-  const owned = await requireOwnedChat(req, db, chatId, user.sub);
-  if (owned.error) return owned.error;
-  const chat = owned.chat;
+  const { chat, error: denied } = await requireOwnedChatWithPermission(
+    req,
+    env,
+    db,
+    user,
+    'chat.write',
+    chatId
+  );
+  if (denied) return denied;
 
   const msg = await db.first('SELECT id, role, status FROM messages WHERE id = ? AND chat_id = ?', [
     msgId,

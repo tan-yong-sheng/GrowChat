@@ -43,6 +43,13 @@ vi.mock('./chat-message-helpers.js', () => ({
   normalizeSelectedToolNames: (...args) => mocks.normalizeSelectedToolNames(...args),
   publishRealtimeNow: (...args) => mocks.publishRealtimeNow(...args),
   requireChatPermission: (...args) => mocks.requireChatPermission(...args),
+  requireOwnedChatWithPermission: async (req, env, db, user, action, chatId) => {
+    const permissionError = await mocks.requireChatPermission(req, env, user, action, chatId);
+    if (permissionError) return { error: permissionError };
+    const owned = await mocks.requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return { error: owned.error };
+    return { chat: owned.chat };
+  },
 }));
 
 vi.mock('./chat-message-send.js', () => ({

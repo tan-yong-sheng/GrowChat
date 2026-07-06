@@ -61,6 +61,13 @@ vi.mock('./chat-message-helpers.js', () => ({
   normalizeSelectedToolNames: vi.fn((x) => (Array.isArray(x) ? x : null)),
   publishRealtimeNow: mocks.publishRealtimeNow,
   requireChatPermission: mocks.requireChatPermission,
+  requireOwnedChatWithPermission: async (req, env, db, user, action, chatId) => {
+    const permissionError = await mocks.requireChatPermission(req, env, user, action, chatId);
+    if (permissionError) return { error: permissionError };
+    const owned = await mocks.requireOwnedChat(req, db, chatId, user.sub);
+    if (owned.error) return { error: owned.error };
+    return { chat: owned.chat };
+  },
 }));
 
 vi.mock('../chat/attachments.js', () => ({

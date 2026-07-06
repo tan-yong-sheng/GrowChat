@@ -1,7 +1,7 @@
 import { error } from '../utils/response.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { authorize } from '../utils/authorize.js';
-import { resolveProviderForModel } from './chat-core.js';
+import { requireOwnedChat, resolveProviderForModel } from './chat-core.js';
 import {
   buildModelAclIndex,
   evaluateModelAclAccess,
@@ -91,4 +91,12 @@ export async function requireChatPermission(req, env, user, action, chatId) {
     return error(req, authDecision.reason || authDecision.message || 'Forbidden', statusCode);
   }
   return null;
+}
+
+export async function requireOwnedChatWithPermission(req, env, db, user, action, chatId) {
+  const permissionError = await requireChatPermission(req, env, user, action, chatId);
+  if (permissionError) return { error: permissionError };
+  const owned = await requireOwnedChat(req, db, chatId, user.sub);
+  if (owned.error) return { error: owned.error };
+  return { chat: owned.chat };
 }

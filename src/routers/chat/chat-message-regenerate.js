@@ -1,10 +1,10 @@
 import { error } from '../../utils/response.js';
 import { trimTrailingAssistantMessages } from '../chat-history.js';
-import { requireOwnedChat, resolveDefaultModel } from '../chat-core.js';
+import { resolveDefaultModel } from '../chat-core.js';
 import {
   ensureModelAllowed,
   normalizeSelectedToolNames,
-  requireChatPermission,
+  requireOwnedChatWithPermission,
 } from '../chat-message-helpers.js';
 
 export async function handleRegenerateMessage({
@@ -18,12 +18,15 @@ export async function handleRegenerateMessage({
   originSessionId,
   assistantStreamRunner,
 }) {
-  const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
-  if (permissionError) return permissionError;
-
-  const owned = await requireOwnedChat(req, db, chatId, user.sub);
-  if (owned.error) return owned.error;
-  const chat = owned.chat;
+  const { chat, error: denied } = await requireOwnedChatWithPermission(
+    req,
+    env,
+    db,
+    user,
+    'chat.write',
+    chatId
+  );
+  if (denied) return denied;
 
   const sourceMsg = await db.first(
     'SELECT role, parent_id FROM messages WHERE id = ? AND chat_id = ?',

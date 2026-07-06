@@ -14,7 +14,7 @@ import {
   ensureModelAllowed,
   normalizeSelectedToolNames,
   publishRealtimeNow,
-  requireChatPermission,
+  requireOwnedChatWithPermission,
 } from './chat-message-helpers.js';
 
 export async function handleSendMessage({
@@ -31,12 +31,15 @@ export async function handleSendMessage({
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
 
-  const permissionError = await requireChatPermission(req, env, user, 'chat.write', chatId);
-  if (permissionError) return permissionError;
-
-  const owned = await requireOwnedChat(req, db, chatId, user.sub);
-  if (owned.error) return owned.error;
-  const chat = owned.chat;
+  const { chat, error: denied } = await requireOwnedChatWithPermission(
+    req,
+    env,
+    db,
+    user,
+    'chat.write',
+    chatId
+  );
+  if (denied) return denied;
 
   const sendLimit = await checkRateLimit(env, {
     action: 'chat-send',
