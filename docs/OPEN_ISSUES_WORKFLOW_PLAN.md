@@ -94,7 +94,7 @@ Split across two workstreams:
 
 **Success Criteria:**
 
-- `pnpm run prepush:checks` passes (all tests green)
+- `pnpm run prepush` passes (all tests green)
 - ESLint `max-params: ['error', { max: 2 }]` enforced with zero warnings
 - Stryker mutation score >= 55%
 - `pnpm run lint:fix` exits 0
@@ -118,7 +118,7 @@ Split across two workstreams:
 - [x] Notify Herdr pane p1E of overlap
 - [ ] Herdr pane p1E: Mutation score >= 55%
 - [ ] Herdr pane p1E: `max-params` enforced + zero warnings
-- [ ] Herdr pane p1E: `prepush:checks` clean
+- [ ] Herdr pane p1E: `prepush` clean
 
 ### Phase 2: Jules Batch PRs
 
@@ -136,7 +136,7 @@ Split across two workstreams:
 
 ### Phase 4: Verification
 
-- [ ] `pnpm run prepush:checks` clean on main
+- [ ] `pnpm run prepush` clean on main
 - [ ] All E2E tests pass with fresh checkout
 - [ ] `npm audit` clean
 - [ ] Final security review (manual)

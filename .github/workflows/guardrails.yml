@@ -101,9 +101,9 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Pre-push gate (also runs E2E via test:e2e since prepush:checks includes it)
-        timeout-minutes: 5
-        run: pnpm run prepush:checks
+      - name: Pre-push gate (also runs E2E via test:e2e since prepush includes it)
+        timeout-minutes: 15
+        run: pnpm run prepush
         env:
           TEST_PORT: 8788
           TEST_EMAIL: admin@localhost

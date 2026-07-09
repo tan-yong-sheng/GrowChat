@@ -1,31 +1,18 @@
 import { error, json } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { logAuditEvent } from '../../utils/authorize.js';
-import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
-import { fetchBaseModelsFromOpenAI, loadCustomModels } from './models-discovery.js';
+import { loadCustomModels } from './models-discovery.js';
 import {
   extractModelIdFromPath,
   invalidJsonBody,
   missingCacheBinding,
   parseJsonBody,
+  rejectIfBaseModel,
   requireModelAdmin,
 } from './models-public-crud-helpers.js';
 
 const ONE_YEAR_TTL = 31536000;
 const CUSTOM_KEY = 'custom_models';
-
-async function rejectIfBaseModel(req, env, modelId, logger) {
-  try {
-    const modelConnections = await getAllOpenAIConnectionConfigs(env);
-    const baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
-    if (baseModels.find((m) => m.id === modelId)) {
-      return error(req, 'Cannot update base model', HTTP_STATUS.BAD_REQUEST);
-    }
-  } catch (err) {
-    logger.warn('Failed to check base models during update', { error: err?.message || err });
-  }
-  return null;
-}
 
 function applyNameUpdate(model, body) {
   if (body.name !== undefined) {
@@ -89,7 +76,7 @@ export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { log
   }
 
   try {
-    const baseModelError = await rejectIfBaseModel(req, env, modelId, logger);
+    const baseModelError = await rejectIfBaseModel(req, env, modelId, 'update', logger);
     if (baseModelError) return baseModelError;
 
     if (!env.CACHE) {

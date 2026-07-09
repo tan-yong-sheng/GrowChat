@@ -64,6 +64,21 @@ export function renderAccountIntegrationsSection(
   };
   let preferencesSaveVersion = 0;
 
+  const normalizeFromPayload = (payload) => ({
+    servers: Array.isArray(payload?.servers)
+      ? sortResourcesByEnabledThenVisibilityThenLabel(
+          payload.servers.map(normalizeServer).filter(Boolean)
+        )
+      : [],
+    sharedServers: Array.isArray(payload?.accessible_servers)
+      ? sortResourcesByEnabledThenVisibilityThenLabel(
+          payload.accessible_servers
+            .map(normalizeServer)
+            .filter((server) => Boolean(server) && server.enabled !== false)
+        )
+      : [],
+  });
+
   const persistPreferences = async ({ rollback = null } = {}) => {
     const requestVersion = ++preferencesSaveVersion;
     const preferences = clonePreferences(state.settings?.preferences || {});
@@ -137,18 +152,9 @@ export function renderAccountIntegrationsSection(
     render();
     try {
       const payload = await fetchUserMcpServers({ cache: 'no-store' });
-      sectionState.servers = Array.isArray(payload?.servers)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(
-            payload.servers.map(normalizeServer).filter(Boolean)
-          )
-        : [];
-      sectionState.sharedServers = Array.isArray(payload?.accessible_servers)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(
-            payload.accessible_servers
-              .map(normalizeServer)
-              .filter((server) => Boolean(server) && server.enabled !== false)
-          )
-        : [];
+      const { servers, sharedServers } = normalizeFromPayload(payload);
+      sectionState.servers = servers;
+      sectionState.sharedServers = sharedServers;
     } catch (err) {
       sectionState.error = err?.message || 'Failed to load integrations';
     } finally {
@@ -218,18 +224,9 @@ export function renderAccountIntegrationsSection(
   const refreshServers = async () => {
     try {
       const payload = await fetchUserMcpServers({ cache: 'no-store' });
-      sectionState.servers = Array.isArray(payload?.servers)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(
-            payload.servers.map(normalizeServer).filter(Boolean)
-          )
-        : [];
-      sectionState.sharedServers = Array.isArray(payload?.accessible_servers)
-        ? sortResourcesByEnabledThenVisibilityThenLabel(
-            payload.accessible_servers
-              .map(normalizeServer)
-              .filter((server) => Boolean(server) && server.enabled !== false)
-          )
-        : [];
+      const { servers, sharedServers } = normalizeFromPayload(payload);
+      sectionState.servers = servers;
+      sectionState.sharedServers = sharedServers;
     } catch (err) {
       if (typeof onRefresh === 'function') {
         const nextState = await onRefresh();

@@ -333,7 +333,8 @@ pnpm run lint:dupes:budget        # jscpd budget check
 pnpm run arch:check:scoped        # Scoped dependency-cruiser check
 pnpm run format:check:scoped      # Scoped Prettier check
 pnpm run lint:hygiene             # knip dead file/dependency detection
-pnpm run prepush:checks           # Full pre-push gate (unit tests + typecheck + lint + all scoped checks)
+pnpm run prepush                  # Full pre-push gate (full unit tests + typecheck + lint + all checks + E2E)
+pnpm run prepush:scoped           # Scoped pre-push gate (changed files only)
 ```
 
 ## Deployment Status

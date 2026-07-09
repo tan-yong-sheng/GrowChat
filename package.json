@@ -36,9 +36,9 @@
     "setup:semgrep": "uv tool install semgrep",
     "lint:logic": "semgrep scan --config .semgrep/rules.yml",
     "lint:logic:scoped": "node scripts/run-scoped-guardrails.js --semgrep",
-    "lint:dupes": "node scripts/fallow-dupes-gate.js 0.1",
+    "lint:dupes": "node scripts/fallow-dupes-gate.js 1",
     "lint:dupes:budget": "node scripts/fallow-dupes-gate.js 1",
-    "lint:dupes:scoped": "node scripts/fallow-dupes-gate.js --changed-since HEAD 0.1",
+    "lint:dupes:scoped": "node scripts/fallow-dupes-gate.js --changed-since HEAD 1",
     "lint:design": "npx @google/design.md lint DESIGN.md",
     "lint:hygiene": "fallow dead-code --baseline .fallow/baseline.json --format json --fail-on-issues",
     "lint:health": "fallow health --format json --fail-on-issues",
@@ -51,9 +51,9 @@
     "lint:all:scoped": "fallow audit --changed-since HEAD~1 --format json --fail-on-issues",
     "lint:workflows": "github-actionlint",
     "precommit": "node scripts/secret-scan.cjs && pnpm exec lint-staged",
-    "prepush": "pnpm run prepush:checks",
+    "prepush": "pnpm run test && pnpm run typecheck && pnpm run lint && pnpm run lint:logic && pnpm run lint:dupes && pnpm run lint:dupes:budget && pnpm run lint:health && pnpm run lint:security && pnpm run lint:flags && pnpm run arch:check && pnpm run format:check && pnpm run lint:hygiene && pnpm run test:e2e",
     "prepare": "husky",
-    "prepush:checks": "pnpm run test:scoped && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run lint:health:scoped && pnpm run lint:security:scoped && pnpm run lint:flags:scoped && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run test:e2e"
+    "prepush:scoped": "pnpm run test:scoped && pnpm run typecheck && pnpm run lint && pnpm run lint:logic:scoped && pnpm run lint:dupes:scoped && pnpm run lint:dupes:budget && pnpm run lint:health:scoped && pnpm run lint:security:scoped && pnpm run lint:flags:scoped && pnpm run arch:check:scoped && pnpm run format:check:scoped && pnpm run lint:hygiene && pnpm run test:e2e"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",

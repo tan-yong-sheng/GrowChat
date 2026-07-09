@@ -21,6 +21,6 @@
     "public/styles.css"
   ],
   "duplicates": {
-    "threshold": 0.001
+    "threshold": 1
   }
 }

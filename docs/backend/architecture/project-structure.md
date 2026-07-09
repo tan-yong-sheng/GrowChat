@@ -208,7 +208,8 @@ pnpm run test:e2e        # E2E (via scripts/test-e2e.js: starts wrangler dev, se
 pnpm run test:e2e:ui     # Playwright UI mode
 pnpm run test:e2e:update-snapshots  # Update visual regression baselines
 pnpm run check:mutation  # Stryker mutation testing
-pnpm run prepush:checks  # Full pre-push gate (unit tests + typecheck + lint + scoped checks)
+pnpm run prepush         # Full pre-push gate (full unit tests + typecheck + lint + all checks + E2E)
+pnpm run prepush:scoped  # Scoped pre-push gate (changed files only)
 
 # Deployment
 pnpm run deploy           # predeploy: lint → format-check → test → coverage → build:css → validate migrations → wrangler deploy

@@ -14,6 +14,9 @@ import {
   normalizeAuthType,
 } from './tool-servers-utils.js';
 import { loadUserToolServers } from './tool-servers-user.js';
+import { testMcpConnection, mapMcpTools } from '../shared/tool-servers-shared.js';
+
+import { applyAuthHeaders } from '../shared/apply-auth-headers.js';
 
 const logger = createRootLogger({});
 
@@ -132,66 +135,11 @@ export async function testToolServerConnection(server, options = {}) {
   if (!url) throw new Error('url is required');
 
   const headers = options.headers || parseHeadersForRequest(server.headers);
-  const authType = normalizeAuthType(server.auth_type);
+  applyAuthHeaders(headers, server);
 
-  if (authType === 'bearer') {
-    const token = String(server.auth_bearer_token || '').trim();
-    if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
-  }
-  if (authType === 'basic') {
-    const user = String(server.auth_basic_username || '').trim();
-    const pass = String(server.auth_basic_password || '');
-    if (user && !headers.Authorization) headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`;
-  }
-
-  let sessionId;
-  const init = await mcpRequest({
-    url,
-    headers,
-    sessionId,
-    id: 0,
-    method: 'initialize',
-    params: {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: { name: 'GrowChat', version: '1.0.0' },
-    },
-  });
-  sessionId = init.sessionId;
-
-  const notified = await mcpNotify({
-    url,
-    headers,
-    sessionId,
-    method: 'notifications/initialized',
-  });
-  sessionId = notified.sessionId;
-
-  const toolsResult = await mcpRequest({
-    url,
-    headers,
-    sessionId,
-    id: 2,
-    method: 'tools/list',
-  });
-
-  const tools = Array.isArray(toolsResult.result?.tools) ? toolsResult.result.tools : [];
-  return {
-    tools: tools
-      .map((tool) => ({
-        name: String(tool?.name || '').trim(),
-        title: String(tool?.title || '').trim(),
-        description: String(tool?.description || '').trim(),
-        parameters:
-          tool?.inputSchema && typeof tool.inputSchema === 'object'
-            ? tool.inputSchema
-            : tool?.parameters && typeof tool.parameters === 'object'
-              ? tool.parameters
-              : {},
-      }))
-      .filter((tool) => tool.name),
-    sessionId,
-  };
+  const { sessionId, tools: rawTools } = await testMcpConnection(url, headers);
+  const tools = mapMcpTools(rawTools);
+  return { tools, sessionId };
 }
 
 export function redactToolServer(server) {

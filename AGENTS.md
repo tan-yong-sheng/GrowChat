@@ -49,14 +49,14 @@ pnpm run test:e2e                   # Run E2E tests (wrapper: scripts/test-e2e.j
 pnpm run test:e2e:ui                # Playwright UI mode (requires separate dev server)
 pnpm run test:e2e:update-snapshots  # Update visual snapshots
 
-# ⚠️ `prepush:checks` now also runs `test:e2e` (full E2E suite)
-pnpm run prepush:checks             # Unit tests + typecheck + lint + all scoped checks + E2E (slow: ~90s)
+# ⚠️ `prepush` also runs `test:e2e` (full E2E suite)
+pnpm run prepush                    # Full unit tests + typecheck + lint + all checks + E2E (slow)
 
 # Mutation testing
 pnpm run check:mutation             # Stryker mutation test (threshold break: 55%)
 
-# Full pre-push gate
-pnpm run prepush:checks             # Unit tests + typecheck + lint + all scoped checks + E2E (slow: ~90s)
+# Scoped pre-push gate (changed files only)
+pnpm run prepush:scoped             # Scoped unit tests + typecheck + lint + scoped checks + E2E (slow: ~90s)
 ```
 
 ## Code Quality (ESLint & Prettier)

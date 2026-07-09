@@ -1,6 +1,8 @@
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
 import { authorize } from '../../utils/authorize.js';
+import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
+import { fetchBaseModelsFromOpenAI } from './models-discovery.js';
 
 const STATUS_CODE_MAP = {
   server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
@@ -47,4 +49,23 @@ export function missingCacheBinding(req) {
     'CACHE KV binding required to manage custom models. Please configure CACHE in wrangler.jsonc',
     HTTP_STATUS.INTERNAL_SERVER_ERROR
   );
+}
+
+/**
+ * Reject the request if the modelId matches a base model.
+ * Shared between update and delete flows — pass the action verb
+ * (e.g. 'update', 'delete') to contextualize error and log messages.
+ */
+// eslint-disable-next-line max-params -- action+logger keeps shared helper parameterized
+export async function rejectIfBaseModel(req, env, modelId, action, logger) {
+  try {
+    const modelConnections = await getAllOpenAIConnectionConfigs(env);
+    const baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
+    if (baseModels.find((m) => m.id === modelId)) {
+      return error(req, `Cannot ${action} base model`, HTTP_STATUS.BAD_REQUEST);
+    }
+  } catch (err) {
+    logger.warn(`Failed to check base models during ${action}`, { error: err?.message || err });
+  }
+  return null;
 }

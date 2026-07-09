@@ -315,9 +315,9 @@ export function createIntegrationsEventHandlers(deps) {
       }
     });
 
-    container.querySelector('#toggle-bearer-visibility')?.addEventListener('click', () => {
-      const input = container.querySelector('#server-auth-bearer');
-      const button = container.querySelector('#toggle-bearer-visibility');
+    function togglePasswordVisibility(inputSelector, buttonSelector) {
+      const input = container.querySelector(inputSelector);
+      const button = container.querySelector(buttonSelector);
       if (!input || !button) return;
       input.type = input.type === 'password' ? 'text' : 'password';
       button.setAttribute(
@@ -326,19 +326,14 @@ export function createIntegrationsEventHandlers(deps) {
       );
       const label = button.querySelector('[data-password-toggle-label]');
       if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
+    }
+
+    container.querySelector('#toggle-bearer-visibility')?.addEventListener('click', () => {
+      togglePasswordVisibility('#server-auth-bearer', '#toggle-bearer-visibility');
     });
 
     container.querySelector('#toggle-basic-visibility')?.addEventListener('click', () => {
-      const input = container.querySelector('#server-auth-basic-password');
-      const button = container.querySelector('#toggle-basic-visibility');
-      if (!input || !button) return;
-      input.type = input.type === 'password' ? 'text' : 'password';
-      button.setAttribute(
-        'aria-label',
-        input.type === 'password' ? 'Show password' : 'Hide password'
-      );
-      const label = button.querySelector('[data-password-toggle-label]');
-      if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      togglePasswordVisibility('#server-auth-basic-password', '#toggle-basic-visibility');
     });
 
     container.querySelector('#connect-oauth')?.addEventListener('click', async () => {

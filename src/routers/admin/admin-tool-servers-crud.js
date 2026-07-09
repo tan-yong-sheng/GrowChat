@@ -14,7 +14,8 @@ import {
   redactToolServer,
   saveToolServers,
 } from '../../admin/tool-servers.js';
-import { MCP_PROTOCOL_VERSION, mcpNotify, mcpRequest } from '../../mcp/client.js';
+import { testMcpConnection, mapMcpTools } from '../../shared/tool-servers-shared.js';
+import { applyAuthHeaders } from '../../shared/apply-auth-headers.js';
 import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 
@@ -74,20 +75,7 @@ export async function handleAdminToolServersCrud(
     }
 
     const authType = normalizeAuthType(body.auth_type);
-    if (authType === 'bearer') {
-      const token = String(body.auth_bearer_token || '').trim();
-      if (token && !headers.Authorization) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-    }
-
-    if (authType === 'basic') {
-      const basicUser = String(body.auth_basic_username || '').trim();
-      const basicPass = String(body.auth_basic_password || '');
-      if (basicUser && !headers.Authorization) {
-        headers.Authorization = `Basic ${btoa(`${basicUser}:${basicPass}`)}`;
-      }
-    }
+    applyAuthHeaders(headers, body);
 
     if (authType === 'oauth') {
       const serverId = String(body.id || '').trim();
@@ -112,54 +100,8 @@ export async function handleAdminToolServersCrud(
     }
 
     try {
-      let sessionId;
-      const init = await mcpRequest({
-        url,
-        headers,
-        sessionId,
-        id: 0,
-        method: 'initialize',
-        params: {
-          protocolVersion: MCP_PROTOCOL_VERSION,
-          capabilities: {},
-          clientInfo: { name: 'GrowChat', version: '1.0.0' },
-        },
-      });
-      sessionId = init.sessionId;
-
-      const notified = await mcpNotify({
-        url,
-        headers,
-        sessionId,
-        method: 'notifications/initialized',
-      });
-      sessionId = notified.sessionId;
-
-      const toolsResult = await mcpRequest({
-        url,
-        headers,
-        sessionId,
-        id: 2,
-        method: 'tools/list',
-      });
-
-      const tools = Array.isArray(toolsResult.result?.tools) ? toolsResult.result.tools : [];
-      const toolSummaries = tools
-        .map((tool) => {
-          const parameters =
-            tool?.inputSchema && typeof tool.inputSchema === 'object'
-              ? tool.inputSchema
-              : tool?.parameters && typeof tool.parameters === 'object'
-                ? tool.parameters
-                : {};
-          return {
-            name: String(tool?.name || '').trim(),
-            title: String(tool?.title || '').trim(),
-            description: String(tool?.description || '').trim(),
-            parameters,
-          };
-        })
-        .filter((tool) => tool.name);
+      const { tools: rawTools } = await testMcpConnection(url, headers);
+      const toolSummaries = mapMcpTools(rawTools);
       let mergedTools = toolSummaries;
 
       if (body.id) {
