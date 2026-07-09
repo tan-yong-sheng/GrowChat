@@ -1,8 +1,9 @@
 /**
  * Groups shared helpers for group management
  */
-import { error } from '../utils/response.js';
+import { error, json } from '../utils/response.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
+import { logAuditEvent } from '../utils/authorize.js';
 
 const MAX_DESCRIPTION_LENGTH = 500;
 
@@ -71,6 +72,56 @@ export function buildUpdatedGroup({ groupId, group, name, description, hasMember
   };
 }
 
+/**
+ * Log a group members audit event.
+ */
+export async function logGroupMembersAudit({ env, actorId, groupId, userIds, action }) {
+  await logAuditEvent(env, {
+    actor_id: actorId,
+    action: `group_members_${action}`,
+    resource_type: 'group',
+    resource_id: groupId,
+    metadata: { user_ids: userIds },
+  });
+}
+
+/**
+ * Execute a group member operation (add/remove) with shared
+ * validation, audit, and error handling.
+ *
+ * Handles: parseUserIds → groupExists → performOp → audit → response
+ *
+ * @param {Request}  req      - Incoming request (for JSON parse + response)
+ * @param {object}  env      - Environment bindings (for audit)
+ * @param {object}  user     - Authenticated user with .sub
+ * @param {string}  groupId  - Target group ID
+ * @param {object}  opts     - { db, logger, action, statusCode }
+ * @param {Function} performOp - Async callback (db, groupId, userIds) => void
+ */
+export async function handleGroupMemberOperation(
+  { req, env, user },
+  groupId,
+  { db, logger, action, statusCode = HTTP_STATUS.OK } = {},
+  performOp
+) {
+  const parsed = await parseGroupUserIds(req);
+  if (parsed.error) return parsed.error;
+  const { userIds } = parsed;
+
+  try {
+    const group = await db.first('SELECT id FROM groups WHERE id = ?', [groupId]);
+    if (!group) return error(req, 'Group not found', HTTP_STATUS.NOT_FOUND);
+
+    await performOp(db, groupId, userIds);
+
+    await logGroupMembersAudit({ env, actorId: user.sub, groupId, userIds, action });
+
+    return json(req, { group_id: groupId, user_ids: userIds }, statusCode);
+  } catch (err) {
+    return catchGroupMembersError(err, logger, req, action);
+  }
+}
+
 export async function parseGroupUserIds(req) {
   let body;
   try {
@@ -84,4 +135,21 @@ export async function parseGroupUserIds(req) {
   const userIds = normalizePermissionsList(body.user_ids || (body.user_id ? [body.user_id] : []));
   if (!userIds.length) return { error: error(req, 'user_id required', HTTP_STATUS.BAD_REQUEST) };
   return { userIds };
+}
+
+/**
+ * Look up a group by ID and return the row, or return a 404 error response.
+ */
+export async function groupExistsOrFail(req, db, groupId) {
+  const group = await db.first('SELECT id FROM groups WHERE id = ?', [groupId]);
+  if (!group) return error(req, 'Group not found', HTTP_STATUS.NOT_FOUND);
+  return group;
+}
+
+/**
+ * Catch and format a group members operation error into a consistent error response.
+ */
+export function catchGroupMembersError(err, logger, req, action) {
+  logger.error(`${action} group members failed`, { error: err?.message || err });
+  return error(req, `Failed to ${action} group members`, HTTP_STATUS.INTERNAL_SERVER_ERROR);
 }

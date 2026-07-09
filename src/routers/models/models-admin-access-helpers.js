@@ -1,6 +1,7 @@
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { authError, error } from '../../utils/response.js';
 import { authorize } from '../../utils/authorize.js';
+import { normalizeModelAclRule } from '../../utils/model-acl.js';
 
 export async function requireModelAdmin(req, env, user, resourceId) {
   const authDecision = await authorize(env, user, {
@@ -43,4 +44,24 @@ export async function loadGroups(db) {
 export async function loadValidGroupIds(db) {
   const groups = await db.all('SELECT id FROM groups');
   return new Set((Array.isArray(groups) ? groups : []).map((group) => group.id).filter(Boolean));
+}
+
+/**
+ * Filter model ACL rules to only include group-principal rules whose
+ * principal_id is in the valid set. Returns { filteredRules, invalidPrincipalTypes }.
+ */
+export function filterModelRulesByGroup(modelId, rules, validGroupIds) {
+  const filteredRules = [];
+  const invalidPrincipalTypes = [];
+  for (const rule of Array.isArray(rules) ? rules : []) {
+    const normalized = normalizeModelAclRule({ ...rule, model_id: modelId });
+    if (!normalized) continue;
+    if (normalized.principal_type !== 'group') {
+      invalidPrincipalTypes.push(normalized.principal_type);
+      continue;
+    }
+    if (!validGroupIds.has(normalized.principal_id)) continue;
+    filteredRules.push(normalized);
+  }
+  return { filteredRules, invalidPrincipalTypes };
 }

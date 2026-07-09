@@ -7,11 +7,16 @@ import { getConfigValue } from '../../utils/app-config.js';
 import { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
 import { normalizeConnectionManualModels } from '../../llm/connections.js';
+import {
+  loadModelAttachmentCaps,
+  applyAttachmentDefaults,
+  getModelAttachmentCapsEntry,
+  MODEL_ATTACHMENT_CAPS_KEY,
+  DEFAULT_ATTACHMENT_CAPS,
+} from '../../chat/attachments.js';
 import { createRootLogger } from '../../utils/logger.js';
 
 const rootLogger = createRootLogger({});
-const MODEL_ATTACHMENT_CAPS_KEY = 'model_attachment_caps_v1';
-const DEFAULT_ATTACHMENT_CAPS = { text: true };
 const CONNECTION_DISCOVERY_CACHE_TTL_MS = 60 * 1000;
 const connectionDiscoveryCacheByEnv = new WeakMap();
 const fallbackConnectionDiscoveryCache = new Map();
@@ -22,30 +27,6 @@ export function isValidModelId(value) {
   if (id.length > 200) return false;
   if (/\s/.test(id)) return false;
   return true;
-}
-
-export async function loadModelAttachmentCaps(db) {
-  if (!db) return {};
-  try {
-    const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
-    return loadAttachmentCapsFromRaw(raw);
-  } catch {
-    return {};
-  }
-}
-
-export function applyAttachmentDefaults(attachments) {
-  const caps = attachments && typeof attachments === 'object' ? { ...attachments } : {};
-  caps.text = DEFAULT_ATTACHMENT_CAPS.text;
-  return caps;
-}
-
-export function getModelAttachmentCapsEntry(caps, modelId) {
-  const entry = caps?.[modelId];
-  if (!entry || typeof entry !== 'object') return applyAttachmentDefaults(null);
-  const attachments = entry.attachments;
-  if (!attachments || typeof attachments !== 'object') return applyAttachmentDefaults(null);
-  return applyAttachmentDefaults(attachments);
 }
 
 export async function ensureModelAccessTable(db, _logger = rootLogger) {
@@ -204,6 +185,9 @@ export function pruneExpiredConnectionDiscoveryCache(cache, now = Date.now()) {
 }
 
 export {
+  loadModelAttachmentCaps,
+  applyAttachmentDefaults,
+  getModelAttachmentCapsEntry,
   MODEL_ATTACHMENT_CAPS_KEY,
   DEFAULT_ATTACHMENT_CAPS,
   CONNECTION_DISCOVERY_CACHE_TTL_MS,

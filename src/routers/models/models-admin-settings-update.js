@@ -5,7 +5,7 @@ import { getConfigValue } from '../../utils/app-config.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
-import { buildModelAclRuleSaveStatements, normalizeModelAclRule } from '../../utils/model-acl.js';
+import { buildModelAclRuleSaveStatements } from '../../utils/model-acl.js';
 import {
   applyAttachmentCapsPatch,
   buildModelAttachmentCapSaveStatement,
@@ -15,6 +15,7 @@ import {
   MODEL_ATTACHMENT_CAPS_KEY,
 } from './models-helpers.js';
 import { requireModelAdmin } from './models-admin-settings-helpers.js';
+import { filterModelRulesByGroup } from './models-admin-access-helpers.js';
 
 const MAX_UPDATES = 500;
 
@@ -125,22 +126,6 @@ async function loadValidGroupIds(db) {
   return new Set((Array.isArray(groups) ? groups : []).map((group) => group.id).filter(Boolean));
 }
 
-function filterRulesForModel(modelId, rules, validGroupIds) {
-  const filteredRules = [];
-  const invalidPrincipalTypes = [];
-  for (const rule of Array.isArray(rules) ? rules : []) {
-    const normalized = normalizeModelAclRule({ ...rule, model_id: modelId });
-    if (!normalized) continue;
-    if (normalized.principal_type !== 'group') {
-      invalidPrincipalTypes.push(normalized.principal_type);
-      continue;
-    }
-    if (!validGroupIds.has(normalized.principal_id)) continue;
-    filteredRules.push(normalized);
-  }
-  return { filteredRules, invalidPrincipalTypes };
-}
-
 // eslint-disable-next-line max-params -- helper needs all context parameters
 function processAccessUpdate(db, update, nextAccessMap, validGroupIds, includeSchemaStatements) {
   const modelId = update.model_id;
@@ -151,7 +136,7 @@ function processAccessUpdate(db, update, nextAccessMap, validGroupIds, includeSc
     });
   }
 
-  const { filteredRules, invalidPrincipalTypes } = filterRulesForModel(
+  const { filteredRules, invalidPrincipalTypes } = filterModelRulesByGroup(
     modelId,
     update.rules,
     validGroupIds

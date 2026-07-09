@@ -5,6 +5,7 @@ import {
   buildToolCallNameMap,
   contentToText,
 } from './provider-adapters-utils.js';
+import { parseFnArguments } from './provider-adapters-shared.js';
 
 function contentToGoogleParts(content) {
   const parts = [];
@@ -109,17 +110,7 @@ export function buildGooglePayload(messages, options = {}) {
         const fn = call?.function || {};
         const name = String(fn.name || '').trim();
         if (!name) continue;
-        const rawArgs = fn.arguments;
-        const args =
-          typeof rawArgs === 'string'
-            ? (() => {
-                try {
-                  return JSON.parse(rawArgs);
-                } catch {
-                  return rawArgs;
-                }
-              })()
-            : (rawArgs ?? {});
+        const args = parseFnArguments(fn.arguments);
         const thoughtSignature = getThoughtSignature(call);
         parts.push({
           functionCall: { name, args },

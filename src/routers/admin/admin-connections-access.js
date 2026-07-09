@@ -4,7 +4,8 @@
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
-import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
+import { validateAndFilterAclRules } from './admin-acl-filter-access-shared.js';
+import { parseIdsFromUrl, loadGroups } from './admin-acl-groups-shared.js';
 import {
   buildConnectionAclRuleSaveStatements,
   loadConnectionAclRules,
@@ -31,16 +32,8 @@ export async function handleAdminConnectionsAccess(
 ) {
   if (req.method === 'GET' && path === '/api/admin/openai/connections/access') {
     try {
-      const url = new URL(req.url);
-      const ids = String(url.searchParams.get('ids') || '')
-        .split(',')
-        .map((value) => decodeURIComponent(String(value || '').trim()))
-        .filter(Boolean);
-      const groups = await db.all(
-        `SELECT id, name, description, is_system, created_at, updated_at
-         FROM groups
-         ORDER BY is_system DESC, name ASC`
-      );
+      const ids = parseIdsFromUrl(new URL(req.url));
+      const groups = await loadGroups(db);
       const rules = await loadConnectionAclRules(db, null, ids.length ? ids : null);
       return json(req, {
         connection_ids: ids,
@@ -90,22 +83,16 @@ export async function handleAdminConnectionsAccess(
         if (!currentConnection || currentConnection.enabled === false) {
           return error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT);
         }
-        let filteredRules;
-        try {
-          filteredRules = filterAclRulesByGroup({
-            rules: update?.rules,
-            resourceId: connectionId,
-            resourceIdKey: 'connection_id',
-            normalizeRule: normalizeConnectionAclRule,
-            validGroupIds,
-            invalidTypeMessage: 'Invalid principal_type for connection access',
-          });
-        } catch (err) {
-          if (err.status === HTTP_STATUS.BAD_REQUEST) {
-            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
-          }
-          throw err;
-        }
+        const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
+          rules: update?.rules,
+          resourceId: connectionId,
+          resourceIdKey: 'connection_id',
+          normalizeRule: normalizeConnectionAclRule,
+          validGroupIds,
+          invalidTypeMessage: 'Invalid principal_type for connection access',
+          req,
+        });
+        if (errResp) return errResp;
         const { statements: aclStatements } = buildConnectionAclRuleSaveStatements(
           db,
           connectionId,
@@ -154,11 +141,7 @@ export async function handleAdminConnectionsAccess(
 
     if (req.method === 'GET') {
       try {
-        const groups = await db.all(
-          `SELECT id, name, description, is_system, created_at, updated_at
-           FROM groups
-           ORDER BY is_system DESC, name ASC`
-        );
+        const groups = await loadGroups(db);
         const rules = await loadConnectionAclRules(db, connectionId);
         return json(req, {
           connection_id: connectionId,
@@ -192,22 +175,16 @@ export async function handleAdminConnectionsAccess(
         }
         const groups = await db.all('SELECT id FROM groups');
         const validGroupIds = new Set(groups.map((group) => group.id));
-        let filteredRules;
-        try {
-          filteredRules = filterAclRulesByGroup({
-            rules: body.rules,
-            resourceId: connectionId,
-            resourceIdKey: 'connection_id',
-            normalizeRule: normalizeConnectionAclRule,
-            validGroupIds,
-            invalidTypeMessage: 'Invalid principal_type for connection access',
-          });
-        } catch (err) {
-          if (err.status === HTTP_STATUS.BAD_REQUEST) {
-            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
-          }
-          throw err;
-        }
+        const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
+          rules: body.rules,
+          resourceId: connectionId,
+          resourceIdKey: 'connection_id',
+          normalizeRule: normalizeConnectionAclRule,
+          validGroupIds,
+          invalidTypeMessage: 'Invalid principal_type for connection access',
+          req,
+        });
+        if (errResp) return errResp;
 
         const savedRules = await saveConnectionAclRulesForConnection(
           db,

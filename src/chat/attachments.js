@@ -90,6 +90,7 @@ export function mergeTextAttachmentParts(content, parts = []) {
 }
 
 export async function loadModelAttachmentCaps(db) {
+  if (!db) return {};
   try {
     const raw = await getConfigValue(db, MODEL_ATTACHMENT_CAPS_KEY, '{}');
     return loadAttachmentCapsFromRaw(raw);

@@ -4,7 +4,8 @@
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
-import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
+import { validateAndFilterAclRules } from './admin-acl-filter-access-shared.js';
+import { parseIdsFromUrl, loadGroups } from './admin-acl-groups-shared.js';
 import {
   buildToolServerAclRuleSaveStatements,
   loadToolServerAclRules,
@@ -31,16 +32,8 @@ export async function handleAdminToolServersAccess(
 ) {
   if (req.method === 'GET' && path === '/api/admin/tool-servers/access') {
     try {
-      const url = new URL(req.url);
-      const ids = String(url.searchParams.get('ids') || '')
-        .split(',')
-        .map((value) => decodeURIComponent(String(value || '').trim()))
-        .filter(Boolean);
-      const groups = await db.all(
-        `SELECT id, name, description, is_system, created_at, updated_at
-         FROM groups
-         ORDER BY is_system DESC, name ASC`
-      );
+      const ids = parseIdsFromUrl(new URL(req.url));
+      const groups = await loadGroups(db);
       const rules = await loadToolServerAclRules(db, null, ids.length ? ids : null);
       return json(req, {
         tool_server_ids: ids,
@@ -93,22 +86,16 @@ export async function handleAdminToolServersAccess(
         if (!currentServer || currentServer.enabled === false) {
           return error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT);
         }
-        let filteredRules;
-        try {
-          filteredRules = filterAclRulesByGroup({
-            rules: update?.rules,
-            resourceId: toolServerId,
-            resourceIdKey: 'tool_server_id',
-            normalizeRule: normalizeToolServerAclRule,
-            validGroupIds,
-            invalidTypeMessage: 'Invalid principal_type for MCP server access',
-          });
-        } catch (err) {
-          if (err.status === HTTP_STATUS.BAD_REQUEST) {
-            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
-          }
-          throw err;
-        }
+        const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
+          rules: update?.rules,
+          resourceId: toolServerId,
+          resourceIdKey: 'tool_server_id',
+          normalizeRule: normalizeToolServerAclRule,
+          validGroupIds,
+          invalidTypeMessage: 'Invalid principal_type for MCP server access',
+          req,
+        });
+        if (errResp) return errResp;
         const { statements: aclStatements } = buildToolServerAclRuleSaveStatements(
           db,
           toolServerId,
@@ -157,11 +144,7 @@ export async function handleAdminToolServersAccess(
 
     if (req.method === 'GET') {
       try {
-        const groups = await db.all(
-          `SELECT id, name, description, is_system, created_at, updated_at
-           FROM groups
-           ORDER BY is_system DESC, name ASC`
-        );
+        const groups = await loadGroups(db);
         const rules = await loadToolServerAclRules(db, toolServerId);
         return json(req, {
           tool_server_id: toolServerId,
@@ -193,23 +176,17 @@ export async function handleAdminToolServersAccess(
         }
         const groups = await db.all('SELECT id FROM groups');
         const validGroupIds = new Set(groups.map((group) => group.id));
-        let filteredRules;
-        try {
-          filteredRules = filterAclRulesByGroup({
-            rules: body.rules,
-            resourceId: toolServerId,
-            resourceIdKey: 'tool_server_id',
-            normalizeRule: normalizeToolServerAclRule,
-            validGroupIds,
-            invalidTypeMessage: 'Invalid principal_type for MCP server access',
-            extraRuleFields: { action: 'use' },
-          });
-        } catch (err) {
-          if (err.status === HTTP_STATUS.BAD_REQUEST) {
-            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
-          }
-          throw err;
-        }
+        const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
+          rules: body.rules,
+          resourceId: toolServerId,
+          resourceIdKey: 'tool_server_id',
+          normalizeRule: normalizeToolServerAclRule,
+          validGroupIds,
+          invalidTypeMessage: 'Invalid principal_type for MCP server access',
+          extraRuleFields: { action: 'use' },
+          req,
+        });
+        if (errResp) return errResp;
 
         const savedRules = await saveToolServerAclRulesForToolServer(
           db,

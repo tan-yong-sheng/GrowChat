@@ -3,10 +3,11 @@ import { HTTP_STATUS } from '../../shared/http-status.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { createDB } from '../../db.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
-import { buildModelAclRuleSaveStatements, normalizeModelAclRule } from '../../utils/model-acl.js';
+import { buildModelAclRuleSaveStatements } from '../../utils/model-acl.js';
 import { getModelAccessMap } from './models-helpers.js';
 import { normalizeModelId } from '../../admin/tool-servers.js';
 import {
+  filterModelRulesByGroup,
   invalidJsonBody,
   loadValidGroupIds,
   noDatabase,
@@ -30,21 +31,6 @@ function validateUpdates(updates) {
   return { valid: true };
 }
 
-function filterRulesForModel(modelId, rules, validGroupIds, invalidPrincipalTypes) {
-  const filteredRules = [];
-  for (const rule of Array.isArray(rules) ? rules : []) {
-    const normalized = normalizeModelAclRule({ ...rule, model_id: modelId });
-    if (!normalized) continue;
-    if (normalized.principal_type !== 'group') {
-      invalidPrincipalTypes.push(normalized.principal_type);
-      continue;
-    }
-    if (!validGroupIds.has(normalized.principal_id)) continue;
-    filteredRules.push(normalized);
-  }
-  return filteredRules;
-}
-
 function processSingleUpdate(db, update, { accessMap, validGroupIds, includeSchemaStatements }) {
   const modelId = normalizeModelId(update?.model_id || update?.modelId);
   if (!modelId) {
@@ -59,7 +45,7 @@ function processSingleUpdate(db, update, { accessMap, validGroupIds, includeSche
   }
 
   const incomingRules = Array.isArray(update?.rules) ? update.rules : [];
-  const filteredRules = filterRulesForModel(modelId, incomingRules, validGroupIds, []);
+  const { filteredRules } = filterModelRulesByGroup(modelId, incomingRules, validGroupIds);
 
   const { statements: aclStatements } = buildModelAclRuleSaveStatements(
     db,

@@ -5,6 +5,7 @@ import {
   contentToText,
 } from './provider-adapters-utils.js';
 import { buildGooglePayload } from './provider-adapters-google.js';
+import { parseFnArguments } from './provider-adapters-shared.js';
 
 // Re-export everything from sub-modules for backward compatibility
 export {
@@ -113,17 +114,7 @@ export function buildAnthropicPayload(messages, options = {}) {
         const fn = call?.function || {};
         const name = String(fn.name || '').trim();
         if (!name) continue;
-        const rawArgs = fn.arguments;
-        const input =
-          typeof rawArgs === 'string'
-            ? (() => {
-                try {
-                  return JSON.parse(rawArgs);
-                } catch {
-                  return rawArgs;
-                }
-              })()
-            : (rawArgs ?? {});
+        const input = parseFnArguments(fn.arguments);
         blocks.push({
           type: 'tool_use',
           id: String(call?.id || crypto.randomUUID()),

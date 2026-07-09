@@ -3,11 +3,12 @@
  */
 // fallow-ignore-file security-sink
 
-import { normalizeModelSearchQuery } from '../../../shared/utils/model-search.js';
 import {
-  buildProviderOptions,
-  filterModelsBySearchAndProvider,
-} from '../../../shared/utils/model-filters.js';
+  computeProviderPaginationMeta,
+  buildProviderOptionsMarkup,
+} from './models-display-shared.js';
+
+import { buildProviderOptions } from '../../../shared/utils/model-filters.js';
 import {
   renderModelsHeaderHtml,
   renderModelsPaginationHtml,
@@ -42,30 +43,24 @@ export function createModelsRender(deps) {
   function render() {
     if (!isActiveTab()) return;
 
-    const query = normalizeModelSearchQuery(modelsState.query);
-    const usingFilter = Boolean(query);
-    const visibleModels = getLocalModels();
-    const providerOptions = buildProviderOptions(visibleModels, { includeAll: false });
-    const enabledProviders = providerOptions.filter((option) => Number(option.active || 0) > 0);
-    const allOption = {
-      value: 'all',
-      label: 'All Providers',
-      active: getActiveModelCount(),
-      total: modelsState.total ?? visibleModels.length,
-    };
-    const mergedProviders = [
+    const providerOptions = buildProviderOptions(getLocalModels(), { includeAll: false });
+    const {
+      usingFilter,
+      enabledProviders,
       allOption,
-      ...enabledProviders.filter((option) => option.value !== 'all'),
-    ];
-    const filteredModels = filterModelsBySearchAndProvider(modelsState.models, {
-      query,
-      provider: modelsState.provider,
-    });
-    const pageTotal = modelsState.total;
-    const totalPages = Math.ceil(modelsState.total / modelsState.limit) || 1;
-    const currentPage = Math.floor(modelsState.offset / modelsState.limit) + 1;
-    const pageStart = pageTotal === 0 ? 0 : modelsState.offset + 1;
-    const pageEnd = Math.min(modelsState.offset + modelsState.limit, pageTotal);
+      mergedProviders,
+      filteredModels,
+      pageTotal,
+      totalPages,
+      currentPage,
+      pageStart,
+      pageEnd,
+    } = computeProviderPaginationMeta(
+      modelsState,
+      providerOptions,
+      getLocalModels(),
+      getActiveModelCount()
+    );
 
     const rowsHtml = modelsState.loading
       ? `
@@ -131,15 +126,7 @@ export function createModelsRender(deps) {
           clearButtonId: 'model-clear-search-btn',
           clearHidden: !modelsState.query,
           providerId: 'model-provider-select',
-          providerOptionsMarkup: mergedProviders
-            .map(
-              (option) => `
-            <option value="${option.value}" ${option.value === modelsState.provider ? 'selected' : ''}>
-              ${option.label}${Number.isFinite(option.active) && Number.isFinite(option.total) ? ` (${option.active} active, ${option.total} total)` : ''}
-            </option>
-          `
-            )
-            .join(''),
+          providerOptionsMarkup: buildProviderOptionsMarkup(mergedProviders, modelsState.provider),
         })}
         ${renderModelsTableShellHtml({
           loading: modelsState.loading,
