@@ -11,6 +11,7 @@ import {
   dedupeConnectionConfigs,
   discoverConnectionModels,
   extractConnectionModelId,
+  getAllOpenAIConnectionConfigs,
   normalizeConnectionManualModels,
 } from '../../llm/connections.js';
 import {
@@ -265,6 +266,26 @@ export function isOpenAIProvider(model) {
   );
 }
 
+/**
+ * Check if a model matches a search query by inspecting name, id, connection, and provider fields.
+ *
+ * @param {object} model - Model object with name, id, connection_name, provider fields
+ * @param {string} query - Lowercased search query
+ * @returns {boolean} True if any field contains the query
+ */
+export function matchesModelQuery(model, query) {
+  const name = String(model?.name || '').toLowerCase();
+  const id = String(model?.id || '').toLowerCase();
+  const connection = String(model?.connection_name || '').toLowerCase();
+  const provider = String(model?.provider || '').toLowerCase();
+  return (
+    name.includes(query) ||
+    id.includes(query) ||
+    connection.includes(query) ||
+    provider.includes(query)
+  );
+}
+
 // fallow-ignore-next-line complexity
 export function getProviderKey(model) {
   const raw =
@@ -368,6 +389,38 @@ export async function loadCustomModels(env) {
   }
 
   return [];
+}
+
+/**
+ * Shared loadModels helper — loads base and custom models from
+ * OpenAI-compatible connections with error-safe fallback.
+ *
+ * @param {object} env - Cloudflare Workers environment bindings
+ * @param {object} logger - Logger with warn/error methods
+ * @param {object} [connectionOptions={}] - Options to pass to getAllOpenAIConnectionConfigs
+ * @returns {{ baseModels: Array, customModels: Array }}
+ */
+export async function loadModels(env, logger, connectionOptions = {}) {
+  let baseModels = [];
+  let customModels = [];
+  let modelConnections;
+
+  try {
+    modelConnections = await getAllOpenAIConnectionConfigs(env, connectionOptions);
+    baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
+  } catch (err) {
+    logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
+      error: err.message,
+    });
+  }
+
+  try {
+    customModels = await loadCustomModels(env);
+  } catch (err) {
+    logger.warn('Failed to load custom models', { error: err.message });
+  }
+
+  return { baseModels, customModels };
 }
 
 /**

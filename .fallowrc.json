@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": ["src/index.js", "public/js/bootstrap/app.js", "public/index.html", "scripts/**/*.js"],
   "ignoreDependencies": [
     "dompurify",
@@ -18,5 +19,8 @@
     "**/dist/**",
     "**/playwright-report/**",
     "public/styles.css"
-  ]
+  ],
+  "duplicates": {
+    "threshold": 0.001
+  }
 }

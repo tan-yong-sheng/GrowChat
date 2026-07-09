@@ -3,12 +3,10 @@
  *
  * Returns raw file contents from R2 with authorization and ownership check.
  */
-import { createDB } from '../db.js';
 import { error } from '../utils/response.js';
-import { createLogger } from '../utils/logger.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { requireOwnedDocument } from '../services/uploads.js';
+import { prepareFileHandlerContext } from './files-handler-helpers.js';
 
 /**
  * Resolves the R2 object blob for a document and returns it as a Response.
@@ -40,22 +38,12 @@ async function resolveBlobResponse(opts) {
 
 // eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileBlob(req, env, ctx, user, documentId, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
-  const downloadLimit = await checkRateLimit(env, {
-    action: 'file-download',
-    subject: user.sub,
-    ...RATE_LIMITS.fileDownload,
-  });
-  if (!downloadLimit.allowed) {
-    return error(req, 'Too many file downloads', HTTP_STATUS.TOO_MANY_REQUESTS, {
-      retry_after: Math.ceil((downloadLimit.resetAt - Date.now()) / 1000),
-    });
-  }
+  const ctx2 = await prepareFileHandlerContext(req, env, requestContext, user);
+  if (!ctx2.ok) return ctx2.response;
 
   if (!env.FILES) return error(req, 'FILES binding missing', HTTP_STATUS.INTERNAL_SERVER_ERROR);
 
-  const db = createDB(env.DB);
+  const { logger, db } = ctx2;
 
   try {
     return await resolveBlobResponse({ req, db, files: env.FILES, documentId, userId: user.sub });

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   buildModelAclIndex: vi.fn(),
   evaluateModelAclAccess: vi.fn(),
   splitModelScopeByUserVisibility: vi.fn(),
+  matchesModelQuery: vi.fn(),
 }));
 
 vi.mock('../../db.js', () => ({
@@ -58,11 +59,31 @@ vi.mock('./models-helpers.js', () => ({
 
 vi.mock('./models-discovery.js', () => ({
   fetchBaseModelsFromOpenAI: (...args) => mocks.fetchBaseModelsFromOpenAI(...args),
+  loadModels: async (env, logger, options) => {
+    let modelConnections;
+    let baseModels = [];
+    let customModels = [];
+    try {
+      modelConnections = await mocks.getAllOpenAIConnectionConfigs(env, options);
+      baseModels = await mocks.fetchBaseModelsFromOpenAI(env, modelConnections);
+    } catch (err) {
+      logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
+        error: err.message,
+      });
+    }
+    try {
+      customModels = await mocks.loadCustomModels(env);
+    } catch (err) {
+      logger.warn('Failed to load custom models', { error: err.message });
+    }
+    return { baseModels, customModels };
+  },
   loadCustomModels: (...args) => mocks.loadCustomModels(...args),
   toPublicModel: (...args) => mocks.toPublicModel(...args),
   buildProviderStats: (...args) => mocks.buildProviderStats(...args),
   isOpenAIProvider: (...args) => mocks.isOpenAIProvider(...args),
   splitModelScopeByUserVisibility: (...args) => mocks.splitModelScopeByUserVisibility(...args),
+  matchesModelQuery: (...args) => mocks.matchesModelQuery(...args),
 }));
 
 import { handlePublicModelsList } from './models-public-list.js';
@@ -109,6 +130,18 @@ describe('handlePublicModelsList', () => {
         hiddenIds.has(m.id) ? hidden.push(m) : visible.push(m);
       });
       return { visibleModels: visible, hiddenModels: hidden };
+    });
+    mocks.matchesModelQuery.mockImplementation((model, query) => {
+      const name = String(model?.name || '').toLowerCase();
+      const id = String(model?.id || '').toLowerCase();
+      const connection = String(model?.connection_name || '').toLowerCase();
+      const provider = String(model?.provider || '').toLowerCase();
+      return (
+        name.includes(query) ||
+        id.includes(query) ||
+        connection.includes(query) ||
+        provider.includes(query)
+      );
     });
   });
 

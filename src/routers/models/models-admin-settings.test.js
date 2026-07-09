@@ -75,6 +75,25 @@ vi.mock('./models-helpers.js', () => ({
 
 vi.mock('./models-discovery.js', () => ({
   fetchBaseModelsFromOpenAI: (...args) => mocks.fetchBaseModelsFromOpenAI(...args),
+  loadModels: async (env, logger, options) => {
+    let modelConnections;
+    let baseModels = [];
+    let customModels = [];
+    try {
+      modelConnections = await mocks.getAllOpenAIConnectionConfigs(env, options);
+      baseModels = await mocks.fetchBaseModelsFromOpenAI(env, modelConnections);
+    } catch (err) {
+      logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
+        error: err.message,
+      });
+    }
+    try {
+      customModels = await mocks.loadCustomModels(env);
+    } catch (err) {
+      logger.warn('Failed to load custom models', { error: err.message });
+    }
+    return { baseModels, customModels };
+  },
   loadCustomModels: (...args) => mocks.loadCustomModels(...args),
   toPublicModel: (...args) => mocks.toPublicModel(...args),
   buildProviderStats: (...args) => mocks.buildProviderStats(...args),

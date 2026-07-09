@@ -15,11 +15,13 @@ import {
 } from './models-helpers.js';
 import {
   fetchBaseModelsFromOpenAI,
+  loadModels,
   loadCustomModels,
   toPublicModel,
   splitModelScopeByUserVisibility,
   isOpenAIProvider,
   buildProviderStats,
+  matchesModelQuery,
 } from './models-discovery.js';
 import {
   buildModelAclIndex,
@@ -55,8 +57,6 @@ export async function handlePublicModelsList(
         String(url.searchParams.get('include_disabled') || '').toLowerCase()
       );
 
-      let customModels = [];
-      let baseModels = [];
       let openaiEnabled = true;
       let db = null;
       let modelConnections = [];
@@ -71,10 +71,9 @@ export async function handlePublicModelsList(
         }
       }
 
-      // Load base models from OpenAI-compatible env configuration.
-      // If this fails, log but continue with baseModels = []
-      try {
-        if (db && scope === 'effective' && user?.sub) {
+      // Resolve effective user group IDs for scope filtering
+      if (db && scope === 'effective' && user?.sub) {
+        try {
           const userGroupRows = await db.all(
             'SELECT group_id FROM group_members WHERE user_id = ?',
             [user.sub]
@@ -84,30 +83,21 @@ export async function handlePublicModelsList(
               .map((row) => row.group_id)
               .filter(Boolean)
           );
+        } catch (err) {
+          logger.warn('Failed to resolve effective user groups for model scoping', {
+            error: err.message,
+          });
         }
-        const connectionLoadOptions = {
-          includeHiddenForUser: true,
-          userId: user?.sub || '',
-          userRole: user?.primary_role || 'member',
-          userGroupIds: effectiveUserGroupIds ? Array.from(effectiveUserGroupIds) : undefined,
-        };
-        modelConnections = await getAllOpenAIConnectionConfigs(env, {
-          ...connectionLoadOptions,
-        });
-        baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
-      } catch (err) {
-        logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
-          error: err.message,
-        });
       }
 
-      // Load custom models. This may fail if KV or D1 is unavailable.
-      // If this fails, log but continue with customModels = []
-      try {
-        customModels = await loadCustomModels(env);
-      } catch (err) {
-        logger.warn('Failed to load custom models', { error: err.message });
-      }
+      // Load models from OpenAI-compatible connections
+      const connectionLoadOptions = {
+        includeHiddenForUser: true,
+        userId: user?.sub || '',
+        userRole: user?.primary_role || 'member',
+        userGroupIds: effectiveUserGroupIds ? Array.from(effectiveUserGroupIds) : undefined,
+      };
+      const { baseModels, customModels } = await loadModels(env, logger, connectionLoadOptions);
 
       let allModels = [...baseModels, ...customModels];
       if (!openaiEnabled) {
@@ -119,18 +109,7 @@ export async function handlePublicModelsList(
         hidden_model_ids: [],
       };
       if (query) {
-        publicModels = publicModels.filter((model) => {
-          const name = String(model?.name || '').toLowerCase();
-          const id = String(model?.id || '').toLowerCase();
-          const connection = String(model?.connection_name || '').toLowerCase();
-          const provider = String(model?.provider || '').toLowerCase();
-          return (
-            name.includes(query) ||
-            id.includes(query) ||
-            connection.includes(query) ||
-            provider.includes(query)
-          );
-        });
+        publicModels = publicModels.filter((model) => matchesModelQuery(model, query));
       }
       if (db) {
         if (scope === 'effective' && user?.sub) {

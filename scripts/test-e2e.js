@@ -48,7 +48,10 @@ const STATE_DIR = '.wrangler/state-e2e';
 const RUNNER_PID_FILE = path.join(STATE_DIR, '.runner-pid');
 const WRANGLER_PIDS_FILE = path.join(STATE_DIR, '.wrangler-pids');
 const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 };
+const CONFLICT_STATUS = 409;
 const KILL_TREE_TIMEOUT_MS = 3000;
+const PID_EXIT_POLL_MS = 50;
+const HTTP_READY_MAX_ATTEMPTS = 60;
 
 let wranglerProc = null;
 let runnerLockAcquired = false;
@@ -141,7 +144,7 @@ async function killProcessTree(pid) {
   // Wait for the PID to actually exit (signal-flush race on slow runners).
   const deadline = Date.now() + KILL_TREE_TIMEOUT_MS;
   while (isPidAlive(pid) && Date.now() < deadline) {
-    await sleep(50);
+    await sleep(PID_EXIT_POLL_MS);
   }
 }
 
@@ -304,6 +307,32 @@ function findD1Sqlite(pd) {
   return null;
 }
 
+/** Run a sqlite3 command by piping stdin to it. Returns when the child exits.
+ *
+ * The `action` param is used only in error messages for context.
+ */
+async function runSqlite3Stdin(dbPath, stdinContent, action) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      const msg = stderr.trim();
+      if (msg) log(`    sqlite3: ${msg}`);
+      if (code !== 0 && code !== null) {
+        reject(new Error(`sqlite3 exited with code ${code} ${action}: ${msg}`));
+        return;
+      }
+      resolve();
+    });
+    child.stdin.write(stdinContent);
+    child.stdin.end();
+  });
+}
+
 // ── D1 init helpers ───────────────────────────────────────────────────────────
 
 function cleanupStateDir() {
@@ -335,7 +364,7 @@ async function bootWranglerForD1Init() {
 
   let httpReady = false;
   let dbPath = null;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < HTTP_READY_MAX_ATTEMPTS; i++) {
     try {
       const r = await fetch(`http://127.0.0.1:${PORT}/`);
       if (r.ok && !httpReady) {
@@ -379,54 +408,20 @@ async function applyMigrations(dbPath) {
   for (const file of files) {
     const sqlPath = path.join(process.cwd(), 'migrations', file);
     log(`  Applying ${file}...`);
-    await new Promise((resolve, reject) => {
-      const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
-      let stderr = '';
-      child.stderr.on('data', (d) => {
-        stderr += d.toString();
-      });
-      child.on('error', reject);
-      child.on('close', (code) => {
-        const msg = stderr.trim();
-        if (msg) log(`    sqlite3: ${msg}`);
-        if (code !== 0 && code !== null) {
-          reject(new Error(`sqlite3 exited with code ${code} applying ${file}: ${msg}`));
-          return;
-        }
-        resolve();
-      });
-      child.stdin.write(readFileSync(sqlPath));
-      child.stdin.end();
-    });
+    await runSqlite3Stdin(dbPath, readFileSync(sqlPath), `applying ${file}`);
     log(`  ✓ ${file}`);
   }
 }
 
 async function enablePublicRegistration(dbPath) {
   log('Enabling public registration...');
-  await new Promise((resolve, reject) => {
-    const child = spawn('sqlite3', [dbPath], { stdio: ['pipe', 'pipe', 'pipe'] });
-    let stderr = '';
-    child.stderr.on('data', (d) => {
-      stderr += d.toString();
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      const msg = stderr.trim();
-      if (msg) log(`    sqlite3: ${msg}`);
-      if (code !== 0 && code !== null) {
-        reject(new Error(`sqlite3 exited with code ${code} enabling registration: ${msg}`));
-        return;
-      }
-      resolve();
-    });
-    child.stdin.write(
-      'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
-        "('public_registration_status', 'active', unixepoch()), " +
-        "('public_registration', 'true', unixepoch());\n"
-    );
-    child.stdin.end();
-  });
+  await runSqlite3Stdin(
+    dbPath,
+    'INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ' +
+      "('public_registration_status', 'active', unixepoch()), " +
+      "('public_registration', 'true', unixepoch());\n",
+    'enabling registration'
+  );
   log('Public registration enabled.');
 }
 
@@ -534,7 +529,7 @@ async function seedUser() {
     log('Test user seeded.');
     return;
   }
-  if (res.status === 409) {
+  if (res.status === CONFLICT_STATUS) {
     log('Test user already exists.');
     return;
   }

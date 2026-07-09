@@ -3,12 +3,10 @@
  *
  * Returns safe text representation of a file's content based on its type.
  */
-import { createDB } from '../db.js';
 import { json, error } from '../utils/response.js';
-import { createLogger } from '../utils/logger.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { requireOwnedDocument } from '../services/uploads.js';
+import { prepareFileHandlerContext } from './files-handler-helpers.js';
 
 /**
  * Resolves file content representation based on document type.
@@ -34,20 +32,10 @@ function resolveFileContent(doc) {
 
 // eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileContent(req, env, ctx, user, documentId, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
-  const downloadLimit = await checkRateLimit(env, {
-    action: 'file-download',
-    subject: user.sub,
-    ...RATE_LIMITS.fileDownload,
-  });
-  if (!downloadLimit.allowed) {
-    return error(req, 'Too many file downloads', HTTP_STATUS.TOO_MANY_REQUESTS, {
-      retry_after: Math.ceil((downloadLimit.resetAt - Date.now()) / 1000),
-    });
-  }
+  const ctx2 = await prepareFileHandlerContext(req, env, requestContext, user);
+  if (!ctx2.ok) return ctx2.response;
 
-  const db = createDB(env.DB);
+  const { logger, db } = ctx2;
 
   try {
     const owned = await requireOwnedDocument({ req, db, documentId, userId: user.sub });

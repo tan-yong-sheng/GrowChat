@@ -2,7 +2,7 @@ import { error, json } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { getConfigBool } from '../../utils/app-config.js';
-import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
+
 import { countEnabledModels, sortModelsByActiveThenName } from '../../llm/model-state.js';
 import {
   getModelAccessMap,
@@ -10,12 +10,12 @@ import {
   getModelAttachmentCapsEntry,
 } from './models-helpers.js';
 import {
-  fetchBaseModelsFromOpenAI,
+  loadModels,
   toPublicModel,
   isOpenAIProvider,
   buildProviderStats,
-  loadCustomModels,
   getProviderKey,
+  matchesModelQuery,
 } from './models-discovery.js';
 import { requireModelAdmin } from './models-admin-settings-helpers.js';
 
@@ -38,20 +38,6 @@ function parseListParams(req) {
   return { limit, offset, query, includeDisabled, providerFilter };
 }
 
-// eslint-disable-next-line complexity -- multi-field text search
-function matchesModelQuery(model, query) {
-  const name = String(model?.name || '').toLowerCase();
-  const id = String(model?.id || '').toLowerCase();
-  const connection = String(model?.connection_name || '').toLowerCase();
-  const provider = String(model?.provider || '').toLowerCase();
-  return (
-    name.includes(query) ||
-    id.includes(query) ||
-    connection.includes(query) ||
-    provider.includes(query)
-  );
-}
-
 function applyFilters(models, query, providerFilter) {
   let filtered = models;
   if (query) {
@@ -61,29 +47,6 @@ function applyFilters(models, query, providerFilter) {
     filtered = filtered.filter((model) => getProviderKey(model) === providerFilter);
   }
   return filtered;
-}
-
-async function loadModels(env, logger, includeDisabled) {
-  let baseModels = [];
-  let customModels = [];
-  let modelConnections;
-
-  try {
-    modelConnections = await getAllOpenAIConnectionConfigs(env, { includeDisabled });
-    baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
-  } catch (err) {
-    logger.warn('Failed to fetch base models from OpenAI-compatible sources', {
-      error: err.message,
-    });
-  }
-
-  try {
-    customModels = await loadCustomModels(env);
-  } catch (err) {
-    logger.warn('Failed to load custom models', { error: err.message });
-  }
-
-  return { baseModels, customModels };
 }
 
 function buildAdminModels(allModels, accessMap) {
@@ -123,7 +86,7 @@ export async function handleAdminModelsSettingsList(req, env, _ctx, user, _path,
     }
 
     const { limit, offset, query, providerFilter, includeDisabled } = parseListParams(req);
-    const { baseModels, customModels } = await loadModels(env, logger, includeDisabled);
+    const { baseModels, customModels } = await loadModels(env, logger, { includeDisabled });
 
     let allModels = [...baseModels, ...customModels];
     if (!openaiEnabled) {

@@ -90,44 +90,39 @@ export async function handleUsersMe(req, env, ctx, user, path, { _db, _logger, _
   }
 
   if (req.method === 'PUT' && path === '/api/users/me') {
-    if (user.account_status && user.account_status !== 'active') {
-      return error(req, 'Account pending approval.', 403);
-    }
-    const db = createDB(env.DB);
-
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return error(req, 'Invalid JSON body', 400);
-    }
-
-    try {
-      const update = buildSelfProfileUpdate(body, { allowSettings: true });
-      const { updates, values } = update;
-
-      updates.push('updated_at = unixepoch()');
-      values.push(user.sub);
-
-      await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
-
-      const row = await db.first(
-        'SELECT id, email, name, account_status, settings, avatar, avatar_emoji, status, preferences, created_at, updated_at FROM users WHERE id = ?',
-        [user.sub]
-      );
-      if (!row) return error(req, 'User not found', 404);
-
-      const primaryRole = (await loadPrimaryRole(db, user.sub)) || 'member';
-      return json(req, buildUserProfileResponse(row, { primaryRole }));
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        return error(req, err.message, 400);
-      }
-      throw err;
-    }
+    return handleSelfProfileUpdate(
+      req,
+      env,
+      ctx,
+      user,
+      { allowSettings: true },
+      { _db, _logger, _requestContext }
+    );
   }
 
   if (req.method === 'POST' && path === '/api/users/me/update') {
+    return handleSelfProfileUpdate(
+      req,
+      env,
+      ctx,
+      user,
+      { allowSettings: false },
+      { _db, _logger, _requestContext }
+    );
+  }
+
+  /**
+   * Shared handler for self-profile updates (PUT /api/users/me and POST /api/users/me/update).
+   * The only difference between the two endpoints is the allowSettings flag.
+   */
+  async function handleSelfProfileUpdate(
+    req,
+    env,
+    ctx,
+    user,
+    allowSettingsOption,
+    { _db, _logger, _requestContext }
+  ) {
     if (user.account_status && user.account_status !== 'active') {
       return error(req, 'Account pending approval.', 403);
     }
@@ -141,7 +136,7 @@ export async function handleUsersMe(req, env, ctx, user, path, { _db, _logger, _
     }
 
     try {
-      const update = buildSelfProfileUpdate(body, { allowSettings: false });
+      const update = buildSelfProfileUpdate(body, allowSettingsOption);
       const { updates, values } = update;
 
       updates.push('updated_at = unixepoch()');
