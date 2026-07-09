@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// fallow-ignore-file security-sink: trusted runner, callers pass literal args
 import { spawnSync } from 'node:child_process';
 
 // Writable home directory for tools that try to write to ~/. (e.g., semgrep
@@ -9,7 +8,6 @@ const WRITABLE_HOME = process.env.HOME_SEMGREP || '/tmp/pi-home';
 // Trusted local helper: shell disabled, args fixed by caller, no user input path.
 function run(bin, args) {
   // nosemgrep: trusted local guardrail runner; no shell, fixed args only.
-  // fallow-ignore-next-line security-sink: bin/args are always literal from caller
   const result = spawnSync(bin, args, { stdio: 'inherit', shell: false });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
