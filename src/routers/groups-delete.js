@@ -2,7 +2,7 @@
  * Groups - DELETE /api/admin/groups/:id
  * Deletes a group
  */
-import { error, json } from '../utils/response.js';
+import { error } from '../utils/response.js';
 import { logAuditEvent } from '../utils/authorize.js';
 
 export async function handleGroupsDelete(req, env, _ctx, user, groupId, path, { db, logger } = {}) {

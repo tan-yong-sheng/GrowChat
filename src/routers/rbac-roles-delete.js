@@ -2,7 +2,7 @@
  * RBAC - DELETE /api/admin/rbac/roles/:id
  * Deletes a custom role (not system roles)
  */
-import { error, json } from '../utils/response.js';
+import { error } from '../utils/response.js';
 import { logAuditEvent } from '../utils/authorize.js';
 
 export async function handleRbacRolesDelete(

@@ -1,5 +1,6 @@
 # ── AI tool directories ──
 .fallow/
+!/.fallow/baseline.json
 fallow-out/
 .agents/*
 .claude/*

@@ -3,7 +3,7 @@
  *
  * Routes requests to per-route handlers based on method + path
  */
-import { error, json, authError } from '../utils/response.js';
+import { error, authError } from '../utils/response.js';
 import { createDB } from '../db.js';
 import { createLogger } from '../utils/logger.js';
 import { authorize, getAuditLog, logAuditEvent } from '../utils/authorize.js';

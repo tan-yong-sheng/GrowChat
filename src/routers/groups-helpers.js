@@ -1,7 +1,7 @@
 /**
  * Groups shared helpers for group management
  */
-import { error, json } from '../utils/response.js';
+import { error } from '../utils/response.js';
 
 export function normalizePermissionsList(value) {
   if (!Array.isArray(value)) return [];

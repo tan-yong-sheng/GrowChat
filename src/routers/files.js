@@ -43,10 +43,6 @@ const PATTERN_MAP = [
   { pattern: /^\/api\/files\/([^/]+)$/, handler: handleFileGet, matchIndex: 1 },
 ];
 
-function isMissingDocumentsTable(err) {
-  return /no such table:\s*documents/i.test(String(err?.message || ''));
-}
-
 export async function filesRouter(req, env, ctx, user, path, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
