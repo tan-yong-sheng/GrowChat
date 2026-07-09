@@ -10,6 +10,6 @@ export async function handleMe(req, env, db, users, authUser) {
   if (!user) {
     return error(req, 'User not found', 404);
   }
-  const primaryRole = await loadPrimaryRole(env, authUser.sub);
+  const primaryRole = await loadPrimaryRole(db, authUser.sub);
   return json(req, sanitizeUser(user, primaryRole));
 }

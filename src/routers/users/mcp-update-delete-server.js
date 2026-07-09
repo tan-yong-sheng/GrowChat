@@ -16,9 +16,7 @@ import { json, error } from '../../utils/response.js';
  * @returns {Promise<Response>}
  */
 export async function handleUpdateMcpServer(req, env, userSub, serverId) {
-  if (userSub.account_status && userSub.account_status !== 'active') {
-    return error(req, 'Account pending approval.', 403);
-  }
+  // Account status is already checked by the router's checkMcpAuth at the dispatcher level
   let body;
   try {
     body = await req.json();
@@ -51,9 +49,7 @@ export async function handleUpdateMcpServer(req, env, userSub, serverId) {
  * @returns {Promise<Response>}
  */
 export async function handleDeleteMcpServer(req, env, userSub, serverId) {
-  if (userSub.account_status && userSub.account_status !== 'active') {
-    return error(req, 'Account pending approval.', 403);
-  }
+  // Account status is already checked by the router's checkMcpAuth at the dispatcher level
   const db = createDB(env.DB);
   try {
     const deleted = await deleteUserToolServer(db, userSub, serverId);

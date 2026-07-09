@@ -56,9 +56,18 @@ export async function filesRouter(req, env, ctx, user, path, requestContext = {}
     }
   }
 
-  // Check delete by exact path — pass requestContext through
-  if (req.method === 'DELETE' && path === '/api/files/' + path.split('/').pop()) {
-    return handleFileDelete(req, env, ctx, user, path.split('/').pop(), requestContext);
+  // Check delete by exact path — only match /api/files/:id (4 path segments)
+  // Reject /api/files/search, /api/files/health etc. which are GET-only routes
+  if (req.method === 'DELETE' && path.split('/').length === 4) {
+    const fileId = path.split('/').pop();
+    // Only proceed if the path is not handled by a non-DELETE route
+    // (which would indicate a named path segment like 'search' or 'health')
+    const isNonDeletePath = ROUTE_MAP.some((r) => r.method !== 'DELETE' && r.path === path);
+    if (isNonDeletePath) {
+      // This is a GET-only path — return 405
+      return new Response(null, { status: 405 });
+    }
+    return handleFileDelete(req, env, ctx, user, fileId, requestContext);
   }
 
   // Pattern-based routes (with :id param)

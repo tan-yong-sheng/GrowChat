@@ -18,7 +18,8 @@ import { handleRbacAuditList } from './rbac-audit-list.js';
 const ROUTE_MAP = [
   { method: 'GET', path: '/api/admin/rbac/roles', handler: handleRbacRolesList },
   { method: 'POST', path: '/api/admin/rbac/roles', handler: handleRbacRolesCreate },
-  { method: 'DELETE', path: '/api/admin/rbac/roles', handler: handleRbacRolesDelete },
+  // DELETE /api/admin/rbac/roles/:id is handled by PATH_PATTERN_MAP below
+  // No exact DELETE /api/admin/rbac/roles — would be "delete all roles" which doesn't exist
   { method: 'GET', path: '/api/admin/rbac/permissions', handler: handleRbacPermissionsList },
   { method: 'POST', path: '/api/admin/rbac/bindings', handler: handleRbacBindingsCreate },
   { method: 'GET', path: '/api/admin/audit', handler: handleRbacAuditList },
