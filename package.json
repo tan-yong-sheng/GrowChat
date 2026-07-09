@@ -45,7 +45,7 @@
     "lint:security": "fallow security --format json --fail-on-issues",
     "lint:flags": "node scripts/fallow-flags-gate.js",
     "lint:health:scoped": "fallow health --changed-since HEAD~1 --format json --fail-on-issues",
-    "lint:security:scoped": "fallow security --changed-since HEAD~1 --format json --fail-on-issues",
+    "lint:security:scoped": "fallow security --changed-since HEAD~1 --format json --gate new --fail-on-issues",
     "lint:flags:scoped": "node scripts/fallow-flags-gate.js --changed-since HEAD~1",
     "lint:all": "fallow audit --changed-since HEAD~1 --format json --fail-on-issues",
     "lint:all:scoped": "fallow audit --changed-since HEAD~1 --format json --fail-on-issues",
