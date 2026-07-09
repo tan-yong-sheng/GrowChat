@@ -38,7 +38,7 @@
     "lint:logic:scoped": "node scripts/run-scoped-guardrails.js --semgrep",
     "lint:dupes": "fallow dupes --format json --fail-on-issues",
     "lint:dupes:budget": "fallow dupes --threshold 1 --format json --fail-on-issues",
-    "lint:dupes:scoped": "fallow dupes --changed-since HEAD~1 --format json --fail-on-issues",
+    "lint:dupes:scoped": "fallow dupes --changed-since HEAD --format json --fail-on-issues",
     "lint:design": "npx @google/design.md lint DESIGN.md",
     "lint:hygiene": "fallow dead-code --baseline .fallow/baseline.json --format json --fail-on-issues",
     "lint:health": "fallow health --format json --fail-on-issues",
