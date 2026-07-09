@@ -56,7 +56,9 @@
       const parts = String(token || '').split('.');
       if (parts.length < 2) return false;
       const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-      const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, '=');
+      // Base64 encode — pad to next 4-char boundary
+      const BASE64_BLOCK = 4;
+      const padded = payload.padEnd(Math.ceil(payload.length / BASE64_BLOCK) * BASE64_BLOCK, '=');
       const decoded = JSON.parse(atob(padded));
       const exp = Number(decoded.exp || 0);
       return Number.isFinite(exp) && exp > Math.floor(Date.now() / 1000);

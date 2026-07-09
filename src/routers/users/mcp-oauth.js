@@ -2,6 +2,7 @@
  * MCP OAuth flow handlers — extracted from handleUsersMcp.
  * Handles the OAuth authorization code exchange and OAuth start flow.
  */
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import {
   buildAuthorizationUrl,
@@ -29,7 +30,7 @@ function parseCallbackQuery(req) {
   };
 }
 
-function oauthCallbackError(message, status = 400) {
+function oauthCallbackError(message, status = HTTP_STATUS.BAD_REQUEST) {
   return new Response(message, { status });
 }
 
@@ -133,6 +134,7 @@ function resolveServerUrl(body, existingServer) {
   return url;
 }
 
+// eslint-disable-next-line complexity -- client credential resolution with fallback chains
 function resolveClientCredentials(body, existingServer, metadata) {
   let clientId = String(body?.oauth_client_id || existingServer?.oauth_client_id || '').trim();
   let clientSecret = String(
@@ -163,6 +165,7 @@ async function registerOAuthClient(registrationEndpoint, redirectUri, body) {
   };
 }
 
+// eslint-disable-next-line max-params -- client credentials resolution (body, existingServer, metadata, registrationEndpoint, redirectUri)
 async function ensureClientCredentials(
   body,
   existingServer,
@@ -200,20 +203,27 @@ async function discoverOauthMetadata(serverUrl) {
 
 async function validateOauthStartRequest(req, env, user) {
   const body = await parseJsonBody(req);
-  if (body === null) return { error: error(req, 'Invalid JSON body', 400) };
+  if (body === null) return { error: error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST) };
 
   const serverId = resolveServerId(body);
-  if (!serverId) return { error: error(req, 'Server must be saved before OAuth connect', 400) };
+  if (!serverId)
+    return {
+      error: error(req, 'Server must be saved before OAuth connect', HTTP_STATUS.BAD_REQUEST),
+    };
 
   const db = createDB(env.DB);
   const existingServer = await loadExistingServer(db, user.sub, serverId);
   if (!existingServer) {
-    return { error: error(req, 'Server must be saved before OAuth connect', 400) };
+    return {
+      error: error(req, 'Server must be saved before OAuth connect', HTTP_STATUS.BAD_REQUEST),
+    };
   }
 
   const serverUrl = resolveServerUrl(body, existingServer);
   if (!serverUrl) {
-    return { error: error(req, 'Server URL must start with http:// or https://', 400) };
+    return {
+      error: error(req, 'Server URL must start with http:// or https://', HTTP_STATUS.BAD_REQUEST),
+    };
   }
 
   const metadata = await discoverOauthMetadata(serverUrl);
@@ -221,23 +231,29 @@ async function validateOauthStartRequest(req, env, user) {
     metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
   if (registrationEndpoint) {
     const regSafety = isSafeOutboundUrl(registrationEndpoint);
-    if (!regSafety.safe) return { error: error(req, regSafety.reason, 400) };
+    if (!regSafety.safe) return { error: error(req, regSafety.reason, HTTP_STATUS.BAD_REQUEST) };
   }
 
   return { db, body, serverId, existingServer, serverUrl, metadata, registrationEndpoint };
 }
 
+const PKCE_VERIFIER_LENGTH = 64;
+const PKCE_STATE_LENGTH = 32;
+
 function resolveClientRegistrationError(req, err) {
-  const status = err?.message?.includes('does not support') ? 400 : 502;
+  const status = err?.message?.includes('does not support')
+    ? HTTP_STATUS.BAD_REQUEST
+    : HTTP_STATUS.BAD_GATEWAY;
   return error(req, err?.message || 'OAuth client registration failed', status);
 }
 
 async function generatePkceState() {
-  const codeVerifier = randomString(64);
+  const codeVerifier = randomString(PKCE_VERIFIER_LENGTH);
   const codeChallenge = await sha256Base64Url(codeVerifier);
-  return { codeVerifier, codeChallenge, state: randomString(32) };
+  return { codeVerifier, codeChallenge, state: randomString(PKCE_STATE_LENGTH) };
 }
 
+// eslint-disable-next-line max-params -- server state builder (existingServer, body, serverUrl, clientId, clientSecret, metadata, registrationEndpoint, tokenAuthMethod, state, codeVerifier)
 function buildPersistedServer(
   existingServer,
   body,
@@ -283,7 +299,8 @@ export async function handleOauthCallback(req, env, origin) {
 
   const serverLookup = await loadCallbackServer(db, state);
   if (!serverLookup) return oauthCallbackError('OAuth session not found or expired');
-  if (serverLookup.blocked) return oauthCallbackError('Account pending approval.', 403);
+  if (serverLookup.blocked)
+    return oauthCallbackError('Account pending approval.', HTTP_STATUS.FORBIDDEN);
 
   const server = serverLookup.server;
   const { tokenEndpoint, params, headers } = buildTokenRequest(server, code, origin);
@@ -329,7 +346,7 @@ export async function handleOauthStart(req, env, user, origin) {
     return resolveClientRegistrationError(req, err);
   }
 
-  if (!clientId) return error(req, 'OAuth client ID is required', 400);
+  if (!clientId) return error(req, 'OAuth client ID is required', HTTP_STATUS.BAD_REQUEST);
 
   const tokenAuthMethod = resolveTokenAuthMethod(
     startCtx.body,
@@ -339,7 +356,8 @@ export async function handleOauthStart(req, env, user, origin) {
   );
   const tokenEndpoint = startCtx.metadata?.token_endpoint || '/token';
   const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
-  if (!tokenEndpointSafety.safe) return error(req, tokenEndpointSafety.reason, 400);
+  if (!tokenEndpointSafety.safe)
+    return error(req, tokenEndpointSafety.reason, HTTP_STATUS.BAD_REQUEST);
 
   const { codeVerifier, codeChallenge, state } = await generatePkceState();
   const authorizationEndpoint = startCtx.metadata?.authorization_endpoint || '/authorize';

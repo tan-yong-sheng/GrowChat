@@ -1,4 +1,14 @@
 import { isHttpError, toHttpErrorPayload } from '../errors/http-errors.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
+
+// FNV-1a hash constants
+const FNV_HASH = 2166136261;
+const FNV_SHIFT_1 = 1;
+const FNV_SHIFT_4 = 4;
+const FNV_SHIFT_7 = 7;
+const FNV_SHIFT_8 = 8;
+const FNV_SHIFT_24 = 24;
+const HEX_RADIX = 16;
 
 function originHeaders(req) {
   const origin = req.headers.get('Origin');
@@ -50,12 +60,17 @@ function matchesIfNoneMatch(headerValue, etag) {
 
 export function createWeakEtag(value) {
   const source = typeof value === 'string' ? value : JSON.stringify(value ?? '');
-  let hash = 2166136261;
-  for (let i = 0; i < source.length; i += 1) {
+  let hash = FNV_HASH;
+  for (let i = 0; i < source.length; i += FNV_SHIFT_1) {
     hash ^= source.charCodeAt(i);
-    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+    hash +=
+      (hash << FNV_SHIFT_1) +
+      (hash << FNV_SHIFT_4) +
+      (hash << FNV_SHIFT_7) +
+      (hash << FNV_SHIFT_8) +
+      (hash << FNV_SHIFT_24);
   }
-  const hex = (hash >>> 0).toString(16);
+  const hex = (hash >>> 0).toString(HEX_RADIX);
   return `W/"${hex}"`;
 }
 
@@ -75,14 +90,8 @@ export function json(req, data, status = 200, headers = {}) {
   return buildJsonBody(req, data, status, headers);
 }
 
-export function jsonCached(req, data, options = {}) {
-  const {
-    status = 200,
-    headers = {},
-    etag = null,
-    cacheControl = null,
-    vary = null,
-  } = options || {};
+function buildCachedResponseHeaders(req, options) {
+  const { headers = {}, etag = null, cacheControl = null, vary = null } = options || {};
 
   const origin = originHeaders(req);
   const responseHeaders = {
@@ -91,10 +100,23 @@ export function jsonCached(req, data, options = {}) {
     ...securityHeaders(),
     ...headers,
   };
-  if (cacheControl) responseHeaders['Cache-Control'] = cacheControl;
-  if (etag) responseHeaders.ETag = etag;
+  if (cacheControl) {
+    responseHeaders['Cache-Control'] = cacheControl;
+  }
+  if (etag) {
+    responseHeaders.ETag = etag;
+  }
   const mergedVary = mergeVary(responseHeaders.Vary, vary);
-  if (mergedVary) responseHeaders.Vary = mergedVary;
+  if (mergedVary) {
+    responseHeaders.Vary = mergedVary;
+  }
+  return responseHeaders;
+}
+
+export function jsonCached(req, data, options = {}) {
+  const { status = 200 } = options || {};
+  const responseHeaders = buildCachedResponseHeaders(req, options);
+  const etag = options.etag;
 
   const ifNoneMatch = etag ? req.headers.get('If-None-Match') : null;
   if (etag && matchesIfNoneMatch(ifNoneMatch, etag)) {
@@ -110,84 +132,59 @@ export function jsonCached(req, data, options = {}) {
   });
 }
 
+function isNotStackLine(line) {
+  return !line.trim().startsWith('at ') && !/\.(js|ts|mjs|cjs|jsx|tsx|map):\d+/.test(line);
+}
+
 function sanitizeErrorMessage(message, status) {
-  // For 5xx errors, never expose internal details to clients
-  if (status >= 500) {
-    // Log the actual error server-side (would be captured by worker logs)
+  if (status >= HTTP_STATUS.INTERNAL_SERVER_ERROR) {
     return 'An error occurred. Please try again later.';
   }
 
-  // For client errors (4xx), expose the message but strip stack traces
   if (typeof message === 'string') {
-    // Remove stack traces (lines starting with "at " or containing file paths)
-    // Catches all source file extensions: .js, .ts, .mjs, .cjs, .jsx, .tsx, .map files
-    return message
-      .split('\n')
-      .filter(
-        (line) => !line.trim().startsWith('at ') && !/\.(js|ts|mjs|cjs|jsx|tsx|map):\d+/.test(line)
-      )
-      .join('\n')
-      .trim();
+    return message.split('\n').filter(isNotStackLine).join('\n').trim();
   }
 
   return String(message);
 }
 
-/**
- * Sanitizes a details object by removing stack trace information from string values.
- * For 5xx errors, the error message is already sanitized to a generic message,
- * but we still sanitize any additional details to prevent stack trace leakage.
- * For 4xx errors, we expose details but strip stack traces from string values.
- */
-function sanitizeErrorDetails(details, status) {
-  if (!details) {
-    return undefined;
-  }
+function sanitizeObjectEntry(value) {
+  const cleaned = value.split('\n').filter(isNotStackLine).join('\n').trim();
+  return cleaned || undefined;
+}
 
-  // For arrays, recursively sanitize each item
-  if (Array.isArray(details)) {
-    return details.map((item) => sanitizeErrorDetails(item, status)).filter(Boolean);
-  }
-
-  if (typeof details === 'object') {
-    const sanitized = {};
-    for (const [key, value] of Object.entries(details)) {
-      // Skip requestId - it's extracted and promoted to top-level in error()
-      if (key === 'requestId') continue;
-      if (typeof value === 'string') {
-        // Strip stack traces from string values
-        const cleaned = value
-          .split('\n')
-          .filter(
-            (line) =>
-              !line.trim().startsWith('at ') && !/\.(js|ts|mjs|cjs|jsx|tsx|map):\d+/.test(line)
-          )
-          .join('\n')
-          .trim();
-        if (cleaned) {
-          sanitized[key] = cleaned;
-        }
-      } else if (typeof value === 'object' && value !== null) {
-        const nested = sanitizeErrorDetails(value, status);
-        if (nested && Object.keys(nested).length > 0) {
-          sanitized[key] = nested;
-        }
-      } else {
-        sanitized[key] = value;
-      }
+function sanitizeObjectEntries(details) {
+  const sanitized = {};
+  for (const [key, value] of Object.entries(details)) {
+    if (key === 'requestId') continue;
+    if (typeof value === 'string') {
+      const result = sanitizeObjectEntry(value);
+      if (result) sanitized[key] = result;
+    } else if (typeof value === 'object' && value !== null) {
+      const nested = sanitizeErrorDetails(value);
+      if (nested && Object.keys(nested).length) sanitized[key] = nested;
+    } else {
+      sanitized[key] = value;
     }
-    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
   }
+  return Object.keys(sanitized).length ? sanitized : undefined;
+}
 
-  // For non-object, non-array values, return as-is
-  return details;
+function sanitizeErrorDetails(details) {
+  if (!details) return undefined;
+  if (typeof details !== 'object') return details;
+  if (Array.isArray(details))
+    return details.map((item) => sanitizeErrorDetails(item)).filter(Boolean);
+  return sanitizeObjectEntries(details);
 }
 
 export function getConnectionTestFailureMessage(status) {
-  if (status === 401) return 'Authentication failed \u2014 check your API key';
-  if (status === 403) return 'Access denied \u2014 check your permissions';
-  if (status === 404) return 'Endpoint not found \u2014 check your connection URL';
-  if (status != null && status >= 500) return 'Upstream server error \u2014 try again later';
+  if (status === HTTP_STATUS.UNAUTHORIZED) return 'Authentication failed \u2014 check your API key';
+  if (status === HTTP_STATUS.FORBIDDEN) return 'Access denied \u2014 check your permissions';
+  if (status === HTTP_STATUS.NOT_FOUND)
+    return 'Endpoint not found \u2014 check your connection URL';
+  if (status != null && status >= HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    return 'Upstream server error \u2014 try again later';
   return 'Connection failed \u2014 check your settings and try again';
 }
 
@@ -197,11 +194,15 @@ export function getConnectionTestFailureMessage(status) {
  */
 export function authError(req, decision, defaultMessage = 'Forbidden') {
   const statusCodeMap = {
-    server_error: 500,
-    unauthorized: 401,
-    not_found: 404,
+    server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+    unauthorized: HTTP_STATUS.UNAUTHORIZED,
+    not_found: HTTP_STATUS.NOT_FOUND,
   };
-  return error(req, decision.reason || defaultMessage, statusCodeMap[decision.code] || 403);
+  return error(
+    req,
+    decision.reason || defaultMessage,
+    statusCodeMap[decision.code] || HTTP_STATUS.FORBIDDEN
+  );
 }
 
 export function error(req, message, status = 500, details = undefined) {
@@ -217,7 +218,7 @@ export function error(req, message, status = 500, details = undefined) {
   const requestId = isPlainObj ? details.requestId : undefined;
 
   // Sanitize details (removes stack traces, strips requestId, and for 5xx returns undefined)
-  const sanitizedDetails = sanitizeErrorDetails(details, status);
+  const sanitizedDetails = sanitizeErrorDetails(details);
 
   return buildJsonBody(
     req,

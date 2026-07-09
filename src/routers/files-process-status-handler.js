@@ -6,8 +6,10 @@
 import { createDB } from '../db.js';
 import { json, error } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { requireOwnedDocument } from '../services/uploads.js';
 
+// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileProcessStatus(
   req,
   env,
@@ -37,6 +39,6 @@ export async function handleFileProcessStatus(
     });
   } catch (err) {
     logger.error('Get process status failed', { error: err?.message || err });
-    return error(req, 'Failed to get status', 500);
+    return error(req, 'Failed to get status', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

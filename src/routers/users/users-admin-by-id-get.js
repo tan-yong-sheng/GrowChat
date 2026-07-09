@@ -1,3 +1,4 @@
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
 import { authError, error, json } from '../../utils/response.js';
@@ -24,7 +25,7 @@ export async function handleGetUserById(req, env, user, userId) {
     );
 
     if (!userData) {
-      return error(req, 'User not found', 404);
+      return error(req, 'User not found', HTTP_STATUS.NOT_FOUND);
     }
 
     await logAuditEvent(env, {
@@ -46,7 +47,7 @@ export async function handleGetUserById(req, env, user, userId) {
         updated_at: userData.updated_at,
       },
     });
-  } catch (err) {
-    return error(req, 'Failed to fetch user', 500);
+  } catch (_err) {
+    return error(req, 'Failed to fetch user', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

@@ -3,6 +3,7 @@
  */
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
 import {
   buildToolServerAclRuleSaveStatements,
@@ -13,6 +14,8 @@ import {
 import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { loadToolServers } from '../../admin/tool-servers.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
+
+const MAX_ACCESS_UPDATES = 200;
 
 /**
  * Handle handleAdminToolServersAccess routes.
@@ -46,7 +49,7 @@ export async function handleAdminToolServersAccess(
       });
     } catch (err) {
       logger.error('Load tool server access failed', { error: err?.message || err });
-      return error(req, 'Failed to load MCP server access', 500);
+      return error(req, 'Failed to load MCP server access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -61,10 +64,14 @@ export async function handleAdminToolServersAccess(
 
     const updates = Array.isArray(body.updates) ? body.updates : [];
     if (!updates.length) {
-      return error(req, 'No tool server access updates provided', 400);
+      return error(req, 'No tool server access updates provided', HTTP_STATUS.BAD_REQUEST);
     }
-    if (updates.length > 200) {
-      return error(req, 'Too many access updates (max 200)', 400);
+    if (updates.length > MAX_ACCESS_UPDATES) {
+      return error(
+        req,
+        'Too many access updates (max ' + MAX_ACCESS_UPDATES + ')',
+        HTTP_STATUS.BAD_REQUEST
+      );
     }
 
     try {
@@ -78,13 +85,13 @@ export async function handleAdminToolServersAccess(
       for (const update of updates) {
         const toolServerId = String(update?.tool_server_id || update?.toolServerId || '').trim();
         if (!toolServerId) {
-          return error(req, 'tool_server_id is required', 400);
+          return error(req, 'tool_server_id is required', HTTP_STATUS.BAD_REQUEST);
         }
         const currentServer = (Array.isArray(servers) ? servers : []).find(
           (server) => String(server.id || '') === String(toolServerId)
         );
         if (!currentServer || currentServer.enabled === false) {
-          return error(req, 'Disabled MCP servers cannot be edited', 409);
+          return error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT);
         }
         let filteredRules;
         try {
@@ -97,8 +104,8 @@ export async function handleAdminToolServersAccess(
             invalidTypeMessage: 'Invalid principal_type for MCP server access',
           });
         } catch (err) {
-          if (err.status === 400) {
-            return error(req, err.message, 400, { invalid: err.invalid });
+          if (err.status === HTTP_STATUS.BAD_REQUEST) {
+            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
           }
           throw err;
         }
@@ -134,7 +141,7 @@ export async function handleAdminToolServersAccess(
       });
     } catch (err) {
       logger.error('Bulk tool server access update failed', { error: err?.message || err });
-      return error(req, 'Failed to update MCP server access', 500);
+      return error(req, 'Failed to update MCP server access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -163,7 +170,7 @@ export async function handleAdminToolServersAccess(
         });
       } catch (err) {
         logger.error('Load tool server access failed', { error: err?.message || err });
-        return error(req, 'Failed to load MCP server access', 500);
+        return error(req, 'Failed to load MCP server access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
     }
 
@@ -182,7 +189,7 @@ export async function handleAdminToolServersAccess(
           (server) => String(server.id || '') === String(toolServerId)
         );
         if (!currentServer || currentServer.enabled === false) {
-          return error(req, 'Disabled MCP servers cannot be edited', 409);
+          return error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT);
         }
         const groups = await db.all('SELECT id FROM groups');
         const validGroupIds = new Set(groups.map((group) => group.id));
@@ -198,8 +205,8 @@ export async function handleAdminToolServersAccess(
             extraRuleFields: { action: 'use' },
           });
         } catch (err) {
-          if (err.status === 400) {
-            return error(req, err.message, 400, { invalid: err.invalid });
+          if (err.status === HTTP_STATUS.BAD_REQUEST) {
+            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
           }
           throw err;
         }
@@ -240,11 +247,11 @@ export async function handleAdminToolServersAccess(
         });
       } catch (err) {
         logger.error('Update tool server access failed', { error: err?.message || err });
-        return error(req, 'Failed to update MCP server access', 500);
+        return error(req, 'Failed to update MCP server access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
     }
 
-    return error(req, 'Method not allowed', 405);
+    return error(req, 'Method not allowed', HTTP_STATUS.METHOD_NOT_ALLOWED);
   }
 
   // GET /api/admin/audit-logs - List audit logs

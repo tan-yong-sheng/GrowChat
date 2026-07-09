@@ -8,7 +8,9 @@ import { json, error } from '../utils/response.js';
 import { authorize, logAuditEvent } from '../utils/authorize.js';
 import { createLogger } from '../utils/logger.js';
 import { deleteDocument } from '../services/uploads.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 
+// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileDelete(req, env, ctx, user, documentId, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
@@ -18,8 +20,16 @@ export async function handleFileDelete(req, env, ctx, user, documentId, requestC
     resourceId: documentId,
   });
   if (!authDecision.allow) {
-    const statusMap = { server_error: 500, unauthorized: 401, not_found: 404 };
-    return error(req, authDecision.reason || 'Forbidden', statusMap[authDecision.code] || 403);
+    const statusMap = {
+      server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      unauthorized: HTTP_STATUS.UNAUTHORIZED,
+      not_found: HTTP_STATUS.NOT_FOUND,
+    };
+    return error(
+      req,
+      authDecision.reason || 'Forbidden',
+      statusMap[authDecision.code] || HTTP_STATUS.FORBIDDEN
+    );
   }
 
   const db = createDB(env.DB);
@@ -38,8 +48,8 @@ export async function handleFileDelete(req, env, ctx, user, documentId, requestC
   } catch (err) {
     logger.error('Delete document failed', { error: err?.message || err });
     if (err.message === 'Document not found') {
-      return error(req, 'Not found', 404);
+      return error(req, 'Not found', HTTP_STATUS.NOT_FOUND);
     }
-    return error(req, 'Failed to delete document', 500);
+    return error(req, 'Failed to delete document', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

@@ -1,5 +1,6 @@
 import { error } from '../../utils/response.js';
 import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../../services/rate-limit.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 
 export async function handleResendVerification(req, env) {
   const resendLimit = await checkRateLimit(env, {
@@ -8,7 +9,7 @@ export async function handleResendVerification(req, env) {
     ...RATE_LIMITS.authResendVerification,
   });
   if (!resendLimit.allowed) {
-    return error(req, 'Too many resend attempts', 429, {
+    return error(req, 'Too many resend attempts', HTTP_STATUS.TOO_MANY_REQUESTS, {
       retry_after: Math.ceil((resendLimit.resetAt - Date.now()) / 1000),
     });
   }
@@ -16,11 +17,11 @@ export async function handleResendVerification(req, env) {
   try {
     body = await req.json();
   } catch {
-    return error(req, 'Invalid JSON body', 400);
+    return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
   }
   const email = body?.email;
   if (!email) {
-    return error(req, 'Email is required', 400);
+    return error(req, 'Email is required', HTTP_STATUS.BAD_REQUEST);
   }
   const { resendVerification } = await import('../email-verification.js');
   return resendVerification({ email, env });

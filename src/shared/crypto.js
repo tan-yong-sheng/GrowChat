@@ -26,7 +26,7 @@ export async function hashTokenAsync(token) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = new Uint8Array(hashBuffer);
   return Array.from(hashArray)
-    .map((b) => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0')) // .toString(16) is hex
     .join('');
 }
 

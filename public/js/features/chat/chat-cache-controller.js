@@ -30,10 +30,11 @@ export function createChatCacheController({
   function schedulePrune() {
     if (pruneScheduled) return;
     pruneScheduled = true;
+    const PRUNE_DEBOUNCE_MS = 50;
     setTimeout(() => {
       pruneScheduled = false;
       pruneChatCaches();
-    }, 50);
+    }, PRUNE_DEBOUNCE_MS);
   }
 
   return {

@@ -1,3 +1,4 @@
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { hashPassword } from '../../shared/auth.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
@@ -9,6 +10,7 @@ import {
   syncGlobalRoleBinding,
 } from './users-helpers.js';
 
+// eslint-disable-next-line max-statements -- CSV import handler
 export async function handleImportUsers(req, env, user, logger) {
   const authDecision = await authorize(env, user, {
     action: 'admin.user.write',
@@ -23,12 +25,12 @@ export async function handleImportUsers(req, env, user, logger) {
   try {
     body = await req.json();
   } catch {
-    return error(req, 'Invalid JSON body', 400);
+    return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
   }
 
   const csv = String(body.csv || '');
   if (!csv.trim()) {
-    return error(req, 'csv is required', 400);
+    return error(req, 'csv is required', HTTP_STATUS.BAD_REQUEST);
   }
 
   const rows = csv
@@ -37,7 +39,7 @@ export async function handleImportUsers(req, env, user, logger) {
     .filter(Boolean);
 
   if (rows.length === 0) {
-    return error(req, 'CSV is empty', 400);
+    return error(req, 'CSV is empty', HTTP_STATUS.BAD_REQUEST);
   }
 
   const db = createDB(env.DB);
@@ -75,11 +77,11 @@ export async function handleImportUsers(req, env, user, logger) {
       created,
       results,
     },
-    201
+    HTTP_STATUS.CREATED
   );
 }
 
-async function processImportRow({ db, env, line, index, userId, logger }) {
+async function processImportRow({ db, env: _env, line, index, userId: _userId, logger }) {
   const rowNumber = index + 1;
 
   if (index === 0 && /^name\s*,\s*email\s*,\s*password\s*,\s*primary_role$/i.test(line)) {
@@ -132,7 +134,7 @@ async function processImportRow({ db, env, line, index, userId, logger }) {
   };
 }
 
-function validateImportRow({ name, email, password, requestedRole, role, rowNumber }) {
+function validateImportRow({ name, email, password, requestedRole, role, _rowNumber }) {
   if (!name || !email || !password || !requestedRole) {
     return { error: 'Each row must include name, email, password, primary_role' };
   }
@@ -145,8 +147,9 @@ function validateImportRow({ name, email, password, requestedRole, role, rowNumb
     return { error: 'primary_role must match an existing role' };
   }
 
-  if (password.length < 8) {
-    return { error: 'Password must be at least 8 characters' };
+  const MIN_PASSWORD_LENGTH = 8;
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { error: 'Password must be at least ' + MIN_PASSWORD_LENGTH + ' characters' };
   }
 
   return {};

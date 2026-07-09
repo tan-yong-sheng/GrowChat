@@ -1,8 +1,10 @@
+const SIDEBAR_DEFAULT_WIDTH = 260;
+
 export function deriveSidebarLayout(currentState = {}) {
   const showSidebar = Boolean(currentState.showSidebar);
   const isMobile = Boolean(currentState.isMobile);
   const sidebarCollapsed = Boolean(currentState.sidebarCollapsed);
-  const sidebarWidth = Number(currentState.sidebarWidth || 260);
+  const sidebarWidth = Number(currentState.sidebarWidth || SIDEBAR_DEFAULT_WIDTH);
 
   if (!showSidebar) {
     return {

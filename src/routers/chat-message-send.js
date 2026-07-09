@@ -57,14 +57,14 @@ export async function handleSendMessage({
   if (modelDecision?.error) return modelDecision.error;
   const providerInfo = modelDecision.providerInfo;
 
-  const attachmentResult = await loadAndValidateAttachments(
+  const attachmentResult = await loadAndValidateAttachments({
     req,
     env,
     db,
     user,
-    parsed.attachmentIds,
-    model
-  );
+    attachmentIds: parsed.attachmentIds,
+    model,
+  });
   if (attachmentResult.error) return attachmentResult.error;
   const { attachmentDocs, attachmentParts, attachmentKinds } = attachmentResult;
 

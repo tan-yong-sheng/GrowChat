@@ -1,5 +1,6 @@
 import { error, json } from '../../utils/response.js';
-import { authorize, logAuditEvent } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
+import { logAuditEvent } from '../../utils/authorize.js';
 import { createDB } from '../../db.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
 import { buildModelAclRuleSaveStatements, normalizeModelAclRule } from '../../utils/model-acl.js';
@@ -44,52 +45,53 @@ function filterRulesForModel(modelId, rules, validGroupIds, invalidPrincipalType
   return filteredRules;
 }
 
+function processSingleUpdate(db, update, { accessMap, validGroupIds, includeSchemaStatements }) {
+  const modelId = normalizeModelId(update?.model_id || update?.modelId);
+  if (!modelId) {
+    throw Object.assign(new Error('model_id is required'), { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  const isEnabled = accessMap.has(modelId) ? accessMap.get(modelId) : true;
+  if (!isEnabled) {
+    throw Object.assign(new Error('Disabled models cannot be edited'), {
+      status: HTTP_STATUS.CONFLICT,
+    });
+  }
+
+  const incomingRules = Array.isArray(update?.rules) ? update.rules : [];
+  const filteredRules = filterRulesForModel(modelId, incomingRules, validGroupIds, []);
+
+  const { statements: aclStatements } = buildModelAclRuleSaveStatements(
+    db,
+    modelId,
+    filteredRules,
+    { includeSchemaStatements }
+  );
+
+  return { aclStatements, modelId, filteredRules };
+}
+
 function buildUpdateStatements(db, updates, accessMap, validGroupIds) {
   let includeSchemaStatements = true;
   const statements = [];
   const normalizedUpdates = [];
-  const invalidPrincipalTypes = [];
 
   for (const update of updates) {
-    const modelId = normalizeModelId(update?.model_id || update?.modelId);
-    if (!modelId) {
-      throw Object.assign(new Error('model_id is required'), { status: 400 });
-    }
-
-    const isEnabled = accessMap.has(modelId) ? accessMap.get(modelId) : true;
-    if (!isEnabled) {
-      throw Object.assign(new Error('Disabled models cannot be edited'), { status: 409 });
-    }
-
-    const incomingRules = Array.isArray(update?.rules) ? update.rules : [];
-    const filteredRules = filterRulesForModel(
-      modelId,
-      incomingRules,
+    const { aclStatements, modelId, filteredRules } = processSingleUpdate(db, update, {
+      accessMap,
       validGroupIds,
-      invalidPrincipalTypes
-    );
-
-    const { statements: aclStatements } = buildModelAclRuleSaveStatements(
-      db,
-      modelId,
-      filteredRules,
-      { includeSchemaStatements }
-    );
+      includeSchemaStatements,
+    });
     includeSchemaStatements = false;
     statements.push(...aclStatements);
     normalizedUpdates.push({ model_id: modelId, rules: filteredRules });
   }
 
-  if (invalidPrincipalTypes.length) {
-    throw Object.assign(new Error('Invalid principal_type for model access'), {
-      status: 400,
-      invalid: Array.from(new Set(invalidPrincipalTypes)),
-    });
-  }
-
   return { statements, normalizedUpdates };
 }
 
+/* eslint-disable max-params -- router dispatcher needs (req, env, ctx, user, path, deps) */
+/* eslint-disable max-statements -- handler orchestrates multiple steps */
 export async function handleAdminModelsAccessBulkUpdate(req, env, _ctx, user, _path, { logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;
@@ -106,7 +108,7 @@ export async function handleAdminModelsAccessBulkUpdate(req, env, _ctx, user, _p
   const updates = parseBody(req, body);
   const validation = validateUpdates(updates);
   if (!validation.valid) {
-    return error(req, validation.error, 400);
+    return error(req, validation.error, HTTP_STATUS.BAD_REQUEST);
   }
 
   try {
@@ -145,6 +147,6 @@ export async function handleAdminModelsAccessBulkUpdate(req, env, _ctx, user, _p
         err.invalid ? { invalid: err.invalid } : undefined
       );
     }
-    return error(req, 'Failed to update model access', 500);
+    return error(req, 'Failed to update model access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

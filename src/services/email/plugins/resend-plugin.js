@@ -1,5 +1,7 @@
 import { BaseEmailPlugin } from './base-plugin.js';
 
+const REQUEST_TIMEOUT_MS = 10000;
+
 export class ResendPlugin extends BaseEmailPlugin {
   constructor(config = {}) {
     super(config);
@@ -23,7 +25,7 @@ export class ResendPlugin extends BaseEmailPlugin {
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       // fallow-ignore-next-line security-sink

@@ -1,4 +1,5 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { getConfigValue } from '../../utils/app-config.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
@@ -72,7 +73,7 @@ function sanitizeAccessUpdates(accessUpdatesInput) {
   for (const update of accessUpdatesInput) {
     const modelId = normalizeModelId(update?.model_id || update?.modelId);
     if (!modelId) {
-      throw Object.assign(new Error('model_id is required'), { status: 400 });
+      throw Object.assign(new Error('model_id is required'), { status: HTTP_STATUS.BAD_REQUEST });
     }
     const rules = Array.isArray(update?.rules) ? update.rules : [];
     sanitizedAccessUpdates.push({ model_id: modelId, rules });
@@ -86,8 +87,12 @@ async function requireAclAccess(req, env, user) {
     resource: 'model',
   });
   if (aclDecision.allow) return null;
-  const statusCodeMap = { server_error: 500, unauthorized: 401, not_found: 404 };
-  const statusCode = statusCodeMap[aclDecision.code] || 403;
+  const statusCodeMap = {
+    server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+    unauthorized: HTTP_STATUS.UNAUTHORIZED,
+    not_found: HTTP_STATUS.NOT_FOUND,
+  };
+  const statusCode = statusCodeMap[aclDecision.code] || HTTP_STATUS.FORBIDDEN;
   return error(req, aclDecision.reason || 'Forbidden', statusCode);
 }
 
@@ -136,11 +141,14 @@ function filterRulesForModel(modelId, rules, validGroupIds) {
   return { filteredRules, invalidPrincipalTypes };
 }
 
+// eslint-disable-next-line max-params -- helper needs all context parameters
 function processAccessUpdate(db, update, nextAccessMap, validGroupIds, includeSchemaStatements) {
   const modelId = update.model_id;
   const isEnabled = nextAccessMap.has(modelId) ? nextAccessMap.get(modelId) : true;
   if (!isEnabled) {
-    throw Object.assign(new Error('Disabled models cannot be edited'), { status: 409 });
+    throw Object.assign(new Error('Disabled models cannot be edited'), {
+      status: HTTP_STATUS.CONFLICT,
+    });
   }
 
   const { filteredRules, invalidPrincipalTypes } = filterRulesForModel(
@@ -150,7 +158,7 @@ function processAccessUpdate(db, update, nextAccessMap, validGroupIds, includeSc
   );
   if (invalidPrincipalTypes.length) {
     throw Object.assign(new Error('Invalid principal_type for model access'), {
-      status: 400,
+      status: HTTP_STATUS.BAD_REQUEST,
       invalid: Array.from(new Set(invalidPrincipalTypes)),
     });
   }
@@ -159,9 +167,7 @@ function processAccessUpdate(db, update, nextAccessMap, validGroupIds, includeSc
     db,
     modelId,
     filteredRules,
-    {
-      includeSchemaStatements,
-    }
+    { includeSchemaStatements }
   );
   return {
     statements: aclStatements,
@@ -191,6 +197,8 @@ async function buildAccessUpdateStatements(db, sanitizedAccessUpdates, nextAcces
   return { statements, normalizedAccessUpdates };
 }
 
+/* eslint-disable max-params -- multiple context parameters */
+/* eslint-disable no-unused-vars -- kept for consistency with other save functions */
 async function saveSettings(
   db,
   env,
@@ -253,6 +261,7 @@ async function prepareAttachmentAndAccessUpdates(db, attachmentUpdatesInput, acc
   return { attachmentCaps, sanitizedAttachmentUpdates, sanitizedAccessUpdates };
 }
 
+/* eslint-disable max-params -- multiple context parameters needed */
 async function buildAndExecuteStatements(
   db,
   env,
@@ -305,29 +314,31 @@ async function buildAndExecuteStatements(
   };
 }
 
+/* eslint-disable max-statements */
+/* eslint-disable complexity */
 async function validateUpdateRequest(req, env, user) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return { error: authError };
 
   if (!env.DB) {
-    return { error: error(req, 'Database unavailable', 500) };
+    return { error: error(req, 'Database unavailable', HTTP_STATUS.INTERNAL_SERVER_ERROR) };
   }
 
   const db = createDB(env.DB);
   const body = await parseRequestBody(req);
   if (body === null) {
-    return { error: error(req, 'Invalid JSON body', 400) };
+    return { error: error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST) };
   }
 
   const { updatesInput, attachmentUpdatesInput, accessUpdatesInput } = parseBody(body);
 
   if (!validateUpdateCounts(updatesInput, attachmentUpdatesInput, accessUpdatesInput)) {
-    return { error: error(req, 'Too many updates (max 500)', 400) };
+    return { error: error(req, 'Too many updates (max 500)', HTTP_STATUS.BAD_REQUEST) };
   }
 
   const sanitizedUpdates = sanitizeEnabledUpdates(updatesInput);
   if (sanitizedUpdates.length !== updatesInput.length) {
-    return { error: error(req, 'Invalid model id in updates', 400) };
+    return { error: error(req, 'Invalid model id in updates', HTTP_STATUS.BAD_REQUEST) };
   }
 
   const prepared = await prepareAttachmentAndAccessUpdates(
@@ -336,7 +347,7 @@ async function validateUpdateRequest(req, env, user) {
     accessUpdatesInput
   );
   if (prepared.error) {
-    return { error: error(req, prepared.error, 400) };
+    return { error: error(req, prepared.error, HTTP_STATUS.BAD_REQUEST) };
   }
   const { attachmentCaps, sanitizedAttachmentUpdates, sanitizedAccessUpdates } = prepared;
 
@@ -350,7 +361,7 @@ async function validateUpdateRequest(req, env, user) {
     !sanitizedAttachmentUpdates.length &&
     !sanitizedAccessUpdates.length
   ) {
-    return { error: error(req, 'No model changes provided', 400) };
+    return { error: error(req, 'No model changes provided', HTTP_STATUS.BAD_REQUEST) };
   }
 
   return {
@@ -362,6 +373,7 @@ async function validateUpdateRequest(req, env, user) {
   };
 }
 
+/* eslint-disable max-params -- handler orchestrates multiple steps */
 export async function handleAdminModelsSettingsUpdate(req, env, _ctx, user, _path, { logger }) {
   const validation = await validateUpdateRequest(req, env, user);
   if (validation.error) return validation.error;
@@ -396,6 +408,6 @@ export async function handleAdminModelsSettingsUpdate(req, env, _ctx, user, _pat
         err.invalid ? { invalid: err.invalid } : undefined
       );
     }
-    return error(req, 'Failed to update model settings', 500);
+    return error(req, 'Failed to update model settings', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

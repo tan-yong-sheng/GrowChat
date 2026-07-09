@@ -1,10 +1,11 @@
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error } from '../../utils/response.js';
 import { authorize } from '../../utils/authorize.js';
 
 const STATUS_CODE_MAP = {
-  server_error: 500,
-  unauthorized: 401,
-  not_found: 404,
+  server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+  unauthorized: HTTP_STATUS.UNAUTHORIZED,
+  not_found: HTTP_STATUS.NOT_FOUND,
 };
 
 export async function requireModelAdmin(req, env, user, resourceId) {
@@ -16,6 +17,6 @@ export async function requireModelAdmin(req, env, user, resourceId) {
   if (authDecision.allow) {
     return null;
   }
-  const statusCode = STATUS_CODE_MAP[authDecision.code] || 403;
+  const statusCode = STATUS_CODE_MAP[authDecision.code] || HTTP_STATUS.FORBIDDEN;
   return error(req, authDecision.reason || 'Forbidden', statusCode);
 }

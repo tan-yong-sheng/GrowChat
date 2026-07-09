@@ -2,6 +2,7 @@
  * Handle POST /api/users/me/resources/mcp-servers — create an MCP tool server.
  * Extracted from handleUsersMcp (was ~25 lines, ~15 cyclomatic).
  */
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { createUserToolServer } from '../../admin/tool-servers.js';
 import { toPersonalToolServerSummary } from '../../services/workspace-settings.js';
@@ -20,7 +21,7 @@ export async function handleCreateMcpServer(req, env, userSub) {
   try {
     body = await req.json();
   } catch {
-    return error(req, 'Invalid JSON body', 400);
+    return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
   }
 
   try {
@@ -32,8 +33,8 @@ export async function handleCreateMcpServer(req, env, userSub) {
       resource_id: created?.id || null,
       metadata: { server_id: created?.id || null },
     });
-    return json(req, { server: toPersonalToolServerSummary(created) }, 201);
+    return json(req, { server: toPersonalToolServerSummary(created) }, HTTP_STATUS.CREATED);
   } catch (err) {
-    return error(req, err?.message || 'Failed to create MCP server', 400);
+    return error(req, err?.message || 'Failed to create MCP server', HTTP_STATUS.BAD_REQUEST);
   }
 }

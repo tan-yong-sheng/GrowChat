@@ -5,6 +5,7 @@
 import { error, json } from '../../utils/response.js';
 import { setConfigValue } from '../../utils/app-config.js';
 import { logAuditEvent } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { ensureAdminMutationAccess } from './admin-helpers.js';
 
 async function parseBody(req) {
@@ -16,8 +17,12 @@ async function parseBody(req) {
 }
 
 function mapAuthCodeToStatus(code) {
-  const map = { server_error: 500, unauthorized: 401, not_found: 404 };
-  return map[code] || 403;
+  const map = {
+    server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+    unauthorized: HTTP_STATUS.UNAUTHORIZED,
+    not_found: HTTP_STATUS.NOT_FOUND,
+  };
+  return map[code] || HTTP_STATUS.FORBIDDEN;
 }
 
 function validatePublicRegistration(value) {
@@ -34,11 +39,13 @@ function validateRegistrationStatus(value) {
   return { value: normalized };
 }
 
+const MAX_MODEL_ID_LENGTH = 200;
+
 function validateDefaultModelId(value) {
   if (value === null || value === '') return { value: '' };
   if (typeof value !== 'string') return { error: 'default_model_id must be a string or null' };
   const normalized = String(value).trim();
-  if (normalized.length > 200 || /\s/.test(normalized)) {
+  if (normalized.length > MAX_MODEL_ID_LENGTH || /\s/.test(normalized)) {
     return { error: 'default_model_id is invalid' };
   }
   return { value: normalized || '' };
@@ -101,9 +108,10 @@ function buildConfigResponse(updates) {
 /**
  * Handle PUT /api/admin/config - Update admin configuration
  */
+// eslint-disable-next-line max-params -- dispatcher pattern: (req, env, ctx, user, path, deps)
 export async function handleAdminConfigSet(req, env, ctx, user, path, { db, logger } = {}) {
   const body = await parseBody(req);
-  if (body === null) return error(req, 'Invalid JSON body', 400);
+  if (body === null) return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
 
   const writeDecision = await ensureAdminMutationAccess({
     env,
@@ -116,7 +124,7 @@ export async function handleAdminConfigSet(req, env, ctx, user, path, { db, logg
   }
 
   const validation = validateConfigUpdate(body);
-  if (validation.error) return error(req, validation.error, 400);
+  if (validation.error) return error(req, validation.error, HTTP_STATUS.BAD_REQUEST);
 
   try {
     await applyConfigUpdates(db, validation.updates);
@@ -133,6 +141,6 @@ export async function handleAdminConfigSet(req, env, ctx, user, path, { db, logg
     return json(req, buildConfigResponse(validation.updates));
   } catch (err) {
     logger.error('Admin config update failed', { error: err?.message || err });
-    return error(req, 'Failed to update admin config', 500);
+    return error(req, 'Failed to update admin config', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

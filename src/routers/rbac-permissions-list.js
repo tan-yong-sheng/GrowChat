@@ -3,7 +3,9 @@
  * Lists all available permissions
  */
 import { error, json } from '../utils/response.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 
+// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, path, deps)
 export async function handleRbacPermissionsList(req, env, _ctx, user, path, { db, logger } = {}) {
   try {
     const permissions = await db.all(
@@ -24,6 +26,6 @@ export async function handleRbacPermissionsList(req, env, _ctx, user, path, { db
     return json(req, { permissions, grouped_by_category: grouped });
   } catch (err) {
     logger.error('List permissions failed', { error: err?.message || err });
-    return error(req, 'Failed to list permissions', 500);
+    return error(req, 'Failed to list permissions', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

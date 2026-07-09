@@ -1,6 +1,7 @@
 import { signJWT } from '../../shared/auth.js';
 import { createRefreshToken } from '../../shared/session.js';
 import { APP_TTLS } from '../../config/app.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
 import { escapeHtml } from '../../utils/sanitize.js';
 import { normalizePublicRole, loadPrimaryRole } from '../../utils/user-role.js';
@@ -29,42 +30,40 @@ export function isActiveAccount(user) {
   return normalizeAccountStatus(user.account_status) === 'active';
 }
 
-export async function ensureUserRoleBinding(
-  db,
-  userId,
-  role,
-  accountStatus = 'active',
-  logger = null
-) {
-  if (!userId) return;
-  if (normalizeAccountStatus(accountStatus) !== 'active') {
-    try {
-      await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
-    } catch {
-      // Ignore missing RBAC tables during migrations.
-    }
-    return;
-  }
-  if (!role) return;
-  const mappedRole = normalizePublicRole(role);
+async function clearInactiveRoles(db, userId) {
   try {
-    await db.batch([
-      db.prepare('DELETE FROM user_roles WHERE user_id = ?').bind(userId),
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
+    await db.run('DELETE FROM user_roles WHERE user_id = ?', [userId]);
+  } catch {
+    /* no-op: missing table */
+  }
+}
+
+async function bindRole(db, userId, mappedRole) {
+  try {
+    await db.run(
+      `INSERT OR IGNORE INTO user_roles (id, user_id, role_id, created_at)
 					SELECT ?, ?, r.id, unixepoch()
-					FROM roles r WHERE r.name = ?`
-        )
-        .bind(crypto.randomUUID(), userId, mappedRole),
-    ]);
+					FROM roles r WHERE r.name = ?`,
+      [crypto.randomUUID(), userId, mappedRole]
+    );
   } catch (err) {
     if (/no such table:\s*(user_roles|roles)/i.test(String(err?.message || ''))) {
-      (logger || console).warn('RBAC role binding skipped: run migrations/001_initial.sql');
+      // RBAC missing during migrations
       return;
     }
     throw err;
   }
+}
+
+export async function ensureUserRoleBinding(db, userId, role, accountStatus = 'active') {
+  if (!userId) return;
+  if (normalizeAccountStatus(accountStatus) !== 'active') {
+    await clearInactiveRoles(db, userId);
+    return;
+  }
+  if (!role) return;
+  const mappedRole = normalizePublicRole(role);
+  await bindRole(db, userId, mappedRole);
 }
 
 export function sanitizeUser(user, primaryRole = 'member') {
@@ -106,14 +105,19 @@ export async function createAccessToken(secret, user, primaryRole) {
   );
 }
 
+// eslint-disable-next-line max-params -- dispatcher receives req+db+env+users+user+secret
 export async function checkActiveAccountAndGenerateTokens(req, db, env, users, user, jwtSecret) {
   if (!isActiveAccount(user)) {
-    return json(req, { error: 'pending_account', message: 'Account pending approval.' }, 403);
+    return json(
+      req,
+      { error: 'pending_account', message: 'Account pending approval.' },
+      HTTP_STATUS.FORBIDDEN
+    );
   }
   await users.touchLastActive(user.id);
   const freshUser = await users.findById(user.id);
   if (!freshUser) {
-    return error(req, 'User not found', 404);
+    return error(req, 'User not found', HTTP_STATUS.NOT_FOUND);
   }
   const primaryRole = (await loadPrimaryRole(db, freshUser.id)) || 'member';
   const accessToken = await signJWT(

@@ -3,6 +3,7 @@
  */
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
 import {
   buildConnectionAclRuleSaveStatements,
@@ -13,6 +14,8 @@ import {
 import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
+
+const MAX_ACCESS_UPDATES = 200;
 
 /**
  * Handle handleAdminConnectionsAccess routes.
@@ -46,7 +49,7 @@ export async function handleAdminConnectionsAccess(
       });
     } catch (err) {
       logger.error('Load connection access failed', { error: err?.message || err });
-      return error(req, 'Failed to load connection access', 500);
+      return error(req, 'Failed to load connection access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -56,10 +59,14 @@ export async function handleAdminConnectionsAccess(
 
     const updates = Array.isArray(body.updates) ? body.updates : [];
     if (!updates.length) {
-      return error(req, 'No connection access updates provided', 400);
+      return error(req, 'No connection access updates provided', HTTP_STATUS.BAD_REQUEST);
     }
-    if (updates.length > 200) {
-      return error(req, 'Too many access updates (max 200)', 400);
+    if (updates.length > MAX_ACCESS_UPDATES) {
+      return error(
+        req,
+        'Too many access updates (max ' + MAX_ACCESS_UPDATES + ')',
+        HTTP_STATUS.BAD_REQUEST
+      );
     }
 
     try {
@@ -75,13 +82,13 @@ export async function handleAdminConnectionsAccess(
       for (const update of updates) {
         const connectionId = String(update?.connection_id || update?.connectionId || '').trim();
         if (!connectionId) {
-          return error(req, 'connection_id is required', 400);
+          return error(req, 'connection_id is required', HTTP_STATUS.BAD_REQUEST);
         }
         const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
           (conn) => String(conn.id || '') === String(connectionId)
         );
         if (!currentConnection || currentConnection.enabled === false) {
-          return error(req, 'Disabled connections cannot be edited', 409);
+          return error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT);
         }
         let filteredRules;
         try {
@@ -94,8 +101,8 @@ export async function handleAdminConnectionsAccess(
             invalidTypeMessage: 'Invalid principal_type for connection access',
           });
         } catch (err) {
-          if (err.status === 400) {
-            return error(req, err.message, 400, { invalid: err.invalid });
+          if (err.status === HTTP_STATUS.BAD_REQUEST) {
+            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
           }
           throw err;
         }
@@ -131,7 +138,7 @@ export async function handleAdminConnectionsAccess(
       });
     } catch (err) {
       logger.error('Bulk connection access update failed', { error: err?.message || err });
-      return error(req, 'Failed to update connection access', 500);
+      return error(req, 'Failed to update connection access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -160,7 +167,7 @@ export async function handleAdminConnectionsAccess(
         });
       } catch (err) {
         logger.error('Load connection access failed', { error: err?.message || err });
-        return error(req, 'Failed to load connection access', 500);
+        return error(req, 'Failed to load connection access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
     }
 
@@ -181,7 +188,7 @@ export async function handleAdminConnectionsAccess(
           (conn) => String(conn.id || '') === String(connectionId)
         );
         if (!currentConnection || currentConnection.enabled === false) {
-          return error(req, 'Disabled connections cannot be edited', 409);
+          return error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT);
         }
         const groups = await db.all('SELECT id FROM groups');
         const validGroupIds = new Set(groups.map((group) => group.id));
@@ -196,8 +203,8 @@ export async function handleAdminConnectionsAccess(
             invalidTypeMessage: 'Invalid principal_type for connection access',
           });
         } catch (err) {
-          if (err.status === 400) {
-            return error(req, err.message, 400, { invalid: err.invalid });
+          if (err.status === HTTP_STATUS.BAD_REQUEST) {
+            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
           }
           throw err;
         }
@@ -238,11 +245,11 @@ export async function handleAdminConnectionsAccess(
         });
       } catch (err) {
         logger.error('Update connection access failed', { error: err?.message || err });
-        return error(req, 'Failed to update connection access', 500);
+        return error(req, 'Failed to update connection access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
     }
 
-    return error(req, 'Method not allowed', 405);
+    return error(req, 'Method not allowed', HTTP_STATUS.METHOD_NOT_ALLOWED);
   }
 
   return null;

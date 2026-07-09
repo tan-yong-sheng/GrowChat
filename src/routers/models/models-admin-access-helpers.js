@@ -1,3 +1,4 @@
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { authError, error } from '../../utils/response.js';
 import { authorize } from '../../utils/authorize.js';
 
@@ -24,11 +25,11 @@ export function extractModelIdFromAccessPath(path) {
 }
 
 export function invalidJsonBody(req) {
-  return error(req, 'Invalid JSON body', 400);
+  return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
 }
 
 export function noDatabase(req) {
-  return error(req, 'Database unavailable', 500);
+  return error(req, 'Database unavailable', HTTP_STATUS.INTERNAL_SERVER_ERROR);
 }
 
 export async function loadGroups(db) {

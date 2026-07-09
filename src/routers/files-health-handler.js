@@ -1,11 +1,12 @@
 /**
  * Files health check handler (GET /api/files/health)
  */
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { json, error } from '../utils/response.js';
 
-export async function handleFilesHealth(req, env, ctx, user) {
+export async function handleFilesHealth(req, env, _ctx, _user) {
   if (!env.FILES) {
-    return error(req, 'FILES binding missing', 500);
+    return error(req, 'FILES binding missing', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 
   const withTimeout = (promise, ms) => {
@@ -18,10 +19,11 @@ export async function handleFilesHealth(req, env, ctx, user) {
   };
 
   try {
-    await withTimeout(env.FILES.list({ limit: 1 }), 3000);
+    const R2_CHECK_TIMEOUT = 3000;
+    await withTimeout(env.FILES.list({ limit: 1 }), R2_CHECK_TIMEOUT);
     return json(req, { ok: true, message: 'R2 reachable' });
   } catch (err) {
     const message = err?.message || 'R2 health check failed';
-    return error(req, `R2 unreachable: ${message}`, 503);
+    return error(req, `R2 unreachable: ${message}`, HTTP_STATUS.SERVICE_UNAVAILABLE);
   }
 }

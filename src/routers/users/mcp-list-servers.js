@@ -2,10 +2,10 @@
  * Handle GET /api/users/me/resources/mcp-servers — list the user's MCP tool servers.
  * Extracted from handleUsersMcp (was ~20 lines, ~10 cyclomatic).
  */
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { loadWorkspaceToolServersPayload } from '../../services/workspace-settings.js';
-import { json } from '../../utils/response.js';
-import { error } from '../../utils/response.js';
+import { json, error } from '../../utils/response.js';
 
 /**
  * @param {Request} req
@@ -21,6 +21,6 @@ export async function handleListMcpServers(req, env, userSub, logger) {
     return json(req, payload);
   } catch (err) {
     logger.error('Load user MCP servers failed', { error: err?.message || err });
-    return error(req, 'Failed to load MCP servers', 500);
+    return error(req, 'Failed to load MCP servers', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

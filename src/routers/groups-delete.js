@@ -3,13 +3,15 @@
  * Deletes a group
  */
 import { error } from '../utils/response.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { logAuditEvent } from '../utils/authorize.js';
 
+// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, groupId, path, deps)
 export async function handleGroupsDelete(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
   try {
     const group = await db.first('SELECT * FROM groups WHERE id = ?', [groupId]);
-    if (!group) return error(req, 'Group not found', 404);
-    if (group.is_system) return error(req, 'Cannot delete system group', 403);
+    if (!group) return error(req, 'Group not found', HTTP_STATUS.NOT_FOUND);
+    if (group.is_system) return error(req, 'Cannot delete system group', HTTP_STATUS.FORBIDDEN);
 
     await db.run('DELETE FROM groups WHERE id = ?', [groupId]);
 
@@ -21,9 +23,9 @@ export async function handleGroupsDelete(req, env, _ctx, user, groupId, path, { 
       metadata: { name: group.name },
     });
 
-    return new Response(null, { status: 204 });
+    return new Response(null, { status: HTTP_STATUS.NO_CONTENT });
   } catch (err) {
     logger.error('Delete group failed', { error: err?.message || err });
-    return error(req, 'Failed to delete group', 500);
+    return error(req, 'Failed to delete group', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

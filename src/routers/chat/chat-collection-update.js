@@ -1,7 +1,9 @@
 import { error } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { requireOwnedChat } from '../chat-core.js';
 import { sanitizeTitle, reloadAndPublishChat, requireChatAuth } from './chat-collection-helpers.js';
 
+// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleUpdateChat(req, env, db, user, chatId, originSessionId) {
   const denied = await requireChatAuth(req, env, user, 'chat.write', chatId);
   if (denied) return denied;
@@ -14,7 +16,7 @@ export async function handleUpdateChat(req, env, db, user, chatId, originSession
   try {
     body = await req.json();
   } catch {
-    return error(req, 'Invalid JSON body', 400);
+    return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
   }
 
   const title = body.title !== undefined ? sanitizeTitle(body.title) : chat.title;

@@ -3,9 +3,10 @@ import { renderButton } from '../../shared/components/button.js';
 
 export function renderAccountSecuritySection(
   container,
-  state = {},
-  { onRefresh, routeCache } = {}
+  _state = {},
+  { onRefresh: _onRefresh, routeCache: _routeCache } = {}
 ) {
+  const PASSWORD_MIN_LENGTH = 8;
   let saving = false;
 
   const showFeedback = (message, isError = false) => {
@@ -102,8 +103,11 @@ export function renderAccountSecuritySection(
         }
 
         // Frontend validation: minimum length
-        if (newPassword.length < 8) {
-          showFeedback('New password must be at least 8 characters.', true);
+        if (newPassword.length < PASSWORD_MIN_LENGTH) {
+          showFeedback(
+            'New password must be at least ' + PASSWORD_MIN_LENGTH + ' characters.',
+            true
+          );
           saving = false;
           return;
         }

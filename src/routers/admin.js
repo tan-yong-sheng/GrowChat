@@ -14,6 +14,7 @@
  *   - admin-config.js              → audit-logs, config, model-attachment-caps
  *   - admin-email-security.js      → email-config, security-config
  */
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { createDB } from '../db.js';
 import { error } from '../utils/response.js';
 import { authorize } from '../utils/authorize.js';
@@ -47,6 +48,7 @@ function resolveAdminPermission(path, method) {
 /**
  * Admin Router Handler
  */
+// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function adminRouter(req, env, ctx, user, path, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
@@ -66,7 +68,7 @@ export async function adminRouter(req, env, ctx, user, path, requestContext = {}
         unauthorized: 401,
         not_found: 404,
       };
-      const statusCode = statusCodeMap[authDecision.code] || 403;
+      const statusCode = statusCodeMap[authDecision.code] || HTTP_STATUS.FORBIDDEN;
       return error(req, authDecision.reason || 'Forbidden', statusCode);
     }
   }

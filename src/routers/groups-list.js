@@ -3,7 +3,9 @@
  * Lists all groups
  */
 import { error, json } from '../utils/response.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 
+// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, path, deps)
 export async function handleGroupsList(req, env, _ctx, user, path, { db, logger } = {}) {
   if (path !== '/api/admin/groups') return null;
 
@@ -30,6 +32,6 @@ export async function handleGroupsList(req, env, _ctx, user, path, { db, logger 
     return json(req, { groups: payload });
   } catch (err) {
     logger.error('List groups failed', { error: err?.message || err });
-    return error(req, 'Failed to list groups', 500);
+    return error(req, 'Failed to list groups', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

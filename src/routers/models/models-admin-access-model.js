@@ -1,4 +1,5 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { createDB } from '../../db.js';
 import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
@@ -27,6 +28,7 @@ function filterRulesForModel(modelId, rules, validGroupIds) {
   });
 }
 
+// eslint-disable-next-line max-params -- helper needs all context parameters
 async function handleModelAccessGet(req, env, _ctx, user, path, { logger }) {
   try {
     const db = createDB(env.DB);
@@ -40,11 +42,13 @@ async function handleModelAccessGet(req, env, _ctx, user, path, { logger }) {
     });
   } catch (err) {
     logger.error('Load model access failed', { error: err?.message || err });
-    return error(req, 'Failed to load model access', 500);
+    return error(req, 'Failed to load model access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
 
+/* eslint-disable max-params, max-statements -- helper needs all context parameters */
 async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
+  /* eslint-enable */
   let body;
   try {
     body = JSON.parse(await req.text());
@@ -58,7 +62,7 @@ async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
     const accessMap = await getModelAccessMap(db, logger);
     const isEnabled = accessMap.has(modelId) ? accessMap.get(modelId) : true;
     if (!isEnabled) {
-      return error(req, 'Disabled models cannot be edited', 409);
+      return error(req, 'Disabled models cannot be edited', HTTP_STATUS.CONFLICT);
     }
 
     const validGroupIds = await loadValidGroupIds(db);
@@ -101,10 +105,11 @@ async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
         err.invalid ? { invalid: err.invalid } : undefined
       );
     }
-    return error(req, 'Failed to update model access', 500);
+    return error(req, 'Failed to update model access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
 
+// eslint-disable-next-line max-params -- router dispatcher pattern
 export async function handleAdminModelsAccessByModel(req, env, ctx, user, path, deps) {
   const authError = await requireModelAdmin(req, env, user, extractModelIdFromAccessPath(path));
   if (authError) return authError;
@@ -117,5 +122,5 @@ export async function handleAdminModelsAccessByModel(req, env, ctx, user, path, 
     return handleModelAccessPut(req, env, ctx, user, path, deps);
   }
 
-  return error(req, 'Method not allowed', 405);
+  return error(req, 'Method not allowed', HTTP_STATUS.METHOD_NOT_ALLOWED);
 }

@@ -1,4 +1,5 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { requireOwnedChat } from '../chat-core.js';
 import { publishRealtimeNow, requireChatPermission } from '../chat-message-helpers.js';
@@ -25,7 +26,7 @@ export async function handleDeleteMessage({ req, env, db, user, chatId, msgId, o
     msgId,
     chatId,
   ]);
-  if (!msg) return error(req, 'Message not found', 404);
+  if (!msg) return error(req, 'Message not found', HTTP_STATUS.NOT_FOUND);
 
   await deleteMessageSubtree(db, chatId, msgId);
 

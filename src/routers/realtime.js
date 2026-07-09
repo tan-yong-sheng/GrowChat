@@ -1,5 +1,6 @@
 import { connectRealtimeStream } from '../features/realtime/realtime.js';
 
+// eslint-disable-next-line max-params -- router dispatcher pattern: (req, env, ctx, user, path)
 export async function realtimeRouter(req, env, _ctx, user, path) {
   if (path !== '/api/realtime/stream') return null;
 

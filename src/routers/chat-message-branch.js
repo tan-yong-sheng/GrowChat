@@ -205,7 +205,7 @@ async function resolveBranchAttachments({ req, env, db, user, msgId, model, prov
     return { error: error(req, `Too many attachments (max ${MAX_ATTACHMENTS})`, 400) };
   }
 
-  return loadAndValidateAttachments(req, env, db, user, attachmentIds, model);
+  return loadAndValidateAttachments({ req, env, db, user, attachmentIds, model });
 }
 
 async function createAssistantBranchMessage({

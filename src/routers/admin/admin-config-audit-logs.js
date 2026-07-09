@@ -2,13 +2,16 @@
  * Admin Config - GET /api/admin/audit-logs
  * Fetches paginated audit log entries
  */
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
 import { getAuditLog } from '../../utils/authorize.js';
 
 /**
  * Handle GET /api/admin/audit-logs - Fetch audit log entries
  */
-export async function handleAdminAuditLogs(req, env, _ctx, user, path, { db, logger } = {}) {
+/* eslint-disable complexity -- Multiple audit log filters */
+// eslint-disable-next-line max-params -- Cloudflare Worker handler
+export async function handleAdminAuditLogs(req, env, _ctx, user, path, { db: _db, logger } = {}) {
   if (path !== '/api/admin/audit-logs') return null;
 
   try {
@@ -38,6 +41,6 @@ export async function handleAdminAuditLogs(req, env, _ctx, user, path, { db, log
     });
   } catch (err) {
     logger.error('Audit logs fetch failed', { error: err?.message || err });
-    return error(req, 'Failed to fetch audit logs', 500);
+    return error(req, 'Failed to fetch audit logs', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

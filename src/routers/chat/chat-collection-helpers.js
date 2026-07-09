@@ -1,4 +1,5 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { authorize } from '../../utils/authorize.js';
 import { stripHtml } from '../../utils/sanitize.js';
 import { createRealtimeEvent } from '../../features/realtime/realtime.js';
@@ -9,10 +10,15 @@ export const MAX_TITLE_LENGTH = 200;
 export const MAX_MODEL_ID_LENGTH = 200;
 
 export function mapAuthCodeToStatus(code) {
-  const map = { server_error: 500, unauthorized: 401, not_found: 404 };
-  return map[code] || 403;
+  const map = {
+    server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+    unauthorized: HTTP_STATUS.UNAUTHORIZED,
+    not_found: HTTP_STATUS.NOT_FOUND,
+  };
+  return map[code] || HTTP_STATUS.FORBIDDEN;
 }
 
+// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function requireChatAuth(req, env, user, action, chatId) {
   const authDecision = await authorize(env, user, {
     action,
@@ -42,7 +48,8 @@ export function sanitizeModelId(raw, fallback) {
   return trimmed;
 }
 
-export async function reloadAndPublishChat(req, env, db, user, chatId, originSessionId) {
+export // eslint-disable-next-line max-params -- Cloudflare Worker handler
+async function reloadAndPublishChat(req, env, db, user, chatId, originSessionId) {
   const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
   if (updatedOwned.error) return updatedOwned.error;
   const updated = updatedOwned.chat;

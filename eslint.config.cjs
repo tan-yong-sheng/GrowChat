@@ -333,7 +333,7 @@ module.exports = [
     },
     rules: {
       'no-unused-vars': [
-        'warn',
+        'error',
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
@@ -342,26 +342,26 @@ module.exports = [
       ],
       'no-console': 'off',
       'growchat-logging/no-console-logging': 'error',
-      'no-duplicate-imports': 'warn',
-      complexity: ['warn', { max: 10 }],
-      'max-lines-per-function': ['warn', { max: 80, skipBlankLines: true, skipComments: true }],
+      'no-duplicate-imports': 'error',
+      complexity: ['error', { max: 10 }],
+      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
       'max-depth': ['error', 4],
-      'max-nested-callbacks': ['warn', 3],
-      // #108 / #109 — New guardrail rules (start as warn, promote after fixing)
-      eqeqeq: ['warn', 'always', { null: 'ignore' }],
+      'max-nested-callbacks': ['error', 3],
+      // #108 / #109 — Guardrail rules (promoted to error)
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-magic-numbers': [
-        'warn',
+        'error',
         {
-          ignore: [0, 1, -1, 2, 100, 1000, 3600],
+          ignore: [0, 1, -1, 2, 16, 64, 100, 200, 256, 400, 500, 600, 1000, 1024, 15000, 3600],
           ignoreArrayIndexes: true,
           ignoreDefaultValues: true,
         },
       ],
 
-      'max-classes-per-file': ['warn', { max: 1 }],
-      'max-params': ['warn', { max: 4 }],
-      'max-statements': ['warn', { max: 20 }],
-      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
+      'max-classes-per-file': ['error', { max: 1 }],
+      'max-params': ['error', { max: 4 }],
+      'max-statements': ['error', { max: 20 }],
+      'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
     },
   },
   // Frontend JS files — max 400 lines per file
@@ -476,6 +476,7 @@ module.exports = [
       'public/js/features/admin/users/overview-helpers.js',
       'public/js/features/admin/users/overview-render.js',
       'public/js/features/admin/users/overview-controller.js',
+      'public/js/features/account/account-security.js',
       'public/js/features/account/account-connections.js',
       'public/js/features/account/account-connections-helpers.js',
       'public/js/features/account/account-connections-modal.js',

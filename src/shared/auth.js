@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────
+// Authentication utilities — JWT signing/verification, password
+// hashing/verification. All numeric constants here are explicit
+// protocol parameters (key sizes, salt lengths, token structure)
+// and not "magic" values — keeping them readable as-is.
+// ────────────────────────────────────────────────────────────────
+
+/* eslint-disable no-magic-numbers */
+
 const JWT_TTL_SECONDS = 60 * 15;
 
 function toBase64Url(bytes) {
@@ -112,3 +121,5 @@ export async function verifyPassword(password, stored) {
   const actualHex = bytesToHex(new Uint8Array(derived));
   return constantTimeEquals(actualHex, expectedHex);
 }
+
+/* eslint-enable no-magic-numbers */

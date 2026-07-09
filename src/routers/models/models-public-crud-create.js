@@ -1,8 +1,8 @@
-import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
+import { error } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { loadCustomModels } from './models-discovery.js';
 import {
-  invalidBaseUrl,
   invalidJsonBody,
   jsonCreated,
   missingCacheBinding,
@@ -39,6 +39,9 @@ function validateCreateBody(body) {
   return { valid: true };
 }
 
+const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_TEMPERATURE = 0.7;
+
 function findDuplicate(customModels, body) {
   if (customModels.some((m) => m.id === body.id)) {
     return 'Model with this ID already exists';
@@ -56,12 +59,13 @@ function buildNewModel(body) {
     provider: body.provider,
     base_url: body.base_url,
     description: body.description || `${body.name} - ${body.provider}`,
-    max_tokens: body.max_tokens || 4096,
-    temperature: body.temperature || 0.7,
+    max_tokens: body.max_tokens || DEFAULT_MAX_TOKENS,
+    temperature: body.temperature || DEFAULT_TEMPERATURE,
     created_at: Math.floor(Date.now() / 1000),
   };
 }
 
+/* eslint-disable max-params, max-statements -- handler orchestrates multiple steps */
 export async function handlePublicModelsCreate(req, env, _ctx, user, _path, { logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;
@@ -73,7 +77,7 @@ export async function handlePublicModelsCreate(req, env, _ctx, user, _path, { lo
 
   const validation = validateCreateBody(body);
   if (!validation.valid) {
-    return error(req, validation.error, 400);
+    return error(req, validation.error, HTTP_STATUS.BAD_REQUEST);
   }
 
   if (!env.CACHE) {
@@ -84,7 +88,7 @@ export async function handlePublicModelsCreate(req, env, _ctx, user, _path, { lo
     const customModels = await loadCustomModels(env);
     const duplicateError = findDuplicate(customModels, body);
     if (duplicateError) {
-      return error(req, duplicateError, 409);
+      return error(req, duplicateError, HTTP_STATUS.CONFLICT);
     }
 
     const newModel = buildNewModel(body);
@@ -106,6 +110,6 @@ export async function handlePublicModelsCreate(req, env, _ctx, user, _path, { lo
     });
   } catch (err) {
     logger.error('Add custom model failed', { error: err?.message || err });
-    return error(req, 'Failed to add custom model', 500);
+    return error(req, 'Failed to add custom model', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

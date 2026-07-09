@@ -1,3 +1,4 @@
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { ValidationError } from '../../errors/http-errors.js';
 import {
@@ -25,6 +26,7 @@ import {
   runConnectionTest,
 } from './users-connections.helpers.js';
 
+// eslint-disable-next-line max-params -- handler receives (req, env, user, _params, deps)
 export async function listUserConnections(req, env, user, _params, deps) {
   try {
     const db = createDB(env.DB);
@@ -42,11 +44,12 @@ export async function listUserConnections(req, env, user, _params, deps) {
     });
   } catch (err) {
     deps.logger.error('Load user connections failed', { error: err?.message || err });
-    return error(req, 'Failed to load resources', 500);
+    return error(req, 'Failed to load resources', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
 
-export async function createUserConnection(req, env, user, _params, deps) {
+// eslint-disable-next-line max-params -- handler receives (req, env, user, _params, _deps)
+export async function createUserConnection(req, env, user, _params, _deps) {
   try {
     const body = await readJsonBody(req);
     const db = createDB(env.DB);
@@ -56,13 +59,14 @@ export async function createUserConnection(req, env, user, _params, deps) {
       input: body,
     });
     await auditConnectionEvent(env, user, 'user_connection_created', created?.id);
-    return json(req, { connection: toPersonalConnectionSummary(created) }, 201);
+    return json(req, { connection: toPersonalConnectionSummary(created) }, HTTP_STATUS.CREATED);
   } catch (err) {
     return handleConnectionError(err, req);
   }
 }
 
-export async function updateUserConnection(req, env, user, { connectionId }, deps) {
+// eslint-disable-next-line max-params -- handler receives (req, env, user, { connectionId }, _deps)
+export async function updateUserConnection(req, env, user, { connectionId }, _deps) {
   try {
     const body = await readJsonBody(req);
     const db = createDB(env.DB);
@@ -72,7 +76,7 @@ export async function updateUserConnection(req, env, user, { connectionId }, dep
       connectionId,
       input: body,
     });
-    if (!updated) return error(req, 'Connection not found', 404);
+    if (!updated) return error(req, 'Connection not found', HTTP_STATUS.NOT_FOUND);
     await auditConnectionEvent(env, user, 'user_connection_updated', connectionId);
     return json(req, { connection: toPersonalConnectionSummary(updated) });
   } catch (err) {
@@ -80,7 +84,8 @@ export async function updateUserConnection(req, env, user, { connectionId }, dep
   }
 }
 
-export async function deleteUserConnection(req, env, user, { connectionId }, deps) {
+// eslint-disable-next-line max-params -- handler receives (req, env, user, { connectionId }, _deps)
+export async function deleteUserConnection(req, env, user, { connectionId }, _deps) {
   try {
     const db = createDB(env.DB);
     const deleted = await deleteUserOpenAIConnection({
@@ -88,7 +93,7 @@ export async function deleteUserConnection(req, env, user, { connectionId }, dep
       userId: user.sub,
       connectionId,
     });
-    if (!deleted) return error(req, 'Connection not found', 404);
+    if (!deleted) return error(req, 'Connection not found', HTTP_STATUS.NOT_FOUND);
     await auditConnectionEvent(env, user, 'user_connection_deleted', connectionId);
     return json(req, { success: true });
   } catch (err) {
@@ -96,6 +101,7 @@ export async function deleteUserConnection(req, env, user, { connectionId }, dep
   }
 }
 
+// eslint-disable-next-line max-params -- handler receives (req, env, user, _params, deps)
 export async function testUserConnection(req, env, user, _params, deps) {
   try {
     const body = await readJsonBody(req);
@@ -105,7 +111,7 @@ export async function testUserConnection(req, env, user, _params, deps) {
     const providerType = resolveTestProviderType(body, existingConnection);
     const baseUrlResult = resolveTestBaseUrl(body, existingConnection, providerType);
     if (baseUrlResult.error) {
-      return error(req, baseUrlResult.error, 400);
+      return error(req, baseUrlResult.error, HTTP_STATUS.BAD_REQUEST);
     }
 
     const headers = parseConnectionHeaders(body, existingConnection);
@@ -125,9 +131,9 @@ export async function testUserConnection(req, env, user, _params, deps) {
   } catch (err) {
     deps.logger.error('Connection test failed', { error: err?.message || err });
     if (err instanceof ValidationError) {
-      return error(req, err.message, 400);
+      return error(req, err.message, HTTP_STATUS.BAD_REQUEST);
     }
-    return error(req, 'Connection failed', 502, {
+    return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
       message: err?.message || String(err),
     });
   }

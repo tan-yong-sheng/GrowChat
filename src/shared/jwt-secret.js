@@ -17,7 +17,8 @@ function getRequestHostname(req) {
 }
 
 function generateSecret() {
-  const bytes = new Uint8Array(32);
+  const BYTES_COUNT = 32;
+  const bytes = new Uint8Array(BYTES_COUNT);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -26,8 +27,9 @@ export function getJwtSecret(env, req) {
   // FIX: Require JWT_SECRET for production
   if (env?.JWT_SECRET) {
     const secret = String(env.JWT_SECRET).trim();
-    if (!secret || secret.length < 32) {
-      throw new Error('JWT_SECRET must be at least 32 bytes');
+    const MIN_JWT_SECRET_LENGTH = 32;
+    if (!secret || secret.length < MIN_JWT_SECRET_LENGTH) {
+      throw new Error('JWT_SECRET must be at least ' + MIN_JWT_SECRET_LENGTH + ' bytes');
     }
     return secret;
   }

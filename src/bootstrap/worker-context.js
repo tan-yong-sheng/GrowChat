@@ -1,3 +1,4 @@
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { verifyJWT } from '../shared/auth.js';
 import { getJwtSecret } from '../shared/jwt-secret.js';
 import { error } from '../utils/response.js';
@@ -76,7 +77,7 @@ export async function touchLastActive(env, userId) {
 
 function requireBinding(req, name, value) {
   if (value) return null;
-  return error(req, `${name} binding missing`, 500);
+  return error(req, `${name} binding missing`, HTTP_STATUS.INTERNAL_SERVER_ERROR);
 }
 
 export function validateRouteBindings(req, env, path) {

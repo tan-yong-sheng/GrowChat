@@ -5,16 +5,19 @@
  */
 import { authError, error } from '../../utils/response.js';
 import { authorize } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 
 /**
  * Check if a value is a valid model access ID.
  * @param {string} value
  * @returns {boolean}
  */
+export const MAX_MODEL_ACCESS_ID_LENGTH = 200;
+
 export function isValidModelAccessId(value) {
   const id = String(value || '').trim();
   if (!id) return false;
-  if (id.length > 200) return false;
+  if (id.length > MAX_MODEL_ACCESS_ID_LENGTH) return false;
   if (/\s/.test(id)) return false;
   return true;
 }
@@ -61,7 +64,7 @@ export async function parseJsonAndRequireAdminAcl(req, env, user, resource) {
   try {
     body = await req.json();
   } catch {
-    return { error: error(req, 'Invalid JSON body', 400) };
+    return { error: error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST) };
   }
 
   const aclDecision = await ensureAdminAclAccess({ env, user, resource });

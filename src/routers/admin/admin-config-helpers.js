@@ -3,12 +3,13 @@
  */
 import { getConfigValue, setConfigValue } from '../../utils/app-config.js';
 import { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { MODEL_ATTACHMENT_CAPS_KEY } from '../../chat/attachments.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
 
 export function mapAuthCodeToStatus(code) {
   const map = { server_error: 500, unauthorized: 401, not_found: 404 };
-  return map[code] || 403;
+  return map[code] || HTTP_STATUS.FORBIDDEN;
 }
 
 export async function parseJsonBody(req) {

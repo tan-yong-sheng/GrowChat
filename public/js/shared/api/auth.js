@@ -49,6 +49,7 @@ export function decodeJwtPayload(token) {
   const parts = String(token || '').split('.');
   if (parts.length < 2) return null;
   const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+  // eslint-disable-next-line no-magic-numbers -- Base64 block size
   const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, '=');
   try {
     return JSON.parse(atob(padded));
@@ -68,6 +69,7 @@ export function getClientSessionId() {
   try {
     let id = readStoredString(sessionStorage, CLIENT_SESSION_KEY, '');
     if (id) return id;
+    // eslint-disable-next-line no-magic-numbers -- .toString(36) is a standard radix
     id = `${Date.now().toString(36)}-${crypto.randomUUID()}`;
     sessionStorage.setItem(CLIENT_SESSION_KEY, id);
     return id;

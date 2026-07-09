@@ -2,6 +2,7 @@
  * Admin Config - PUT /api/admin/model-attachment-caps
  * Updates per-model attachment capability types (replace, update, remove)
  */
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { ensureAdminAclAccess } from './admin-helpers.js';
@@ -17,9 +18,10 @@ import {
 /**
  * Handle PUT /api/admin/model-attachment-caps - Update attachment capabilities
  */
+// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleAdminAttachmentCapsSet(req, env, ctx, user, path, { db, logger } = {}) {
   const body = await parseJsonBody(req);
-  if (body === null) return error(req, 'Invalid JSON body', 400);
+  if (body === null) return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
 
   const aclDecision = await ensureAdminAclAccess({ env, user, resource: 'model' });
   if (!aclDecision.allow) {
@@ -27,7 +29,7 @@ export async function handleAdminAttachmentCapsSet(req, env, ctx, user, path, { 
   }
 
   const bodyPlan = classifyAttachmentCapsBody(body);
-  if (bodyPlan.error) return error(req, bodyPlan.error, 400);
+  if (bodyPlan.error) return error(req, bodyPlan.error, HTTP_STATUS.BAD_REQUEST);
 
   try {
     let caps;
@@ -55,6 +57,6 @@ export async function handleAdminAttachmentCapsSet(req, env, ctx, user, path, { 
 
     return json(req, { caps });
   } catch (err) {
-    return error(req, err?.message || 'Invalid attachment cap data', 400);
+    return error(req, err?.message || 'Invalid attachment cap data', HTTP_STATUS.BAD_REQUEST);
   }
 }

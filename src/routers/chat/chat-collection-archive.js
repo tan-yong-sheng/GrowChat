@@ -4,6 +4,7 @@ import { publishRealtimeNow } from '../chat-message-helpers.js';
 import { requireOwnedChat } from '../chat-core.js';
 import { requireChatAuth } from './chat-collection-helpers.js';
 
+// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleArchiveChat(req, env, db, user, chatId, originSessionId) {
   const denied = await requireChatAuth(req, env, user, 'chat.write', chatId);
   if (denied) return denied;

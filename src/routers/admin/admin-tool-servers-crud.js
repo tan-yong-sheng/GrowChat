@@ -3,6 +3,7 @@
  */
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import {
   isValidHttpUrl,
   loadToolServers,
@@ -42,7 +43,7 @@ export async function handleAdminToolServersCrud(
       return json(req, { servers: filtered.map(redactToolServer) });
     } catch (err) {
       logger.error('Tool servers fetch failed', { error: err?.message || err });
-      return error(req, 'Failed to fetch tool servers', 500);
+      return error(req, 'Failed to fetch tool servers', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -58,18 +59,18 @@ export async function handleAdminToolServersCrud(
 
     const url = String(body.url || '').trim();
     if (!url || !isValidHttpUrl(url)) {
-      return error(req, 'Server URL must start with http:// or https://', 400);
+      return error(req, 'Server URL must start with http:// or https://', HTTP_STATUS.BAD_REQUEST);
     }
     const serverUrlSafety = isSafeOutboundUrl(url);
     if (!serverUrlSafety.safe) {
-      return error(req, serverUrlSafety.reason, 400);
+      return error(req, serverUrlSafety.reason, HTTP_STATUS.BAD_REQUEST);
     }
 
     let headers;
     try {
       headers = parseHeadersForRequest(body.headers);
     } catch (err) {
-      return error(req, err.message || 'Headers must be valid JSON', 400);
+      return error(req, err.message || 'Headers must be valid JSON', HTTP_STATUS.BAD_REQUEST);
     }
 
     const authType = normalizeAuthType(body.auth_type);
@@ -91,13 +92,21 @@ export async function handleAdminToolServersCrud(
     if (authType === 'oauth') {
       const serverId = String(body.id || '').trim();
       if (!serverId) {
-        return error(req, 'Server must be saved before OAuth verification', 400);
+        return error(
+          req,
+          'Server must be saved before OAuth verification',
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
       const servers = await loadToolServers(db);
       const server = servers.find((entry) => String(entry.id) === serverId);
       const accessToken = server?.oauth_tokens?.access_token;
       if (!accessToken) {
-        return error(req, 'OAuth not connected yet. Click Connect OAuth first.', 400);
+        return error(
+          req,
+          'OAuth not connected yet. Click Connect OAuth first.',
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
       headers.Authorization = `Bearer ${accessToken}`;
     }
@@ -192,7 +201,7 @@ export async function handleAdminToolServersCrud(
           });
         }
       }
-      return error(req, 'Connection failed', 502, {
+      return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
         message: err?.message || String(err),
       });
     }
@@ -232,7 +241,7 @@ export async function handleAdminToolServersCrud(
       return json(req, { ok: true, servers: sanitized.map(redactToolServer) });
     } catch (err) {
       logger.error('Tool servers update failed', { error: err?.message || err });
-      return error(req, 'Failed to update tool servers', 500);
+      return error(req, 'Failed to update tool servers', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 

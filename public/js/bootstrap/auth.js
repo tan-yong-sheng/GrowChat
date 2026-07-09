@@ -7,6 +7,8 @@ const nameInput = document.getElementById('name');
 const emailInput = document.getElementById('email');
 const passwordInput = document.getElementById('password');
 const err = document.getElementById('auth-error');
+const MODAL_DELAY_MS = 2000;
+const MIN_PASSWORD_LENGTH = 8;
 const toggleModeBtn = document.getElementById('toggle-mode');
 const toggleText = document.getElementById('toggle-text');
 const authTitle = document.getElementById('auth-title');
@@ -163,6 +165,42 @@ async function submit(e) {
   }
 }
 
+// eslint-disable-next-line max-statements -- Multi-branch health config
+function applyHealthConfig(data) {
+  const initialized = data?.initialized === true;
+  const publicRegistration = data?.publicRegistrationEnabled !== false;
+  const authConfigured = data?.authConfigured === true;
+  const emailConfigured = data?.emailConfigured === true;
+
+  if (!authConfigured) {
+    document.getElementById('config-warning-text').textContent =
+      'Authentication system not fully configured — JWT_SECRET is missing';
+    document.getElementById('config-warning').classList.remove('hidden');
+  } else {
+    document.getElementById('config-warning').classList.add('hidden');
+  }
+
+  if (!initialized) {
+    setMode('register');
+    setControlVisibility(forgotPasswordBtn, false);
+    setControlVisibility(toggleText, false);
+    setControlVisibility(toggleModeBtn, false);
+  } else if (publicRegistration) {
+    setMode('login');
+    setControlVisibility(forgotPasswordBtn, true);
+    setControlVisibility(toggleText, true);
+    setControlVisibility(toggleModeBtn, true);
+    if (!emailConfigured) {
+      setControlVisibility(forgotPasswordBtn, false);
+    }
+  } else {
+    setMode('login');
+    setControlVisibility(forgotPasswordBtn, emailConfigured);
+    setControlVisibility(toggleText, false);
+    setControlVisibility(toggleModeBtn, false);
+  }
+}
+
 async function bootstrapAuthMode() {
   setMode('login');
   updateButtonState(form, authSubmit, isSubmitting);
@@ -172,52 +210,10 @@ async function bootstrapAuthMode() {
     const res = await fetch('/api/health', { cache: 'no-store' });
     const data = await res.json().catch(() => ({}));
     bootstrapReady = true;
-
-    const initialized = data?.initialized === true;
-    const publicRegistration = data?.publicRegistrationEnabled !== false;
-    const authConfigured = data?.authConfigured === true;
-    const emailConfigured = data?.emailConfigured === true;
-
-    if (!authConfigured) {
-      document.getElementById('config-warning-text').textContent =
-        'Authentication system not fully configured — JWT_SECRET is missing';
-      document.getElementById('config-warning').classList.remove('hidden');
-    } else {
-      document.getElementById('config-warning').classList.add('hidden');
-    }
-
-    if (!initialized) {
-      // Case A: Fresh install (zero users) — sign-up only, no toggle, no forgot password
-      setMode('register');
-      // The 'Forgot Password' button should not appear when no users exist
-      setControlVisibility(forgotPasswordBtn, false);
-      // The toggle section should also be hidden on fresh install
-      setControlVisibility(toggleText, false);
-      setControlVisibility(toggleModeBtn, false);
-    } else if (publicRegistration) {
-      // Case C: Normal (has users + public registration enabled) — show both modes
-      setMode('login');
-      setControlVisibility(forgotPasswordBtn, true);
-      setControlVisibility(toggleText, true);
-      setControlVisibility(toggleModeBtn, true);
-
-      // Hide forgot-password button if email provider is not configured
-      if (!emailConfigured) {
-        setControlVisibility(forgotPasswordBtn, false);
-      }
-    } else {
-      // Case B: Has users but public registration is disabled — login only
-      // Also hide forgot-password when email is not configured
-      setMode('login');
-      setControlVisibility(forgotPasswordBtn, emailConfigured);
-      // Hide sign-up toggle — no point showing a link to a disabled registration
-      setControlVisibility(toggleText, false);
-      setControlVisibility(toggleModeBtn, false);
-    }
+    applyHealthConfig(data);
   } catch {
     bootstrapReady = true;
     setMode('login');
-    // Safe fallback — show both controls on health check failure
     setControlVisibility(forgotPasswordBtn, true);
     setControlVisibility(toggleText, true);
     setControlVisibility(toggleModeBtn, true);
@@ -272,7 +268,7 @@ function handleForgotResult(res, data) {
   modalSuccess.textContent = 'Check your email for a password reset link';
   modalSuccess.classList.remove('hidden');
   forgotEmailInput.value = '';
-  setTimeout(() => closeForgotPasswordModal(), 2000);
+  setTimeout(() => closeForgotPasswordModal(), MODAL_DELAY_MS);
 }
 
 async function handleForgotPasswordSubmit(e) {
@@ -347,8 +343,8 @@ function validateResetPassword(password, confirmPassword) {
   if (!password || !confirmPassword) {
     return 'Please fill in all fields';
   }
-  if (password.length < 8) {
-    return 'Password must be at least 8 characters';
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return 'Password must be at least ' + MIN_PASSWORD_LENGTH + ' characters';
   }
   if (password !== confirmPassword) {
     return 'Passwords do not match';
@@ -365,7 +361,7 @@ function handleResetResult(res, data) {
   resetSuccess.classList.remove('hidden');
   setTimeout(() => {
     window.location.href = '/auth.html';
-  }, 2000);
+  }, MODAL_DELAY_MS);
 }
 
 async function handleResetPasswordSubmit(e) {

@@ -1,4 +1,5 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { getConfigBool } from '../../utils/app-config.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
@@ -37,6 +38,7 @@ function parseListParams(req) {
   return { limit, offset, query, includeDisabled, providerFilter };
 }
 
+// eslint-disable-next-line complexity -- multi-field text search
 function matchesModelQuery(model, query) {
   const name = String(model?.name || '').toLowerCase();
   const id = String(model?.id || '').toLowerCase();
@@ -102,12 +104,13 @@ async function attachAttachmentCaps(db, models) {
   }));
 }
 
+/* eslint-disable max-params, max-statements -- handler orchestrates multiple steps */
 export async function handleAdminModelsSettingsList(req, env, _ctx, user, _path, { logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;
 
   if (!env.DB) {
-    return error(req, 'Database unavailable', 500);
+    return error(req, 'Database unavailable', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 
   try {
@@ -153,6 +156,6 @@ export async function handleAdminModelsSettingsList(req, env, _ctx, user, _path,
     });
   } catch (err) {
     logger.error('Unexpected error listing admin models', { error: err?.message || err });
-    return error(req, 'Failed to list models', 500);
+    return error(req, 'Failed to list models', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

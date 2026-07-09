@@ -1,3 +1,19 @@
+const SSE_PREFIX_LENGTH = 6;
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_HOUR = 60;
+const SECONDS_PER_MINUTE = 60;
+const MS_PER_SECOND = 1000;
+const MS_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MS_PER_SECOND;
+
+/* eslint-disable-next-line no-magic-numbers -- 7-day week is a standard named constant */
+const DAYS_7_MS = 7 * MS_DAY;
+/* eslint-disable-next-line no-magic-numbers -- 30-day month threshold is a standard named constant */
+const DAYS_30_MS = 30 * MS_DAY;
+
+const KILOBYTE = 1024;
+const BYTE_DISPLAY_THRESHOLD = 10;
+const TOAST_FADE_MS = 300;
+
 import { renderMarkdownContent } from './markdown-renderer.js';
 
 export { ensureMarkedReady } from './markdown-renderer.js';
@@ -16,7 +32,7 @@ function pickSseText(parsed) {
 
 function extractSseDelta(line, onEvent) {
   if (!line.startsWith('data: ')) return null;
-  const payload = line.slice(6).trim();
+  const payload = line.slice(SSE_PREFIX_LENGTH).trim();
   if (!payload || payload === '[DONE]') return null;
   let parsed;
   try {
@@ -61,15 +77,13 @@ export function formatDate(dateString) {
   const now = new Date();
   const diff = now - date;
 
-  const day = 24 * 60 * 60 * 1000;
-
-  if (diff < day && now.getDate() === date.getDate()) {
+  if (diff < MS_DAY && now.getDate() === date.getDate()) {
     return 'Today';
-  } else if (diff < 2 * day) {
+  } else if (diff < 2 * MS_DAY) {
     return 'Yesterday';
-  } else if (diff < 7 * day) {
+  } else if (diff < DAYS_7_MS) {
     return 'Previous 7 days';
-  } else if (diff < 30 * day) {
+  } else if (diff < DAYS_30_MS) {
     return 'Previous 30 days';
   } else {
     return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -86,9 +100,9 @@ export function formatBytes(bytes) {
   const value = Number(bytes || 0);
   if (!Number.isFinite(value) || value <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const exp = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  const num = value / Math.pow(1024, exp);
-  return `${num >= 10 ? num.toFixed(0) : num.toFixed(1)} ${units[exp]}`;
+  const exp = Math.min(Math.floor(Math.log(value) / Math.log(KILOBYTE)), units.length - 1);
+  const num = value / Math.pow(KILOBYTE, exp);
+  return `${num >= BYTE_DISPLAY_THRESHOLD ? num.toFixed(0) : num.toFixed(1)} ${units[exp]}`;
 }
 
 export function showToast(message, duration = 3000) {
@@ -100,7 +114,7 @@ export function showToast(message, duration = 3000) {
   requestAnimationFrame(() => toast.classList.remove('opacity-0'));
   setTimeout(() => {
     toast.classList.add('opacity-0');
-    setTimeout(() => toast.remove(), 300);
+    setTimeout(() => toast.remove(), TOAST_FADE_MS);
   }, duration);
   return toast;
 }
@@ -120,7 +134,7 @@ export function showToastProgress(initialMessage) {
     if (removed) return;
     removed = true;
     toast.classList.add('opacity-0');
-    setTimeout(() => toast.remove(), 300);
+    setTimeout(() => toast.remove(), TOAST_FADE_MS);
   };
 
   const update = (message, duration = 3000) => {

@@ -1,7 +1,8 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { loadModelAclRules } from '../../utils/model-acl.js';
-import { loadGroups, loadValidGroupIds, requireModelAdmin } from './models-admin-access-helpers.js';
+import { loadGroups, requireModelAdmin } from './models-admin-access-helpers.js';
 
 function parseRequestedIds(req) {
   const url = new URL(req.url);
@@ -12,6 +13,7 @@ function parseRequestedIds(req) {
     .filter(Boolean);
 }
 
+// eslint-disable-next-line max-params -- router dispatcher pattern
 export async function handleAdminModelsAccessList(req, env, _ctx, user, _path, { logger }) {
   const authError = await requireModelAdmin(req, env, user);
   if (authError) return authError;
@@ -28,6 +30,6 @@ export async function handleAdminModelsAccessList(req, env, _ctx, user, _path, {
     });
   } catch (err) {
     logger.error('Load model access failed', { error: err?.message || err });
-    return error(req, 'Failed to load model access', 500);
+    return error(req, 'Failed to load model access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

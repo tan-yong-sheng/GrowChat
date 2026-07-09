@@ -1,10 +1,10 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
-import { fetchBaseModelsFromOpenAI, loadCustomModels, toPublicModel } from './models-discovery.js';
+import { fetchBaseModelsFromOpenAI, loadCustomModels } from './models-discovery.js';
 import {
   extractModelIdFromPath,
-  invalidBaseUrl,
   invalidJsonBody,
   missingCacheBinding,
   parseJsonBody,
@@ -19,7 +19,7 @@ async function rejectIfBaseModel(req, env, modelId, logger) {
     const modelConnections = await getAllOpenAIConnectionConfigs(env);
     const baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
     if (baseModels.find((m) => m.id === modelId)) {
-      return error(req, 'Cannot update base model', 400);
+      return error(req, 'Cannot update base model', HTTP_STATUS.BAD_REQUEST);
     }
   } catch (err) {
     logger.warn('Failed to check base models during update', { error: err?.message || err });
@@ -43,7 +43,7 @@ function applyBaseUrlUpdate(model, body) {
   if (body.base_url !== undefined) {
     if (!String(body.base_url).startsWith('http')) {
       throw Object.assign(new Error('base_url must start with http:// or https://'), {
-        status: 400,
+        status: HTTP_STATUS.BAD_REQUEST,
       });
     }
     model.base_url = body.base_url;
@@ -76,6 +76,7 @@ function applyUpdates(model, body) {
   applyTemperatureUpdate(model, body);
 }
 
+/* eslint-disable max-params, max-statements -- handler orchestrates multiple steps */
 export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { logger }) {
   const modelId = extractModelIdFromPath(path);
 
@@ -98,7 +99,7 @@ export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { log
     const customModels = await loadCustomModels(env);
     const modelIndex = customModels.findIndex((m) => m.id === modelId);
     if (modelIndex === -1) {
-      return error(req, 'Model not found', 404);
+      return error(req, 'Model not found', HTTP_STATUS.NOT_FOUND);
     }
 
     applyUpdates(customModels[modelIndex], body);
@@ -122,6 +123,6 @@ export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { log
       return error(req, err.message, err.status);
     }
     logger.error('Update model failed', { error: err?.message || err });
-    return error(req, 'Failed to update model', 500);
+    return error(req, 'Failed to update model', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

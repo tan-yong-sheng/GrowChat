@@ -20,6 +20,8 @@ export function computePresence(lastActiveAt, { isHidden = false } = {}) {
   const hidden =
     isHidden || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
   if (hidden) return 'away';
+  // 5 minutes = 300,000ms
+  // eslint-disable-next-line no-magic-numbers -- idle timeout
   const idleMs = 5 * 60 * 1000;
   return Date.now() - lastActiveAt <= idleMs ? 'online' : 'away';
 }

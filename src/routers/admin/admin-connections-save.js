@@ -3,6 +3,7 @@
  */
 import { authError, error, json } from '../../utils/response.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import {
   getAllOpenAIConnectionConfigs,
   getConnectionApiType,
@@ -22,6 +23,12 @@ import { normalizeConnectionAclRule } from '../../utils/connection-acl.js';
 import { filterAclRulesByGroup } from '../../utils/acl-rule-filter.js';
 import { chunkedBatch } from '../../utils/db-helpers.js';
 import { isValidHttpUrl, normalizeHeaders } from '../../admin/tool-servers.js';
+
+const MAX_CONNECTIONS_COUNT = 100;
+const MAX_API_KEY_LENGTH = 4096;
+const MAX_HEADERS_LENGTH = 4096;
+const MAX_CONNECTION_NAME_LENGTH = 120;
+const MAX_MODEL_UPDATES_COUNT = 500;
 
 /**
  * Handle handleAdminConnectionsSave routes.
@@ -44,11 +51,19 @@ export async function handleAdminConnectionsSave(
     const modelUpdatesInput = Array.isArray(body.model_updates) ? body.model_updates : [];
     const accessUpdatesInput = Array.isArray(body.access_updates) ? body.access_updates : [];
 
-    if (connections.length > 100) {
-      return error(req, 'Too many connections (max 100)', 400);
+    if (connections.length > MAX_CONNECTIONS_COUNT) {
+      return error(
+        req,
+        'Too many connections (max ' + MAX_CONNECTIONS_COUNT + ')',
+        HTTP_STATUS.BAD_REQUEST
+      );
     }
-    if (modelUpdatesInput.length > 500) {
-      return error(req, 'Too many model updates (max 500)', 400);
+    if (modelUpdatesInput.length > MAX_MODEL_UPDATES_COUNT) {
+      return error(
+        req,
+        'Too many model updates (max ' + MAX_MODEL_UPDATES_COUNT + ')',
+        HTTP_STATUS.BAD_REQUEST
+      );
     }
 
     let currentConnectionMap = new Map();
@@ -104,11 +119,11 @@ export async function handleAdminConnectionsSave(
             (existingConnection?.key && String(existingConnection.key).trim()
               ? String(existingConnection.key).trim()
               : '');
-          if (key.length > 4096) {
+          if (key.length > MAX_API_KEY_LENGTH) {
             throw new Error('API key is too long');
           }
           const headers = normalizeHeaders(conn.headers);
-          if (headers.length > 4096) {
+          if (headers.length > MAX_HEADERS_LENGTH) {
             throw new Error('Headers are too long');
           }
           const defaultName =
@@ -119,7 +134,7 @@ export async function handleAdminConnectionsSave(
                 : 'OpenAI Compatible';
           return {
             id: conn.id || crypto.randomUUID(),
-            name: String(conn.name || defaultName).slice(0, 120),
+            name: String(conn.name || defaultName).slice(0, MAX_CONNECTION_NAME_LENGTH),
             url,
             key,
             headers,
@@ -136,7 +151,7 @@ export async function handleAdminConnectionsSave(
         })
         .filter(Boolean);
     } catch (err) {
-      return error(req, err.message || 'Invalid connection data', 400);
+      return error(req, err.message || 'Invalid connection data', HTTP_STATUS.BAD_REQUEST);
     }
 
     const modelUpdates = modelUpdatesInput
@@ -146,7 +161,7 @@ export async function handleAdminConnectionsSave(
       }))
       .filter((item) => isValidModelAccessId(item.id));
     if (modelUpdates.length !== modelUpdatesInput.length) {
-      return error(req, 'Invalid model id in updates', 400);
+      return error(req, 'Invalid model id in updates', HTTP_STATUS.BAD_REQUEST);
     }
 
     try {
@@ -157,10 +172,10 @@ export async function handleAdminConnectionsSave(
         const connectionId = String(entry?.connection_id || entry?.connectionId || '').trim();
         const currentConnection = currentConnectionMap.get(connectionId);
         if (!connectionId || !currentConnection) {
-          return error(req, 'Invalid connection_id in access_updates', 400);
+          return error(req, 'Invalid connection_id in access_updates', HTTP_STATUS.BAD_REQUEST);
         }
         if (currentConnection.enabled === false) {
-          return error(req, 'Disabled connections cannot be edited', 409);
+          return error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT);
         }
         let filteredRules;
         try {
@@ -173,8 +188,8 @@ export async function handleAdminConnectionsSave(
             invalidTypeMessage: 'Invalid principal_type for connection access',
           });
         } catch (err) {
-          if (err.status === 400) {
-            return error(req, err.message, 400, { invalid: err.invalid });
+          if (err.status === HTTP_STATUS.BAD_REQUEST) {
+            return error(req, err.message, HTTP_STATUS.BAD_REQUEST, { invalid: err.invalid });
           }
           throw err;
         }
@@ -252,7 +267,7 @@ export async function handleAdminConnectionsSave(
           statements.push(
             db.prepare(
               `INSERT INTO connection_acl_rules (id, connection_id, principal_type, principal_id, effect, action, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
+               VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
               [
                 crypto.randomUUID(),
                 rule.connection_id,
@@ -297,7 +312,7 @@ export async function handleAdminConnectionsSave(
       });
     } catch (err) {
       logger.error('OpenAI connections update failed', { error: err?.message || err });
-      return error(req, 'Failed to update connections', 500);
+      return error(req, 'Failed to update connections', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 

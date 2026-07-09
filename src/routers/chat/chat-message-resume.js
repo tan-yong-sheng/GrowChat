@@ -1,8 +1,9 @@
-import { error } from '../../utils/response.js';
-import { sseHeaders, sseData } from '../../utils/response.js';
+import { error, sseHeaders, sseData } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { requireOwnedChat, sleep } from '../chat-core.js';
 import { requireChatPermission } from '../chat-message-helpers.js';
 
+// eslint-disable-next-line max-params -- D1 query + encoder + controller
 async function fetchAndEnqueueDeltas(db, msgId, cursor, encoder, controller) {
   const rows = await db.all(
     'SELECT seq, payload FROM message_deltas WHERE message_id = ? AND seq > ? ORDER BY seq ASC LIMIT 200',
@@ -28,8 +29,11 @@ async function isMessageRunning(db, msgId, chatId) {
   return status === 'streaming' || status === 'tool_running';
 }
 
+const MAX_POLL_MS = 400;
+const MIN_POLL_MS = 150;
+
 function resolveSleepMs(idleRounds) {
-  return idleRounds > 2 ? 400 : 150;
+  return idleRounds > 2 ? MAX_POLL_MS : MIN_POLL_MS;
 }
 
 export async function handleResumeMessage({ req, env, db, user, chatId, msgId }) {
@@ -47,8 +51,9 @@ export async function handleResumeMessage({ req, env, db, user, chatId, msgId })
     msgId,
     chatId,
   ]);
-  if (!msg) return error(req, 'Message not found', 404);
-  if (msg.role !== 'assistant') return error(req, 'Only assistant messages can be resumed', 400);
+  if (!msg) return error(req, 'Message not found', HTTP_STATUS.NOT_FOUND);
+  if (msg.role !== 'assistant')
+    return error(req, 'Only assistant messages can be resumed', HTTP_STATUS.BAD_REQUEST);
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({

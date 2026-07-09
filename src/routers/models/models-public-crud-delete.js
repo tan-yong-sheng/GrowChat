@@ -1,3 +1,4 @@
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
@@ -16,7 +17,7 @@ async function rejectIfBaseModel(req, env, modelId, logger) {
     const modelConnections = await getAllOpenAIConnectionConfigs(env);
     const baseModels = await fetchBaseModelsFromOpenAI(env, modelConnections);
     if (baseModels.find((m) => m.id === modelId)) {
-      return error(req, 'Cannot delete base model', 400);
+      return error(req, 'Cannot delete base model', HTTP_STATUS.BAD_REQUEST);
     }
   } catch (err) {
     logger.warn('Failed to check base models during delete', { error: err?.message || err });
@@ -24,6 +25,7 @@ async function rejectIfBaseModel(req, env, modelId, logger) {
   return null;
 }
 
+// eslint-disable-next-line max-params -- router dispatcher pattern
 export async function handlePublicModelsDelete(req, env, _ctx, user, path, { logger }) {
   const modelId = extractModelIdFromPath(path);
 
@@ -41,7 +43,7 @@ export async function handlePublicModelsDelete(req, env, _ctx, user, path, { log
     const customModels = await loadCustomModels(env);
     const modelIndex = customModels.findIndex((m) => m.id === modelId);
     if (modelIndex === -1) {
-      return error(req, 'Model not found', 404);
+      return error(req, 'Model not found', HTTP_STATUS.NOT_FOUND);
     }
 
     const deletedModel = customModels[modelIndex];
@@ -60,6 +62,6 @@ export async function handlePublicModelsDelete(req, env, _ctx, user, path, { log
     return json(req, { success: true, message: 'Model removed successfully' });
   } catch (err) {
     logger.error('Delete model failed', { error: err?.message || err });
-    return error(req, 'Failed to remove model', 500);
+    return error(req, 'Failed to remove model', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

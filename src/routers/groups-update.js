@@ -3,6 +3,7 @@
  * Updates a group (name, description, members)
  */
 import { error, json } from '../utils/response.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 import { logAuditEvent } from '../utils/authorize.js';
 import {
   buildGroupUpdateStatements,
@@ -12,6 +13,9 @@ import {
   resolveGroupName,
 } from './groups-helpers.js';
 
+/**
+ * Parse request body, returning null on invalid JSON.
+ */
 async function parseBody(req) {
   try {
     return await req.json();
@@ -20,6 +24,9 @@ async function parseBody(req) {
   }
 }
 
+/**
+ * Validate update fields against incoming body and current group.
+ */
 function validateUpdate(body, group) {
   const nameResult = resolveGroupName(body?.name, group.name);
   if (nameResult.error) return { error: nameResult.error };
@@ -36,25 +43,26 @@ function validateUpdate(body, group) {
   };
 }
 
+// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, groupId, path, deps)
 export async function handleGroupsUpdate(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
   const body = await parseBody(req);
-  if (body === null) return error(req, 'Invalid JSON', 400);
+  if (body === null) return error(req, 'Invalid JSON', HTTP_STATUS.BAD_REQUEST);
 
   try {
     const group = await db.first('SELECT * FROM groups WHERE id = ?', [groupId]);
-    if (!group) return error(req, 'Group not found', 404);
-    if (group.is_system) return error(req, 'Cannot modify system group', 403);
+    if (!group) return error(req, 'Group not found', HTTP_STATUS.NOT_FOUND);
+    if (group.is_system) return error(req, 'Cannot modify system group', HTTP_STATUS.FORBIDDEN);
 
     const update = validateUpdate(body, group);
-    if (update.error) return error(req, update.error, 400);
+    if (update.error) return error(req, update.error, HTTP_STATUS.BAD_REQUEST);
 
-    const statements = buildGroupUpdateStatements(
+    const statements = buildGroupUpdateStatements({
       db,
       groupId,
-      update.name,
-      update.description,
-      update.hasMemberIds ? update.memberIds : null
-    );
+      name: update.name,
+      description: update.description,
+      memberIds: update.memberIds,
+    });
     await db.batch(statements);
 
     await logAuditEvent(env, {
@@ -69,17 +77,17 @@ export async function handleGroupsUpdate(req, env, _ctx, user, groupId, path, { 
     });
 
     return json(req, {
-      group: buildUpdatedGroup(
+      group: buildUpdatedGroup({
         groupId,
         group,
-        update.name,
-        update.description,
-        update.hasMemberIds,
-        update.memberIds
-      ),
+        name: update.name,
+        description: update.description,
+        hasMemberIds: update.hasMemberIds,
+        memberIds: update.memberIds,
+      }),
     });
   } catch (err) {
     logger.error('Update group failed', { error: err?.message || err });
-    return error(req, 'Failed to update group', 500);
+    return error(req, 'Failed to update group', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

@@ -4,10 +4,12 @@
  */
 import { error, json } from '../../utils/response.js';
 import { getConfigBool, getConfigValue } from '../../utils/app-config.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 
 /**
  * Handle GET /api/admin/config - Fetch admin configuration
  */
+// eslint-disable-next-line max-params -- dispatcher pattern: (req, env, ctx, user, path, deps)
 export async function handleAdminConfigGet(req, env, ctx, user, path, { db, logger } = {}) {
   try {
     const publicRegistration = await getConfigBool(db, 'public_registration', true);
@@ -28,6 +30,6 @@ export async function handleAdminConfigGet(req, env, ctx, user, path, { db, logg
     });
   } catch (err) {
     logger.error('Admin config fetch failed', { error: err?.message || err });
-    return error(req, 'Failed to fetch admin config', 500);
+    return error(req, 'Failed to fetch admin config', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

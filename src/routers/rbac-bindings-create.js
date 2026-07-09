@@ -3,69 +3,57 @@
  * Creates a role-permission binding
  */
 import { error, json } from '../utils/response.js';
-import { logAuditEvent } from '../utils/authorize.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
+import {
+  buildBindingResponse,
+  insertRolePermissionBinding,
+  logBindingAuditEvent,
+  parseBindingBody,
+  resolvePermissionForBinding,
+  resolveRoleForBinding,
+} from './rbac-helpers.js';
 
-export async function handleRbacBindingsCreate(req, env, _ctx, user, path, { db, logger } = {}) {
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return error(req, 'Invalid JSON', 400);
+// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, path, deps)
+export async function handleRbacBindingsCreate(req, env, _ctx, user, _path, { db, logger } = {}) {
+  const parsed = await parseBindingBody(req);
+  if (parsed.error) {
+    return error(req, parsed.error, HTTP_STATUS.BAD_REQUEST);
   }
 
-  const roleId = (body.role_id || '').trim();
-  const permissionId = (body.permission_id || '').trim();
-
-  if (!roleId || !permissionId) {
-    return error(req, 'role_id and permission_id required', 400);
-  }
+  const { roleId, permissionId } = parsed;
 
   try {
-    const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
-    if (!role) return error(req, 'Role not found', 404);
-
-    if (role.system) {
-      return error(req, 'Cannot modify system role permissions', 403);
+    const roleResult = await resolveRoleForBinding(db, roleId);
+    if (roleResult.error) {
+      const status =
+        roleResult.error === 'Cannot modify system role permissions'
+          ? HTTP_STATUS.FORBIDDEN
+          : HTTP_STATUS.NOT_FOUND;
+      return error(req, roleResult.error, status);
     }
 
-    const permission = await db.first('SELECT * FROM permissions WHERE id = ?', [permissionId]);
-    if (!permission) return error(req, 'Permission not found', 404);
-
-    try {
-      await db.run(
-        `INSERT INTO role_permissions (id, role_id, permission_id, created_at)
-         VALUES (?, ?, ?, unixepoch())`,
-        [crypto.randomUUID(), roleId, permissionId]
-      );
-    } catch (err) {
-      if (!/unique constraint/i.test(String(err))) throw err;
+    const permissionResult = await resolvePermissionForBinding(db, permissionId);
+    if (permissionResult.error) {
+      return error(req, permissionResult.error, HTTP_STATUS.NOT_FOUND);
     }
 
-    await logAuditEvent(env, {
-      actor_id: user.sub,
-      action: 'role_permission_added',
-      resource_type: 'role',
-      resource_id: roleId,
-      metadata: {
-        permission_id: permissionId,
-        permission_key: permission.key,
-      },
-    });
+    const { role } = roleResult;
+    const { permission } = permissionResult;
+
+    await insertRolePermissionBinding(db, roleId, permissionId);
+    await logBindingAuditEvent(env, user, roleId, permission);
 
     return json(
       req,
-      {
-        binding: {
-          role_id: roleId,
-          permission_id: permissionId,
-          role_name: role.name,
-          permission_key: permission.key,
-        },
-      },
-      201
+      buildBindingResponse(roleId, permissionId, role, permission),
+      HTTP_STATUS.CREATED
     );
   } catch (err) {
     logger.error('Create binding failed', { error: err?.message || err });
-    return error(req, 'Failed to create role-permission binding', 500);
+    return error(
+      req,
+      'Failed to create role-permission binding',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
   }
 }

@@ -1,10 +1,12 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { authorize } from '../../utils/authorize.js';
 import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { publishRealtimeNow } from '../chat-message-helpers.js';
 import { resolveDefaultModel } from '../chat-core.js';
 import { mapAuthCodeToStatus, sanitizeModelId, sanitizeTitle } from './chat-collection-helpers.js';
 
+// eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleCreateChat(req, env, db, user, originSessionId) {
   const authDecision = await authorize(env, user, {
     action: 'chat.write',
@@ -43,5 +45,5 @@ export async function handleCreateChat(req, env, db, user, originSessionId) {
     })
   );
 
-  return json(req, { chat }, 201);
+  return json(req, { chat }, HTTP_STATUS.CREATED);
 }

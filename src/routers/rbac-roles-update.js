@@ -4,6 +4,7 @@
  */
 import { error, json } from '../utils/response.js';
 import { logAuditEvent } from '../utils/authorize.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 import {
   applyRolePermissionUpdate,
   buildUpdatedRole,
@@ -20,6 +21,16 @@ async function parseBody(req) {
   }
 }
 
+async function validateRoleUpdateInput(db, roleId, body) {
+  const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
+  if (!role) return { error: 'Role not found', status: HTTP_STATUS.NOT_FOUND };
+  if (role.system) return { error: 'Cannot modify system role', status: HTTP_STATUS.FORBIDDEN };
+  const nameResult = resolveRoleUpdateName(body, role);
+  if (nameResult.error) return { error: nameResult.error, status: HTTP_STATUS.BAD_REQUEST };
+  return { role, name: nameResult.name };
+}
+
+// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, roleId, path, deps)
 export async function handleRbacRolesUpdate(
   req,
   env,
@@ -30,15 +41,12 @@ export async function handleRbacRolesUpdate(
   { db, logger } = {}
 ) {
   const body = await parseBody(req);
-  if (body === null) return error(req, 'Invalid JSON', 400);
+  if (body === null) return error(req, 'Invalid JSON', HTTP_STATUS.BAD_REQUEST);
 
   try {
-    const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
-    if (!role) return error(req, 'Role not found', 404);
-    if (role.system) return error(req, 'Cannot modify system role', 403);
-
-    const nameResult = resolveRoleUpdateName(body, role);
-    if (nameResult.error) return error(req, nameResult.error, 400);
+    const validated = await validateRoleUpdateInput(db, roleId, body);
+    if (validated.error) return error(req, validated.error, validated.status);
+    const { role, name: newName } = validated;
 
     const { permissionsProvided, desiredPermissions } = resolveRoleUpdatePermissions(body);
 
@@ -49,23 +57,20 @@ export async function handleRbacRolesUpdate(
         return error(
           req,
           `Unknown permissions: ${resolvedPermissionRows.missingKeys.join(', ')}`,
-          400
+          HTTP_STATUS.BAD_REQUEST
         );
       }
     }
 
-    await db.run(`UPDATE roles SET name = ? WHERE id = ? AND system = 0`, [
-      nameResult.name,
-      roleId,
-    ]);
+    await db.run(`UPDATE roles SET name = ? WHERE id = ? AND system = 0`, [newName, roleId]);
 
-    const resolvedPermissionKeys = await applyRolePermissionUpdate(
+    const resolvedPermissionKeys = await applyRolePermissionUpdate({
       db,
       roleId,
       permissionsProvided,
       resolvedPermissionRows,
-      desiredPermissions
-    );
+      desiredPermissions,
+    });
 
     await logAuditEvent(env, {
       actor_id: user.sub,
@@ -73,17 +78,17 @@ export async function handleRbacRolesUpdate(
       resource_type: 'role',
       resource_id: roleId,
       metadata: {
-        name: nameResult.name,
+        name: newName,
         old_name: role.name,
         permissions: resolvedPermissionKeys,
       },
     });
 
     return json(req, {
-      role: buildUpdatedRole(roleId, role, nameResult.name, resolvedPermissionKeys),
+      role: buildUpdatedRole(roleId, role, newName, resolvedPermissionKeys),
     });
   } catch (err) {
     logger.error('Update role failed', { error: err?.message || err });
-    return error(req, 'Failed to update role', 500);
+    return error(req, 'Failed to update role', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

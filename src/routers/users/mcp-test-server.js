@@ -2,6 +2,7 @@
  * Handle POST /api/users/me/resources/mcp-servers/test — test an MCP server connection.
  * Extracted from handleUsersMcp (was ~33 lines, ~20 cyclomatic).
  */
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { testToolServerConnection } from '../../admin/tool-servers.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 import { json, error } from '../../utils/response.js';
@@ -15,15 +16,15 @@ export async function handleTestMcpServer(req) {
   try {
     body = await req.json();
   } catch {
-    return error(req, 'Invalid JSON body', 400);
+    return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
   }
 
   const url = String(body.url || '').trim();
   if (!url || !/^https?:\/\//i.test(url)) {
-    return error(req, 'Server URL must start with http:// or https://', 400);
+    return error(req, 'Server URL must start with http:// or https://', HTTP_STATUS.BAD_REQUEST);
   }
   const mcpUrlSafety = isSafeOutboundUrl(url);
-  if (!mcpUrlSafety.safe) return error(req, mcpUrlSafety.reason, 400);
+  if (!mcpUrlSafety.safe) return error(req, mcpUrlSafety.reason, HTTP_STATUS.BAD_REQUEST);
 
   try {
     const result = await testToolServerConnection({
@@ -37,6 +38,6 @@ export async function handleTestMcpServer(req) {
     });
     return json(req, { tools: result.tools });
   } catch (err) {
-    return error(req, err?.message || 'Failed to test MCP server', 400);
+    return error(req, err?.message || 'Failed to test MCP server', HTTP_STATUS.BAD_REQUEST);
   }
 }

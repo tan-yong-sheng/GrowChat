@@ -1,3 +1,5 @@
+import { logAuditEvent } from '../utils/authorize.js';
+
 /**
  * RBAC shared helpers for role-permission management
  */
@@ -90,13 +92,13 @@ export function resolveRoleUpdatePermissions(body) {
   return { permissionsProvided, desiredPermissions };
 }
 
-export async function applyRolePermissionUpdate(
+export async function applyRolePermissionUpdate({
   db,
   roleId,
   permissionsProvided,
   resolvedPermissionRows,
-  desiredPermissions
-) {
+  desiredPermissions,
+}) {
   if (!permissionsProvided) {
     return loadRolePermissionKeys(db, roleId);
   }
@@ -119,5 +121,80 @@ export function buildUpdatedRole(roleId, role, name, resolvedPermissionKeys) {
     system: 0,
     created_at: role.created_at,
     permissions: Array.isArray(resolvedPermissionKeys) ? resolvedPermissionKeys : [],
+  };
+}
+
+export async function parseBindingBody(req) {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return { error: 'Invalid JSON' };
+  }
+
+  const roleId = (body.role_id || '').trim();
+  const permissionId = (body.permission_id || '').trim();
+
+  if (!roleId || !permissionId) {
+    return { error: 'role_id and permission_id required' };
+  }
+
+  return { roleId, permissionId };
+}
+
+export async function resolveRoleForBinding(db, roleId) {
+  const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
+  if (!role) {
+    return { error: 'Role not found' };
+  }
+  if (role.system) {
+    return { error: 'Cannot modify system role permissions' };
+  }
+  return { role };
+}
+
+export async function resolvePermissionForBinding(db, permissionId) {
+  const permission = await db.first('SELECT * FROM permissions WHERE id = ?', [permissionId]);
+  if (!permission) {
+    return { error: 'Permission not found' };
+  }
+  return { permission };
+}
+
+export async function insertRolePermissionBinding(db, roleId, permissionId) {
+  try {
+    await db.run(
+      `INSERT INTO role_permissions (id, role_id, permission_id, created_at)
+       VALUES (?, ?, ?, unixepoch())`,
+      [crypto.randomUUID(), roleId, permissionId]
+    );
+  } catch (err) {
+    if (!/unique constraint/i.test(String(err))) {
+      throw err;
+    }
+  }
+}
+
+export async function logBindingAuditEvent(env, user, roleId, permission) {
+  await logAuditEvent(env, {
+    actor_id: user.sub,
+    action: 'role_permission_added',
+    resource_type: 'role',
+    resource_id: roleId,
+    metadata: {
+      permission_id: permission.id,
+      permission_key: permission.key,
+    },
+  });
+}
+
+export function buildBindingResponse(roleId, permissionId, role, permission) {
+  return {
+    binding: {
+      role_id: roleId,
+      permission_id: permissionId,
+      role_name: role.name,
+      permission_key: permission.key,
+    },
   };
 }

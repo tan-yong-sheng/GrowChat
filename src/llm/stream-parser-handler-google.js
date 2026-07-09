@@ -1,10 +1,5 @@
 import { extractTextFromGoogle } from './stream-parser-utils.js';
-import {
-  emitFinishReason,
-  emitToolCalls,
-  normalizeFinishReason,
-  processSegments,
-} from './stream-parser-handler-helpers.js';
+import { emitFinishReason, emitToolCalls } from './stream-parser-handler-helpers.js';
 
 function buildGoogleToolCall(parser, part, index) {
   const id = `google_tool_${(parser._googleToolCallIndex += 1)}`;

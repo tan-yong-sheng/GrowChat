@@ -98,19 +98,12 @@ const assistantStreamRunner = createAssistantRunner({
   createLogger,
 });
 
-export async function chatRouter(req, env, ctx, user, path, _requestContext = {}) {
-  const isChatPath =
-    path === '/api/chats' ||
-    path === '/api/tool-servers' ||
-    path === '/api/chats/shared' ||
-    path === '/api/chats/archived' ||
-    /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate|cancel|status|resume))?)?|\/(?:share|archive|pin|clone))?$/.test(
-      path
-    );
-  if (!isChatPath) return null;
+// eslint-disable-next-line max-params -- router dispatcher pattern: (req, env, ctx, user, path)
+export async function chatRouter(req, env, ctx, user, path) {
+  if (!isChatPath(path)) return null;
 
-  const unauthorized = requireAuth(req, user);
-  if (unauthorized) return unauthorized;
+  const authorized = requireAuth(req, user);
+  if (authorized) return authorized;
 
   const db = createDB(env.DB);
   const originSessionId = getOriginSessionId(req);
@@ -136,6 +129,18 @@ export async function chatRouter(req, env, ctx, user, path, _requestContext = {}
   if (messageResponse) return messageResponse;
 
   return null;
+}
+
+function isChatPath(path) {
+  return (
+    path === '/api/chats' ||
+    path === '/api/tool-servers' ||
+    path === '/api/chats/shared' ||
+    path === '/api/chats/archived' ||
+    /^\/api\/chats\/[^/]+(?:\/messages(?:\/[^/]+(?:\/(?:branch|regenerate|cancel|status|resume))?)?|\/(?:share|archive|pin|clone))?$/.test(
+      path
+    )
+  );
 }
 
 export class RealtimeHubDO extends MessageQueueDO {}

@@ -3,6 +3,7 @@
  */
 import { error, getConnectionTestFailureMessage, json } from '../../utils/response.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { getConfigValue } from '../../utils/app-config.js';
 import {
   buildConnectionHeaders,
@@ -72,7 +73,7 @@ export async function handleAdminConnectionsList(
       });
     } catch (err) {
       logger.error('OpenAI connections fetch failed', { error: err?.message || err });
-      return error(req, 'Failed to fetch connections', 500);
+      return error(req, 'Failed to fetch connections', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -89,14 +90,22 @@ export async function handleAdminConnectionsList(
     const requiresUrl = isConnectionUrlRequired(providerType);
     const baseUrl = url || getConnectionDefaultBaseUrl(providerType || providerFamily);
     if (requiresUrl && !url) {
-      return error(req, 'Connection URL is required for compatible providers', 400);
+      return error(
+        req,
+        'Connection URL is required for compatible providers',
+        HTTP_STATUS.BAD_REQUEST
+      );
     }
     if (!isValidHttpUrl(baseUrl)) {
-      return error(req, 'Connection URL must start with http:// or https://', 400);
+      return error(
+        req,
+        'Connection URL must start with http:// or https://',
+        HTTP_STATUS.BAD_REQUEST
+      );
     }
     const urlSafety = isSafeOutboundUrl(baseUrl);
     if (!urlSafety.safe) {
-      return error(req, urlSafety.reason, 400);
+      return error(req, urlSafety.reason, HTTP_STATUS.BAD_REQUEST);
     }
 
     const key = String(body.key || '').trim();
@@ -104,7 +113,7 @@ export async function handleAdminConnectionsList(
     try {
       headers = parseHeadersForRequest(body.headers);
     } catch (err) {
-      return error(req, err.message || 'Headers must be valid JSON', 400);
+      return error(req, err.message || 'Headers must be valid JSON', HTTP_STATUS.BAD_REQUEST);
     }
 
     try {
@@ -150,7 +159,7 @@ export async function handleAdminConnectionsList(
           upstreamMessage,
         });
         const safeReason = getConnectionTestFailureMessage(upstreamStatus);
-        return error(req, 'Connection failed', 502, {
+        return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
           message: safeReason,
         });
       }
@@ -175,7 +184,7 @@ export async function handleAdminConnectionsList(
           .filter((item) => Boolean(item.id)),
       });
     } catch (err) {
-      return error(req, 'Connection failed', 502, {
+      return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
         message: err?.message || String(err),
       });
     }

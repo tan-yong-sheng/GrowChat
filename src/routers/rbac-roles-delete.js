@@ -4,7 +4,9 @@
  */
 import { error } from '../utils/response.js';
 import { logAuditEvent } from '../utils/authorize.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 
+// eslint-disable-next-line max-params -- admin dispatcher pattern (req, env, ctx, user, roleId, path, deps)
 export async function handleRbacRolesDelete(
   req,
   env,
@@ -16,10 +18,10 @@ export async function handleRbacRolesDelete(
 ) {
   try {
     const role = await db.first('SELECT * FROM roles WHERE id = ?', [roleId]);
-    if (!role) return error(req, 'Role not found', 404);
+    if (!role) return error(req, 'Role not found', HTTP_STATUS.NOT_FOUND);
 
     if (role.system) {
-      return error(req, 'Cannot delete system role', 403);
+      return error(req, 'Cannot delete system role', HTTP_STATUS.FORBIDDEN);
     }
 
     await db.run('DELETE FROM roles WHERE id = ?', [roleId]);
@@ -32,9 +34,9 @@ export async function handleRbacRolesDelete(
       metadata: { name: role.name, system: 0 },
     });
 
-    return new Response(null, { status: 204 });
+    return new Response(null, { status: HTTP_STATUS.NO_CONTENT });
   } catch (err) {
     logger.error('Delete role failed', { error: err?.message || err });
-    return error(req, 'Failed to delete role', 500);
+    return error(req, 'Failed to delete role', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

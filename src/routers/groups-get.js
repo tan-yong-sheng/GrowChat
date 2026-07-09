@@ -3,7 +3,9 @@
  * Fetches a single group with its members
  */
 import { error, json } from '../utils/response.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 
+// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, groupId, path, deps)
 export async function handleGroupsGet(req, env, _ctx, user, groupId, path, { db, logger } = {}) {
   try {
     const group = await db.first(
@@ -12,7 +14,7 @@ export async function handleGroupsGet(req, env, _ctx, user, groupId, path, { db,
        WHERE id = ?`,
       [groupId]
     );
-    if (!group) return error(req, 'Group not found', 404);
+    if (!group) return error(req, 'Group not found', HTTP_STATUS.NOT_FOUND);
 
     const members = await db.all(
       `SELECT u.id, u.name, u.email, u.avatar, u.avatar_emoji, gm.created_at as joined_at
@@ -29,6 +31,6 @@ export async function handleGroupsGet(req, env, _ctx, user, groupId, path, { db,
     });
   } catch (err) {
     logger.error('Get group failed', { error: err?.message || err });
-    return error(req, 'Failed to fetch group', 500);
+    return error(req, 'Failed to fetch group', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

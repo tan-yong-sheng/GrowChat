@@ -1,4 +1,5 @@
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { getMessageSnapshot } from '../chat-core.js';
 import { publishRealtimeNow, requireOwnedChatWithPermission } from '../chat-message-helpers.js';
@@ -18,8 +19,9 @@ export async function handleCancelMessage({ req, env, db, user, chatId, msgId, o
     msgId,
     chatId,
   ]);
-  if (!msg) return error(req, 'Message not found', 404);
-  if (msg.role !== 'assistant') return error(req, 'Only assistant messages can be cancelled', 400);
+  if (!msg) return error(req, 'Message not found', HTTP_STATUS.NOT_FOUND);
+  if (msg.role !== 'assistant')
+    return error(req, 'Only assistant messages can be cancelled', HTTP_STATUS.BAD_REQUEST);
 
   const status = String(msg.status || '');
   if (!['streaming', 'tool_running'].includes(status)) {

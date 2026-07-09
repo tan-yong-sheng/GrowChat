@@ -8,7 +8,9 @@ import { json, error } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
 import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
 import { listUserDocuments } from '../services/uploads.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
 
+// eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, requestContext)
 export async function handleFileList(req, env, ctx, user, requestContext = {}) {
   const logger =
     requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
@@ -18,7 +20,7 @@ export async function handleFileList(req, env, ctx, user, requestContext = {}) {
     ...RATE_LIMITS.fileList,
   });
   if (!listLimit.allowed) {
-    return error(req, 'Too many file lists', 429, {
+    return error(req, 'Too many file lists', HTTP_STATUS.TOO_MANY_REQUESTS, {
       retry_after: Math.ceil((listLimit.resetAt - Date.now()) / 1000),
     });
   }
@@ -35,7 +37,7 @@ export async function handleFileList(req, env, ctx, user, requestContext = {}) {
       return json(req, { documents: [] });
     }
     logger.error('File list failed', { error: err?.message || err });
-    return error(req, 'Failed to list documents', 500);
+    return error(req, 'Failed to list documents', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
 

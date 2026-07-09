@@ -2,6 +2,9 @@
  * Groups shared helpers for group management
  */
 import { error } from '../utils/response.js';
+import { HTTP_STATUS } from '../shared/http-status.js';
+
+const MAX_DESCRIPTION_LENGTH = 500;
 
 export function normalizePermissionsList(value) {
   if (!Array.isArray(value)) return [];
@@ -23,7 +26,7 @@ export function resolveGroupName(input, current) {
 
 export function resolveGroupDescription(input, current) {
   const description = input !== undefined ? String(input).trim() : current;
-  if (description && description.length > 500)
+  if (description && description.length > MAX_DESCRIPTION_LENGTH)
     return { error: 'Description too long (max 500 chars)' };
   return { description };
 }
@@ -34,7 +37,7 @@ export function extractMemberIds(body) {
   return { hasMemberIds, memberIds };
 }
 
-export function buildGroupUpdateStatements(db, groupId, name, description, memberIds) {
+export function buildGroupUpdateStatements({ db, groupId, name, description, memberIds }) {
   const statements = [
     db.prepare(
       `UPDATE groups
@@ -58,7 +61,7 @@ export function buildGroupUpdateStatements(db, groupId, name, description, membe
   return statements;
 }
 
-export function buildUpdatedGroup(groupId, group, name, description, hasMemberIds, memberIds) {
+export function buildUpdatedGroup({ groupId, group, name, description, hasMemberIds, memberIds }) {
   return {
     id: groupId,
     name,
@@ -73,12 +76,12 @@ export async function parseGroupUserIds(req) {
   try {
     body = await req.json();
   } catch {
-    return { error: error(req, 'Invalid JSON', 400) };
+    return { error: error(req, 'Invalid JSON', HTTP_STATUS.BAD_REQUEST) };
   }
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    return { error: error(req, 'Invalid JSON payload', 400) };
+    return { error: error(req, 'Invalid JSON payload', HTTP_STATUS.BAD_REQUEST) };
   }
   const userIds = normalizePermissionsList(body.user_ids || (body.user_id ? [body.user_id] : []));
-  if (!userIds.length) return { error: error(req, 'user_id required', 400) };
+  if (!userIds.length) return { error: error(req, 'user_id required', HTTP_STATUS.BAD_REQUEST) };
   return { userIds };
 }

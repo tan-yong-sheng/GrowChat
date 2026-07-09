@@ -2,6 +2,7 @@
  * Admin Tool Servers OAuth Handlers - /api/admin/tool-servers/oauth/*
  */
 import { error, json } from '../../utils/response.js';
+import { HTTP_STATUS } from '../../shared/http-status.js';
 import {
   buildAuthorizationUrl,
   discoverAuthorizationMetadata,
@@ -15,6 +16,10 @@ import {
 } from '../../admin/tool-servers.js';
 import { parseJsonAndRequireAdminAcl } from './admin-helpers.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
+
+const MAX_SERVER_NAME_LENGTH = 200;
+const OAUTH_CODE_VERIFIER_LENGTH = 64;
+const OAUTH_STATE_LENGTH = 32;
 
 /**
  * Handle handleAdminToolServersOAuth routes.
@@ -32,7 +37,7 @@ export async function handleAdminToolServersOAuth(
     // Strip trailing slash so concatenations produce clean URLs
     const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
     if (!origin) {
-      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
     const { body, error: denied } = await parseJsonAndRequireAdminAcl(
       req,
@@ -44,7 +49,7 @@ export async function handleAdminToolServersOAuth(
 
     const serverId = String(body.id || '').trim();
     if (!serverId) {
-      return error(req, 'Server must be saved before OAuth connect', 400);
+      return error(req, 'Server must be saved before OAuth connect', HTTP_STATUS.BAD_REQUEST);
     }
 
     const servers = await loadToolServers(db);
@@ -52,15 +57,15 @@ export async function handleAdminToolServersOAuth(
     const existingServer = serverIndex === -1 ? null : servers[serverIndex];
     const serverUrl = String(body.url || existingServer?.url || '').trim();
     if (!serverUrl || !isValidHttpUrl(serverUrl)) {
-      return error(req, 'Server URL must start with http:// or https://', 400);
+      return error(req, 'Server URL must start with http:// or https://', HTTP_STATUS.BAD_REQUEST);
     }
     const oauthUrlSafety = isSafeOutboundUrl(serverUrl);
     if (!oauthUrlSafety.safe) {
-      return error(req, oauthUrlSafety.reason, 400);
+      return error(req, oauthUrlSafety.reason, HTTP_STATUS.BAD_REQUEST);
     }
 
     if (!existingServer) {
-      return error(req, 'Server must be saved before OAuth connect', 400);
+      return error(req, 'Server must be saved before OAuth connect', HTTP_STATUS.BAD_REQUEST);
     }
 
     const server = existingServer;
@@ -73,7 +78,7 @@ export async function handleAdminToolServersOAuth(
     ).trim();
     const authServerUrlSafety = isSafeOutboundUrl(authServerUrl);
     if (!authServerUrlSafety.safe) {
-      return error(req, authServerUrlSafety.reason, 400);
+      return error(req, authServerUrlSafety.reason, HTTP_STATUS.BAD_REQUEST);
     }
     const redirectUri = origin + '/api/admin/tool-servers/oauth/callback';
 
@@ -92,13 +97,17 @@ export async function handleAdminToolServersOAuth(
     if (registrationEndpoint) {
       const registrationEndpointSafety = isSafeOutboundUrl(registrationEndpoint);
       if (!registrationEndpointSafety.safe) {
-        return error(req, registrationEndpointSafety.reason, 400);
+        return error(req, registrationEndpointSafety.reason, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
     if (!clientId) {
       if (!registrationEndpoint) {
-        return error(req, 'Authorization server does not support dynamic client registration', 400);
+        return error(
+          req,
+          'Authorization server does not support dynamic client registration',
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
       try {
         const registrationPayload = {
@@ -114,7 +123,7 @@ export async function handleAdminToolServersOAuth(
         });
         if (!registrationRes.ok) {
           const text = await registrationRes.text().catch(() => '');
-          return error(req, 'Client registration failed', 502, {
+          return error(req, 'Client registration failed', HTTP_STATUS.BAD_GATEWAY, {
             message: text,
           });
         }
@@ -122,14 +131,14 @@ export async function handleAdminToolServersOAuth(
         clientId = String(registrationData.client_id || '').trim();
         clientSecret = String(registrationData.client_secret || '').trim();
       } catch (err) {
-        return error(req, 'Client registration failed', 502, {
+        return error(req, 'Client registration failed', HTTP_STATUS.BAD_GATEWAY, {
           message: err?.message || String(err),
         });
       }
     }
 
     if (!clientId) {
-      return error(req, 'OAuth client ID is required', 400);
+      return error(req, 'OAuth client ID is required', HTTP_STATUS.BAD_REQUEST);
     }
 
     const tokenAuthMethod =
@@ -139,15 +148,15 @@ export async function handleAdminToolServersOAuth(
         Boolean(clientSecret)
       );
 
-    const codeVerifier = randomString(64);
+    const codeVerifier = randomString(OAUTH_CODE_VERIFIER_LENGTH);
     const codeChallenge = await sha256Base64Url(codeVerifier);
-    const state = randomString(32);
+    const state = randomString(OAUTH_STATE_LENGTH);
     const authorizationEndpoint =
       metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
     const tokenEndpoint = metadata?.token_endpoint || new URL('/token', authServerUrl).toString();
     const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
     if (!tokenEndpointSafety.safe) {
-      return error(req, tokenEndpointSafety.reason, 400);
+      return error(req, tokenEndpointSafety.reason, HTTP_STATUS.BAD_REQUEST);
     }
 
     const authorizationUrl = buildAuthorizationUrl({
@@ -189,7 +198,7 @@ export async function handleAdminToolServersOAuth(
     // Strip trailing slash so concatenations produce clean URLs
     const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
     if (!origin) {
-      return error(req, 'APP_PUBLIC_ORIGIN is not configured', 500);
+      return error(req, 'APP_PUBLIC_ORIGIN is not configured', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
@@ -197,13 +206,13 @@ export async function handleAdminToolServersOAuth(
     const errParam = url.searchParams.get('error');
     if (errParam) {
       return new Response(`Authorization failed: ${errParam}`, {
-        status: 400,
+        status: HTTP_STATUS.BAD_REQUEST,
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
     }
     if (!code || !state) {
       return new Response('Missing authorization code or state', {
-        status: 400,
+        status: HTTP_STATUS.BAD_REQUEST,
       });
     }
 
@@ -211,7 +220,7 @@ export async function handleAdminToolServersOAuth(
     const serverIndex = servers.findIndex((entry) => entry?.oauth_state === state);
     if (serverIndex === -1) {
       return new Response('OAuth session not found or expired', {
-        status: 400,
+        status: HTTP_STATUS.BAD_REQUEST,
       });
     }
 
@@ -221,7 +230,9 @@ export async function handleAdminToolServersOAuth(
       new URL('/token', server.oauth_authorization_server || server.url).toString();
     const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
     if (!tokenEndpointSafety.safe) {
-      return new Response(`Token exchange failed: ${tokenEndpointSafety.reason}`, { status: 400 });
+      return new Response(`Token exchange failed: ${tokenEndpointSafety.reason}`, {
+        status: HTTP_STATUS.BAD_REQUEST,
+      });
     }
     const clientId = server.oauth_client_id;
     const clientSecret = server.oauth_client_secret;
@@ -257,7 +268,7 @@ export async function handleAdminToolServersOAuth(
       });
       if (!tokenRes.ok) {
         const text = await tokenRes.text().catch(() => '');
-        return new Response(`Token exchange failed: ${text}`, { status: 400 });
+        return new Response(`Token exchange failed: ${text}`, { status: HTTP_STATUS.BAD_REQUEST });
       }
       const tokenData = await tokenRes.json();
 
@@ -279,7 +290,9 @@ export async function handleAdminToolServersOAuth(
         { headers: { 'Content-Type': 'text/html' } }
       );
     } catch (err) {
-      return new Response(`Token exchange failed: ${err?.message || String(err)}`, { status: 400 });
+      return new Response(`Token exchange failed: ${err?.message || String(err)}`, {
+        status: HTTP_STATUS.BAD_REQUEST,
+      });
     }
   }
 
