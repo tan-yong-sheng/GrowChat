@@ -1,3 +1,5 @@
+import { handleClickChat } from './chat-click-handler.js';
+
 export function createChatListHandlers({
   state,
   apiFetch,
@@ -31,17 +33,10 @@ export function createChatListHandlers({
   };
   return (chat = {}) => ({
     onClick: (id) => {
-      if (isTempChatId(id)) {
-        setState({ activeChatId: id });
-        syncChatUrl(null);
-        drawMessages([]);
-        if (state.isMobile) setState({ showSidebar: false });
-        return;
-      }
-      syncChatUrl(id);
-      setState({ activeChatId: id });
-      loadMessages(id, { modelMode: 'default' });
-      if (state.isMobile) setState({ showSidebar: false });
+      handleClickChat(
+        { isTempChatId, setState, syncChatUrl, drawMessages, state, loadMessages },
+        id
+      );
     },
     rename: async (id) => {
       if (isTempChatId(id)) return;

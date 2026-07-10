@@ -2,7 +2,8 @@ import { error, json } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { loadModelAclRules } from '../../utils/model-acl.js';
-import { loadGroups, requireModelAdmin } from './models-admin-access-helpers.js';
+import { requireModelAdmin } from './models-public-crud-helpers.js';
+import { loadGroups } from './models-admin-access-helpers.js';
 
 function parseRequestedIds(req) {
   const url = new URL(req.url);

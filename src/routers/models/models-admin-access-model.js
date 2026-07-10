@@ -9,12 +9,11 @@ import {
   saveModelAclRulesForModel,
 } from '../../utils/model-acl.js';
 import { getModelAccessMap } from './models-helpers.js';
+import { invalidJsonBody, requireModelAdmin } from './models-public-crud-helpers.js';
 import {
   extractModelIdFromAccessPath,
-  invalidJsonBody,
   loadGroups,
   loadValidGroupIds,
-  requireModelAdmin,
 } from './models-admin-access-helpers.js';
 
 function filterRulesForModel(modelId, rules, validGroupIds) {

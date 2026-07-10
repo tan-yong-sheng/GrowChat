@@ -6,12 +6,11 @@ import { chunkedBatch } from '../../utils/db-helpers.js';
 import { buildModelAclRuleSaveStatements } from '../../utils/model-acl.js';
 import { getModelAccessMap } from './models-helpers.js';
 import { normalizeModelId } from '../../admin/tool-servers.js';
+import { invalidJsonBody, requireModelAdmin } from './models-public-crud-helpers.js';
 import {
   filterModelRulesByGroup,
-  invalidJsonBody,
   loadValidGroupIds,
   noDatabase,
-  requireModelAdmin,
 } from './models-admin-access-helpers.js';
 
 const MAX_BULK_UPDATES = 200;

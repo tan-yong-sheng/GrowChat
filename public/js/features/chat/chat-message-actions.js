@@ -2,11 +2,14 @@ import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';
 import {
-  createSseStreamHandlers,
   finalizeStreamAndLoadMessages,
   handleStreamCatchError,
 } from '../../shared/utils/sse-event-handler.js';
-import { buildStreamingCallback, CHAT_MESSAGE_PARAM_NAMES } from './chat-message-params.js';
+import {
+  buildStreamingCallback,
+  buildSseStreamHandlersContext,
+  CHAT_MESSAGE_PARAM_NAMES,
+} from './chat-message-params.js';
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 import { bindChatMessageUiActions } from './chat-message-ui-actions.js';
@@ -164,19 +167,11 @@ export function bindChatMessageActions({
       setActiveStreamAbort(() => controller.abort());
       setGlobalStreamAbort(getActiveStreamAbort());
       const runBranchRequest = async (sourceId) => {
-        const { onEvent, onDelta, getStreamState } = createSseStreamHandlers({
+        const { onEvent, onDelta, getStreamState } = buildSseStreamHandlersContext({
           chatId,
           tempAssistantId,
           tempUserId,
           replaceTempMessageId,
-          applyAssistantText: (streaming = true) =>
-            buildStreamingCallback(getStreamState, {
-              state,
-              setState,
-              streamingOverrideByChat,
-              updateMessageContentDom,
-              chatId,
-            })(streaming),
           ensureThinkingBlock,
           appendBlock,
           updateToolCallState,

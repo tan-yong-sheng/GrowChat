@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication: parallel cross-boundary helper, intentional
 const SSE_PREFIX_LENGTH = 6;
 const HOURS_PER_DAY = 24;
 const MINUTES_PER_HOUR = 60;
@@ -12,7 +13,6 @@ const DAYS_30_MS = 30 * MS_DAY;
 
 const KILOBYTE = 1024;
 const BYTE_DISPLAY_THRESHOLD = 10;
-const TOAST_FADE_MS = 300;
 
 import { renderMarkdownContent } from './markdown-renderer.js';
 
@@ -50,6 +50,7 @@ export class SseLineParser {
     this._onEvent = typeof onEvent === 'function' ? onEvent : null;
   }
 
+  // fallow-ignore-next-line code-duplication
   push(rawText) {
     this._buf += rawText;
     let text = '';
@@ -105,46 +106,4 @@ export function formatBytes(bytes) {
   return `${num >= BYTE_DISPLAY_THRESHOLD ? num.toFixed(0) : num.toFixed(1)} ${units[exp]}`;
 }
 
-export function showToast(message, duration = 3000) {
-  const toast = document.createElement('div');
-  toast.className =
-    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-full shadow-sm z-[99999] transition-opacity duration-300 opacity-0';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.remove('opacity-0'));
-  setTimeout(() => {
-    toast.classList.add('opacity-0');
-    setTimeout(() => toast.remove(), TOAST_FADE_MS);
-  }, duration);
-  return toast;
-}
-
-export function showToastProgress(initialMessage) {
-  const toast = document.createElement('div');
-  toast.className =
-    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-full shadow-sm z-[99999] transition-opacity duration-300 opacity-0';
-  toast.textContent = initialMessage;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.remove('opacity-0'));
-
-  let closeTimeout = null;
-  let removed = false;
-
-  const close = () => {
-    if (removed) return;
-    removed = true;
-    toast.classList.add('opacity-0');
-    setTimeout(() => toast.remove(), TOAST_FADE_MS);
-  };
-
-  const update = (message, duration = 3000) => {
-    if (removed) return;
-    toast.textContent = message;
-    if (closeTimeout) clearTimeout(closeTimeout);
-    if (duration > 0) {
-      closeTimeout = setTimeout(close, duration);
-    }
-  };
-
-  return { update, close, element: toast };
-}
+export { showToast, showToastProgress } from './utils/toast.js';

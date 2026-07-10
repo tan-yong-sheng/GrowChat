@@ -1,14 +1,8 @@
 import { HTTP_STATUS } from '../../shared/http-status.js';
-import { error, json } from '../../utils/response.js';
+import { authError, error, json } from '../../utils/response.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
 import { fetchBaseModelsFromOpenAI, loadCustomModels } from './models-discovery.js';
-
-const STATUS_CODE_MAP = {
-  server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
-  unauthorized: HTTP_STATUS.UNAUTHORIZED,
-  not_found: HTTP_STATUS.NOT_FOUND,
-};
 
 const ONE_YEAR_TTL = 31536000;
 const CUSTOM_KEY = 'custom_models';
@@ -22,8 +16,7 @@ export async function requireModelAdmin(req, env, user, resourceId) {
   if (authDecision.allow) {
     return null;
   }
-  const statusCode = STATUS_CODE_MAP[authDecision.code] || HTTP_STATUS.FORBIDDEN;
-  return error(req, authDecision.reason || 'Forbidden', statusCode);
+  return authError(req, authDecision);
 }
 
 export function extractModelIdFromPath(path) {
@@ -110,4 +103,36 @@ export async function logModelAuditEvent(env, user, action, modelId, extraFields
     resource_id: modelId,
     ...(extraFields || {}),
   });
+}
+
+/**
+ * Validate, find, and return a custom model with proper error handling.
+ * Combines three shared checks: base model rejection → CACHE binding → model lookup.
+ * Returns the same shape as findCustomModelById on success.
+ * Returns { found, error, customModels, modelIndex }.
+ */
+// eslint-disable-next-line max-params -- composite helper needs all context
+export async function findAndValidateCustomModel(req, env, modelId, action, logger) {
+  const baseError = await rejectIfBaseModel(req, env, modelId, action, logger);
+  if (baseError) {
+    return { found: false, error: baseError };
+  }
+
+  if (!env.CACHE) {
+    return { found: false, error: missingCacheBinding(req) };
+  }
+
+  return findCustomModelById(req, env, modelId);
+}
+
+/**
+ * Handle an error that may carry a `status` property from `error` or `Object.assign`.
+ * If `err.status` is set, formats the structured error with optional `err.invalid` details.
+ * Otherwise falls back to a default error response.
+ */
+export function handleStatusError(req, err, defaultMessage, defaultStatus) {
+  if (err.status) {
+    return error(req, err.message, err.status, err.invalid ? { invalid: err.invalid } : undefined);
+  }
+  return error(req, defaultMessage, defaultStatus);
 }

@@ -4,7 +4,7 @@ import {
   createSseStreamHandlers,
   finalizeStreamThinking,
 } from '../../shared/utils/sse-event-handler.js';
-import { buildStreamingCallback } from './chat-message-params.js';
+import { buildStreamingCallback, buildSseStreamHandlersContext } from './chat-message-params.js';
 
 export function bindChatMessageRetryActions({
   messagesList,
@@ -111,19 +111,11 @@ export function bindChatMessageRetryActions({
       setActiveStreamAbort(() => controller.abort());
       setGlobalStreamAbort(getActiveStreamAbort());
 
-      const { onEvent, onDelta, getStreamState, setStreamState } = createSseStreamHandlers({
+      const { onEvent, onDelta, getStreamState, setStreamState } = buildSseStreamHandlersContext({
         chatId,
         tempAssistantId,
         tempUserId: null,
         replaceTempMessageId,
-        applyAssistantText: (streaming = true) =>
-          buildStreamingCallback(getStreamState, {
-            state,
-            setState,
-            streamingOverrideByChat,
-            updateMessageContentDom,
-            chatId,
-          })(streaming),
         ensureThinkingBlock,
         appendBlock,
         updateToolCallState,

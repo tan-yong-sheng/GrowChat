@@ -1,13 +1,12 @@
-import { error, json } from '../../utils/response.js';
+import { json } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import {
   extractModelIdFromPath,
-  findCustomModelById,
+  findAndValidateCustomModel,
+  handleStatusError,
   invalidJsonBody,
   logModelAuditEvent,
-  missingCacheBinding,
   parseJsonBody,
-  rejectIfBaseModel,
   requireModelAdmin,
   writeCustomModelsToCache,
 } from './models-public-crud-helpers.js';
@@ -61,7 +60,7 @@ function applyUpdates(model, body) {
   applyTemperatureUpdate(model, body);
 }
 
-/* eslint-disable max-params, max-statements -- handler orchestrates multiple steps */
+// eslint-disable-next-line max-params -- handler orchestrates multiple steps
 export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { logger }) {
   const modelId = extractModelIdFromPath(path);
 
@@ -74,14 +73,7 @@ export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { log
   }
 
   try {
-    const baseModelError = await rejectIfBaseModel(req, env, modelId, 'update', logger);
-    if (baseModelError) return baseModelError;
-
-    if (!env.CACHE) {
-      return missingCacheBinding(req);
-    }
-
-    const result = await findCustomModelById(req, env, modelId);
+    const result = await findAndValidateCustomModel(req, env, modelId, 'update', logger);
     if (!result.found) return result.error;
 
     const { customModels, modelIndex } = result;
@@ -99,10 +91,7 @@ export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { log
       message: 'Model updated successfully',
     });
   } catch (err) {
-    if (err.status) {
-      return error(req, err.message, err.status);
-    }
     logger.error('Update model failed', { error: err?.message || err });
-    return error(req, 'Failed to update model', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    return handleStatusError(req, err, 'Failed to update model', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }

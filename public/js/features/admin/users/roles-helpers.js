@@ -218,6 +218,16 @@ export function renderErrorState(message) {
   `;
 }
 
+export async function loadRolesFromServer(state) {
+  const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
+  const roles =
+    Array.isArray(payload?.roles) && payload.roles.length
+      ? payload.roles.map((role) => normalizeLoadedRole(role))
+      : createInitialRoles();
+  state.roles = roles;
+  state.nextCustomIndex = getNextCustomIndex(state.roles);
+}
+
 export async function ensureRolesLoaded(container, state, data, reRender) {
   if (state.rolesLoaded || state.rolesLoading) return;
   state.rolesLoading = true;
@@ -225,13 +235,7 @@ export async function ensureRolesLoaded(container, state, data, reRender) {
   reRender(container, data);
 
   try {
-    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    const roles =
-      Array.isArray(payload?.roles) && payload.roles.length
-        ? payload.roles.map((role) => normalizeLoadedRole(role))
-        : createInitialRoles();
-    state.roles = roles;
-    state.nextCustomIndex = getNextCustomIndex(state.roles);
+    await loadRolesFromServer(state);
   } catch (err) {
     state.roles = createInitialRoles();
     state.nextCustomIndex = getNextCustomIndex(state.roles);

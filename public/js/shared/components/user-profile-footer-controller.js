@@ -1,4 +1,5 @@
 import { apiFetch } from '../api.js';
+import { showToast } from '../utils/toast.js';
 import { getAuthState, logout } from '../api/auth.js';
 import { state, subscribe } from '../store.js';
 import { clearModalHash, setModalHash } from '../utils/modal-hash.js';
@@ -10,19 +11,6 @@ import {
 } from './user-profile-footer-helpers.js';
 import { renderButton } from './button.js';
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'focus', 'visibilitychange'];
-
-function showLogoutToast(message, duration = 3000) {
-  const toast = document.createElement('div');
-  toast.className =
-    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-full shadow-sm z-[99999] transition-opacity duration-300 opacity-0';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.remove('opacity-0'));
-  setTimeout(() => {
-    toast.classList.add('opacity-0');
-    setTimeout(() => toast.remove(), 300);
-  }, duration);
-}
 
 function getStoredAuthUser() {
   // Delegate to the canonical auth-state parser so the auth blob schema
@@ -222,7 +210,7 @@ export async function createUserProfileFooter({ guardNavigation = null } = {}) {
       // Local state is wiped inside logout() regardless of server outcome,
       // so always redirect — the next page must start from a clean session.
       if (!result.serverNotified) {
-        showLogoutToast('Logged out locally. Server notification failed.');
+        showToast('Logged out locally. Server notification failed.');
       }
       window.location.href = '/auth.html';
     }

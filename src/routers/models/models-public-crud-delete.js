@@ -2,10 +2,8 @@ import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
 import {
   extractModelIdFromPath,
-  findCustomModelById,
+  findAndValidateCustomModel,
   logModelAuditEvent,
-  missingCacheBinding,
-  rejectIfBaseModel,
   requireModelAdmin,
   writeCustomModelsToCache,
 } from './models-public-crud-helpers.js';
@@ -18,14 +16,7 @@ export async function handlePublicModelsDelete(req, env, _ctx, user, path, { log
   if (authError) return authError;
 
   try {
-    const baseModelError = await rejectIfBaseModel(req, env, modelId, 'delete', logger);
-    if (baseModelError) return baseModelError;
-
-    if (!env.CACHE) {
-      return missingCacheBinding(req);
-    }
-
-    const result = await findCustomModelById(req, env, modelId);
+    const result = await findAndValidateCustomModel(req, env, modelId, 'delete', logger);
     if (!result.found) return result.error;
 
     const { customModels, modelIndex } = result;

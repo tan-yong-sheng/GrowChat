@@ -1,6 +1,8 @@
 // WireChat controllers: render, message list, chat handlers, shell.
 // Phase 3 of wireChat extraction from chat.js.
 
+import { handleClickChat } from './chat-click-handler.js';
+
 export function setupWireChatControllers(ctx, deps) {
   const {
     messagesList,
@@ -198,17 +200,10 @@ export function setupWireChatControllers(ctx, deps) {
   };
   const createFallbackChatHandlers = () => ({
     onClick: (id) => {
-      if (isTempChatId(id)) {
-        setState({ activeChatId: id });
-        syncChatUrl(null);
-        drawMessages([]);
-        if (state.isMobile) setState({ showSidebar: false });
-        return;
-      }
-      syncChatUrl(id);
-      setState({ activeChatId: id });
-      void loadMessages(id, { modelMode: 'default' });
-      if (state.isMobile) setState({ showSidebar: false });
+      handleClickChat(
+        { isTempChatId, setState, syncChatUrl, drawMessages, state, loadMessages },
+        id
+      );
     },
     rename: async () => {},
     pin: async () => {},

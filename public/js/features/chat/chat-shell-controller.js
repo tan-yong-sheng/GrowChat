@@ -1,3 +1,5 @@
+import { toggleSidebar } from '../../shared/components/sidebar-helpers.js';
+
 export function createChatShellController({
   state,
   setState = () => {},
@@ -125,15 +127,7 @@ export function createChatShellController({
     drawMessages([]);
   }
 
-  const onToggleSidebar = () => {
-    if (state.isMobile) {
-      setState({ showSidebar: !state.showSidebar });
-    } else if (!state.showSidebar) {
-      setState({ showSidebar: true });
-    } else {
-      setState({ sidebarCollapsed: !state.sidebarCollapsed });
-    }
-  };
+  const onToggleSidebar = () => toggleSidebar(state, setState);
 
   const onOpenSearch = async () => {
     await ensureSearchModal();

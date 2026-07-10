@@ -1,20 +1,10 @@
 import { HTTP_STATUS } from '../../shared/http-status.js';
-import { authError, error } from '../../utils/response.js';
-import { authorize } from '../../utils/authorize.js';
+import { error } from '../../utils/response.js';
 import { normalizeModelAclRule } from '../../utils/model-acl.js';
 
-export async function requireModelAdmin(req, env, user, resourceId) {
-  const authDecision = await authorize(env, user, {
-    action: 'model.admin',
-    resource: 'model',
-    ...(resourceId ? { resourceId } : {}),
-  });
-  if (authDecision.allow) {
-    return null;
-  }
-  return authError(req, authDecision);
-}
-
+/**
+ * @returns {string|null} The decoded model ID, or null if the path doesn't match.
+ */
 export function extractModelIdFromAccessPath(path) {
   const match = path.match(/^\/api\/admin\/models\/([^/]+)\/access$/);
   if (!match) return null;
@@ -23,10 +13,6 @@ export function extractModelIdFromAccessPath(path) {
   } catch {
     return match[1];
   }
-}
-
-export function invalidJsonBody(req) {
-  return error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST);
 }
 
 export function noDatabase(req) {

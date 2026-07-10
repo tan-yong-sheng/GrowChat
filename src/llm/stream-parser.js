@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication: parallel cross-boundary helper, intentional
 import {
   DEFAULT_REASONING_TAGS,
   getPotentialStartIndex,
@@ -135,6 +136,7 @@ export class SseLineParser {
     return parsedText || '';
   }
 
+  // fallow-ignore-next-line code-duplication
   push(rawText) {
     this._buf += rawText;
     let text = '';

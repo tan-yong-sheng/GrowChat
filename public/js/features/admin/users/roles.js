@@ -13,6 +13,7 @@ import {
   createInitialRoles,
   normalizeLoadedRole,
   getNextCustomIndex,
+  loadRolesFromServer,
   ensureRolesLoaded,
   renderLoadingState,
   renderErrorState,
@@ -38,16 +39,6 @@ export function renderRolesPage(container, data = {}) {
     state.roles = [];
   }
   if (!state.nextCustomIndex || !Number.isFinite(state.nextCustomIndex)) {
-    state.nextCustomIndex = getNextCustomIndex(state.roles);
-  }
-
-  async function loadRolesFromServer(state) {
-    const payload = await fetchAdminRbacRoles({ cache: 'no-store' });
-    const roles =
-      Array.isArray(payload?.roles) && payload.roles.length
-        ? payload.roles.map((role) => normalizeLoadedRole(role))
-        : createInitialRoles();
-    state.roles = roles;
     state.nextCustomIndex = getNextCustomIndex(state.roles);
   }
 

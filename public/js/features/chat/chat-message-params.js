@@ -12,7 +12,10 @@
  * function signature. They are passed through via stateMaps in the HTML build.
  */
 
-import { makeApplyStreamingCallback } from '../../shared/utils/sse-event-handler.js';
+import {
+  makeApplyStreamingCallback,
+  createSseStreamHandlers,
+} from '../../shared/utils/sse-event-handler.js';
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 
 /**
@@ -35,6 +38,20 @@ export function buildStreamingCallback(
     chatId,
     applyStreamingAssistantText,
   });
+}
+
+/**
+ * Build the shared createSseStreamHandlers context for SSE streaming.
+ * Shared between chat-message-actions.js and chat-message-retry-actions.js
+ * to eliminate a 77-token duplicate cluster of identical handler configuration.
+ *
+ * Returns { onEvent, onDelta, getStreamState, setStreamState }.
+ *
+ * @param {Object} config - Same configuration passed to createSseStreamHandlers
+ * @returns {Object} { onEvent, onDelta, getStreamState, setStreamState }
+ */
+export function buildSseStreamHandlersContext(config) {
+  return createSseStreamHandlers(config);
 }
 
 export const CHAT_MESSAGE_PARAM_NAMES = [
