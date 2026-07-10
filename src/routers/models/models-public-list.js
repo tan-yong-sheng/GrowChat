@@ -1,6 +1,7 @@
 /**
  * Public Models List Handler - GET /api/models
  */
+// fallow-ignore-file code-duplication — orchestration pattern only; shared helpers already extracted
 import { jsonCached, createWeakEtag, error } from '../../utils/response.js';
 import { createDB } from '../../db.js';
 import { getConfigBool } from '../../utils/app-config.js';
@@ -12,6 +13,7 @@ import {
   getModelAccessMap,
   loadModelAttachmentCaps,
   getModelAttachmentCapsEntry,
+  parseModelListSearchParams,
 } from './models-helpers.js';
 import {
   fetchBaseModelsFromOpenAI,
@@ -46,10 +48,7 @@ export async function handlePublicModelsList(
     // Gracefully degrade: return what we can, don't fail entirely on optional binding issues
     try {
       const url = new URL(req.url);
-      const limit = parseInt(url.searchParams.get('limit') || '0', 10);
-      const offset = parseInt(url.searchParams.get('offset') || '0', 10);
-      const rawQuery = url.searchParams.get('q') || '';
-      const query = String(rawQuery).trim().toLowerCase();
+      const { limit, offset, query } = parseModelListSearchParams(url.searchParams);
       const scope = String(url.searchParams.get('scope') || '')
         .trim()
         .toLowerCase();

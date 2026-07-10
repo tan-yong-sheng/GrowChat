@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication — orchestration pattern only; shared helpers already extracted
 import { error, json } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
@@ -8,6 +9,7 @@ import {
   getModelAccessMap,
   loadModelAttachmentCaps,
   getModelAttachmentCapsEntry,
+  parseModelListSearchParams,
 } from './models-helpers.js';
 import {
   loadModels,
@@ -19,15 +21,11 @@ import {
 } from './models-discovery.js';
 import { requireModelAdmin } from './models-admin-settings-helpers.js';
 
-const DEFAULT_LIMIT = 0;
 const TRUTHY_VALUES = new Set(['1', 'true', 'yes']);
 
 function parseListParams(req) {
   const url = new URL(req.url);
-  const limit = parseInt(url.searchParams.get('limit') || String(DEFAULT_LIMIT), 10);
-  const offset = parseInt(url.searchParams.get('offset') || '0', 10);
-  const rawQuery = url.searchParams.get('q') || '';
-  const query = String(rawQuery).trim().toLowerCase();
+  const { limit, offset, query } = parseModelListSearchParams(url.searchParams);
   const includeDisabled = TRUTHY_VALUES.has(
     String(url.searchParams.get('include_disabled') || '').toLowerCase()
   );

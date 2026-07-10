@@ -2,6 +2,8 @@
  * Tool selection controller for the message input.
  * Manages MCP tool server selection state, rendering, and interaction.
  */
+// fallow-ignore-file code-duplication — shared tool-filtering pattern with src/routers/chat.js;
+// the .filter() predicate is identical but .map() transformations differ (normalizeToolNames vs inline)
 
 import { state } from '../../shared/store.js';
 import { escapeHtml, normalizeToolNames } from '../../shared/utils.js';
@@ -205,9 +207,7 @@ export function createToolSelectionController({
     if (!toolsMenu || !toolsMenuList) return;
     const servers = getAllowedToolServers(currentState);
     const selection = getCurrentToolSelection(currentState);
-    const allowedKeys = servers.flatMap((server) =>
-      server.tools.map((tool) => buildToolKey(server.id, tool.name))
-    );
+    const allowedKeys = getAllowedToolKeys(currentState);
     if (!servers.length) {
       toolsMenuList.innerHTML =
         '<div class="px-3 py-4 text-sm text-gray-400">No tools are enabled for this workspace.</div>';
@@ -288,9 +288,7 @@ export function createToolSelectionController({
     const hasAny = servers.length > 0 && hasSelectableModels(currentState);
     const loading = currentState.toolServersLoading === true;
     const selection = getCurrentToolSelection(currentState);
-    const allowedKeys = servers.flatMap((server) =>
-      server.tools.map((tool) => buildToolKey(server.id, tool.name))
-    );
+    const allowedKeys = getAllowedToolKeys(currentState);
     const allEnabled =
       selection === null ||
       (Array.isArray(selection) &&

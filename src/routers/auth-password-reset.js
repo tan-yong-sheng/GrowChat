@@ -6,7 +6,7 @@ import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../service
 import { createEmailService } from '../services/email/email-service.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { createLogger } from '../utils/logger.js';
-import { ValidationError } from '../errors/http-errors.js';
+import { handleValidationErrorCatch } from './auth/auth-helpers.js';
 
 const PASSWORD_RESET_TTL_SECONDS = 3600;
 const PASSWORD_RESET_TTL_DISPLAY = '1 hour';
@@ -26,10 +26,7 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
   try {
     email = validateEmail(requireString(body.email, 'email is required').toLowerCase());
   } catch (err) {
-    if (err instanceof ValidationError) {
-      return error(req, err.message, 400);
-    }
-    throw err;
+    return handleValidationErrorCatch(err, req);
   }
 
   const forgotLimit = await checkRateLimit(env, {
@@ -112,10 +109,7 @@ export async function handleResetPassword(req, env, db) {
     token = requireString(body.token, 'token and password are required', { trim: false });
     password = requireString(body.password, 'token and password are required', { trim: false });
   } catch (err) {
-    if (err instanceof ValidationError) {
-      return error(req, err.message, 400);
-    }
-    throw err;
+    return handleValidationErrorCatch(err, req);
   }
 
   if (password.length < 8) {

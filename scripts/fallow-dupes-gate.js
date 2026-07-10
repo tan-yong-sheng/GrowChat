@@ -15,6 +15,7 @@
  * The last CLI argument before fallow's own flags is consumed as the threshold.
  */
 import { spawn } from 'node:child_process';
+import { collectOutput } from './lib/fallow-gate.js';
 
 const args = process.argv.slice(2);
 
@@ -34,26 +35,17 @@ const child = spawn('fallow', ['dupes', '--format', 'json', '--quiet', ...fallow
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
-let stdout = '';
-let stderr = '';
-
-child.stdout.on('data', (chunk) => {
-  stdout += chunk;
-});
-
-child.stderr.on('data', (chunk) => {
-  stderr += chunk;
-});
+const output = collectOutput(child);
 
 // fallow-ignore-next-line complexity
 function handleChildClose(code) {
   if (code !== 0 && code !== null) {
-    process.stderr.write(`fallow exited ${code}: ${stderr}`);
+    process.stderr.write(`fallow exited ${code}: ${output.stderr}`);
     process.exit(code);
   }
 
   try {
-    const parsed = JSON.parse(stdout);
+    const parsed = JSON.parse(output.stdout);
     const pct = parsed.stats.duplication_percentage;
 
     if (pct > threshold && threshold > 0) {
@@ -62,7 +54,7 @@ function handleChildClose(code) {
     }
 
     process.stderr.write(`\n✓ Duplication ${pct.toFixed(2)}% within threshold ${threshold}%\n`);
-    process.stdout.write(stdout);
+    process.stdout.write(output.stdout);
     process.exit(0);
   } catch {
     // fallow exited 0 but produced no JSON (unlikely); pass through

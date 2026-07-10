@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   buildProviderStats: vi.fn(),
   sortModelsByActiveThenName: vi.fn(),
   countEnabledModels: vi.fn(),
+  parseModelListSearchParams: vi.fn(),
 }));
 
 vi.mock('../../db.js', () => ({
@@ -71,6 +72,7 @@ vi.mock('./models-helpers.js', () => ({
     mocks.buildModelAttachmentCapSaveStatement(...args),
   isValidModelId: (...args) => mocks.isValidModelId(...args),
   MODEL_ATTACHMENT_CAPS_KEY: 'model_attachment_caps_v1',
+  parseModelListSearchParams: vi.fn(() => ({ limit: 0, offset: 0, query: '' })),
 }));
 
 vi.mock('./models-discovery.js', () => ({

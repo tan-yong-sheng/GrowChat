@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication — shared finalizeStreamAndHandle call pattern with chat-message-stream-send.js
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';

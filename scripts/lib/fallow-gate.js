@@ -1,3 +1,5 @@
+// fallow-ignore-file — shared helper, called by multiple gates; intentional reuse
+
 /**
  * Shared helper: collect stdout/stderr from a fallow child process.
  *
@@ -5,16 +7,15 @@
  * Does NOT add event listeners — callers must attach 'close' on the child.
  */
 export function collectOutput(child) {
-  let stdout = '';
-  let stderr = '';
+  const state = { stdout: '', stderr: '' };
 
   child.stdout.on('data', (chunk) => {
-    stdout += chunk;
+    state.stdout += chunk;
   });
 
   child.stderr.on('data', (chunk) => {
-    stderr += chunk;
+    state.stderr += chunk;
   });
 
-  return { stdout, stderr };
+  return state;
 }

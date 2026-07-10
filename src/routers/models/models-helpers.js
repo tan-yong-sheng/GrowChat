@@ -22,6 +22,20 @@ import { createRootLogger } from '../../utils/logger.js';
 
 const rootLogger = createRootLogger({});
 const CONNECTION_DISCOVERY_CACHE_TTL_MS = 60 * 1000;
+
+/**
+ * Parse common pagination/search params from a search params instance.
+ * Shared between public and admin model list handlers.
+ * @param {URLSearchParams} params
+ * @returns {{limit: number, offset: number, query: string}}
+ */
+export function parseModelListSearchParams(params) {
+  const limit = parseInt(params.get('limit') || '0', 10);
+  const offset = parseInt(params.get('offset') || '0', 10);
+  const rawQuery = params.get('q') || '';
+  const query = String(rawQuery).trim().toLowerCase();
+  return { limit, offset, query };
+}
 const connectionDiscoveryCacheByEnv = new WeakMap();
 const fallbackConnectionDiscoveryCache = new Map();
 

@@ -5,6 +5,7 @@ import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
 import { escapeHtml } from '../../utils/sanitize.js';
 import { normalizePublicRole, loadPrimaryRole } from '../../utils/user-role.js';
+import { ValidationError } from '../../errors/http-errors.js';
 
 export const MAX_LOGIN_ATTEMPTS_PER_ACCOUNT = 5;
 export const LOGIN_LOCKOUT_WINDOW_SECONDS = 3600;
@@ -138,4 +139,16 @@ export async function checkActiveAccountAndGenerateTokens(req, db, env, users, u
     user: freshUser,
     primaryRole,
   };
+}
+
+/**
+ * Handle a ValidationError that was thrown inside a try block and caught by
+ * a catch clause. Returns an error response with the ValidationError's message
+ * when the error is a ValidationError, otherwise re-throws it.
+ */
+export function handleValidationErrorCatch(err, req) {
+  if (err instanceof ValidationError) {
+    return error(req, err.message, 400);
+  }
+  throw err;
 }

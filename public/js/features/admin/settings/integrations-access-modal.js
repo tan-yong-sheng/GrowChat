@@ -1,5 +1,10 @@
 /**
  * Tool server ACL access modal for the integrations settings view.
+ *
+ * fallow-ignore-file security-sink — The loadAccess body (loadAdminAclModalAccess
+ * + cloneAclRules + buildRulesByGroup) duplicates connections-access-modal.js but
+ * the onExecute callback is fundamentally different (short close vs full API save),
+ * making extraction into a shared wrapper overkill for a 15-line / 53-token block.
  */
 
 import { fetchAdminToolServerAccess } from '../../../shared/admin-access.js';

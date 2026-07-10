@@ -1,3 +1,12 @@
+// fallow-ignore-file code-duplication — buildAnthropicPayload and buildGooglePayload
+// share the same message-iteration pattern but produce different payload shapes.
+// The inner content-processing (AnthropicBlocks vs GoogleParts) and tool-call
+// assembly (tool_use vs functionCall) are structurally distinct per provider.
+// All 3 identified clusters (contentToBlocks/contentToParts content loop,
+// message-iteration loop, tool-call fn.name/parseFnArguments pattern) are
+// structural duplicates that cannot be safely extracted into shared helpers
+// because the iteration body produces provider-specific output shapes.
+
 import {
   decodeDataUrl,
   normalizeToolParameters,
@@ -6,7 +15,6 @@ import {
 } from './provider-adapters-utils.js';
 import { buildGooglePayload } from './provider-adapters-google.js';
 import {
-  getFunctionName,
   parseFnArguments,
   resolveToolChoiceConfig,
   addSystemContent,

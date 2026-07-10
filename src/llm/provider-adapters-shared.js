@@ -30,37 +30,6 @@ import { normalizeToolChoice, contentToText } from './provider-adapters-utils.js
  */
 
 /**
- * Filter function-type tools from a tools array and normalize their parameters.
- *
- * Extracts the common pattern of iterating over tools, filtering by `type === 'function'`,
- * extracting the `function.function` object, and normalizing `parameters`.
- *
- * Used identically in:
- *  - buildGoogleTools (provider-adapters-google.js)
- *  - buildAnthropicTools (provider-adapters.js)
- *
- * @param {Array} tools - The tools array to filter
- * @param {Function} normalize - The normalize function for converting parameters
- * @returns {Array<{name: string, description: string, normalized: *}>} Filtered and normalized
- *          tools with distinct names, or `undefined` when no tools match
- */
-export function filterAndNormalizeFunctions(tools, normalize) {
-  const result = [];
-  for (const tool of Array.isArray(tools) ? tools : []) {
-    if (tool?.type !== 'function') continue;
-    const fn = tool.function || {};
-    const name = String(fn.name || '').trim();
-    if (!name) continue;
-    result.push({
-      name,
-      description: String(fn.description || ''),
-      normalized: normalize(fn.parameters),
-    });
-  }
-  return result.length ? result : undefined;
-}
-
-/**
  * Extract the function name from a tool call or function object.
  *
  * Handles the common pattern of accessing `obj.function` and

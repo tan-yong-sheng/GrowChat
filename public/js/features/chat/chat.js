@@ -2,6 +2,7 @@
 // Split from original chat.js for line-count compliance.
 
 import { rollbackOptimisticConversation } from './chat-message-stream-temp-chat.js';
+import { appendEmptyChatStateItem } from './chat-sidebar-helpers.js';
 import { renderChat as _renderChat } from './chat-html.js';
 import { getWireChatDeps } from './chat-wire-deps.js';
 import { initWireChat } from './chat-wire-init.js';
@@ -155,12 +156,7 @@ function wireChat(root) {
       const fallbackFragment = document.createDocumentFragment();
       const chatItems = Array.isArray(chats) ? chats : [];
       if (chatItems.length === 0 && !state?.chatsPagination?.loading) {
-        const emptyState = document.createElement('div');
-        emptyState.className = 'px-3 py-4 text-sm text-gray-600 sidebar-full-only';
-        emptyState.textContent = 'No chat sessions yet.';
-        const emptyItem = document.createElement('li');
-        emptyItem.appendChild(emptyState);
-        fallbackFragment.appendChild(emptyItem);
+        appendEmptyChatStateItem(fallbackFragment);
       } else {
         chatItems.slice(0, 24).forEach((chat) => {
           const handlers = getChatHandlers(chat);

@@ -3,11 +3,9 @@
  *
  * Returns extraction status for a document.
  */
-import { createDB } from '../db.js';
 import { json, error } from '../utils/response.js';
-import { createLogger } from '../utils/logger.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-import { getOwnedDocument } from './files-helpers.js';
+import { getOwnedDocument, createFileContext } from './files-helpers.js';
 
 // eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileProcessStatus(
@@ -18,9 +16,8 @@ export async function handleFileProcessStatus(
   documentId,
   requestContext = {}
 ) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
-  const db = createDB(env.DB);
+  // fallow-ignore-next-line code-duplication -- shared with files-get-handler.js
+  const { logger, db } = createFileContext(env, requestContext);
 
   try {
     const owned = await getOwnedDocument({ req, db, documentId, userId: user.sub });

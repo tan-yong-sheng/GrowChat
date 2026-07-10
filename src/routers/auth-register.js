@@ -4,10 +4,9 @@ import { createRefreshToken } from '../shared/session.js';
 import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-config.js';
 import { requireString, validateEmail } from '../validation/request.js';
 import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../services/rate-limit.js';
-import { ValidationError } from '../errors/http-errors.js';
+import { handleValidationErrorCatch, sanitizeUser } from './auth/auth-helpers.js';
 import { stripHtml } from '../utils/sanitize.js';
 import { normalizePublicRole } from '../utils/user-role.js';
-import { sanitizeUser } from './auth/auth-helpers.js';
 
 export async function handleRegister(req, env, db, users, jwtSecret, logger, sharedFns) {
   const { ensureUserRoleBinding, createAccessToken } = sharedFns;
@@ -52,10 +51,7 @@ export async function handleRegister(req, env, db, users, jwtSecret, logger, sha
       trim: false,
     });
   } catch (err) {
-    if (err instanceof ValidationError) {
-      return error(req, err.message, 400);
-    }
-    throw err;
+    return handleValidationErrorCatch(err, req);
   }
 
   if (password.length < 8) {

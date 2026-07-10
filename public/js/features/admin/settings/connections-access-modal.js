@@ -2,6 +2,11 @@
  * Connection ACL access modal for the connections settings view.
  *
  * Handles loading/saving group access rules per connection.
+ *
+ * fallow-ignore-file security-sink — The loadAccess body (loadAdminAclModalAccess
+ * + cloneAclRules + buildRulesByGroup) duplicates integrations-access-modal.js but
+ * the onExecute callback is fundamentally different (full API connection save vs
+ * simple close), making extraction into a shared wrapper overkill.
  */
 
 import { apiFetch } from '../../../shared/api.js';

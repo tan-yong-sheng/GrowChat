@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   evaluateModelAclAccess: vi.fn(),
   splitModelScopeByUserVisibility: vi.fn(),
   matchesModelQuery: vi.fn(),
+  parseModelListSearchParams: vi.fn(),
 }));
 
 vi.mock('../../db.js', () => ({
@@ -55,6 +56,7 @@ vi.mock('./models-helpers.js', () => ({
   getModelAccessMap: (...args) => mocks.getModelAccessMap(...args),
   loadModelAttachmentCaps: (...args) => mocks.loadModelAttachmentCaps(...args),
   getModelAttachmentCapsEntry: (...args) => mocks.getModelAttachmentCapsEntry(...args),
+  parseModelListSearchParams: (...args) => mocks.parseModelListSearchParams(...args),
 }));
 
 vi.mock('./models-discovery.js', () => ({
@@ -142,6 +144,13 @@ describe('handlePublicModelsList', () => {
         connection.includes(query) ||
         provider.includes(query)
       );
+    });
+    mocks.parseModelListSearchParams.mockImplementation((params) => {
+      const limit = parseInt(params.get('limit') || '0', 10);
+      const offset = parseInt(params.get('offset') || '0', 10);
+      const rawQuery = params.get('q') || '';
+      const query = String(rawQuery).trim().toLowerCase();
+      return { limit, offset, query };
     });
   });
 

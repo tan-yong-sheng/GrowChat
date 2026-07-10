@@ -9,7 +9,11 @@ import {
   saveModelAclRulesForModel,
 } from '../../utils/model-acl.js';
 import { getModelAccessMap } from './models-helpers.js';
-import { invalidJsonBody, requireModelAdmin } from './models-public-crud-helpers.js';
+import {
+  handleStatusError,
+  invalidJsonBody,
+  requireModelAdmin,
+} from './models-public-crud-helpers.js';
 import {
   extractModelIdFromAccessPath,
   loadGroups,
@@ -45,9 +49,8 @@ async function handleModelAccessGet(req, env, _ctx, user, path, { logger }) {
   }
 }
 
-/* eslint-disable max-params, max-statements -- helper needs all context parameters */
+// eslint-disable-next-line max-params -- helper needs all context parameters
 async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
-  /* eslint-enable */
   let body;
   try {
     body = JSON.parse(await req.text());
@@ -96,15 +99,12 @@ async function handleModelAccessPut(req, env, _ctx, user, path, { logger }) {
     });
   } catch (err) {
     logger.error('Update model access failed', { error: err?.message || err });
-    if (err.status) {
-      return error(
-        req,
-        err.message,
-        err.status,
-        err.invalid ? { invalid: err.invalid } : undefined
-      );
-    }
-    return error(req, 'Failed to update model access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    return handleStatusError(
+      req,
+      err,
+      'Failed to update model access',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
   }
 }
 

@@ -1,5 +1,6 @@
 import { groupChatsByTime } from '../../shared/utils/time-grouping.js';
 import { buildChatRows } from './chat-render-helpers.js';
+import { appendEmptyChatStateItem } from './chat-sidebar-helpers.js';
 
 export function buildChatSidebarListFragment({
   chats = [],
@@ -25,12 +26,7 @@ export function buildChatSidebarListFragment({
   const fragment = document.createDocumentFragment();
 
   if (mainListChats.length === 0 && !state?.chatsPagination?.loading) {
-    const emptyState = document.createElement('div');
-    emptyState.className = 'px-3 py-4 text-sm text-gray-600 sidebar-full-only';
-    emptyState.textContent = 'No chat sessions yet.';
-    const emptyItem = document.createElement('li');
-    emptyItem.appendChild(emptyState);
-    fragment.appendChild(emptyItem);
+    appendEmptyChatStateItem(fragment);
   }
 
   if (pinnedChats.length > 0) {

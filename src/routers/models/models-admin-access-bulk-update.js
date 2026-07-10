@@ -6,7 +6,11 @@ import { chunkedBatch } from '../../utils/db-helpers.js';
 import { buildModelAclRuleSaveStatements } from '../../utils/model-acl.js';
 import { getModelAccessMap } from './models-helpers.js';
 import { normalizeModelId } from '../../admin/tool-servers.js';
-import { invalidJsonBody, requireModelAdmin } from './models-public-crud-helpers.js';
+import {
+  handleStatusError,
+  invalidJsonBody,
+  requireModelAdmin,
+} from './models-public-crud-helpers.js';
 import {
   filterModelRulesByGroup,
   loadValidGroupIds,
@@ -124,14 +128,11 @@ export async function handleAdminModelsAccessBulkUpdate(req, env, _ctx, user, _p
     });
   } catch (err) {
     logger.error('Bulk model access update failed', { error: err?.message || err });
-    if (err.status) {
-      return error(
-        req,
-        err.message,
-        err.status,
-        err.invalid ? { invalid: err.invalid } : undefined
-      );
-    }
-    return error(req, 'Failed to update model access', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    return handleStatusError(
+      req,
+      err,
+      'Failed to update model access',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
   }
 }
