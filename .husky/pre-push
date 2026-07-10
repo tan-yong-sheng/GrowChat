@@ -1,1 +1,1 @@
-pnpm run prepush
+pnpm run prepush:scoped
