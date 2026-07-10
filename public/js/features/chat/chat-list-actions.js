@@ -25,6 +25,10 @@ export function createChatListHandlers({
     }
   },
 } = {}) {
+  const handleFetchError = async (res, action) => {
+    const payload = await res.json().catch(() => ({}));
+    alertFn(payload.error || `Failed to ${action} (${res.status})`);
+  };
   return (chat = {}) => ({
     onClick: (id) => {
       if (isTempChatId(id)) {
@@ -54,8 +58,7 @@ export function createChatListHandlers({
       if (isTempChatId(id)) return;
       const res = await apiFetch(`/api/chats/${id}/pin`, { method: 'POST' });
       if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        alertFn(payload.error || `Failed to pin chat (${res.status})`);
+        await handleFetchError(res, 'pin');
         return;
       }
 
@@ -65,8 +68,7 @@ export function createChatListHandlers({
       if (isTempChatId(id)) return;
       const res = await apiFetch(`/api/chats/${id}/clone`, { method: 'POST' });
       if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        alertFn(payload.error || `Failed to duplicate chat (${res.status})`);
+        await handleFetchError(res, 'duplicate');
         return;
       }
 

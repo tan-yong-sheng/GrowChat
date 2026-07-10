@@ -3,8 +3,28 @@
  * Used by both the account integrations (account-integrations-events.js)
  * and admin integrations (integrations.js) views to avoid duplicating
  * the row-level DOM update pattern.
+ *
+ * Also consolidates cross-file form-field reading patterns from
+ * account-integrations-modal.js, integrations-modal-ops.js, and
+ * integrations-event-handlers.js.
  */
 import { updateToolToggle } from './tool-toggle.js';
+
+/**
+ * Update auth field visibility based on the selected auth type.
+ * Toggles visibility of bearer/basic/oauth field groups.
+ *
+ * @param {Element} container - The container element to scope queries
+ * @param {string} authType - The auth type to show fields for
+ */
+export function updateAuthFields(container, authType) {
+  const bearer = container.querySelector('#auth-bearer-fields');
+  const basic = container.querySelector('#auth-basic-fields');
+  const oauth = container.querySelector('#auth-oauth-fields');
+  if (bearer) bearer.classList.toggle('hidden', authType !== 'bearer');
+  if (basic) basic.classList.toggle('hidden', authType !== 'basic');
+  if (oauth) oauth.classList.toggle('hidden', authType !== 'oauth');
+}
 
 /**
  * Update a server row's disabled-badge and access-button visibility.
@@ -58,4 +78,35 @@ export function updateServerToggleUI(serverToggle, enabled) {
     knob.classList.toggle('translate-x-4', enabled);
     knob.classList.toggle('translate-x-0', !enabled);
   }
+}
+
+/**
+ * Read a form field value from a container element.
+ * Replaces the repeated `container.querySelector(selector)?.value || ''` pattern
+ * across integration modal files.
+ *
+ * @param {Element} container - The container or parent element to scope queries
+ * @param {string} selector - CSS selector for the input/field element
+ * @returns {string} Field value, or empty string
+ */
+export function readFormFieldValue(container, selector) {
+  return container?.querySelector(selector)?.value || '';
+}
+
+/**
+ * Read all OAuth form fields from a container and return them as a
+ * typed object. Replaces the inline `readOAuthFormFields()` pattern
+ * duplicated across integration modal files.
+ *
+ * @param {Element|Document} container - The container to scope queries
+ * @returns {object} { oauthClientName, oauthScope, oauthClientId, oauthClientSecret, oauthTokenMethod }
+ */
+export function readOAuthFormFields(container) {
+  return {
+    oauthClientName: readFormFieldValue(container, '#server-auth-oauth-client-name'),
+    oauthScope: readFormFieldValue(container, '#server-auth-oauth-scope'),
+    oauthClientId: readFormFieldValue(container, '#server-auth-oauth-client-id'),
+    oauthClientSecret: readFormFieldValue(container, '#server-auth-oauth-client-secret'),
+    oauthTokenMethod: readFormFieldValue(container, '#server-auth-oauth-token-method'),
+  };
 }

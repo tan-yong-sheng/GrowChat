@@ -13,6 +13,7 @@ import {
 import { clearModalHash, setModalHash } from '../../../shared/utils/modal-hash.js';
 import { renderLoadingSkeleton, updateToggleButton } from './acl-modal-shared.js';
 import { updateToolToggle } from '../../../shared/components/tool-toggle.js';
+import { updateAuthFields as sharedUpdateAuthFields } from '../../../shared/components/integrations-shared.js';
 
 export function createIntegrationsModalOps(deps) {
   const { container, integrationsState } = deps;
@@ -94,12 +95,7 @@ export function createIntegrationsModalOps(deps) {
   };
 
   const updateAuthFields = (authType) => {
-    const bearer = container.querySelector('#auth-bearer-fields');
-    const basic = container.querySelector('#auth-basic-fields');
-    const oauth = container.querySelector('#auth-oauth-fields');
-    if (bearer) bearer.classList.toggle('hidden', !shouldShowAuthField(authType, 'bearer'));
-    if (basic) basic.classList.toggle('hidden', !shouldShowAuthField(authType, 'basic'));
-    if (oauth) oauth.classList.toggle('hidden', !shouldShowAuthField(authType, 'oauth'));
+    sharedUpdateAuthFields(container, authType);
   };
 
   const fillModalFields = (server) => {

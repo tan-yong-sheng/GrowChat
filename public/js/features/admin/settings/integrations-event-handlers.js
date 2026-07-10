@@ -5,6 +5,10 @@
 import { apiFetch } from '../../../shared/api.js';
 import { updateAdminToolServerAccess } from '../../../shared/admin-access.js';
 import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-server-sync.js';
+import {
+  readFormFieldValue,
+  readOAuthFormFields,
+} from '../../../shared/components/integrations-shared.js';
 
 export function createIntegrationsEventHandlers(deps) {
   const {
@@ -334,25 +338,13 @@ export function createIntegrationsEventHandlers(deps) {
    */
   const buildRunVerifyArgs = () => ({
     serverId: integrationsState.selectedServer?.id || '',
-    url: container.querySelector('#server-url')?.value || '',
-    authType: container.querySelector('#server-auth-type')?.value || 'none',
-    bearerToken: container.querySelector('#server-auth-bearer')?.value || '',
-    basicUser: container.querySelector('#server-auth-basic-username')?.value || '',
-    basicPass: container.querySelector('#server-auth-basic-password')?.value || '',
-    headers: container.querySelector('#server-headers')?.value || '',
+    url: readFormFieldValue(container, '#server-url'),
+    authType: readFormFieldValue(container, '#server-auth-type') || 'none',
+    bearerToken: readFormFieldValue(container, '#server-auth-bearer'),
+    basicUser: readFormFieldValue(container, '#server-auth-basic-username'),
+    basicPass: readFormFieldValue(container, '#server-auth-basic-password'),
+    headers: readFormFieldValue(container, '#server-headers'),
   });
-
-  /**
-   * Read OAuth form fields from the DOM.
-   */
-  const readOAuthFormFields = (target) => {
-    const oauthClientName = target.querySelector('#server-auth-oauth-client-name')?.value || '';
-    const oauthScope = target.querySelector('#server-auth-oauth-scope')?.value || '';
-    const oauthClientId = target.querySelector('#server-auth-oauth-client-id')?.value || '';
-    const oauthClientSecret = target.querySelector('#server-auth-oauth-client-secret')?.value || '';
-    const oauthTokenMethod = target.querySelector('#server-auth-oauth-token-method')?.value || '';
-    return { oauthClientName, oauthScope, oauthClientId, oauthClientSecret, oauthTokenMethod };
-  };
 
   /**
    * Find a tool server by its id.
