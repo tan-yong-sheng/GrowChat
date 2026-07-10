@@ -1,4 +1,4 @@
-// fallow-ignore-file code-duplication — shared finalizeStreamAndHandle call pattern with chat-message-stream-send.js
+// fallow-ignore-file code-duplication
 import { isTempMessageId } from '../../shared/utils/chat-cache.js';
 import { applyStreamingAssistantText } from './chat-message-stream-assistant.js';
 import { createOptimisticTempMessages } from '../../shared/utils/optimistic-messages.js';
@@ -14,7 +14,7 @@ import {
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 import { bindChatMessageUiActions } from './chat-message-ui-actions.js';
-// fallow-ignore-next-line code-duplication — shared param names
+// fallow-ignore-next-line code-duplication
 // See CHAT_MESSAGE_PARAM_NAMES in chat-message-params.js for the canonical list
 export function bindChatMessageActions({
   messagesList,

@@ -1,7 +1,7 @@
 /**
  * Public Models List Handler - GET /api/models
  */
-// fallow-ignore-file code-duplication — orchestration pattern only; shared helpers already extracted
+// fallow-ignore-file code-duplication
 import { jsonCached, createWeakEtag, error } from '../../utils/response.js';
 import { createDB } from '../../db.js';
 import { getConfigBool } from '../../utils/app-config.js';

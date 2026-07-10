@@ -1,4 +1,4 @@
-// fallow-ignore-file code-duplication: filterModelRulesByGroup shares principal-type check with filterAclRulesByGroup but has different error handling (return vs throw)
+// fallow-ignore-file code-duplication
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error } from '../../utils/response.js';
 import { normalizeModelAclRule } from '../../utils/model-acl.js';

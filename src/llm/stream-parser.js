@@ -1,4 +1,4 @@
-// fallow-ignore-file code-duplication: parallel cross-boundary helper, intentional
+// fallow-ignore-file code-duplication
 import {
   DEFAULT_REASONING_TAGS,
   getPotentialStartIndex,

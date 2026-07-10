@@ -16,7 +16,7 @@ export async function handleFileProcessStatus(
   documentId,
   requestContext = {}
 ) {
-  // fallow-ignore-next-line code-duplication -- shared with files-get-handler.js
+  // fallow-ignore-next-line code-duplication
   const { logger, db } = createFileContext(env, requestContext);
 
   try {

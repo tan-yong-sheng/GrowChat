@@ -1,4 +1,4 @@
-// fallow-ignore-file: dup:686c74a6 — auth+fetch pattern is too tightly integrated for dedup
+// fallow-ignore-file code-duplication
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { createDB } from '../../db.js';
 import { authorize, logAuditEvent } from '../../utils/authorize.js';

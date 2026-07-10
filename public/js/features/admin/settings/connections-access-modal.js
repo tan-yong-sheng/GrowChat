@@ -3,7 +3,7 @@
  *
  * Handles loading/saving group access rules per connection.
  *
- * fallow-ignore-file security-sink — The loadAccess body (loadAdminAclModalAccess
+ * fallow-ignore-file security-sink
  * + cloneAclRules + buildRulesByGroup) duplicates integrations-access-modal.js but
  * the onExecute callback is fundamentally different (full API connection save vs
  * simple close), making extraction into a shared wrapper overkill.

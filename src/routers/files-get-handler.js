@@ -9,7 +9,7 @@ import { HTTP_STATUS } from '../shared/http-status.js';
 
 // eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileGet(req, env, ctx, user, documentId, requestContext = {}) {
-  // fallow-ignore-next-line code-duplication -- shared with files-process-status-handler.js
+  // fallow-ignore-next-line code-duplication
   const { logger, db } = createFileContext(env, requestContext);
 
   try {

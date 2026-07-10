@@ -137,7 +137,7 @@ export function createChatRenderController({
     });
 
     // Maintained via CHAT_MESSAGE_PARAM_NAMES in chat-message-params.js
-    // fallow-ignore-next-line code-duplication — shared param names
+    // fallow-ignore-next-line code-duplication
     bindChatMessageActions({
       messagesList,
       messages,

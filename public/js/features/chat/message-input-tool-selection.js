@@ -2,7 +2,7 @@
  * Tool selection controller for the message input.
  * Manages MCP tool server selection state, rendering, and interaction.
  */
-// fallow-ignore-file code-duplication — shared tool-filtering pattern with src/routers/chat.js;
+// fallow-ignore-file code-duplication
 // the .filter() predicate is identical but .map() transformations differ (normalizeToolNames vs inline)
 
 import { state } from '../../shared/store.js';

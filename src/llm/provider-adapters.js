@@ -1,4 +1,4 @@
-// fallow-ignore-file code-duplication — buildAnthropicPayload and buildGooglePayload
+// fallow-ignore-file code-duplication
 // share the same message-iteration pattern but produce different payload shapes.
 // The inner content-processing (AnthropicBlocks vs GoogleParts) and tool-call
 // assembly (tool_use vs functionCall) are structurally distinct per provider.
