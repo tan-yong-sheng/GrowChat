@@ -7,6 +7,11 @@ import { buildTraceAttrs } from '../../../shared/utils/trace-attrs.js';
 import { createIntegrationsModalOps } from './integrations-modal-ops.js';
 import { createIntegrationsEventHandlers } from './integrations-event-handlers.js';
 import { openToolServerAccessModal } from './integrations-access-modal.js';
+import { prepareToolPreview } from '../../../shared/components/tool-preview.js';
+import {
+  updateServerRowVisibility,
+  updateAllToolToggles,
+} from '../../../shared/components/integrations-shared.js';
 
 export function renderIntegrationsSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'integrations';
@@ -87,14 +92,8 @@ export function renderIntegrationsSettings(container, data) {
               tools.length
                 ? tools
                     .map((tool) => {
-                      const description = String(tool.description || '');
-                      const maxLen = 160;
-                      const isExpanded = Boolean(tool._expanded);
-                      const hasMore = description.length > maxLen;
-                      const preview =
-                        hasMore && !isExpanded
-                          ? `${description.slice(0, maxLen).trimEnd()}…`
-                          : description;
+                      const { description, preview, hasMore, isExpanded } =
+                        prepareToolPreview(tool);
                       const toolEnabled = tool.enabled !== false;
                       return `
                 <div class="rounded-md border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
@@ -144,21 +143,10 @@ export function renderIntegrationsSettings(container, data) {
     const server = integrationsState.toolServers.find((entry) => entry.id === serverId);
     if (!row || !server) return;
     const serverEnabled = server.enabled !== false;
-    row.classList.toggle('opacity-70', !serverEnabled);
-    const badge = row.querySelector('[data-server-disabled-badge]');
-    if (badge) badge.classList.toggle('hidden', serverEnabled);
-    const accessBtn = row.querySelector('.tool-access-btn');
-    if (accessBtn) accessBtn.classList.toggle('hidden', !serverEnabled || !canManageAcls);
+    updateServerRowVisibility(row, serverEnabled, canManageAcls);
     const serverToggle = row.querySelector('.server-toggle');
     if (serverToggle) updateServerToggle(serverToggle, serverEnabled);
-    row.querySelectorAll('.tool-toggle').forEach((toggle) => {
-      const toolName = toggle.dataset.toolName;
-      const tool = Array.isArray(server.tools)
-        ? server.tools.find((entry) => entry.name === toolName)
-        : null;
-      const toolEnabled = tool ? tool.enabled !== false : false;
-      updateToolToggle(toggle, toolEnabled, serverEnabled);
-    });
+    updateAllToolToggles(row, server, serverEnabled);
   };
 
   const updateToolRowState = (serverId, toolName) => {

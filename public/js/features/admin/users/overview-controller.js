@@ -5,7 +5,15 @@ import { apiFetch } from '../../../shared/api.js';
 import { fetchAdminUserAccess } from '../../../shared/admin-access.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
 import { displayFieldErrors, clearFormErrors } from '../../../shared/form-validation.js';
-import { escapeHtml, normalizeRole, getActionError, loadAdminRoles } from './overview-helpers.js';
+import { escapeHtml, normalizeRole, loadAdminRoles } from './overview-helpers.js';
+import {
+  adminApiFetch,
+  setButtonDisabledStyles,
+  validateFormCheck,
+  buildUserPayloadFromForm,
+  isFormDirty,
+  bindDirtyListeners,
+} from './overview-shared.js';
 import {
   renderAccessInspectorContent,
   renderAclInspectorModal,
@@ -95,25 +103,15 @@ export function createOverviewController(ctx) {
   }
 
   function syncPendingState() {
-    tbody.querySelectorAll('.btn-change-role').forEach((btn) => {
-      btn.disabled = isPending('role', btn.dataset.userId);
-      btn.classList.toggle('opacity-50', btn.disabled);
-      btn.classList.toggle('pointer-events-none', btn.disabled);
-    });
-    tbody.querySelectorAll('.btn-inspect-user-access').forEach((btn) => {
-      btn.disabled = isPending('access', btn.dataset.userId);
-      btn.classList.toggle('opacity-50', btn.disabled);
-      btn.classList.toggle('pointer-events-none', btn.disabled);
-    });
-    tbody.querySelectorAll('.btn-edit-user').forEach((btn) => {
-      btn.disabled = isPending('edit', btn.dataset.userId);
-      btn.classList.toggle('opacity-50', btn.disabled);
-      btn.classList.toggle('pointer-events-none', btn.disabled);
-    });
-    tbody.querySelectorAll('.btn-delete-user').forEach((btn) => {
-      btn.disabled = isPending('delete', btn.dataset.userId);
-      btn.classList.toggle('opacity-50', btn.disabled);
-      btn.classList.toggle('pointer-events-none', btn.disabled);
+    [
+      ['.btn-change-role', 'role'],
+      ['.btn-inspect-user-access', 'access'],
+      ['.btn-edit-user', 'edit'],
+      ['.btn-delete-user', 'delete'],
+    ].forEach(([sel, type]) => {
+      tbody.querySelectorAll(sel).forEach((btn) => {
+        setButtonDisabledStyles(btn, isPending(type, btn.dataset.userId));
+      });
     });
   }
 
@@ -127,21 +125,18 @@ export function createOverviewController(ctx) {
         const nextRole = currentRole === 'admin' ? 'member' : 'admin';
         if (!window.confirm(`Change role for ${userName} to ${nextRole.toUpperCase()}?`)) return;
         try {
-          const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-              primary_role: nextRole,
-              account_status: userStatus,
-              name: userName,
-              email: userEmail,
-            }),
-          });
-          const responsePayload = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            throw new Error(
-              getActionError(responsePayload, `Failed to update user (${res.status})`)
-            );
-          }
+          const { json: responsePayload } = await adminApiFetch(
+            `/api/admin/users/${btn.dataset.userId}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify({
+                primary_role: nextRole,
+                account_status: userStatus,
+                name: userName,
+                email: userEmail,
+              }),
+            }
+          );
           actions.updateUser(responsePayload.user);
         } catch (err) {
           window.alert(err?.message || 'Failed to update user.');
@@ -159,15 +154,9 @@ export function createOverviewController(ctx) {
         )
           return;
         try {
-          const res = await apiFetch(`/api/admin/users/${btn.dataset.userId}`, {
+          await adminApiFetch(`/api/admin/users/${btn.dataset.userId}`, {
             method: 'DELETE',
           });
-          const responsePayload = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            throw new Error(
-              getActionError(responsePayload, `Failed to delete user (${res.status})`)
-            );
-          }
           actions.removeUser(btn.dataset.userId);
         } catch (err) {
           window.alert(err?.message || 'Failed to delete user.');
@@ -249,8 +238,8 @@ export function createOverviewController(ctx) {
           const saveBtn = modal?.querySelector('#edit-user-save-btn');
 
           const fields = {
-            primaryRole: form?.querySelector('[name="primary_role"]'),
-            accountStatus: form?.querySelector('[name="account_status"]'),
+            primary_role: form?.querySelector('[name="primary_role"]'),
+            account_status: form?.querySelector('[name="account_status"]'),
             name: form?.querySelector('[name="name"]'),
             email: form?.querySelector('[name="email"]'),
             password: form?.querySelector('[name="password"]'),
@@ -267,46 +256,24 @@ export function createOverviewController(ctx) {
             modal?.remove();
           };
 
-          const isDirty = () =>
-            normalizeRole(fields.primaryRole?.value || 'member') !== baseValues.primary_role ||
-            String(fields.accountStatus?.value || 'active') !== baseValues.account_status ||
-            String(fields.name?.value || '').trim() !== baseValues.name ||
-            String(fields.email?.value || '').trim() !== baseValues.email ||
-            String(fields.password?.value || '').trim() !== '';
-
           const syncDirty = () => {
             setModalSaveButtonState(saveBtn, {
-              enabled: isDirty(),
+              enabled: isFormDirty(fields, baseValues),
               saving: false,
             });
           };
 
           const saveEdit = async () => {
             displayFieldErrors(form);
-            if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
-
-            const fd = new FormData(form);
-            const payload = {
-              primary_role: String(fd.get('primary_role') || 'member').trim(),
-              account_status: String(fd.get('account_status') || 'active'),
-              name: String(fd.get('name') || '').trim(),
-              email: String(fd.get('email') || '').trim(),
-            };
-            const password = String(fd.get('password') || '');
-            if (password) payload.password = password;
+            if (!validateFormCheck(form)) return;
+            const payload = buildUserPayloadFromForm(form);
 
             clearFormErrors(form);
             try {
-              const res = await apiFetch(`/api/admin/users/${user.id}`, {
+              const { json: responsePayload } = await adminApiFetch(`/api/admin/users/${user.id}`, {
                 method: 'PUT',
                 body: JSON.stringify(payload),
               });
-              const responsePayload = await res.json().catch(() => ({}));
-              if (!res.ok) {
-                throw new Error(
-                  getActionError(responsePayload, `Failed to update user (${res.status})`)
-                );
-              }
               actions.updateUser(responsePayload.user);
               close();
             } catch (err) {
@@ -322,10 +289,7 @@ export function createOverviewController(ctx) {
           saveBtn?.addEventListener('click', () => {
             saveEdit();
           });
-          form?.querySelectorAll('input, select, textarea').forEach((el) => {
-            el.addEventListener('input', syncDirty);
-            el.addEventListener('change', syncDirty);
-          });
+          bindDirtyListeners(form, syncDirty);
           form?.addEventListener('submit', async (e) => {
             e.preventDefault();
             saveEdit();

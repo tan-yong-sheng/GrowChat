@@ -5,7 +5,7 @@ import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { validateAndFilterAclRules } from './admin-acl-filter-access-shared.js';
-import { parseIdsFromUrl, loadGroups } from './admin-acl-groups-shared.js';
+import { parseIdsFromUrl, loadGroups, getValidGroupIds } from './admin-acl-groups-shared.js';
 import {
   buildToolServerAclRuleSaveStatements,
   loadToolServerAclRules,
@@ -69,8 +69,7 @@ export async function handleAdminToolServersAccess(
 
     try {
       const servers = await loadToolServers(db);
-      const groups = await db.all('SELECT id FROM groups');
-      const validGroupIds = new Set(groups.map((group) => group.id));
+      const validGroupIds = await getValidGroupIds(db);
       const statements = [];
       const normalizedUpdates = [];
       let includeSchemaStatements = true;
@@ -174,8 +173,7 @@ export async function handleAdminToolServersAccess(
         if (!currentServer || currentServer.enabled === false) {
           return error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT);
         }
-        const groups = await db.all('SELECT id FROM groups');
-        const validGroupIds = new Set(groups.map((group) => group.id));
+        const validGroupIds = await getValidGroupIds(db);
         const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
           rules: body.rules,
           resourceId: toolServerId,

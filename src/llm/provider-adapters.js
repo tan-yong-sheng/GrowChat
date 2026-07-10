@@ -6,6 +6,7 @@ import {
 } from './provider-adapters-utils.js';
 import { buildGooglePayload } from './provider-adapters-google.js';
 import {
+  getFunctionName,
   parseFnArguments,
   resolveToolChoiceConfig,
   addSystemContent,

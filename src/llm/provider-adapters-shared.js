@@ -61,21 +61,22 @@ export function filterAndNormalizeFunctions(tools, normalize) {
 }
 
 /**
+ * Extract the function name from a tool call or function object.
+ *
+ * Handles the common pattern of accessing `obj.function` and
+ * extracting the function name, used by all provider-specific
+ * adapter modules when iterating over tool calls or tool definitions.
+ *
+ * @param {Object} obj - Object with a `.function` property
+ * @returns {string|undefined} The function name, or undefined
+ */
+export function getFunctionName(obj) {
+  const fn = obj?.function || {};
+  return String(fn.name || '').trim() || undefined;
+}
+
+/**
  * Parse raw tool call function arguments from `fn.arguments`.
- *
- * Handles both JSON-string (already serialized) and pre-parsed cases
- * with a try/catch guard that preserves the original value on parse
- * failure. The try/catch is required by all provider adapters to handle
- * malformed JSON in tool call arguments gracefully.
- *
- * Used identically in:
- *  - buildGooglePayload (provider-adapters-google.js)
- *  - buildAnthropicPayload (provider-adapters.js)
- *
- * @param {*} rawArgs - The raw `fn.arguments` value from a tool call
- * @returns {*} Parsed JSON object (if rawArgs was a valid JSON string),
- *          the original rawArgs string (on parse failure),
- *          or `{}` (when rawArgs is null/undefined)
  */
 export function parseFnArguments(rawArgs) {
   if (typeof rawArgs === 'string') {

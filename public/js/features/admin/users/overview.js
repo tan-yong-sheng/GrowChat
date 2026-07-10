@@ -3,7 +3,15 @@
  */
 import { apiFetch } from '../../../shared/api.js';
 import { setModalSaveButtonState } from '../modal-save-helpers.js';
-import { getActionError, loadAdminRoles } from './overview-helpers.js';
+import { escapeHtml, normalizeRole, getActionError, loadAdminRoles } from './overview-helpers.js';
+import {
+  adminApiFetch,
+  setButtonDisabledStyles,
+  validateFormCheck,
+  buildUserPayloadFromForm,
+  isFormDirty,
+  bindDirtyListeners,
+} from './overview-shared.js';
 import { renderAddUserModal } from './overview-render.js';
 import { createOverviewController } from './overview-controller.js';
 
@@ -210,8 +218,8 @@ export function renderUserOverview(container, data, actions) {
     const csvTab = modal?.querySelector('[data-add-user-tab="csv"]');
     const saveBtn = modal?.querySelector('#add-user-save-btn');
     const fields = {
-      primaryRole: form?.querySelector('[name="primary_role"]'),
-      accountStatus: form?.querySelector('[name="account_status"]'),
+      primary_role: form?.querySelector('[name="primary_role"]'),
+      account_status: form?.querySelector('[name="account_status"]'),
       name: form?.querySelector('[name="name"]'),
       email: form?.querySelector('[name="email"]'),
       password: form?.querySelector('[name="password"]'),
@@ -226,15 +234,8 @@ export function renderUserOverview(container, data, actions) {
       password: '',
       csv: '',
     };
-    const isDirty = () =>
-      String(fields.primaryRole?.value || 'member') !== baseValues.primary_role ||
-      String(fields.accountStatus?.value || 'active') !== baseValues.account_status ||
-      String(fields.name?.value || '').trim() !== baseValues.name ||
-      String(fields.email?.value || '').trim() !== baseValues.email ||
-      String(fields.password?.value || '').trim() !== baseValues.password ||
-      String(fields.csv?.value || '').trim() !== baseValues.csv;
     const syncDirty = () => {
-      modalState.dirty = isDirty();
+      modalState.dirty = isFormDirty(fields, baseValues);
       setModalSaveButtonState(saveBtn, { enabled: modalState.dirty, saving: false });
     };
     const close = () => {
@@ -268,41 +269,22 @@ export function renderUserOverview(container, data, actions) {
       void (async () => {
         try {
           if (modalState.activeTab === 'csv') {
-            if (typeof csvForm?.reportValidity === 'function' && !csvForm.reportValidity()) return;
-            const fd = new FormData(csvForm);
-            const csv = String(fd.get('csv') || '').trim();
-            const res = await apiFetch('/api/admin/users/import', {
+            if (!validateFormCheck(csvForm)) return;
+            const { json: responsePayload } = await adminApiFetch('/api/admin/users/import', {
               method: 'POST',
-              body: JSON.stringify({ csv }),
+              body: JSON.stringify({
+                csv: String(csvForm.querySelector('[name="csv"]').value || '').trim(),
+              }),
             });
-            const responsePayload = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(
-                getActionError(responsePayload, `Failed to import users (${res.status})`)
-              );
-            }
             actions.invalidateCache?.();
             await actions.reload?.({ preserveContent: true });
           } else {
-            if (typeof form?.reportValidity === 'function' && !form.reportValidity()) return;
-            const fd = new FormData(form);
-            const payload = {
-              primary_role: String(fd.get('primary_role') || 'member').trim(),
-              account_status: String(fd.get('account_status') || 'active'),
-              name: String(fd.get('name') || '').trim(),
-              email: String(fd.get('email') || '').trim(),
-              password: String(fd.get('password') || ''),
-            };
-            const res = await apiFetch('/api/admin/users', {
+            if (!validateFormCheck(form)) return;
+            const payload = buildUserPayloadFromForm(form);
+            const { json: responsePayload } = await adminApiFetch('/api/admin/users', {
               method: 'POST',
               body: JSON.stringify(payload),
             });
-            const responsePayload = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(
-                getActionError(responsePayload, `Failed to create user (${res.status})`)
-              );
-            }
             actions.prependUser(responsePayload.user);
           }
           close();
@@ -318,14 +300,8 @@ export function renderUserOverview(container, data, actions) {
     saveBtn?.addEventListener('click', () => {
       saveCurrent();
     });
-    form?.querySelectorAll('input, select, textarea').forEach((el) => {
-      el.addEventListener('input', syncDirty);
-      el.addEventListener('change', syncDirty);
-    });
-    csvForm?.querySelectorAll('input, select, textarea').forEach((el) => {
-      el.addEventListener('input', syncDirty);
-      el.addEventListener('change', syncDirty);
-    });
+    bindDirtyListeners(form, syncDirty);
+    bindDirtyListeners(csvForm, syncDirty);
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
       saveCurrent();

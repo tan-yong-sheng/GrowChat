@@ -6,6 +6,7 @@ import {
   contentToText,
 } from './provider-adapters-utils.js';
 import {
+  getFunctionName,
   parseFnArguments,
   resolveToolChoiceConfig,
   addSystemContent,
@@ -53,9 +54,9 @@ function buildGoogleTools(tools = [], normalize = normalizeToolParameters) {
   const functionDeclarations = [];
   for (const tool of Array.isArray(tools) ? tools : []) {
     if (tool?.type !== 'function') continue;
-    const fn = tool.function || {};
-    const name = String(fn.name || '').trim();
+    const name = getFunctionName(tool);
     if (!name) continue;
+    const fn = tool.function || {};
     functionDeclarations.push({
       name,
       description: String(fn.description || ''),

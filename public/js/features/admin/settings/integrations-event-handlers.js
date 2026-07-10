@@ -36,7 +36,7 @@ export function createIntegrationsEventHandlers(deps) {
       if (toolToggle) {
         const id = toolToggle.dataset.serverId;
         const toolName = toolToggle.dataset.toolName;
-        const server = integrationsState.toolServers.find((entry) => entry.id === id);
+        const server = findServerById(id);
         if (server && server.enabled !== false && Array.isArray(server.tools)) {
           const tool = server.tools.find((entry) => entry.name === toolName);
           if (tool) {
@@ -55,7 +55,7 @@ export function createIntegrationsEventHandlers(deps) {
       const toggle = e.target.closest('.server-toggle');
       if (toggle) {
         const id = toggle.dataset.id;
-        const server = integrationsState.toolServers.find((s) => s.id === id);
+        const server = findServerById(id);
         if (server) {
           const previousState = server.enabled;
           server.enabled = !server.enabled;
@@ -71,7 +71,7 @@ export function createIntegrationsEventHandlers(deps) {
       const toolsToggle = e.target.closest('.tools-toggle');
       if (toolsToggle) {
         const id = toolsToggle.dataset.id;
-        const server = integrationsState.toolServers.find((s) => s.id === id);
+        const server = findServerById(id);
         if (server) {
           server.toolsExpanded = !server.toolsExpanded;
           renderToolServersList();
@@ -82,7 +82,7 @@ export function createIntegrationsEventHandlers(deps) {
       if (descToggle) {
         const serverId = descToggle.dataset.serverId;
         const toolName = descToggle.dataset.toolName;
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
+        const server = findServerById(serverId);
         if (server && Array.isArray(server.tools)) {
           const tool = server.tools.find((t) => t.name === toolName);
           if (tool) {
@@ -95,7 +95,7 @@ export function createIntegrationsEventHandlers(deps) {
       const editBtn = e.target.closest('.edit-server-btn');
       if (editBtn) {
         const id = editBtn.dataset.id;
-        const server = integrationsState.toolServers.find((s) => s.id === id);
+        const server = findServerById(id);
         openModal(server || null);
         return;
       }
@@ -103,7 +103,7 @@ export function createIntegrationsEventHandlers(deps) {
       if (accessBtn) {
         if (!canManageAcls) return;
         const id = accessBtn.dataset.id;
-        const server = integrationsState.toolServers.find((entry) => entry.id === id);
+        const server = findServerById(id);
         if (server) {
           void openToolServerAccessModal(server, {
             onApply: async (rules) => {
@@ -136,13 +136,8 @@ export function createIntegrationsEventHandlers(deps) {
     let testInFlight = false;
     container.querySelector('#test-server')?.addEventListener('click', async () => {
       if (testInFlight) return;
-      const url = container.querySelector('#server-url')?.value || '';
-      const headers = container.querySelector('#server-headers')?.value || '';
-      const authType = container.querySelector('#server-auth-type')?.value || 'none';
-      const bearerToken = container.querySelector('#server-auth-bearer')?.value || '';
-      const basicUser = container.querySelector('#server-auth-basic-username')?.value || '';
-      const basicPass = container.querySelector('#server-auth-basic-password')?.value || '';
-      const serverId = integrationsState.selectedServer?.id || '';
+      const { url, headers, authType, bearerToken, basicUser, basicPass, serverId } =
+        buildRunVerifyArgs();
       if (!url.trim()) {
         setTestStatus('error', 'URL is required');
         return;
@@ -152,7 +147,7 @@ export function createIntegrationsEventHandlers(deps) {
       try {
         const result = await runVerify(buildRunVerifyArgs());
         setTestStatus('success', result.message);
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
+        const server = findServerById(serverId);
         if (server) {
           server.tools = result.tools;
           server.toolsError = '';
@@ -161,12 +156,7 @@ export function createIntegrationsEventHandlers(deps) {
         renderToolServersList();
       } catch (err) {
         setTestStatus('error', err.message || 'Connection failed');
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
-        if (server) {
-          server.toolsError = err.message || 'Connection failed';
-          server.toolsExpanded = false;
-        }
-        renderToolServersList();
+        handleServerVerifyError(serverId, err.message || 'Connection failed');
       } finally {
         testInFlight = false;
       }
@@ -174,15 +164,10 @@ export function createIntegrationsEventHandlers(deps) {
 
     container.querySelector('#save-modal')?.addEventListener('click', async () => {
       const name = container.querySelector('#server-name').value || 'Untitled Server';
-      const url = container.querySelector('#server-url').value || '';
-      const headers = container.querySelector('#server-headers').value || '';
-      const authType = container.querySelector('#server-auth-type').value || 'none';
-      const bearerToken = container.querySelector('#server-auth-bearer')?.value || '';
-      const basicUser = container.querySelector('#server-auth-basic-username')?.value || '';
-      const basicPass = container.querySelector('#server-auth-basic-password')?.value || '';
+      const { url, headers, authType, bearerToken, basicUser, basicPass, serverId } =
+        buildRunVerifyArgs();
       const { oauthClientName, oauthScope, oauthClientId, oauthClientSecret, oauthTokenMethod } =
         readOAuthFormFields(container);
-      const serverId = integrationsState.selectedServer?.id || '';
 
       if (integrationsState.selectedServer) {
         const index = integrationsState.toolServers.findIndex(
@@ -256,7 +241,7 @@ export function createIntegrationsEventHandlers(deps) {
 
       try {
         const verifyResult = await runVerify(buildRunVerifyArgs());
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
+        const server = findServerById(serverId);
         if (server) {
           server.tools = verifyResult.tools;
           server.toolsError = '';
@@ -264,12 +249,7 @@ export function createIntegrationsEventHandlers(deps) {
         }
         renderToolServersList();
       } catch (err) {
-        const server = integrationsState.toolServers.find((s) => s.id === serverId);
-        if (server) {
-          server.toolsError = err.message || 'Connection failed';
-          server.toolsExpanded = false;
-        }
-        renderToolServersList();
+        handleServerVerifyError(serverId, err.message || 'Connection failed');
       }
     });
 
@@ -321,19 +301,17 @@ export function createIntegrationsEventHandlers(deps) {
         return;
       }
       try {
+        const oauthFields = readOAuthFormFields(container);
         const res = await apiFetch('/api/admin/tool-servers/oauth/start', {
           method: 'POST',
           body: JSON.stringify({
             id: serverId,
             url: container.querySelector('#server-url')?.value || '',
-            oauth_client_name:
-              container.querySelector('#server-auth-oauth-client-name')?.value || '',
-            oauth_scope: container.querySelector('#server-auth-oauth-scope')?.value || '',
-            oauth_client_id: container.querySelector('#server-auth-oauth-client-id')?.value || '',
-            oauth_client_secret:
-              container.querySelector('#server-auth-oauth-client-secret')?.value || '',
-            oauth_token_auth_method:
-              container.querySelector('#server-auth-oauth-token-method')?.value || '',
+            oauth_client_name: oauthFields.oauthClientName,
+            oauth_scope: oauthFields.oauthScope,
+            oauth_client_id: oauthFields.oauthClientId,
+            oauth_client_secret: oauthFields.oauthClientSecret,
+            oauth_token_auth_method: oauthFields.oauthTokenMethod,
           }),
         });
         const payload = await res.json().catch(() => ({}));
@@ -374,6 +352,23 @@ export function createIntegrationsEventHandlers(deps) {
     const oauthClientSecret = target.querySelector('#server-auth-oauth-client-secret')?.value || '';
     const oauthTokenMethod = target.querySelector('#server-auth-oauth-token-method')?.value || '';
     return { oauthClientName, oauthScope, oauthClientId, oauthClientSecret, oauthTokenMethod };
+  };
+
+  /**
+   * Find a tool server by its id.
+   */
+  const findServerById = (id) => integrationsState.toolServers.find((s) => s.id === id);
+
+  /**
+   * Handle error state after a runVerify failure.
+   */
+  const handleServerVerifyError = (serverId, errorMessage) => {
+    const server = findServerById(serverId);
+    if (server) {
+      server.toolsError = errorMessage;
+      server.toolsExpanded = false;
+    }
+    renderToolServersList();
   };
 
   return { bindEvents };

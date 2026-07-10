@@ -8,6 +8,7 @@ import {
   buildListCard,
   clonePreferences,
 } from './account-integrations-helpers.js';
+import { updateAllToolToggles } from '../../shared/components/integrations-shared.js';
 import { broadcastToolServersInvalidation } from '../../shared/utils/tool-server-sync.js';
 import { buildTraceAttrs } from '../../shared/utils/trace-attrs.js';
 import { updateUserMcpServer } from '../../shared/api/resources.js';
@@ -91,14 +92,7 @@ export function createIntegrationsEvents(ctx) {
         knob.classList.toggle('translate-x-0', !toggleOn);
       }
     }
-    row.querySelectorAll('.tool-toggle').forEach((toggle) => {
-      const toolName = toggle.dataset.toolName;
-      const tool = Array.isArray(server.tools)
-        ? server.tools.find((entry) => entry.name === toolName)
-        : null;
-      const toolEnabled = tool ? tool.enabled !== false : false;
-      updateToolToggle(toggle, toolEnabled, serverEnabled);
-    });
+    updateAllToolToggles(row, server, serverEnabled);
     const toolsToggle = row.querySelector('.tools-toggle svg');
     if (toolsToggle) {
       toolsToggle.classList.toggle('rotate-180', Boolean(server.toolsExpanded));

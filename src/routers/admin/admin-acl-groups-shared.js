@@ -34,3 +34,16 @@ export function loadGroups(db) {
      ORDER BY is_system DESC, name ASC`
   );
 }
+
+/**
+ * Get valid group IDs as a Set for ACL validation.
+ * Both admin-connections-access and admin-tool-servers-access
+ * use this in their PUT handlers to validate group membership.
+ *
+ * @param {import('../../db.js').DB} db - Database instance
+ * @returns {Promise<Set<string>>} - Set of valid group IDs
+ */
+export async function getValidGroupIds(db) {
+  const groups = await loadGroups(db);
+  return new Set(groups.map((group) => group.id));
+}

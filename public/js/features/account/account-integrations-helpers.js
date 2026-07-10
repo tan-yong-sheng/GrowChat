@@ -7,6 +7,7 @@ import { clonePreferences as clonePreferencesImpl } from '../../shared/utils/clo
 import { updateToolToggle } from '../../shared/components/tool-toggle.js';
 import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
 import { renderLoadingSkeleton } from '../admin/settings/acl-modal-shared.js';
+import { prepareToolPreview } from '../../shared/components/tool-preview.js';
 
 export { clonePreferencesImpl as clonePreferences };
 // Re-export so existing callers don't need to change.
@@ -117,12 +118,7 @@ export function buildListCard(
       : 'Enable server';
   // fallow-ignore-next-line complexity
   const toolRows = tools.map((tool) => {
-    const description = String(tool.description || '');
-    const maxLen = 160;
-    const isExpanded = Boolean(tool._expanded);
-    const hasMore = description.length > maxLen;
-    const preview =
-      hasMore && !isExpanded ? `${description.slice(0, maxLen).trimEnd()}…` : description;
+    const { description, preview, hasMore, isExpanded } = prepareToolPreview(tool);
     const toolEnabled = tool.enabled !== false;
     if (isShared) {
       const toolVisible = tool.visible_for_user !== false;
