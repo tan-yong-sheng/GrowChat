@@ -3,7 +3,7 @@
  * Handles mode toggling (preview/code), collapse state, error display, and action binding.
  */
 
-import { showToast } from './utils.js';
+import { showToast } from './utils/toast.js';
 import {
   escapeHtml,
   normalizeSpecialBlockMode,

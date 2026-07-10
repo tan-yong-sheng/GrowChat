@@ -1,4 +1,4 @@
-import { loadUserToolServers } from '../../admin/tool-servers.js';
+import { loadUserToolServers } from '../../admin/tool-servers-user.js';
 import { createRootLogger } from '../../utils/logger.js';
 const rootLogger = createRootLogger({});
 
