@@ -19,6 +19,23 @@ import { chunkedBatch } from '../../utils/db-helpers.js';
 const MAX_ACCESS_UPDATES = 200;
 
 /**
+ * Find an enabled tool server by ID, or return an error response.
+ * @param {string} toolServerId
+ * @param {Array|ArrayLike} servers
+ * @param {Request} req
+ * @returns {{ server: object } | { error: Response }}
+ */
+function findEnabledServer(toolServerId, servers, req) {
+  const currentServer = (Array.isArray(servers) ? servers : []).find(
+    (srv) => String(srv.id || '') === String(toolServerId)
+  );
+  if (!currentServer || currentServer.enabled === false) {
+    return { error: error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT) };
+  }
+  return { server: currentServer };
+}
+
+/**
  * Handle handleAdminToolServersAccess routes.
  * Returns Response if handled, null if path doesn't match.
  */
@@ -79,9 +96,7 @@ export async function handleAdminToolServersAccess(
         if (!toolServerId) {
           return error(req, 'tool_server_id is required', HTTP_STATUS.BAD_REQUEST);
         }
-        const currentServer = (Array.isArray(servers) ? servers : []).find(
-          (server) => String(server.id || '') === String(toolServerId)
-        );
+        const { server: currentServer } = findEnabledServer(toolServerId, servers, req);
         if (!currentServer || currentServer.enabled === false) {
           return error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT);
         }
@@ -167,9 +182,7 @@ export async function handleAdminToolServersAccess(
 
       try {
         const servers = await loadToolServers(db);
-        const currentServer = (Array.isArray(servers) ? servers : []).find(
-          (server) => String(server.id || '') === String(toolServerId)
-        );
+        const { server: currentServer } = findEnabledServer(toolServerId, servers, req);
         if (!currentServer || currentServer.enabled === false) {
           return error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT);
         }

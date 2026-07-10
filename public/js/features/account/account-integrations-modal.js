@@ -21,6 +21,7 @@ import {
 import {
   updateAuthFields as sharedUpdateAuthFields,
   readFormFieldValue,
+  handleOAuthApiFetchResponse,
 } from '../../shared/components/integrations-shared.js';
 
 export function createIntegrationsModal(ctx) {
@@ -141,7 +142,19 @@ export function createIntegrationsModal(ctx) {
       sharedUpdateAuthFields(bodyEl, authType);
     };
 
+    const readFormFields = () => ({
+      auth_bearer_token: readFormFieldValue(container, '#server-auth-bearer'),
+      auth_basic_username: readFormFieldValue(container, '#server-auth-basic-username'),
+      auth_basic_password: readFormFieldValue(container, '#server-auth-basic-password'),
+      oauth_client_name: readFormFieldValue(container, '#server-auth-oauth-client-name'),
+      oauth_scope: readFormFieldValue(container, '#server-auth-oauth-scope'),
+      oauth_client_id: readFormFieldValue(container, '#server-auth-oauth-client-id'),
+      oauth_client_secret: readFormFieldValue(container, '#server-auth-oauth-client-secret'),
+      oauth_token_auth_method: readFormFieldValue(container, '#server-auth-oauth-token-method'),
+    });
+
     const buildPayload = () => {
+      const f = readFormFields();
       const payload = {
         name: String(nameInput?.value || '').trim(),
         url: String(urlInput?.value || '').trim(),
@@ -150,17 +163,14 @@ export function createIntegrationsModal(ctx) {
         auth_type: String(authTypeSelect?.value || 'none')
           .trim()
           .toLowerCase(),
-        auth_bearer_token: readFormFieldValue(container, '#server-auth-bearer').trim(),
-        auth_basic_username: readFormFieldValue(container, '#server-auth-basic-username').trim(),
-        auth_basic_password: readFormFieldValue(container, '#server-auth-basic-password'),
-        oauth_client_name: readFormFieldValue(container, '#server-auth-oauth-client-name').trim(),
-        oauth_scope: readFormFieldValue(container, '#server-auth-oauth-scope').trim(),
-        oauth_client_id: readFormFieldValue(container, '#server-auth-oauth-client-id').trim(),
-        oauth_client_secret: readFormFieldValue(container, '#server-auth-oauth-client-secret'),
-        oauth_token_auth_method: readFormFieldValue(
-          container,
-          '#server-auth-oauth-token-method'
-        ).trim(),
+        auth_bearer_token: f.auth_bearer_token.trim(),
+        auth_basic_username: f.auth_basic_username.trim(),
+        auth_basic_password: f.auth_basic_password,
+        oauth_client_name: f.oauth_client_name.trim(),
+        oauth_scope: f.oauth_scope.trim(),
+        oauth_client_id: f.oauth_client_id.trim(),
+        oauth_client_secret: f.oauth_client_secret,
+        oauth_token_auth_method: String(f.oauth_token_auth_method).trim(),
       };
       if (!payload.headers) delete payload.headers;
       if (!payload.auth_bearer_token) delete payload.auth_bearer_token;
@@ -281,6 +291,7 @@ export function createIntegrationsModal(ctx) {
         return;
       }
       try {
+        const f = readFormFields();
         const res = await apiFetch('/api/users/me/resources/mcp-servers/oauth/start', {
           method: 'POST',
           body: JSON.stringify({
@@ -290,34 +301,19 @@ export function createIntegrationsModal(ctx) {
             headers: String(headersInput?.value || '').trim(),
             enabled: true,
             auth_type: 'oauth',
-            auth_bearer_token: readFormFieldValue(container, '#server-auth-bearer').trim(),
-            auth_basic_username: readFormFieldValue(
-              container,
-              '#server-auth-basic-username'
-            ).trim(),
-            auth_basic_password: readFormFieldValue(container, '#server-auth-basic-password'),
-            oauth_client_name: readFormFieldValue(
-              container,
-              '#server-auth-oauth-client-name'
-            ).trim(),
-            oauth_scope: readFormFieldValue(container, '#server-auth-oauth-scope').trim(),
-            oauth_client_id: readFormFieldValue(container, '#server-auth-oauth-client-id').trim(),
-            oauth_client_secret: readFormFieldValue(
-              container,
-              '#server-auth-oauth-client-secret'
-            ).trim(),
-            oauth_token_auth_method: readFormFieldValue(
-              container,
-              '#server-auth-oauth-token-method'
-            ).trim(),
+            ...f,
+            auth_bearer_token: f.auth_bearer_token.trim(),
+            auth_basic_username: f.auth_basic_username.trim(),
+            auth_basic_password: f.auth_basic_password,
+            oauth_client_name: f.oauth_client_name.trim(),
+            oauth_scope: f.oauth_scope.trim(),
+            oauth_client_id: f.oauth_client_id.trim(),
+            oauth_client_secret: f.oauth_client_secret.trim(),
+            oauth_token_auth_method: f.oauth_token_auth_method.trim(),
           }),
         });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(payload.error || payload.message || 'OAuth start failed');
-        }
+        const payload = await handleOAuthApiFetchResponse(res);
         if (payload.authorization_url) {
-          window.open(payload.authorization_url, '_blank', 'noopener,noreferrer');
           if (oauthStatus) oauthStatus.textContent = 'Awaiting authorization...';
           setTestStatus('success', 'OAuth authorization started');
         }

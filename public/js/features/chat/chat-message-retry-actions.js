@@ -85,6 +85,27 @@ export function bindChatMessageRetryActions({
 
       if (state.activeChatId === chatId) drawMessages(localMessages);
 
+      const loadBranchFallback = async ({
+        assistantMessageId,
+        assistantText,
+        errorActive,
+        errorMessage,
+      }) => {
+        const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
+          content: assistantText,
+          errorActive,
+          errorMessage,
+          model: state.activeModelId,
+          parentId: branchParentId,
+        });
+        await loadMessages(chatId, {
+          draw: state.activeChatId === chatId,
+          updateActiveModel: state.activeChatId === chatId,
+          preferredLeafId: assistantMessageId,
+          fallbackMessage: fallback,
+        });
+      };
+
       const controller = new AbortController();
       setActiveStreamAbort(() => controller.abort());
       setGlobalStreamAbort(getActiveStreamAbort());
@@ -162,18 +183,11 @@ export function bindChatMessageRetryActions({
         });
         streamingOverrideByChat.delete(chatId);
 
-        const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-          content: assistantText,
+        await loadBranchFallback({
+          assistantMessageId,
+          assistantText,
           errorActive,
           errorMessage,
-          model: state.activeModelId,
-          parentId: branchParentId,
-        });
-        await loadMessages(chatId, {
-          draw: state.activeChatId === chatId,
-          updateActiveModel: state.activeChatId === chatId,
-          preferredLeafId: assistantMessageId,
-          fallbackMessage: fallback,
         });
       } catch (e) {
         if (e?.name !== 'AbortError') {
@@ -201,18 +215,11 @@ export function bindChatMessageRetryActions({
             });
           }
           const { assistantMessageId, assistantText, errorActive, errorMessage } = getStreamState();
-          const fallback = buildFallbackAssistantMessage(chatId, assistantMessageId, {
-            content: assistantText,
+          await loadBranchFallback({
+            assistantMessageId,
+            assistantText,
             errorActive,
             errorMessage,
-            model: state.activeModelId,
-            parentId: branchParentId,
-          });
-          await loadMessages(chatId, {
-            draw: state.activeChatId === chatId,
-            updateActiveModel: state.activeChatId === chatId,
-            preferredLeafId: assistantMessageId,
-            fallbackMessage: fallback,
           });
         }
       } finally {

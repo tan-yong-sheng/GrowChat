@@ -110,3 +110,23 @@ export function readOAuthFormFields(container) {
     oauthTokenMethod: readFormFieldValue(container, '#server-auth-oauth-token-method'),
   };
 }
+
+/**
+ * Parse an OAuth apiFetch response and handle common error/redirect patterns.
+ * Consolidates the `res.json().catch(() => ({})); if (!res.ok) {...}; if (payload.authorization_url) {...}`
+ * pattern duplicated across integration modal files.
+ *
+ * @param {Response} res - The fetch Response object
+ * @returns {Promise<object>} Parsed JSON payload (or empty object on parse failure)
+ * @throws {Error} When the response indicates a server error
+ */
+export async function handleOAuthApiFetchResponse(res) {
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload.error || payload.message || 'OAuth start failed');
+  }
+  if (payload.authorization_url) {
+    window.open(payload.authorization_url, '_blank', 'noopener,noreferrer');
+  }
+  return payload;
+}

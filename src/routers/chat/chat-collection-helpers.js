@@ -45,6 +45,21 @@ export async function requireChatAuth(req, env, user, action, chatId) {
   return null;
 }
 
+/**
+ * Require list-level chat access (no specific resourceId needed)
+ * Returns null on success or an error Response on denial.
+ */
+export async function requireChatListAuth(req, env, user, action) {
+  const authDecision = await authorize(env, user, {
+    action,
+    resource: 'chat',
+  });
+  if (!authDecision.allow) {
+    return error(req, authDecision.reason || 'Forbidden', mapAuthCodeToStatus(authDecision.code));
+  }
+  return null;
+}
+
 export function sanitizeTitle(raw) {
   if (typeof raw !== 'string') return 'New Chat';
   const stripped = stripHtml(raw.trim());

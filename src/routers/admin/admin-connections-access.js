@@ -19,6 +19,23 @@ import { chunkedBatch } from '../../utils/db-helpers.js';
 const MAX_ACCESS_UPDATES = 200;
 
 /**
+ * Find an enabled connection by ID, or return an error response.
+ * @param {string} connectionId
+ * @param {Array|ArrayLike} allConnections
+ * @param {Request} req
+ * @returns {{ connection: object } | { error: Response }}
+ */
+function findEnabledConnection(connectionId, allConnections, req) {
+  const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
+    (conn) => String(conn.id || '') === String(connectionId)
+  );
+  if (!currentConnection || currentConnection.enabled === false) {
+    return { error: error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT) };
+  }
+  return { connection: currentConnection };
+}
+
+/**
  * Handle handleAdminConnectionsAccess routes.
  * Returns Response if handled, null if path doesn't match.
  */
@@ -76,8 +93,10 @@ export async function handleAdminConnectionsAccess(
         if (!connectionId) {
           return error(req, 'connection_id is required', HTTP_STATUS.BAD_REQUEST);
         }
-        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
-          (conn) => String(conn.id || '') === String(connectionId)
+        const { connection: currentConnection } = findEnabledConnection(
+          connectionId,
+          allConnections,
+          req
         );
         if (!currentConnection || currentConnection.enabled === false) {
           return error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT);
@@ -166,8 +185,10 @@ export async function handleAdminConnectionsAccess(
         const allConnections = await getAllOpenAIConnectionConfigs(env, {
           includeDisabled: true,
         });
-        const currentConnection = (Array.isArray(allConnections) ? allConnections : []).find(
-          (conn) => String(conn.id || '') === String(connectionId)
+        const { connection: currentConnection } = findEnabledConnection(
+          connectionId,
+          allConnections,
+          req
         );
         if (!currentConnection || currentConnection.enabled === false) {
           return error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT);

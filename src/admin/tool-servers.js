@@ -14,7 +14,11 @@ import {
   normalizeAuthType,
 } from './tool-servers-utils.js';
 import { loadUserToolServers } from './tool-servers-user.js';
-import { testMcpConnection, mapMcpTools } from '../shared/tool-servers-shared.js';
+import {
+  testMcpConnection,
+  mapMcpTools,
+  loadUserGroupIdsFromDb,
+} from '../shared/tool-servers-shared.js';
 
 import { applyAuthHeaders } from '../shared/apply-auth-headers.js';
 
@@ -62,12 +66,7 @@ export async function loadToolServers(db, options = {}) {
     const hiddenToolIdsByServer = userOverrides.tool_servers?.tools || {};
     let userGroupIds;
     try {
-      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [
-        userId,
-      ]);
-      userGroupIds = new Set(
-        (Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean)
-      );
+      userGroupIds = await loadUserGroupIdsFromDb(db, userId);
     } catch {
       userGroupIds = new Set();
     }

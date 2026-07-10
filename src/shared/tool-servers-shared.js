@@ -57,6 +57,27 @@ function getToolParameters(tool) {
 /**
  * Map MCP tool objects to standard {name, title, description, parameters} format.
  */
+/**
+ * Load user group IDs from the database for ACL filtering.
+ * Shared by src/admin/tool-servers.js and src/llm/connections.js.
+ *
+ * @param {import('../src/db.js').D1Database} db
+ * @param {string} userId
+ * @returns {Promise<Set<string>>}
+ */
+export async function loadUserGroupIdsFromDb(db, userId) {
+  if (!db || !userId) return new Set();
+  try {
+    const rows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [userId]);
+    return new Set((Array.isArray(rows) ? rows : []).map((r) => r.group_id).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Map MCP tool objects to standard {name, title, description, parameters} format.
+ */
 export function mapMcpTools(tools) {
   return (tools || [])
     .map((tool) => ({

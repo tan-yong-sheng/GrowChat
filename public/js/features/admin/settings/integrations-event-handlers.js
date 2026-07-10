@@ -8,6 +8,7 @@ import { broadcastToolServersInvalidation } from '../../../shared/utils/tool-ser
 import {
   readFormFieldValue,
   readOAuthFormFields,
+  handleOAuthApiFetchResponse,
 } from '../../../shared/components/integrations-shared.js';
 
 export function createIntegrationsEventHandlers(deps) {
@@ -318,12 +319,8 @@ export function createIntegrationsEventHandlers(deps) {
             oauth_token_auth_method: oauthFields.oauthTokenMethod,
           }),
         });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(payload.error || payload.message || 'OAuth start failed');
-        }
+        const payload = await handleOAuthApiFetchResponse(res);
         if (payload.authorization_url) {
-          window.open(payload.authorization_url, '_blank', 'noopener,noreferrer');
           const status = container.querySelector('#oauth-status');
           if (status) status.textContent = 'Awaiting authorization...';
         }

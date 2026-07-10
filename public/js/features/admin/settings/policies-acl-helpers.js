@@ -61,27 +61,27 @@ export function getResourceAccessState(resource, groupId = '') {
   const rules = Array.isArray(resource?.rules) ? resource.rules : [];
   const normalizedGroup = String(groupId || '').trim();
 
-  const deny = normalizedGroup
-    ? rules.some(
-        (rule) =>
-          String(rule.effect || '').toLowerCase() === 'deny' &&
-          String(rule.principal_type || '').toLowerCase() === 'group' &&
-          String(rule.principal_id || '') === normalizedGroup
-      )
-    : rules.some((rule) => String(rule.effect || '').toLowerCase() === 'deny');
-
-  const allow = normalizedGroup
-    ? rules.some(
-        (rule) =>
-          String(rule.effect || '').toLowerCase() === 'allow' &&
-          String(rule.principal_type || '').toLowerCase() === 'group' &&
-          String(rule.principal_id || '') === normalizedGroup
-      )
-    : rules.some((rule) => String(rule.effect || '').toLowerCase() === 'allow');
+  const deny = hasMatchingRule(rules, 'deny', normalizedGroup);
+  const allow = hasMatchingRule(rules, 'allow', normalizedGroup);
 
   if (deny) return 'denied';
   if (allow) return 'allowed';
   return 'inaccessible';
+}
+
+/**
+ * Check whether any rule in a list matches a given effect for a specific group.
+ */
+function hasMatchingRule(rules, effect, groupId) {
+  const normalized = String(groupId || '').trim();
+  return normalized
+    ? rules.some(
+        (rule) =>
+          String(rule.effect || '').toLowerCase() === effect &&
+          String(rule.principal_type || '').toLowerCase() === 'group' &&
+          String(rule.principal_id || '') === normalized
+      )
+    : rules.some((rule) => String(rule.effect || '').toLowerCase() === effect);
 }
 
 /**

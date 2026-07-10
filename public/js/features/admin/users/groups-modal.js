@@ -15,6 +15,20 @@ import { renderButton } from '../../../shared/components/button.js';
 import { escapeHtml, getGroupModalTheme } from './groups-list-helpers.js';
 import { buildMemberSet, clampUserLimit, filterUsers } from './groups-members-helpers.js';
 
+const loadUsers = async () => {
+  let users = [];
+  let usersTotal = 0;
+  let usersError = null;
+  try {
+    const payload = await fetchAdminUsers({ limit: clampUserLimit(100), offset: 0 });
+    users = payload.users || [];
+    usersTotal = payload.total || users.length;
+  } catch (err) {
+    usersError = err.message || 'Unable to load users.';
+  }
+  return { users, usersTotal, usersError };
+};
+
 function renderGroupModal({
   mode,
   group = null,
@@ -302,16 +316,7 @@ function renderGroupModal({
 }
 
 export async function openCreateModal({ onRefresh, onCreate, navigationState }) {
-  let users = [];
-  let usersTotal = 0;
-  let usersError = null;
-  try {
-    const payload = await fetchAdminUsers({ limit: clampUserLimit(100), offset: 0 });
-    users = payload.users || [];
-    usersTotal = payload.total || users.length;
-  } catch (err) {
-    usersError = err.message || 'Unable to load users.';
-  }
+  const { users, usersTotal, usersError } = await loadUsers();
 
   renderGroupModal({
     mode: 'create',
@@ -343,16 +348,8 @@ export async function openCreateModal({ onRefresh, onCreate, navigationState }) 
 
 export async function openEditModal(groupId, { onRefresh, onUpdate, onDelete, navigationState }) {
   const detail = await fetchAdminGroup(groupId);
-  let users = [];
-  let usersTotal = 0;
-  let usersError = null;
-  try {
-    const payload = await fetchAdminUsers({ limit: clampUserLimit(100), offset: 0 });
-    users = payload.users || [];
-    usersTotal = payload.total || users.length;
-  } catch (err) {
-    usersError = err.message || 'Unable to load users.';
-  }
+  const { users, usersTotal, usersError } = await loadUsers();
+
   renderGroupModal({
     mode: 'edit',
     group: detail.group,

@@ -13,6 +13,7 @@ import {
 import { loadUserResourceOverrides } from '../../public/js/shared/utils/user-resource-overrides.js';
 import { normalizeConnectionModelSelectionMode } from '../../public/js/shared/utils/connection-model-selection.js';
 import { createLogger } from '../utils/logger.js';
+import { loadUserGroupIdsFromDb } from '../shared/tool-servers-shared.js';
 import {
   normalizeBaseUrl,
   ensureConnectionId,
@@ -306,12 +307,7 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
 
     let userGroupIds = providedUserGroupIds;
     if (!userGroupIds) {
-      const groupRows = await db.all('SELECT group_id FROM group_members WHERE user_id = ?', [
-        userId,
-      ]);
-      userGroupIds = new Set(
-        (Array.isArray(groupRows) ? groupRows : []).map((row) => row.group_id).filter(Boolean)
-      );
+      userGroupIds = await loadUserGroupIdsFromDb(db, userId);
     }
 
     const aclRules = await loadConnectionAclRules(db);
