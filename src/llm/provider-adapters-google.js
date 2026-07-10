@@ -5,7 +5,12 @@ import {
   buildToolCallNameMap,
   contentToText,
 } from './provider-adapters-utils.js';
-import { parseFnArguments } from './provider-adapters-shared.js';
+import {
+  parseFnArguments,
+  resolveToolChoiceConfig,
+  addSystemContent,
+  normalizeMessageRole,
+} from './provider-adapters-shared.js';
 
 function contentToGoogleParts(content) {
   const parts = [];
@@ -60,28 +65,6 @@ function buildGoogleTools(tools = [], normalize = normalizeToolParameters) {
   return functionDeclarations.length ? [{ functionDeclarations }] : undefined;
 }
 
-function buildGoogleToolConfig(toolChoice) {
-  const choice = normalizeToolChoice(toolChoice);
-  if (!choice) return undefined;
-  switch (choice.type) {
-    case 'auto':
-      return { functionCallingConfig: { mode: 'AUTO' } };
-    case 'none':
-      return { functionCallingConfig: { mode: 'NONE' } };
-    case 'required':
-      return { functionCallingConfig: { mode: 'ANY' } };
-    case 'tool':
-      return {
-        functionCallingConfig: {
-          mode: 'ANY',
-          allowedFunctionNames: [choice.toolName],
-        },
-      };
-    default:
-      return undefined;
-  }
-}
-
 export function buildGooglePayload(messages, options = {}) {
   const contents = [];
   const systemTexts = [];
@@ -98,10 +81,9 @@ export function buildGooglePayload(messages, options = {}) {
   };
 
   for (const message of messages || []) {
-    const role = String(message?.role || '').toLowerCase();
+    const role = normalizeMessageRole(message);
     if (role === 'system') {
-      const text = contentToText(message.content);
-      if (text) systemTexts.push(text);
+      addSystemContent(message, systemTexts);
       continue;
     }
     if (role === 'assistant' && Array.isArray(message?.tool_calls) && message.tool_calls.length) {
@@ -164,7 +146,17 @@ export function buildGooglePayload(messages, options = {}) {
   if (googleTools) {
     payload.tools = googleTools;
   }
-  const googleToolConfig = buildGoogleToolConfig(options.toolChoice);
+  const googleToolConfig = resolveToolChoiceConfig(options.toolChoice, {
+    auto: () => ({ functionCallingConfig: { mode: 'AUTO' } }),
+    none: () => ({ functionCallingConfig: { mode: 'NONE' } }),
+    required: () => ({ functionCallingConfig: { mode: 'ANY' } }),
+    tool: (choice) => ({
+      functionCallingConfig: {
+        mode: 'ANY',
+        allowedFunctionNames: [choice.toolName],
+      },
+    }),
+  });
   if (googleToolConfig) {
     payload.toolConfig = googleToolConfig;
   }

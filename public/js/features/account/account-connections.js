@@ -186,6 +186,7 @@ export function renderAccountConnectionsSection(
     viewState.error = '';
   };
 
+  // fallow-ignore-next-line code-duplication
   let preferencesSaveVersion = 0;
 
   const persistPreferences = async ({ rollback = null } = {}) => {

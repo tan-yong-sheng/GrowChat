@@ -2,6 +2,7 @@
  * Admin Tool Servers OAuth Handlers - /api/admin/tool-servers/oauth/*
  */
 import { error, json } from '../../utils/response.js';
+import { buildTokenRequest } from '../oauth-shared.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import {
   buildAuthorizationUrl,
@@ -234,31 +235,8 @@ export async function handleAdminToolServersOAuth(
         status: HTTP_STATUS.BAD_REQUEST,
       });
     }
-    const clientId = server.oauth_client_id;
-    const clientSecret = server.oauth_client_secret;
-    const codeVerifier = server.oauth_code_verifier;
-    const tokenAuthMethod =
-      normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
-
-    const params = new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      code_verifier: codeVerifier,
-      redirect_uri: origin + '/api/admin/tool-servers/oauth/callback',
-      client_id: clientId,
-    });
-
-    const headers = new Headers({
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    });
-
-    if (tokenAuthMethod === 'client_secret_basic' && clientSecret) {
-      headers.set('Authorization', `Basic ${btoa(`${clientId}:${clientSecret}`)}`);
-      params.delete('client_id');
-    } else if (tokenAuthMethod === 'client_secret_post' && clientSecret) {
-      params.set('client_secret', clientSecret);
-    }
+    const redirectUri = origin + '/api/admin/tool-servers/oauth/callback';
+    const { params, headers } = buildTokenRequest(server, code, redirectUri);
 
     try {
       const tokenRes = await fetch(tokenEndpoint, {

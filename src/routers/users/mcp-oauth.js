@@ -14,6 +14,7 @@ import {
   sha256Base64Url,
 } from '../../admin/tool-servers.js';
 import { findUserToolServerByOauthState, saveUserToolServerJson } from './users-helpers.js';
+import { buildTokenRequest } from '../oauth-shared.js';
 import { isSafeOutboundUrl } from '../../utils/validation.js';
 import { json, error } from '../../utils/response.js';
 
@@ -44,43 +45,6 @@ async function loadCallbackServer(db, state) {
     return { blocked: true };
   }
   return { server };
-}
-
-function resolveTokenEndpoint(server) {
-  return (
-    server.oauth_token_endpoint ||
-    new URL('/token', server.oauth_authorization_server || server.url).toString()
-  );
-}
-
-function buildTokenRequest(server, code, redirectUri) {
-  const clientId = String(server.oauth_client_id || '').trim();
-  const clientSecret = String(server.oauth_client_secret || '').trim();
-  const codeVerifier = String(server.oauth_code_verifier || '').trim();
-  const tokenAuthMethod =
-    normalizeTokenAuthMethod(server.oauth_token_auth_method) || 'client_secret_post';
-
-  const params = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code,
-    code_verifier: codeVerifier,
-    redirect_uri: redirectUri,
-    client_id: clientId,
-  });
-
-  const headers = new Headers({
-    'Content-Type': 'application/x-www-form-urlencoded',
-    Accept: 'application/json',
-  });
-
-  if (tokenAuthMethod === 'client_secret_basic' && clientSecret) {
-    headers.set('Authorization', `Basic ${btoa(`${clientId}:${clientSecret}`)}`);
-    params.delete('client_id');
-  } else if (tokenAuthMethod === 'client_secret_post' && clientSecret) {
-    params.set('client_secret', clientSecret);
-  }
-
-  return { tokenEndpoint: resolveTokenEndpoint(server), params, headers };
 }
 
 async function exchangeCodeForTokens(tokenEndpoint, params, headers) {

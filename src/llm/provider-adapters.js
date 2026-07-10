@@ -5,7 +5,12 @@ import {
   contentToText,
 } from './provider-adapters-utils.js';
 import { buildGooglePayload } from './provider-adapters-google.js';
-import { parseFnArguments } from './provider-adapters-shared.js';
+import {
+  parseFnArguments,
+  resolveToolChoiceConfig,
+  addSystemContent,
+  normalizeMessageRole,
+} from './provider-adapters-shared.js';
 
 // Re-export everything from sub-modules for backward compatibility
 export {
@@ -77,21 +82,6 @@ function buildAnthropicTools(tools = [], normalize = normalizeToolParameters) {
   return anthropicTools.length ? anthropicTools : undefined;
 }
 
-function buildAnthropicToolChoice(toolChoice) {
-  const choice = normalizeToolChoice(toolChoice);
-  if (!choice) return undefined;
-  switch (choice.type) {
-    case 'auto':
-      return { type: 'auto' };
-    case 'required':
-      return { type: 'any' };
-    case 'tool':
-      return { type: 'tool', name: choice.toolName };
-    default:
-      return undefined;
-  }
-}
-
 export function buildAnthropicPayload(messages, options = {}) {
   const normalize = options.normalizeToolParameters || normalizeToolParameters;
   const payload = {
@@ -102,10 +92,9 @@ export function buildAnthropicPayload(messages, options = {}) {
   const systemTexts = [];
 
   for (const message of messages || []) {
-    const role = String(message?.role || '').toLowerCase();
+    const role = normalizeMessageRole(message);
     if (role === 'system') {
-      const text = contentToText(message.content);
-      if (text) systemTexts.push(text);
+      addSystemContent(message, systemTexts);
       continue;
     }
     if (role === 'assistant' && Array.isArray(message?.tool_calls) && message.tool_calls.length) {
@@ -175,7 +164,11 @@ export function buildAnthropicPayload(messages, options = {}) {
   const anthropicToolChoice =
     normalizedToolChoice?.type === 'none'
       ? undefined
-      : buildAnthropicToolChoice(normalizedToolChoice);
+      : resolveToolChoiceConfig(normalizedToolChoice, {
+          auto: () => ({ type: 'auto' }),
+          required: () => ({ type: 'any' }),
+          tool: (choice) => ({ type: 'tool', name: choice.toolName }),
+        });
   if (anthropicToolChoice) {
     payload.tool_choice = anthropicToolChoice;
   }

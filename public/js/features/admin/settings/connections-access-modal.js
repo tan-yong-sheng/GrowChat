@@ -19,6 +19,7 @@ import {
   loadAdminAclModalAccess,
   queryAclModalElements,
   updateSaveButton,
+  wrapAclSaveHandler,
 } from './acl-modal-shared.js';
 
 export async function openConnectionAccessModal(connection, { connectionsState, _onApply } = {}) {
@@ -58,43 +59,40 @@ export async function openConnectionAccessModal(connection, { connectionsState, 
     state.rulesByGroup = buildRulesByGroup(baseRules);
   };
 
-  saveBtn?.addEventListener('click', async () => {
-    if (state.saving) return;
-    if (saveErrorEl) saveErrorEl.textContent = '';
-    state.saving = true;
-    updateSaveButton(saveBtn, state);
-    try {
-      const rules = buildAclSaveRules(state.rulesByGroup);
-      const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
-      const res = await apiFetch('/api/admin/openai/connections', {
-        method: 'PUT',
-        body: JSON.stringify({
-          enabled: connectionsState.openai.enabled,
-          connections: connectionsState.openai.connections
-            .filter((c) => !c.readOnly)
-            .map((conn) => ({
-              ...conn,
-              manualModels: normalizeConnectionManualModels(conn.manualModels),
-            })),
-          model_updates: [],
-          access_updates: sameAsBase
-            ? []
-            : [{ connection_id: connection.id, rules: cloneAclRules(rules) }],
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to save connection access');
-      }
-      broadcastConnectionsInvalidation();
-      close();
-    } catch (err) {
-      if (saveErrorEl) saveErrorEl.textContent = err.message || 'Failed to save connection access';
-    } finally {
-      state.saving = false;
-      updateSaveButton(saveBtn, state);
-    }
-  });
+  saveBtn?.addEventListener(
+    'click',
+    wrapAclSaveHandler({
+      state,
+      saveBtn,
+      saveErrorEl,
+      saveErrorMsg: 'Failed to save connection access',
+      onExecute: async ({ rules }) => {
+        const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
+        const res = await apiFetch('/api/admin/openai/connections', {
+          method: 'PUT',
+          body: JSON.stringify({
+            enabled: connectionsState.openai.enabled,
+            connections: connectionsState.openai.connections
+              .filter((c) => !c.readOnly)
+              .map((conn) => ({
+                ...conn,
+                manualModels: normalizeConnectionManualModels(conn.manualModels),
+              })),
+            model_updates: [],
+            access_updates: sameAsBase
+              ? []
+              : [{ connection_id: connection.id, rules: cloneAclRules(rules) }],
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || err.message || 'Failed to save connection access');
+        }
+        broadcastConnectionsInvalidation();
+        close();
+      },
+    })
+  );
 
   updateSaveButton(saveBtn, state);
   renderAll();

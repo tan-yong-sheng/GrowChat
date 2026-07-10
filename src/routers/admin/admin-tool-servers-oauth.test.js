@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   isSafeOutboundUrl: vi.fn(),
   discoverAuthorizationMetadata: vi.fn(),
   buildAuthorizationUrl: vi.fn(),
+  buildTokenRequest: vi.fn(),
+  resolveTokenEndpoint: vi.fn(),
   normalizeTokenAuthMethod: vi.fn(),
   selectTokenAuthMethod: vi.fn(),
   randomString: vi.fn(),

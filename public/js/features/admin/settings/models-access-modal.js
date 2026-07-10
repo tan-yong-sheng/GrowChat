@@ -16,6 +16,7 @@ import {
   loadAdminAclModalAccess,
   queryAclModalElements,
   updateSaveButton,
+  wrapAclSaveHandler,
 } from './acl-modal-shared.js';
 
 export async function openModelAccessModal(model, { onApply } = {}) {
@@ -65,27 +66,24 @@ export async function openModelAccessModal(model, { onApply } = {}) {
     state.rulesByGroup = buildRulesByGroup(baseRules);
   };
 
-  saveBtn?.addEventListener('click', async () => {
-    if (state.saving) return;
-    if (saveErrorEl) saveErrorEl.textContent = '';
-    state.saving = true;
-    updateSaveButton(saveBtn, state);
-    try {
-      const rules = buildAclSaveRules(state.rulesByGroup);
-      const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
-      if (!sameAsBase && typeof onApply === 'function') {
-        await onApply(cloneAclRules(rules), model);
-      } else if (sameAsBase) {
-        broadcastModelsInvalidation();
-      }
-      close();
-    } catch (err) {
-      if (saveErrorEl) saveErrorEl.textContent = err.message || 'Failed to save model access';
-    } finally {
-      state.saving = false;
-      updateSaveButton(saveBtn, state);
-    }
-  });
+  saveBtn?.addEventListener(
+    'click',
+    wrapAclSaveHandler({
+      state,
+      saveBtn,
+      saveErrorEl,
+      saveErrorMsg: 'Failed to save model access',
+      onExecute: async ({ rules }) => {
+        const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
+        if (!sameAsBase && typeof onApply === 'function') {
+          await onApply(cloneAclRules(rules), model);
+        } else if (sameAsBase) {
+          broadcastModelsInvalidation();
+        }
+        close();
+      },
+    })
+  );
 
   updateSaveButton(saveBtn, state);
   renderAll();

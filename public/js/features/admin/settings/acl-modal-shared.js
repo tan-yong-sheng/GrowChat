@@ -314,3 +314,37 @@ export function renderAclGroupList({ listEl, errorEl, state, effectClass, onChan
     }
   });
 }
+
+/**
+ * Wrap an ACL save-button click handler with the standard preamble (saving guard,
+ * save-error clear, save state) and catch/finally block. Returns an async
+ * function for use as `addEventListener('click', ...)` callback.
+ *
+ * The `onExecute` callback receives the parsed `rules` from the shared preamble,
+ * so each modal only writes the business-logic part. `sameAsBase` is computed
+ * inside the `onExecute` callback using `baseRules` from its caller's closure.
+ *
+ * @param {object} opts
+ * @param {object} opts.state - ACL modal state (must have .saving property)
+ * @param {HTMLElement|null} opts.saveBtn - Save button element
+ * @param {HTMLElement|null} opts.saveErrorEl - Error display element
+ * @param {string} opts.saveErrorMsg - Default error message for the catch block
+ * @param {function} opts.onExecute - async ({ rules }) => void
+ */
+export function wrapAclSaveHandler({ state, saveBtn, saveErrorEl, saveErrorMsg, onExecute }) {
+  return async () => {
+    if (state.saving) return;
+    if (saveErrorEl) saveErrorEl.textContent = '';
+    state.saving = true;
+    updateSaveButton(saveBtn, state);
+    try {
+      const rules = buildAclSaveRules(state.rulesByGroup);
+      await onExecute({ rules });
+    } catch (err) {
+      if (saveErrorEl) saveErrorEl.textContent = err.message || saveErrorMsg;
+    } finally {
+      state.saving = false;
+      updateSaveButton(saveBtn, state);
+    }
+  };
+}

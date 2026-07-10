@@ -1,13 +1,9 @@
 import { apiFetch } from '../../../shared/api.js';
-
-const escapeHtml = (text) => {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-};
+import {
+  escapeHtml,
+  showFeedback,
+  sendTestEmail as sharedSendTestEmail,
+} from './security-shared.js';
 
 const PROVIDERS = [
   {
@@ -43,23 +39,6 @@ export function renderEmailDeliverySettings(container) {
 
   let saving = false;
   let sendingTestEmail = false;
-
-  const showFeedback = (message, isError = false) => {
-    let feedback = container.querySelector('#settings-feedback');
-    if (!feedback) {
-      feedback = document.createElement('div');
-      feedback.id = 'settings-feedback';
-      const feedbackContainer = container.querySelector('.space-y-3');
-      if (feedbackContainer) feedbackContainer.appendChild(feedback);
-      else container.appendChild(feedback);
-    }
-    feedback.textContent = message;
-    feedback.className = isError
-      ? 'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
-      : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-    feedback.classList.remove('hidden');
-    setTimeout(() => feedback.classList.add('hidden'), 3000);
-  };
 
   const getApiKeyHint = () => {
     const p = PROVIDERS.find((x) => x.id === settingsState.provider);
@@ -201,7 +180,7 @@ export function renderEmailDeliverySettings(container) {
     } catch (err) {
       settingsState.provider = prev;
       render();
-      showFeedback(err?.message || 'Failed to update provider.', true);
+      showFeedback(container, err?.message || 'Failed to update provider.', true);
     } finally {
       saving = false;
     }
@@ -209,7 +188,7 @@ export function renderEmailDeliverySettings(container) {
 
   const saveApiKey = async (newValue) => {
     if (newValue.includes('\u2022')) {
-      showFeedback('Invalid API key format.', true);
+      showFeedback(container, 'Invalid API key format.', true);
       render();
       return;
     }
@@ -229,11 +208,11 @@ export function renderEmailDeliverySettings(container) {
       }
       settingsState.apiKeyConfigured = true;
       render();
-      showFeedback('API key saved.');
+      showFeedback(container, 'API key saved.');
     } catch (err) {
       settingsState.apiKeyConfigured = prevConfigured;
       render();
-      showFeedback(err?.message || 'Failed to update API key.', true);
+      showFeedback(container, err?.message || 'Failed to update API key.', true);
     } finally {
       saving = false;
     }
@@ -253,10 +232,10 @@ export function renderEmailDeliverySettings(container) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || err?.message || 'Failed to update from email');
       }
-      showFeedback('From email saved.');
+      showFeedback(container, 'From email saved.');
     } catch (err) {
       settingsState.fromEmail = prev;
-      showFeedback(err?.message || 'Failed to update from email.', true);
+      showFeedback(container, err?.message || 'Failed to update from email.', true);
     } finally {
       saving = false;
     }
@@ -276,49 +255,17 @@ export function renderEmailDeliverySettings(container) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || err?.message || 'Failed to update Mailgun domain');
       }
-      showFeedback('Mailgun domain saved.');
+      showFeedback(container, 'Mailgun domain saved.');
     } catch (err) {
       settingsState.mailgunDomain = prev;
-      showFeedback(err?.message || 'Failed to update Mailgun domain.', true);
+      showFeedback(container, err?.message || 'Failed to update Mailgun domain.', true);
     } finally {
       saving = false;
     }
   };
 
   const sendTestEmail = async (email) => {
-    if (sendingTestEmail) return;
-    if (!email || !email.trim()) {
-      showFeedback('Please enter a valid email address.', true);
-      return;
-    }
-    sendingTestEmail = true;
-    const sendTestBtn = container.querySelector('#send-test-email');
-    const testEmailInput = container.querySelector('#test-email');
-    try {
-      if (sendTestBtn) {
-        sendTestBtn.disabled = true;
-        sendTestBtn.textContent = 'Sending...';
-      }
-      if (testEmailInput) testEmailInput.disabled = true;
-      const res = await apiFetch('/api/admin/email-config/test', {
-        method: 'POST',
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to send test email');
-      }
-      showFeedback('Test email sent successfully.');
-    } catch (err) {
-      showFeedback(err?.message || 'Failed to send test email.', true);
-    } finally {
-      sendingTestEmail = false;
-      if (sendTestBtn) {
-        sendTestBtn.disabled = false;
-        sendTestBtn.textContent = 'Send Test';
-      }
-      if (testEmailInput) testEmailInput.disabled = false;
-    }
+    await sharedSendTestEmail(container, email);
   };
 
   const bindEvents = () => {

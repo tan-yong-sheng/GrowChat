@@ -1,15 +1,9 @@
 import { apiFetch } from '../../../shared/api.js';
-
-const escapeHtml = (text) => {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-  return text.replace(/[&<>"']/g, (char) => map[char]);
-};
+import {
+  escapeHtml,
+  showFeedback,
+  sendTestEmail as sharedSendTestEmail,
+} from './security-shared.js';
 
 export function renderSecuritySettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'security';
@@ -22,27 +16,6 @@ export function renderSecuritySettings(container, data) {
 
   let savingApiKey = false;
   let sendingTestEmail = false;
-
-  const showFeedback = (message, isError = false) => {
-    let feedback = container.querySelector('#settings-feedback');
-    if (!feedback) {
-      feedback = document.createElement('div');
-      feedback.id = 'settings-feedback';
-      const feedbackContainer = container.querySelector('.space-y-3');
-      if (feedbackContainer) {
-        feedbackContainer.appendChild(feedback);
-      } else {
-        console.warn('Feedback container (.space-y-3) not found, appending to container');
-        container.appendChild(feedback);
-      }
-    }
-    feedback.textContent = message;
-    feedback.className = isError
-      ? 'rounded-md border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600'
-      : 'rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-600';
-    feedback.classList.remove('hidden');
-    setTimeout(() => feedback.classList.add('hidden'), 3000);
-  };
 
   const getHintText = () => {
     if (settingsState.resendApiKeyConfigured) {
@@ -120,7 +93,7 @@ export function renderSecuritySettings(container, data) {
   const updateResendApiKey = async (newValue) => {
     // Validate: reject input containing asterisks (which indicate user didn't actually enter a new key)
     if (newValue.includes('*')) {
-      showFeedback('Invalid API key format.', true);
+      showFeedback(container, 'Invalid API key format.', true);
       render();
       return;
     }
@@ -151,62 +124,18 @@ export function renderSecuritySettings(container, data) {
       settingsState.resendApiKeyConfigured = true;
 
       render();
-      showFeedback('Resend API key saved.');
+      showFeedback(container, 'Resend API key saved.');
     } catch (err) {
       settingsState.resendApiKeyConfigured = prevConfigured;
       render();
-      showFeedback(err?.message || 'Failed to update Resend API key.', true);
+      showFeedback(container, err?.message || 'Failed to update Resend API key.', true);
     } finally {
       savingApiKey = false;
     }
   };
 
   const sendTestEmail = async (email) => {
-    // Prevent race conditions
-    if (sendingTestEmail) return;
-
-    if (!email || !email.trim()) {
-      showFeedback('Please enter a valid email address.', true);
-      return;
-    }
-
-    sendingTestEmail = true;
-
-    const sendTestBtn = container.querySelector('#send-test-email');
-    const testEmailInput = container.querySelector('#test-email');
-
-    try {
-      if (sendTestBtn) {
-        sendTestBtn.disabled = true;
-        sendTestBtn.textContent = 'Sending...';
-      }
-      if (testEmailInput) {
-        testEmailInput.disabled = true;
-      }
-
-      const res = await apiFetch('/api/admin/email-config/test', {
-        method: 'POST',
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to send test email');
-      }
-
-      showFeedback('Test email sent successfully.');
-    } catch (err) {
-      showFeedback(err?.message || 'Failed to send test email.', true);
-    } finally {
-      sendingTestEmail = false;
-      if (sendTestBtn) {
-        sendTestBtn.disabled = false;
-        sendTestBtn.textContent = 'Send Test';
-      }
-      if (testEmailInput) {
-        testEmailInput.disabled = false;
-      }
-    }
+    await sharedSendTestEmail(container, email);
   };
 
   const bindEvents = () => {

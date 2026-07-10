@@ -15,6 +15,7 @@ import {
   loadAdminAclModalAccess,
   queryAclModalElements,
   updateSaveButton,
+  wrapAclSaveHandler,
 } from './acl-modal-shared.js';
 
 export async function openToolServerAccessModal(server, { onApply } = {}) {
@@ -55,30 +56,27 @@ export async function openToolServerAccessModal(server, { onApply } = {}) {
     state.rulesByGroup = buildRulesByGroup(baseRules);
   };
 
-  saveBtn?.addEventListener('click', async () => {
-    if (state.saving) return;
-    if (saveErrorEl) saveErrorEl.textContent = '';
-    state.saving = true;
-    updateSaveButton(saveBtn, state);
-    try {
-      const rules = buildAclSaveRules(state.rulesByGroup);
-      const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
-      if (sameAsBase) {
-        broadcastToolServersInvalidation();
+  saveBtn?.addEventListener(
+    'click',
+    wrapAclSaveHandler({
+      state,
+      saveBtn,
+      saveErrorEl,
+      saveErrorMsg: 'Failed to save MCP server access',
+      onExecute: async ({ rules }) => {
+        const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
+        if (sameAsBase) {
+          broadcastToolServersInvalidation();
+          close();
+          return;
+        }
+        if (typeof onApply === 'function') {
+          await onApply(cloneAclRules(rules), server);
+        }
         close();
-        return;
-      }
-      if (typeof onApply === 'function') {
-        await onApply(cloneAclRules(rules), server);
-      }
-      close();
-    } catch (err) {
-      if (saveErrorEl) saveErrorEl.textContent = err.message || 'Failed to save MCP server access';
-    } finally {
-      state.saving = false;
-      updateSaveButton(saveBtn, state);
-    }
-  });
+      },
+    })
+  );
 
   document.body.appendChild(modal);
   renderAll();

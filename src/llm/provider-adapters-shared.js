@@ -1,3 +1,5 @@
+import { normalizeToolChoice, contentToText } from './provider-adapters-utils.js';
+
 /**
  * Shared helpers for LLM provider content adapter modules.
  *
@@ -84,4 +86,62 @@ export function parseFnArguments(rawArgs) {
     }
   }
   return rawArgs ?? {};
+}
+
+/**
+ * Resolve a tool choice value to a provider-specific configuration.
+ *
+ * Takes a raw or pre-normalized tool choice, normalizes it, and
+ * returns the matching configuration from a config map keyed by
+ * choice type. This replaces the common switch-on-type pattern
+ * in buildGoogleToolConfig and buildAnthropicToolChoice.
+ *
+ * @param {*} toolChoice - The tool choice to resolve
+ * @param {Object} [configMap={}] - Config generators keyed by type
+ * @returns {*|undefined} The matched configuration or undefined
+ */
+/**
+ * Add system content from a message to the system texts array.
+ *
+ * Used identically in both buildGooglePayload and buildAnthropicPayload
+ * to extract and add system content from messages with role === 'system'.
+ *
+ * @param {Object} message - The message with system-type content
+ * @param {Array} systemTexts - The system texts array to push to
+ */
+export function addSystemContent(message, systemTexts) {
+  const text = contentToText(message.content);
+  if (text) systemTexts.push(text);
+}
+
+/**
+ * Normalize a message's role to lowercase for consistent role checking.
+ *
+ * Used identically in both buildGooglePayload and buildAnthropicPayload
+ * at the start of each message iteration.
+ *
+ * @param {Object} message - The message to normalize
+ * @returns {string} Normalized lowercase role string
+ */
+export function normalizeMessageRole(message) {
+  return String(message?.role || '').toLowerCase();
+}
+
+/**
+ * Resolve a tool choice value to a provider-specific configuration.
+ *
+ * Takes a raw or pre-normalized tool choice, normalizes it, and
+ * returns the matching configuration from a config map keyed by
+ * choice type. This replaces the common switch-on-type pattern
+ * in buildGoogleToolConfig and buildAnthropicToolChoice.
+ *
+ * @param {*} toolChoice - The tool choice to resolve
+ * @param {Object} [configMap={}] - Config generators keyed by type
+ * @returns {*|undefined} The matched configuration or undefined
+ */
+export function resolveToolChoiceConfig(toolChoice, configMap = {}) {
+  const choice = normalizeToolChoice(toolChoice);
+  if (!choice) return undefined;
+  const config = configMap[choice.type];
+  return config ? config(choice) : undefined;
 }
