@@ -230,22 +230,18 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
       </div>
     `;
 
-    // Bind filter handlers
-    container.querySelector('#apply-filters')?.addEventListener('click', async () => {
-      const userInput = container.querySelector('#filter-user');
-      const actionSelect = container.querySelector('#filter-action');
-
-      filters.userId = userInput?.value?.trim() || '';
-      filters.action = actionSelect?.value || '';
-      page = 1;
-
+    /**
+     * Load logs and render into content element with pagination
+     * @param {HTMLElement} contentEl - Content container element
+     * @param {Function} [onError] - Optional error handler
+     * @returns {Promise<void>}
+     */
+    async function loadAndRenderContent(contentEl, onError) {
       try {
         const data = await loadLogs();
-        const contentEl = container.querySelector('.audit-content');
         if (contentEl) {
           contentEl.innerHTML = renderAuditTable(data.logs);
 
-          // Add pagination if we have more than limit
           if (data.logs.length === limit || page > 1) {
             const paginationEl = renderPagination(
               page,
@@ -259,7 +255,23 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
           }
         }
       } catch (err) {
-        showToast?.(err.message, 'error');
+        if (onError) onError(err);
+        else throw err;
+      }
+    }
+
+    // Bind filter handlers
+    container.querySelector('#apply-filters')?.addEventListener('click', async () => {
+      const userInput = container.querySelector('#filter-user');
+      const actionSelect = container.querySelector('#filter-action');
+
+      filters.userId = userInput?.value?.trim() || '';
+      filters.action = actionSelect?.value || '';
+      page = 1;
+
+      const contentEl = container.querySelector('.audit-content');
+      if (contentEl) {
+        await loadAndRenderContent(contentEl, (err) => showToast?.(err.message, 'error'));
       }
     });
 
@@ -303,36 +315,19 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
         contentEl.innerHTML = renderTableSkeleton(5);
       }
 
-      try {
-        const data = await loadLogs();
-        if (contentEl) {
-          contentEl.innerHTML = renderAuditTable(data.logs);
-
-          if (data.logs.length === limit || page > 1) {
-            const paginationEl = renderPagination(
-              page,
-              Math.ceil(data.total / limit) || 1,
-              async (newPage) => {
-                page = newPage;
-                await refreshContent();
-              }
-            );
-            contentEl.appendChild(paginationEl);
-          }
-        }
-      } catch {
+      await loadAndRenderContent(contentEl, () => {
         if (contentEl) {
           contentEl.innerHTML = `
-            <div class="error-state text-center py-8 bg-red-50 rounded-lg">
-              <i class="bi bi-exclamation-triangle text-3xl text-red-400 mb-2"></i>
-              <p class="text-red-700">Failed to load audit logs</p>
-              <button class="btn-secondary mt-4" id="retry-load">Try again</button>
-            </div>
-          `;
+              <div class="error-state text-center py-8 bg-red-50 rounded-lg">
+                <i class="bi bi-exclamation-triangle text-3xl text-red-400 mb-2"></i>
+                <p class="text-red-700">Failed to load audit logs</p>
+                <button class="btn-secondary mt-4" id="retry-load">Try again</button>
+              </div>
+            `;
 
           container.querySelector('#retry-load')?.addEventListener('click', refreshContent);
         }
-      }
+      });
     }
 
     // Initial load

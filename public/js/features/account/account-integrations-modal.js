@@ -39,19 +39,20 @@ export function createIntegrationsModal(ctx) {
     activeModalHash = '';
   }
 
+  function toggleButtonVisual(btn, saving) {
+    if (!btn) return;
+    btn.disabled = saving;
+    btn.classList.toggle('opacity-60', saving);
+    btn.classList.toggle('cursor-not-allowed', saving);
+  }
+
   function setSaving(saving, saveBtn, deleteBtn) {
     sectionState.saving = saving;
+    toggleButtonVisual(saveBtn, saving);
     if (saveBtn) {
-      saveBtn.disabled = saving;
       saveBtn.textContent = saving ? 'Saving...' : 'Save';
-      saveBtn.classList.toggle('opacity-60', saving);
-      saveBtn.classList.toggle('cursor-not-allowed', saving);
     }
-    if (deleteBtn) {
-      deleteBtn.disabled = saving;
-      deleteBtn.classList.toggle('opacity-60', saving);
-      deleteBtn.classList.toggle('cursor-not-allowed', saving);
-    }
+    toggleButtonVisual(deleteBtn, saving);
   }
 
   function openModal(server = null) {
@@ -208,11 +209,21 @@ export function createIntegrationsModal(ctx) {
       ctx.render();
     };
 
+    const withSavingLock = async (fn, errorMsg) => {
+      setSaving(true, saveBtn, deleteBtn);
+      try {
+        return await fn();
+      } catch (err) {
+        setTestStatus('error', err?.message || errorMsg);
+      } finally {
+        setSaving(false, saveBtn, deleteBtn);
+      }
+    };
+
     saveBtn?.addEventListener('click', async () => {
       if (sectionState.saving) return;
       setTestStatus('idle', '');
-      setSaving(true, saveBtn, deleteBtn);
-      try {
+      await withSavingLock(async () => {
         const { payload, result } = await saveServer();
         const savedServer = result?.server || result?.saved_server || result?.data?.server || null;
         if (savedServer || isEdit) {
@@ -220,24 +231,13 @@ export function createIntegrationsModal(ctx) {
         }
         broadcastToolServersInvalidation();
         finishAndRender();
-      } catch (err) {
-        setTestStatus('error', err?.message || 'Failed to save integration');
-      } finally {
-        setSaving(false, saveBtn, deleteBtn);
-      }
+      }, 'Failed to save integration');
     });
 
     testBtn?.addEventListener('click', async () => {
       if (sectionState.saving) return;
       setTestStatus('idle', '');
-      setSaving(true, saveBtn, deleteBtn);
-      try {
-        await testServer();
-      } catch (err) {
-        setTestStatus('error', err?.message || 'Failed to test integration');
-      } finally {
-        setSaving(false, saveBtn, deleteBtn);
-      }
+      await withSavingLock(() => testServer(), 'Failed to test integration');
     });
 
     deleteBtn?.addEventListener('click', async () => {
@@ -245,17 +245,12 @@ export function createIntegrationsModal(ctx) {
       if (!window.confirm(`Delete integration ${server.name || server.id}? This cannot be undone.`))
         return;
       setTestStatus('idle', '');
-      setSaving(true, saveBtn, deleteBtn);
-      try {
+      await withSavingLock(async () => {
         await deleteUserMcpServer(server.id);
         removeServer(server.id);
         broadcastToolServersInvalidation();
         finishAndRender();
-      } catch (err) {
-        setTestStatus('error', err?.message || 'Failed to delete integration');
-      } finally {
-        setSaving(false, saveBtn, deleteBtn);
-      }
+      }, 'Failed to delete integration');
     });
 
     closeBtn?.addEventListener('click', closeModal);

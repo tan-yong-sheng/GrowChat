@@ -150,15 +150,7 @@ export function createIntegrationsEventHandlers(deps) {
       testInFlight = true;
       setTestStatus('testing', 'Testing connection...');
       try {
-        const result = await runVerify({
-          serverId,
-          url,
-          authType,
-          bearerToken,
-          basicUser,
-          basicPass,
-          headers,
-        });
+        const result = await runVerify(buildRunVerifyArgs());
         setTestStatus('success', result.message);
         const server = integrationsState.toolServers.find((s) => s.id === serverId);
         if (server) {
@@ -188,14 +180,8 @@ export function createIntegrationsEventHandlers(deps) {
       const bearerToken = container.querySelector('#server-auth-bearer')?.value || '';
       const basicUser = container.querySelector('#server-auth-basic-username')?.value || '';
       const basicPass = container.querySelector('#server-auth-basic-password')?.value || '';
-      const oauthClientName =
-        container.querySelector('#server-auth-oauth-client-name')?.value || '';
-      const oauthScope = container.querySelector('#server-auth-oauth-scope')?.value || '';
-      const oauthClientId = container.querySelector('#server-auth-oauth-client-id')?.value || '';
-      const oauthClientSecret =
-        container.querySelector('#server-auth-oauth-client-secret')?.value || '';
-      const oauthTokenMethod =
-        container.querySelector('#server-auth-oauth-token-method')?.value || '';
+      const { oauthClientName, oauthScope, oauthClientId, oauthClientSecret, oauthTokenMethod } =
+        readOAuthFormFields(container);
       const serverId = integrationsState.selectedServer?.id || '';
 
       if (integrationsState.selectedServer) {
@@ -269,15 +255,7 @@ export function createIntegrationsEventHandlers(deps) {
       if (!url.trim()) return;
 
       try {
-        const verifyResult = await runVerify({
-          serverId,
-          url,
-          authType,
-          bearerToken,
-          basicUser,
-          basicPass,
-          headers,
-        });
+        const verifyResult = await runVerify(buildRunVerifyArgs());
         const server = integrationsState.toolServers.find((s) => s.id === serverId);
         if (server) {
           server.tools = verifyResult.tools;
@@ -371,6 +349,31 @@ export function createIntegrationsEventHandlers(deps) {
         setTestStatus('error', err.message || 'OAuth start failed');
       }
     });
+  };
+
+  /**
+   * Build the common runVerify options object from current form state.
+   */
+  const buildRunVerifyArgs = () => ({
+    serverId: integrationsState.selectedServer?.id || '',
+    url: container.querySelector('#server-url')?.value || '',
+    authType: container.querySelector('#server-auth-type')?.value || 'none',
+    bearerToken: container.querySelector('#server-auth-bearer')?.value || '',
+    basicUser: container.querySelector('#server-auth-basic-username')?.value || '',
+    basicPass: container.querySelector('#server-auth-basic-password')?.value || '',
+    headers: container.querySelector('#server-headers')?.value || '',
+  });
+
+  /**
+   * Read OAuth form fields from the DOM.
+   */
+  const readOAuthFormFields = (target) => {
+    const oauthClientName = target.querySelector('#server-auth-oauth-client-name')?.value || '';
+    const oauthScope = target.querySelector('#server-auth-oauth-scope')?.value || '';
+    const oauthClientId = target.querySelector('#server-auth-oauth-client-id')?.value || '';
+    const oauthClientSecret = target.querySelector('#server-auth-oauth-client-secret')?.value || '';
+    const oauthTokenMethod = target.querySelector('#server-auth-oauth-token-method')?.value || '';
+    return { oauthClientName, oauthScope, oauthClientId, oauthClientSecret, oauthTokenMethod };
   };
 
   return { bindEvents };
