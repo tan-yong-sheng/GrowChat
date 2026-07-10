@@ -53,6 +53,65 @@ import {
 } from './account-connections-helpers.js';
 import { createConnectionModal } from './account-connections-modal.js';
 
+/**
+ * Resolve a field from 3 connection sources with optional fallback.
+ * Priority: saved > payload > existing (using || for truthy-first semantics).
+ */
+function resolveConnectionField(sources, fieldName, fallback) {
+  const { saved, payload, existing } = sources;
+  const value = saved?.[fieldName] || payload?.[fieldName] || existing?.[fieldName];
+  return value !== undefined && value !== null ? value : fallback;
+}
+
+/**
+ * Resolve enabled from 3 connection sources with boolean priority.
+ * Returns the first boolean value found, or existing?.enabled ?? true.
+ */
+function resolveConnectionEnabled(sources) {
+  const { saved, payload, existing } = sources;
+  if (typeof saved?.enabled === 'boolean') {
+    return saved.enabled;
+  }
+  if (typeof payload?.enabled === 'boolean') {
+    return payload.enabled;
+  }
+  if (typeof existing?.enabled === 'boolean') {
+    return existing.enabled;
+  }
+  return existing?.enabled ?? true;
+}
+
+/**
+ * Resolve manual_models_mode from 3 connection sources.
+ * Checks multiple key paths (camelCase + snake_case), falls back to normalization || 'all'.
+ * Preserves || semantics (not ??) to match existing behavior.
+ */
+function resolveConnectionManualModelsMode(sources) {
+  const { saved, payload, existing } = sources;
+  const raw =
+    saved?.manual_models_mode ||
+    saved?.manualModelsMode ||
+    payload?.manual_models_mode ||
+    payload?.manualModelsMode ||
+    existing?.manualModelsMode;
+  return normalizeConnectionModelSelectionMode(raw) || raw || 'all';
+}
+
+/**
+ * Resolve manual_models from 3 connection sources.
+ * Returns the first array found, or existing?.manual_models || [].
+ */
+function resolveConnectionManualModels(sources) {
+  const { saved, payload, existing } = sources;
+  if (Array.isArray(saved?.manual_models)) {
+    return saved.manual_models;
+  }
+  if (Array.isArray(payload?.manual_models)) {
+    return payload.manual_models;
+  }
+  return existing?.manual_models || [];
+}
+
 export function renderAccountConnectionsSection(
   container,
   state = {},
@@ -136,45 +195,30 @@ export function renderAccountConnectionsSection(
     viewState.error = '';
   };
 
+  /**
+   * Merge 3 connection sources (saved > payload > existing) into a normalized connection record.
+   *
+   * @param {Object} payload - The request payload
+   * @param {Object|null} savedConnection - The saved/returned connection (highest priority)
+   * @param {Object|null} existingConnection - The existing connection (lowest priority)
+   * @returns {Object} Normalized connection record
+   */
   const mergeSavedConnection = (payload, savedConnection, existingConnection = null) => {
-    const normalized = normalizePersonalConnection({
-      ...existingConnection,
-      ...payload,
-      ...savedConnection,
-      id: savedConnection?.id || existingConnection?.id || '',
-      name: savedConnection?.name || payload.name || existingConnection?.name || '',
-      base_url: savedConnection?.base_url || payload.base_url || existingConnection?.base_url || '',
-      provider_type:
-        savedConnection?.provider_type ||
-        payload.provider_type ||
-        existingConnection?.provider_type ||
-        'openai-compatible',
-      provider_family:
-        savedConnection?.provider_family || existingConnection?.provider_family || 'openai',
-      auth_type:
-        savedConnection?.auth_type || payload.auth_type || existingConnection?.auth_type || '',
-      enabled:
-        typeof savedConnection?.enabled === 'boolean'
-          ? savedConnection.enabled
-          : (payload.enabled ?? existingConnection?.enabled),
-      manual_models_mode:
-        normalizeConnectionModelSelectionMode(
-          savedConnection?.manual_models_mode ||
-            savedConnection?.manualModelsMode ||
-            payload.manual_models_mode ||
-            payload.manualModelsMode ||
-            existingConnection?.manualModelsMode
-        ) ||
-        existingConnection?.manualModelsMode ||
-        'all',
-      headers: savedConnection?.headers || existingConnection?.headers || {},
-      key: savedConnection?.key || payload.key || existingConnection?.key || '',
-      manual_models: Array.isArray(savedConnection?.manual_models)
-        ? savedConnection.manual_models
-        : Array.isArray(payload.manual_models)
-          ? payload.manual_models
-          : existingConnection?.manual_models || [],
-    });
+    const sources = { saved: savedConnection, payload, existing: existingConnection };
+    const merged = {
+      id: resolveConnectionField(sources, 'id', ''),
+      name: resolveConnectionField(sources, 'name', ''),
+      base_url: resolveConnectionField(sources, 'base_url', ''),
+      provider_type: resolveConnectionField(sources, 'provider_type', 'openai-compatible'),
+      provider_family: resolveConnectionField(sources, 'provider_family', 'openai'),
+      auth_type: resolveConnectionField(sources, 'auth_type', ''),
+      enabled: resolveConnectionEnabled(sources),
+      manual_models_mode: resolveConnectionManualModelsMode(sources),
+      headers: resolveConnectionField(sources, 'headers', {}),
+      key: resolveConnectionField(sources, 'key', ''),
+      manual_models: resolveConnectionManualModels(sources),
+    };
+    const normalized = normalizePersonalConnection(merged);
     if (existingConnection?.has_key && !normalized.has_key) {
       normalized.has_key = true;
     }

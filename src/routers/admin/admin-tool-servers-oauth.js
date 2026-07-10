@@ -22,6 +22,48 @@ const MAX_SERVER_NAME_LENGTH = 200;
 const OAUTH_CODE_VERIFIER_LENGTH = 64;
 const OAUTH_STATE_LENGTH = 32;
 
+const OAUTH_START_PATH = '/api/admin/tool-servers/oauth/start';
+const OAUTH_CALLBACK_PATH = '/api/admin/tool-servers/oauth/callback';
+
+/* -------------------------------------------------------------------------- */
+/* Origin helper                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Extract and normalize APP_PUBLIC_ORIGIN, returning the origin stripped of trailing slash.
+ * Returns null if not configured (caller should handle the error response).
+ */
+function getOrigin(env) {
+  return (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '') || null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* URL safety check                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Check a URL is safe via isSafeOutboundUrl, returning null if safe or an error Response.
+ * Used in the OAuth start branch which consistently calls error().
+ */
+function assertUrlSafety(req, url) {
+  const safety = isSafeOutboundUrl(url);
+  if (!safety.safe) {
+    return error(req, safety.reason, HTTP_STATUS.BAD_REQUEST);
+  }
+  return null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Server field extraction                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Extract a field from body with fallback to existing server, defaulting to ''.
+ */
+function extractField(body, server, key, defaultValue = '') {
+  return String(body[key] || server[key] || defaultValue).trim();
+}
+
 /**
  * Handle handleAdminToolServersOAuth routes.
  * Returns Response if handled, null if path doesn't match.
@@ -34,9 +76,8 @@ export async function handleAdminToolServersOAuth(
   path,
   { db, _logger, _requestContext }
 ) {
-  if (req.method === 'POST' && path === '/api/admin/tool-servers/oauth/start') {
-    // Strip trailing slash so concatenations produce clean URLs
-    const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+  if (req.method === 'POST' && path === OAUTH_START_PATH) {
+    const origin = getOrigin(env);
     if (!origin) {
       return error(req, 'APP_PUBLIC_ORIGIN is not configured', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
@@ -48,7 +89,7 @@ export async function handleAdminToolServersOAuth(
     );
     if (denied) return denied;
 
-    const serverId = String(body.id || '').trim();
+    const serverId = extractField(body, {}, 'id');
     if (!serverId) {
       return error(req, 'Server must be saved before OAuth connect', HTTP_STATUS.BAD_REQUEST);
     }
@@ -56,32 +97,27 @@ export async function handleAdminToolServersOAuth(
     const servers = await loadToolServers(db);
     const serverIndex = servers.findIndex((entry) => String(entry.id) === serverId);
     const existingServer = serverIndex === -1 ? null : servers[serverIndex];
-    const serverUrl = String(body.url || existingServer?.url || '').trim();
+    const serverUrl = extractField(body, existingServer || {}, 'url');
     if (!serverUrl || !isValidHttpUrl(serverUrl)) {
       return error(req, 'Server URL must start with http:// or https://', HTTP_STATUS.BAD_REQUEST);
     }
-    const oauthUrlSafety = isSafeOutboundUrl(serverUrl);
-    if (!oauthUrlSafety.safe) {
-      return error(req, oauthUrlSafety.reason, HTTP_STATUS.BAD_REQUEST);
-    }
+
+    const unsafeUrl = assertUrlSafety(req, serverUrl, 'Server URL');
+    if (unsafeUrl) return unsafeUrl;
 
     if (!existingServer) {
       return error(req, 'Server must be saved before OAuth connect', HTTP_STATUS.BAD_REQUEST);
     }
 
     const server = existingServer;
-    const oauthClientName = String(
-      body.oauth_client_name || server.oauth_client_name || 'GrowChat MCP Client'
-    ).trim();
-    const oauthScope = String(body.oauth_scope || server.oauth_scope || '').trim();
-    const authServerUrl = String(
-      body.oauth_authorization_server || server.oauth_authorization_server || serverUrl
-    ).trim();
-    const authServerUrlSafety = isSafeOutboundUrl(authServerUrl);
-    if (!authServerUrlSafety.safe) {
-      return error(req, authServerUrlSafety.reason, HTTP_STATUS.BAD_REQUEST);
-    }
-    const redirectUri = origin + '/api/admin/tool-servers/oauth/callback';
+    const redirectUri = origin + OAUTH_CALLBACK_PATH;
+
+    const oauthClientName = extractField(body, server, 'oauth_client_name', 'GrowChat MCP Client');
+    const oauthScope = extractField(body, server, 'oauth_scope');
+    const authServerUrl = extractField(body, server, 'oauth_authorization_server') || serverUrl;
+
+    const unsafeAuthUrl = assertUrlSafety(req, authServerUrl, 'Authorization server');
+    if (unsafeAuthUrl) return unsafeAuthUrl;
 
     let metadata;
     try {
@@ -90,16 +126,14 @@ export async function handleAdminToolServersOAuth(
       metadata = null;
     }
 
-    let clientId = String(body.oauth_client_id || server.oauth_client_id || '').trim();
-    let clientSecret = String(body.oauth_client_secret || server.oauth_client_secret || '').trim();
+    let clientId = extractField(body, server, 'oauth_client_id');
+    let clientSecret = extractField(body, server, 'oauth_client_secret');
     let registrationEndpoint =
       metadata?.registration_endpoint || server.oauth_registration_endpoint || '';
 
     if (registrationEndpoint) {
-      const registrationEndpointSafety = isSafeOutboundUrl(registrationEndpoint);
-      if (!registrationEndpointSafety.safe) {
-        return error(req, registrationEndpointSafety.reason, HTTP_STATUS.BAD_REQUEST);
-      }
+      const unsafeReg = assertUrlSafety(req, registrationEndpoint, 'Registration endpoint');
+      if (unsafeReg) return unsafeReg;
     }
 
     if (!clientId) {
@@ -129,8 +163,8 @@ export async function handleAdminToolServersOAuth(
           });
         }
         const registrationData = await registrationRes.json();
-        clientId = String(registrationData.client_id || '').trim();
-        clientSecret = String(registrationData.client_secret || '').trim();
+        clientId = extractField(registrationData, {}, 'client_id');
+        clientSecret = extractField(registrationData, {}, 'client_secret');
       } catch (err) {
         return error(req, 'Client registration failed', HTTP_STATUS.BAD_GATEWAY, {
           message: err?.message || String(err),
@@ -143,7 +177,7 @@ export async function handleAdminToolServersOAuth(
     }
 
     const tokenAuthMethod =
-      normalizeTokenAuthMethod(body.oauth_token_auth_method || server.oauth_token_auth_method) ||
+      normalizeTokenAuthMethod(extractField(body, server, 'oauth_token_auth_method')) ||
       selectTokenAuthMethod(
         metadata?.token_endpoint_auth_methods_supported || [],
         Boolean(clientSecret)
@@ -155,10 +189,9 @@ export async function handleAdminToolServersOAuth(
     const authorizationEndpoint =
       metadata?.authorization_endpoint || new URL('/authorize', authServerUrl).toString();
     const tokenEndpoint = metadata?.token_endpoint || new URL('/token', authServerUrl).toString();
-    const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
-    if (!tokenEndpointSafety.safe) {
-      return error(req, tokenEndpointSafety.reason, HTTP_STATUS.BAD_REQUEST);
-    }
+
+    const unsafeTokenEndpoint = assertUrlSafety(req, tokenEndpoint, 'Token endpoint');
+    if (unsafeTokenEndpoint) return unsafeTokenEndpoint;
 
     const authorizationUrl = buildAuthorizationUrl({
       authorizationEndpoint,
@@ -195,9 +228,8 @@ export async function handleAdminToolServersOAuth(
   }
 
   // GET /api/admin/tool-servers/oauth/callback - OAuth redirect handler
-  if (req.method === 'GET' && path === '/api/admin/tool-servers/oauth/callback') {
-    // Strip trailing slash so concatenations produce clean URLs
-    const origin = (env.APP_PUBLIC_ORIGIN || '').replace(/\/$/, '');
+  if (req.method === 'GET' && path === OAUTH_CALLBACK_PATH) {
+    const origin = getOrigin(env);
     if (!origin) {
       return error(req, 'APP_PUBLIC_ORIGIN is not configured', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
@@ -229,13 +261,15 @@ export async function handleAdminToolServersOAuth(
     const tokenEndpoint =
       server.oauth_token_endpoint ||
       new URL('/token', server.oauth_authorization_server || server.url).toString();
+
     const tokenEndpointSafety = isSafeOutboundUrl(tokenEndpoint);
     if (!tokenEndpointSafety.safe) {
       return new Response(`Token exchange failed: ${tokenEndpointSafety.reason}`, {
         status: HTTP_STATUS.BAD_REQUEST,
       });
     }
-    const redirectUri = origin + '/api/admin/tool-servers/oauth/callback';
+
+    const redirectUri = origin + OAUTH_CALLBACK_PATH;
     const { params, headers } = buildTokenRequest(server, code, redirectUri);
 
     try {

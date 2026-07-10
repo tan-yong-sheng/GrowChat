@@ -34,7 +34,7 @@ export async function handleAdminToolServersCrud(
   if (req.method === 'GET' && path === '/api/admin/tool-servers') {
     try {
       const url = new URL(req.url);
-      const includeDisabled = ['1', 'true', 'yes'].includes(
+      const includeDisabled = parseIncludeDisabledParam(
         String(url.searchParams.get('include_disabled') || '').toLowerCase()
       );
       const servers = await loadToolServers(db);
@@ -78,25 +78,8 @@ export async function handleAdminToolServersCrud(
     applyAuthHeaders(headers, body);
 
     if (authType === 'oauth') {
-      const serverId = String(body.id || '').trim();
-      if (!serverId) {
-        return error(
-          req,
-          'Server must be saved before OAuth verification',
-          HTTP_STATUS.BAD_REQUEST
-        );
-      }
-      const servers = await loadToolServers(db);
-      const server = servers.find((entry) => String(entry.id) === serverId);
-      const accessToken = server?.oauth_tokens?.access_token;
-      if (!accessToken) {
-        return error(
-          req,
-          'OAuth not connected yet. Click Connect OAuth first.',
-          HTTP_STATUS.BAD_REQUEST
-        );
-      }
-      headers.Authorization = `Bearer ${accessToken}`;
+      const oauthResult = await resolveOAuthHeaderForServer(req, db, body, headers);
+      if (oauthResult) return oauthResult;
     }
 
     try {
@@ -105,18 +88,7 @@ export async function handleAdminToolServersCrud(
       let mergedTools = toolSummaries;
 
       if (body.id) {
-        const servers = await loadToolServers(db);
-        const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
-        if (index !== -1) {
-          mergedTools = mergeToolSpecs(servers[index].tools, toolSummaries);
-          servers[index] = {
-            ...servers[index],
-            tools: mergedTools,
-            tools_error: '',
-            tools_verified_at: new Date().toISOString(),
-          };
-          await saveToolServers(db, servers);
-        }
+        mergedTools = await mergeConnectionTestToolsIntoExisting(db, body.id, toolSummaries);
       }
 
       return json(req, {
@@ -125,24 +97,7 @@ export async function handleAdminToolServersCrud(
         tools: mergedTools,
       });
     } catch (err) {
-      if (body?.id) {
-        try {
-          const servers = await loadToolServers(db);
-          const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
-          if (index !== -1) {
-            servers[index] = {
-              ...servers[index],
-              tools_error: err?.message || 'Connection failed',
-              tools_verified_at: new Date().toISOString(),
-            };
-            await saveToolServers(db, servers);
-          }
-        } catch (persistErr) {
-          logger.warn('Failed to persist tool server error', {
-            error: persistErr?.message || persistErr,
-          });
-        }
-      }
+      await persistToolServerConnectionError(db, logger, body, err);
       return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
         message: err?.message || String(err),
       });
@@ -160,7 +115,7 @@ export async function handleAdminToolServersCrud(
 
     const servers = Array.isArray(body.servers) ? body.servers : [];
     const existing = await loadToolServers(db);
-    const existingById = new Map(existing.map((entry) => [String(entry.id), entry]));
+    const existingById = buildToolServerMap(existing);
     const sanitized = servers
       .map((server) => {
         const merged = mergeToolServer(existingById.get(String(server.id)), server);
@@ -188,4 +143,94 @@ export async function handleAdminToolServersCrud(
   }
 
   return null;
+}
+
+/**
+ * Resolve OAuth header for a tool server — validates saved state and
+ * attaches the Bearer token to the request headers.
+ *
+ * Returns a Response on error, or null on success (headers mutated).
+ * The caller should return the error response if non-null.
+ */
+async function resolveOAuthHeaderForServer(req, db, body, headers) {
+  const serverId = String(body.id || '').trim();
+  if (!serverId) {
+    return error(req, 'Server must be saved before OAuth verification', HTTP_STATUS.BAD_REQUEST);
+  }
+  const servers = await loadToolServers(db);
+  const server = servers.find((entry) => String(entry.id) === serverId);
+  const accessToken = server?.oauth_tokens?.access_token;
+  if (!accessToken) {
+    return error(
+      req,
+      'OAuth not connected yet. Click Connect OAuth first.',
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+  headers.Authorization = `Bearer ${accessToken}`;
+  return null;
+}
+
+/**
+ * Merge newly fetched tool specs into an existing tool server after
+ * a successful test — merges tool lists and persists the update.
+ *
+ * @returns {Array} The merged tool list
+ */
+async function mergeConnectionTestToolsIntoExisting(db, bodyId, toolSummaries) {
+  const servers = await loadToolServers(db);
+  const index = servers.findIndex((entry) => String(entry.id) === String(bodyId));
+  if (index === -1) {
+    return toolSummaries;
+  }
+  const mergedTools = mergeToolSpecs(servers[index].tools, toolSummaries);
+  servers[index] = {
+    ...servers[index],
+    tools: mergedTools,
+    tools_error: '',
+    tools_verified_at: new Date().toISOString(),
+  };
+  await saveToolServers(db, servers);
+  return mergedTools;
+}
+
+/**
+ * Persist a tool server error after a failed connection test — updates
+ * the server record with the error message.
+ */
+/**
+ * Parse the include_disabled query param — checks for truthy values.
+ * @param {string} value - The lowercased query param value
+ * @returns {boolean}
+ */
+function parseIncludeDisabledParam(value) {
+  return ['1', 'true', 'yes'].includes(String(value || '').toLowerCase());
+}
+
+/**
+ * Build a Map of existing tool servers by their string id.
+ * @param {Array} servers
+ * @returns {Map<string, object>}
+ */
+function buildToolServerMap(servers) {
+  return new Map((Array.isArray(servers) ? servers : []).map((entry) => [String(entry.id), entry]));
+}
+
+async function persistToolServerConnectionError(db, logger, body, err) {
+  if (!body?.id) return;
+  try {
+    const servers = await loadToolServers(db);
+    const index = servers.findIndex((entry) => String(entry.id) === String(body.id));
+    if (index === -1) return;
+    servers[index] = {
+      ...servers[index],
+      tools_error: err?.message || 'Connection failed',
+      tools_verified_at: new Date().toISOString(),
+    };
+    await saveToolServers(db, servers);
+  } catch (persistErr) {
+    logger.warn('Failed to persist tool server error', {
+      error: persistErr?.message || persistErr,
+    });
+  }
 }

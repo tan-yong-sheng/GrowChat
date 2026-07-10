@@ -5,7 +5,26 @@
  * Both admin-connections-access and admin-tool-servers-access use
  * this same pattern in their GET /api/admin/(star)/access handlers
  * to extract comma-separated ids and fetch the full groups table.
+ *
+ * Also provides `projectRuleAuditFields` for rule audit metadata.
  */
+
+/**
+ * Build a canonical audit/response representation of a single ACL rule.
+ * Both admin-connections-access and admin-tool-servers-access use this
+ * shape in their PUT /access responses and audit log metadata.
+ *
+ * @param {{ principal_type: string, principal_id: string, effect: string, action: string }} rule
+ * @returns {{ principal_type: string, principal_id: string, effect: string, action: string }}
+ */
+export function projectRuleAuditFields(rule) {
+  return {
+    principal_type: rule.principal_type,
+    principal_id: rule.principal_id,
+    effect: rule.effect,
+    action: rule.action,
+  };
+}
 
 /**
  * Parse comma-separated `ids` from URL search params.
@@ -46,4 +65,22 @@ export function loadGroups(db) {
 export async function getValidGroupIds(db) {
   const groups = await loadGroups(db);
   return new Set(groups.map((group) => group.id));
+}
+
+/**
+ * Extract a resource ID from a URL path match with safe URL-decode
+ * fallback. Both admin-connections-access and admin-tool-servers-access
+ * use this pattern to extract IDs from regex path matches.
+ *
+ * @param {RegExpExecArray|null} match - Regex match result from path.match()
+ * @param {number} [group=1] - Capture group index (default 1)
+ * @returns {string|null} - Decoded resource ID, or null if no match
+ */
+export function extractResourceIdFromPath(match, group = 1) {
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[group]);
+  } catch {
+    return match[group];
+  }
 }

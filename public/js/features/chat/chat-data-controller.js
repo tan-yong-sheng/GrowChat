@@ -1,5 +1,103 @@
 import { resolveConversationLeafId } from '../../shared/utils/conversation.js';
 
+/**
+ * Check if a message is still actively streaming (not yet done).
+ * Used to detect running messages that need live-stream attention.
+ * @param {import('../../../../types.js').Message} message
+ * @param {number} now - current Date.now() value
+ * @param {number} staleMs - stream stale timeout in ms
+ * @returns {boolean}
+ */
+function isMessageLive(message, now, staleMs) {
+  const status = String(message?.status || '');
+  const isRunning =
+    message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+  if (!isRunning) return false;
+  const createdAtMs = Number(message?.created_at || 0) * 1000;
+  if (!createdAtMs) return false;
+  return now - createdAtMs <= staleMs;
+}
+
+/**
+ * Resolve the preferred model ID based on modelMode ('default' vs 'chat').
+ * @param {object} state
+ * @param {object} data - parsed response data
+ * @param {'keep'|'default'|'chat'} modelMode
+ * @returns {string|null}
+ */
+function resolveModelIdForMode(state, data, modelMode) {
+  if (modelMode === 'default') {
+    return (
+      state.defaultModelId || state.globalDefaultModelId || data?.chat?.model || state.activeModelId
+    );
+  }
+  if (modelMode === 'chat') {
+    return (
+      data?.chat?.model || state.activeModelId || state.defaultModelId || state.globalDefaultModelId
+    );
+  }
+  return state.activeModelId;
+}
+
+/**
+ * Mark messages as (not) done based on stream live status.
+ * Used by loadMessages to flag stale messages before fallback insertion.
+ * @param {import('../../../../types.js').Message[]} messages
+ * @param {number} now - current Date.now() value
+ * @param {number} staleMs - stream stale timeout in ms
+ * @returns {import('../../../../types.js').Message[]}
+ *  Messages with `done` set according to isMessageLive check
+ */
+function markStreamingDone(messages, now, staleMs) {
+  return (messages || []).map((m) => ({
+    ...m,
+    done: !isMessageLive(m, now, staleMs),
+  }));
+}
+
+/**
+ * Compute whether any messages are still actively streaming.
+ * @param {import('../../../../types.js').Message[]} messages
+ * @param {number} now - current Date.now() value
+ * @param {number} staleMs - stream stale timeout in ms
+ * @returns {boolean}
+ */
+function hasLiveStream(messages, now, staleMs) {
+  return messages.some((m) => isMessageLive(m, now, staleMs));
+}
+
+/**
+ * Handle fallback message insertion when a stream fallback is needed.
+ * @param {import('../../../../types.js').Message[]} messages
+ * @param {object|null} fallbackMessage
+ * @returns {{ messages: import('../../../../types.js').Message[], appliedFallbackId: string|null }}
+ */
+function resolveFallbackMessageInsertion(messages, fallbackMessage) {
+  if (!fallbackMessage?.id) return { messages, appliedFallbackId: null };
+
+  let resolved = fallbackMessage;
+  const fallbackId = String(resolved.id);
+  const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
+  const fallbackParent = resolved.parent_id ? String(resolved.parent_id) : '';
+  const hasSibling = fallbackParent
+    ? messages.some(
+        (msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent
+      )
+    : false;
+
+  if (hasExact || hasSibling) return { messages, appliedFallbackId: null };
+
+  const parentExists = fallbackParent && messages.some((msg) => String(msg.id) === fallbackParent);
+  if (!parentExists) {
+    const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
+    resolved = { ...resolved, parent_id: lastUser ? lastUser.id : null };
+  }
+
+  const updated = [...messages, { ...resolved, done: true }];
+  updated.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
+  return { messages: updated, appliedFallbackId: String(resolved.id) };
+}
+
 export function createChatDataController({
   state,
   setState = () => {},
@@ -98,43 +196,15 @@ export function createChatDataController({
     const data = await res.json();
 
     const now = Date.now();
-    const isMessageLive = (message) => {
-      const status = String(message?.status || '');
-      const isRunning =
-        message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
-      if (!isRunning) return false;
-      const createdAtMs = Number(message?.created_at || 0) * 1000;
-      if (!createdAtMs) return false;
-      return now - createdAtMs <= STREAM_STALE_MS;
-    };
 
-    let messages = (data.messages || []).map((m) => ({
-      ...m,
-      done: !isMessageLive(m),
-    }));
-    let appliedFallbackId = null;
-    if (fallbackMessage?.id) {
-      let resolvedFallback = fallbackMessage;
-      const fallbackId = String(resolvedFallback.id);
-      const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
-      const fallbackParent = resolvedFallback.parent_id ? String(resolvedFallback.parent_id) : '';
-      const hasSibling = fallbackParent
-        ? messages.some(
-            (msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent
-          )
-        : false;
-      if (!hasExact && !hasSibling) {
-        const parentExists =
-          fallbackParent && messages.some((msg) => String(msg.id) === fallbackParent);
-        if (!parentExists) {
-          const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
-          resolvedFallback = { ...resolvedFallback, parent_id: lastUser ? lastUser.id : null };
-        }
-        messages = [...messages, { ...resolvedFallback, done: true }];
-        messages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
-        appliedFallbackId = String(resolvedFallback.id);
-      }
-    }
+    const { messages: initialMessages, appliedFallbackId: savedFallbackId } =
+      resolveFallbackMessageInsertion(
+        markStreamingDone(data.messages, now, STREAM_STALE_MS),
+        fallbackMessage
+      );
+
+    const messages = initialMessages;
+    let appliedFallbackId = savedFallbackId;
 
     const priorLeafId = currentLeafByChatId.get(chatId) || null;
     const resolvedLeafId = resolveConversationLeafId(messages, {
@@ -147,37 +217,26 @@ export function createChatDataController({
       currentLeafByChatId.set(chatId, String(resolvedLeafId));
     }
 
-    const hasRunning = messages.some((m) => isMessageLive(m));
+    const streamingNow = hasLiveStream(messages, now, STREAM_STALE_MS);
 
     const nextState = {
       messagesByChat: { ...state.messagesByChat, [chatId]: messages },
     };
     if (updateActiveModel) {
-      let preferredModelId = state.activeModelId;
-      if (modelMode === 'default') {
-        preferredModelId =
-          state.defaultModelId ||
-          state.globalDefaultModelId ||
-          data?.chat?.model ||
-          state.activeModelId;
-      } else if (modelMode === 'chat') {
-        preferredModelId =
-          data?.chat?.model ||
-          state.activeModelId ||
-          state.defaultModelId ||
-          state.globalDefaultModelId;
+      const preferredModelId = resolveModelIdForMode(state, data, modelMode);
+      if (preferredModelId) {
+        nextState.activeModelId = preferredModelId;
       }
-      nextState.activeModelId = preferredModelId;
     }
     nextState.ui = {
       loadingChatId: null,
-      streaming: hasRunning,
-      streamingChatId: hasRunning ? String(chatId) : null,
+      streaming: streamingNow,
+      streamingChatId: streamingNow ? String(chatId) : null,
     };
     setState(nextState);
 
     if (draw) drawMessages(messages);
-    if (hasRunning && state.activeChatId === chatId) {
+    if (streamingNow && state.activeChatId === chatId) {
       const runningId = streamSession?.getRunningMessageId(messages);
       if (runningId) startResumeStream(chatId, runningId);
     }

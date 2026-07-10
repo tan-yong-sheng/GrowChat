@@ -22,76 +22,87 @@ export function renderInlineTokens(tokens = []) {
   return (Array.isArray(tokens) ? tokens : []).map((token) => renderInlineToken(token)).join('');
 }
 
+function _renderInlineTextOrEscape(token) {
+  return escapeHtml(decodeHtmlEntities(token.text ?? token.raw ?? '')).replace(/\n/g, ' ');
+}
+
+function _renderInlineStrong(token) {
+  return `<strong>${renderInlineTokens(token.tokens)}</strong>`;
+}
+
+function _renderInlineEm(token) {
+  return `<em>${renderInlineTokens(token.tokens)}</em>`;
+}
+
+function _renderInlineDel(token) {
+  return `<del>${renderInlineTokens(token.tokens)}</del>`;
+}
+
+function _renderInlineCodespan(token) {
+  return `<code class="gc-inline-code" data-markdown-inline-code>${escapeHtml(token.text ?? '')}</code>`;
+}
+
+function _renderInlineLink(token) {
+  const href = escapeHtml(token.href ?? '');
+  const title = token.title ? ` title="${escapeHtml(token.title)}"` : '';
+  const inner = renderInlineTokens(token.tokens || []) || escapeHtml(token.text ?? '');
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer"${title}>${inner}</a>`;
+}
+
+function _renderInlineImage(token) {
+  return `<img src="${escapeHtml(token.href ?? '')}" alt="${escapeHtml(token.text ?? '')}" loading="lazy" />`;
+}
+
+function _renderInlineDefault(token) {
+  if (Array.isArray(token.tokens)) {
+    return renderInlineTokens(token.tokens);
+  }
+  return escapeHtml(token.text ?? token.raw ?? '');
+}
+
 export function renderInlineToken(token) {
   if (!token) return '';
   const type = String(token.type || '');
   switch (type) {
     case 'escape':
     case 'text':
-      return escapeHtml(decodeHtmlEntities(token.text ?? token.raw ?? '')).replace(/\n/g, ' ');
+      return _renderInlineTextOrEscape(token);
     case 'strong':
-      return `<strong>${renderInlineTokens(token.tokens)}</strong>`;
+      return _renderInlineStrong(token);
     case 'em':
-      return `<em>${renderInlineTokens(token.tokens)}</em>`;
+      return _renderInlineEm(token);
     case 'del':
-      return `<del>${renderInlineTokens(token.tokens)}</del>`;
+      return _renderInlineDel(token);
     case 'codespan':
-      return `<code class="gc-inline-code" data-markdown-inline-code>${escapeHtml(token.text ?? '')}</code>`;
+      return _renderInlineCodespan(token);
     case 'br':
       return '<br />';
-    case 'link': {
-      const href = escapeHtml(token.href ?? '');
-      const title = token.title ? ` title="${escapeHtml(token.title)}"` : '';
-      return `<a href="${href}" target="_blank" rel="noopener noreferrer"${title}>${renderInlineTokens(token.tokens || []) || escapeHtml(token.text ?? '')}</a>`;
-    }
+    case 'link':
+      return _renderInlineLink(token);
     case 'image':
-      return `<img src="${escapeHtml(token.href ?? '')}" alt="${escapeHtml(token.text ?? '')}" loading="lazy" />`;
+      return _renderInlineImage(token);
     case 'html':
       return token.raw ?? token.text ?? '';
     default:
-      if (Array.isArray(token.tokens)) {
-        return renderInlineTokens(token.tokens);
-      }
-      return escapeHtml(token.text ?? token.raw ?? '');
+      return _renderInlineDefault(token);
   }
 }
 
-export function renderCodeBlock(
-  token,
-  { interactive = true, streaming = false, specialBlockScope = '' } = {}
-) {
-  const isStreaming = Boolean(streaming);
-  const lang = String(token?.lang || '').trim();
-  const kind = getSpecialBlockKind(lang);
-  const langLabel = kind ? getSpecialBlockLabel(kind) : lang || 'text';
-  const sourceText = String(token?.text ?? '');
-  const specialSession = resolveSpecialBlockSession(specialBlockScope);
-  const specialMode = isStreaming ? 'code' : specialSession.mode;
-  if (kind && isFullLatexDocument(sourceText)) {
-    return renderPlainCodeBlock(token, {
-      interactive,
-      streaming,
-      langLabel: lang || 'text',
-      sourceLanguage: lang || 'text',
-    });
-  }
-  if (kind) {
-    const code = escapeHtml(sourceText);
-    const sourceLanguage = getSpecialCodeLanguage(kind);
-    const languageClass = sourceLanguage ? `language-${escapeHtml(sourceLanguage)}` : '';
-    const scopeAttr = specialSession.scope
-      ? ` data-markdown-special-scope="${escapeHtml(specialSession.scope)}"`
-      : '';
-    const codeHtml = `
-    <div class="gc-markdown-special-code-shell ${specialMode === 'code' ? '' : 'hidden'}" data-markdown-special-code-shell>
-      <pre class="gc-markdown-code-block" data-markdown-special-code><code class="${languageClass}">${code}</code></pre>
-    </div>`;
-    if (!interactive) {
-      return `<div class="gc-markdown-special-shell gc-markdown-special-static" data-markdown-special-block${scopeAttr} data-markdown-special-kind="${escapeHtml(kind)}" data-markdown-special-mode="preview" data-markdown-special-streaming="${isStreaming ? '1' : '0'}"><div class="gc-markdown-special-preview" data-markdown-special-preview><div class="gc-markdown-special-placeholder">${escapeHtml(getSpecialPreviewPlaceholder(kind))}</div></div></div>`;
-    }
-    return `
-    <div class="gc-markdown-special-shell" data-markdown-special-block${scopeAttr} data-markdown-special-kind="${escapeHtml(kind)}" data-markdown-special-mode="${escapeHtml(specialMode)}" data-markdown-special-streaming="${isStreaming ? '1' : '0'}" data-markdown-special-collapsed="0">
-      <div class="gc-markdown-special-toolbar">
+function _renderSpecialBlockLatex(token, { interactive, streaming, langLabel, sourceLanguage }) {
+  return renderPlainCodeBlock(token, {
+    interactive,
+    streaming,
+    langLabel,
+    sourceLanguage,
+  });
+}
+
+function _renderSpecialBlockNonInteractive({ kind, scopeAttr, isStreaming }) {
+  return `<div class="gc-markdown-special-shell gc-markdown-special-static" data-markdown-special-block${scopeAttr} data-markdown-special-kind="${escapeHtml(kind)}" data-markdown-special-mode="preview" data-markdown-special-streaming="${isStreaming ? '1' : '0'}"><div class="gc-markdown-special-preview" data-markdown-special-preview><div class="gc-markdown-special-placeholder">${escapeHtml(getSpecialPreviewPlaceholder(kind))}</div></div></div>`;
+}
+
+function _renderSpecialBlockToolbar({ langLabel, specialMode, isStreaming }) {
+  return `<div class="gc-markdown-special-toolbar">
         <div class="gc-markdown-special-title">${escapeHtml(langLabel)}</div>
         <div class="gc-markdown-special-toolbar-actions">
           <div class="gc-markdown-special-tabs" role="tablist" aria-label="${escapeHtml(langLabel)} view mode">
@@ -114,11 +125,70 @@ export function renderCodeBlock(
             </button>
           </div>
         </div>
-      </div>
+      </div>`;
+}
+
+function _renderSpecialBlockCodeHtml({ code, languageClass, specialMode }) {
+  return `<div class="gc-markdown-special-code-shell ${specialMode === 'code' ? '' : 'hidden'}" data-markdown-special-code-shell>
+    <pre class="gc-markdown-code-block" data-markdown-special-code><code class="${languageClass}">${code}</code></pre>
+  </div>`;
+}
+
+function _renderSpecialBlockPreview({ kind, specialMode }) {
+  return `<div class="gc-markdown-special-preview ${specialMode === 'code' ? 'hidden' : ''}" data-markdown-special-preview>
+    <div class="gc-markdown-special-placeholder">${escapeHtml(getSpecialPreviewPlaceholder(kind))}</div>
+  </div>`;
+}
+
+function _getSpecialBlockTokenMetadata(token) {
+  const lang = String(token?.lang || '').trim();
+  const kind = getSpecialBlockKind(lang);
+  const langLabel = kind ? getSpecialBlockLabel(kind) : lang || 'text';
+  const sourceText = String(token?.text ?? '');
+  return { lang, kind, langLabel, sourceText };
+}
+
+function _getSpecialBlockCodeAttributes(kind, sourceText, specialSession) {
+  const code = escapeHtml(sourceText);
+  const sourceLanguage = getSpecialCodeLanguage(kind);
+  const languageClass = sourceLanguage ? `language-${escapeHtml(sourceLanguage)}` : '';
+  const scopeAttr = specialSession.scope
+    ? ` data-markdown-special-scope="${escapeHtml(specialSession.scope)}"`
+    : '';
+  return { code, languageClass, scopeAttr };
+}
+
+export function renderCodeBlock(
+  token,
+  { interactive = true, streaming = false, specialBlockScope = '' } = {}
+) {
+  const isStreaming = Boolean(streaming);
+  const { lang, kind, langLabel, sourceText } = _getSpecialBlockTokenMetadata(token);
+  const specialSession = resolveSpecialBlockSession(specialBlockScope);
+  const specialMode = isStreaming ? 'code' : specialSession.mode;
+  if (kind && isFullLatexDocument(sourceText)) {
+    return _renderSpecialBlockLatex(token, {
+      interactive,
+      streaming,
+      langLabel,
+      sourceLanguage: lang || 'text',
+    });
+  }
+  if (kind) {
+    const { code, languageClass, scopeAttr } = _getSpecialBlockCodeAttributes(
+      kind,
+      sourceText,
+      specialSession
+    );
+    const codeHtml = _renderSpecialBlockCodeHtml({ code, languageClass, specialMode });
+    if (!interactive) {
+      return _renderSpecialBlockNonInteractive({ kind, scopeAttr, isStreaming });
+    }
+    return `
+    <div class="gc-markdown-special-shell" data-markdown-special-block${scopeAttr} data-markdown-special-kind="${escapeHtml(kind)}" data-markdown-special-mode="${escapeHtml(specialMode)}" data-markdown-special-streaming="${isStreaming ? '1' : '0'}" data-markdown-special-collapsed="0">
+      ${_renderSpecialBlockToolbar({ langLabel, specialMode, isStreaming })}
       ${codeHtml}
-      <div class="gc-markdown-special-preview ${specialMode === 'code' ? 'hidden' : ''}" data-markdown-special-preview>
-        <div class="gc-markdown-special-placeholder">${escapeHtml(getSpecialPreviewPlaceholder(kind))}</div>
-      </div>
+      ${_renderSpecialBlockPreview({ kind, specialMode })}
     </div>
     `;
   }
@@ -171,6 +241,35 @@ export function renderBlockquote(token, options = {}) {
   return `<blockquote dir="auto">${content}</blockquote>`;
 }
 
+function _renderHeadingToken(token) {
+  const content = renderInlineTokens(token.tokens || []);
+  return `<h${token.depth || 1} dir="auto">${content}</h${token.depth || 1}>`;
+}
+
+function _renderParagraphToken(token) {
+  return `<p dir="auto">${renderInlineTokens(token.tokens || [])}</p>`;
+}
+
+function _renderTextMarkdownToken(token) {
+  return token.tokens
+    ? renderInlineTokens(token.tokens)
+    : `<p dir="auto">${escapeHtml(token.text ?? token.raw ?? '').replace(/\n/g, ' ')}</p>`;
+}
+
+function _renderListToken(token, options) {
+  const listTag = token.ordered ? 'ol' : 'ul';
+  const startAttr = token.ordered && token.start ? ` start="${token.start}"` : '';
+  const items = (token.items || []).map((item) => renderListItem(item, options)).join('');
+  return `<${listTag}${startAttr} dir="auto">${items}</${listTag}>`;
+}
+
+function _renderDefaultMarkdownToken(token) {
+  if (Array.isArray(token.tokens)) {
+    return renderMarkdownTokens(token.tokens, {});
+  }
+  return escapeHtml(token.text ?? token.raw ?? '');
+}
+
 export function renderMarkdownToken(token, options = {}) {
   if (!token) return '';
   const type = String(token.type || '');
@@ -180,32 +279,23 @@ export function renderMarkdownToken(token, options = {}) {
     case 'hr':
       return '<hr />';
     case 'heading':
-      return `<h${token.depth || 1} dir="auto">${renderInlineTokens(token.tokens || [])}</h${token.depth || 1}>`;
+      return _renderHeadingToken(token);
     case 'paragraph':
-      return `<p dir="auto">${renderInlineTokens(token.tokens || [])}</p>`;
+      return _renderParagraphToken(token);
     case 'text':
-      return token.tokens
-        ? renderInlineTokens(token.tokens)
-        : `<p dir="auto">${escapeHtml(token.text ?? token.raw ?? '').replace(/\n/g, ' ')}</p>`;
+      return _renderTextMarkdownToken(token);
     case 'code':
       return renderCodeBlock(token, options);
     case 'blockquote':
       return renderBlockquote(token, options);
-    case 'list': {
-      const listTag = token.ordered ? 'ol' : 'ul';
-      const startAttr = token.ordered && token.start ? ` start="${token.start}"` : '';
-      const items = (token.items || []).map((item) => renderListItem(item, options)).join('');
-      return `<${listTag}${startAttr} dir="auto">${items}</${listTag}>`;
-    }
+    case 'list':
+      return _renderListToken(token, options);
     case 'table':
       return renderTable(token, options);
     case 'html':
       return token.raw ?? token.text ?? '';
     default:
-      if (Array.isArray(token.tokens)) {
-        return renderMarkdownTokens(token.tokens, options);
-      }
-      return escapeHtml(token.text ?? token.raw ?? '');
+      return _renderDefaultMarkdownToken(token);
   }
 }
 

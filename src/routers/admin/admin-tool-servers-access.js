@@ -5,7 +5,13 @@ import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { validateAndFilterAclRules } from './admin-acl-filter-access-shared.js';
-import { parseIdsFromUrl, loadGroups, getValidGroupIds } from './admin-acl-groups-shared.js';
+import {
+  parseIdsFromUrl,
+  loadGroups,
+  getValidGroupIds,
+  extractResourceIdFromPath,
+  projectRuleAuditFields,
+} from './admin-acl-groups-shared.js';
 import {
   buildToolServerAclRuleSaveStatements,
   loadToolServerAclRules,
@@ -148,13 +154,7 @@ export async function handleAdminToolServersAccess(
 
   const toolServerAccessMatch = path.match(/^\/api\/admin\/tool-servers\/([^/]+)\/access$/);
   if (toolServerAccessMatch) {
-    const toolServerId = (() => {
-      try {
-        return decodeURIComponent(toolServerAccessMatch[1]);
-      } catch {
-        return toolServerAccessMatch[1];
-      }
-    })();
+    const toolServerId = extractResourceIdFromPath(toolServerAccessMatch);
 
     if (req.method === 'GET') {
       try {
@@ -213,12 +213,7 @@ export async function handleAdminToolServersAccess(
             resource_type: 'tool-server',
             resource_id: toolServerId,
             metadata: {
-              rules: savedRules.map((rule) => ({
-                principal_type: rule.principal_type,
-                principal_id: rule.principal_id,
-                effect: rule.effect,
-                action: rule.action,
-              })),
+              rules: savedRules.map(projectRuleAuditFields),
             },
           },
           logger
@@ -226,12 +221,7 @@ export async function handleAdminToolServersAccess(
 
         return json(req, {
           tool_server_id: toolServerId,
-          rules: savedRules.map((rule) => ({
-            principal_type: rule.principal_type,
-            principal_id: rule.principal_id,
-            effect: rule.effect,
-            action: rule.action,
-          })),
+          rules: savedRules.map(projectRuleAuditFields),
         });
       } catch (err) {
         logger.error('Update tool server access failed', { error: err?.message || err });

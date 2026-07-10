@@ -5,7 +5,13 @@ import { error, json } from '../../utils/response.js';
 import { logAuditEvent } from '../../utils/authorize.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { validateAndFilterAclRules } from './admin-acl-filter-access-shared.js';
-import { parseIdsFromUrl, loadGroups, getValidGroupIds } from './admin-acl-groups-shared.js';
+import {
+  parseIdsFromUrl,
+  loadGroups,
+  getValidGroupIds,
+  extractResourceIdFromPath,
+  projectRuleAuditFields,
+} from './admin-acl-groups-shared.js';
 import {
   buildConnectionAclRuleSaveStatements,
   loadConnectionAclRules,
@@ -149,13 +155,7 @@ export async function handleAdminConnectionsAccess(
 
   const connectionAccessMatch = path.match(/^\/api\/admin\/openai\/connections\/([^/]+)\/access$/);
   if (connectionAccessMatch) {
-    const connectionId = (() => {
-      try {
-        return decodeURIComponent(connectionAccessMatch[1]);
-      } catch {
-        return connectionAccessMatch[1];
-      }
-    })();
+    const connectionId = extractResourceIdFromPath(connectionAccessMatch);
 
     if (req.method === 'GET') {
       try {
@@ -219,12 +219,7 @@ export async function handleAdminConnectionsAccess(
             resource_type: 'connection',
             resource_id: connectionId,
             metadata: {
-              rules: savedRules.map((rule) => ({
-                principal_type: rule.principal_type,
-                principal_id: rule.principal_id,
-                effect: rule.effect,
-                action: rule.action,
-              })),
+              rules: savedRules.map(projectRuleAuditFields),
             },
           },
           logger
@@ -232,12 +227,7 @@ export async function handleAdminConnectionsAccess(
 
         return json(req, {
           connection_id: connectionId,
-          rules: savedRules.map((rule) => ({
-            principal_type: rule.principal_type,
-            principal_id: rule.principal_id,
-            effect: rule.effect,
-            action: rule.action,
-          })),
+          rules: savedRules.map(projectRuleAuditFields),
         });
       } catch (err) {
         logger.error('Update connection access failed', { error: err?.message || err });

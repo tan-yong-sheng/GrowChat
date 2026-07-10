@@ -28,6 +28,37 @@ import {
   testUserConnection,
 } from '../../shared/api/resources.js';
 
+/**
+ * Sanitize a string value — trims, stringifies null/undefined.
+ * Equivalent to String(v || '').trim() with explicit || semantics.
+ */
+const sanitizeString = (v) => String(v == null ? '' : v).trim();
+
+/**
+ * Resolve a property from an object with a fallback chain.
+ * Used for legacy property name resolution.
+ */
+const resolveProperty = (obj, ...keys) => {
+  for (const key of keys) {
+    const v = obj?.[key];
+    if (v != null && v !== '') return v;
+  }
+  return '';
+};
+
+/**
+ * Strip empty optional fields from a payload object.
+ * Removes keys whose values are falsy (empty strings / undefined / null).
+ */
+const stripOptionalFields = (payload) => {
+  for (const key of ['key', 'headers', 'auth_type', 'id']) {
+    if (!payload[key]) {
+      delete payload[key];
+    }
+  }
+  return payload;
+};
+
 export function createModalUi(ctx) {
   const {
     toggleKeyBtn,
@@ -100,7 +131,7 @@ export function createModalUi(ctx) {
     const nextDefault = providerUrlPlaceholder(providerType);
     baseUrlInput.placeholder = nextDefault;
     if (isCompatibleProviderType(providerType)) {
-      const currentValue = String(baseUrlInput.value || '').trim();
+      const currentValue = sanitizeString(baseUrlInput.value);
       const knownDefaults = [
         providerUrlPlaceholder('openai-compatible'),
         providerUrlPlaceholder('gemini-compatible'),
@@ -127,27 +158,41 @@ export function createModalUi(ctx) {
     if (keyLabel) keyLabel.textContent = 'API Key *';
     if (nameInput) nameInput.placeholder = `e.g. ${adminProviderDisplayLabel(providerType)}`;
   };
+  const renderEmptyState = (message) => {
+    if (!modelsList || !modelsStatus) return false;
+    modelsList.innerHTML = `<div class="px-4 py-3 text-xs text-gray-400">${message}</div>`;
+    modelsStatus.textContent = '';
+    if (searchInput) searchInput.value = modalState.query;
+    return true;
+  };
+  const renderLoadingState = () => {
+    if (!modelsList || !modelsStatus) return false;
+    modelsList.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
+    modelsStatus.textContent = '';
+    if (searchInput) searchInput.value = modalState.query;
+    return true;
+  };
+  const renderErrorState = () => {
+    if (!modelsList || !modelsStatus) return false;
+    modelsList.innerHTML =
+      '<div class="px-4 py-3 text-xs text-red-500">Failed to load models.</div>';
+    modelsStatus.textContent = modalState.modelsError;
+    modelsStatus.classList.add('text-red-500');
+    if (searchInput) searchInput.value = modalState.query;
+    return true;
+  };
   const renderModels = () => {
     if (!modelsList || !modelsStatus) return;
     if (!connection?.id && (!Array.isArray(modalState.models) || modalState.models.length === 0)) {
-      modelsList.innerHTML =
-        '<div class="px-4 py-3 text-xs text-gray-400">Click Verify to load models from this connection.</div>';
-      modelsStatus.textContent = '';
-      if (searchInput) searchInput.value = modalState.query;
+      renderEmptyState('Click Verify to load models from this connection.');
       return;
     }
     if (modalState.loadingModels) {
-      modelsList.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
-      modelsStatus.textContent = '';
-      if (searchInput) searchInput.value = modalState.query;
+      renderLoadingState();
       return;
     }
     if (modalState.modelsError) {
-      modelsList.innerHTML =
-        '<div class="px-4 py-3 text-xs text-red-500">Failed to load models.</div>';
-      modelsStatus.textContent = modalState.modelsError;
-      modelsStatus.classList.add('text-red-500');
-      if (searchInput) searchInput.value = modalState.query;
+      renderErrorState();
       return;
     }
     const models = sortModelsByActiveThenName(modalState.models);
@@ -165,52 +210,56 @@ export function createModalUi(ctx) {
       : '';
     if (searchInput) searchInput.value = modalState.query;
   };
-  const buildPayload = () => {
-    const providerType = normalizeProviderType(
+  const resolveProviderType = () =>
+    normalizeProviderType(
       providerSelect?.value || connection?.provider_type || connection?.providerType || 'openai'
     );
-    const baseUrl = String(baseUrlInput?.value || '').trim();
-    const resolvedUrl = isCompatibleProviderType(providerType)
+  const resolveConnectionUrl = (providerType) => {
+    const baseUrl = sanitizeString(baseUrlInput?.value);
+    return isCompatibleProviderType(providerType)
       ? baseUrl
       : baseUrl || providerUrlPlaceholder(providerType);
-    const selectedModels = buildSelectedConnectionModels(
-      modalState.models,
-      modalState.selection,
-      connection
-    );
+  };
+  const buildSelectedModels = () =>
+    buildSelectedConnectionModels(modalState.models, modalState.selection, connection);
+  const resolveManualModelsMode = () => {
     const existingMode =
       normalizeConnectionModelSelectionMode(
         connection?.manual_models_mode || connection?.manualModelsMode
       ) || 'all';
-    const manualModelsMode =
-      Array.isArray(modalState.models) && modalState.models.length > 0
-        ? resolveConnectionModelSelectionMode(modalState.models, modalState.selection)
-        : existingMode;
+    const hasModels = Array.isArray(modalState.models) && modalState.models.length > 0;
+    return hasModels
+      ? resolveConnectionModelSelectionMode(modalState.models, modalState.selection)
+      : existingMode;
+  };
+  const buildPayload = () => {
+    const providerType = resolveProviderType();
+    const baseUrl = resolveConnectionUrl(providerType);
+    const selectedModels = buildSelectedModels();
+    const manualModelsMode = resolveManualModelsMode();
     const payload = {
-      id: isEdit ? String(connection?.id || '').trim() : undefined,
-      name: String(nameInput?.value || '').trim(),
+      id: isEdit ? sanitizeString(connection?.id) : undefined,
+      name: sanitizeString(nameInput?.value),
       provider_type: providerType,
-      base_url: resolvedUrl,
-      key: String(keyInput?.value || '').trim(),
-      headers: String(headersInput?.value || '').trim(),
-      auth_type: String(connection?.auth_type || connection?.authType || '')
-        .trim()
-        .toLowerCase(),
+      base_url: baseUrl,
+      key: sanitizeString(keyInput?.value),
+      headers: sanitizeString(headersInput?.value),
+      auth_type: sanitizeString(connection?.auth_type || connection?.authType || '').toLowerCase(),
       enabled: connection?.enabled !== false,
       manual_models: selectedModels,
       manual_models_mode: manualModelsMode,
     };
-    if (!payload.key) delete payload.key;
-    if (!payload.headers) delete payload.headers;
-    if (!payload.auth_type) delete payload.auth_type;
-    if (!payload.id) delete payload.id;
-    return payload;
+    return stripOptionalFields(payload);
+  };
+  const validateConnectionUrl = (payload) => {
+    if (isCompatibleProviderType(payload.provider_type) && !payload.base_url) {
+      throw new Error('Connection URL is required');
+    }
   };
   const testConnection = async () => {
     const payload = buildPayload();
     if (!payload.name) throw new Error('Name is required');
-    if (isCompatibleProviderType(payload.provider_type) && !payload.base_url)
-      throw new Error('Connection URL is required');
+    validateConnectionUrl(payload);
     setTestMessage('Testing connection...', 'testing');
     modalState.loadingModels = true;
     renderModels();
@@ -250,13 +299,11 @@ export function createModalUi(ctx) {
   };
   const saveConnection = async () => {
     const payload = buildPayload();
-    const name = String(payload.name || '').trim();
+    const name = sanitizeString(payload.name);
     if (!name) {
       throw new Error('Name is required');
     }
-    if (isCompatibleProviderType(payload.provider_type) && !payload.base_url) {
-      throw new Error('Connection URL is required');
-    }
+    validateConnectionUrl(payload);
     if (isEdit) {
       return {
         payload,
@@ -349,7 +396,7 @@ export function createModalUi(ctx) {
     renderModels();
   });
   manualAddBtn?.addEventListener('click', () => {
-    const raw = String(manualInput?.value || '').trim();
+    const raw = sanitizeString(manualInput?.value);
     if (!raw) return;
     const normalized = normalizeModelRecord({
       id: raw,
