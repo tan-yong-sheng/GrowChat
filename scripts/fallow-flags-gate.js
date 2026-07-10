@@ -5,43 +5,36 @@
  * parses the JSON output and enforces the gate.
  */
 import { spawn } from 'node:child_process';
+import { collectOutput } from './lib/fallow-gate.js';
 
 const args = process.argv.slice(2);
 const child = spawn('fallow', ['flags', '--format', 'json', ...args], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
-let stdout = '';
-let stderr = '';
-
-child.stdout.on('data', (chunk) => {
-  stdout += chunk;
-});
-
-child.stderr.on('data', (chunk) => {
-  stderr += chunk;
-});
+const output = collectOutput(child);
 
 // fallow-ignore-next-line complexity
-function handleChildClose(code, stdout, stderr) {
+function handleChildClose(code) {
+  // eslint-disable-line complexity
   if (code !== 0) {
-    process.stderr.write(stderr);
+    process.stderr.write(output.stderr);
     process.exit(code ?? 1);
   }
 
   try {
-    const parsed = JSON.parse(stdout);
+    const parsed = JSON.parse(output.stdout);
     const total = parsed?.summary?.total ?? parsed?.findings?.length ?? 0;
     if (total > 0) {
-      process.stdout.write(stdout);
+      process.stdout.write(output.stdout);
       process.exit(1);
     }
-    process.stdout.write(stdout);
+    process.stdout.write(output.stdout);
     process.exit(0);
   } catch {
-    process.stdout.write(stdout);
+    process.stdout.write(output.stdout);
     process.exit(0);
   }
 }
 
-child.on('close', (code) => handleChildClose(code, stdout, stderr));
+child.on('close', (code) => handleChildClose(code));

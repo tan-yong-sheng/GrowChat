@@ -13,6 +13,8 @@ import {
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 import { bindChatMessageUiActions } from './chat-message-ui-actions.js';
+// fallow-ignore-next-line code-duplication — shared param names
+// See CHAT_MESSAGE_PARAM_NAMES in chat-message-params.js for the canonical list
 export function bindChatMessageActions({
   messagesList,
   messages,
@@ -220,8 +222,6 @@ export function bindChatMessageActions({
             loadMessages,
             activeModelId: state.activeModelId,
             activeChatId: state.activeChatId,
-            preferredLeafId: getStreamState().assistantMessageId,
-            streaming: false,
           });
         } catch (e) {
           if (e?.name !== 'AbortError') {
@@ -241,7 +241,6 @@ export function bindChatMessageActions({
               loadMessages,
               activeModelId: state.activeModelId,
               activeChatId: state.activeChatId,
-              preferredLeafId: getStreamState().assistantMessageId,
             });
           }
         } finally {

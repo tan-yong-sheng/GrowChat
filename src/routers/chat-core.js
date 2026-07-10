@@ -11,6 +11,7 @@ import {
   isTextLikeContentType,
 } from '../chat/attachments.js';
 import { getAllOpenAIConnectionConfigs } from '../llm/connections.js';
+import { findMatchingConnection } from '../llm/llm-shared.js';
 import {
   normalizeProviderFamily,
   parseModelId,
@@ -97,11 +98,7 @@ export async function resolveProviderForModel(env, model, options = {}) {
       userId,
       userRole: options.userRole || 'member',
     });
-    connection = allConnections.find((conn) => {
-      if (String(conn.id) !== providerInfo.connectionId) return false;
-      const family = normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai';
-      return family === providerInfo.providerFamily;
-    });
+    connection = findMatchingConnection(allConnections, providerInfo);
   }
 
   if (!connection) {

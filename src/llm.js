@@ -5,6 +5,7 @@ import {
   parseModelId,
   parseProviderId,
 } from './llm/provider-registry.js';
+import { findMatchingConnection } from './llm/llm-shared.js';
 import { buildProviderRequest } from './llm/provider-adapters.js';
 export { SseLineParser, parseSseChunk } from './llm/stream-parser.js';
 
@@ -28,7 +29,7 @@ export async function streamLLM(env, model, messages, options = {}) {
 
   let parsed = parseModelId(model);
   let primaryConn;
-  let providerInfo = null;
+  let providerInfo;
 
   if (!parsed) {
     const enabledConnections = await getAllOpenAIConnectionConfigs(env, {
@@ -54,11 +55,7 @@ export async function streamLLM(env, model, messages, options = {}) {
       userId,
       userRole,
     });
-    primaryConn = allConnections.find((conn) => {
-      if (String(conn.id) !== providerInfo.connectionId) return false;
-      const family = normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai';
-      return family === providerInfo.providerFamily;
-    });
+    primaryConn = findMatchingConnection(allConnections, providerInfo);
   }
 
   if (!primaryConn) {

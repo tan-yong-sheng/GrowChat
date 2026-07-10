@@ -4,7 +4,7 @@
  */
 
 import { state } from '../../shared/store.js';
-import { escapeHtml } from '../../shared/utils.js';
+import { escapeHtml, normalizeToolNames } from '../../shared/utils.js';
 export function createToolSelectionController({
   toolsMenu,
   toolsMenuAllOnBtn,
@@ -58,12 +58,7 @@ export function createToolSelectionController({
               tool?.visible_for_user !== false &&
               String(tool?.name || '').trim()
           )
-          .map((tool) => ({
-            ...tool,
-            name: String(tool.name || '').trim(),
-            title: String(tool.title || '').trim(),
-            description: String(tool.description || '').trim(),
-          })),
+          .map(normalizeToolNames),
       }))
       .filter((server) => server.tools.length > 0);
   }

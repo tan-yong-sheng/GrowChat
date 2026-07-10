@@ -6,26 +6,28 @@ import { buildProviderOptions } from '../../shared/utils/model-filters.js';
 import { renderModelRow } from './account-models-helpers.js';
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { cloneAttachmentCaps } from '../../shared/utils/attachment-caps.js';
+import {
+  initModelsSearchGuard,
+  createModelsSearchDebounce,
+} from '../../shared/utils/models-search-binding.js';
 
 export function bindModelsEvents(ctx) {
   const { container, sectionState, persistModelSettings, syncUi, loadModels } = ctx;
 
-  if (container.dataset.modelsEventsBound === '1') return;
-  container.dataset.modelsEventsBound = '1';
+  if (initModelsSearchGuard(container)) return;
 
-  let searchDebounce = null;
+  const debounce = createModelsSearchDebounce();
 
   container.addEventListener('input', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
     if (target.id !== 'account-model-search-input') return;
     const nextValue = target.value;
-    if (searchDebounce) clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => {
+    debounce.run(() => {
       sectionState.query = nextValue;
       sectionState.offset = 0;
       loadModels(true);
-    }, 120);
+    });
   });
 
   container.addEventListener('click', (event) => {

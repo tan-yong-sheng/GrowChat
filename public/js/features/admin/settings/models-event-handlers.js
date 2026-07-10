@@ -1,3 +1,8 @@
+import {
+  initModelsSearchGuard,
+  createModelsSearchDebounce,
+} from '../../../shared/utils/models-search-binding.js';
+
 /**
  * DOM event binding for the models settings view.
  */
@@ -19,10 +24,9 @@ export function createModelsEventHandlers(deps) {
   } = deps;
 
   const bindDelegatedEvents = () => {
-    if (container.dataset.modelsEventsBound === '1') return;
-    container.dataset.modelsEventsBound = '1';
+    if (initModelsSearchGuard(container)) return;
 
-    let searchDebounce = null;
+    const debounce = createModelsSearchDebounce();
     container.addEventListener('input', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
@@ -30,12 +34,11 @@ export function createModelsEventHandlers(deps) {
       const nextValue = target.value;
       const clearSearchContainer = container.querySelector('#model-clear-search-container');
       clearSearchContainer?.classList.toggle('hidden', !nextValue);
-      if (searchDebounce) clearTimeout(searchDebounce);
-      searchDebounce = setTimeout(() => {
+      debounce.run(() => {
         modelsState.query = nextValue;
         modelsState.offset = 0;
         loadModels(true);
-      }, 120);
+      });
     });
 
     container.addEventListener('change', (event) => {
@@ -60,7 +63,7 @@ export function createModelsEventHandlers(deps) {
 
       if (target.closest('#model-clear-search-btn')) {
         const searchInput = container.querySelector('#model-search-input');
-        if (searchDebounce) clearTimeout(searchDebounce);
+        debounce.clear();
         modelsState.query = '';
         modelsState.offset = 0;
         if (searchInput) searchInput.value = '';

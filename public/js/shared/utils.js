@@ -107,3 +107,19 @@ export function formatBytes(bytes) {
 }
 
 export { showToast, showToastProgress } from './utils/toast.js';
+
+/**
+ * Normalize a tool's name, title, and description fields by trimming whitespace.
+ * Shared pattern used by both frontend tool selection and backend tool serialization.
+ *
+ * @param {object} tool - The tool object to normalize
+ * @returns {object} A new object with name, title, description trimmed
+ */
+export function normalizeToolNames(tool = {}) {
+  return {
+    ...tool,
+    name: String(tool.name || '').trim(),
+    title: String(tool.title || '').trim(),
+    description: String(tool.description || '').trim(),
+  };
+}

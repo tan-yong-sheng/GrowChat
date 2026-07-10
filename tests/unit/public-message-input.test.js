@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../public/js/shared/utils.js', () => ({
   escapeHtml: (value) => String(value ?? ''),
   showToast: vi.fn(),
+  normalizeToolNames: (tool) => ({
+    ...tool,
+    name: String(tool.name || '').trim(),
+    title: String(tool.title || '').trim(),
+    description: String(tool.description || '').trim(),
+  }),
 }));
 
 async function loadModules() {

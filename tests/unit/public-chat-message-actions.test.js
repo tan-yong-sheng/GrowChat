@@ -117,7 +117,13 @@ describe('chat message action binder', () => {
       projectedMessages: [{ id: 'm1', role: 'user', parent_id: null, content: 'hello' }],
       currentLeafByChatId,
       branchSelectionByChat,
-      getMessageById: vi.fn(() => ({ id: 'm1', role: 'user', parent_id: null, content: 'hello', attachments: [] })),
+      getMessageById: vi.fn(() => ({
+        id: 'm1',
+        role: 'user',
+        parent_id: null,
+        content: 'hello',
+        attachments: [],
+      })),
       apiFetch: vi.fn(async () => ({
         ok: true,
         body: {},
@@ -139,10 +145,18 @@ describe('chat message action binder', () => {
     await Promise.resolve();
 
     expect(consumeSseTextStream).toHaveBeenCalled();
-    expect(ctx.replaceTempMessageId).toHaveBeenCalledWith('chat-1', expect.stringMatching(/^temp-assistant-/), 'assistant-real');
-    expect(ctx.loadMessages).toHaveBeenCalledWith('chat-1', expect.objectContaining({
-      preferredLeafId: 'assistant-real',
-    }));
+    expect(ctx.replaceTempMessageId).toHaveBeenCalledWith(
+      'chat-1',
+      expect.stringMatching(/^temp-assistant-/),
+      'assistant-real'
+    );
+    expect(ctx.loadMessages).toHaveBeenCalledWith(
+      'chat-1',
+      expect.objectContaining({
+        draw: true,
+        updateActiveModel: true,
+      })
+    );
   });
 
   it('creates and selects a new branch when saving an assistant message as a copy', async () => {
@@ -166,7 +180,12 @@ describe('chat message action binder', () => {
       projectedMessages: state.messagesByChat['chat-1'],
       currentLeafByChatId,
       branchSelectionByChat,
-      getMessageById: vi.fn(() => ({ id: 'm2', role: 'assistant', parent_id: 'm1', content: 'old answer' })),
+      getMessageById: vi.fn(() => ({
+        id: 'm2',
+        role: 'assistant',
+        parent_id: 'm1',
+        content: 'old answer',
+      })),
       apiFetch: vi.fn(async () => ({
         ok: true,
         json: async () => ({ message: { id: 'm2-branch' } }),
@@ -187,9 +206,12 @@ describe('chat message action binder', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
-    expect(ctx.apiFetch).toHaveBeenCalledWith('/api/chats/chat-1/messages/m2/branch', expect.objectContaining({
-      method: 'POST',
-    }));
+    expect(ctx.apiFetch).toHaveBeenCalledWith(
+      '/api/chats/chat-1/messages/m2/branch',
+      expect.objectContaining({
+        method: 'POST',
+      })
+    );
     expect(currentLeafByChatId.get('chat-1')).toBe('m2-branch');
     expect(ctx.setBranchSelection).toHaveBeenCalledWith('chat-1', 'm1', 'm2-branch');
     expect(ctx.loadMessages).toHaveBeenCalledWith('chat-1');
@@ -295,5 +317,3 @@ describe('chat message action binder', () => {
     expect(alertSpy).not.toHaveBeenCalled();
   });
 });
-
-

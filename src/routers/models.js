@@ -11,8 +11,7 @@
  *   - models-admin-settings.js  → GET/PUT /api/admin/models
  *   - models-helpers.js         → shared utility functions
  */
-import { createDB } from '../db.js';
-import { createLogger } from '../utils/logger.js';
+import { createRouterDeps } from './router-deps.js';
 
 import { handlePublicModelsList } from './models/models-public-list.js';
 import { handlePublicModelsCrud } from './models/models-public-crud.js';
@@ -26,10 +25,7 @@ export { applyUserModelVisibilityOverrides } from './models/models-discovery.js'
  */
 // eslint-disable-next-line max-params -- router dispatcher pattern needs (req, env, ctx, user, path, deps)
 export async function modelsRouter(req, env, ctx, user, path, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
-  const db = createDB(env.DB);
-  const deps = { db, logger, requestContext };
+  const deps = createRouterDeps(env, requestContext);
 
   // Delegate to domain-specific sub-handlers.
   const handlers = [

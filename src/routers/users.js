@@ -13,8 +13,7 @@
  *   - users-admin-by-id.js    → GET/PUT/DELETE /api/admin/users/:id
  *   - users-helpers.js        → shared utility functions
  */
-import { createDB } from '../db.js';
-import { createLogger } from '../utils/logger.js';
+import { createRouterDeps } from './router-deps.js';
 
 import { handleUsersMe } from './users/users-me.js';
 import { handleUsersConnections } from './users/users-connections.js';
@@ -29,10 +28,7 @@ import { handleUsersAdminById } from './users/users-admin-by-id.js';
  */
 // eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, path, requestContext)
 export async function usersRouter(req, env, ctx, user, path, requestContext = {}) {
-  const logger =
-    requestContext.logger || createLogger(env, { requestId: requestContext.requestId });
-  const db = createDB(env.DB);
-  const deps = { db, logger, requestContext };
+  const deps = createRouterDeps(env, requestContext);
 
   // Delegate to domain-specific sub-handlers.
   const handlers = [
