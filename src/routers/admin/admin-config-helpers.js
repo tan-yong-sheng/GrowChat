@@ -64,6 +64,18 @@ export function patchModelAttachments(current, patch) {
   };
 }
 
+/**
+ * Apply a single model attachment cap update to an in-memory caps object.
+ * Shared between admin-config-helpers and models-helpers.
+ */
+export function applyModelAttachmentCapUpdate(caps, update) {
+  const modelId = normalizeModelId(update?.model_id || update?.modelId);
+  if (!modelId) throw new Error('model_id is required');
+  const patch = normalizeAttachmentCaps(update?.attachments, { allowNull: true });
+  const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
+  caps[modelId] = patchModelAttachments(current, patch);
+}
+
 function removeModelCaps(caps, removeIds) {
   for (const id of removeIds) {
     const normalizedId = normalizeModelId(id);
@@ -81,13 +93,7 @@ export async function applyAttachmentCapsPatch(db, updates, remove) {
   const caps = await loadExistingCaps(db);
 
   for (const update of updates) {
-    const modelId = normalizeModelId(update?.model_id);
-    if (!modelId) {
-      throw new Error('model_id is required');
-    }
-    const patch = normalizeAttachmentCaps(update?.attachments, { allowNull: true });
-    const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
-    caps[modelId] = patchModelAttachments(current, patch);
+    applyModelAttachmentCapUpdate(caps, update);
   }
 
   removeModelCaps(caps, remove);

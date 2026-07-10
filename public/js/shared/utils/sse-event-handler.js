@@ -303,3 +303,41 @@ export async function handleStreamCatchError({
     preferredLeafId,
   });
 }
+
+/**
+ * Create a reusable applyAssistantText callback for createSseStreamHandlers.
+ *
+ * Replaces the inline `applyAssistantText: (streaming) => { ... }` pattern
+ * that was duplicated across chat-message-actions and chat-message-retry-actions.
+ *
+ * @param {Function} getStreamState - The getStreamState() closure from createSseStreamHandlers
+ * @param {Object} opts - Options including applyStreamingAssistantText and streaming context
+ * @returns {Function} - Callback suitable for applyAssistantText in createSseStreamHandlers
+ */
+export function makeApplyStreamingCallback(
+  getStreamState,
+  {
+    state,
+    setState,
+    streamingOverrideByChat,
+    updateMessageContentDom,
+    chatId,
+    applyStreamingAssistantText,
+  } = {}
+) {
+  return (streaming = true) => {
+    const { assistantMessageId, assistantText, errorActive, errorMessage } = getStreamState();
+    applyStreamingAssistantText({
+      state,
+      setState,
+      streamingOverrideByChat,
+      updateMessageContentDom,
+      chatId,
+      messageId: assistantMessageId,
+      assistantText,
+      errorActive,
+      errorMessage,
+      streaming,
+    });
+  };
+}

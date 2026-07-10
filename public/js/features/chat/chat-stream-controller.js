@@ -1,3 +1,5 @@
+import { findStreamingMessageId } from './message-input-helpers.js';
+
 export function createChatStreamController({
   apiFetch,
   pollIntervalMs = 1500,
@@ -7,14 +9,7 @@ export function createChatStreamController({
   const resumeStreamsByChat = new Map();
 
   function getRunningMessageId(messages = []) {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const msg = messages[i];
-      const status = String(msg?.status || '');
-      if (msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running')) {
-        return msg.id;
-      }
-    }
-    return null;
+    return findStreamingMessageId(messages);
   }
 
   function stopStreamPolling(chatId) {

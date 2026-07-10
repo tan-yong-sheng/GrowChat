@@ -9,7 +9,6 @@ import {
   getStatusColor,
 } from './user-profile-footer-helpers.js';
 import { renderButton } from './button.js';
-
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'focus', 'visibilitychange'];
 
 function showLogoutToast(message, duration = 3000) {

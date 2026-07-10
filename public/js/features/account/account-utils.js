@@ -1,6 +1,7 @@
 /**
  * Utility functions and section renderers for the account page.
  */
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { apiFetch } from '../../shared/api.js';
 
 export const accountSectionRenderers = {
@@ -81,15 +82,6 @@ export function getAccountSectionPath(section) {
     default:
       return '/account/settings/connections';
   }
-}
-
-export function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }
 
 export async function loadAccountState() {

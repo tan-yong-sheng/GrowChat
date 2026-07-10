@@ -6,6 +6,7 @@ import {
   finalizeStreamAndLoadMessages,
   handleStreamCatchError,
 } from '../../shared/utils/sse-event-handler.js';
+import { buildStreamingCallback, CHAT_MESSAGE_PARAM_NAMES } from './chat-message-params.js';
 import { bindChatMessageDeleteActions } from './chat-message-delete-actions.js';
 import { bindChatMessageRetryActions } from './chat-message-retry-actions.js';
 import { bindChatMessageUiActions } from './chat-message-ui-actions.js';
@@ -168,22 +169,14 @@ export function bindChatMessageActions({
           tempAssistantId,
           tempUserId,
           replaceTempMessageId,
-          applyAssistantText: (streaming = true) => {
-            const { assistantMessageId, assistantText, errorActive, errorMessage } =
-              getStreamState();
-            applyStreamingAssistantText({
+          applyAssistantText: (streaming = true) =>
+            buildStreamingCallback(getStreamState, {
               state,
               setState,
               streamingOverrideByChat,
               updateMessageContentDom,
               chatId,
-              messageId: assistantMessageId,
-              assistantText,
-              errorActive,
-              errorMessage,
-              streaming,
-            });
-          },
+            })(streaming),
           ensureThinkingBlock,
           appendBlock,
           updateToolCallState,

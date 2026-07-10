@@ -3,6 +3,7 @@
  * Handles mode toggling (preview/code), collapse state, error display, and action binding.
  */
 
+import { showToast } from './utils.js';
 import {
   escapeHtml,
   normalizeSpecialBlockMode,
@@ -69,18 +70,7 @@ export function renderPlainCodeBlock(
 }
 
 export function showSpecialCopyToast(message, duration = 1800) {
-  if (typeof document === 'undefined') return null;
-  const toast = document.createElement('div');
-  toast.className =
-    'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-full shadow-sm z-[99999] transition-opacity duration-300 opacity-0';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.remove('opacity-0'));
-  setTimeout(() => {
-    toast.classList.add('opacity-0');
-    setTimeout(() => toast.remove(), 300);
-  }, duration);
-  return toast;
+  return showToast(message, duration);
 }
 
 export async function copyMarkdownText(text) {

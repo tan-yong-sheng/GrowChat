@@ -20,7 +20,9 @@ import process from 'node:process';
 
 // --- Configuration ---
 const DEFAULT_MAX_FILES = 50;
-const DEFAULT_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const BYTES_PER_MB = 1024 * 1024;
+const DEFAULT_MAX_SIZE_MB = 5;
+const DEFAULT_MAX_SIZE_BYTES = DEFAULT_MAX_SIZE_MB * BYTES_PER_MB; // 5MB
 
 function parseArgs(argv) {
   const firstPositional = argv.find((a) => !a.startsWith('--'));
@@ -48,15 +50,7 @@ function parseArgs(argv) {
  * Playwright (*-snapshots/) and Vitest (__snapshots__/) conventions.
  */
 async function collectSnapshotFiles(dir, files = []) {
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (err) {
-    if (err?.code === 'ENOENT') return files;
-    throw new Error(`Failed to read directory "${dir}": ${err?.message ?? String(err)}`, {
-      cause: err,
-    });
-  }
+  const entries = await readDirEntries(dir);
 
   for (const entry of entries) {
     // Skip node_modules and .git
@@ -82,15 +76,7 @@ async function collectSnapshotFiles(dir, files = []) {
  * Collect all files (recursively) from a given directory.
  */
 async function collectAllFiles(dir, files = []) {
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (err) {
-    if (err?.code === 'ENOENT') return files;
-    throw new Error(`Failed to read directory "${dir}": ${err?.message ?? String(err)}`, {
-      cause: err,
-    });
-  }
+  const entries = await readDirEntries(dir);
 
   for (const entry of entries) {
     const fullPath = join(dir, entry.name);
@@ -103,6 +89,21 @@ async function collectAllFiles(dir, files = []) {
   }
 
   return files;
+}
+
+/**
+ * Read directory entries, returning [] on ENOENT.
+ * Shared helper to reduce try/catch duplication.
+ */
+async function readDirEntries(dir) {
+  try {
+    return await readdir(dir, { withFileTypes: true });
+  } catch (err) {
+    if (err?.code === 'ENOENT') return [];
+    throw new Error(`Failed to read directory "${dir}": ${err?.message ?? String(err)}`, {
+      cause: err,
+    });
+  }
 }
 
 // --- Main ---

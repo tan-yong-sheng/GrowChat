@@ -1,5 +1,6 @@
 import { projectConversation } from '../../shared/utils/conversation.js';
 import { buildChatMessageListHtml } from './chat-message-list-html.js';
+import { CHAT_MESSAGE_PARAM_NAMES } from './chat-message-params.js';
 import { bindChatMessageActions } from './chat-message-actions.js';
 import { renderAttachmentPills, renderAssistantMessageBody } from './chat-message-rendering.js';
 import { syncMessageBlocksForMessage, syncToolCallsForMessage } from './chat-message-blocks.js';
@@ -135,6 +136,8 @@ export function createChatRenderController({
       setupEditTextarea(ta);
     });
 
+    // Maintained via CHAT_MESSAGE_PARAM_NAMES in chat-message-params.js
+    // fallow-ignore-next-line code-duplication — shared param names
     bindChatMessageActions({
       messagesList,
       messages,
@@ -176,8 +179,6 @@ export function createChatRenderController({
       thinkingDurationByMessageId,
       thinkingActiveByMessageId,
       toolCallsByMessageId,
-      toolExpandedByKey,
-      thinkingCollapsedByKey,
       messageBlocksById,
     });
 

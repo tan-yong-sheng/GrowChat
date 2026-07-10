@@ -4,6 +4,7 @@ import {
   createSseStreamHandlers,
   finalizeStreamThinking,
 } from '../../shared/utils/sse-event-handler.js';
+import { buildStreamingCallback } from './chat-message-params.js';
 
 export function bindChatMessageRetryActions({
   messagesList,
@@ -115,21 +116,14 @@ export function bindChatMessageRetryActions({
         tempAssistantId,
         tempUserId: null,
         replaceTempMessageId,
-        applyAssistantText: (streaming = true) => {
-          const { assistantMessageId, assistantText, errorActive, errorMessage } = getStreamState();
-          applyStreamingAssistantText({
+        applyAssistantText: (streaming = true) =>
+          buildStreamingCallback(getStreamState, {
             state,
             setState,
             streamingOverrideByChat,
             updateMessageContentDom,
             chatId,
-            messageId: assistantMessageId,
-            assistantText,
-            errorActive,
-            errorMessage,
-            streaming,
-          });
-        },
+          })(streaming),
         ensureThinkingBlock,
         appendBlock,
         updateToolCallState,

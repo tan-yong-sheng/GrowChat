@@ -7,7 +7,10 @@ import { getConfigValue } from '../../utils/app-config.js';
 import { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
 import { normalizeConnectionManualModels } from '../../llm/connections.js';
-import { patchModelAttachments } from '../admin/admin-config-helpers.js';
+import {
+  applyModelAttachmentCapUpdate,
+  patchModelAttachments,
+} from '../admin/admin-config-helpers.js';
 import {
   loadModelAttachmentCaps,
   applyAttachmentDefaults,
@@ -76,13 +79,7 @@ export async function getModelAccessMap(db, logger = rootLogger) {
 export { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
 
 export function applyAttachmentCapsPatch(caps, update) {
-  const modelId = normalizeModelId(update?.model_id || update?.modelId);
-  if (!modelId) {
-    throw new Error('model_id is required');
-  }
-  const patch = normalizeAttachmentCaps(update?.attachments, { allowNull: true });
-  const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
-  caps[modelId] = patchModelAttachments(current, patch);
+  applyModelAttachmentCapUpdate(caps, update);
 }
 
 export function buildModelAttachmentCapSaveStatement(db, caps) {

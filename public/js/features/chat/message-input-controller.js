@@ -1,4 +1,5 @@
 import { state } from '../../shared/store.js';
+import { findStreamingMessageId } from './message-input-helpers.js';
 import { createToolSelectionController } from './message-input-tool-selection.js';
 import { createMessageInputUi } from './message-input-ui.js';
 
@@ -107,13 +108,8 @@ export function createMessageInputController({
     const chatId = currentState.activeChatId;
     if (!chatId) return null;
     const messages = currentState.messagesByChat?.[chatId] || [];
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const msg = messages[i];
-      const status = String(msg?.status || '');
-      if (msg?.role === 'assistant' && (status === 'streaming' || status === 'tool_running')) {
-        return msg.id;
-      }
-    }
+    const first = findStreamingMessageId(messages);
+    if (first) return first;
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const msg = messages[i];
       if (msg?.role === 'assistant' && msg?.done === false) {
