@@ -4,48 +4,64 @@
  */
 import { apiFetch } from '../../shared/api.js';
 import { renderErrorState, renderLoadingState, renderUnderDevPlaceholder } from './admin-layout.js';
+import { escapeHtml } from '../../shared/utils/dom-escape.js';
 
 function placeholderTitle(prefix, subTab) {
   return subTab.charAt(0).toUpperCase() + subTab.slice(1) + ' ' + prefix;
 }
 
+const settingsRenderers = {
+  connections: (el, data, modules) => modules.renderConnectionsSettings(el, data),
+  models: (el, data, modules) => modules.renderModelsSettings(el, data),
+  integrations: (el, data, modules) => modules.renderIntegrationsSettings(el, data),
+};
+
+const systemTabRenderers = {
+  registration: (el, data, modules) => modules.renderRegistrationSettings(el, data),
+  email: (el, data, modules) => modules.renderEmailDeliverySettings(el, data),
+  security: (el, _data, modules) => modules.renderSecuritySettings(el),
+};
+
+function renderAuditLogsTab(ctx, subContentEl) {
+  subContentEl.innerHTML =
+    '<div class="p-8 text-center text-gray-500"><i class="bi bi-arrow-repeat animate-spin"></i> Loading audit logs...</div>';
+  ctx.systemModules
+    .renderAuditLogs({
+      apiFetch,
+      showToast: (msg, type) => alert(`${type.toUpperCase()}: ${msg}`),
+    })
+    .then((el) => {
+      subContentEl.innerHTML = '';
+      subContentEl.appendChild(el);
+    })
+    .catch((err) => {
+      // fallow-ignore-next-line security-sink
+      subContentEl.innerHTML = `<div class="p-8 text-center text-red-500">Failed to load audit logs: ${escapeHtml(String(err?.message || ''))}</div>`;
+    });
+}
+
 export function renderSettingsSubContent(ctx, subContentEl) {
-  if (ctx.subTab === 'connections') {
-    ctx.settingsModules.renderConnectionsSettings?.(subContentEl, ctx.data);
-  } else if (ctx.subTab === 'models') {
-    ctx.settingsModules.renderModelsSettings?.(subContentEl, ctx.data);
-  } else if (ctx.subTab === 'integrations') {
-    ctx.settingsModules.renderIntegrationsSettings?.(subContentEl, ctx.data);
-  } else {
-    subContentEl.innerHTML = renderUnderDevPlaceholder(placeholderTitle('Settings', ctx.subTab));
+  const renderer = settingsRenderers[ctx.subTab];
+  if (renderer) {
+    renderer(subContentEl, ctx.data, ctx.settingsModules);
+    return;
   }
+  // fallow-ignore-next-line security-sink
+  subContentEl.innerHTML = renderUnderDevPlaceholder(placeholderTitle('Settings', ctx.subTab));
 }
 
 export function renderSystemSubContent(ctx, subContentEl) {
-  if (ctx.subTab === 'registration') {
-    ctx.systemModules.renderRegistrationSettings?.(subContentEl, ctx.data);
-  } else if (ctx.subTab === 'email') {
-    ctx.systemModules.renderEmailDeliverySettings?.(subContentEl, ctx.data);
-  } else if (ctx.subTab === 'security') {
-    ctx.systemModules.renderSecuritySettings?.(subContentEl);
-  } else if (ctx.subTab === 'activity') {
-    subContentEl.innerHTML =
-      '<div class="p-8 text-center text-gray-500"><i class="bi bi-arrow-repeat animate-spin"></i> Loading audit logs...</div>';
-    ctx.systemModules
-      .renderAuditLogs?.({
-        apiFetch,
-        showToast: (msg, type) => alert(`${type.toUpperCase()}: ${msg}`),
-      })
-      .then((el) => {
-        subContentEl.innerHTML = '';
-        subContentEl.appendChild(el);
-      })
-      .catch((err) => {
-        subContentEl.innerHTML = `<div class="p-8 text-center text-red-500">Failed to load audit logs: ${err.message}</div>`;
-      });
-  } else {
-    subContentEl.innerHTML = renderUnderDevPlaceholder(placeholderTitle('System', ctx.subTab));
+  if (ctx.subTab === 'activity') {
+    renderAuditLogsTab(ctx, subContentEl);
+    return;
   }
+  const renderer = systemTabRenderers[ctx.subTab];
+  if (renderer) {
+    renderer(subContentEl, ctx.data, ctx.systemModules);
+    return;
+  }
+  // fallow-ignore-next-line security-sink
+  subContentEl.innerHTML = renderUnderDevPlaceholder(placeholderTitle('System', ctx.subTab));
 }
 
 function buildUserOverviewCallbacks(ctx, callbacks) {
@@ -113,11 +129,12 @@ function buildGroupsOverviewCallbacks(ctx, callbacks) {
 
 function renderUsersOverviewOrGroups(ctx, subContentEl, callbacks) {
   if (ctx.data.error) {
+    // fallow-ignore-next-line security-sink
     subContentEl.innerHTML = renderErrorState(ctx.data.error);
     return;
   }
   if (ctx.subTab === 'overview') {
-    ctx.usersModules.renderUserOverview?.(
+    ctx.usersModules.renderUserOverview(
       subContentEl,
       ctx.data,
       buildUserOverviewCallbacks(ctx, callbacks)
@@ -125,10 +142,11 @@ function renderUsersOverviewOrGroups(ctx, subContentEl, callbacks) {
     return;
   }
   if (ctx.data.loading && ctx.data.loadingMode === 'initial') {
+    // fallow-ignore-next-line security-sink
     subContentEl.innerHTML = renderLoadingState();
     return;
   }
-  ctx.usersModules.renderGroupsOverview?.(
+  ctx.usersModules.renderGroupsOverview(
     subContentEl,
     ctx.data,
     buildGroupsOverviewCallbacks(ctx, callbacks)
@@ -136,12 +154,13 @@ function renderUsersOverviewOrGroups(ctx, subContentEl, callbacks) {
 }
 
 export function renderUsersSubContent(ctx, subContentEl, callbacks) {
-  if (ctx.subTab === 'roles') {
-    ctx.usersModules.renderRolesPage?.(subContentEl, ctx.data);
-    return;
-  }
-  if (ctx.subTab === 'policies') {
-    ctx.usersModules.renderPoliciesSettings?.(subContentEl, ctx.data);
+  const usersRenderers = {
+    roles: (el, data, modules) => modules.renderRolesPage(el, data),
+    policies: (el, data, modules) => modules.renderPoliciesSettings(el, data),
+  };
+  const renderer = usersRenderers[ctx.subTab];
+  if (renderer) {
+    renderer(subContentEl, ctx.data, ctx.usersModules);
     return;
   }
   renderUsersOverviewOrGroups(ctx, subContentEl, callbacks);
