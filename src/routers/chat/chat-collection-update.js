@@ -1,16 +1,20 @@
 import { error } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
-import { requireOwnedChat } from '../chat-core.js';
-import { sanitizeTitle, reloadAndPublishChat, requireChatAuth } from './chat-collection-helpers.js';
+import {
+  sanitizeTitle,
+  reloadAndPublishChat,
+  requireOwnedAndChatAuth,
+} from './chat-collection-helpers.js';
 
 // eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleUpdateChat(req, env, db, user, chatId, originSessionId) {
-  const denied = await requireChatAuth(req, env, user, 'chat.write', chatId);
+  const {
+    denied,
+    error: ownedErr,
+    chat,
+  } = await requireOwnedAndChatAuth(req, env, db, user, 'chat.write', chatId);
   if (denied) return denied;
-
-  const owned = await requireOwnedChat(req, db, chatId, user.sub);
-  if (owned.error) return owned.error;
-  const chat = owned.chat;
+  if (ownedErr) return ownedErr;
 
   let body;
   try {

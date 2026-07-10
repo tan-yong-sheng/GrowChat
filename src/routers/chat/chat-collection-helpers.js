@@ -18,6 +18,20 @@ export function mapAuthCodeToStatus(code) {
   return map[code] || HTTP_STATUS.FORBIDDEN;
 }
 
+/**
+ * Combines requireChatAuth + requireOwnedChat into a single call,
+ * deduplicating the pattern that appears in 5 chat-collection-* handlers.
+ * Returns { denied, error, chat } — check denied for auth failure, error for ownership failure.
+ */
+// eslint-disable-next-line max-params -- Cloudflare Worker handler
+export async function requireOwnedAndChatAuth(req, env, db, user, action, chatId) {
+  const denied = await requireChatAuth(req, env, user, action, chatId);
+  if (denied) return { denied, error: null, chat: null };
+  const { error, chat } = await requireOwnedChat(req, db, chatId, user.sub);
+  if (error) return { denied: null, error, chat: null };
+  return { denied: null, error: null, chat };
+}
+
 // eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function requireChatAuth(req, env, user, action, chatId) {
   const authDecision = await authorize(env, user, {
@@ -50,9 +64,13 @@ export function sanitizeModelId(raw, fallback) {
 
 export // eslint-disable-next-line max-params -- Cloudflare Worker handler
 async function reloadAndPublishChat(req, env, db, user, chatId, originSessionId) {
-  const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
-  if (updatedOwned.error) return updatedOwned.error;
-  const updated = updatedOwned.chat;
+  const { error: updatedOwnedErr, chat: updated } = await requireOwnedChat(
+    req,
+    db,
+    chatId,
+    user.sub
+  );
+  if (updatedOwnedErr) return updatedOwnedErr;
   await publishRealtimeNow(
     env,
     createRealtimeEvent({

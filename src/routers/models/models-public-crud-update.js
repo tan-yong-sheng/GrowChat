@@ -1,18 +1,16 @@
 import { error, json } from '../../utils/response.js';
 import { HTTP_STATUS } from '../../shared/http-status.js';
-import { logAuditEvent } from '../../utils/authorize.js';
-import { loadCustomModels } from './models-discovery.js';
 import {
   extractModelIdFromPath,
+  findCustomModelById,
   invalidJsonBody,
+  logModelAuditEvent,
   missingCacheBinding,
   parseJsonBody,
   rejectIfBaseModel,
   requireModelAdmin,
+  writeCustomModelsToCache,
 } from './models-public-crud-helpers.js';
-
-const ONE_YEAR_TTL = 31536000;
-const CUSTOM_KEY = 'custom_models';
 
 function applyNameUpdate(model, body) {
   if (body.name !== undefined) {
@@ -83,22 +81,17 @@ export async function handlePublicModelsUpdate(req, env, _ctx, user, path, { log
       return missingCacheBinding(req);
     }
 
-    const customModels = await loadCustomModels(env);
-    const modelIndex = customModels.findIndex((m) => m.id === modelId);
-    if (modelIndex === -1) {
-      return error(req, 'Model not found', HTTP_STATUS.NOT_FOUND);
-    }
+    const result = await findCustomModelById(req, env, modelId);
+    if (!result.found) return result.error;
+
+    const { customModels, modelIndex } = result;
 
     applyUpdates(customModels[modelIndex], body);
 
-    await env.CACHE.put(CUSTOM_KEY, JSON.stringify(customModels), { expirationTtl: ONE_YEAR_TTL });
+    await writeCustomModelsToCache(env, customModels);
 
-    await logAuditEvent(env, {
-      actor_id: user.sub,
-      action: 'model_updated',
-      resource_type: 'model',
-      resource_id: modelId,
-      metadata: { fields_changed: Object.keys(body) },
+    await logModelAuditEvent(env, user, 'model_updated', modelId, {
+      fields_changed: Object.keys(body),
     });
 
     return json(req, {

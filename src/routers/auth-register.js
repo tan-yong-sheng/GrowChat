@@ -5,28 +5,9 @@ import { getConfigBool, getConfigValue, setConfigValue } from '../utils/app-conf
 import { requireString, validateEmail } from '../validation/request.js';
 import { RATE_LIMITS, checkRateLimit, resolveRateLimitSubject } from '../services/rate-limit.js';
 import { ValidationError } from '../errors/http-errors.js';
-import { stripHtml, escapeHtml } from '../utils/sanitize.js';
+import { stripHtml } from '../utils/sanitize.js';
 import { normalizePublicRole } from '../utils/user-role.js';
-
-function sanitizeUser(user, primaryRole = 'member') {
-  let settings;
-  try {
-    settings = user.settings ? JSON.parse(user.settings) : {};
-  } catch {
-    settings = {};
-  }
-  return {
-    id: user.id,
-    email: user.email,
-    name: escapeHtml(String(user.name || '')),
-    account_status: user.account_status === 'active' ? 'active' : 'pending',
-    primary_role: normalizePublicRole(primaryRole),
-    settings,
-    created_at: user.created_at,
-    last_active_at: user.last_active_at,
-    updated_at: user.updated_at,
-  };
-}
+import { sanitizeUser } from './auth/auth-helpers.js';
 
 export async function handleRegister(req, env, db, users, jwtSecret, logger, sharedFns) {
   const { ensureUserRoleBinding, createAccessToken } = sharedFns;

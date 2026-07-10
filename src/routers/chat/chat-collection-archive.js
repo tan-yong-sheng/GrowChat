@@ -2,16 +2,17 @@ import { json } from '../../utils/response.js';
 import { createRealtimeEvent } from '../../features/realtime/realtime.js';
 import { publishRealtimeNow } from '../chat-message-helpers.js';
 import { requireOwnedChat } from '../chat-core.js';
-import { requireChatAuth } from './chat-collection-helpers.js';
+import { requireOwnedAndChatAuth } from './chat-collection-helpers.js';
 
 // eslint-disable-next-line max-params -- Cloudflare Worker handler
 export async function handleArchiveChat(req, env, db, user, chatId, originSessionId) {
-  const denied = await requireChatAuth(req, env, user, 'chat.write', chatId);
+  const {
+    denied,
+    error: ownedErr,
+    chat,
+  } = await requireOwnedAndChatAuth(req, env, db, user, 'chat.write', chatId);
   if (denied) return denied;
-
-  const owned = await requireOwnedChat(req, db, chatId, user.sub);
-  if (owned.error) return owned.error;
-  const chat = owned.chat;
+  if (ownedErr) return ownedErr;
 
   const newArchived = chat.archived ? 0 : 1;
   await db.run(
@@ -19,9 +20,13 @@ export async function handleArchiveChat(req, env, db, user, chatId, originSessio
     [newArchived, chatId, user.sub]
   );
 
-  const updatedOwned = await requireOwnedChat(req, db, chatId, user.sub);
-  if (updatedOwned.error) return updatedOwned.error;
-  const updated = updatedOwned.chat;
+  const { error: updatedOwnedErr, chat: updated } = await requireOwnedChat(
+    req,
+    db,
+    chatId,
+    user.sub
+  );
+  if (updatedOwnedErr) return updatedOwnedErr;
 
   await publishRealtimeNow(
     env,

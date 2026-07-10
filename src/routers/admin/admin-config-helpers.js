@@ -48,7 +48,7 @@ export function buildReplaceCaps(capsInput) {
   return nextCaps;
 }
 
-function patchModelAttachments(current, patch) {
+export function patchModelAttachments(current, patch) {
   const nextAttachments = { ...(current.attachments || {}) };
   for (const [key, value] of Object.entries(patch)) {
     if (value === null) {

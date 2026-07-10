@@ -21,7 +21,6 @@ import {
 import {
   updateAuthFields as sharedUpdateAuthFields,
   readFormFieldValue,
-  readOAuthFormFields,
 } from '../../shared/components/integrations-shared.js';
 
 export function createIntegrationsModal(ctx) {

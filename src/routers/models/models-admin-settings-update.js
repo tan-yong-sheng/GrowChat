@@ -182,6 +182,30 @@ async function buildAccessUpdateStatements(db, sanitizedAccessUpdates, nextAcces
   return { statements, normalizedAccessUpdates };
 }
 
+// eslint-disable-next-line max-params -- helper consolidates duplicate audit targets
+async function execStatementsAndLog(
+  db,
+  statements,
+  env,
+  user,
+  updatesCount,
+  attachmentUpdatesCount,
+  accessUpdatesCount
+) {
+  await chunkedBatch(db, statements);
+  await logAuditEvent(env, {
+    actor_id: user.sub,
+    action: 'model_settings_updated',
+    resource_type: 'model',
+    resource_id: 'model-settings',
+    metadata: {
+      updates: updatesCount,
+      attachment_updates: attachmentUpdatesCount,
+      access_updates: accessUpdatesCount,
+    },
+  });
+}
+
 /* eslint-disable max-params -- multiple context parameters */
 /* eslint-disable no-unused-vars -- kept for consistency with other save functions */
 async function saveSettings(
@@ -202,18 +226,15 @@ async function saveSettings(
     statements.push(buildModelAttachmentCapSaveStatement(db, attachmentCaps));
   }
 
-  await chunkedBatch(db, statements);
-  await logAuditEvent(env, {
-    actor_id: user.sub,
-    action: 'model_settings_updated',
-    resource_type: 'model',
-    resource_id: 'model-settings',
-    metadata: {
-      updates: sanitizedUpdates.length,
-      attachment_updates: sanitizedAttachmentUpdates.length,
-      access_updates: normalizedAccessUpdates.length,
-    },
-  });
+  await execStatementsAndLog(
+    db,
+    statements,
+    env,
+    user,
+    sanitizedUpdates.length,
+    sanitizedAttachmentUpdates.length,
+    normalizedAccessUpdates.length
+  );
 }
 
 async function parseRequestBody(req) {
@@ -278,18 +299,15 @@ async function buildAndExecuteStatements(
     statements.push(buildModelAttachmentCapSaveStatement(db, attachmentCaps));
   }
 
-  await chunkedBatch(db, statements);
-  await logAuditEvent(env, {
-    actor_id: user.sub,
-    action: 'model_settings_updated',
-    resource_type: 'model',
-    resource_id: 'model-settings',
-    metadata: {
-      updates: sanitizedUpdates.length,
-      attachment_updates: sanitizedAttachmentUpdates.length,
-      access_updates: normalizedAccessUpdates.length,
-    },
-  });
+  await execStatementsAndLog(
+    db,
+    statements,
+    env,
+    user,
+    sanitizedUpdates.length,
+    sanitizedAttachmentUpdates.length,
+    normalizedAccessUpdates.length
+  );
 
   return {
     ok: true,

@@ -1,14 +1,17 @@
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
-import { authorize } from '../../utils/authorize.js';
+import { authorize, logAuditEvent } from '../../utils/authorize.js';
 import { getAllOpenAIConnectionConfigs } from '../../llm/connections.js';
-import { fetchBaseModelsFromOpenAI } from './models-discovery.js';
+import { fetchBaseModelsFromOpenAI, loadCustomModels } from './models-discovery.js';
 
 const STATUS_CODE_MAP = {
   server_error: HTTP_STATUS.INTERNAL_SERVER_ERROR,
   unauthorized: HTTP_STATUS.UNAUTHORIZED,
   not_found: HTTP_STATUS.NOT_FOUND,
 };
+
+const ONE_YEAR_TTL = 31536000;
+const CUSTOM_KEY = 'custom_models';
 
 export async function requireModelAdmin(req, env, user, resourceId) {
   const authDecision = await authorize(env, user, {
@@ -68,4 +71,43 @@ export async function rejectIfBaseModel(req, env, modelId, action, logger) {
     logger.warn(`Failed to check base models during ${action}`, { error: err?.message || err });
   }
   return null;
+}
+
+/**
+ * Find a custom model by ID.
+ * Returns { found: false, error: Response } on 404, or
+ * { found: true, customModels, modelIndex } on match.
+ * Used by both update and delete CRUD handlers.
+ */
+export async function findCustomModelById(req, env, modelId) {
+  const customModels = await loadCustomModels(env);
+  const modelIndex = customModels.findIndex((m) => m.id === modelId);
+  if (modelIndex === -1) {
+    return { found: false, error: error(req, 'Model not found', HTTP_STATUS.NOT_FOUND) };
+  }
+  return { found: true, customModels, modelIndex };
+}
+
+/**
+ * Write the updated custom models list to cache.
+ * Shared by all CRUD handlers that modify custom models.
+ */
+export async function writeCustomModelsToCache(env, customModels) {
+  await env.CACHE.put(CUSTOM_KEY, JSON.stringify(customModels), { expirationTtl: ONE_YEAR_TTL });
+}
+
+/**
+ * Log an audit event for a model change.
+ * action: 'model_created', 'model_updated', 'model_deleted', etc.
+ * extraFields: object with additional properties merged into the audit event.
+ */
+// eslint-disable-next-line max-params -- audit helper needs all params
+export async function logModelAuditEvent(env, user, action, modelId, extraFields) {
+  await logAuditEvent(env, {
+    actor_id: user.sub,
+    action,
+    resource_type: 'model',
+    resource_id: modelId,
+    ...(extraFields || {}),
+  });
 }

@@ -7,7 +7,7 @@ import { createDB } from '../db.js';
 import { json, error } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
-import { requireOwnedDocument } from '../services/uploads.js';
+import { getOwnedDocument } from './files-helpers.js';
 
 // eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
 export async function handleFileProcessStatus(
@@ -23,7 +23,7 @@ export async function handleFileProcessStatus(
   const db = createDB(env.DB);
 
   try {
-    const owned = await requireOwnedDocument({ req, db, documentId, userId: user.sub });
+    const owned = await getOwnedDocument({ req, db, documentId, userId: user.sub });
     if (owned.error) return owned.error;
     const doc = owned.doc;
 

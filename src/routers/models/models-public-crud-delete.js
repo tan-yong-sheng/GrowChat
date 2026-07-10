@@ -1,16 +1,14 @@
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { error, json } from '../../utils/response.js';
-import { logAuditEvent } from '../../utils/authorize.js';
-import { loadCustomModels } from './models-discovery.js';
 import {
   extractModelIdFromPath,
+  findCustomModelById,
+  logModelAuditEvent,
   missingCacheBinding,
   rejectIfBaseModel,
   requireModelAdmin,
+  writeCustomModelsToCache,
 } from './models-public-crud-helpers.js';
-
-const ONE_YEAR_TTL = 31536000;
-const CUSTOM_KEY = 'custom_models';
 
 // eslint-disable-next-line max-params -- router dispatcher pattern
 export async function handlePublicModelsDelete(req, env, _ctx, user, path, { logger }) {
@@ -27,23 +25,18 @@ export async function handlePublicModelsDelete(req, env, _ctx, user, path, { log
       return missingCacheBinding(req);
     }
 
-    const customModels = await loadCustomModels(env);
-    const modelIndex = customModels.findIndex((m) => m.id === modelId);
-    if (modelIndex === -1) {
-      return error(req, 'Model not found', HTTP_STATUS.NOT_FOUND);
-    }
+    const result = await findCustomModelById(req, env, modelId);
+    if (!result.found) return result.error;
 
+    const { customModels, modelIndex } = result;
     const deletedModel = customModels[modelIndex];
     customModels.splice(modelIndex, 1);
 
-    await env.CACHE.put(CUSTOM_KEY, JSON.stringify(customModels), { expirationTtl: ONE_YEAR_TTL });
+    await writeCustomModelsToCache(env, customModels);
 
-    await logAuditEvent(env, {
-      actor_id: user.sub,
-      action: 'model_deleted',
-      resource_type: 'model',
-      resource_id: modelId,
-      metadata: { provider: deletedModel.provider, name: deletedModel.name },
+    await logModelAuditEvent(env, user, 'model_deleted', modelId, {
+      provider: deletedModel.provider,
+      name: deletedModel.name,
     });
 
     return json(req, { success: true, message: 'Model removed successfully' });

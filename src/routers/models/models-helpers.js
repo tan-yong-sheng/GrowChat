@@ -7,6 +7,7 @@ import { getConfigValue } from '../../utils/app-config.js';
 import { loadAttachmentCapsFromRaw } from '../../utils/attachment-caps.js';
 import { normalizeAttachmentCaps, normalizeModelId } from '../../admin/tool-servers.js';
 import { normalizeConnectionManualModels } from '../../llm/connections.js';
+import { patchModelAttachments } from '../admin/admin-config-helpers.js';
 import {
   loadModelAttachmentCaps,
   applyAttachmentDefaults,
@@ -81,19 +82,7 @@ export function applyAttachmentCapsPatch(caps, update) {
   }
   const patch = normalizeAttachmentCaps(update?.attachments, { allowNull: true });
   const current = caps[modelId] && typeof caps[modelId] === 'object' ? caps[modelId] : {};
-  const nextAttachments = { ...(current.attachments || {}) };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) {
-      delete nextAttachments[key];
-    } else {
-      nextAttachments[key] = value;
-    }
-  }
-  caps[modelId] = {
-    ...current,
-    attachments: nextAttachments,
-    updated_at: Math.floor(Date.now() / 1000),
-  };
+  caps[modelId] = patchModelAttachments(current, patch);
 }
 
 export function buildModelAttachmentCapSaveStatement(db, caps) {

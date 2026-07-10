@@ -6,7 +6,7 @@
 import { createDB } from '../db.js';
 import { json, error } from '../utils/response.js';
 import { createLogger } from '../utils/logger.js';
-import { requireOwnedDocument } from '../services/uploads.js';
+import { getOwnedDocument } from './files-helpers.js';
 import { HTTP_STATUS } from '../shared/http-status.js';
 
 // eslint-disable-next-line max-params -- router dispatcher pattern (req, env, ctx, user, documentId, requestContext)
@@ -16,7 +16,7 @@ export async function handleFileGet(req, env, ctx, user, documentId, requestCont
   const db = createDB(env.DB);
 
   try {
-    const owned = await requireOwnedDocument({ req, db, documentId, userId: user.sub });
+    const owned = await getOwnedDocument({ req, db, documentId, userId: user.sub });
     if (owned.error) return owned.error;
     return json(req, owned.doc);
   } catch (err) {
