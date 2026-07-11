@@ -26,17 +26,27 @@ function isMessageLive(message, now, staleMs) {
  * @returns {string|null}
  */
 function resolveModelIdForMode(state, data, modelMode) {
-  if (modelMode === 'default') {
-    return (
-      state.defaultModelId || state.globalDefaultModelId || data?.chat?.model || state.activeModelId
-    );
-  }
-  if (modelMode === 'chat') {
-    return (
-      data?.chat?.model || state.activeModelId || state.defaultModelId || state.globalDefaultModelId
-    );
-  }
+  if (modelMode === 'default') return pickDefaultModel(state, data);
+  if (modelMode === 'chat') return pickChatModel(state, data);
   return state.activeModelId;
+}
+
+function pickDefaultModel(state, data) {
+  return (
+    state.defaultModelId ||
+    state.globalDefaultModelId ||
+    data?.chat?.model ||
+    state.activeModelId
+  );
+}
+
+function pickChatModel(state, data) {
+  return (
+    data?.chat?.model ||
+    state.activeModelId ||
+    state.defaultModelId ||
+    state.globalDefaultModelId
+  );
 }
 
 /**
