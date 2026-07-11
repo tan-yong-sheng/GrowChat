@@ -1,4 +1,35 @@
 /**
+ * Fetch a family payload via the appropriate endpoint.
+ * Returns the raw JSON payload; callers extract the resource array.
+ */
+async function fetchFamilyPayload(familyKey, signal, fetchAdminModels, apiFetch) {
+  if (familyKey === 'models') {
+    return fetchAdminModels({
+      limit: 1000,
+      offset: 0,
+      includeDisabled: true,
+      signal,
+    });
+  }
+  const endpoints = {
+    connections: '/api/admin/openai/connections?include_disabled=1',
+  };
+  const fallbackEndpoint = '/api/admin/tool-servers?include_disabled=1';
+  const url = endpoints[familyKey] || fallbackEndpoint;
+  const errorMessage =
+    familyKey === 'connections' ? 'Failed to load connections' : 'Failed to load MCP servers';
+  const res = await apiFetch(url, { signal });
+  if (!res.ok) throw new Error(errorMessage);
+  return res.json();
+}
+
+function extractFamilyResources(familyKey, payload) {
+  if (familyKey === 'models') return payload.models;
+  if (familyKey === 'connections') return payload.connections;
+  return payload.servers;
+}
+
+/**
  * Factory for the loadFamilyResources function used by policies.js.
  *
  * @param {object} deps – closure dependencies from the parent module
@@ -35,36 +66,12 @@ export function createLoadFamilyResources(deps) {
     state.familyStatus[familyKey] = 'loading';
     if (isActiveTab(container)) render();
 
+    let payload;
     try {
-      let payload;
-      if (familyKey === 'models') {
-        payload = await fetchAdminModels({
-          limit: 1000,
-          offset: 0,
-          includeDisabled: true,
-          signal: controller.signal,
-        });
-      } else if (familyKey === 'connections') {
-        const res = await apiFetch('/api/admin/openai/connections?include_disabled=1', {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error('Failed to load connections');
-        payload = await res.json();
-      } else {
-        const res = await apiFetch('/api/admin/tool-servers?include_disabled=1', {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error('Failed to load MCP servers');
-        payload = await res.json();
-      }
+      payload = await fetchFamilyPayload(familyKey, controller.signal, fetchAdminModels, apiFetch);
       if (controller.signal.aborted || familyLoadSeq[familyKey] !== seq) return;
 
-      const rawResources =
-        familyKey === 'models'
-          ? payload.models
-          : familyKey === 'connections'
-            ? payload.connections
-            : payload.servers;
+      const rawResources = extractFamilyResources(familyKey, payload);
       const resources = Array.isArray(rawResources) ? rawResources : [];
       const ids = resources.map((r) => r.id).filter(Boolean);
 
