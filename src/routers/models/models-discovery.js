@@ -237,16 +237,14 @@ export function isOpenAIProvider(model) {
  * @returns {boolean} True if any field contains the query
  */
 export function matchesModelQuery(model, query) {
-  const name = String(model?.name || '').toLowerCase();
-  const id = String(model?.id || '').toLowerCase();
-  const connection = String(model?.connection_name || '').toLowerCase();
-  const provider = String(model?.provider || '').toLowerCase();
-  return (
-    name.includes(query) ||
-    id.includes(query) ||
-    connection.includes(query) ||
-    provider.includes(query)
+  const loweredQuery = String(query || '').toLowerCase();
+  return ['name', 'id', 'connection_name', 'provider'].some((field) =>
+    fieldMatchesQuery(model?.[field], loweredQuery)
   );
+}
+
+function fieldMatchesQuery(value, loweredQuery) {
+  return String(value || '').toLowerCase().includes(loweredQuery);
 }
 
 // fallow-ignore-next-line complexity
