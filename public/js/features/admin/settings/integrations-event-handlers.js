@@ -141,31 +141,37 @@ export function createIntegrationsEventHandlers(deps) {
     let testInFlight = false;
     container.querySelector('#test-server')?.addEventListener('click', async () => {
       if (testInFlight) return;
-      const { url, headers, authType, bearerToken, basicUser, basicPass, serverId } =
-        buildRunVerifyArgs();
-      if (!url.trim()) {
+      const args = buildRunVerifyArgs();
+      if (!args.url.trim()) {
         setTestStatus('error', 'URL is required');
         return;
       }
       testInFlight = true;
       setTestStatus('testing', 'Testing connection...');
       try {
-        const result = await runVerify(buildRunVerifyArgs());
-        setTestStatus('success', result.message);
-        const server = findServerById(serverId);
-        if (server) {
-          server.tools = result.tools;
-          server.toolsError = '';
-          server.toolsExpanded = false;
-        }
-        renderToolServersList();
+        await runServerTestAndApply(args);
       } catch (err) {
         setTestStatus('error', err.message || 'Connection failed');
-        handleServerVerifyError(serverId, err.message || 'Connection failed');
+        handleServerVerifyError(args.serverId, err.message || 'Connection failed');
       } finally {
         testInFlight = false;
       }
     });
+
+    async function runServerTestAndApply(args) {
+      const result = await runVerify(args);
+      setTestStatus('success', result.message);
+      applyServerVerifyResult(args.serverId, result);
+      renderToolServersList();
+    }
+
+    function applyServerVerifyResult(serverId, result) {
+      const server = findServerById(serverId);
+      if (!server) return;
+      server.tools = result.tools;
+      server.toolsError = '';
+      server.toolsExpanded = false;
+    }
 
     container.querySelector('#save-modal')?.addEventListener('click', async () => {
       const name = container.querySelector('#server-name').value || 'Untitled Server';
