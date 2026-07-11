@@ -19,37 +19,52 @@ import { updateApiTypeDisplay } from '../admin/settings/connections-helpers-moda
  * @param {HTMLElement|null} bodyEl - Modal body element
  * @param {HTMLInputElement|null} nameInput - Name input element
  */
-// eslint-disable-next-line max-statements, complexity
 export function syncProviderUi(providerSelect, baseUrlInput, bodyEl, nameInput) {
   if (!providerSelect || !baseUrlInput) return;
   const providerType = providerSelect.value;
+  syncBaseUrlInput(baseUrlInput, providerType);
+  updateApiTypeDisplay(bodyEl, providerType);
+  syncModalLabels(bodyEl, providerType);
+  if (nameInput) nameInput.placeholder = `e.g. ${adminProviderDisplayLabel(providerType)}`;
+}
+
+function syncBaseUrlInput(baseUrlInput, providerType) {
   const nextDefault = providerUrlPlaceholder(providerType);
   baseUrlInput.placeholder = nextDefault;
   if (isCompatibleProviderType(providerType)) {
-    const currentValue = String(baseUrlInput.value == null ? '' : baseUrlInput.value).trim();
-    const knownDefaults = [
-      providerUrlPlaceholder('openai-compatible'),
-      providerUrlPlaceholder('gemini-compatible'),
-      providerUrlPlaceholder('claude-compatible'),
-    ];
-    if (!currentValue || knownDefaults.includes(currentValue)) {
-      baseUrlInput.value = '';
-    }
-  } else {
-    baseUrlInput.value = nextDefault;
+    clearMatchingBaseUrlValue(baseUrlInput);
+    return;
   }
-  updateApiTypeDisplay(bodyEl, providerType);
-  const urlLabel = bodyEl?.querySelector('#modal-conn-url-label');
-  if (urlLabel) urlLabel.textContent = resolveUrlLabel(providerType);
-  const providerHint = bodyEl?.querySelector('#modal-conn-provider-hint');
-  if (providerHint) providerHint.textContent = adminProviderDisplayLabel(providerType);
-  const urlHint = bodyEl?.querySelector('#modal-conn-url-hint');
-  if (urlHint) {
-    urlHint.textContent = isCompatibleProviderType(providerType)
-      ? 'Required for compatible providers.'
-      : 'Uses the built-in default if left blank.';
+  baseUrlInput.value = nextDefault;
+}
+
+function clearMatchingBaseUrlValue(baseUrlInput) {
+  const currentValue = String(baseUrlInput.value == null ? '' : baseUrlInput.value).trim();
+  if (!currentValue) return;
+  const knownDefaults = [
+    providerUrlPlaceholder('openai-compatible'),
+    providerUrlPlaceholder('gemini-compatible'),
+    providerUrlPlaceholder('claude-compatible'),
+  ];
+  if (knownDefaults.includes(currentValue)) {
+    baseUrlInput.value = '';
   }
-  const keyLabel = bodyEl?.querySelector('#modal-conn-key-label');
-  if (keyLabel) keyLabel.textContent = 'API Key *';
-  if (nameInput) nameInput.placeholder = `e.g. ${adminProviderDisplayLabel(providerType)}`;
+}
+
+function syncModalLabels(bodyEl, providerType) {
+  setLabelText(bodyEl, '#modal-conn-url-label', resolveUrlLabel(providerType));
+  setLabelText(bodyEl, '#modal-conn-provider-hint', adminProviderDisplayLabel(providerType));
+  setLabelText(bodyEl, '#modal-conn-url-hint', resolveUrlHint(providerType));
+  setLabelText(bodyEl, '#modal-conn-key-label', 'API Key *');
+}
+
+function setLabelText(bodyEl, selector, text) {
+  const el = bodyEl?.querySelector(selector);
+  if (el) el.textContent = text;
+}
+
+function resolveUrlHint(providerType) {
+  return isCompatibleProviderType(providerType)
+    ? 'Required for compatible providers.'
+    : 'Uses the built-in default if left blank.';
 }
