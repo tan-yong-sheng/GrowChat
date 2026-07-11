@@ -81,74 +81,7 @@ export async function handleAdminConnectionsSave(
 
       sanitized = connections
         .filter((conn) => !conn?.readOnly)
-        .map((conn) => {
-          const existingConnection = currentConnectionMap.get(String(conn.id || ''));
-          const providerType = String(conn.providerType || 'openai').toLowerCase();
-          if (
-            ![
-              'openai',
-              'openai-compatible',
-              'google',
-              'gemini-compatible',
-              'anthropic',
-              'claude-compatible',
-            ].includes(providerType)
-          ) {
-            throw new Error(
-              'Provider type must be one of: openai, openai-compatible, google, gemini-compatible, anthropic, claude-compatible'
-            );
-          }
-          const providerFamily =
-            normalizeProviderFamily(providerType || conn.providerFamily) || 'openai';
-          const rawUrl = String(conn.url || '').trim();
-          const requiresUrl = isConnectionUrlRequired(providerType);
-          const url = rawUrl || getConnectionDefaultBaseUrl(providerType || providerFamily);
-          if (requiresUrl && !rawUrl) {
-            throw new Error('Connection URL is required for compatible providers');
-          }
-          if (!isValidHttpUrl(url)) {
-            throw new Error('Connection URL must start with http:// or https://');
-          }
-          const bulkUrlSafety = isSafeOutboundUrl(url);
-          if (!bulkUrlSafety.safe) {
-            throw new Error(bulkUrlSafety.reason);
-          }
-          const keyRaw = conn.key !== undefined ? String(conn.key || '').trim() : '';
-          const key =
-            keyRaw ||
-            (existingConnection?.key && String(existingConnection.key).trim()
-              ? String(existingConnection.key).trim()
-              : '');
-          if (key.length > MAX_API_KEY_LENGTH) {
-            throw new Error('API key is too long');
-          }
-          const headers = normalizeHeaders(conn.headers);
-          if (headers.length > MAX_HEADERS_LENGTH) {
-            throw new Error('Headers are too long');
-          }
-          const defaultName =
-            providerFamily === 'google'
-              ? 'Gemini Compatible'
-              : providerFamily === 'anthropic'
-                ? 'Claude Compatible'
-                : 'OpenAI Compatible';
-          return {
-            id: conn.id || crypto.randomUUID(),
-            name: String(conn.name || defaultName).slice(0, MAX_CONNECTION_NAME_LENGTH),
-            url,
-            key,
-            headers,
-            providerType,
-            providerFamily,
-            apiType: getConnectionApiType(providerType),
-            enabled: conn.enabled !== false,
-            manualModels: normalizeConnectionManualModels(conn.manualModels),
-            manualModelsMode:
-              normalizeConnectionModelSelectionMode(
-                conn.manualModelsMode || conn.manual_models_mode
-              ) || 'all',
-          };
-        })
+        .map((conn) => sanitizeConnectionInput(conn, currentConnectionMap))
         .filter(Boolean);
     } catch (err) {
       return error(req, err.message || 'Invalid connection data', HTTP_STATUS.BAD_REQUEST);
@@ -317,4 +250,86 @@ export async function handleAdminConnectionsSave(
   }
 
   return null;
+}
+
+const ALLOWED_PROVIDER_TYPES = [
+  'openai',
+  'openai-compatible',
+  'google',
+  'gemini-compatible',
+  'anthropic',
+  'claude-compatible',
+];
+
+function validateProviderType(providerType) {
+  if (!ALLOWED_PROVIDER_TYPES.includes(providerType)) {
+    throw new Error(
+      `Provider type must be one of: ${ALLOWED_PROVIDER_TYPES.join(', ')}`
+    );
+  }
+}
+
+function resolveAndValidateUrl(rawUrl, providerType, providerFamily) {
+  const requiresUrl = isConnectionUrlRequired(providerType);
+  if (requiresUrl && !rawUrl) {
+    throw new Error('Connection URL is required for compatible providers');
+  }
+  const url = rawUrl || getConnectionDefaultBaseUrl(providerType || providerFamily);
+  if (!isValidHttpUrl(url)) {
+    throw new Error('Connection URL must start with http:// or https://');
+  }
+  const bulkUrlSafety = isSafeOutboundUrl(url);
+  if (!bulkUrlSafety.safe) {
+    throw new Error(bulkUrlSafety.reason);
+  }
+  return url;
+}
+
+function resolveConnectionApiKey(conn, existingConnection) {
+  const keyRaw = conn.key !== undefined ? String(conn.key || '').trim() : '';
+  if (keyRaw) return keyRaw;
+  if (existingConnection?.key && String(existingConnection.key).trim()) {
+    return String(existingConnection.key).trim();
+  }
+  return '';
+}
+
+function defaultConnectionName(providerFamily) {
+  if (providerFamily === 'google') return 'Gemini Compatible';
+  if (providerFamily === 'anthropic') return 'Claude Compatible';
+  return 'OpenAI Compatible';
+}
+
+function sanitizeConnectionInput(conn, currentConnectionMap) {
+  const existingConnection = currentConnectionMap.get(String(conn.id || ''));
+  const providerType = String(conn.providerType || 'openai').toLowerCase();
+  validateProviderType(providerType);
+  const providerFamily =
+    normalizeProviderFamily(providerType || conn.providerFamily) || 'openai';
+  const rawUrl = String(conn.url || '').trim();
+  const url = resolveAndValidateUrl(rawUrl, providerType, providerFamily);
+  const key = resolveConnectionApiKey(conn, existingConnection);
+  if (key.length > MAX_API_KEY_LENGTH) {
+    throw new Error('API key is too long');
+  }
+  const headers = normalizeHeaders(conn.headers);
+  if (headers.length > MAX_HEADERS_LENGTH) {
+    throw new Error('Headers are too long');
+  }
+  return {
+    id: conn.id || crypto.randomUUID(),
+    name: String(conn.name || defaultConnectionName(providerFamily)).slice(0, MAX_CONNECTION_NAME_LENGTH),
+    url,
+    key,
+    headers,
+    providerType,
+    providerFamily,
+    apiType: getConnectionApiType(providerType),
+    enabled: conn.enabled !== false,
+    manualModels: normalizeConnectionManualModels(conn.manualModels),
+    manualModelsMode:
+      normalizeConnectionModelSelectionMode(
+        conn.manualModelsMode || conn.manual_models_mode
+      ) || 'all',
+  };
 }
