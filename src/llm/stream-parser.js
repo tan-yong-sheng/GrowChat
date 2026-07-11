@@ -51,67 +51,80 @@ export class SseLineParser {
     if (!chunk) return [];
     this._tagBuffer += chunk;
     const segments = [];
-    const bufferLower = () => this._tagBuffer.toLowerCase();
     const openTokens = this._tagNames.map((tag) => `<${tag}`);
 
     while (this._tagBuffer.length > 0) {
       if (!this._inReasoning) {
-        let best = null;
-        const lower = bufferLower();
-        for (let i = 0; i < openTokens.length; i += 1) {
-          const token = openTokens[i];
-          const idx = getPotentialStartIndex(lower, token);
-          if (idx == null) continue;
-          if (!best || idx < best.index) {
-            best = { index: idx, token, tagName: this._tagNames[i] };
-          }
-        }
-
-        if (!best) {
-          segments.push({ type: 'text', text: this._tagBuffer });
-          this._tagBuffer = '';
-          break;
-        }
-
-        if (best.index > 0) {
-          segments.push({ type: 'text', text: this._tagBuffer.slice(0, best.index) });
-        }
-
-        const openEnd = this._tagBuffer.indexOf('>', best.index);
-        if (openEnd === -1) {
-          this._tagBuffer = this._tagBuffer.slice(best.index);
-          break;
-        }
-
-        this._tagBuffer = this._tagBuffer.slice(openEnd + 1);
-        this._inReasoning = true;
-        this._currentTag = best.tagName;
+        const continueLoop = this._consumeOutsideReasoning(segments, openTokens);
+        if (!continueLoop) break;
       } else {
-        const closeToken = `</${this._currentTag}>`;
-        const lower = bufferLower();
-        const closeIdx = getPotentialStartIndex(lower, closeToken);
-        if (closeIdx == null) {
-          segments.push({ type: 'reasoning', text: this._tagBuffer });
-          this._tagBuffer = '';
-          break;
-        }
-
-        if (closeIdx > 0) {
-          segments.push({ type: 'reasoning', text: this._tagBuffer.slice(0, closeIdx) });
-        }
-
-        if (closeIdx + closeToken.length > this._tagBuffer.length) {
-          this._tagBuffer = this._tagBuffer.slice(closeIdx);
-          break;
-        }
-
-        this._tagBuffer = this._tagBuffer.slice(closeIdx + closeToken.length);
-        this._inReasoning = false;
-        this._currentTag = null;
+        const continueLoop = this._consumeInsideReasoning(segments);
+        if (!continueLoop) break;
       }
     }
 
     return segments;
+  }
+
+  _bufferLower() {
+    return this._tagBuffer.toLowerCase();
+  }
+
+  _findBestOpenToken(lower, openTokens) {
+    let best = null;
+    for (let i = 0; i < openTokens.length; i += 1) {
+      const token = openTokens[i];
+      const idx = getPotentialStartIndex(lower, token);
+      if (idx == null) continue;
+      if (!best || idx < best.index) {
+        best = { index: idx, token, tagName: this._tagNames[i] };
+      }
+    }
+    return best;
+  }
+
+  _consumeOutsideReasoning(segments, openTokens) {
+    const lower = this._bufferLower();
+    const best = this._findBestOpenToken(lower, openTokens);
+    if (!best) {
+      segments.push({ type: 'text', text: this._tagBuffer });
+      this._tagBuffer = '';
+      return false;
+    }
+    if (best.index > 0) {
+      segments.push({ type: 'text', text: this._tagBuffer.slice(0, best.index) });
+    }
+    const openEnd = this._tagBuffer.indexOf('>', best.index);
+    if (openEnd === -1) {
+      this._tagBuffer = this._tagBuffer.slice(best.index);
+      return false;
+    }
+    this._tagBuffer = this._tagBuffer.slice(openEnd + 1);
+    this._inReasoning = true;
+    this._currentTag = best.tagName;
+    return true;
+  }
+
+  _consumeInsideReasoning(segments) {
+    const closeToken = `</${this._currentTag}>`;
+    const lower = this._bufferLower();
+    const closeIdx = getPotentialStartIndex(lower, closeToken);
+    if (closeIdx == null) {
+      segments.push({ type: 'reasoning', text: this._tagBuffer });
+      this._tagBuffer = '';
+      return false;
+    }
+    if (closeIdx > 0) {
+      segments.push({ type: 'reasoning', text: this._tagBuffer.slice(0, closeIdx) });
+    }
+    if (closeIdx + closeToken.length > this._tagBuffer.length) {
+      this._tagBuffer = this._tagBuffer.slice(closeIdx);
+      return false;
+    }
+    this._tagBuffer = this._tagBuffer.slice(closeIdx + closeToken.length);
+    this._inReasoning = false;
+    this._currentTag = null;
+    return true;
   }
 
   _handleParsed(parsed) {
