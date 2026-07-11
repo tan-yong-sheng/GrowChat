@@ -11,17 +11,20 @@ export function toggleThinkingSection(event, messagesList, thinkingCollapsedByKe
   if (!thinkingTarget) return false;
   const key = thinkingTarget.getAttribute('data-thinking-toggle');
   if (!key) return true;
-  const isCollapsed = thinkingCollapsedByKey.get(key) ?? false;
-  const next = !isCollapsed;
+  const next = !thinkingCollapsedByKey.get(key);
   thinkingCollapsedByKey.set(key, next);
+  applyThinkingCollapsedState(messagesList, key, next);
+  return true;
+}
+
+function applyThinkingCollapsedState(messagesList, key, isCollapsed) {
   const body = messagesList?.querySelector(`[data-thinking-body="${key}"]`);
   const chevron = messagesList?.querySelector(`[data-thinking-chevron="${key}"]`);
-  if (body) body.classList.toggle('hidden', next);
+  if (body) body.classList.toggle('hidden', isCollapsed);
   if (chevron) {
-    chevron.classList.toggle('-rotate-90', next);
-    chevron.classList.toggle('rotate-0', !next);
+    chevron.classList.toggle('-rotate-90', isCollapsed);
+    chevron.classList.toggle('rotate-0', !isCollapsed);
   }
-  return true;
 }
 
 /**
