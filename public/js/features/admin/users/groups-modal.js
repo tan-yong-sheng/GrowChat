@@ -177,24 +177,20 @@ function renderGroupModal({
   const renderMembers = () => {
     if (!membersListEl) return;
     const filtered = filterUsers(allUsers, memberState.query);
-    if (!filtered.length) {
-      membersListEl.innerHTML = `
-        <div class="text-sm text-gray-700 py-6 text-center">No users found.</div>
-      `;
-    } else {
-      membersListEl.innerHTML = filtered
-        .map((user) => {
-          const isSelected = selectedMembers.has(user.id);
-          const initials =
-            String(user.name || user.email || '?')
-              .trim()
-              .charAt(0)
-              .toUpperCase() || '?';
-          const buttonLabel = isSelected ? 'Member' : 'Add';
-          const buttonClass = isSelected
-            ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
-            : 'bg-gray-100 text-gray-600 border-gray-200 hover:border-gray-300';
-          return `
+    membersListEl.innerHTML = filtered.length ? renderMembersRows(filtered, selectedMembers) : renderMembersEmpty();
+    renderMembersCount();
+    bindMemberToggleHandlers();
+  };
+
+  const renderMembersEmpty = () =>
+    `<div class="text-sm text-gray-700 py-6 text-center">No users found.</div>`;
+
+  const renderMembersRows = (filtered, selectedMembers) =>
+    filtered.map((user) => renderMemberRow(user, selectedMembers.has(user.id))).join('');
+
+  const renderMemberRow = (user, isSelected) => {
+    const initials = getMemberInitials(user);
+    return `
           <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
             <div class="flex items-center gap-3">
               <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">${escapeHtml(initials)}</div>
@@ -203,35 +199,42 @@ function renderGroupModal({
                 <div class="text-label-sm text-gray-700">${escapeHtml(user.email || '')}</div>
               </div>
             </div>
-            ${renderButton({
-              label: buttonLabel,
-              variant: isSelected ? 'secondary' : 'ghost',
-              className: `member-toggle text-label-sm px-3 py-1 ${buttonClass}`,
-              dataAttrs: { 'user-id': user.id },
-            })}
+            ${renderMemberToggle(isSelected, user.id)}
           </div>
         `;
-        })
-        .join('');
-    }
+  };
 
-    if (membersCountEl) {
-      membersCountEl.textContent = `${selectedMembers.size} selected`;
-    }
+  const renderMemberToggle = (isSelected, userId) =>
+    renderButton({
+      label: isSelected ? 'Member' : 'Add',
+      variant: isSelected ? 'secondary' : 'ghost',
+      className: `member-toggle text-label-sm px-3 py-1 ${memberButtonClass(isSelected)}`,
+      dataAttrs: { 'user-id': userId },
+    });
 
+  const memberButtonClass = (isSelected) =>
+    isSelected
+      ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
+      : 'bg-gray-100 text-gray-600 border-gray-200 hover:border-gray-300';
+
+  const getMemberInitials = (user) =>
+    String(user.name || user.email || '?').trim().charAt(0).toUpperCase() || '?';
+
+  const bindMemberToggleHandlers = () => {
     membersListEl.querySelectorAll('.member-toggle').forEach((btn) => {
       btn.addEventListener('click', () => {
         const userId = btn.dataset.userId;
         if (!userId) return;
-        if (selectedMembers.has(userId)) {
-          selectedMembers.delete(userId);
-        } else {
-          selectedMembers.add(userId);
-        }
+        if (selectedMembers.has(userId)) selectedMembers.delete(userId);
+        else selectedMembers.add(userId);
         renderMembers();
         syncDirty();
       });
     });
+  };
+
+  const renderMembersCount = () => {
+    if (membersCountEl) membersCountEl.textContent = `${selectedMembers.size} selected`;
   };
 
   if (membersSearchInput) {
