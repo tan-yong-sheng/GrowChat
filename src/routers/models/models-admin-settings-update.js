@@ -10,47 +10,17 @@ import {
   applyAttachmentCapsPatch,
   buildModelAttachmentCapSaveStatement,
   getModelAccessMap,
-  isValidModelId,
   loadAttachmentCapsFromRaw,
   MODEL_ATTACHMENT_CAPS_KEY,
 } from './models-helpers.js';
 import { requireModelAdmin } from './models-admin-settings-helpers.js';
 import { filterModelRulesByGroup } from './models-admin-access-helpers.js';
-
-const MAX_UPDATES = 500;
-
-function parseBody(body) {
-  const updatesInput = Array.isArray(body.updates) ? body.updates : [];
-  const attachmentUpdatesInput = Array.isArray(body.attachment_updates)
-    ? body.attachment_updates
-    : Array.isArray(body.attachmentUpdates)
-      ? body.attachmentUpdates
-      : [];
-  const accessUpdatesInput = Array.isArray(body.access_updates)
-    ? body.access_updates
-    : Array.isArray(body.accessUpdates)
-      ? body.accessUpdates
-      : [];
-  return { updatesInput, attachmentUpdatesInput, accessUpdatesInput };
-}
-
-function validateUpdateCounts(updatesInput, attachmentUpdatesInput, accessUpdatesInput) {
-  return (
-    updatesInput.length <= MAX_UPDATES &&
-    attachmentUpdatesInput.length <= MAX_UPDATES &&
-    accessUpdatesInput.length <= MAX_UPDATES
-  );
-}
-
-function sanitizeEnabledUpdates(updatesInput) {
-  const sanitized = updatesInput
-    .map((item) => ({
-      id: String(item?.id || '').trim(),
-      enabled: item?.enabled !== false,
-    }))
-    .filter((item) => isValidModelId(item.id));
-  return sanitized;
-}
+import {
+  parseBody,
+  validateUpdateCounts,
+  sanitizeEnabledUpdates,
+  sanitizeAccessUpdates,
+} from './models-admin-settings-validators.js';
 
 async function prepareAttachmentCaps(db, attachmentUpdatesInput) {
   if (!attachmentUpdatesInput.length) {
@@ -67,19 +37,6 @@ async function prepareAttachmentCaps(db, attachmentUpdatesInput) {
     });
   }
   return { attachmentCaps, sanitizedAttachmentUpdates };
-}
-
-function sanitizeAccessUpdates(accessUpdatesInput) {
-  const sanitizedAccessUpdates = [];
-  for (const update of accessUpdatesInput) {
-    const modelId = normalizeModelId(update?.model_id || update?.modelId);
-    if (!modelId) {
-      throw Object.assign(new Error('model_id is required'), { status: HTTP_STATUS.BAD_REQUEST });
-    }
-    const rules = Array.isArray(update?.rules) ? update.rules : [];
-    sanitizedAccessUpdates.push({ model_id: modelId, rules });
-  }
-  return sanitizedAccessUpdates;
 }
 
 async function requireAclAccess(req, env, user) {
