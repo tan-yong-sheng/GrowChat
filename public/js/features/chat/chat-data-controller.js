@@ -170,12 +170,7 @@ export function createChatDataController({
     if (handleLoadMessagesEarlyReturn(chatId, draw)) return;
     touchRecentChat(recentChatIds, chatId);
     schedulePrune();
-
-    if (draw) {
-      setState({ ui: { loadingChatId: chatId } });
-      const existing = state.messagesByChat[chatId] || [];
-      drawMessages(existing);
-    }
+    if (draw) setLoadingState(chatId);
 
     const res = await apiFetch(`/api/chats/${chatId}`, { cache: 'no-store' });
     if (!res.ok) {
@@ -184,17 +179,42 @@ export function createChatDataController({
     }
     const data = await res.json();
 
-    const now = Date.now();
+    const { messages, appliedFallbackId } = prepareMessagesForLoad(data, chatId, fallbackMessage);
+    rememberResolvedLeaf(chatId, messages, {
+      preferredLeafId,
+      data,
+      appliedFallbackId,
+    });
 
+    const streamingNow = hasLiveStream(messages, Date.now(), STREAM_STALE_MS);
+    applyLoadedMessagesToState(chatId, messages, {
+      updateActiveModel,
+      modelMode,
+      data,
+      streamingNow,
+    });
+
+    if (draw) drawMessages(messages);
+    maybeResumeStream(chatId, messages, streamingNow);
+  }
+
+  function setLoadingState(chatId) {
+    setState({ ui: { loadingChatId: chatId } });
+    const existing = state.messagesByChat[chatId] || [];
+    drawMessages(existing);
+  }
+
+  function prepareMessagesForLoad(data, _chatId, fallbackMessage) {
+    const now = Date.now();
     const { messages: initialMessages, appliedFallbackId: savedFallbackId } =
       resolveFallbackMessageInsertion(
         markStreamingDone(data.messages, now, STREAM_STALE_MS),
         fallbackMessage
       );
+    return { messages: initialMessages, appliedFallbackId: savedFallbackId };
+  }
 
-    const messages = initialMessages;
-    let appliedFallbackId = savedFallbackId;
-
+  function rememberResolvedLeaf(chatId, messages, { preferredLeafId, data, appliedFallbackId }) {
     const priorLeafId = currentLeafByChatId.get(chatId) || null;
     const resolvedLeafId = resolveConversationLeafId(messages, {
       preferredLeafId,
@@ -205,9 +225,10 @@ export function createChatDataController({
     if (resolvedLeafId) {
       currentLeafByChatId.set(chatId, String(resolvedLeafId));
     }
+  }
 
-    const streamingNow = hasLiveStream(messages, now, STREAM_STALE_MS);
-
+  function applyLoadedMessagesToState(chatId, messages, opts) {
+    const { updateActiveModel, modelMode, data, streamingNow } = opts;
     const nextState = {
       messagesByChat: { ...state.messagesByChat, [chatId]: messages },
     };
@@ -223,9 +244,6 @@ export function createChatDataController({
       streamingChatId: streamingNow ? String(chatId) : null,
     };
     setState(nextState);
-
-    if (draw) drawMessages(messages);
-    maybeResumeStream(chatId, messages, streamingNow);
   }
 
   function handleLoadMessagesEarlyReturn(chatId, draw) {
