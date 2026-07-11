@@ -120,7 +120,6 @@ export function handleResetResult(res, data) {
  * @param {Event} e - The submit event
  * @param {object} sharedState - Shared state object with {isSubmitting}
  */
-// fallow-ignore-next-line max-statements -- multi-branch reset state
 // eslint-disable-next-line max-statements -- multi-branch reset state
 export async function handleResetPasswordSubmit(e, sharedState) {
   e.preventDefault();
