@@ -288,13 +288,19 @@ export function createIntegrationsEventHandlers(deps) {
       const input = container.querySelector(inputSelector);
       const button = container.querySelector(buttonSelector);
       if (!input || !button) return;
-      input.type = input.type === 'password' ? 'text' : 'password';
-      button.setAttribute(
-        'aria-label',
-        input.type === 'password' ? 'Show password' : 'Hide password'
-      );
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      updatePasswordToggleAria(button, isPassword);
+      updatePasswordToggleLabel(button, isPassword);
+    }
+
+    function updatePasswordToggleAria(button, isPassword) {
+      button.setAttribute('aria-label', isPassword ? 'Show password' : 'Hide password');
+    }
+
+    function updatePasswordToggleLabel(button, isPassword) {
       const label = button.querySelector('[data-password-toggle-label]');
-      if (label) label.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      if (label) label.textContent = isPassword ? 'Show' : 'Hide';
     }
 
     container.querySelector('#toggle-bearer-visibility')?.addEventListener('click', () => {
