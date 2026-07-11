@@ -1,4 +1,4 @@
-import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+import { clearModalHash, setModalHash, normalizeModalHash } from '../../shared/utils/modal-hash.js';
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 
 const Z_INDEX_CLASSES = {
@@ -143,22 +143,12 @@ function pickAdminModalShellConfig(o) {
   };
 }
 
-function normalizeModalHashSource(value) {
-  return String(value || '')
-    .trim()
-    .replace(/^#+/g, '')
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase();
-}
-
 function resolveModalHash({ modalHash, rootAttrs, title } = {}) {
-  const explicit = normalizeModalHashSource(modalHash);
+  const explicit = normalizeModalHash(modalHash);
   if (explicit) return explicit;
   const rootIdMatch = String(rootAttrs || '').match(/\bid\s*=\s*["']([^"']+)["']/i);
-  if (rootIdMatch?.[1]) return normalizeModalHashSource(rootIdMatch[1]);
-  return normalizeModalHashSource(title);
+  if (rootIdMatch?.[1]) return normalizeModalHash(rootIdMatch[1]);
+  return normalizeModalHash(title);
 }
 
 function attachModalCloseHandlers(rendered, closeAttr, closeFn) {
