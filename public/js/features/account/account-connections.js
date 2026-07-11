@@ -5,7 +5,6 @@ import {
   testUserConnection,
   updateUserConnection,
 } from '../../shared/api/resources.js';
-import { apiFetch } from '../../shared/api.js';
 import {
   buildConnectionModalMarkup,
   buildConnectionModalModelsMarkup,
@@ -29,6 +28,7 @@ import { sortModelsByActiveThenName } from '../../shared/utils/model-state.js';
 import { escapeHtml } from '../../shared/utils/dom-escape.js';
 import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+import { saveUserPreferences } from '../../shared/utils/save-user-preferences.js';
 import {
   isCompatibleProviderType,
   previewConnectionModalModels,
@@ -238,19 +238,13 @@ export function renderAccountConnectionsSection(
     const requestVersion = ++preferencesSaveVersion;
     const preferences = clonePreferences(state.settings?.preferences || {});
     try {
-      const res = await apiFetch('/api/users/me', {
-        method: 'PUT',
-        body: JSON.stringify({ preferences }),
+      const persisted = await saveUserPreferences(preferences, {
+        errorMessage: 'Failed to save preferences',
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || err.message || 'Failed to save preferences');
-      }
-      const payload = await res.json().catch(() => ({}));
       if (requestVersion !== preferencesSaveVersion) return;
       state.settings = {
         ...(state.settings || {}),
-        preferences: payload?.user?.preferences || preferences,
+        preferences: persisted,
       };
       viewState.error = '';
       broadcastConnectionsInvalidation();

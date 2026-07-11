@@ -6,7 +6,6 @@ import {
   testUserMcpServer,
   updateUserMcpServer,
 } from '../../shared/api/resources.js';
-import { apiFetch } from '../../shared/api.js';
 import { buildMcpServerModalMarkup } from '../../shared/components/server-modal.js';
 import { renderErrorBanner } from '../../shared/components/section-header.js';
 import { renderStatusBadge } from '../../shared/components/status-badge.js';
@@ -23,6 +22,7 @@ import { normalizeWorkspaceCapabilities } from '../../shared/utils/workspace-cap
 import { escapeHtml, escapeSelector } from '../../shared/utils/dom-escape.js';
 import { sortResourcesByEnabledThenVisibilityThenLabel } from '../../shared/utils/resource-sort.js';
 import { clearModalHash, setModalHash } from '../../shared/utils/modal-hash.js';
+import { saveUserPreferences } from '../../shared/utils/save-user-preferences.js';
 import { buildTraceAttrs } from '../../shared/utils/trace-attrs.js';
 
 import {
@@ -95,21 +95,13 @@ export function renderAccountIntegrationsSection(
     const requestVersion = ++preferencesSaveVersion;
     const preferences = clonePreferences(state.settings?.preferences || {});
     try {
-      const res = await apiFetch('/api/users/me', {
-        method: 'PUT',
-        body: JSON.stringify({ preferences }),
+      const persisted = await saveUserPreferences(preferences, {
+        errorMessage: 'Failed to update shared integration visibility',
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.error || err.message || 'Failed to update shared integration visibility'
-        );
-      }
-      const payload = await res.json().catch(() => ({}));
       if (requestVersion !== preferencesSaveVersion) return;
       state.settings = {
         ...(state.settings || {}),
-        preferences: payload?.user?.preferences || preferences,
+        preferences: persisted,
       };
       sectionState.error = '';
       broadcastToolServersInvalidation();
