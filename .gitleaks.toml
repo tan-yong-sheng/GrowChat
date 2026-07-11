@@ -15,7 +15,6 @@ paths = [
 description = "Exclude build artifacts, caches, and tooling state"
 paths = [
   '\.wrangler/.*',
-  '\.gitnexus/.*',
   '\.pnpm-store/.*',
   'node_modules/.*',
   '\.cache/.*',

@@ -10,7 +10,6 @@ GrowChat/
 ├── migrations/             # D1 SQL migrations (forward-only)
 ├── docs/                   # This documentation
 ├── scripts/                # Dev/deploy scripts (init-local-db, test-e2e, seed-test-user, etc.)
-├── .claude/skills/         # Claude Code skills (gitnexus-exploring, etc.)
 ├── tests/e2e/fixtures/     # E2E auth state data
 ├── tests/e2e/artifacts/    # E2E screenshots, traces
 ├── coverage/               # Test coverage reports (generated)
