@@ -91,15 +91,12 @@ export function createChatRealtimeController({
   }
 
   function buildEventKey(event) {
-    return [
-      String(event.type || ''),
-      String(event.chat_id || ''),
-      String(event.message_id || ''),
-      String(event.user_id || ''),
-      String(event.ts || ''),
-      String(event?.data?.seq || ''),
-    ].join('|');
-  }
+    const fields = EVENT_KEY_FIELDS.map((field) => String((event && event[field]) || ''));
+    fields.push(String((event && event.data && event.data.seq) || ''));
+    return fields.join('|');
+}
+
+const EVENT_KEY_FIELDS = ['type', 'chat_id', 'message_id', 'user_id', 'ts'];
 
   function isDuplicateEvent(eventKey) {
     const now = Date.now();
