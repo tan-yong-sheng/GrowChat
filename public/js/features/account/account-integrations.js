@@ -39,6 +39,17 @@ import {
 import { createIntegrationsModal } from './account-integrations-modal.js';
 import { createIntegrationsEvents } from './account-integrations-events.js';
 
+/**
+ * Return the first truthy value among the candidates.
+ * Mirrors the `a || b || c` fallback chain semantics exactly.
+ */
+function firstTruthy(...candidates) {
+  for (const c of candidates) {
+    if (c) return c;
+  }
+  return undefined;
+}
+
 export function renderAccountIntegrationsSection(
   container,
   state = {},
@@ -266,52 +277,62 @@ export function renderAccountIntegrationsSection(
       ...existingServer,
       ...payload,
       ...savedServer,
-      id: savedServer?.id || existingServer?.id || '',
-      name: savedServer?.name || payload.name || existingServer?.name || '',
-      url: savedServer?.url || payload.url || existingServer?.url || '',
-      headers: savedServer?.headers || existingServer?.headers || payload.headers || '',
+      id: firstTruthy(savedServer?.id, existingServer?.id) || '',
+      name: firstTruthy(savedServer?.name, payload?.name, existingServer?.name) || '',
+      url: firstTruthy(savedServer?.url, payload?.url, existingServer?.url) || '',
+      headers: firstTruthy(savedServer?.headers, existingServer?.headers, payload?.headers) || '',
       enabled:
         typeof savedServer?.enabled === 'boolean'
           ? savedServer.enabled
-          : (payload.enabled ?? existingServer?.enabled),
-      auth_type: savedServer?.auth_type || payload.auth_type || existingServer?.auth_type || 'none',
+          : (payload?.enabled ?? existingServer?.enabled),
+      auth_type:
+        firstTruthy(savedServer?.auth_type, payload?.auth_type, existingServer?.auth_type) ||
+        'none',
       auth_bearer_token:
-        savedServer?.auth_bearer_token ||
-        payload.auth_bearer_token ||
-        existingServer?.auth_bearer_token ||
-        '',
+        firstTruthy(
+          savedServer?.auth_bearer_token,
+          payload?.auth_bearer_token,
+          existingServer?.auth_bearer_token
+        ) || '',
       auth_basic_username:
-        savedServer?.auth_basic_username ||
-        payload.auth_basic_username ||
-        existingServer?.auth_basic_username ||
-        '',
+        firstTruthy(
+          savedServer?.auth_basic_username,
+          payload?.auth_basic_username,
+          existingServer?.auth_basic_username
+        ) || '',
       auth_basic_password:
-        savedServer?.auth_basic_password ||
-        payload.auth_basic_password ||
-        existingServer?.auth_basic_password ||
-        '',
+        firstTruthy(
+          savedServer?.auth_basic_password,
+          payload?.auth_basic_password,
+          existingServer?.auth_basic_password
+        ) || '',
       oauth_client_name:
-        savedServer?.oauth_client_name ||
-        payload.oauth_client_name ||
-        existingServer?.oauth_client_name ||
-        '',
+        firstTruthy(
+          savedServer?.oauth_client_name,
+          payload?.oauth_client_name,
+          existingServer?.oauth_client_name
+        ) || '',
       oauth_scope:
-        savedServer?.oauth_scope || payload.oauth_scope || existingServer?.oauth_scope || '',
+        firstTruthy(savedServer?.oauth_scope, payload?.oauth_scope, existingServer?.oauth_scope) ||
+        '',
       oauth_client_id:
-        savedServer?.oauth_client_id ||
-        payload.oauth_client_id ||
-        existingServer?.oauth_client_id ||
-        '',
+        firstTruthy(
+          savedServer?.oauth_client_id,
+          payload?.oauth_client_id,
+          existingServer?.oauth_client_id
+        ) || '',
       oauth_client_secret:
-        savedServer?.oauth_client_secret ||
-        payload.oauth_client_secret ||
-        existingServer?.oauth_client_secret ||
-        '',
+        firstTruthy(
+          savedServer?.oauth_client_secret,
+          payload?.oauth_client_secret,
+          existingServer?.oauth_client_secret
+        ) || '',
       oauth_token_auth_method:
-        savedServer?.oauth_token_auth_method ||
-        payload.oauth_token_auth_method ||
-        existingServer?.oauth_token_auth_method ||
-        '',
+        firstTruthy(
+          savedServer?.oauth_token_auth_method,
+          payload?.oauth_token_auth_method,
+          existingServer?.oauth_token_auth_method
+        ) || '',
       tools: Array.isArray(savedServer?.tools)
         ? savedServer.tools
         : Array.isArray(payload?.tools)
