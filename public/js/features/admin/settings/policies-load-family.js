@@ -29,6 +29,37 @@ function extractFamilyResources(familyKey, payload) {
   return payload.servers;
 }
 
+function groupRulesByResourceId(rules) {
+  const byResource = new Map();
+  for (const rule of rules) {
+    const rid = String(rule?.model_id || rule?.connection_id || rule?.tool_server_id || '').trim();
+    if (!rid) continue;
+    if (!byResource.has(rid)) byResource.set(rid, []);
+    byResource.get(rid).push(rule);
+  }
+  return byResource;
+}
+
+function groupConnectionRulesById(rules) {
+  const byConnId = new Map();
+  for (const rule of rules) {
+    const cid = String(rule?.connection_id || '').trim();
+    if (!cid) continue;
+    if (!byConnId.has(cid)) byConnId.set(cid, []);
+    byConnId.get(cid).push(rule);
+  }
+  return byConnId;
+}
+
+function buildResourcesForFamily(resources, rulesByResource, state, helpers) {
+  const { sortResourcesByVisibility, cloneAclRules, normalizeAclRule } = helpers;
+  const selectedGroupId = state.selectedGroupId === 'all' ? '' : state.selectedGroupId;
+  return sortResourcesByVisibility(resources, selectedGroupId).map((r) => ({
+    ...r,
+    rules: cloneAclRules(rulesByResource.get(r.id) || [], normalizeAclRule),
+  }));
+}
+
 /**
  * Factory for the loadFamilyResources function used by policies.js.
  *
@@ -108,32 +139,15 @@ export function createLoadFamilyResources(deps) {
       }
       if (controller.signal.aborted || familyLoadSeq[familyKey] !== seq) return;
 
-      const rulesByResource = new Map();
-      for (const rule of accessRules) {
-        const rid = String(
-          rule?.model_id || rule?.connection_id || rule?.tool_server_id || ''
-        ).trim();
-        if (!rid) continue;
-        if (!rulesByResource.has(rid)) rulesByResource.set(rid, []);
-        rulesByResource.get(rid).push(rule);
-      }
+      const rulesByResource = groupRulesByResourceId(accessRules);
       if (familyKey === 'models') {
-        const connMap = new Map();
-        for (const rule of connectionAccessRules) {
-          const cid = String(rule?.connection_id || '').trim();
-          if (!cid) continue;
-          if (!connMap.has(cid)) connMap.set(cid, []);
-          connMap.get(cid).push(rule);
-        }
-        state.modelConnectionRulesById = connMap;
+        state.modelConnectionRulesById = groupConnectionRulesById(connectionAccessRules);
       }
-      state.resources[familyKey] = sortResourcesByVisibility(
-        resources,
-        state.selectedGroupId === 'all' ? '' : state.selectedGroupId
-      ).map((r) => ({
-        ...r,
-        rules: cloneAclRules(rulesByResource.get(r.id) || [], normalizeAclRule),
-      }));
+      state.resources[familyKey] = buildResourcesForFamily(resources, rulesByResource, state, {
+        sortResourcesByVisibility,
+        cloneAclRules,
+        normalizeAclRule,
+      });
 
       if (state.pendingDeepLink && state.pendingDeepLink.familyKey === familyKey) {
         void openDeepLinkedAccessModal(familyKey).catch((err) =>
