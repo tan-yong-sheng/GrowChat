@@ -25,8 +25,7 @@ import {
   previewConnectionModalModels,
 } from './connections-helpers-modal-models.js';
 import { normalizeConnectionModelSelectionMode } from '../../../shared/utils/connection-model-selection.js';
-import { buildConnectionModalModelsMarkup } from '../../../shared/components/connection-modal.js';
-import { sortModelsByActiveThenName } from '../../../shared/utils/model-state.js';
+import { renderModalModels } from './connections-modal-form-render-models.js';
 
 export function createConnectionsModalForm(deps) {
   const { container, connectionsState, setTestStatus } = deps;
@@ -125,51 +124,6 @@ export function createConnectionsModalForm(deps) {
     setTestStatus('idle', '', scope);
   };
 
-  const renderModalModels = (scope = container) => {
-    const list = scope.querySelector('#modal-models-list');
-    const status = scope.querySelector('#modal-models-status');
-    if (!list || !status) return;
-    if (
-      !connectionsState.selectedConnection &&
-      (!Array.isArray(connectionsState.modalModels) || connectionsState.modalModels.length === 0)
-    ) {
-      list.innerHTML =
-        '<div class="px-4 py-3 text-xs text-gray-400">Click Verify to load models from this connection.</div>';
-      status.textContent = '';
-      return;
-    }
-    if (connectionsState.modalModelsLoading) {
-      list.innerHTML = '<div class="px-4 py-3 text-xs text-gray-400">Loading models...</div>';
-      status.textContent = '';
-      return;
-    }
-    if (connectionsState.modalModelsError) {
-      list.innerHTML = '<div class="px-4 py-3 text-xs text-red-500">Failed to load models.</div>';
-      status.textContent = connectionsState.modalModelsError;
-      status.classList.add('text-red-500');
-      return;
-    }
-    const models = sortModelsByActiveThenName(connectionsState.modalModels);
-    const selected = connectionsState.modalModelsSelection || new Set();
-    if (!models.length) {
-      list.innerHTML =
-        '<div class="px-4 py-3 text-xs text-gray-400">No models discovered for this connection.</div>';
-      status.textContent = '';
-      return;
-    }
-    list.innerHTML = buildConnectionModalModelsMarkup(
-      models,
-      connectionsState.modalModelsQuery,
-      selected,
-      connectionsState.modalModelsLoading,
-      connectionsState.modalModelsError || ''
-    );
-    status.classList.remove('text-red-500');
-    status.textContent = models.length
-      ? `Models selected in this connection: ${selected.size}`
-      : '';
-  };
-
   const addManualModalModel = (scope = container) => {
     const modalRoot = scope.querySelector('#edit-connection-modal') || scope;
     const connection = connectionsState.selectedConnection;
@@ -233,7 +187,7 @@ export function createConnectionsModalForm(deps) {
       );
     }
     input.value = '';
-    renderModalModels(modalRoot);
+    renderModalModels(connectionsState, modalRoot);
   };
 
   const removeManualModalModel = (modelId, scope = container) => {
@@ -265,7 +219,7 @@ export function createConnectionsModalForm(deps) {
     // show a stale model list. refreshModalModels() filters the seeded
     // manual models against deletedManualModelIds to keep the deleted
     // model from resurrecting after a Test/Verify.
-    renderModalModels(modalRoot);
+    renderModalModels(connectionsState, modalRoot);
   };
 
   const loadModalModels = async (connection, scope = container) => {
@@ -278,7 +232,7 @@ export function createConnectionsModalForm(deps) {
       connectionsState.modalModelsConnectionId = null;
       connectionsState.modalModelsError = null;
       connectionsState.modalModelsLoading = false;
-      renderModalModels(scope);
+      renderModalModels(connectionsState, scope);
       return;
     }
     const seedModels = inflateManualConnectionModels(connection);
@@ -293,7 +247,7 @@ export function createConnectionsModalForm(deps) {
     connectionsState.modalModels = seedModels;
     connectionsState.modalModelsSelection = seedSelection;
     connectionsState.modalModelsOriginal = cloneModelSelection(seedSelection);
-    renderModalModels(scope);
+    renderModalModels(connectionsState, scope);
     try {
       const res = await apiFetch('/api/admin/models?limit=0&offset=0&include_disabled=1');
       if (!res.ok) {
@@ -315,7 +269,7 @@ export function createConnectionsModalForm(deps) {
       connectionsState.modalModelsError = err.message || 'Failed to load models';
     } finally {
       connectionsState.modalModelsLoading = false;
-      renderModalModels(scope);
+      renderModalModels(connectionsState, scope);
     }
   };
 
@@ -328,7 +282,7 @@ export function createConnectionsModalForm(deps) {
     const { modalRoot, payload } = testable;
     connectionsState.modalModelsLoading = true;
     connectionsState.modalModelsError = null;
-    renderModalModels(modalRoot);
+    renderModalModels(connectionsState, modalRoot);
     setTestStatus('testing', 'Verifying connection and loading models...', modalRoot);
     try {
       const res = await apiFetch('/api/admin/openai/connections/test', {
@@ -354,7 +308,7 @@ export function createConnectionsModalForm(deps) {
         connectionsState.modalModels = preview.models;
         connectionsState.modalModelsSelection = preview.selection;
         connectionsState.modalModelsOriginal = preview.original;
-        renderModalModels(modalRoot);
+        renderModalModels(connectionsState, modalRoot);
         const existingManualModels = connectionsState.selectedConnection
           ? inflateManualConnectionModels(connectionsState.selectedConnection).filter(
               (model) =>
@@ -374,7 +328,7 @@ export function createConnectionsModalForm(deps) {
             }
           });
           connectionsState.modalModels = Array.from(merged.values());
-          renderModalModels(modalRoot);
+          renderModalModels(connectionsState, modalRoot);
         }
       } else {
         connectionsState.modalModels = [];
@@ -387,17 +341,17 @@ export function createConnectionsModalForm(deps) {
         count > 0 ? `Connection successful. ${count} models loaded.` : 'Connection successful.',
         modalRoot
       );
-      renderModalModels(modalRoot);
+      renderModalModels(connectionsState, modalRoot);
     } catch (err) {
       connectionsState.modalModels = [];
       connectionsState.modalModelsSelection = new Set();
       connectionsState.modalModelsOriginal = new Set();
       connectionsState.modalModelsError = err.message || 'Failed to load models';
-      renderModalModels(modalRoot);
+      renderModalModels(connectionsState, modalRoot);
       setTestStatus('error', err.message || 'Connection failed', modalRoot);
     } finally {
       connectionsState.modalModelsLoading = false;
-      renderModalModels(modalRoot);
+      renderModalModels(connectionsState, modalRoot);
     }
   };
 

@@ -29,50 +29,13 @@ import {
   shouldSuppressDiscoveryWarning,
   splitModelList,
 } from './models-helpers.js';
+import {
+  buildConnectionModelContext,
+  buildDiscoveredModel,
+  isModelEnabled,
+} from './models-discovery-helpers.js';
 
 const rootLogger = createRootLogger({});
-
-function buildConnectionModelContext(conn) {
-  const providerId = buildProviderId(conn);
-  const manualModels = normalizeConnectionManualModels(conn.manualModels);
-  const manualModelIds = new Set(
-    manualModels
-      .map((model) => normalizeConnectionModelId(providerId, model?.modelId || ''))
-      .filter(Boolean)
-  );
-  const selectionMode =
-    normalizeConnectionModelSelectionMode(conn.manualModelsMode || conn.manual_models_mode) ||
-    'all';
-  return { providerId, manualModels, manualModelIds, selectionMode };
-}
-
-function isModelEnabled({ selectionMode, manualModelIds, rawId }) {
-  if (selectionMode === 'none') return false;
-  if (selectionMode === 'some') return manualModelIds.has(rawId);
-  return true;
-}
-
-function buildDiscoveredModel(conn, providerId, rawId, description, context, overrides = {}) {
-  return {
-    id: formatModelId(providerId, rawId),
-    name: overrides.name || rawId,
-    provider: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
-    provider_type: String(conn.providerType || conn.providerFamily || 'openai').toLowerCase(),
-    provider_family: normalizeProviderFamily(conn.providerFamily || conn.providerType) || 'openai',
-    provider_id: providerId,
-    connection_id: conn.id,
-    connection_name: conn.name || null,
-    connection_source: conn.source || null,
-    free: false,
-    description,
-    enabled: isModelEnabled({
-      selectionMode: context.selectionMode,
-      manualModelIds: context.manualModelIds,
-      rawId,
-    }),
-    ...overrides,
-  };
-}
 
 // fallow-ignore-next-line complexity
 export async function fetchBaseModelsFromOpenAI(env, connections = [], _logger = rootLogger) {

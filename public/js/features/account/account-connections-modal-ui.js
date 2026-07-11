@@ -20,6 +20,7 @@ import {
 import { buildConnectionModalModelsMarkup } from '../../shared/components/connection-modal.js';
 import { normalizeProviderType, providerUrlPlaceholder } from './account-connections-helpers.js';
 import { testUserConnection } from '../../shared/api/resources.js';
+import { syncProviderUi } from './account-connections-modal-ui-sync-provider.js';
 
 /**
  * Sanitize a string value — trims, stringifies null/undefined.
@@ -123,39 +124,6 @@ export function createModalUi(ctx) {
     testMessage.classList.toggle('text-red-500', tone === 'error');
     testMessage.classList.toggle('text-gray-900', tone === 'success');
     testMessage.classList.toggle('text-gray-400', tone === 'idle' || tone === 'testing');
-  };
-  const syncProviderUi = () => {
-    if (!providerSelect || !baseUrlInput) return;
-    const providerType = providerSelect.value;
-    const nextDefault = providerUrlPlaceholder(providerType);
-    baseUrlInput.placeholder = nextDefault;
-    if (isCompatibleProviderType(providerType)) {
-      const currentValue = sanitizeString(baseUrlInput.value);
-      const knownDefaults = [
-        providerUrlPlaceholder('openai-compatible'),
-        providerUrlPlaceholder('gemini-compatible'),
-        providerUrlPlaceholder('claude-compatible'),
-      ];
-      if (!currentValue || knownDefaults.includes(currentValue)) {
-        baseUrlInput.value = '';
-      }
-    } else {
-      baseUrlInput.value = nextDefault;
-    }
-    updateApiTypeDisplay(bodyEl, providerType);
-    const urlLabel = bodyEl?.querySelector('#modal-conn-url-label');
-    if (urlLabel) urlLabel.textContent = resolveUrlLabel(providerType);
-    const providerHint = bodyEl?.querySelector('#modal-conn-provider-hint');
-    if (providerHint) providerHint.textContent = adminProviderDisplayLabel(providerType);
-    const urlHint = bodyEl?.querySelector('#modal-conn-url-hint');
-    if (urlHint) {
-      urlHint.textContent = isCompatibleProviderType(providerType)
-        ? 'Required for compatible providers.'
-        : 'Uses the built-in default if left blank.';
-    }
-    const keyLabel = bodyEl?.querySelector('#modal-conn-key-label');
-    if (keyLabel) keyLabel.textContent = 'API Key *';
-    if (nameInput) nameInput.placeholder = `e.g. ${adminProviderDisplayLabel(providerType)}`;
   };
   const renderEmptyState = (message) => {
     if (!modelsList || !modelsStatus) return false;
@@ -335,7 +303,9 @@ export function createModalUi(ctx) {
   );
   closeBtn?.addEventListener('click', closeModal);
   overlay?.addEventListener('click', closeModal);
-  providerSelect?.addEventListener('change', syncProviderUi);
+  providerSelect?.addEventListener('change', () =>
+    syncProviderUi(providerSelect, baseUrlInput, bodyEl, nameInput)
+  );
   toggleKeyBtn?.addEventListener('click', () => {
     if (!keyInput) return;
     keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
@@ -396,7 +366,7 @@ export function createModalUi(ctx) {
     }
     renderModels();
   });
-  syncProviderUi();
+  syncProviderUi(providerSelect, baseUrlInput, bodyEl, nameInput);
   renderModels();
 
   return {

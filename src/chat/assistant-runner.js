@@ -10,6 +10,7 @@ import {
 import { executeToolCalls } from './assistant-tool-executor.js';
 import { withMemoryCheck } from '../utils/memory-monitor.js';
 import { createLogger } from '../utils/logger.js';
+import { createStreamEventHandler } from './assistant-runner-stream-event.js';
 
 // Re-export for backward compatibility
 export { readStreamChunkWithHeartbeat } from './assistant-stream-utils.js';
@@ -174,52 +175,42 @@ export function createAssistantRunner(deps) {
               const decoder = new TextDecoder();
               const stepToolCalls = [];
               let finishReason = null;
-              let emitEvent = () => {};
-              const parser = new SseLineParser({ onEvent: (event) => emitEvent(event) });
-
-              emitEvent = (event) => {
-                if (!event) return;
-                if (event.type === 'reasoning_start') {
-                  if (!reasoningStartedAt) reasoningStartedAt = Date.now();
-                  void emitSse({ event: 'reasoning_start' }, { persist: true });
-                  return;
-                }
-                if (event.type === 'reasoning_delta') {
-                  const delta = String(event.delta || '');
-                  if (!delta) return;
-                  stepReasoningOutput = true;
-                  appendMessageBlock({ type: 'thinking', content: delta });
-                  fullReasoning += delta;
-                  void lifecycle.persistAssistantContent({
-                    fullText,
-                    fullReasoning,
-                    messageBlocks,
-                  });
-                  void emitSse({ event: 'reasoning_delta', delta }, { persist: true });
-                  return;
-                }
-                if (event.type === 'reasoning_end') {
-                  const duration = reasoningStartedAt ? Date.now() - reasoningStartedAt : 0;
-                  void emitSse(
-                    { event: 'reasoning_end', duration_ms: duration },
-                    { persist: true }
-                  );
-                  void lifecycle.persistAssistantContent({
-                    fullText,
-                    fullReasoning,
-                    messageBlocks,
-                    force: true,
-                  });
-                  return;
-                }
-                if (event.type === 'tool_call_delta') {
-                  applyToolCallDelta(stepToolCalls, event.tool_calls);
-                  return;
-                }
-                if (event.type === 'finish_reason') {
-                  finishReason = event.reason;
-                }
-              };
+              const parser = new SseLineParser({
+                onEvent: createStreamEventHandler({
+                  reasoningStartedAt,
+                  stepReasoningOutput: {
+                    get value() {
+                      return stepReasoningOutput;
+                    },
+                    set value(v) {
+                      stepReasoningOutput = v;
+                    },
+                  },
+                  appendMessageBlock,
+                  fullReasoning: {
+                    get value() {
+                      return fullReasoning;
+                    },
+                    set value(v) {
+                      fullReasoning = v;
+                    },
+                  },
+                  fullText,
+                  messageBlocks,
+                  lifecycle,
+                  emitSse,
+                  applyToolCallDelta,
+                  stepToolCalls,
+                  finishReason: {
+                    get value() {
+                      return finishReason;
+                    },
+                    set value(v) {
+                      finishReason = v;
+                    },
+                  },
+                }),
+              });
 
               const streamDeadlineAt = Date.now() + STREAM_HARD_TIMEOUT_MS;
               while (true) {

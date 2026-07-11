@@ -1,40 +1,47 @@
+/**
+ * Main authentication bootstrap module.
+ * @module auth-bootstrap
+ * @description Core auth logic (login/register/health/bootstrap) with
+ * forgot-password and reset-password modals extracted to separate modules.
+ */
 import { setAuthState } from '../shared/api.js';
 import { updateSubmitButtonState as updateButtonState } from '../shared/form-validation.js';
-
-const form = document.getElementById('auth-form');
-const nameWrap = document.getElementById('name-wrap');
-const nameInput = document.getElementById('name');
-const emailInput = document.getElementById('email');
-const passwordInput = document.getElementById('password');
-const err = document.getElementById('auth-error');
-const MODAL_DELAY_MS = 2000;
-const MIN_PASSWORD_LENGTH = 8;
-const toggleModeBtn = document.getElementById('toggle-mode');
-const toggleText = document.getElementById('toggle-text');
-const authTitle = document.getElementById('auth-title');
-const authSubmit = document.getElementById('auth-submit');
-const forgotPasswordBtn = document.getElementById('forgot-password');
-// configWarning and configWarningText are resolved via inline document.getElementById
-
-const forgotPasswordModal = document.getElementById('forgot-password-modal');
-const forgotPasswordForm = document.getElementById('forgot-password-form');
-const forgotEmailInput = document.getElementById('forgot-email');
-const forgotSubmitBtn = document.getElementById('forgot-submit');
-const modalCloseBtn = document.getElementById('modal-close');
-const modalError = document.getElementById('modal-error');
-const modalSuccess = document.getElementById('modal-success');
-
-const resetPasswordModal = document.getElementById('reset-password-modal');
-const resetPasswordForm = document.getElementById('reset-password-form');
-const newPasswordInput = document.getElementById('new-password');
-const confirmPasswordInput = document.getElementById('confirm-password');
-const resetSubmitBtn = document.getElementById('reset-submit');
-const resetError = document.getElementById('reset-error');
-const resetSuccess = document.getElementById('reset-success');
+import {
+  form,
+  nameWrap,
+  nameInput,
+  emailInput,
+  passwordInput,
+  err,
+  toggleModeBtn,
+  toggleText,
+  authTitle,
+  authSubmit,
+  forgotPasswordBtn,
+  forgotPasswordModal,
+  resetPasswordModal,
+} from './auth-dom.js';
+import {
+  openForgotPasswordModal,
+  closeForgotPasswordModal,
+  initForgotPasswordEvents,
+} from './auth-forgot.js';
+import {
+  closeResetPasswordModal,
+  initResetPasswordEvents,
+  checkForResetToken,
+} from './auth-reset.js';
 
 let mode = 'login';
 let isSubmitting = false;
 let bootstrapReady = false;
+
+/**
+ * Shared mutable state object — passed to extracted modules so they can
+ * read/write the `isSubmitting` flag.
+ * @type {{ isSubmitting: boolean }}
+ */
+const sharedState = { isSubmitting };
 
 function setControlVisibility(element, visible) {
   if (visible) {
@@ -223,216 +230,17 @@ async function bootstrapAuthMode() {
   }
 }
 
-function openForgotPasswordModal() {
-  forgotPasswordModal.classList.remove('hidden');
-  forgotEmailInput.focus();
-  modalError.classList.add('hidden');
-  modalSuccess.classList.add('hidden');
-  forgotEmailInput.value = '';
-}
+// Init extracted modal event listeners
+initForgotPasswordEvents(sharedState);
+initResetPasswordEvents(sharedState);
 
-function closeForgotPasswordModal() {
-  forgotPasswordModal.classList.add('hidden');
-  forgotEmailInput.value = '';
-  modalError.classList.add('hidden');
-  modalSuccess.classList.add('hidden');
-}
-
-function showForgotError(message) {
-  modalError.textContent = message;
-  modalError.classList.remove('hidden');
-}
-
-function clearForgotMessages() {
-  modalError.classList.add('hidden');
-  modalSuccess.classList.add('hidden');
-}
-
-function setForgotSubmitting() {
-  isSubmitting = true;
-  forgotSubmitBtn.disabled = true;
-  forgotSubmitBtn.classList.add('opacity-60', 'cursor-not-allowed');
-}
-
-function resetForgotSubmit() {
-  isSubmitting = false;
-  forgotSubmitBtn.disabled = false;
-  forgotSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-}
-
-function handleForgotResult(res, data) {
-  if (!res.ok) {
-    showForgotError(data.error || 'Failed to send reset link');
-    return;
-  }
-  modalSuccess.textContent = 'Check your email for a password reset link';
-  modalSuccess.classList.remove('hidden');
-  forgotEmailInput.value = '';
-  setTimeout(() => closeForgotPasswordModal(), MODAL_DELAY_MS);
-}
-
-async function handleForgotPasswordSubmit(e) {
-  e.preventDefault();
-  if (isSubmitting) return;
-
-  const email = forgotEmailInput.value.trim();
-  if (!email) {
-    showForgotError('Please enter your email');
-    return;
-  }
-
-  setForgotSubmitting();
-  clearForgotMessages();
-
-  try {
-    const res = await fetch('/api/auth/forgot-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json().catch(() => ({}));
-    handleForgotResult(res, data);
-  } catch {
-    showForgotError('Network error. Please try again.');
-  } finally {
-    resetForgotSubmit();
-  }
-}
-
-function openResetPasswordModal() {
-  resetPasswordModal.classList.remove('hidden');
-  newPasswordInput.focus();
-  resetError.classList.add('hidden');
-  resetSuccess.classList.add('hidden');
-  newPasswordInput.value = '';
-  confirmPasswordInput.value = '';
-}
-
-function closeResetPasswordModal() {
-  resetPasswordModal.classList.add('hidden');
-  newPasswordInput.value = '';
-  confirmPasswordInput.value = '';
-  resetError.classList.add('hidden');
-  resetSuccess.classList.add('hidden');
-}
-
-function showResetError(message) {
-  resetError.textContent = message;
-  resetError.classList.remove('hidden');
-}
-
-function getUrlToken() {
-  return new URLSearchParams(window.location.search).get('token');
-}
-
-function beginResetSubmit() {
-  isSubmitting = true;
-  resetSubmitBtn.disabled = true;
-  resetSubmitBtn.classList.add('opacity-60', 'cursor-not-allowed');
-  resetError.classList.add('hidden');
-  resetSuccess.classList.add('hidden');
-}
-
-function endResetSubmit() {
-  isSubmitting = false;
-  resetSubmitBtn.disabled = false;
-  resetSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-}
-
-function validateResetPassword(password, confirmPassword) {
-  if (!password || !confirmPassword) {
-    return 'Please fill in all fields';
-  }
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return 'Password must be at least ' + MIN_PASSWORD_LENGTH + ' characters';
-  }
-  if (password !== confirmPassword) {
-    return 'Passwords do not match';
-  }
-  return null;
-}
-
-function handleResetResult(res, data) {
-  if (!res.ok) {
-    showResetError(data.error || 'Failed to reset password');
-    return;
-  }
-  resetSuccess.textContent = 'Password reset successful. Redirecting to login...';
-  resetSuccess.classList.remove('hidden');
-  setTimeout(() => {
-    window.location.href = '/auth.html';
-  }, MODAL_DELAY_MS);
-}
-
-async function handleResetPasswordSubmit(e) {
-  e.preventDefault();
-  if (isSubmitting) return;
-
-  const password = newPasswordInput.value;
-  const confirmPassword = confirmPasswordInput.value;
-
-  const validationError = validateResetPassword(password, confirmPassword);
-  if (validationError) {
-    showResetError(validationError);
-    return;
-  }
-
-  const token = getUrlToken();
-  if (!token) {
-    showResetError('Invalid reset link');
-    return;
-  }
-
-  beginResetSubmit();
-
-  try {
-    const res = await fetch('/api/auth/reset-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, password }),
-    });
-    const data = await res.json().catch(() => ({}));
-    handleResetResult(res, data);
-  } catch {
-    showResetError('Network error. Please try again.');
-  } finally {
-    endResetSubmit();
-  }
-}
-
-function checkForResetToken() {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get('token');
-  if (token) {
-    openResetPasswordModal();
-  }
-}
-
-toggleModeBtn.addEventListener('click', () => {
-  setMode(mode === 'login' ? 'register' : 'login');
-});
-
+// Main event listeners
 forgotPasswordBtn.addEventListener('click', (e) => {
   e.preventDefault();
   openForgotPasswordModal();
 });
 
-modalCloseBtn.addEventListener('click', closeForgotPasswordModal);
-forgotPasswordForm.addEventListener('submit', handleForgotPasswordSubmit);
-
-resetPasswordForm.addEventListener('submit', handleResetPasswordSubmit);
-
-forgotPasswordModal.addEventListener('click', (e) => {
-  if (e.target === forgotPasswordModal) {
-    closeForgotPasswordModal();
-  }
-});
-
-resetPasswordModal.addEventListener('click', (e) => {
-  if (e.target === resetPasswordModal) {
-    closeResetPasswordModal();
-  }
-});
+// Close on Escape via keydown
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!forgotPasswordModal.classList.contains('hidden')) {
