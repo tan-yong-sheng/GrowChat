@@ -157,17 +157,23 @@ function sanitizeObjectEntries(details) {
   const sanitized = {};
   for (const [key, value] of Object.entries(details)) {
     if (key === 'requestId') continue;
-    if (typeof value === 'string') {
-      const result = sanitizeObjectEntry(value);
-      if (result) sanitized[key] = result;
-    } else if (typeof value === 'object' && value !== null) {
-      const nested = sanitizeErrorDetails(value);
-      if (nested && Object.keys(nested).length) sanitized[key] = nested;
-    } else {
-      sanitized[key] = value;
-    }
+    sanitizeObjectEntryInto(sanitized, key, value);
   }
   return Object.keys(sanitized).length ? sanitized : undefined;
+}
+
+function sanitizeObjectEntryInto(target, key, value) {
+  if (typeof value === 'string') {
+    const result = sanitizeObjectEntry(value);
+    if (result) target[key] = result;
+    return;
+  }
+  if (typeof value === 'object' && value !== null) {
+    const nested = sanitizeErrorDetails(value);
+    if (nested && Object.keys(nested).length) target[key] = nested;
+    return;
+  }
+  target[key] = value;
 }
 
 function sanitizeErrorDetails(details) {
