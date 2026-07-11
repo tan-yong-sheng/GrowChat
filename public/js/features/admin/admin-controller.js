@@ -178,13 +178,18 @@ export function createAdminController(ctx) {
     }
   }
   ctx.data.guardNavigation = ctx.guardNavigation;
+  function bindAdminNavLink(link, dataAttr, handler) {
+    link.onclick = async (e) => {
+      e.preventDefault();
+      const allowed = await ctx.guardNavigation();
+      if (!allowed) return;
+      const nav = link.dataset[dataAttr];
+      return handler(nav);
+    };
+  }
   function bindTopNav() {
     ctx.container.querySelectorAll('a[data-nav]').forEach((link) => {
-      link.onclick = async (e) => {
-        e.preventDefault();
-        const allowed = await ctx.guardNavigation();
-        if (!allowed) return;
-        const nav = link.dataset.nav;
+      bindAdminNavLink(link, 'nav', async (nav) => {
         const newPath = getAdminTopNavPath(nav);
         window.history.pushState({}, '', newPath);
         ctx.updateRouteInfo();
@@ -197,16 +202,12 @@ export function createAdminController(ctx) {
         if (ctx.mainTab === 'users' && ctx.data.users.length === 0 && !ctx.data.loading) {
           await loadUsers({ preserveContent: false });
         }
-      };
+      });
     });
   }
   function bindSubnav() {
     ctx.container.querySelectorAll('a[data-subnav]').forEach((link) => {
-      link.onclick = async (e) => {
-        e.preventDefault();
-        const allowed = await ctx.guardNavigation();
-        if (!allowed) return;
-        const nav = link.dataset.subnav;
+      bindAdminNavLink(link, 'subnav', async (nav) => {
         window.history.pushState({}, '', getAdminSubnavPath(ctx.mainTab, nav));
         ctx.updateRouteInfo();
         const subContentEl = ctx.container.querySelector('#admin-sub-content');
@@ -228,7 +229,7 @@ export function createAdminController(ctx) {
             // Ignore route-preload failures; renderSubContent handles module-load errors.
           }
         }
-      };
+      });
     });
   }
   function mountShell() {
