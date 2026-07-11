@@ -233,8 +233,7 @@ function buildPersistedServer(
   return {
     ...existingServer,
     auth_type: 'oauth',
-    oauth_client_name: body?.oauth_client_name || '',
-    oauth_scope: body?.oauth_scope || '',
+    ...buildOauthBodyFields(body),
     oauth_client_id: clientId,
     oauth_client_secret: clientSecret,
     oauth_authorization_server: serverUrl,
@@ -244,6 +243,19 @@ function buildPersistedServer(
     oauth_state: state,
     oauth_code_verifier: codeVerifier,
   };
+}
+
+function buildOauthBodyFields(body) {
+  const OAUTH_BODY_FIELDS = ['oauth_client_name', 'oauth_scope'];
+  const acc = {};
+  OAUTH_BODY_FIELDS.forEach((field) => {
+    acc[field] = bodyFieldToString(body, field);
+  });
+  return acc;
+}
+
+function bodyFieldToString(body, field) {
+  return String(body?.[field] || '');
 }
 
 /* -------------------------------------------------------------------------- */
