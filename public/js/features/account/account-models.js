@@ -252,58 +252,27 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
         q: normalizeModelSearchQuery(sectionState.query) || undefined,
         scope: 'effective',
       });
-      const responseVisibleModels = Array.isArray(payload?.models)
-        ? payload.models.map(normalizeModelRecord).filter(Boolean)
-        : [];
-      const responseHiddenModels = Array.isArray(payload?.hidden_models)
-        ? payload.hidden_models.map(normalizeModelRecord).filter(Boolean)
-        : [];
+      const partitioned = partitionModelsByVisibility(payload);
       const disabledSet = parseDisabledModelIds(payload);
-      const fallbackHiddenModels = responseVisibleModels.filter(
-        (model) => model.hidden_for_user === true
-      );
-      const visibleModels = responseVisibleModels.filter(
-        (model) => model.hidden_for_user !== true && !disabledSet.has(model.id)
-      );
-      const hiddenModels = [...responseHiddenModels, ...fallbackHiddenModels].filter(
-        (model) => model.hidden_for_user === true && !disabledSet.has(model.id)
-      );
+      const filtered = filterModelsByDisabled(partitioned, disabledSet);
       const savedSettings = normalizePersonalModelSettings(
         state.settings?.preferences?.model_settings
       );
-      const mergedCaps = cloneAttachmentCaps(sectionState.attachmentCaps);
-      [...visibleModels, ...hiddenModels].forEach((model) => {
-        mergedCaps[model.id] = {
-          ...normalizeAttachmentCaps(model.attachments),
-          ...(mergedCaps[model.id] || {}),
-        };
-      });
-      Object.entries(savedSettings.attachment_caps || {}).forEach(([modelId, values]) => {
-        mergedCaps[modelId] = {
-          ...(mergedCaps[modelId] || {}),
-          ...normalizeAttachmentCaps(values),
-        };
-      });
+      const mergedCaps = buildMergedAttachmentCaps(
+        filtered.visibleModels,
+        filtered.hiddenModels,
+        savedSettings,
+        sectionState.attachmentCaps
+      );
       const mergedDisabledSet = mergeSavedAttachmentCaps(savedSettings, mergedCaps, sectionState);
-      const combinedModels = buildCombinedModelsArray(visibleModels, hiddenModels, mergedCaps);
-      sectionState.models = sortModelsByActiveThenName(combinedModels);
-      sectionState.total = Number.isFinite(payload?.total)
-        ? payload.total
-        : sectionState.models.length;
-      sectionState.activeTotal = Number.isFinite(payload?.active_total)
-        ? payload.active_total
-        : countEnabledModels(sectionState.models);
-      sectionState.limit = Number.isFinite(payload?.limit) ? payload.limit : sectionState.limit;
-      sectionState.offset = Number.isFinite(payload?.offset) ? payload.offset : sectionState.offset;
-      sectionState.providerOptions =
-        Array.isArray(payload?.providers) && payload.providers.length > 0
-          ? payload.providers
-          : buildProviderOptions(sectionState.models, { includeAll: true });
-      sectionState.disabledModelIds = new Set(mergedDisabledSet);
-      sectionState.originalDisabledModelIds = new Set(mergedDisabledSet);
-      sectionState.attachmentCaps = cloneAttachmentCaps(mergedCaps);
-      sectionState.originalAttachmentCaps = cloneAttachmentCaps(mergedCaps);
-      sectionState.needsReload = false;
+      applyLoadedModelsToState(
+        payload,
+        filtered.visibleModels,
+        filtered.hiddenModels,
+        mergedCaps,
+        mergedDisabledSet,
+        sectionState
+      );
     } catch (err) {
       sectionState.error = err?.message || 'Failed to load models';
     } finally {
@@ -321,4 +290,76 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
 
   render();
   loadModels(true);
+}
+
+function partitionModelsByVisibility(payload) {
+  const responseVisibleModels = Array.isArray(payload?.models)
+    ? payload.models.map(normalizeModelRecord).filter(Boolean)
+    : [];
+  const responseHiddenModels = Array.isArray(payload?.hidden_models)
+    ? payload.hidden_models.map(normalizeModelRecord).filter(Boolean)
+    : [];
+  const fallbackHiddenModels = responseVisibleModels.filter(
+    (model) => model.hidden_for_user === true
+  );
+  const visibleModels = responseVisibleModels.filter(
+    (model) => model.hidden_for_user !== true
+  );
+  const hiddenModels = [...responseHiddenModels, ...fallbackHiddenModels];
+  return { visibleModels, hiddenModels };
+}
+
+function filterModelsByDisabled({ visibleModels, hiddenModels }, disabledSet) {
+  return {
+    visibleModels: visibleModels.filter((model) => !disabledSet.has(model.id)),
+    hiddenModels: hiddenModels.filter(
+      (model) => model.hidden_for_user === true && !disabledSet.has(model.id)
+    ),
+  };
+}
+
+function buildMergedAttachmentCaps(visibleModels, hiddenModels, savedSettings, attachmentCaps) {
+  const mergedCaps = cloneAttachmentCaps(attachmentCaps);
+  [...visibleModels, ...hiddenModels].forEach((model) => {
+    mergedCaps[model.id] = {
+      ...normalizeAttachmentCaps(model.attachments),
+      ...(mergedCaps[model.id] || {}),
+    };
+  });
+  Object.entries(savedSettings.attachment_caps || {}).forEach(([modelId, values]) => {
+    mergedCaps[modelId] = {
+      ...(mergedCaps[modelId] || {}),
+      ...normalizeAttachmentCaps(values),
+    };
+  });
+  return mergedCaps;
+}
+
+function applyLoadedModelsToState(
+  payload,
+  visibleModels,
+  hiddenModels,
+  mergedCaps,
+  mergedDisabledSet,
+  sectionState
+) {
+  const combinedModels = buildCombinedModelsArray(visibleModels, hiddenModels, mergedCaps);
+  sectionState.models = sortModelsByActiveThenName(combinedModels);
+  sectionState.total = Number.isFinite(payload?.total)
+    ? payload.total
+    : sectionState.models.length;
+  sectionState.activeTotal = Number.isFinite(payload?.active_total)
+    ? payload.active_total
+    : countEnabledModels(sectionState.models);
+  sectionState.limit = Number.isFinite(payload?.limit) ? payload.limit : sectionState.limit;
+  sectionState.offset = Number.isFinite(payload?.offset) ? payload.offset : sectionState.offset;
+  sectionState.providerOptions =
+    Array.isArray(payload?.providers) && payload.providers.length > 0
+      ? payload.providers
+      : buildProviderOptions(sectionState.models, { includeAll: true });
+  sectionState.disabledModelIds = new Set(mergedDisabledSet);
+  sectionState.originalDisabledModelIds = new Set(mergedDisabledSet);
+  sectionState.attachmentCaps = cloneAttachmentCaps(mergedCaps);
+  sectionState.originalAttachmentCaps = cloneAttachmentCaps(mergedCaps);
+  sectionState.needsReload = false;
 }
