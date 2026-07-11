@@ -19,14 +19,7 @@ import {
 } from '../../shared/utils/connection-model-selection.js';
 import { buildConnectionModalModelsMarkup } from '../../shared/components/connection-modal.js';
 import { normalizeProviderType, providerUrlPlaceholder } from './account-connections-helpers.js';
-import { broadcastConnectionsInvalidation } from '../../shared/utils/connection-sync.js';
-import { broadcastModelsInvalidation } from '../../shared/utils/model-sync.js';
-import {
-  createUserConnection,
-  deleteUserConnection,
-  updateUserConnection,
-  testUserConnection,
-} from '../../shared/api/resources.js';
+import { testUserConnection } from '../../shared/api/resources.js';
 
 /**
  * Sanitize a string value — trims, stringifies null/undefined.
@@ -58,6 +51,12 @@ const stripOptionalFields = (payload) => {
   }
   return payload;
 };
+
+import {
+  handleConnectionModalSave,
+  handleConnectionModalDelete,
+  persistConnectionPayload,
+} from './account-connections-modal-actions.js';
 
 export function createModalUi(ctx) {
   const {
@@ -304,67 +303,36 @@ export function createModalUi(ctx) {
       throw new Error('Name is required');
     }
     validateConnectionUrl(payload);
-    if (isEdit) {
-      return {
-        payload,
-        result: await updateUserConnection(connection.id, payload),
-      };
-    }
-    return {
-      payload,
-      result: await createUserConnection(payload),
-    };
+    return persistConnectionPayload(payload, isEdit, connection?.id);
   };
   const finishAndRender = () => {
     closeModal();
     render();
   };
-  saveBtn?.addEventListener('click', async (event) => {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-    if (viewState.saving) return;
-    setError('');
-    setSaving(true);
-    try {
-      const { payload, result } = await saveConnection();
-      const savedConnection =
-        result?.connection || result?.saved_connection || result?.data?.connection || null;
-      if (savedConnection || isEdit) {
-        upsertPersonalConnection(
-          mergeSavedConnection(payload, savedConnection, isEdit ? connection : null)
-        );
-      }
-      broadcastConnectionsInvalidation();
-      broadcastModelsInvalidation();
-      finishAndRender();
-    } catch (err) {
-      setError(err?.message || 'Failed to save connection');
-    } finally {
-      setSaving(false);
-    }
-  });
-  deleteBtn?.addEventListener('click', async () => {
-    if (viewState.saving || !isEdit) return;
-    if (
-      !window.confirm(
-        `Delete connection ${connection.name || connection.id}? This cannot be undone.`
-      )
-    )
-      return;
-    setError('');
-    setSaving(true);
-    try {
-      await deleteUserConnection(connection.id);
-      removePersonalConnection(connection.id);
-      broadcastConnectionsInvalidation();
-      broadcastModelsInvalidation();
-      finishAndRender();
-    } catch (err) {
-      setError(err?.message || 'Failed to delete connection');
-    } finally {
-      setSaving(false);
-    }
-  });
+  saveBtn?.addEventListener('click', (event) =>
+    handleConnectionModalSave(event, {
+      viewState,
+      setError,
+      setSaving,
+      saveConnection,
+      isEdit,
+      connection,
+      upsertPersonalConnection,
+      mergeSavedConnection,
+      finishAndRender,
+    })
+  );
+  deleteBtn?.addEventListener('click', (event) =>
+    handleConnectionModalDelete(event, {
+      viewState,
+      setError,
+      setSaving,
+      isEdit,
+      connection,
+      removePersonalConnection,
+      finishAndRender,
+    })
+  );
   closeBtn?.addEventListener('click', closeModal);
   overlay?.addEventListener('click', closeModal);
   providerSelect?.addEventListener('change', syncProviderUi);
