@@ -20,6 +20,15 @@
     "**/playwright-report/**",
     "public/styles.css"
   ],
+  "ignoreUnresolvedImports": [
+    "../../../../types.js",
+    "../../../types.js",
+    "../../types",
+    "../env",
+    "../src/db.js",
+    "../modal-shell.js",
+    "playwright-core"
+  ],
   "duplicates": {
     "threshold": 1
   }

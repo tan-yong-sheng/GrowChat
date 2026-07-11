@@ -167,18 +167,7 @@ export function createChatDataController({
       preferredLeafId = null,
       fallbackMessage = null,
     } = options;
-    if (!chatId) {
-      if (draw) drawMessages([]);
-      return;
-    }
-    if (isTempChatId(chatId)) {
-      if (draw) {
-        setState({ ui: { loadingChatId: null, streaming: false, streamingChatId: null } });
-        const existing = state.messagesByChat[chatId] || [];
-        drawMessages(existing);
-      }
-      return;
-    }
+    if (handleLoadMessagesEarlyReturn(chatId, draw)) return;
     touchRecentChat(recentChatIds, chatId);
     schedulePrune();
 
@@ -236,10 +225,29 @@ export function createChatDataController({
     setState(nextState);
 
     if (draw) drawMessages(messages);
-    if (streamingNow && state.activeChatId === chatId) {
-      const runningId = streamSession?.getRunningMessageId(messages);
-      if (runningId) startResumeStream(chatId, runningId);
+    maybeResumeStream(chatId, messages, streamingNow);
+  }
+
+  function handleLoadMessagesEarlyReturn(chatId, draw) {
+    if (!chatId) {
+      if (draw) drawMessages([]);
+      return true;
     }
+    if (isTempChatId(chatId)) {
+      if (draw) {
+        setState({ ui: { loadingChatId: null, streaming: false, streamingChatId: null } });
+        const existing = state.messagesByChat[chatId] || [];
+        drawMessages(existing);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function maybeResumeStream(chatId, messages, streamingNow) {
+    if (!streamingNow || state.activeChatId !== chatId) return;
+    const runningId = streamSession?.getRunningMessageId(messages);
+    if (runningId) startResumeStream(chatId, runningId);
   }
 
   return {
