@@ -1,5 +1,7 @@
 # AGENTS.md
 
+This file gives coding agents project-specific context. Keep it short and update it when workflows change.
+
 ## Project Overview
 
 **GrowChat** is a multi-user Cloudflare Workers chat application with support for multiple LLM providers via user-configured OpenAI-compatible connections.
