@@ -193,38 +193,39 @@ export class SseLineParser {
     const line = this._buf.replace(/\r$/, '');
     this._buf = '';
     let text = '';
-    if (line) {
-      if (line === '') {
-        text += this._flushDataBuffer();
-      } else if (line.startsWith('data:')) {
-        let payload = line.slice(5);
-        if (payload.startsWith(' ')) payload = payload.slice(1);
-        if (payload) {
-          if (this._dataBuffer) {
-            this._dataBuffer += `\n${payload}`;
-          } else {
-            const parsedText = this._consumeDataPayload(payload);
-            if (parsedText !== null) {
-              text += parsedText;
-            } else {
-              this._dataBuffer = payload;
-            }
-          }
-        }
-      }
-    }
+    if (line) text += this._flushTrailingLine(line);
     text += this._flushDataBuffer();
+    text += this._flushTagBuffer();
+    return text;
+  }
 
-    if (this._tagBuffer) {
-      if (this._inReasoning) {
-        this._emitReasoningDelta(this._tagBuffer);
-      } else {
-        this._emitTextDelta(this._tagBuffer);
-        text += this._tagBuffer;
-      }
-      this._tagBuffer = '';
+  _flushTrailingLine(line) {
+    if (line === '') return this._flushDataBuffer();
+    if (!line.startsWith('data:')) return '';
+    return this._flushDataPayload(line.slice(5).replace(/^ /, ''));
+  }
+
+  _flushDataPayload(payload) {
+    if (!payload) return '';
+    if (this._dataBuffer) {
+      this._dataBuffer += `\n${payload}`;
+      return '';
     }
+    let text = '';
+    const parsedText = this._consumeDataPayload(payload);
+    if (parsedText !== null) text += parsedText;
+    else this._dataBuffer = payload;
+    return text;
+  }
 
+  _flushTagBuffer() {
+    if (!this._tagBuffer) return '';
+    if (this._inReasoning) this._emitReasoningDelta(this._tagBuffer);
+    else {
+      this._emitTextDelta(this._tagBuffer);
+    }
+    const text = this._inReasoning ? '' : this._tagBuffer;
+    this._tagBuffer = '';
     return text;
   }
 

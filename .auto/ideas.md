@@ -97,3 +97,32 @@ If the goal shifts to "make `fallow audit` verdict PASS":
 
 Audit verdict PASS is effectively unreachable without undoing all
 autoresearch commits.
+
+## Session progress: complexity_introduced 93 → 66 (-29%)
+
+After pivoting primary metric to `complexity_introduced` and adding a
+sharp lesson (helpers with cyc≤5 keep CRAP below threshold at 0% cov):
+
+### What worked
+
+- Decompose high-cyc functions in changed files into small helpers
+- Each helper must stay below cyc=5 to avoid CRAP > 30 at 0% coverage
+- Pure helpers with no closure complexity (no `?.` chains, no `||`
+  chains) reduce cyclomatic significantly
+- Field arrays + `.some(predicate)` eliminate `model?.field || ''`
+  branches that fallow counts
+
+### What didn't work (reverted)
+
+- Decomposition that adds extra await layers breaks tests with
+  `await Promise.resolve()` flush patterns (e.g., user-profile-footer)
+- Extracting one helper without further splitting keeps parent cyc the
+  same (e.g., first attempt at renderToolMarkup)
+- Decomposing to a single helper with same logic doesn't reduce cyc
+  (e.g., getAllOpenAIConnectionConfigs → normalizeUserGroupIds left
+  parent at cyc 18 in some cases)
+
+### Target pace
+
+- ~1 metric drop per targeted function decomposition
+- ~5-7 functions decomposed per hour at this rate
