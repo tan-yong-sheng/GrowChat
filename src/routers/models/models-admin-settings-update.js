@@ -164,7 +164,6 @@ async function execStatementsAndLog(
 }
 
 /* eslint-disable max-params -- multiple context parameters */
-/* eslint-disable no-unused-vars -- kept for consistency with other save functions */
 async function saveSettings(
   db,
   env,
@@ -172,11 +171,13 @@ async function saveSettings(
   sanitizedUpdates,
   sanitizedAttachmentUpdates,
   attachmentCaps,
-  normalizedAccessUpdates
+  normalizedAccessUpdates,
+  accessStatements = []
 ) {
   const statements = [
     ...buildBaseStatements(db),
     ...buildEnabledUpdateStatements(db, sanitizedUpdates),
+    ...accessStatements,
   ];
 
   if (sanitizedAttachmentUpdates.length > 0 && attachmentCaps) {
@@ -246,24 +247,15 @@ async function buildAndExecuteStatements(
       ? await buildAccessUpdateStatements(db, sanitizedAccessUpdates, nextAccessMap, logger)
       : { statements: [], normalizedAccessUpdates: [] };
 
-  const statements = [
-    ...buildBaseStatements(db),
-    ...buildEnabledUpdateStatements(db, sanitizedUpdates),
-    ...accessStatements,
-  ];
-
-  if (sanitizedAttachmentUpdates.length > 0 && attachmentCaps) {
-    statements.push(buildModelAttachmentCapSaveStatement(db, attachmentCaps));
-  }
-
-  await execStatementsAndLog(
+  await saveSettings(
     db,
-    statements,
     env,
     user,
-    sanitizedUpdates.length,
-    sanitizedAttachmentUpdates.length,
-    normalizedAccessUpdates.length
+    sanitizedUpdates,
+    sanitizedAttachmentUpdates,
+    attachmentCaps,
+    normalizedAccessUpdates,
+    accessStatements
   );
 
   return {
