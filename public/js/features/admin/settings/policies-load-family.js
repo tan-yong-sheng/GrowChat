@@ -60,13 +60,7 @@ function buildResourcesForFamily(resources, rulesByResource, state, helpers) {
   }));
 }
 
-/**
- * Factory for the loadFamilyResources function used by policies.js.
- *
- * @param {object} deps – closure dependencies from the parent module
- * @returns {function} loadFamilyResources
- */
-export function createLoadFamilyResources(deps) {
+function startFamilyLoad(familyKey, deps) {
   const {
     state,
     familyLoadSeq,
@@ -75,98 +69,142 @@ export function createLoadFamilyResources(deps) {
     isActiveTab,
     container,
     render,
-    apiFetch,
-    fetchAdminModels,
-    loadFamilyAccess,
-    cloneAclRules,
-    normalizeAclRule,
-    sortResourcesByVisibility,
+  } = deps;
+  abortFamilyLoad(familyKey);
+  const controller = new AbortController();
+  familyAbortControllers[familyKey] = controller;
+  const seq = familyLoadSeq[familyKey] + 1;
+  familyLoadSeq[familyKey] = seq;
+  state.error = null;
+  state.familyError[familyKey] = null;
+  state.familyStatus[familyKey] = 'loading';
+  if (isActiveTab(container)) render();
+  return { controller, seq };
+}
+
+function isStaleLoad(controller, familyLoadSeq, familyKey, seq) {
+  return controller.signal.aborted || familyLoadSeq[familyKey] !== seq;
+}
+
+async function loadModelsConnectionAccess(resources, deps, signal) {
+  const connectionIds = Array.from(
+    new Set(resources.map((r) => String(r?.connection_id || '').trim()).filter(Boolean))
+  );
+  if (!connectionIds.length) return [];
+  try {
+    const cap = await deps.loadFamilyAccess({
+      familyKey: 'connections',
+      resourceIds: connectionIds,
+      signal,
+    });
+    return Array.isArray(cap.rules) ? cap.rules : [];
+  } catch (err) {
+    console.warn('Failed to load connection dependency access for models:', err?.message || err);
+    return [];
+  }
+}
+
+async function loadFamilyAccessRules(familyKey, ids, deps, signal) {
+  if (!ids.length) return [];
+  const accessPayload = await deps.loadFamilyAccess({
+    familyKey,
+    resourceIds: ids,
+    signal,
+  });
+  return Array.isArray(accessPayload.rules) ? accessPayload.rules : [];
+}
+
+function finalizeFamilyLoad(familyKey, deps, controller, seq) {
+  const {
+    state,
+    familyLoadSeq,
+    familyAbortControllers,
+    isActiveTab,
+    container,
+    render,
     openDeepLinkedAccessModal,
   } = deps;
+  const rulesByResource = groupRulesByResourceId(deps._accessRules);
+  if (familyKey === 'models') {
+    state.modelConnectionRulesById = groupConnectionRulesById(deps._connectionAccessRules);
+  }
+  state.resources[familyKey] = buildResourcesForFamily(deps._resources, rulesByResource, state, {
+    sortResourcesByVisibility: deps.sortResourcesByVisibility,
+    cloneAclRules: deps.cloneAclRules,
+    normalizeAclRule: deps.normalizeAclRule,
+  });
 
+  if (state.pendingDeepLink && state.pendingDeepLink.familyKey === familyKey) {
+    void openDeepLinkedAccessModal(familyKey).catch((err) =>
+      console.warn('Failed to open deep-linked ACL modal:', err)
+    );
+  }
+  state.familyStatus[familyKey] = 'loaded';
+
+  if (familyLoadSeq[familyKey] === seq && familyAbortControllers[familyKey] === controller) {
+    familyAbortControllers[familyKey] = null;
+  }
+  if (familyLoadSeq[familyKey] === seq && isActiveTab(container)) render();
+}
+
+function handleFamilyLoadError(familyKey, err, deps, controller, seq) {
+  const { state, familyLoadSeq } = deps;
+  if (controller.signal.aborted || String(err?.name || '').toLowerCase() === 'aborterror') return;
+  if (familyLoadSeq[familyKey] !== seq) return;
+  state.familyStatus[familyKey] = 'error';
+  state.familyError[familyKey] = err?.message || 'Failed to load policies';
+}
+
+function handleFamilyLoadFinally(familyKey, deps, controller, seq) {
+  const { familyLoadSeq, familyAbortControllers, isActiveTab, container, render } = deps;
+  if (familyLoadSeq[familyKey] === seq && familyAbortControllers[familyKey] === controller) {
+    familyAbortControllers[familyKey] = null;
+  }
+  if (familyLoadSeq[familyKey] === seq && isActiveTab(container)) render();
+}
+
+/**
+ * Factory for the loadFamilyResources function used by policies.js.
+ *
+ * @param {object} deps – closure dependencies from the parent module
+ * @returns {function} loadFamilyResources
+ */
+export function createLoadFamilyResources(deps) {
   return async (familyKey, { force = false } = {}) => {
-    if (!force && state.familyStatus[familyKey] === 'loaded') return;
-    if (state.familyStatus[familyKey] === 'loading' && !force) return;
-    abortFamilyLoad(familyKey);
-    const controller = new AbortController();
-    familyAbortControllers[familyKey] = controller;
-    const seq = familyLoadSeq[familyKey] + 1;
-    familyLoadSeq[familyKey] = seq;
-    state.error = null;
-    state.familyError[familyKey] = null;
-    state.familyStatus[familyKey] = 'loading';
-    if (isActiveTab(container)) render();
+    if (!force && deps.state.familyStatus[familyKey] === 'loaded') return;
+    if (deps.state.familyStatus[familyKey] === 'loading' && !force) return;
+    const { controller, seq } = startFamilyLoad(familyKey, deps);
 
-    let payload;
     try {
-      payload = await fetchFamilyPayload(familyKey, controller.signal, fetchAdminModels, apiFetch);
-      if (controller.signal.aborted || familyLoadSeq[familyKey] !== seq) return;
+      const payload = await fetchFamilyPayload(
+        familyKey,
+        controller.signal,
+        deps.fetchAdminModels,
+        deps.apiFetch
+      );
+      if (isStaleLoad(controller, deps.familyLoadSeq, familyKey, seq)) return;
 
       const rawResources = extractFamilyResources(familyKey, payload);
       const resources = Array.isArray(rawResources) ? rawResources : [];
       const ids = resources.map((r) => r.id).filter(Boolean);
 
-      let accessRules = [];
-      let connectionAccessRules = [];
-      if (ids.length) {
-        const accessPayload = await loadFamilyAccess({
-          familyKey,
-          resourceIds: ids,
-          signal: controller.signal,
-        });
-        accessRules = Array.isArray(accessPayload.rules) ? accessPayload.rules : [];
-      }
-      if (familyKey === 'models') {
-        const connectionIds = Array.from(
-          new Set(resources.map((r) => String(r?.connection_id || '').trim()).filter(Boolean))
-        );
-        if (connectionIds.length) {
-          try {
-            const cap = await loadFamilyAccess({
-              familyKey: 'connections',
-              resourceIds: connectionIds,
-              signal: controller.signal,
-            });
-            connectionAccessRules = Array.isArray(cap.rules) ? cap.rules : [];
-          } catch (err) {
-            console.warn(
-              'Failed to load connection dependency access for models:',
-              err?.message || err
-            );
-            connectionAccessRules = [];
-          }
-        }
-      }
-      if (controller.signal.aborted || familyLoadSeq[familyKey] !== seq) return;
+      const accessRules = await loadFamilyAccessRules(familyKey, ids, deps, controller.signal);
+      const connectionAccessRules =
+        familyKey === 'models'
+          ? await loadModelsConnectionAccess(resources, deps, controller.signal)
+          : [];
+      if (isStaleLoad(controller, deps.familyLoadSeq, familyKey, seq)) return;
 
-      const rulesByResource = groupRulesByResourceId(accessRules);
-      if (familyKey === 'models') {
-        state.modelConnectionRulesById = groupConnectionRulesById(connectionAccessRules);
-      }
-      state.resources[familyKey] = buildResourcesForFamily(resources, rulesByResource, state, {
-        sortResourcesByVisibility,
-        cloneAclRules,
-        normalizeAclRule,
+      Object.assign(deps, {
+        _accessRules: accessRules,
+        _connectionAccessRules: connectionAccessRules,
+        _resources: resources,
       });
-
-      if (state.pendingDeepLink && state.pendingDeepLink.familyKey === familyKey) {
-        void openDeepLinkedAccessModal(familyKey).catch((err) =>
-          console.warn('Failed to open deep-linked ACL modal:', err)
-        );
-      }
-      state.familyStatus[familyKey] = 'loaded';
+      finalizeFamilyLoad(familyKey, deps, controller, seq);
     } catch (err) {
-      if (controller.signal.aborted || String(err?.name || '').toLowerCase() === 'aborterror')
-        return;
-      if (familyLoadSeq[familyKey] === seq) {
-        state.familyStatus[familyKey] = 'error';
-        state.familyError[familyKey] = err?.message || 'Failed to load policies';
-      }
+      handleFamilyLoadError(familyKey, err, deps, controller, seq);
     } finally {
-      if (familyLoadSeq[familyKey] === seq && familyAbortControllers[familyKey] === controller) {
-        familyAbortControllers[familyKey] = null;
-      }
-      if (familyLoadSeq[familyKey] === seq && isActiveTab(container)) render();
+      handleFamilyLoadFinally(familyKey, deps, controller, seq);
     }
   };
 }
