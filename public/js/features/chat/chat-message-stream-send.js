@@ -212,21 +212,20 @@ export async function startChatSendMessageWithOptimistic({
     const st = getStreamState();
     const text = String(st.assistantText || '').trim();
     if (!text || !tempAssistantId) return;
-    const currentMessages = [...(state.messagesByChat[chatId] || [])];
-    const idx = currentMessages.findIndex((m) => String(m?.id || '') === String(tempAssistantId));
-    if (idx >= 0) {
-      const current = currentMessages[idx] || {};
-      currentMessages[idx] = {
-        ...current,
-        content: text,
-        done: true,
-      };
-    }
+    const currentMessages = applyAssistantContentUpdate(state.messagesByChat[chatId], text, tempAssistantId);
     setState((prev) => ({
       messagesByChat: { ...prev.messagesByChat, [chatId]: currentMessages },
     }));
     streamingOverrideByChat.delete(chatId);
   };
+
+function applyAssistantContentUpdate(messagesByChat, text, tempAssistantId) {
+    const currentMessages = [...(messagesByChat || [])];
+    const idx = currentMessages.findIndex((m) => String(m?.id || '') === String(tempAssistantId));
+    if (idx < 0) return currentMessages;
+    currentMessages[idx] = { ...currentMessages[idx], content: text, done: true };
+    return currentMessages;
+}
 
   let res;
   setStreamingState(chatId, true);
