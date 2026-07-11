@@ -72,23 +72,25 @@ export class SseLineParser {
 }
 
 export function formatDate(dateString) {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return '';
+  const date = parseDateOrNull(dateString);
+  if (!date) return '';
   const now = new Date();
   const diff = now - date;
+  return relativeOrAbsoluteDateLabel(diff, date, now);
+}
 
-  if (diff < MS_DAY && now.getDate() === date.getDate()) {
-    return 'Today';
-  } else if (diff < 2 * MS_DAY) {
-    return 'Yesterday';
-  } else if (diff < DAYS_7_MS) {
-    return 'Previous 7 days';
-  } else if (diff < DAYS_30_MS) {
-    return 'Previous 30 days';
-  } else {
-    return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-  }
+function parseDateOrNull(dateString) {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function relativeOrAbsoluteDateLabel(diff, date, now) {
+  if (diff < MS_DAY && now.getDate() === date.getDate()) return 'Today';
+  if (diff < 2 * MS_DAY) return 'Yesterday';
+  if (diff < DAYS_7_MS) return 'Previous 7 days';
+  if (diff < DAYS_30_MS) return 'Previous 30 days';
+  return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
 export function formatTimestamp(dateString) {
