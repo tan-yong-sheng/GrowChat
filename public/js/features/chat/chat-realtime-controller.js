@@ -121,13 +121,7 @@ export function createChatRealtimeController({
   async function handleChatEvent(event) {
     const type = String(event.type || '');
     if (type === 'chat.deleted') {
-      const nextChats = state.chats.filter(
-        (chat) => String(chat?.id) !== String(event.chat_id || '')
-      );
-      const nextActiveChatId =
-        state.activeChatId === event.chat_id ? nextChats[0]?.id || null : state.activeChatId;
-      setState({ chats: nextChats, activeChatId: nextActiveChatId });
-      if (!nextActiveChatId) drawMessages([]);
+      handleChatDeletedEvent(event);
       return;
     }
 
@@ -137,20 +131,43 @@ export function createChatRealtimeController({
       return;
     }
 
+    await refreshActiveChatForEvent(event);
+  }
+
+  function handleChatDeletedEvent(event) {
+    const nextChats = state.chats.filter(
+      (chat) => String(chat?.id) !== String(event.chat_id || '')
+    );
+    const nextActiveChatId =
+      state.activeChatId === event.chat_id ? nextChats[0]?.id || null : state.activeChatId;
+    setState({ chats: nextChats, activeChatId: nextActiveChatId });
+    if (!nextActiveChatId) drawMessages([]);
+  }
+
+  async function refreshActiveChatForEvent(event) {
     const previousActiveChatId = state.activeChatId;
     await loadChats();
-    if (isSameSession(event) && getActiveStreamAbort() && event.chat_id === previousActiveChatId) {
+    if (shouldSkipRefresh(event, previousActiveChatId)) return;
+    await reloadActiveChatIfChanged(event, previousActiveChatId);
+    if (!state.activeChatId) drawMessages([]);
+  }
+
+  function shouldSkipRefresh(event, previousActiveChatId) {
+    return (
+      isSameSession(event) &&
+      Boolean(getActiveStreamAbort()) &&
+      event.chat_id === previousActiveChatId
+    );
+  }
+
+  async function reloadActiveChatIfChanged(event, previousActiveChatId) {
+    if (
+      !state.activeChatId ||
+      (event.chat_id !== state.activeChatId && state.activeChatId === previousActiveChatId)
+    ) {
       return;
     }
-    if (
-      state.activeChatId &&
-      (event.chat_id === state.activeChatId || state.activeChatId !== previousActiveChatId)
-    ) {
-      await loadMessages(state.activeChatId);
-    }
-    if (!state.activeChatId) {
-      drawMessages([]);
-    }
+    await loadMessages(state.activeChatId);
   }
 
   function handleToolEvent(event) {
