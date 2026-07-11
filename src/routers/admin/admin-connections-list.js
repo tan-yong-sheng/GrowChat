@@ -146,18 +146,10 @@ async function handleConnectionsTestPost(req, env, user, logger) {
   const { body, error: denied } = await parseJsonAndRequireAdminAcl(req, env, user, 'connection');
   if (denied) return denied;
 
-  const providerType = String(body.providerType || 'openai').toLowerCase();
-  const providerFamily =
-    normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
-  const url = String(body.url || '').trim();
-  const connectionId = String(body.id || body.connectionId || '').trim();
-  const requiresUrl = isConnectionUrlRequired(providerType);
-  const baseUrl = url || getConnectionDefaultBaseUrl(providerType || providerFamily);
-
-  const urlError = validateConnectionBaseUrl(req, baseUrl, requiresUrl, url);
+  const inputs = parseConnectionTestBody(body);
+  const urlError = validateConnectionBaseUrl(req, inputs.baseUrl, inputs.requiresUrl, inputs.url);
   if (urlError) return urlError;
 
-  const key = String(body.key || '').trim();
   let headers;
   try {
     headers = parseHeadersForRequest(body.headers);
@@ -166,34 +158,59 @@ async function handleConnectionsTestPost(req, env, user, logger) {
   }
 
   try {
-    const existingConnection = await findExistingConnection(env, connectionId);
-    const testConnection = buildTestConnection(body, baseUrl, headers, key, existingConnection);
+    const existingConnection = await findExistingConnection(env, inputs.connectionId);
+    const testConnection = buildTestConnection(
+      body,
+      inputs.baseUrl,
+      headers,
+      inputs.key,
+      existingConnection
+    );
     const discovery = await discoverConnectionModels(testConnection, {
       headers: buildConnectionHeaders(testConnection),
     });
     if (!discovery.items.length) {
-      const upstreamStatus = discovery.error?.status;
-      logger.warn('Connection test failed', {
-        status: upstreamStatus,
-        url: discovery.error?.url,
-        upstreamMessage: discovery.error?.message || 'No models discovered',
-      });
-      return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
-        message: getConnectionTestFailureMessage(upstreamStatus),
-      });
+      return respondToDiscoveryFailure(req, logger, discovery);
     }
-
-    return json(req, {
-      ok: true,
-      message: 'Connection successful',
-      discovery_url: discovery.url,
-      models: formatDiscoveredModels(discovery.items),
-    });
+    return respondToDiscoverySuccess(req, discovery);
   } catch (err) {
     return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
       message: err?.message || String(err),
     });
   }
+}
+
+function parseConnectionTestBody(body) {
+  const providerType = String(body.providerType || 'openai').toLowerCase();
+  const providerFamily =
+    normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
+  const url = String(body.url || '').trim();
+  const connectionId = String(body.id || body.connectionId || '').trim();
+  const requiresUrl = isConnectionUrlRequired(providerType);
+  const baseUrl = url || getConnectionDefaultBaseUrl(providerType || providerFamily);
+  const key = String(body.key || '').trim();
+  return { providerType, providerFamily, url, connectionId, requiresUrl, baseUrl, key };
+}
+
+function respondToDiscoveryFailure(req, logger, discovery) {
+  const upstreamStatus = discovery.error?.status;
+  logger.warn('Connection test failed', {
+    status: upstreamStatus,
+    url: discovery.error?.url,
+    upstreamMessage: discovery.error?.message || 'No models discovered',
+  });
+  return error(req, 'Connection failed', HTTP_STATUS.BAD_GATEWAY, {
+    message: getConnectionTestFailureMessage(upstreamStatus),
+  });
+}
+
+function respondToDiscoverySuccess(req, discovery) {
+  return json(req, {
+    ok: true,
+    message: 'Connection successful',
+    discovery_url: discovery.url,
+    models: formatDiscoveredModels(discovery.items),
+  });
 }
 
 /**
