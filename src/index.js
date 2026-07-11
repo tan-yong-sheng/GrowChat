@@ -158,15 +158,24 @@ async function handleApiRequest(req, env, ctx, path, requestId, logger) {
 }
 
 async function handleSpaFallback(req, env, path, logger) {
-  // Preserve auth landing behavior for SPA routes.
   if (isAuthPath(path)) {
-    try {
-      const authResponse = await fetchHtmlAsset(env, req, '/auth.html', logger);
-      if (authResponse.status !== 404) return authResponse;
-    } catch (err) {
-      logger.error('Auth asset fetch failed', { error: String(err?.message || err) });
-    }
+    const authResponse = await tryFetchAuthAsset(env, req, logger);
+    if (authResponse) return authResponse;
   }
+  return tryFetchIndexAsset(env, req, logger);
+}
+
+async function tryFetchAuthAsset(env, req, logger) {
+  try {
+    const authResponse = await fetchHtmlAsset(env, req, '/auth.html', logger);
+    if (authResponse.status !== 404) return authResponse;
+  } catch (err) {
+    logger.error('Auth asset fetch failed', { error: String(err?.message || err) });
+  }
+  return null;
+}
+
+async function tryFetchIndexAsset(env, req, logger) {
   try {
     return await fetchHtmlAsset(env, req, '/', logger);
   } catch (err) {
