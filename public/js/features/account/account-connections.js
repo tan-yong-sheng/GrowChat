@@ -52,6 +52,7 @@ import {
   buildAccessibleCard,
 } from './account-connections-helpers.js';
 import { createConnectionModal } from './account-connections-modal.js';
+import { handleConnectionToggleClick } from './account-connections-toggle-handler.js';
 
 /**
  * Resolve a field from 3 connection sources with optional fallback.
@@ -374,52 +375,16 @@ export function renderAccountConnectionsSection(
     });
 
     container.querySelectorAll('.connection-toggle').forEach((toggleBtn) => {
-      toggleBtn.addEventListener('click', async () => {
-        const id = toggleBtn.dataset.id;
-        const scope = toggleBtn.dataset.toggleScope || 'personal';
-        if (scope === 'shared') {
-          const connection = viewState.accessible.find((item) => item.id === id);
-          if (!connection) return;
-          const previousPreferences = clonePreferences(state.settings?.preferences || {});
-          const currentHidden = isResourceHidden(
-            state.settings?.preferences || {},
-            'connections',
-            id
-          );
-          const nextPreferences = setResourceVisibility(
-            state.settings?.preferences || {},
-            'connections',
-            id,
-            currentHidden
-          );
-          state.settings = {
-            ...(state.settings || {}),
-            preferences: nextPreferences,
-          };
-          viewState.error = '';
-          render();
-          void persistPreferences({
-            rollback: { preferences: previousPreferences },
-          });
-          return;
-        }
-        if (!canManageConnections) return;
-        const connection = viewState.personal.find((item) => item.id === id);
-        if (!connection) return;
-        const previousEnabled = connection.enabled !== false;
-        const nextEnabled = !previousEnabled;
-        connection.enabled = nextEnabled;
-        render();
-        try {
-          await updateUserConnection(connection.id, { enabled: nextEnabled });
-          broadcastConnectionsInvalidation();
-          broadcastModelsInvalidation();
-        } catch (err) {
-          connection.enabled = previousEnabled;
-          showPageError(err?.message || 'Failed to update connection');
-          render();
-        }
-      });
+      toggleBtn.addEventListener('click', () =>
+        handleConnectionToggleClick(toggleBtn, {
+          viewState,
+          state,
+          canManageConnections,
+          render,
+          persistPreferences,
+          showPageError,
+        })
+      );
     });
   }
 
