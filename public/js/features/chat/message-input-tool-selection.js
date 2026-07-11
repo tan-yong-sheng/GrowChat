@@ -289,30 +289,53 @@ export function createToolSelectionController({
     const loading = currentState.toolServersLoading === true;
     const selection = getCurrentToolSelection(currentState);
     const allowedKeys = getAllowedToolKeys(currentState);
-    const allEnabled =
-      selection === null ||
-      (Array.isArray(selection) &&
-        allowedKeys.length > 0 &&
-        allowedKeys.every((key) => selection.includes(key)));
+    const allEnabled = computeAllEnabled(selection, allowedKeys);
     const allDisabled = Array.isArray(selection) && selection.length === 0;
-    openToolsBtn.disabled = loading || !hasAny;
-    openToolsBtn.classList.toggle('opacity-40', loading || !hasAny);
-    openToolsBtn.classList.toggle('cursor-not-allowed', loading || !hasAny);
+    applyButtonMenuState(openToolsBtn, { loading, hasAny });
     if (toolsMenuAllOnBtn) {
-      toolsMenuAllOnBtn.disabled = loading || !hasAny;
-      toolsMenuAllOnBtn.classList.toggle('hidden', !hasAny || allEnabled);
-      toolsMenuAllOnBtn.classList.toggle('opacity-40', loading || !hasAny);
-      toolsMenuAllOnBtn.classList.toggle('cursor-not-allowed', loading || !hasAny);
+      applyAllOnButtonState(toolsMenuAllOnBtn, { loading, hasAny, allEnabled });
     }
     if (toolsMenuAllOffBtn) {
-      toolsMenuAllOffBtn.disabled = loading || !hasAny;
-      toolsMenuAllOffBtn.classList.toggle('hidden', !hasAny || allDisabled);
-      toolsMenuAllOffBtn.classList.toggle('opacity-40', loading || !hasAny);
-      toolsMenuAllOffBtn.classList.toggle('cursor-not-allowed', loading || !hasAny);
+      applyAllOffButtonState(toolsMenuAllOffBtn, { loading, hasAny, allDisabled });
     }
+    closeMenuIfEmpty(hasAny);
+    refreshOpenMenu(currentState);
+  }
+
+  function computeAllEnabled(selection, allowedKeys) {
+    if (selection === null) return true;
+    if (!Array.isArray(selection) || allowedKeys.length === 0) return false;
+    return allowedKeys.every((key) => selection.includes(key));
+  }
+
+  function applyButtonMenuState(btn, { loading, hasAny }) {
+    const disabled = loading || !hasAny;
+    btn.disabled = disabled;
+    btn.classList.toggle('opacity-40', disabled);
+    btn.classList.toggle('cursor-not-allowed', disabled);
+  }
+
+  function applyAllOnButtonState(btn, { loading, hasAny, allEnabled }) {
+    btn.disabled = loading || !hasAny;
+    btn.classList.toggle('hidden', !hasAny || allEnabled);
+    btn.classList.toggle('opacity-40', loading || !hasAny);
+    btn.classList.toggle('cursor-not-allowed', loading || !hasAny);
+  }
+
+  function applyAllOffButtonState(btn, { loading, hasAny, allDisabled }) {
+    btn.disabled = loading || !hasAny;
+    btn.classList.toggle('hidden', !hasAny || allDisabled);
+    btn.classList.toggle('opacity-40', loading || !hasAny);
+    btn.classList.toggle('cursor-not-allowed', loading || !hasAny);
+  }
+
+  function closeMenuIfEmpty(hasAny) {
     if (!hasAny && !toolsMenu?.classList.contains('hidden')) {
       closeToolsMenu();
     }
+  }
+
+  function refreshOpenMenu(currentState) {
     if (toolsMenu && !toolsMenu.classList.contains('hidden')) {
       renderToolsMenu(currentState);
     }
