@@ -8,6 +8,7 @@ import { getWireChatDeps } from './chat-wire-deps.js';
 import { initWireChat } from './chat-wire-init.js';
 import { setupWireChatFeatures } from './chat-wire-setup.js';
 import { setupWireChatControllers } from './chat-wire-controllers.js';
+import { toggleThinkingSection, toggleToolSection } from './chat-message-interactions.js';
 
 export function renderChat(container) {
   return _renderChat(container, wireChat);
@@ -394,7 +395,5 @@ function wireChat(root) {
     root.__cleanup = null;
   };
 }
-
-import { toggleThinkingSection, toggleToolSection } from './chat-message-interactions.js';
 
 export { wireChat };
