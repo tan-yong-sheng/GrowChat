@@ -64,7 +64,7 @@ echo "METRIC dead_code=$DEAD_COUNT"
 DUP_JSON=$(npx fallow dupes --format json 2>/dev/null || true)
 DUP_COUNT=$(echo "$DUP_JSON" | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
-process.stdout.write(String(d.findings?.length || 0));
+process.stdout.write(String(d.clone_groups?.length || d.findings?.length || 0));
 ")
 echo "METRIC dupes=$DUP_COUNT"
 
