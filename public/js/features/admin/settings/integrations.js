@@ -91,40 +91,7 @@ export function renderIntegrationsSettings(container, data) {
             ${
               tools.length
                 ? tools
-                    .map((tool) => {
-                      const { description, preview, hasMore, isExpanded } =
-                        prepareToolPreview(tool);
-                      const toolEnabled = tool.enabled !== false;
-                      return `
-                <div class="rounded-md border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                      <div class="text-xs font-medium text-gray-900">${escapeHtml(tool.title || tool.name || 'Tool')}</div>
-                      <div class="text-label-sm text-gray-400 font-mono">${escapeHtml(tool.name || '')}</div>
-                    </div>
-                    <button
-                      data-server-id="${escapeHtml(server.id)}"
-                      data-tool-name="${escapeHtml(tool.name || '')}"
-                      class="tool-toggle relative inline-flex h-5 w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolEnabled ? 'bg-primary' : 'bg-gray-200'} ${serverEnabled ? '' : 'opacity-40 cursor-not-allowed'}"
-                      ${serverEnabled ? '' : 'disabled'}
-                      aria-pressed="${toolEnabled ? 'true' : 'false'}"
-                      aria-disabled="${serverEnabled ? 'false' : 'true'}"
-                      title="${serverEnabled ? (toolEnabled ? 'Disable tool' : 'Enable tool') : 'Enable the server to edit tools'}"
-                    >
-                      <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toolEnabled ? 'translate-x-4' : 'translate-x-0'}"></span>
-                    </button>
-                  </div>
-                  ${
-                    description
-                      ? `
-                    <div class="text-label-sm text-gray-500 mt-1">${escapeHtml(preview)}</div>
-                    ${hasMore ? `<button data-server-id="${escapeHtml(server.id)}" data-tool-name="${escapeHtml(tool.name)}" class="tool-desc-toggle text-label-sm text-gray-400 hover:text-gray-600 mt-1">${isExpanded ? 'Less' : 'More'}</button>` : ''}
-                  `
-                      : ''
-                  }
-                </div>
-              `;
-                    })
+                    .map((tool) => renderToolMarkup(tool, server.id, serverEnabled))
                     .join('')
                 : '<div class="text-xs text-gray-400">No tools loaded. Click verify in Edit MCP Server.</div>'
             }
@@ -137,6 +104,53 @@ export function renderIntegrationsSettings(container, data) {
       )
       .join('');
   };
+
+  const renderToolMarkup = (tool, serverId, serverEnabled) => {
+    const { description, preview, hasMore, isExpanded } = prepareToolPreview(tool);
+    const toolEnabled = tool.enabled !== false;
+    const descriptionMarkup = renderToolDescription(tool, serverId, description, preview, hasMore, isExpanded);
+    return `
+                <div class="rounded-md border border-gray-100 px-3 py-2 ${serverEnabled ? '' : 'bg-gray-50/70'}">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <div class="text-xs font-medium text-gray-900">${escapeHtml(tool.title || tool.name || 'Tool')}</div>
+                      <div class="text-label-sm text-gray-400 font-mono">${escapeHtml(tool.name || '')}</div>
+                    </div>
+                    ${renderToolToggle(tool, serverId, serverEnabled, toolEnabled)}
+                  </div>
+                  ${descriptionMarkup}
+                </div>
+              `;
+  };
+
+  function renderToolToggle(tool, serverId, serverEnabled, toolEnabled) {
+    const toggleClass = `tool-toggle relative inline-flex h-5 w-9 items-center shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toolEnabled ? 'bg-primary' : 'bg-gray-200'} ${serverEnabled ? '' : 'opacity-40 cursor-not-allowed'}`;
+    const titleAttr = toolToggleTitle(serverEnabled, toolEnabled);
+    return `<button
+                      data-server-id="${escapeHtml(serverId)}"
+                      data-tool-name="${escapeHtml(tool.name || '')}"
+                      class="${toggleClass}"
+                      ${serverEnabled ? '' : 'disabled'}
+                      aria-pressed="${toolEnabled ? 'true' : 'false'}"
+                      aria-disabled="${serverEnabled ? 'false' : 'true'}"
+                      title="${titleAttr}"
+                    >
+                      <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toolEnabled ? 'translate-x-4' : 'translate-x-0'}"></span>
+                    </button>`;
+  }
+
+  function toolToggleTitle(serverEnabled, toolEnabled) {
+    if (!serverEnabled) return 'Enable the server to edit tools';
+    return toolEnabled ? 'Disable tool' : 'Enable tool';
+  }
+
+  function renderToolDescription(tool, serverId, description, preview, hasMore, isExpanded) {
+    if (!description) return '';
+    const moreButton = hasMore
+      ? `<button data-server-id="${escapeHtml(serverId)}" data-tool-name="${escapeHtml(tool.name)}" class="tool-desc-toggle text-label-sm text-gray-400 hover:text-gray-600 mt-1">${isExpanded ? 'Less' : 'More'}</button>`
+      : '';
+    return `<div class="text-label-sm text-gray-500 mt-1">${escapeHtml(preview)}</div>${moreButton}`;
+  }
 
   const updateServerRowState = (serverId) => {
     const row = container.querySelector(`[data-tool-server-row="${escapeSelector(serverId)}"]`);
