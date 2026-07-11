@@ -3,7 +3,7 @@ import { resolveConversationLeafId } from '../../shared/utils/conversation.js';
 /**
  * Check if a message is still actively streaming (not yet done).
  * Used to detect running messages that need live-stream attention.
- * @param {import('../../../../types.js').Message} message
+ * @param {object} message
  * @param {number} now - current Date.now() value
  * @param {number} staleMs - stream stale timeout in ms
  * @returns {boolean}
@@ -42,10 +42,10 @@ function resolveModelIdForMode(state, data, modelMode) {
 /**
  * Mark messages as (not) done based on stream live status.
  * Used by loadMessages to flag stale messages before fallback insertion.
- * @param {import('../../../../types.js').Message[]} messages
+ * @param {object[]} messages
  * @param {number} now - current Date.now() value
  * @param {number} staleMs - stream stale timeout in ms
- * @returns {import('../../../../types.js').Message[]}
+ * @returns {object[]}
  *  Messages with `done` set according to isMessageLive check
  */
 function markStreamingDone(messages, now, staleMs) {
@@ -57,7 +57,7 @@ function markStreamingDone(messages, now, staleMs) {
 
 /**
  * Compute whether any messages are still actively streaming.
- * @param {import('../../../../types.js').Message[]} messages
+ * @param {object[]} messages
  * @param {number} now - current Date.now() value
  * @param {number} staleMs - stream stale timeout in ms
  * @returns {boolean}
@@ -68,9 +68,9 @@ function hasLiveStream(messages, now, staleMs) {
 
 /**
  * Handle fallback message insertion when a stream fallback is needed.
- * @param {import('../../../../types.js').Message[]} messages
+ * @param {object[]} messages
  * @param {object|null} fallbackMessage
- * @returns {{ messages: import('../../../../types.js').Message[], appliedFallbackId: string|null }}
+ * @returns {{ messages: object[], appliedFallbackId: string|null }}
  */
 function resolveFallbackMessageInsertion(messages, fallbackMessage) {
   if (!fallbackMessage?.id) return { messages, appliedFallbackId: null };

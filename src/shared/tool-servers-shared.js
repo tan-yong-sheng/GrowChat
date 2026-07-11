@@ -61,7 +61,7 @@ function getToolParameters(tool) {
  * Load user group IDs from the database for ACL filtering.
  * Shared by src/admin/tool-servers.js and src/llm/connections.js.
  *
- * @param {import('../src/db.js').D1Database} db
+ * @param {object} db
  * @param {string} userId
  * @returns {Promise<Set<string>>}
  */

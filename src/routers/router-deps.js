@@ -25,9 +25,9 @@ import { createLogger } from '../utils/logger.js';
 /**
  * Build the standard deps object for a router handler.
  *
- * @param {import('../../types').Env} env - Cloudflare Worker env
+ * @param {object} env - Cloudflare Worker env
  * @param {object} [requestContext] - Optional request context with requestId
- * @returns {{ db: import('../db.js').DB, logger: import('../utils/logger.js').Logger, requestContext: object | undefined }}
+ * @returns {{ db: object, logger: object, requestContext: object | undefined }}
  */
 export function createRouterDeps(env, requestContext = {}) {
   const logger =

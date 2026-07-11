@@ -6,7 +6,7 @@ vi.mock('../../public/js/shared/utils/modal-hash.js', () => ({
   clearModalHash: vi.fn(),
 }));
 
-vi.mock('../modal-shell.js', () => ({
+vi.mock('../../public/js/features/admin/modal-shell.js', () => ({
   getAdminModalPreset: () => ({
     outerClass: 'fixed',
     overlayClass: 'absolute',

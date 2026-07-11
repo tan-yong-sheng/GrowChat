@@ -5,7 +5,7 @@ test.describe('Accessibility audit', () => {
   // AxeBuilder is exported as both named and default (CJS/ESM dual export).
   // TypeScript cannot resolve the construct signature from .d.ts under
   // NodeNext moduleResolution, but the default import is the class at runtime.
-  type AxeCtor = new (opts: { page: import('playwright-core').Page }) => {
+  type AxeCtor = new (opts: { page: import('playwright').Page }) => {
     analyze: () => Promise<{ violations: unknown[] }>;
   };
   const Builder = AxeBuilder as unknown as AxeCtor;

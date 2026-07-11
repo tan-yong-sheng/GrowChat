@@ -1,4 +1,4 @@
-// fallow-ignore-file — shared helper, called by multiple gates; intentional reuse
+// fallow-ignore-file code-duplication
 
 /**
  * Shared helper: collect stdout/stderr from a fallow child process.

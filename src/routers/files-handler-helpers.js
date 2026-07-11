@@ -17,7 +17,7 @@ import { RATE_LIMITS, checkRateLimit } from '../services/rate-limit.js';
  * or `{ ok: false, response }` when the rate limit is hit.
  *
  * @param {Request} req
- * @param {import('../env').Env} env
+ * @param {object} env
  * @param {object} requestContext
  * @param {{ sub: string }} user
  * @returns {Promise<{ok: boolean, logger?: object, downloadLimit?: object, db?: object, response?: Response}>}
