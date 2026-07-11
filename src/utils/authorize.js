@@ -7,6 +7,10 @@
 
 import { createDB } from '../db.js';
 import { createRootLogger } from '../utils/logger.js';
+import { getAuditLog } from './authorize-audit.js';
+
+export { getAuditLog };
+
 const rootLogger = createRootLogger({});
 
 /**
@@ -260,104 +264,6 @@ export async function getRoleUserCount(env, roleName, excludeUserId, logger = ro
 export async function isLastOwnerOfRole(env, userId, roleName, _logger = rootLogger) {
   const count = await getRoleUserCount(env, roleName, userId);
   return count === 0;
-}
-
-/**
- * Get audit log entries
- *
- * @param {Object} env - Cloudflare environment with DB binding
- * @param {Object} options - Query options
- * @param {string} options.actor_id - Filter by actor ID (optional)
- * @param {string} options.action - Filter by action (optional)
- * @param {string} options.resource_type - Filter by resource type (optional)
- * @param {string} options.resource_id - Filter by resource ID (optional)
- * @param {number} options.limit - Limit results (default 100, max 500)
- * @param {number} options.offset - Offset for pagination (default 0)
- * @returns {Promise<Object>} { entries, total, limit, offset }
- */
-export async function getAuditLog(env, options = {}, logger = rootLogger) {
-  const { actor_id, action, resource_type, resource_id, limit = 100, offset = 0 } = options;
-
-  // Validate and cap limit
-  const safeLimit = Math.min(Math.max(parseInt(limit) || 100, 1), 500);
-  const safeOffset = Math.max(parseInt(offset) || 0, 0);
-
-  try {
-    // Build WHERE clause
-    const conditions = [];
-    const bindings = [];
-
-    if (actor_id) {
-      conditions.push('actor_id = ?');
-      bindings.push(actor_id);
-    }
-
-    if (action) {
-      conditions.push('action = ?');
-      bindings.push(action);
-    }
-
-    if (resource_type) {
-      conditions.push('resource_type = ?');
-      bindings.push(resource_type);
-    }
-
-    if (resource_id) {
-      conditions.push('resource_id = ?');
-      bindings.push(resource_id);
-    }
-
-    const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
-
-    // Get total count
-    const countQuery = `SELECT COUNT(*) as count FROM audit_log${whereClause}`;
-    const countResult = await env.DB.prepare(countQuery)
-      .bind(...bindings)
-      .first();
-    const total = countResult?.count || 0;
-
-    // Get entries
-    const entriesQuery = `
-      SELECT id, actor_id, action, resource_type, resource_id, metadata, created_at
-      FROM audit_log
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
-    `;
-
-    const allBindings = [...bindings, safeLimit, safeOffset];
-    const entriesResult = await env.DB.prepare(entriesQuery)
-      .bind(...allBindings)
-      .all();
-
-    // Parse metadata JSON
-    const entries = (entriesResult.results || []).map((entry) => ({
-      ...entry,
-      metadata: (() => {
-        if (!entry.metadata) return null;
-        try {
-          return JSON.parse(entry.metadata);
-        } catch {
-          return null;
-        }
-      })(),
-    }));
-
-    return {
-      entries,
-      total,
-      limit: safeLimit,
-      offset: safeOffset,
-    };
-  } catch (err) {
-    logger.error('Failed to get audit log', { error: err?.message || err });
-    return {
-      entries: [],
-      total: 0,
-      limit: safeLimit,
-      offset: safeOffset,
-    };
-  }
 }
 
 /**
