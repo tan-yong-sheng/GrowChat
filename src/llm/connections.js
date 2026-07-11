@@ -97,6 +97,39 @@ function normalizeConnectionModelItems(payload) {
   return [];
 }
 
+function normalizeUserGroupIds(input) {
+  if (input instanceof Set) {
+    return new Set(
+      Array.from(input)
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    );
+  }
+  if (Array.isArray(input)) {
+    return new Set(
+      input.map((value) => String(value || '').trim()).filter(Boolean)
+    );
+  }
+  return null;
+}
+
+async function loadUserOpenAIConnectionsForEnv(env, { userId, includeDisabled, logger }) {
+  if (!userId || !env?.DB) return [];
+  try {
+    const db = createDB(env.DB);
+    return await loadUserOpenAIConnectionConfigs({
+      db,
+      userId,
+      options: { includeDisabled },
+    });
+  } catch (err) {
+    logger.warn('Failed to load user-owned connections', {
+      error: err?.message || err,
+    });
+    return [];
+  }
+}
+
 function appendDiscoveryCandidate(urls, candidate) {
   const normalized = normalizeBaseUrl(candidate);
   if (!normalized || urls.includes(normalized)) return;
@@ -260,39 +293,14 @@ export async function getAllOpenAIConnectionConfigs(env, options = {}) {
       .trim()
       .toLowerCase() || 'member';
 
-  const providedUserGroupIds = (() => {
-    if (options.userGroupIds instanceof Set) {
-      return new Set(
-        Array.from(options.userGroupIds)
-          .map((value) => String(value || '').trim())
-          .filter(Boolean)
-      );
-    }
-    if (Array.isArray(options.userGroupIds)) {
-      return new Set(
-        options.userGroupIds.map((value) => String(value || '').trim()).filter(Boolean)
-      );
-    }
-    return null;
-  })();
+  const providedUserGroupIds = normalizeUserGroupIds(options.userGroupIds);
 
   const storedConnections = await getStoredOpenAIConnectionConfigs(env, { includeDisabled });
-  let userConnections = [];
-  if (userId && env?.DB) {
-    try {
-      const db = createDB(env.DB);
-      userConnections = await loadUserOpenAIConnectionConfigs({
-        db,
-        userId,
-        options: { includeDisabled },
-      });
-    } catch (err) {
-      logger.warn('Failed to load user-owned connections', {
-        error: err?.message || err,
-      });
-      userConnections = [];
-    }
-  }
+  const userConnections = await loadUserOpenAIConnectionsForEnv(env, {
+    userId,
+    includeDisabled,
+    logger,
+  });
 
   const combined = [...storedConnections, ...userConnections];
   if (!env?.DB || !userId) {
