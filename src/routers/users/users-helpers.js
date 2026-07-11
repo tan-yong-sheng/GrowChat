@@ -100,14 +100,14 @@ export async function findUserToolServerByOauthState(db, state) {
   if (!db || !state) return null;
   await loadUserToolServers(db, '__oauth__');
   const rows = await db.all('SELECT id, user_id, server_json FROM user_tool_servers');
+  return findOauthStateRow(rows, state);
+}
+
+function findOauthStateRow(rows, state) {
   for (const row of Array.isArray(rows) ? rows : []) {
     const server = parseJsonObject(row.server_json);
     if (server?.oauth_state !== state) continue;
-    return {
-      ...server,
-      id: row.id,
-      user_id: row.user_id,
-    };
+    return { ...server, id: row.id, user_id: row.user_id };
   }
   return null;
 }
