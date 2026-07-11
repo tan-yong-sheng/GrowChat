@@ -52,6 +52,13 @@ process.stdout.write(JSON.stringify({
 ")
 echo "METRIC audit_new=$AUDIT_NEW"
 
+# Primary metric: complexity_introduced (lower is better, target = 0)
+COMPLEXITY_INTRODUCED=$(echo "$AUDIT_JSON" | node -e "
+const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
+process.stdout.write(String(d.attribution?.complexity_introduced ?? 0));
+")
+echo "METRIC complexity_introduced=$COMPLEXITY_INTRODUCED"
+
 # Run fallow dead-code standalone
 DEAD_JSON=$(npx fallow dead-code --format json 2>/dev/null || true)
 DEAD_COUNT=$(echo "$DEAD_JSON" | node -e "
