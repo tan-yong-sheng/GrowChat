@@ -174,89 +174,104 @@ export function normalizeTokenAuthMethod(value) {
   return undefined;
 }
 
+const pickString = (incoming, existing, key, { defaultValue = '', max } = {}) => {
+  const raw = incoming?.[key] || existing?.[key] || defaultValue;
+  const trimmed = String(raw).trim();
+  return typeof max === 'number' ? trimmed.slice(0, max) : trimmed;
+};
+
+const pickBool = (incoming, existing, key, defaultValue = true) => {
+  if (incoming?.[key] !== undefined) return incoming[key];
+  if (existing?.[key] !== undefined) return existing[key];
+  return defaultValue;
+};
+
+const pickHeaders = (incoming, existing) => {
+  const value = incoming?.headers !== undefined ? incoming.headers : existing?.headers;
+  if (typeof value === 'string') return value.trim();
+  return value ?? '';
+};
+
+const pickAuthType = (incoming, existing) => {
+  if (incoming?.auth_type !== undefined) return normalizeAuthType(incoming.auth_type);
+  return existing?.auth_type || 'none';
+};
+
+const pickTokenAuthMethod = (incoming, existing) =>
+  normalizeTokenAuthMethod(
+    incoming?.oauth_token_auth_method || existing?.oauth_token_auth_method
+  ) || '';
+
+const pickToolParameters = (tool) => {
+  if (tool?.parameters && typeof tool.parameters === 'object') return tool.parameters;
+  if (tool?.inputSchema && typeof tool.inputSchema === 'object') return tool.inputSchema;
+  return undefined;
+};
+
+const normalizeToolEntry = (tool) => ({
+  name: String(tool?.name || '').trim(),
+  title: String(tool?.title || '').trim(),
+  description: String(tool?.description || '').trim(),
+  parameters: pickToolParameters(tool),
+  enabled: tool?.enabled !== false,
+});
+
+const normalizeIncomingTools = (value, existing) => {
+  if (!Array.isArray(value)) return existing?.tools || [];
+  return value.map(normalizeToolEntry).filter((tool) => tool.name);
+};
+
+const pickResolvedTools = (incoming, existing) =>
+  incoming?.tools === undefined
+    ? mergeToolSpecs(existing?.tools, existing?.tools)
+    : normalizeIncomingTools(incoming.tools, existing);
+
+const pickId = (incoming, existing) => incoming?.id || existing?.id || crypto.randomUUID();
+
+const pickName = (incoming, existing) =>
+  pickString(incoming, existing, 'name', { defaultValue: 'Tool Server', max: 120 });
+
+const preserveOauthState = (merged, incoming, existing) => {
+  for (const key of ['oauth_tokens', 'oauth_state', 'oauth_code_verifier', 'oauth_connected_at']) {
+    if (existing?.[key] && !incoming?.[key]) merged[key] = existing[key];
+  }
+};
+
+const stripOauthState = (merged) => {
+  delete merged.oauth_tokens;
+  delete merged.oauth_state;
+  delete merged.oauth_code_verifier;
+  delete merged.oauth_connected_at;
+};
+
 export function mergeToolServer(existing, incoming) {
-  const authType = normalizeAuthType(incoming.auth_type);
-  const normalizeTools = (value) => {
-    if (!Array.isArray(value)) return existing?.tools || [];
-    return value
-      .map((tool) => ({
-        name: String(tool?.name || '').trim(),
-        title: String(tool?.title || '').trim(),
-        description: String(tool?.description || '').trim(),
-        parameters:
-          tool?.parameters && typeof tool.parameters === 'object'
-            ? tool.parameters
-            : tool?.inputSchema && typeof tool.inputSchema === 'object'
-              ? tool.inputSchema
-              : undefined,
-        enabled: tool?.enabled !== false,
-      }))
-      .filter((tool) => tool.name);
-  };
-  const headersValue = incoming.headers !== undefined ? incoming.headers : existing?.headers;
   const merged = {
     ...(existing || {}),
-    id: incoming.id || existing?.id || crypto.randomUUID(),
-    name: String(incoming.name || existing?.name || 'Tool Server').slice(0, 120),
-    url: String(incoming.url || existing?.url || '').trim(),
-    headers: typeof headersValue === 'string' ? headersValue.trim() : (headersValue ?? ''),
-    enabled: incoming.enabled !== undefined ? incoming.enabled : (existing?.enabled ?? true),
-    auth_type: incoming.auth_type !== undefined ? authType : existing?.auth_type || 'none',
-    auth_bearer_token: String(
-      incoming.auth_bearer_token || existing?.auth_bearer_token || ''
-    ).trim(),
-    auth_basic_username: String(
-      incoming.auth_basic_username || existing?.auth_basic_username || ''
-    ).trim(),
-    auth_basic_password: String(
-      incoming.auth_basic_password || existing?.auth_basic_password || ''
-    ).trim(),
-    oauth_client_name: String(
-      incoming.oauth_client_name || existing?.oauth_client_name || ''
-    ).trim(),
-    oauth_scope: String(incoming.oauth_scope || existing?.oauth_scope || '').trim(),
-    oauth_client_id: String(incoming.oauth_client_id || existing?.oauth_client_id || '').trim(),
-    oauth_client_secret: String(
-      incoming.oauth_client_secret || existing?.oauth_client_secret || ''
-    ).trim(),
-    oauth_token_auth_method:
-      normalizeTokenAuthMethod(
-        incoming.oauth_token_auth_method || existing?.oauth_token_auth_method
-      ) || '',
-    oauth_authorization_server: String(
-      incoming.oauth_authorization_server || existing?.oauth_authorization_server || ''
-    ).trim(),
-    oauth_token_endpoint: String(
-      incoming.oauth_token_endpoint || existing?.oauth_token_endpoint || ''
-    ).trim(),
-    oauth_registration_endpoint: String(
-      incoming.oauth_registration_endpoint || existing?.oauth_registration_endpoint || ''
-    ).trim(),
-    tools:
-      incoming.tools === undefined
-        ? mergeToolSpecs(existing?.tools, existing?.tools)
-        : normalizeTools(incoming.tools),
-    tools_error: incoming.tools_error || existing?.tools_error || '',
-    tools_verified_at: incoming.tools_verified_at || existing?.tools_verified_at || null,
+    id: pickId(incoming, existing),
+    name: pickName(incoming, existing),
+    url: pickString(incoming, existing, 'url'),
+    headers: pickHeaders(incoming, existing),
+    enabled: pickBool(incoming, existing, 'enabled'),
+    auth_type: pickAuthType(incoming, existing),
+    auth_bearer_token: pickString(incoming, existing, 'auth_bearer_token'),
+    auth_basic_username: pickString(incoming, existing, 'auth_basic_username'),
+    auth_basic_password: pickString(incoming, existing, 'auth_basic_password'),
+    oauth_client_name: pickString(incoming, existing, 'oauth_client_name'),
+    oauth_scope: pickString(incoming, existing, 'oauth_scope'),
+    oauth_client_id: pickString(incoming, existing, 'oauth_client_id'),
+    oauth_client_secret: pickString(incoming, existing, 'oauth_client_secret'),
+    oauth_token_auth_method: pickTokenAuthMethod(incoming, existing),
+    oauth_authorization_server: pickString(incoming, existing, 'oauth_authorization_server'),
+    oauth_token_endpoint: pickString(incoming, existing, 'oauth_token_endpoint'),
+    oauth_registration_endpoint: pickString(incoming, existing, 'oauth_registration_endpoint'),
+    tools: pickResolvedTools(incoming, existing),
+    tools_error: incoming?.tools_error || existing?.tools_error || '',
+    tools_verified_at: incoming?.tools_verified_at || existing?.tools_verified_at || null,
   };
   if (merged.auth_type !== 'oauth') {
-    delete merged.oauth_tokens;
-    delete merged.oauth_state;
-    delete merged.oauth_code_verifier;
-    delete merged.oauth_connected_at;
+    stripOauthState(merged);
   } else {
-    if (existing?.oauth_tokens && !incoming.oauth_tokens) {
-      merged.oauth_tokens = existing.oauth_tokens;
-    }
-    if (existing?.oauth_state && !incoming.oauth_state) {
-      merged.oauth_state = existing.oauth_state;
-    }
-    if (existing?.oauth_code_verifier && !incoming.oauth_code_verifier) {
-      merged.oauth_code_verifier = existing.oauth_code_verifier;
-    }
-    if (existing?.oauth_connected_at && !incoming.oauth_connected_at) {
-      merged.oauth_connected_at = existing.oauth_connected_at;
-    }
+    preserveOauthState(merged, incoming, existing);
   }
   return merged;
 }
