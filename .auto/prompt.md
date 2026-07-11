@@ -2,7 +2,7 @@
 
 ## Objective
 
-Bring `fallow health` score from current ~77.6 to ≥ 90, while keeping all
+Bring `fallow health` score from current 77.6 to ≥ 90, while keeping all
 quality gates green:
 
 - fallow audit pass (gate=new-only)
@@ -13,9 +13,11 @@ quality gates green:
 - pnpm lint: pass
 - format:check: pass
 
-Primary lever: reduce complexity in hotspot files (files that combine high
-commit count with complexity density), and decompose large functions to
-reduce the unit_size penalty.
+Primary levers:
+
+1. Reduce unit_size penalty by decomposing large functions (>60 LOC)
+2. Reduce hotspots penalty by reducing complexity density in hotspot files
+3. Reduce coupling by tightening module boundaries
 
 ## Metrics
 
@@ -30,6 +32,7 @@ reduce the unit_size penalty.
   - pnpm test pass (1/0)
   - lint pass (1/0)
   - typecheck pass (1/0)
+  - audit verdict (pass/fail)
 
 ## How to Run
 
@@ -37,11 +40,11 @@ reduce the unit_size penalty.
 ./.auto/measure.sh
 ```
 
-Outputs structured `METRIC name=value` lines. Slow (15-30s) — that's OK.
+Outputs structured `METRIC name=value` lines. Takes ~3 minutes.
 
 ## Files in Scope
 
-Top hotspot files (sorted by complexity score):
+Top hotspot files (sorted by fallow hotspot score):
 
 - public/js/features/admin/settings/connections.js (fan_in=3)
 - src/routers/chat.js (fan_in=2)
@@ -53,11 +56,6 @@ Top hotspot files (sorted by complexity score):
 - public/js/features/admin/settings/models.js (fan_in=2)
 - public/js/features/admin/settings/users.js (fan_in=3)
 - public/js/features/admin/settings/policies.js (fan_in=2)
-
-Other large files (>200 lines):
-
-- public/js/features/admin/settings/connections.js (~1500 lines)
-- src/routers/chat.js (~3000 lines)
 
 ## Off Limits
 
@@ -74,4 +72,11 @@ Other large files (>200 lines):
 
 ## What's Been Tried
 
-(empty — this is the first iteration)
+### Iteration 1 (baseline)
+
+Score: 77.6. Penalties: hotspots=-10, unit_size=-10, coupling=-2.4.
+Audit: FAIL (39 new complexity, 9 new duplications, 1 dead-code stale suppression).
+Triage: hotspot penalty at max (-10) is partly driven by git commit history;
+refactoring complex functions in hotspot files should reduce it as complexity
+density drops. Unit_size penalty is at max because 11.9% of functions are
+high/very_high_risk — must decompose enough to bring it under threshold.

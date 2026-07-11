@@ -1,12 +1,11 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Run fallow health
-HEALTH_JSON=$(npx fallow health --format json 2>/dev/null || echo '{}')
+# Run fallow health (always exit 0 for measurement)
+HEALTH_JSON=$(npx fallow health --format json 2>/dev/null || true)
 
-# Extract score and grade
 SCORE=$(echo "$HEALTH_JSON" | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
 process.stdout.write(String(d.health_score?.score ?? 0));
@@ -35,14 +34,13 @@ process.stdout.write(JSON.stringify({
 echo "METRIC vital_signs=$VS"
 
 # Run fallow audit (full)
-AUDIT_JSON=$(npx fallow audit --format json --quiet 2>/dev/null || echo '{"verdict":"error"}')
+AUDIT_JSON=$(npx fallow audit --format json 2>/dev/null || true)
 AUDIT_VERDICT=$(echo "$AUDIT_JSON" | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
 process.stdout.write(d.verdict || 'unknown');
 ")
 echo "METRIC audit_verdict=$AUDIT_VERDICT"
 
-# Count new audit issues
 AUDIT_NEW=$(echo "$AUDIT_JSON" | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
 const a = d.attribution || {};
@@ -55,7 +53,7 @@ process.stdout.write(JSON.stringify({
 echo "METRIC audit_new=$AUDIT_NEW"
 
 # Run fallow dead-code standalone
-DEAD_JSON=$(npx fallow dead-code --format json --quiet 2>/dev/null || echo '{}')
+DEAD_JSON=$(npx fallow dead-code --format json 2>/dev/null || true)
 DEAD_COUNT=$(echo "$DEAD_JSON" | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
 process.stdout.write(String(d.findings?.length || d.summary?.total_issues || 0));
@@ -63,7 +61,7 @@ process.stdout.write(String(d.findings?.length || d.summary?.total_issues || 0))
 echo "METRIC dead_code=$DEAD_COUNT"
 
 # Run fallow dupes standalone
-DUP_JSON=$(npx fallow dupes --format json --quiet 2>/dev/null || echo '{}')
+DUP_JSON=$(npx fallow dupes --format json 2>/dev/null || true)
 DUP_COUNT=$(echo "$DUP_JSON" | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
 process.stdout.write(String(d.findings?.length || 0));
