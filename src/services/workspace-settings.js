@@ -144,6 +144,19 @@ export function toAccessibleToolServerSummary(server) {
   };
 }
 
+function buildOwnedToolServersPayload(ownedServers, accessibleToolServers) {
+  return {
+    servers: ownedServers.map(toPersonalToolServerSummary),
+    accessible_servers: Array.isArray(accessibleToolServers)
+      ? accessibleToolServers.map((server) => ({
+          ...toAccessibleToolServerSummary(server),
+          visible_for_user: server.visible_for_user !== false,
+          hidden_for_user: server.hidden_for_user === true,
+        }))
+      : [],
+  };
+}
+
 export function buildWorkspaceSettingsPayload({
   row,
   defaultModelId = null,
@@ -197,26 +210,8 @@ export function buildWorkspaceSettingsPayload({
       my_connections: ownedConnections.map(toPersonalConnectionSummary),
       connections: accessibleConnections,
     },
-    integrations: {
-      servers: ownedServers.map(toPersonalToolServerSummary),
-      accessible_servers: Array.isArray(accessibleToolServers)
-        ? accessibleToolServers.map((server) => ({
-            ...toAccessibleToolServerSummary(server),
-            visible_for_user: server.visible_for_user !== false,
-            hidden_for_user: server.hidden_for_user === true,
-          }))
-        : [],
-    },
-    tool_servers: {
-      servers: ownedServers.map(toPersonalToolServerSummary),
-      accessible_servers: Array.isArray(accessibleToolServers)
-        ? accessibleToolServers.map((server) => ({
-            ...toAccessibleToolServerSummary(server),
-            visible_for_user: server.visible_for_user !== false,
-            hidden_for_user: server.hidden_for_user === true,
-          }))
-        : [],
-    },
+    integrations: buildOwnedToolServersPayload(ownedServers, accessibleToolServers),
+    tool_servers: buildOwnedToolServersPayload(ownedServers, accessibleToolServers),
     models: {
       default_model_id: defaultModelId,
     },
