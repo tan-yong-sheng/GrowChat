@@ -134,27 +134,7 @@ export function shouldSuppressDiscoveryWarning(connection = {}, discovery = {}) 
 }
 
 export function createConnectionDiscoveryCacheKey(env, uniqueConnections = [], allowSet = null) {
-  const normalizedConnections = uniqueConnections.map((conn) => ({
-    id: String(conn?.id || ''),
-    source: String(conn?.source || ''),
-    providerType: String(conn?.providerType || ''),
-    providerFamily: String(conn?.providerFamily || ''),
-    baseUrl: String(conn?.baseUrl || ''),
-    key: String(conn?.key || ''),
-    headers:
-      conn?.headers && typeof conn.headers === 'object'
-        ? Object.entries(conn.headers)
-            .map(([name, value]) => [String(name || '').toLowerCase(), String(value || '')])
-            .sort((a, b) => a[0].localeCompare(b[0]))
-        : [],
-    manualModelsMode: String(conn?.manualModelsMode || conn?.manual_models_mode || ''),
-    manualModels: normalizeConnectionManualModels(conn?.manualModels)
-      .map((model) => ({
-        modelId: String(model?.modelId || ''),
-        name: String(model?.name || ''),
-      }))
-      .sort((a, b) => a.modelId.localeCompare(b.modelId)),
-  }));
+  const normalizedConnections = uniqueConnections.map(normalizeConnectionForCache);
   const allowed = allowSet ? Array.from(allowSet).sort() : [];
   return JSON.stringify({
     openaiModels: String(env.OPENAI_MODELS || env.OPENAI_API_MODELS || ''),
@@ -162,6 +142,36 @@ export function createConnectionDiscoveryCacheKey(env, uniqueConnections = [], a
     allowed,
     normalizedConnections,
   });
+}
+
+function normalizeConnectionHeaders(headers) {
+  if (!headers || typeof headers !== 'object') return [];
+  return Object.entries(headers)
+    .map(([name, value]) => [String(name || '').toLowerCase(), String(value || '')])
+    .sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function normalizeConnectionManualModelsForCache(manualModels) {
+  return normalizeConnectionManualModels(manualModels)
+    .map((model) => ({
+      modelId: String(model?.modelId || ''),
+      name: String(model?.name || ''),
+    }))
+    .sort((a, b) => a.modelId.localeCompare(b.modelId));
+}
+
+function normalizeConnectionForCache(conn) {
+  return {
+    id: String(conn?.id || ''),
+    source: String(conn?.source || ''),
+    providerType: String(conn?.providerType || ''),
+    providerFamily: String(conn?.providerFamily || ''),
+    baseUrl: String(conn?.baseUrl || ''),
+    key: String(conn?.key || ''),
+    headers: normalizeConnectionHeaders(conn?.headers),
+    manualModelsMode: String(conn?.manualModelsMode || conn?.manual_models_mode || ''),
+    manualModels: normalizeConnectionManualModelsForCache(conn?.manualModels),
+  };
 }
 
 export function getConnectionDiscoveryCache(env) {
