@@ -68,36 +68,54 @@ export function createIntegrationsEvents(ctx) {
     if (!row || !server) return;
     const serverEnabled = server.enabled !== false;
     const isShared = row.querySelector('[data-toggle-scope="shared"]') !== null;
-    row.classList.toggle(
-      'opacity-70',
-      !serverEnabled ||
-        (isShared && isResourceHidden(state.settings?.preferences || {}, 'tool_servers', serverId))
-    );
+    applyRowFadedState(row, serverEnabled, isShared, serverId);
+    applyDisabledBadgeVisibility(row, serverEnabled);
+    applyAccessButtonVisibility(row, serverEnabled, canManageAcls, isShared);
+    applyServerToggleState(row, serverEnabled, isShared, serverId);
+    updateAllToolToggles(row, server, serverEnabled);
+    applyToolsToggleRotation(row, server);
+  };
+
+  function applyRowFadedState(row, serverEnabled, isShared, serverId) {
+    const isHiddenShared =
+      isShared && isResourceHidden(state.settings?.preferences || {}, 'tool_servers', serverId);
+    row.classList.toggle('opacity-70', !serverEnabled || isHiddenShared);
+  }
+
+  function applyDisabledBadgeVisibility(row, serverEnabled) {
     const badge = row.querySelector('[data-server-disabled-badge]');
     if (badge) badge.classList.toggle('hidden', serverEnabled);
-    const accessBtn = row.querySelector('.tool-access-btn');
-    if (accessBtn)
-      accessBtn.classList.toggle('hidden', !serverEnabled || !canManageAcls || isShared);
-    const serverToggle = row.querySelector('.server-toggle');
-    if (serverToggle) {
-      const toggleOn = isShared
-        ? !isResourceHidden(state.settings?.preferences || {}, 'tool_servers', serverId)
-        : serverEnabled;
-      serverToggle.classList.toggle('bg-primary', toggleOn);
-      serverToggle.classList.toggle('bg-gray-200', !toggleOn);
-      serverToggle.setAttribute('aria-pressed', toggleOn ? 'true' : 'false');
-      const knob = serverToggle.querySelector('span');
-      if (knob) {
-        knob.classList.toggle('translate-x-4', toggleOn);
-        knob.classList.toggle('translate-x-0', !toggleOn);
-      }
+  }
+
+  function applyAccessButtonVisibility(row, serverEnabled, canManageAclsLocal, isShared) {
+    const btn = row.querySelector('.tool-access-btn');
+    if (!btn) return;
+    const shouldHide = !serverEnabled || !canManageAclsLocal || isShared;
+    btn.classList.toggle('hidden', shouldHide);
+  }
+
+  function applyServerToggleState(row, serverEnabled, isShared, serverId) {
+    const toggle = row.querySelector('.server-toggle');
+    if (!toggle) return;
+    const toggleOn = isShared
+      ? !isResourceHidden(state.settings?.preferences || {}, 'tool_servers', serverId)
+      : serverEnabled;
+    toggle.classList.toggle('bg-primary', toggleOn);
+    toggle.classList.toggle('bg-gray-200', !toggleOn);
+    toggle.setAttribute('aria-pressed', toggleOn ? 'true' : 'false');
+    const knob = toggle.querySelector('span');
+    if (knob) {
+      knob.classList.toggle('translate-x-4', toggleOn);
+      knob.classList.toggle('translate-x-0', !toggleOn);
     }
-    updateAllToolToggles(row, server, serverEnabled);
+  }
+
+  function applyToolsToggleRotation(row, server) {
     const toolsToggle = row.querySelector('.tools-toggle svg');
     if (toolsToggle) {
       toolsToggle.classList.toggle('rotate-180', Boolean(server.toolsExpanded));
     }
-  };
+  }
 
   const syncListShell = () => {
     const list = container.querySelector('#tool-servers-list');
