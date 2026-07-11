@@ -157,39 +157,35 @@ export class SseLineParser {
     while ((newlineIdx = this._buf.indexOf('\n')) !== -1) {
       const line = this._buf.slice(0, newlineIdx).replace(/\r$/, '');
       this._buf = this._buf.slice(newlineIdx + 1);
+      text += this._processLine(line);
+    }
+    return text;
+  }
 
-      if (line === '') {
-        text += this._flushDataBuffer();
-        continue;
-      }
+  _processLine(line) {
+    if (line === '') return this._flushDataBuffer();
+    if (!line.startsWith('data:')) return '';
+    const payload = line.slice(5).replace(/^ /, '');
+    if (!payload) return '';
+    return this._ingestPayload(payload);
+  }
 
-      if (!line.startsWith('data:')) continue;
-      let payload = line.slice(5);
-      if (payload.startsWith(' ')) payload = payload.slice(1);
-      if (!payload) continue;
-
-      if (this._dataBuffer) {
-        if (!looksLikeIncompleteJson(this._dataBuffer)) {
-          const parsedText = this._consumeDataPayload(this._dataBuffer);
-          this._dataBuffer = '';
-          if (parsedText !== null) {
-            text += parsedText;
-          }
-        }
-      }
-
-      if (this._dataBuffer) {
-        this._dataBuffer += `\n${payload}`;
-        continue;
-      }
-
-      const parsedText = this._consumeDataPayload(payload);
-      if (parsedText !== null) {
-        text += parsedText;
-      } else {
-        this._dataBuffer = payload;
+  _ingestPayload(payload) {
+    let text = '';
+    if (this._dataBuffer) {
+      if (!looksLikeIncompleteJson(this._dataBuffer)) {
+        const parsedText = this._consumeDataPayload(this._dataBuffer);
+        this._dataBuffer = '';
+        if (parsedText !== null) text += parsedText;
       }
     }
+    if (this._dataBuffer) {
+      this._dataBuffer += `\n${payload}`;
+      return text;
+    }
+    const parsedText = this._consumeDataPayload(payload);
+    if (parsedText !== null) text += parsedText;
+    else this._dataBuffer = payload;
     return text;
   }
 
