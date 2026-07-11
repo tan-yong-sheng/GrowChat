@@ -217,47 +217,54 @@ export function createModelSelectorController(container) {
       renderList(state, { reset: true, rebuild: true });
     }, 120);
   };
+  const handleArrowDown = (e) => {
+    e.preventDefault();
+    if (!allFilteredModels.length) return;
+    if (activeIndex < 0) {
+      activeIndex = 0;
+    } else if (activeIndex + 1 < visibleModels.length) {
+      activeIndex += 1;
+    } else if (visibleCount < allFilteredModels.length) {
+      visibleCount = Math.min(visibleCount + PAGE_SIZE, allFilteredModels.length);
+      activeIndex += 1;
+      renderList(state, { reset: false, rebuild: false });
+      applyActiveHighlight(true);
+      return;
+    }
+    applyActiveHighlight(true);
+  };
+
+  const handleArrowUp = (e) => {
+    e.preventDefault();
+    if (!allFilteredModels.length) return;
+    if (activeIndex < 0) activeIndex = Math.max(visibleModels.length - 1, 0);
+    else activeIndex = Math.max(activeIndex - 1, 0);
+    applyActiveHighlight(true);
+  };
+
+  const handleEnter = (e) => {
+    e.preventDefault();
+    const model = visibleModels[activeIndex];
+    if (!model) return;
+    clearModelAvailabilityNotice();
+    setState({
+      activeModelId: model.id,
+      ui: { modelAvailabilityNotice: null },
+    });
+    toggle();
+  };
+
+  const handleEscape = (e) => {
+    e.preventDefault();
+    if (isOpen) toggle();
+  };
+
   searchInput.onkeydown = (e) => {
     if (!isOpen) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (!allFilteredModels.length) return;
-      if (activeIndex < 0) activeIndex = 0;
-      else if (activeIndex + 1 < visibleModels.length) activeIndex += 1;
-      else if (visibleCount < allFilteredModels.length) {
-        visibleCount = Math.min(visibleCount + PAGE_SIZE, allFilteredModels.length);
-        activeIndex += 1;
-        renderList(state, { reset: false, rebuild: false });
-        applyActiveHighlight(true);
-        return;
-      }
-      applyActiveHighlight(true);
-      return;
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (!allFilteredModels.length) return;
-      if (activeIndex < 0) activeIndex = Math.max(visibleModels.length - 1, 0);
-      else activeIndex = Math.max(activeIndex - 1, 0);
-      applyActiveHighlight(true);
-      return;
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const model = visibleModels[activeIndex];
-      if (!model) return;
-      clearModelAvailabilityNotice();
-      setState({
-        activeModelId: model.id,
-        ui: { modelAvailabilityNotice: null },
-      });
-      toggle();
-      return;
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      if (isOpen) toggle();
-    }
+    if (e.key === 'ArrowDown') return handleArrowDown(e);
+    if (e.key === 'ArrowUp') return handleArrowUp(e);
+    if (e.key === 'Enter') return handleEnter(e);
+    if (e.key === 'Escape') return handleEscape(e);
   };
 
   onDocumentClick = (e) => {
@@ -296,7 +303,7 @@ export function createModelSelectorController(container) {
     renderList(state, { reset: false, rebuild: false });
   });
 
-  unsubscribe = subscribe((currentState) => {
+  const buildDerivedState = (currentState) => {
     const models = filterEnabledModels(
       Array.isArray(currentState.models) ? currentState.models : []
     );
@@ -314,77 +321,96 @@ export function createModelSelectorController(container) {
     const activeModelExists = Boolean(
       currentState.activeModelId && models.some((model) => model.id === currentState.activeModelId)
     );
+    return { models, hasModels, preferredModelId, preferredModel, activeModelExists };
+  };
 
-    // Model name no longer shown in button - just "Model" text
-
-    const _isDefaultModel = Boolean(
-      preferredModelId && currentState.defaultModelId === preferredModelId
-    );
-
+  const refreshDerivedLists = (currentState, models) => {
     const modelsChanged =
       currentState.models !== lastModelsRef || currentState.modelsLoading !== lastModelsLoading;
-    if (modelsChanged) {
-      sortedModels = sortModelsByActiveThenName(models);
-      lastModelsRef = currentState.models;
-      lastModelsLoading = currentState.modelsLoading;
-      const derived = getModelSelectorDerivedState({
-        sortedModels,
-        searchQuery,
-        visibleCount: PAGE_SIZE,
-        pageSize: PAGE_SIZE,
-        maxVisibleNoScroll: MAX_VISIBLE_NO_SCROLL,
-      });
-      allFilteredModels = derived.allFilteredModels;
-      visibleCount = derived.visibleCount;
-      visibleModels = derived.visibleModels;
-      activeIndex = -1;
-      if (isOpen) {
-        renderList(currentState, { reset: true, rebuild: false });
-      }
+    if (!modelsChanged) return;
+    sortedModels = sortModelsByActiveThenName(models);
+    lastModelsRef = currentState.models;
+    lastModelsLoading = currentState.modelsLoading;
+    const derived = getModelSelectorDerivedState({
+      sortedModels,
+      searchQuery,
+      visibleCount: PAGE_SIZE,
+      pageSize: PAGE_SIZE,
+      maxVisibleNoScroll: MAX_VISIBLE_NO_SCROLL,
+    });
+    allFilteredModels = derived.allFilteredModels;
+    visibleCount = derived.visibleCount;
+    visibleModels = derived.visibleModels;
+    activeIndex = -1;
+    if (isOpen) {
+      renderList(currentState, { reset: true, rebuild: false });
     }
+  };
 
-    syncScopeSummary(currentState);
-    syncAvailabilityNotice(currentState);
-
-    if (
+  const shouldNotifyFallback = (currentState, derived) => {
+    const { hasModels, preferredModelId, activeModelExists } = derived;
+    return Boolean(
       hasModels &&
       currentState.activeModelId &&
       !activeModelExists &&
       preferredModelId &&
       currentState.activeModelId !== preferredModelId
-    ) {
-      const fallbackLabel =
-        getModelDisplayLabel(preferredModel) || preferredModel?.id || 'a different model';
-      const noticeKey = `${currentState.activeModelId}:${preferredModelId}`;
-      const currentNoticeKey = currentState.ui?.modelAvailabilityNotice?.key || null;
-      if (currentNoticeKey !== noticeKey) {
-        const chatModelId =
-          currentState.chats?.find((chat) => chat?.id === currentState.activeChatId)?.model || null;
-        const visibilityMeta = currentState.modelCatalogMeta || {};
-        const fallbackNotice = getModelAvailabilityFallbackNotice({
-          previousModelId: currentState.activeModelId,
-          fallbackModel: preferredModel,
-          currentChatModelId: chatModelId,
-          disabledModelIds: visibilityMeta.disabled_model_ids || [],
-          hiddenModelIds: visibilityMeta.hidden_model_ids || [],
-        });
-        setModelAvailabilityNotice(
-          fallbackNotice?.message ||
-            `Your current model is no longer available. Switched to ${fallbackLabel}.`,
-          noticeKey
-        );
-      }
-      if (currentState.activeModelId !== preferredModelId) {
-        setState({ activeModelId: preferredModelId });
-      }
-      return;
-    }
+    );
+  };
 
-    if (hasModels && preferredModelId && currentState.activeModelId !== preferredModelId) {
+  const getFallbackLabel = (preferredModel) =>
+    getModelDisplayLabel(preferredModel) || preferredModel?.id || 'a different model';
+
+  const buildFallbackNotice = (currentState, preferredModel) => {
+    const chatModelId =
+      currentState.chats?.find((chat) => chat?.id === currentState.activeChatId)?.model || null;
+    const visibilityMeta = currentState.modelCatalogMeta || {};
+    return getModelAvailabilityFallbackNotice({
+      previousModelId: currentState.activeModelId,
+      fallbackModel: preferredModel,
+      currentChatModelId: chatModelId,
+      disabledModelIds: visibilityMeta.disabled_model_ids || [],
+      hiddenModelIds: visibilityMeta.hidden_model_ids || [],
+    });
+  };
+
+  const applyFallbackNotice = (currentState, preferredModelId, preferredModel) => {
+    const noticeKey = `${currentState.activeModelId}:${preferredModelId}`;
+    const currentNoticeKey = currentState.ui?.modelAvailabilityNotice?.key || null;
+    if (currentNoticeKey === noticeKey) return null;
+    const fallbackNotice = buildFallbackNotice(currentState, preferredModel);
+    setModelAvailabilityNotice(
+      fallbackNotice?.message ||
+        `Your current model is no longer available. Switched to ${getFallbackLabel(preferredModel)}.`,
+      noticeKey
+    );
+    return getFallbackLabel(preferredModel);
+  };
+
+  const notifyFallbackIfNeeded = (currentState, derived) => {
+    if (!shouldNotifyFallback(currentState, derived)) return false;
+    const { preferredModelId, preferredModel } = derived;
+    applyFallbackNotice(currentState, preferredModelId, preferredModel);
+    if (currentState.activeModelId !== preferredModelId) {
       setState({ activeModelId: preferredModelId });
+    }
+    return true;
+  };
+
+  unsubscribe = subscribe((currentState) => {
+    const derived = buildDerivedState(currentState);
+    refreshDerivedLists(currentState, derived.models);
+    syncScopeSummary(currentState);
+    syncAvailabilityNotice(currentState);
+    if (notifyFallbackIfNeeded(currentState, derived)) return;
+    if (
+      derived.hasModels &&
+      derived.preferredModelId &&
+      currentState.activeModelId !== derived.preferredModelId
+    ) {
+      setState({ activeModelId: derived.preferredModelId });
       return;
     }
-
     if (currentState.activeModelId !== lastActiveModelId) {
       updateSelectedModel(currentState, lastActiveModelId);
       lastActiveModelId = currentState.activeModelId;
