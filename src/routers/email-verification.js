@@ -35,6 +35,14 @@ function getEmailTemplate() {
 const HOURS_PER_DAY = 24;
 const VERIFICATION_TOKEN_EXPIRY_SECONDS = HOURS_PER_DAY * 3600;
 
+async function createVerificationToken() {
+  const token = generateToken();
+  const tokenHash = await hashTokenAsync(token);
+  const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_TOKEN_EXPIRY_SECONDS;
+  const verificationId = crypto.randomUUID();
+  return { token, tokenHash, expiresAt, verificationId };
+}
+
 /**
  * Verify email address with token
  * @param {Object} params - Request parameters
@@ -131,10 +139,7 @@ export async function resendVerification({ email, env, logger = createLogger(env
     });
   }
 
-  const token = generateToken();
-  const tokenHash = await hashTokenAsync(token);
-  const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_TOKEN_EXPIRY_SECONDS;
-  const verificationId = crypto.randomUUID();
+  const { token, tokenHash, expiresAt, verificationId } = await createVerificationToken();
 
   await db.prepare('DELETE FROM email_verifications WHERE user_id = ?').bind(user.id).run();
 
@@ -164,10 +169,7 @@ export async function createEmailVerification(userId, email, env, logger = creat
   if (!db) {
     throw new Error('Database unavailable');
   }
-  const token = generateToken();
-  const tokenHash = await hashTokenAsync(token);
-  const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_TOKEN_EXPIRY_SECONDS;
-  const verificationId = crypto.randomUUID();
+  const { token, tokenHash, expiresAt, verificationId } = await createVerificationToken();
 
   await db
     .prepare(
