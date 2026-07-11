@@ -19,40 +19,45 @@ import {
 } from './provider-adapters-shared.js';
 
 function contentToGoogleParts(content) {
+  if (typeof content === 'string') return convertStringContentToGoogle(content);
+  return convertArrayContentToGoogleParts(content);
+}
+
+function convertStringContentToGoogle(content) {
+  return content ? [{ text: content }] : [];
+}
+
+function convertArrayContentToGoogleParts(content) {
   const parts = [];
-  if (typeof content === 'string') {
-    if (content) parts.push({ text: content });
-    return parts;
-  }
   for (const part of Array.isArray(content) ? content : []) {
     if (!part) continue;
-    if (part.type === 'text') {
-      if (part.text) parts.push({ text: String(part.text) });
-      continue;
-    }
-    if (part.type === 'image_url') {
-      const url = String(part.image_url?.url || '').trim();
-      const dataUrl = decodeDataUrl(url);
-      if (dataUrl) {
-        parts.push({
-          inlineData: { mimeType: dataUrl.mimeType, data: dataUrl.data },
-        });
-      } else if (url) {
-        parts.push({ fileData: { fileUri: url, mimeType: 'image/*' } });
-      }
-      continue;
-    }
-    if (part.type === 'file') {
-      const fileData = String(part.file?.file_data || '').trim();
-      const decoded = decodeDataUrl(fileData);
-      if (decoded) {
-        parts.push({
-          inlineData: { mimeType: decoded.mimeType, data: decoded.data },
-        });
-      }
-    }
+    if (part.type === 'text') appendTextPart(part, parts);
+    else if (part.type === 'image_url') appendImageUrlPart(part, parts);
+    else if (part.type === 'file') appendFilePart(part, parts);
   }
   return parts;
+}
+
+function appendTextPart(part, parts) {
+  if (part.text) parts.push({ text: String(part.text) });
+}
+
+function appendImageUrlPart(part, parts) {
+  const url = String(part.image_url?.url || '').trim();
+  const dataUrl = decodeDataUrl(url);
+  if (dataUrl) {
+    parts.push({ inlineData: { mimeType: dataUrl.mimeType, data: dataUrl.data } });
+    return;
+  }
+  if (url) parts.push({ fileData: { fileUri: url, mimeType: 'image/*' } });
+}
+
+function appendFilePart(part, parts) {
+  const fileData = String(part.file?.file_data || '').trim();
+  const decoded = decodeDataUrl(fileData);
+  if (decoded) {
+    parts.push({ inlineData: { mimeType: decoded.mimeType, data: decoded.data } });
+  }
 }
 
 function buildGoogleTools(tools = [], normalize = normalizeToolParameters) {
