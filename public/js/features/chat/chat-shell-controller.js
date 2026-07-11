@@ -98,24 +98,35 @@ export function createChatShellController({
   }
 
   function startNewChat() {
-    const activeTempId =
-      state.activeChatId && isTempChatId(state.activeChatId) ? state.activeChatId : null;
-    if (activeTempId && (state.messagesByChat[activeTempId] || []).length === 0) {
-      setState({ activeChatId: activeTempId, newChatDraft: '' });
-      if (state.newChatToolSelection !== null) {
-        setDraftToolNames(activeTempId, state.newChatToolSelection);
-        setDraftToolNames(null, null);
-      }
-      syncRoute(activeTempId);
-      drawMessages([]);
-      return;
-    }
+    if (reuseEmptyTempChat()) return;
+    startFreshTempChat();
+}
 
+function reuseEmptyTempChat() {
+    const activeTempId = activeEmptyTempChatId();
+    if (!activeTempId) return false;
+    setState({ activeChatId: activeTempId, newChatDraft: '' });
+    transferDraftToolSelection(activeTempId);
+    syncRoute(activeTempId);
+    drawMessages([]);
+    return true;
+}
+
+function activeEmptyTempChatId() {
+    if (!state.activeChatId || !isTempChatId(state.activeChatId)) return null;
+    if ((state.messagesByChat[state.activeChatId] || []).length !== 0) return null;
+    return state.activeChatId;
+}
+
+function transferDraftToolSelection(chatId) {
+    if (state.newChatToolSelection === null) return;
+    setDraftToolNames(chatId, state.newChatToolSelection);
+    setDraftToolNames(null, null);
+}
+
+function startFreshTempChat() {
     const tempChat = buildTempChat();
-    if (state.newChatToolSelection !== null) {
-      setDraftToolNames(tempChat.id, state.newChatToolSelection);
-      setDraftToolNames(null, null);
-    }
+    transferDraftToolSelection(tempChat.id);
     setState((prev) => ({
       chats: [tempChat, ...pruneTempChats(prev.chats)],
       activeChatId: tempChat.id,
@@ -125,7 +136,7 @@ export function createChatShellController({
     }));
     syncRoute(tempChat.id);
     drawMessages([]);
-  }
+}
 
   const onToggleSidebar = () => toggleSidebar(state, setState);
 
