@@ -94,46 +94,54 @@ export async function handleUsersAdminAccess(
         hiddenIds = new Set()
       ) =>
         (Array.isArray(rules) ? rules : [])
-          .filter((rule) => {
-            if (rule?.principal_type === 'user') {
-              return String(rule.principal_id || '') === String(userId || '');
-            }
-            return groupIds.has(String(rule.principal_id || ''));
-          })
-          .map((rule) => {
-            const resourceId =
-              rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '';
-            const resourceEnabled = enabledMap.has(resourceId) ? enabledMap.get(resourceId) : true;
-            const hiddenForUser = hiddenIds.has(resourceId);
-            const effect = String(rule.effect || 'allow')
-              .trim()
-              .toLowerCase();
-            const accessState = !resourceEnabled
-              ? 'disabled'
-              : hiddenForUser
-                ? 'hidden_for_user'
-                : effect === 'deny'
-                  ? 'revoked'
-                  : rule.principal_type === 'group'
-                    ? 'shared'
-                    : 'personal';
-            return {
-              family: familyLabel,
-              resource_id: resourceId,
-              resource_enabled: resourceEnabled,
-              visible_for_user: !hiddenForUser && resourceEnabled,
-              hidden_for_user: hiddenForUser,
-              access_state: accessState,
-              principal_type: rule.principal_type,
-              principal_id: rule.principal_id,
-              principal_label:
-                rule.principal_type === 'group'
-                  ? `Group: ${groupMap.get(rule.principal_id) || rule.principal_id}`
-                  : 'Direct user',
-              effect,
-              action: rule.action,
-            };
-          });
+          .filter((rule) => matchesRulePrincipal(rule))
+          .map((rule) => buildDecoratedRule(rule, familyLabel, enabledMap, hiddenIds));
+
+      function matchesRulePrincipal(rule) {
+        if (rule?.principal_type === 'user') {
+          return String(rule.principal_id || '') === String(userId || '');
+        }
+        return groupIds.has(String(rule.principal_id || ''));
+      }
+
+      function buildDecoratedRule(rule, familyLabel, enabledMap, hiddenIds) {
+        const resourceId =
+          rule.resource_id || rule.model_id || rule.connection_id || rule.tool_server_id || '';
+        const resourceEnabled = enabledMap.has(resourceId) ? enabledMap.get(resourceId) : true;
+        const hiddenForUser = hiddenIds.has(resourceId);
+        const effect = String(rule.effect || 'allow')
+          .trim()
+          .toLowerCase();
+        const accessState = resolveAccessState(rule, effect, resourceEnabled, hiddenForUser);
+        return {
+          family: familyLabel,
+          resource_id: resourceId,
+          resource_enabled: resourceEnabled,
+          visible_for_user: !hiddenForUser && resourceEnabled,
+          hidden_for_user: hiddenForUser,
+          access_state: accessState,
+          principal_type: rule.principal_type,
+          principal_id: rule.principal_id,
+          principal_label: rulePrincipalLabel(rule),
+          effect,
+          action: rule.action,
+        };
+      }
+
+      function resolveAccessState(rule, effect, resourceEnabled, hiddenForUser) {
+        if (!resourceEnabled) return 'disabled';
+        if (hiddenForUser) return 'hidden_for_user';
+        if (effect === 'deny') return 'revoked';
+        if (rule.principal_type === 'group') return 'shared';
+        return 'personal';
+      }
+
+      function rulePrincipalLabel(rule) {
+        if (rule.principal_type === 'group') {
+          return `Group: ${groupMap.get(rule.principal_id) || rule.principal_id}`;
+        }
+        return 'Direct user';
+      }
 
       const modelRules = decorateRules(
         await loadModelAclRules(db),
