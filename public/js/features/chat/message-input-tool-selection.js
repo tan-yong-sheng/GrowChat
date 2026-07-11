@@ -156,30 +156,47 @@ export function createToolSelectionController({
     if (!serverKeys.length) return;
     const allowedKeys = getAllowedToolKeys(currentState);
     const selection = getCurrentToolSelection(currentState);
-    let nextSelection;
-    if (enabled) {
-      if (selection === null) {
-        nextSelection = null;
-      } else {
-        const nextSet = new Set(Array.isArray(selection) ? selection : []);
-        for (const key of serverKeys) nextSet.add(key);
-        nextSelection =
-          allowedKeys.length > 0 && allowedKeys.every((allowed) => nextSet.has(allowed))
-            ? null
-            : [...nextSet];
-      }
-    } else if (selection === null) {
-      nextSelection = allowedKeys.filter((key) => !serverKeys.includes(key));
-    } else {
-      nextSelection = (Array.isArray(selection) ? selection : []).filter(
-        (key) => !serverKeys.includes(key)
-      );
-    }
-    if (Array.isArray(nextSelection) && nextSelection.length === 0) {
-      nextSelection = [];
-    }
-    setCurrentToolSelection(nextSelection, currentState);
+    const nextSelection = resolveNextSelection({
+      enabled,
+      serverKeys,
+      allowedKeys,
+      selection,
+    });
+    setCurrentToolSelection(normalizeEmptySelection(nextSelection), currentState);
     renderToolsMenu();
+  }
+
+  function resolveNextSelection({ enabled, serverKeys, allowedKeys, selection }) {
+    if (enabled) return resolveEnabledSelection(selection, serverKeys, allowedKeys);
+    if (selection === null) return resolveDisableAllSelection(allowedKeys, serverKeys);
+    return resolveDisableFromSelection(selection, serverKeys);
+  }
+
+  function resolveEnabledSelection(selection, serverKeys, allowedKeys) {
+    if (selection === null) return null;
+    const nextSet = new Set(Array.isArray(selection) ? selection : []);
+    for (const key of serverKeys) nextSet.add(key);
+    if (allowedKeys.length > 0 && allowedKeys.every((allowed) => nextSet.has(allowed))) {
+      return null;
+    }
+    return [...nextSet];
+  }
+
+  function resolveDisableAllSelection(allowedKeys, serverKeys) {
+    return allowedKeys.filter((key) => !serverKeys.includes(key));
+  }
+
+  function resolveDisableFromSelection(selection, serverKeys) {
+    return (Array.isArray(selection) ? selection : []).filter(
+      (key) => !serverKeys.includes(key)
+    );
+  }
+
+  function normalizeEmptySelection(nextSelection) {
+    if (Array.isArray(nextSelection) && nextSelection.length === 0) {
+      return [];
+    }
+    return nextSelection;
   }
 
   function setAllToolSelectionsForCurrentChat(enabled) {
