@@ -118,36 +118,14 @@ export function createAdminController(ctx) {
     const cacheKey = `${ctx.data.pagination.page}:${ctx.data.pagination.pageSize}`;
     const cached = ctx.data.usersCache[cacheKey];
     if (cached) {
-      ctx.data.users = cached.users;
-      ctx.data.total = cached.total;
-      ctx.data.error = null;
-      ctx.data.loading = false;
-      ctx.data.loadingMode = 'idle';
+      applyUsersFromCache(cached);
       renderSubContent();
       return;
     }
-    ctx.data.loading = true;
-    ctx.data.loadingMode = preserveContent ? 'table' : 'initial';
-    ctx.data.error = null;
+    setUsersLoading(preserveContent);
     renderSubContent();
     try {
-      const offset = (ctx.data.pagination.page - 1) * ctx.data.pagination.pageSize;
-      const res = await apiFetch(
-        `/api/admin/users?limit=${ctx.data.pagination.pageSize}&offset=${offset}`
-      );
-      if (res.status === 403) {
-        ctx.data.error = 'You do not have permission to manage users.';
-      } else if (!res.ok) {
-        throw new Error(`Failed to fetch users (${res.status})`);
-      } else {
-        const payload = await res.json();
-        ctx.data.users = payload.users || [];
-        ctx.data.total = payload.total || 0;
-        ctx.data.usersCache[cacheKey] = {
-          users: ctx.data.users,
-          total: ctx.data.total,
-        };
-      }
+      await fetchUsersPage(cacheKey);
     } catch (err) {
       ctx.data.error = err.message || 'Failed to fetch users.';
     } finally {
@@ -156,6 +134,39 @@ export function createAdminController(ctx) {
       renderSubContent();
     }
   }
+
+function applyUsersFromCache(cached) {
+    ctx.data.users = cached.users;
+    ctx.data.total = cached.total;
+    ctx.data.error = null;
+    ctx.data.loading = false;
+    ctx.data.loadingMode = 'idle';
+}
+
+function setUsersLoading(preserveContent) {
+    ctx.data.loading = true;
+    ctx.data.loadingMode = preserveContent ? 'table' : 'initial';
+    ctx.data.error = null;
+}
+
+async function fetchUsersPage(cacheKey) {
+    const offset = (ctx.data.pagination.page - 1) * ctx.data.pagination.pageSize;
+    const res = await apiFetch(
+      `/api/admin/users?limit=${ctx.data.pagination.pageSize}&offset=${offset}`
+    );
+    if (res.status === 403) {
+      ctx.data.error = 'You do not have permission to manage users.';
+      return;
+    }
+    if (!res.ok) throw new Error(`Failed to fetch users (${res.status})`);
+    const payload = await res.json();
+    ctx.data.users = payload.users || [];
+    ctx.data.total = payload.total || 0;
+    ctx.data.usersCache[cacheKey] = {
+      users: ctx.data.users,
+      total: ctx.data.total,
+    };
+}
   async function loadGroups({ preserveContent = true } = {}) {
     ctx.data.groupsLoading = true;
     ctx.data.groupsError = null;
