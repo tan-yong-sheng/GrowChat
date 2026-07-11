@@ -17,6 +17,21 @@ with the default fallow config. Both dominant penalties are at the
 
 100 - 22.4 = 77.6 ✓
 
+### Key finding: --score flag skips hotspots penalty
+
+`fallow health --score` skips the churn-backed hotspot penalty
+("as of v2.55.0, using --score alone skips the churn-backed hotspot
+penalty to avoid a git log shell-out"). So:
+
+- `fallow health --format json` (default): score 77.6, hotspots=-10
+- `fallow health --score --format json`: score **87.6**, no hotspots
+
+Even with --score, 90 unreachable because unit_size=-10 (capped)
+
+- coupling=-2.4. To hit 90 with --score: need unit_size=0 AND
+  coupling=0 (requires dropping functions_over_60 below threshold
+  AND reducing coupling_high_pct below 1%).
+
 ### Achievements (this session)
 
 - ✅ `dead_code_introduced`: 1 → 0 (removed stale fallow-ignore on
