@@ -6,7 +6,7 @@
 import { HTTP_STATUS } from '../../shared/http-status.js';
 import { normalizeModelId } from '../../admin/tool-servers.js';
 import { isValidModelId } from './models-helpers.js';
-import { normalizeAttachmentCaps } from '../../utils/attachment-caps.js';
+import { normalizeAttachmentCaps } from '../../admin/tool-servers-utils.js';
 
 export const MAX_UPDATES = 500;
 

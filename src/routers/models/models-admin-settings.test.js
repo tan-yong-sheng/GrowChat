@@ -59,6 +59,9 @@ vi.mock('../../utils/model-acl.js', () => ({
 
 vi.mock('../../admin/tool-servers.js', () => ({
   normalizeModelId: (...args) => mocks.normalizeModelId(...args),
+}));
+
+vi.mock('../../admin/tool-servers-utils.js', () => ({
   normalizeAttachmentCaps: (...args) => mocks.normalizeAttachmentCaps(...args),
 }));
 
