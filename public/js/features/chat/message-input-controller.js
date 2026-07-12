@@ -191,14 +191,25 @@ export function createMessageInputController({
   }
 
   function startQueuedSend() {
-    if (isSubmitting || isStreamBlocked || uiCtrl.getPendingQueue().length === 0) return false;
+    if (isQueueSendBlocked()) return false;
+    const next = shiftNextPending();
+    if (!next?.text) return false;
+    sendWithCallbacks(next.text);
+    return true;
+  }
+
+  function isQueueSendBlocked() {
+    if (isSubmitting) return true;
+    if (isStreamBlocked) return true;
+    return uiCtrl.getPendingQueue().length === 0;
+  }
+
+  function shiftNextPending() {
     const pendingQueue = uiCtrl.getPendingQueue();
     const next = pendingQueue.shift();
     uiCtrl.setPendingQueue(pendingQueue);
     uiCtrl.renderPendingQueue();
-    if (!next?.text) return false;
-    sendWithCallbacks(next.text);
-    return true;
+    return next;
   }
 
   function submitCurrentText() {
@@ -335,50 +346,93 @@ export function createMessageInputController({
       toolCtrl.closeToolsMenu();
   });
   const unsubscribe = subscribe((s) => {
-    const model = s.models.find((m) => m.id === s.activeModelId);
-    const name = model?.name || 'GrowChat';
-    const noModels = !s.modelsLoading && !toolCtrl.hasSelectableModels(s);
-    input.placeholder = noModels ? 'No selectable models are available' : `Message ${name}`;
-    const disc = container.querySelector('#disclaimer-text');
-    if (disc)
-      disc.textContent = noModels
-        ? 'No selectable models are available. Ask an admin to restore access or hide fewer models.'
-        : `${name} can make mistakes. Check important info.`;
-    const chatChanged = s.activeChatId !== lastActiveChatId;
-    if (chatChanged && uiCtrl.getPendingQueue().length > 0) {
-      uiCtrl.setPendingQueue([]);
-      uiCtrl.renderPendingQueue();
-    }
-    const nextBlocked = Boolean(
-      s.ui?.streaming &&
-      s.ui?.streamingChatId &&
-      String(s.ui.streamingChatId) === String(s.activeChatId || '')
-    );
-    latestRunningMessageId = findRunningMessageId(s);
-    canRequestCancel = Boolean(
-      latestRunningMessageId && typeof window.__growchatRequestCancel === 'function'
-    );
-    if (nextBlocked !== isStreamBlocked) {
-      isStreamBlocked = nextBlocked;
-      if (!nextBlocked && isSubmitting) finishSubmission();
-      else toggleSendMicBtn();
-      if (!isStreamBlocked && uiCtrl.getPendingQueue().length > 0 && !isSubmitting)
-        startQueuedSend();
-    }
+    const name = activeModelName(s);
+    const noModels = hasNoSelectableModels(s);
+    applyPlaceholderAndDisclaimer(name, noModels);
+    const chatChanged = isChatSwitched(s);
+    clearPendingOnChatSwitch(chatChanged);
+    const nextBlocked = isNextStreamBlocked(s);
+    refreshRunningMessageState(s);
+    applyStreamBlockedTransition(nextBlocked, chatChanged);
     uiCtrl.updateComposerAvailability(s);
-    if (!isSubmitting && (chatChanged || (input !== document.activeElement && !input.value))) {
-      const draft = s.activeChatId ? s.drafts[s.activeChatId] || '' : s.newChatDraft || '';
-      if (input.value !== draft) {
-        input.value = draft;
-        input.dispatchEvent(new Event('input'));
-      }
-    }
+    syncDraftFromState(s, chatChanged);
     lastActiveChatId = s.activeChatId;
     uiCtrl.renderAttachments(getCurrentAttachments(s));
     uiCtrl.updateAttachmentControls(s);
     toolCtrl.updateToolControls(s);
     toggleSendMicBtn();
   });
+
+  function activeModelName(s) {
+    const model = s.models.find((m) => m.id === s.activeModelId);
+    return model?.name || 'GrowChat';
+  }
+
+  function hasNoSelectableModels(s) {
+    if (s.modelsLoading) return false;
+    return !toolCtrl.hasSelectableModels(s);
+  }
+
+  function applyPlaceholderAndDisclaimer(name, noModels) {
+    input.placeholder = noModels ? 'No selectable models are available' : `Message ${name}`;
+    const disc = container.querySelector('#disclaimer-text');
+    if (!disc) return;
+    disc.textContent = noModels
+      ? 'No selectable models are available. Ask an admin to restore access or hide fewer models.'
+      : `${name} can make mistakes. Check important info.`;
+  }
+
+  function isChatSwitched(s) {
+    return s.activeChatId !== lastActiveChatId;
+  }
+
+  function clearPendingOnChatSwitch(chatChanged) {
+    if (!chatChanged) return;
+    if (uiCtrl.getPendingQueue().length === 0) return;
+    uiCtrl.setPendingQueue([]);
+    uiCtrl.renderPendingQueue();
+  }
+
+  function isNextStreamBlocked(s) {
+    if (!s.ui?.streaming) return false;
+    if (!s.ui?.streamingChatId) return false;
+    return String(s.ui.streamingChatId) === String(s.activeChatId || '');
+  }
+
+  function refreshRunningMessageState(s) {
+    latestRunningMessageId = findRunningMessageId(s);
+    canRequestCancel = Boolean(
+      latestRunningMessageId && typeof window.__growchatRequestCancel === 'function'
+    );
+  }
+
+  function applyStreamBlockedTransition(nextBlocked, chatChanged) {
+    if (nextBlocked === isStreamBlocked) return;
+    isStreamBlocked = nextBlocked;
+    if (!nextBlocked && isSubmitting) {
+      finishSubmission();
+    } else {
+      toggleSendMicBtn();
+    }
+    maybeStartQueuedSend(chatChanged);
+  }
+
+  function maybeStartQueuedSend() {
+    if (isStreamBlocked) return;
+    if (uiCtrl.getPendingQueue().length === 0) return;
+    if (isSubmitting) return;
+    startQueuedSend();
+  }
+
+  function syncDraftFromState(s, chatChanged) {
+    if (isSubmitting) return;
+    if (!chatChanged && input === document.activeElement) return;
+    if (!chatChanged && input.value) return;
+    const draft = s.activeChatId ? s.drafts[s.activeChatId] || '' : s.newChatDraft || '';
+    if (input.value === draft) return;
+    input.value = draft;
+    input.dispatchEvent(new Event('input'));
+  }
 
   return {
     destroy: () => {
