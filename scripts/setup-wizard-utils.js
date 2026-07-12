@@ -126,13 +126,25 @@ function spawnCommand(cmd, args, captureOutput) {
 
 function finalizeResult(result, { exitOnError, display, captureOutput }) {
   const ok = result.status === 0;
-  const stdout = (result.stdout ?? '').toString();
-  const stderr = (result.stderr ?? '').toString();
-  if (!ok && exitOnError) {
-    logFailure(display, stderr, captureOutput);
-    process.exit(result.status ?? 1);
+  const output = captureResultOutput(result);
+  if (exitOnFailure(result, ok, exitOnError, display, output.stderr, captureOutput)) {
+    return undefined;
   }
-  return { ok, status: result.status ?? 1, stdout, stderr };
+  return { ok, status: result.status ?? 1, stdout: output.stdout, stderr: output.stderr };
+}
+
+function exitOnFailure(result, ok, exitOnError, display, stderr, captureOutput) {
+  if (ok || !exitOnError) return false;
+  logFailure(display, stderr, captureOutput);
+  process.exit(result.status ?? 1);
+  return true;
+}
+
+function captureResultOutput(result) {
+  return {
+    stdout: (result.stdout ?? '').toString(),
+    stderr: (result.stderr ?? '').toString(),
+  };
 }
 
 /**
