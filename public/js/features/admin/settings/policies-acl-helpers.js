@@ -303,24 +303,39 @@ export function filterResourcesByQueryAndVisibility(
   { query = '', visibilityFilters = {} } = {}
 ) {
   const normalizedQuery = (query || '').trim().toLowerCase();
-  return (Array.isArray(resources) ? resources : []).filter((resource) => {
-    if (resource?.enabled === false && !visibilityFilters.disabled) return false;
+  const list = Array.isArray(resources) ? resources : [];
+  return list.filter((resource) =>
+    passesResourceFilters(resource, normalizedQuery, visibilityFilters)
+  );
+}
 
-    const text = [
-      resource.id,
-      resource.name,
-      resource.title,
-      resource.provider,
-      resource.providerType,
-      resource.base_url,
-      resource.url,
-    ]
-      .join(' ')
-      .toLowerCase();
+function passesResourceFilters(resource, normalizedQuery, visibilityFilters) {
+  if (!isResourceVisible(resource, visibilityFilters)) return false;
+  if (!matchesSearchQuery(resource, normalizedQuery)) return false;
+  const category = getResourceAccessState(resource, visibilityFilters._groupId || '');
+  return Boolean(visibilityFilters[category]);
+}
 
-    if (normalizedQuery && !text.includes(normalizedQuery)) return false;
+function isResourceVisible(resource, visibilityFilters) {
+  if (resource?.enabled !== false) return true;
+  return Boolean(visibilityFilters.disabled);
+}
 
-    const category = getResourceAccessState(resource, visibilityFilters._groupId || '');
-    return Boolean(visibilityFilters[category]);
-  });
+function matchesSearchQuery(resource, normalizedQuery) {
+  if (!normalizedQuery) return true;
+  return buildResourceSearchText(resource).includes(normalizedQuery);
+}
+
+function buildResourceSearchText(resource) {
+  return [
+    resource.id,
+    resource.name,
+    resource.title,
+    resource.provider,
+    resource.providerType,
+    resource.base_url,
+    resource.url,
+  ]
+    .join(' ')
+    .toLowerCase();
 }
