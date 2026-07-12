@@ -108,12 +108,7 @@ function resolveClientCredentials(body, existingServer, metadata) {
 }
 
 async function registerOAuthClient(registrationEndpoint, redirectUri, body) {
-  const payload = {
-    client_name: body?.oauth_client_name || 'GrowChat MCP Client',
-    redirect_uris: [redirectUri],
-    grant_types: ['authorization_code', 'refresh_token'],
-    response_types: ['code'],
-  };
+  const payload = buildRegistrationPayload(body, redirectUri);
   // URL is validated via isSafeOutboundUrl before dynamic registration is attempted.
   // fallow-ignore-next-line security-sink
   const res = await fetch(registrationEndpoint, {
@@ -123,6 +118,19 @@ async function registerOAuthClient(registrationEndpoint, redirectUri, body) {
   });
   if (!res.ok) throw new Error('Client registration failed');
   const data = await res.json();
+  return parseRegistrationResponse(data);
+}
+
+function buildRegistrationPayload(body, redirectUri) {
+  return {
+    client_name: body?.oauth_client_name || 'GrowChat MCP Client',
+    redirect_uris: [redirectUri],
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+  };
+}
+
+function parseRegistrationResponse(data) {
   return {
     clientId: String(data.client_id || '').trim(),
     clientSecret: String(data.client_secret || '').trim(),
