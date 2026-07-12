@@ -146,6 +146,10 @@ export function createIntegrationsEventHandlers(deps) {
         setTestStatus('error', 'URL is required');
         return;
       }
+      await runTestServerFlow(args);
+    });
+
+    async function runTestServerFlow(args) {
       testInFlight = true;
       setTestStatus('testing', 'Testing connection...');
       try {
@@ -156,7 +160,7 @@ export function createIntegrationsEventHandlers(deps) {
       } finally {
         testInFlight = false;
       }
-    });
+    }
 
     async function runServerTestAndApply(args) {
       const result = await runVerify(args);
