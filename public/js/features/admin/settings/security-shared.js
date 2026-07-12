@@ -89,20 +89,27 @@ let sendingTestEmail = false;
  */
 export async function sendTestEmail(container, email) {
   if (sendingTestEmail) return;
-  if (!email || !email.trim()) {
+  if (!isValidEmailInput(email)) {
     showFeedback(container, 'Please enter a valid email address.', true);
     return;
   }
-  sendingTestEmail = true;
   const elements = getEmailElements(container);
+  sendingTestEmail = true;
   setSendingState(elements, true);
+  await runSendTestEmail(container, email);
+  sendingTestEmail = false;
+  setSendingState(elements, false);
+}
+
+async function runSendTestEmail(container, email) {
   try {
     await postTestEmail(email);
     showFeedback(container, 'Test email sent successfully.');
   } catch (err) {
     showFeedback(container, err?.message || 'Failed to send test email.', true);
-  } finally {
-    sendingTestEmail = false;
-    setSendingState(elements, false);
   }
+}
+
+function isValidEmailInput(email) {
+  return Boolean(email && email.trim());
 }
