@@ -24,25 +24,35 @@ export function createChatRealtimeController({
 } = {}) {
   function upsertChatFromEvent(chat) {
     if (!chat?.id) return;
-    const nextChats = [...state.chats];
-    const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
-    if (index >= 0) {
-      const existing = nextChats[index];
-      const merged = { ...existing, ...chat };
-      if (existing?.title && existing.title !== 'New Chat' && chat.title === 'New Chat') {
-        merged.title = existing.title;
-      }
-      nextChats[index] = merged;
-    } else {
-      nextChats.unshift(chat);
-    }
-    nextChats.sort((a, b) => {
-      const updatedDelta = Number(b?.updated_at || 0) - Number(a?.updated_at || 0);
-      if (updatedDelta !== 0) return updatedDelta;
-      return Number(b?.created_at || 0) - Number(a?.created_at || 0);
-    });
+    const nextChats = mergeChatEntry([...state.chats], chat);
+    nextChats.sort(sortChatsByRecency);
     setState({ chats: nextChats });
   }
+
+function mergeChatEntry(nextChats, chat) {
+  const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
+  if (index < 0) {
+    nextChats.unshift(chat);
+    return nextChats;
+  }
+  const existing = nextChats[index];
+  const merged = { ...existing, ...chat };
+  if (existing?.title && existing.title !== 'New Chat' && chat.title === 'New Chat') {
+    merged.title = existing.title;
+  }
+  nextChats[index] = merged;
+  return nextChats;
+}
+
+function sortChatsByRecency(a, b) {
+  const updatedDelta = timestampOf(b, 'updated_at') - timestampOf(a, 'updated_at');
+  if (updatedDelta !== 0) return updatedDelta;
+  return timestampOf(b, 'created_at') - timestampOf(a, 'created_at');
+}
+
+function timestampOf(chat, field) {
+  return Number(chat?.[field] || 0);
+}
 
   function updateChatTitleLocal(chatId, title) {
     setState((prev) => ({
