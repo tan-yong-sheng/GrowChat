@@ -355,15 +355,16 @@ function generateCsv(logs) {
     'IP Address',
     'Details',
   ];
-  const rows = logs.map((log) => [
-    formatTimestamp(log.created_at),
-    log.user_email || log.user_id || 'System',
-    log.action,
-    log.resource_type || '',
-    log.resource_id || '',
-    log.ip_address || '',
-    log.details ? JSON.stringify(log.details) : '',
-  ]);
+  const rowFields = [
+    (log) => formatTimestamp(log.created_at),
+    (log) => log.user_email || log.user_id || 'System',
+    (log) => log.action,
+    (log) => log.resource_type || '',
+    (log) => log.resource_id || '',
+    (log) => log.ip_address || '',
+    (log) => (log.details ? JSON.stringify(log.details) : ''),
+  ];
+  const rows = logs.map((log) => rowFields.map((fn) => fn(log)));
 
   return [
     headers.join(','),
