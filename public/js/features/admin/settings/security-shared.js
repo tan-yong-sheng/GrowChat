@@ -72,10 +72,13 @@ async function postTestEmail(email) {
     method: 'POST',
     body: JSON.stringify({ email: email.trim() }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error || err?.message || 'Failed to send test email');
-  }
+  if (res.ok) return;
+  await throwTestEmailError(res);
+}
+
+async function throwTestEmailError(res) {
+  const err = await res.json().catch(() => ({}));
+  throw new Error(err?.error || err?.message || 'Failed to send test email');
 }
 
 let sendingTestEmail = false;
