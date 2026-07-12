@@ -87,22 +87,39 @@ function resolveFallbackMessageInsertion(messages, fallbackMessage) {
 
   let resolved = fallbackMessage;
   const fallbackId = String(resolved.id);
-  const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
   const fallbackParent = resolved.parent_id ? String(resolved.parent_id) : '';
-  const hasSibling = fallbackParent
-    ? messages.some(
-        (msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent
-      )
-    : false;
 
-  if (hasExact || hasSibling) return { messages, appliedFallbackId: null };
-
-  const parentExists = fallbackParent && messages.some((msg) => String(msg.id) === fallbackParent);
-  if (!parentExists) {
-    const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
-    resolved = { ...resolved, parent_id: lastUser ? lastUser.id : null };
+  if (isFallbackAlreadyPresent(messages, fallbackId, fallbackParent)) {
+    return { messages, appliedFallbackId: null };
   }
 
+  if (!parentExistsInMessages(messages, fallbackParent)) {
+    resolved = reparentToLastUser(messages, resolved);
+  }
+
+  return appendAndSortFallback(messages, resolved);
+}
+
+function isFallbackAlreadyPresent(messages, fallbackId, fallbackParent) {
+  const hasExact = messages.some((msg) => String(msg.id) === fallbackId);
+  if (hasExact) return true;
+  if (!fallbackParent) return false;
+  return messages.some(
+    (msg) => msg.role === 'assistant' && String(msg.parent_id || '') === fallbackParent
+  );
+}
+
+function parentExistsInMessages(messages, fallbackParent) {
+  if (!fallbackParent) return false;
+  return messages.some((msg) => String(msg.id) === fallbackParent);
+}
+
+function reparentToLastUser(messages, resolved) {
+  const lastUser = [...messages].reverse().find((msg) => msg.role === 'user');
+  return { ...resolved, parent_id: lastUser ? lastUser.id : null };
+}
+
+function appendAndSortFallback(messages, resolved) {
   const updated = [...messages, { ...resolved, done: true }];
   updated.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
   return { messages: updated, appliedFallbackId: String(resolved.id) };
