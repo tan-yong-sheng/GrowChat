@@ -241,23 +241,25 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
         const data = await loadLogs();
         if (contentEl) {
           contentEl.innerHTML = renderAuditTable(data.logs);
-
-          if (data.logs.length === limit || page > 1) {
-            const paginationEl = renderPagination(
-              page,
-              Math.ceil(data.total / limit) || 1,
-              async (newPage) => {
-                page = newPage;
-                await refreshContent();
-              }
-            );
-            contentEl.appendChild(paginationEl);
-          }
+          appendPaginationIfNeeded(contentEl, data);
         }
       } catch (err) {
         if (onError) onError(err);
         else throw err;
       }
+    }
+
+    function appendPaginationIfNeeded(contentEl, data) {
+      if (data.logs.length !== limit && page <= 1) return;
+      const paginationEl = renderPagination(
+        page,
+        Math.ceil(data.total / limit) || 1,
+        async (newPage) => {
+          page = newPage;
+          await refreshContent();
+        }
+      );
+      contentEl.appendChild(paginationEl);
     }
 
     // Bind filter handlers
