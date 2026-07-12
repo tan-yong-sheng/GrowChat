@@ -259,12 +259,17 @@ export function createModelSelectorController(container) {
     if (isOpen) toggle();
   };
 
+  const keyHandlers = {
+    ArrowDown: handleArrowDown,
+    ArrowUp: handleArrowUp,
+    Enter: handleEnter,
+    Escape: handleEscape,
+  };
+
   searchInput.onkeydown = (e) => {
     if (!isOpen) return;
-    if (e.key === 'ArrowDown') return handleArrowDown(e);
-    if (e.key === 'ArrowUp') return handleArrowUp(e);
-    if (e.key === 'Enter') return handleEnter(e);
-    if (e.key === 'Escape') return handleEscape(e);
+    const handler = keyHandlers[e.key];
+    if (handler) return handler(e);
   };
 
   onDocumentClick = (e) => {
