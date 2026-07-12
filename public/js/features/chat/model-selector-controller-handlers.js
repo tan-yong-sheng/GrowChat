@@ -11,23 +11,9 @@ export function createHandleSetDefault({ renderList }) {
   return async (modelId) => {
     try {
       const { apiFetch } = await import('../../shared/api.js');
-
-      // Use setState updater to read latest state and avoid stale closures
-      // We do this in two steps: first read current state, then persist, then update
-      let currentDefaultModelId = null;
-      let currentPreferences = {};
-
-      setState((prev) => {
-        currentDefaultModelId = prev.defaultModelId;
-        currentPreferences = { ...(prev.user?.preferences || {}) };
-        return prev; // no state change, just reading
-      });
-
-      const isDefault = currentDefaultModelId === modelId;
-      const nextDefaultModelId = isDefault ? null : modelId;
-      const nextPreferences = { ...currentPreferences };
-      if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
-      else delete nextPreferences.defaultModelId;
+      const { currentDefaultModelId, currentPreferences } = readCurrentPreferences();
+      const nextDefaultModelId = resolveNextDefaultModelId(currentDefaultModelId, modelId);
+      const nextPreferences = buildNextPreferences(currentPreferences, nextDefaultModelId);
 
       const result = await persistDefaultModelSelection({
         apiFetch,
@@ -35,22 +21,49 @@ export function createHandleSetDefault({ renderList }) {
         currentPreferences: nextPreferences,
       });
 
-      if (result.ok) {
-        setState((prev) => {
-          const updated = { defaultModelId: nextDefaultModelId };
-          // Only mutate user.preferences if the preference was actually persisted to the backend
-          if (result.persisted) {
-            const prefs = { ...(prev.user?.preferences || {}) };
-            if (nextDefaultModelId) prefs.defaultModelId = nextDefaultModelId;
-            else delete prefs.defaultModelId;
-            updated.user = prev.user ? { ...prev.user, preferences: prefs } : prev.user;
-          }
-          return updated;
-        });
-        renderList(state, { reset: true, rebuild: true });
-      }
+      if (!result.ok) return;
+
+      setState((prev) =>
+        applyPersistedDefault(prev, { result, nextDefaultModelId })
+      );
+      renderList(state, { reset: true, rebuild: true });
     } catch (err) {
       console.error('Failed to set default model:', err);
     }
   };
+}
+
+function readCurrentPreferences() {
+  let currentDefaultModelId = null;
+  let currentPreferences = {};
+
+  setState((prev) => {
+    currentDefaultModelId = prev.defaultModelId;
+    currentPreferences = { ...(prev.user?.preferences || {}) };
+    return prev; // no state change, just reading
+  });
+
+  return { currentDefaultModelId, currentPreferences };
+}
+
+function resolveNextDefaultModelId(currentDefaultModelId, modelId) {
+  if (currentDefaultModelId === modelId) return null;
+  return modelId;
+}
+
+function buildNextPreferences(currentPreferences, nextDefaultModelId) {
+  const nextPreferences = { ...currentPreferences };
+  if (nextDefaultModelId) nextPreferences.defaultModelId = nextDefaultModelId;
+  else delete nextPreferences.defaultModelId;
+  return nextPreferences;
+}
+
+function applyPersistedDefault(prev, { result, nextDefaultModelId }) {
+  const updated = { defaultModelId: nextDefaultModelId };
+  if (!result.persisted) return updated;
+  const prefs = { ...(prev.user?.preferences || {}) };
+  if (nextDefaultModelId) prefs.defaultModelId = nextDefaultModelId;
+  else delete prefs.defaultModelId;
+  updated.user = prev.user ? { ...prev.user, preferences: prefs } : prev.user;
+  return updated;
 }
