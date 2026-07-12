@@ -35,38 +35,49 @@ export function createChatShellController({
   }
 
   function loadMoreChats() {
-    if (loadMoreChatsPromise || !state.chatsPagination?.hasMore || state.chatsPagination?.loading) {
-      return loadMoreChatsPromise;
-    }
+    if (!shouldLoadMoreChats()) return loadMoreChatsPromise;
 
     setState({ chatsPagination: { loading: true } });
     const { limit, offset } = state.chatsPagination;
     loadMoreChatsPromise = fetchChats({ limit, offset })
-      .then((data) => {
-        const nextChats = data.chats || [];
-        const existingIds = new Set(state.chats.map((chat) => chat.id));
-        const mergedChats = state.chats.concat(
-          nextChats.filter((chat) => !existingIds.has(chat.id))
-        );
-        setState({
-          chats: mergedChats,
-          chatsPagination: {
-            limit: data.limit || limit,
-            offset: (data.offset || offset) + nextChats.length,
-            hasMore: data.has_more === true,
-            loading: false,
-          },
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to load more chats:', err);
-        setState({ chatsPagination: { loading: false } });
-      })
+      .then(applyLoadedChats)
+      .catch(handleLoadMoreChatsError)
       .finally(() => {
         loadMoreChatsPromise = null;
       });
 
     return loadMoreChatsPromise;
+  }
+
+  function shouldLoadMoreChats() {
+    if (loadMoreChatsPromise) return false;
+    if (!state.chatsPagination?.hasMore) return false;
+    if (state.chatsPagination?.loading) return false;
+    return true;
+  }
+
+  function mergeChatsWith(nextChats) {
+    const existingIds = new Set(state.chats.map((chat) => chat.id));
+    return state.chats.concat(nextChats.filter((chat) => !existingIds.has(chat.id)));
+  }
+
+  function applyLoadedChats(data) {
+    const nextChats = data.chats || [];
+    const { limit, offset } = state.chatsPagination;
+    setState({
+      chats: mergeChatsWith(nextChats),
+      chatsPagination: {
+        limit: data.limit || limit,
+        offset: (data.offset || offset) + nextChats.length,
+        hasMore: data.has_more === true,
+        loading: false,
+      },
+    });
+  }
+
+  function handleLoadMoreChatsError(err) {
+    console.error('Failed to load more chats:', err);
+    setState({ chatsPagination: { loading: false } });
   }
 
   function refreshChatListObserver() {
