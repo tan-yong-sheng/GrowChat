@@ -42,11 +42,17 @@ export function renderEmailDeliverySettings(container) {
 
   const getApiKeyHint = () => {
     const p = PROVIDERS.find((x) => x.id === settingsState.provider);
-    if (settingsState.apiKeyConfigured) {
-      return `An API key is configured for ${p?.label || settingsState.provider}. Enter a new key to replace it.`;
-    }
-    return p?.helperText || 'Enter your API key.';
+    if (settingsState.apiKeyConfigured) return buildConfiguredHint(p);
+    return buildDefaultHint(p);
   };
+
+  function buildConfiguredHint(p) {
+    return `An API key is configured for ${p?.label || settingsState.provider}. Enter a new key to replace it.`;
+  }
+
+  function buildDefaultHint(p) {
+    return p?.helperText || 'Enter your API key.';
+  }
 
   function maskedApiKeyValue() {
     return settingsState.apiKeyConfigured
