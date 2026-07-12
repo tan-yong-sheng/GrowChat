@@ -169,51 +169,58 @@ export async function createUserProfileFooter({ guardNavigation = null } = {}) {
 
   bindFooterNodes();
 
+  function navigateToAdminRoute() {
+    window.history.pushState({}, '', '/admin/users/overview');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }
+
+  function openStatusPreferences() {
+    return showPreferencesModal({ ...user, status: computePresence(lastActiveAt) });
+  }
+
+  function openAccountSettingsSection(section) {
+    window.dispatchEvent(
+      new CustomEvent('growchat:open-account-settings', {
+        detail: { section },
+      })
+    );
+  }
+
+  async function performLogout() {
+    const result = await logout();
+    // Local state is wiped inside logout() regardless of server outcome,
+    // so always redirect — the next page must start from a clean session.
+    if (!result.serverNotified) {
+      showToast('Logged out locally. Server notification failed.');
+    }
+    window.location.href = '/auth.html';
+  }
+
+  const footerActionDispatchers = {
+    admin: () => navigateToAdminRoute(),
+    status: () => openStatusPreferences(),
+    profile: () => openAccountSettingsSection('connections'),
+    preferences: () => openAccountSettingsSection('connections'),
+    archived: () => window.dispatchEvent(new CustomEvent('growchat:open-archived')),
+    logout: () => performLogout(),
+  };
+
+  const guardedActions = new Set(['admin', 'profile', 'preferences']);
+
   element.addEventListener('click', async (e) => {
     const actionBtn = e.target.closest('button[data-action]');
     if (!actionBtn) return;
 
     const action = actionBtn.dataset.action;
-    if (action === 'admin') {
-      if (typeof guardNavigation === 'function') {
-        const allowed = await guardNavigation();
-        if (!allowed) return;
-      }
-      window.history.pushState({}, '', '/admin/users/overview');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    } else if (action === 'status') {
-      await showPreferencesModal({ ...user, status: computePresence(lastActiveAt) });
-    } else if (action === 'profile') {
-      if (typeof guardNavigation === 'function') {
-        const allowed = await guardNavigation();
-        if (!allowed) return;
-      }
-      window.dispatchEvent(
-        new CustomEvent('growchat:open-account-settings', {
-          detail: { section: 'connections' },
-        })
-      );
-    } else if (action === 'preferences') {
-      if (typeof guardNavigation === 'function') {
-        const allowed = await guardNavigation();
-        if (!allowed) return;
-      }
-      window.dispatchEvent(
-        new CustomEvent('growchat:open-account-settings', {
-          detail: { section: 'connections' },
-        })
-      );
-    } else if (action === 'archived') {
-      window.dispatchEvent(new CustomEvent('growchat:open-archived'));
-    } else if (action === 'logout') {
-      const result = await logout();
-      // Local state is wiped inside logout() regardless of server outcome,
-      // so always redirect — the next page must start from a clean session.
-      if (!result.serverNotified) {
-        showToast('Logged out locally. Server notification failed.');
-      }
-      window.location.href = '/auth.html';
+    const dispatch = footerActionDispatchers[action];
+    if (!dispatch) return;
+
+    if (guardedActions.has(action) && typeof guardNavigation === 'function') {
+      const allowed = await guardNavigation();
+      if (!allowed) return;
     }
+
+    await dispatch();
     menu.classList.add('hidden');
   });
 
