@@ -48,22 +48,33 @@ export function renderEmailDeliverySettings(container) {
     return p?.helperText || 'Enter your API key.';
   };
 
-  const render = () => {
-    if (!isActiveTab()) return;
-
-    const maskedValue = settingsState.apiKeyConfigured
+  function maskedApiKeyValue() {
+    return settingsState.apiKeyConfigured
       ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'
       : '';
-    const escapedMaskedValue = escapeHtml(maskedValue);
-    const apiKeyHint = escapeHtml(getApiKeyHint());
-    const escapedFromEmail = escapeHtml(settingsState.fromEmail);
-    const escapedDomain = escapeHtml(settingsState.mailgunDomain);
-    const currentProvider = PROVIDERS.find((x) => x.id === settingsState.provider);
+  }
 
-    const providerOptions = PROVIDERS.map(
+  function findCurrentProvider() {
+    return PROVIDERS.find((x) => x.id === settingsState.provider);
+  }
+
+  function buildProviderOptions() {
+    return PROVIDERS.map(
       (p) =>
         `<option value="${p.id}"${p.id === settingsState.provider ? ' selected' : ''}>${escapeHtml(p.label)}</option>`
     ).join('');
+  }
+
+  const render = () => {
+    if (!isActiveTab()) return;
+
+    const escapedMaskedValue = escapeHtml(maskedApiKeyValue());
+    const apiKeyHint = escapeHtml(getApiKeyHint());
+    const escapedFromEmail = escapeHtml(settingsState.fromEmail);
+    const escapedDomain = escapeHtml(settingsState.mailgunDomain);
+    const currentProvider = findCurrentProvider();
+
+    const providerOptions = buildProviderOptions();
 
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
