@@ -5,6 +5,7 @@ import {
   startChatSendMessage,
   startChatSendMessageWithOptimistic,
 } from './chat-message-stream-send.js';
+import { STREAM_CALLBACK_DEFAULTS } from './chat-stream-callbacks.js';
 
 export function createChatMessageStream({
   state,
@@ -27,15 +28,15 @@ export function createChatMessageStream({
   setStreamingState = () => {},
   getActiveStreamAbort = () => null,
   setActiveStreamAbort = () => {},
-  consumeSseTextStream,
-  appendBlock = () => {},
-  ensureThinkingBlock = () => {},
-  updateToolCallState = () => {},
-  notePayloadSeq = () => {},
-  buildFallbackAssistantMessage = () => null,
-  formatApiErrorMessage = (_, fallback) => fallback || 'Request failed.',
-  updateMessageContentDom = () => {},
-  applyAssistantErrorMessage = () => {},
+  consumeSseTextStream = STREAM_CALLBACK_DEFAULTS.consumeSseTextStream,
+  appendBlock = STREAM_CALLBACK_DEFAULTS.appendBlock,
+  ensureThinkingBlock = STREAM_CALLBACK_DEFAULTS.ensureThinkingBlock,
+  updateToolCallState = STREAM_CALLBACK_DEFAULTS.updateToolCallState,
+  notePayloadSeq = STREAM_CALLBACK_DEFAULTS.notePayloadSeq,
+  buildFallbackAssistantMessage = STREAM_CALLBACK_DEFAULTS.buildFallbackAssistantMessage,
+  formatApiErrorMessage = STREAM_CALLBACK_DEFAULTS.formatApiErrorMessage,
+  updateMessageContentDom = STREAM_CALLBACK_DEFAULTS.updateMessageContentDom,
+  applyAssistantErrorMessage = STREAM_CALLBACK_DEFAULTS.applyAssistantErrorMessage,
   getMessageById = () => null,
   loadMessages = async () => {},
   getMessageSeq = () => 0,

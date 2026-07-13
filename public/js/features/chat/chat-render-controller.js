@@ -5,6 +5,7 @@ import { bindChatMessageActions } from './chat-message-actions.js';
 import { renderAttachmentPills, renderAssistantMessageBody } from './chat-message-rendering.js';
 import { syncMessageBlocksForMessage, syncToolCallsForMessage } from './chat-message-blocks.js';
 import { setupEditTextarea } from './edit-textarea.js';
+import { STREAM_CALLBACK_DEFAULTS } from './chat-stream-callbacks.js';
 
 export function createChatRenderController({
   state,
@@ -38,15 +39,15 @@ export function createChatRenderController({
   setActiveStreamAbort = () => {},
   clearGlobalStreamAbort = () => {},
   setGlobalStreamAbort = () => {},
-  consumeSseTextStream,
-  appendBlock = () => {},
-  ensureThinkingBlock = () => {},
-  updateToolCallState = () => {},
-  notePayloadSeq = () => {},
-  buildFallbackAssistantMessage = () => null,
-  formatApiErrorMessage = (_, fallback) => fallback || 'Request failed.',
-  updateMessageContentDom = () => {},
-  applyAssistantErrorMessage = () => {},
+  consumeSseTextStream = STREAM_CALLBACK_DEFAULTS.consumeSseTextStream,
+  appendBlock = STREAM_CALLBACK_DEFAULTS.appendBlock,
+  ensureThinkingBlock = STREAM_CALLBACK_DEFAULTS.ensureThinkingBlock,
+  updateToolCallState = STREAM_CALLBACK_DEFAULTS.updateToolCallState,
+  notePayloadSeq = STREAM_CALLBACK_DEFAULTS.notePayloadSeq,
+  buildFallbackAssistantMessage = STREAM_CALLBACK_DEFAULTS.buildFallbackAssistantMessage,
+  formatApiErrorMessage = STREAM_CALLBACK_DEFAULTS.formatApiErrorMessage,
+  updateMessageContentDom = STREAM_CALLBACK_DEFAULTS.updateMessageContentDom,
+  applyAssistantErrorMessage = STREAM_CALLBACK_DEFAULTS.applyAssistantErrorMessage,
   openCitation = () => {},
 } = {}) {
   function drawMessages(messages) {
