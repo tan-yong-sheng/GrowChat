@@ -169,14 +169,22 @@ export async function renderAuditLogsSection({ apiFetch, showToast }) {
   const limit = 50;
   let filters = { userId: '', action: '' };
 
+  function appendAuditLogFilters(params, activeFilters) {
+    if (activeFilters.userId) params.append('userId', activeFilters.userId);
+    if (activeFilters.action) params.append('action', activeFilters.action);
+  }
+
+  function parseAuditLogsError(res) {
+    return res.json().catch(() => ({}));
+  }
+
   async function loadLogs() {
     const params = new URLSearchParams({ limit, offset: (page - 1) * limit });
-    if (filters.userId) params.append('userId', filters.userId);
-    if (filters.action) params.append('action', filters.action);
+    appendAuditLogFilters(params, filters);
 
     const res = await apiFetch(`/api/admin/audit-logs?${params}`);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
+      const data = await parseAuditLogsError(res);
       throw new Error(data.error || 'Failed to load audit logs');
     }
     return res.json();
