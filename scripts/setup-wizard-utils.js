@@ -41,11 +41,19 @@ function getRl() {
  * Prompt the user for input with an optional default.
  * Returns trimmed input or the default if empty.
  */
-export async function prompt(label, { default: def } = {}) {
-  const suffix = def != null && def !== '' ? ` (${def})` : '';
-  const answer = await getRl().question(`${label}${suffix}: `);
+function buildPromptSuffix(def) {
+  return def != null && def !== '' ? ` (${def})` : '';
+}
+
+function normalizePromptAnswer(answer, def) {
   const trimmed = answer.trim();
   return trimmed !== '' ? trimmed : (def ?? '');
+}
+
+export async function prompt(label, { default: def } = {}) {
+  const suffix = buildPromptSuffix(def);
+  const answer = await getRl().question(`${label}${suffix}: `);
+  return normalizePromptAnswer(answer, def);
 }
 
 /**
@@ -127,13 +135,13 @@ function spawnCommand(cmd, args, captureOutput) {
 function finalizeResult(result, { exitOnError, display, captureOutput }) {
   const ok = result.status === 0;
   const output = captureResultOutput(result);
-  if (exitOnFailure(result, ok, exitOnError, display, output.stderr, captureOutput)) {
+  if (exitOnFailure(result, { ok, exitOnError, display, stderr: output.stderr, captureOutput })) {
     return undefined;
   }
   return { ok, status: result.status ?? 1, stdout: output.stdout, stderr: output.stderr };
 }
 
-function exitOnFailure(result, ok, exitOnError, display, stderr, captureOutput) {
+function exitOnFailure(result, { ok, exitOnError, display, stderr, captureOutput }) {
   if (ok || !exitOnError) return false;
   logFailure(display, stderr, captureOutput);
   process.exit(result.status ?? 1);
