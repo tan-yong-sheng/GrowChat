@@ -164,33 +164,41 @@ async function stepCreateR2Bucket() {
   }
 }
 
+async function createSingleKvNamespace(ns) {
+  const kvResult = run('pnpm', ['exec', 'wrangler', 'kv', 'namespace', 'create', ns], {
+    exitOnError: false,
+    label: `Creating KV namespace "${ns}"`,
+    captureOutput: true,
+  });
+
+  if (kvResult.ok) {
+    const kvId = parseKvNamespaceId(kvResult.stdout);
+    if (kvId) {
+      console.log(`  Found ID: ${kvId.substring(0, ID_DISPLAY_PREFIX_LEN)}...`);
+      return kvId;
+    }
+    const manualId = await prompt(`Enter the KV namespace ID for ${ns}`);
+    return manualId || undefined;
+  }
+
+  await handleCreateError(kvResult, `KV namespace "${ns}"`);
+  return undefined;
+}
+
+async function maybeUpdateWranglerKvIds(kvIds) {
+  if (Object.keys(kvIds).length === 0) return;
+  const autoUpdate = await confirm('Auto-update wrangler.jsonc with the KV namespace IDs above?');
+  if (autoUpdate) updateWranglerKvIds(kvIds);
+}
+
 async function stepCreateKvNamespaces() {
   const kvIds = {};
   for (const ns of KV_NAMESPACES) {
-    const kvResult = run('pnpm', ['exec', 'wrangler', 'kv', 'namespace', 'create', ns], {
-      exitOnError: false,
-      label: `Creating KV namespace "${ns}"`,
-      captureOutput: true,
-    });
-
-    if (kvResult.ok) {
-      const kvId = parseKvNamespaceId(kvResult.stdout);
-      if (kvId) {
-        console.log(`  Found ID: ${kvId.substring(0, ID_DISPLAY_PREFIX_LEN)}...`);
-        kvIds[ns] = kvId;
-      } else {
-        const manualId = await prompt(`Enter the KV namespace ID for ${ns}`);
-        if (manualId) kvIds[ns] = manualId;
-      }
-    } else {
-      await handleCreateError(kvResult, `KV namespace "${ns}"`);
-    }
+    const kvId = await createSingleKvNamespace(ns);
+    if (kvId) kvIds[ns] = kvId;
   }
 
-  if (Object.keys(kvIds).length > 0) {
-    const autoUpdate = await confirm('Auto-update wrangler.jsonc with the KV namespace IDs above?');
-    if (autoUpdate) updateWranglerKvIds(kvIds);
-  }
+  await maybeUpdateWranglerKvIds(kvIds);
 }
 
 /** Step 1: Create Cloudflare resources. */

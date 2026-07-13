@@ -102,14 +102,21 @@ export async function requireOwnedChatWithPermission(req, env, db, user, action,
   return { chat: owned.chat };
 }
 
-export async function resolveChatModel(req, env, db, user, modelOrChat) {
-  let model = String(modelOrChat.model || '').trim();
-  if (!model) {
-    model = await resolveDefaultModel(env, db, user.sub);
-  }
-  const modelDecision = await ensureModelAllowed(req, env, db, user, model);
+async function resolveRequestedModel(req, env, db, user, modelOrChat) {
+  const requested = String(modelOrChat.model || '').trim();
+  if (requested) return requested;
+  return resolveDefaultModel(env, db, user.sub);
+}
+
+function buildResolvedModel(model, modelDecision) {
   if (modelDecision?.error) return modelDecision;
   return { model, providerInfo: modelDecision.providerInfo };
+}
+
+export async function resolveChatModel(req, env, db, user, modelOrChat) {
+  const model = await resolveRequestedModel(req, env, db, user, modelOrChat);
+  const modelDecision = await ensureModelAllowed(req, env, db, user, model);
+  return buildResolvedModel(model, modelDecision);
 }
 
 export function buildUserMessageContent(content, attachmentParts) {
