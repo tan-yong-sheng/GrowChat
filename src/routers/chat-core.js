@@ -31,17 +31,24 @@ function defaultModel(env) {
   return null;
 }
 
+/**
+ * Validate and trim a raw model ID value.
+ * Returns null for empty, malformed, or whitespace-only values.
+ */
+function validateTrimmedModelId(raw) {
+  if (!raw) return null;
+  const value = String(raw).trim();
+  if (!value || value.length > 200 || /\s/.test(value)) return null;
+  return value;
+}
+
 async function getUserDefaultModelId(db, userId) {
   if (!userId) return null;
   try {
     const row = await db.first('SELECT preferences FROM users WHERE id = ?', [userId]);
     if (!row?.preferences) return null;
     const prefs = JSON.parse(row.preferences);
-    const raw = prefs?.defaultModelId;
-    if (!raw) return null;
-    const value = String(raw).trim();
-    if (!value || value.length > 200 || /\s/.test(value)) return null;
-    return value;
+    return validateTrimmedModelId(prefs?.defaultModelId);
   } catch {
     return null;
   }
@@ -49,11 +56,7 @@ async function getUserDefaultModelId(db, userId) {
 
 async function getGlobalDefaultModelId(db) {
   try {
-    const raw = await getConfigValue(db, 'default_model_id', null);
-    if (!raw) return null;
-    const value = String(raw).trim();
-    if (!value || value.length > 200 || /\s/.test(value)) return null;
-    return value;
+    return validateTrimmedModelId(await getConfigValue(db, 'default_model_id', null));
   } catch {
     return null;
   }
