@@ -217,6 +217,13 @@ export function createModelSelectorController(container) {
       renderList(state, { reset: true, rebuild: true });
     }, 120);
   };
+  function expandVisibleListAndAdvance() {
+    visibleCount = Math.min(visibleCount + PAGE_SIZE, allFilteredModels.length);
+    activeIndex += 1;
+    renderList(state, { reset: false, rebuild: false });
+    applyActiveHighlight(true);
+  }
+
   const handleArrowDown = (e) => {
     e.preventDefault();
     if (!allFilteredModels.length) return;
@@ -225,10 +232,7 @@ export function createModelSelectorController(container) {
     } else if (activeIndex + 1 < visibleModels.length) {
       activeIndex += 1;
     } else if (visibleCount < allFilteredModels.length) {
-      visibleCount = Math.min(visibleCount + PAGE_SIZE, allFilteredModels.length);
-      activeIndex += 1;
-      renderList(state, { reset: false, rebuild: false });
-      applyActiveHighlight(true);
+      expandVisibleListAndAdvance();
       return;
     }
     applyActiveHighlight(true);
