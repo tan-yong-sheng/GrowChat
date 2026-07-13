@@ -30,16 +30,24 @@ function pickSseText(parsed) {
   return parsed.response || parsed.choices?.[0]?.delta?.content || '';
 }
 
-function extractSseDelta(line, onEvent) {
-  if (!line.startsWith('data: ')) return null;
-  const payload = line.slice(SSE_PREFIX_LENGTH).trim();
-  if (!payload || payload === '[DONE]') return null;
-  let parsed;
+function isSseTerminator(payload) {
+  return !payload || payload === '[DONE]';
+}
+
+function parseSsePayload(payload) {
   try {
-    parsed = JSON.parse(payload);
+    return JSON.parse(payload);
   } catch {
     return null;
   }
+}
+
+function extractSseDelta(line, onEvent) {
+  if (!line.startsWith('data: ')) return null;
+  const payload = line.slice(SSE_PREFIX_LENGTH).trim();
+  if (isSseTerminator(payload)) return null;
+  const parsed = parseSsePayload(payload);
+  if (!parsed) return null;
   if (onEvent) onEvent(parsed);
   return pickSseText(parsed);
 }
