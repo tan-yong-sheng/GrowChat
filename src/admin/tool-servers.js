@@ -129,10 +129,14 @@ export async function saveToolServers(db, servers) {
   await setConfigValue(db, 'tool_servers', JSON.stringify(servers));
 }
 
-export async function testToolServerConnection(server, options = {}) {
+function resolveToolServerUrl(server) {
   const url = String(server?.url || '').trim();
   if (!url) throw new Error('url is required');
+  return url;
+}
 
+export async function testToolServerConnection(server, options = {}) {
+  const url = resolveToolServerUrl(server);
   const headers = options.headers || parseHeadersForRequest(server.headers);
   applyAuthHeaders(headers, server);
 
