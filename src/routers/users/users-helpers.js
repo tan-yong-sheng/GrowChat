@@ -1,5 +1,7 @@
 import { loadUserToolServers } from '../../admin/tool-servers-user.js';
 import { createRootLogger } from '../../utils/logger.js';
+import { parseJsonObject } from '../../utils/json.js';
+export { parseJsonObject };
 const rootLogger = createRootLogger({});
 
 export function normalizeAccountStatus(value, fallback = 'active') {
@@ -74,16 +76,6 @@ export async function loadModelEnabledMap(db, _logger = rootLogger) {
   } catch (err) {
     rootLogger.warn('Failed to read model access map', { error: err?.message || err });
     return new Map();
-  }
-}
-
-export function parseJsonObject(raw) {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
-  try {
-    const parsed = JSON.parse(String(raw));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
   }
 }
 
