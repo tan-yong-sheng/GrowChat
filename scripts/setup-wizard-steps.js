@@ -128,6 +128,17 @@ function updateWranglerKvIds(ids) {
 const KV_NAMESPACES = ['CHAT_SESSIONS', 'SESSIONS', 'CACHE'];
 const ID_DISPLAY_PREFIX_LEN = 8;
 
+async function promptAndUpdateD1Id() {
+  console.log('  \u26a0\ufe0f Could not parse database_id from output.');
+  const manualDbId = await prompt('Enter the D1 database ID');
+  if (manualDbId) updateWranglerD1Id(manualDbId);
+}
+
+async function maybeUpdateWranglerD1Id(dbId) {
+  const autoUpdate = await confirm('Auto-update wrangler.jsonc with this D1 database ID?');
+  if (autoUpdate) updateWranglerD1Id(dbId);
+}
+
 async function stepCreateD1Database() {
   const dbResult = run('pnpm', ['exec', 'wrangler', 'd1', 'create', 'growchat'], {
     exitOnError: false,
@@ -142,15 +153,12 @@ async function stepCreateD1Database() {
 
   const dbId = parseD1DatabaseId(dbResult.stdout);
   if (!dbId) {
-    console.log('  \u26a0\ufe0f Could not parse database_id from output.');
-    const manualDbId = await prompt('Enter the D1 database ID');
-    if (manualDbId) updateWranglerD1Id(manualDbId);
+    await promptAndUpdateD1Id();
     return;
   }
 
   console.log(`  Found database_id: ${dbId.substring(0, ID_DISPLAY_PREFIX_LEN)}...`);
-  const autoUpdate = await confirm('Auto-update wrangler.jsonc with this D1 database ID?');
-  if (autoUpdate) updateWranglerD1Id(dbId);
+  await maybeUpdateWranglerD1Id(dbId);
 }
 
 async function stepCreateR2Bucket() {
@@ -269,36 +277,44 @@ export async function stepApplyMigrations() {
   console.log('\n\u2705 D1 migrations applied.');
 }
 
+async function setJwtSecretFromInput(defaultJwt) {
+  const jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
+  setSecret('JWT_SECRET', jwtSecret || defaultJwt);
+  console.log(' \u2705 JWT_SECRET set.\n');
+}
+
+async function promptAndSetGeneratedJwtSecret(defaultJwt) {
+  console.log(' JWT_SECRET is used to sign authentication tokens.');
+  console.log(' A random one has been generated for you.');
+  const useDefaultJwt = await confirm('Use the generated JWT secret?', { default: true });
+  if (useDefaultJwt) {
+    setSecret('JWT_SECRET', defaultJwt);
+    console.log(' \u2705 JWT_SECRET set.\n');
+    return;
+  }
+
+  const jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
+  if (!jwtSecret) {
+    console.error(
+      ' \u274c JWT_SECRET cannot be empty. Please re-run the wizard and provide a value.\n'
+    );
+    process.exit(1);
+  }
+  setSecret('JWT_SECRET', jwtSecret);
+  console.log(' \u2705 JWT_SECRET set.\n');
+}
+
 async function promptJwtSecret() {
   const envJwt = process.env.JWT_SECRET;
   const defaultJwt = envJwt || generateSecret();
 
   if (envJwt) {
     const used = await handleEnvSecret('JWT_SECRET', envJwt);
-    if (!used) {
-      const jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
-      setSecret('JWT_SECRET', jwtSecret || defaultJwt);
-      console.log(' \u2705 JWT_SECRET set.\n');
-    }
+    if (!used) await setJwtSecretFromInput(defaultJwt);
     return;
   }
 
-  console.log(' JWT_SECRET is used to sign authentication tokens.');
-  console.log(' A random one has been generated for you.');
-  const useDefaultJwt = await confirm('Use the generated JWT secret?', { default: true });
-  if (useDefaultJwt) {
-    setSecret('JWT_SECRET', defaultJwt);
-  } else {
-    const jwtSecret = await secretPrompt('Enter your own JWT_SECRET');
-    if (!jwtSecret) {
-      console.error(
-        ' \u274c JWT_SECRET cannot be empty. Please re-run the wizard and provide a value.\n'
-      );
-      process.exit(1);
-    }
-    setSecret('JWT_SECRET', jwtSecret);
-  }
-  console.log(' \u2705 JWT_SECRET set.\n');
+  await promptAndSetGeneratedJwtSecret(defaultJwt);
 }
 
 async function promptResendApiKey() {
