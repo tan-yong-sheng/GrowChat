@@ -17,6 +17,16 @@ import {
   renderPermissionGroup,
 } from './roles-helpers.js';
 
+function buildInitialRoleDraft(isNew, sourceRole, nextCustomIndex) {
+  return isNew
+    ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
+        isNew: true,
+        sourceRoleId: 'member',
+        nextCustomIndex,
+      })
+    : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+}
+
 export function openRoleModal(
   container,
   state,
@@ -24,13 +34,7 @@ export function openRoleModal(
   { roleId = null, isNew = false, onSaveRole = null, onDeleteRole = null } = {}
 ) {
   const sourceRole = roleId ? state.roles.find((role) => role.id === roleId) || null : null;
-  const baseRole = isNew
-    ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
-        isNew: true,
-        sourceRoleId: 'member',
-        nextCustomIndex: state.nextCustomIndex,
-      })
-    : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+  const baseRole = buildInitialRoleDraft(isNew, sourceRole, state.nextCustomIndex);
 
   const modalState = {
     query: '',
@@ -310,13 +314,7 @@ export function openRoleModal(
   });
 
   resetBtn?.addEventListener('click', () => {
-    modalState.draft = modalState.isNew
-      ? createRoleDraft(ROLE_PRESETS.find((role) => role.id === 'member') || ROLE_PRESETS[0], {
-          isNew: true,
-          sourceRoleId: 'member',
-          nextCustomIndex: state.nextCustomIndex,
-        })
-      : createRoleDraft(sourceRole || ROLE_PRESETS[0]);
+    modalState.draft = buildInitialRoleDraft(modalState.isNew, sourceRole, state.nextCustomIndex);
     modalState.query = '';
     modalState.advanced = true;
     modalState.groupCollapsed = { ...DEFAULT_GROUP_COLLAPSE };
