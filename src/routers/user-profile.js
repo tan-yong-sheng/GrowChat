@@ -1,16 +1,7 @@
 import { ValidationError } from '../errors/http-errors.js';
 import { optionalString, requirePlainObject } from '../validation/request.js';
 import { escapeHtml, stripHtml } from '../utils/sanitize.js';
-
-function parseJsonObject(raw) {
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
+import { parseJsonObjectOrDefault } from '../utils/json.js';
 
 export function serializeUserProfile(row) {
   if (!row) return null;
@@ -20,11 +11,11 @@ export function serializeUserProfile(row) {
     email: row.email,
     name: escapeHtml(String(row.name || '')),
     account_status: row.account_status === 'pending' ? 'pending' : 'active',
-    settings: parseJsonObject(row.settings),
+    settings: parseJsonObjectOrDefault(row.settings, {}),
     avatar: row.avatar || null,
     avatar_emoji: row.avatar_emoji || null,
     status: row.status || 'offline',
-    preferences: parseJsonObject(row.preferences),
+    preferences: parseJsonObjectOrDefault(row.preferences, {}),
     created_at: row.created_at,
     last_active_at: row.last_active_at || null,
     updated_at: row.updated_at,

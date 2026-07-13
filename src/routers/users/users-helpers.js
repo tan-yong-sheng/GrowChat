@@ -1,7 +1,8 @@
 import { loadUserToolServers } from '../../admin/tool-servers-user.js';
 import { createRootLogger } from '../../utils/logger.js';
-import { parseJsonObject } from '../../utils/json.js';
+import { parseJsonObject, parseJsonObjectOrDefault } from '../../utils/json.js';
 export { parseJsonObject };
+export const parseSettings = parseJsonObjectOrDefault;
 const rootLogger = createRootLogger({});
 
 export function normalizeAccountStatus(value, fallback = 'active') {
@@ -102,14 +103,4 @@ function findOauthStateRow(rows, state) {
     return { ...server, id: row.id, user_id: row.user_id };
   }
   return null;
-}
-
-export function parseSettings(raw) {
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
 }
