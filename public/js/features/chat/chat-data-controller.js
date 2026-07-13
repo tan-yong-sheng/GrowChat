@@ -33,19 +33,13 @@ function resolveModelIdForMode(state, data, modelMode) {
 
 function pickDefaultModel(state, data) {
   return (
-    state.defaultModelId ||
-    state.globalDefaultModelId ||
-    data?.chat?.model ||
-    state.activeModelId
+    state.defaultModelId || state.globalDefaultModelId || data?.chat?.model || state.activeModelId
   );
 }
 
 function pickChatModel(state, data) {
   return (
-    data?.chat?.model ||
-    state.activeModelId ||
-    state.defaultModelId ||
-    state.globalDefaultModelId
+    data?.chat?.model || state.activeModelId || state.defaultModelId || state.globalDefaultModelId
   );
 }
 
@@ -82,18 +76,24 @@ function hasLiveStream(messages, now, staleMs) {
  * @param {object|null} fallbackMessage
  * @returns {{ messages: object[], appliedFallbackId: string|null }}
  */
+function extractFallbackContext(fallbackMessage) {
+  if (!fallbackMessage?.id) return null;
+  return {
+    fallbackId: String(fallbackMessage.id),
+    fallbackParent: fallbackMessage.parent_id ? String(fallbackMessage.parent_id) : '',
+  };
+}
+
 function resolveFallbackMessageInsertion(messages, fallbackMessage) {
-  if (!fallbackMessage?.id) return { messages, appliedFallbackId: null };
+  const ctx = extractFallbackContext(fallbackMessage);
+  if (!ctx) return { messages, appliedFallbackId: null };
 
   let resolved = fallbackMessage;
-  const fallbackId = String(resolved.id);
-  const fallbackParent = resolved.parent_id ? String(resolved.parent_id) : '';
-
-  if (isFallbackAlreadyPresent(messages, fallbackId, fallbackParent)) {
+  if (isFallbackAlreadyPresent(messages, ctx.fallbackId, ctx.fallbackParent)) {
     return { messages, appliedFallbackId: null };
   }
 
-  if (!parentExistsInMessages(messages, fallbackParent)) {
+  if (!parentExistsInMessages(messages, ctx.fallbackParent)) {
     resolved = reparentToLastUser(messages, resolved);
   }
 
