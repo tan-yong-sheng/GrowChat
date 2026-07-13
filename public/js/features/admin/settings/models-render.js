@@ -6,6 +6,7 @@
 import {
   computeProviderPaginationMeta,
   buildProviderOptionsMarkup,
+  renderModelRowsHtml,
 } from './models-display-shared.js';
 
 import { buildProviderOptions } from '../../../shared/utils/model-filters.js';
@@ -17,7 +18,6 @@ import {
   syncModelsPaginationState,
   syncModelsTableState,
 } from '../../../shared/components/models-section.js';
-import { renderModelAccessBadgeForModel } from '../../../shared/components/model-access-badge.js';
 import { getAttachmentCapTooltip, getAttachmentCapValue } from './models-helpers.js';
 import { escapeHtml } from '../../../shared/utils/dom-escape.js';
 
@@ -62,55 +62,7 @@ export function createModelsRender(deps) {
       getActiveModelCount()
     );
 
-    const rowsHtml = modelsState.loading
-      ? `
-                    ${Array.from({ length: 5 })
-                      .map(
-                        () => `
-                      <tr class="bg-white text-xs animate-pulse">
-                        <td class="px-4 py-4"><div class="h-4 w-32 rounded bg-gray-100"></div></td>
-                        <td class="px-4 py-4"><div class="h-4 w-40 rounded bg-gray-100"></div></td>
-                        <td class="px-4 py-4"><div class="h-6 w-20 rounded-full bg-gray-100"></div></td>
-                        <td class="px-4 py-4 text-right"><div class="ml-auto h-5 w-9 rounded-full bg-gray-100"></div></td>
-                      </tr>
-                    `
-                      )
-                      .join('')}
-                  `
-      : filteredModels.length === 0
-        ? ''
-        : filteredModels
-            .map((model) => {
-              const isDisabled = modelsState.disabledModels.has(model.id);
-              return `
-                    <tr data-model-row="${escapeHtml(model.id)}" class="text-xs hover:bg-gray-50/50 transition-colors ${isDisabled ? 'bg-gray-50/80 opacity-70' : 'bg-white'}">
-<td class="px-4 py-4 font-medium text-gray-900 truncate" title="${escapeHtml(model.name || model.id)}">${escapeHtml(model.name || model.id)}</td>
-                      <td class="px-4 py-4 font-mono truncate ${isDisabled ? 'text-gray-300' : 'text-gray-400'}" title="${escapeHtml(model.id)}">${escapeHtml(model.id)}</td>
-                      <td class="px-4 py-4">
-                        <div class="flex items-center gap-2">
-                          ${renderModelAccessBadgeForModel(model)}
-                        </div>
-                      </td>
-                      <td class="px-4 py-4 text-right">
-                        <div class="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-gray-600 hover:bg-gray-100 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/20 ${isDisabled || !canManageAcls ? 'hidden' : ''}"
-                            data-model-acl="${escapeHtml(model.id)}"
-                            title="Edit access rules"
-                            aria-label="Edit access rules"
-                            ${isDisabled || !canManageAcls ? 'tabindex="-1" aria-hidden="true" disabled aria-disabled="true"' : ''}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-5">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3m-.75 0h10.5a1.5 1.5 0 0 1 1.5 1.5v6.75a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5V12a1.5 1.5 0 0 1 1.5-1.5Zm4.5 3.75v2.25" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  `;
-            })
-            .join('');
+    const rowsHtml = renderModelRowsHtml(modelsState, filteredModels, canManageAcls);
 
     if (!ensureMounted()) {
       container.innerHTML = `
