@@ -19,6 +19,7 @@ import { recordAttachmentCapabilityFailure } from '../chat/attachments.js';
 import { createRealtimeBus } from '../services/realtime-bus.js';
 import { SseLineParser, streamLLM } from '../llm.js';
 import { normalizeProviderFamily } from '../llm/provider-registry.js';
+import { pickToolBaseFields } from '../shared/tool-servers-shared.js';
 import { MessageQueueDO } from '../durable/message-queue.js';
 import { chatCollectionRouter } from './chat-collection.js';
 import { chatMessageRouter } from './chat-message.js';
@@ -50,9 +51,7 @@ function serializeAllowedToolServers(servers = []) {
             String(tool?.name || '').trim()
         )
         .map((tool) => ({
-          name: String(tool.name || '').trim(),
-          title: String(tool.title || '').trim(),
-          description: String(tool.description || '').trim(),
+          ...pickToolBaseFields(tool),
           enabled: true,
           visible_for_user: tool.visible_for_user !== false,
           hidden_for_user: tool.hidden_for_user === true,

@@ -1,3 +1,5 @@
+import { pickToolBaseFields } from '../shared/tool-servers-shared.js';
+
 const ATTACHMENT_CAP_TYPES = ['image', 'pdf', 'text', 'audio', 'video', 'other'];
 
 export function isValidHttpUrl(value) {
@@ -209,9 +211,7 @@ const pickToolParameters = (tool) => {
 };
 
 const normalizeToolEntry = (tool) => ({
-  name: String(tool?.name || '').trim(),
-  title: String(tool?.title || '').trim(),
-  description: String(tool?.description || '').trim(),
+  ...pickToolBaseFields(tool),
   parameters: pickToolParameters(tool),
   enabled: tool?.enabled !== false,
 });

@@ -76,14 +76,23 @@ export async function loadUserGroupIdsFromDb(db, userId) {
 }
 
 /**
+ * Pick the common base fields from an MCP tool object.
+ */
+export function pickToolBaseFields(tool) {
+  return {
+    name: String(tool?.name || '').trim(),
+    title: String(tool?.title || '').trim(),
+    description: String(tool?.description || '').trim(),
+  };
+}
+
+/**
  * Map MCP tool objects to standard {name, title, description, parameters} format.
  */
 export function mapMcpTools(tools) {
   return (tools || [])
     .map((tool) => ({
-      name: String(tool?.name || '').trim(),
-      title: String(tool?.title || '').trim(),
-      description: String(tool?.description || '').trim(),
+      ...pickToolBaseFields(tool),
       parameters: getToolParameters(tool),
     }))
     .filter((tool) => tool.name);
