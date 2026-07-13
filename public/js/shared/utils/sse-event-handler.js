@@ -91,16 +91,25 @@ function handleToolEvent(payload, ctx, state) {
   applyAssistantText();
 }
 
+function resolveErrorMessage(payload) {
+  return payload.message || payload.error || 'LLM request failed';
+}
+
+function buildErrorAssistantText(currentText, message, strategy) {
+  if (strategy !== 'append') return '';
+  const label = `Error: ${message}`;
+  return currentText ? `${currentText}\n\n${label}` : label;
+}
+
 function handleError(payload, ctx, state) {
   const { applyAssistantText, errorStrategy } = ctx;
-  state.errorMessage = payload.message || payload.error || 'LLM request failed';
+  state.errorMessage = resolveErrorMessage(payload);
   state.errorActive = true;
-  if (errorStrategy === 'append') {
-    const label = `Error: ${state.errorMessage}`;
-    state.assistantText = state.assistantText ? `${state.assistantText}\n\n${label}` : label;
-  } else {
-    state.assistantText = '';
-  }
+  state.assistantText = buildErrorAssistantText(
+    state.assistantText,
+    state.errorMessage,
+    errorStrategy
+  );
   applyAssistantText();
 }
 

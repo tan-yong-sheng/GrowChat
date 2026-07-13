@@ -127,30 +127,38 @@ function buildGroupsOverviewCallbacks(ctx, callbacks) {
   };
 }
 
-function renderUsersOverviewOrGroups(ctx, subContentEl, callbacks) {
+function resolveOverviewRenderer(ctx) {
   if (ctx.data.error) {
-    // fallow-ignore-next-line security-sink
-    subContentEl.innerHTML = renderErrorState(ctx.data.error);
-    return;
+    return (subContentEl) => {
+      // fallow-ignore-next-line security-sink
+      subContentEl.innerHTML = renderErrorState(ctx.data.error);
+    };
   }
   if (ctx.subTab === 'overview') {
-    ctx.usersModules.renderUserOverview(
-      subContentEl,
-      ctx.data,
-      buildUserOverviewCallbacks(ctx, callbacks)
-    );
-    return;
+    return (subContentEl, callbacks) =>
+      ctx.usersModules.renderUserOverview(
+        subContentEl,
+        ctx.data,
+        buildUserOverviewCallbacks(ctx, callbacks)
+      );
   }
   if (ctx.data.loading && ctx.data.loadingMode === 'initial') {
-    // fallow-ignore-next-line security-sink
-    subContentEl.innerHTML = renderLoadingState();
-    return;
+    return (subContentEl) => {
+      // fallow-ignore-next-line security-sink
+      subContentEl.innerHTML = renderLoadingState();
+    };
   }
-  ctx.usersModules.renderGroupsOverview(
-    subContentEl,
-    ctx.data,
-    buildGroupsOverviewCallbacks(ctx, callbacks)
-  );
+  return (subContentEl, callbacks) =>
+    ctx.usersModules.renderGroupsOverview(
+      subContentEl,
+      ctx.data,
+      buildGroupsOverviewCallbacks(ctx, callbacks)
+    );
+}
+
+function renderUsersOverviewOrGroups(ctx, subContentEl, callbacks) {
+  const render = resolveOverviewRenderer(ctx);
+  render(subContentEl, callbacks);
 }
 
 export function renderUsersSubContent(ctx, subContentEl, callbacks) {

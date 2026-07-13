@@ -137,128 +137,152 @@ export function createAssistantRunner(deps) {
             runStep: async ({ messagesForModel, followUps }) => {
               let stepTextOutput = false;
               let stepReasoningOutput = false;
-              let stream;
-              try {
-                stream = await withMemoryCheck(
-                  'streamLLM',
-                  () =>
-                    streamLLM(env, model, messagesForModel, {
-                      tools: toolsEnabled ? tools : undefined,
-                      toolChoice,
-                      userId: user?.sub || '',
-                      userRole: user?.primary_role || 'member',
-                    }),
-                  {
-                    logger: requestLogger,
-                    extra: { model, messagesLen: messagesForModel.length },
-                  }
-                );
-              } catch (err) {
-                await recordAttachmentCapabilityFailure({
-                  db,
-                  modelId: model,
-                  attachmentKinds,
-                  err,
-                });
-                await lifecycle.sendErrorAndClose({
-                  controller,
-                  encoder,
-                  errorCode: 'llm_unavailable',
-                  err,
-                  toolCallRecords,
-                  citations,
-                });
-                return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
-              }
-
-              const reader = stream.getReader();
-              const decoder = new TextDecoder();
-              const stepToolCalls = [];
               let finishReason = null;
-              const parser = new SseLineParser({
-                onEvent: createStreamEventHandler({
-                  reasoningStartedAt,
-                  stepReasoningOutput: {
-                    get value() {
-                      return stepReasoningOutput;
-                    },
-                    set value(v) {
-                      stepReasoningOutput = v;
-                    },
-                  },
-                  appendMessageBlock,
-                  fullReasoning: {
-                    get value() {
-                      return fullReasoning;
-                    },
-                    set value(v) {
-                      fullReasoning = v;
-                    },
-                  },
-                  fullText,
-                  messageBlocks,
-                  lifecycle,
-                  emitSse,
-                  applyToolCallDelta,
-                  stepToolCalls,
-                  finishReason: {
-                    get value() {
-                      return finishReason;
-                    },
-                    set value(v) {
-                      finishReason = v;
-                    },
-                  },
-                }),
-              });
+              const stepToolCalls = [];
 
-              const streamDeadlineAt = Date.now() + STREAM_HARD_TIMEOUT_MS;
-              while (true) {
-                const { done, value } = await readStreamChunkWithHeartbeat(reader, {
-                  controller,
-                  encoder,
-                  deadlineAt: streamDeadlineAt,
-                });
-                if (done) break;
-                const delta = parser.push(decoder.decode(value, { stream: true }));
-                if (delta) {
-                  fullText += delta;
-                  stepTextOutput = true;
-                  appendMessageBlock({ type: 'text', content: delta });
-                  await lifecycle.persistAssistantContent({
-                    fullText,
-                    fullReasoning,
-                    messageBlocks,
-                  });
-                  const persisted = await emitSse({ response: delta }, { persist: true });
-                  await publishRealtimeNow(
-                    env,
-                    createRealtimeEvent({
-                      type: 'message.delta',
-                      userId: user.sub,
-                      chatId,
-                      messageId: assistantMsgId,
-                      originSessionId: getOriginSessionId(req),
-                      data: { delta, model, seq: persisted?.seq },
-                    })
+              async function startLlmStream() {
+                try {
+                  const s = await withMemoryCheck(
+                    'streamLLM',
+                    () =>
+                      streamLLM(env, model, messagesForModel, {
+                        tools: toolsEnabled ? tools : undefined,
+                        toolChoice,
+                        userId: user?.sub || '',
+                        userRole: user?.primary_role || 'member',
+                      }),
+                    {
+                      logger: requestLogger,
+                      extra: { model, messagesLen: messagesForModel.length },
+                    }
                   );
-                }
-                if (await lifecycle.isCancelled()) {
-                  await lifecycle.sendCancelAndClose({ controller, encoder });
+                  return { ok: true, stream: s };
+                } catch (err) {
+                  await recordAttachmentCapabilityFailure({
+                    db,
+                    modelId: model,
+                    attachmentKinds,
+                    err,
+                  });
+                  await lifecycle.sendErrorAndClose({
+                    controller,
+                    encoder,
+                    errorCode: 'llm_unavailable',
+                    err,
+                    toolCallRecords,
+                    citations,
+                  });
                   return {
-                    action: 'final',
-                    terminate: true,
-                    nextMessagesForModel: messagesForModel,
+                    ok: false,
+                    result: {
+                      action: 'final',
+                      terminate: true,
+                      nextMessagesForModel: messagesForModel,
+                    },
                   };
                 }
               }
 
-              const finalDelta = parser.flush();
-              if (finalDelta) {
+              function buildStreamParser() {
+                const reader = stream.getReader();
+                const decoder = new TextDecoder();
+                const parser = new SseLineParser({
+                  onEvent: createStreamEventHandler({
+                    reasoningStartedAt,
+                    stepReasoningOutput: {
+                      get value() {
+                        return stepReasoningOutput;
+                      },
+                      set value(v) {
+                        stepReasoningOutput = v;
+                      },
+                    },
+                    appendMessageBlock,
+                    fullReasoning: {
+                      get value() {
+                        return fullReasoning;
+                      },
+                      set value(v) {
+                        fullReasoning = v;
+                      },
+                    },
+                    fullText,
+                    messageBlocks,
+                    lifecycle,
+                    emitSse,
+                    applyToolCallDelta,
+                    stepToolCalls,
+                    finishReason: {
+                      get value() {
+                        return finishReason;
+                      },
+                      set value(v) {
+                        finishReason = v;
+                      },
+                    },
+                  }),
+                });
+                return { reader, decoder, parser };
+              }
+
+              async function processStreamDelta(delta) {
+                if (!delta) return;
+                fullText += delta;
+                stepTextOutput = true;
+                appendMessageBlock({ type: 'text', content: delta });
+                await lifecycle.persistAssistantContent({
+                  fullText,
+                  fullReasoning,
+                  messageBlocks,
+                });
+                const persisted = await emitSse({ response: delta }, { persist: true });
+                await publishRealtimeNow(
+                  env,
+                  createRealtimeEvent({
+                    type: 'message.delta',
+                    userId: user.sub,
+                    chatId,
+                    messageId: assistantMsgId,
+                    originSessionId: getOriginSessionId(req),
+                    data: { delta, model, seq: persisted?.seq },
+                  })
+                );
+              }
+
+              async function processStreamIteration(reader, parser, decoder, deadlineAt) {
+                const { done, value } = await readStreamChunkWithHeartbeat(reader, {
+                  controller,
+                  encoder,
+                  deadlineAt,
+                });
+                if (done) return { done: true };
+                const delta = parser.push(decoder.decode(value, { stream: true }));
+                await processStreamDelta(delta);
+                if (await lifecycle.isCancelled()) {
+                  await lifecycle.sendCancelAndClose({ controller, encoder });
+                  return {
+                    cancelled: true,
+                    result: {
+                      action: 'final',
+                      terminate: true,
+                      nextMessagesForModel: messagesForModel,
+                    },
+                  };
+                }
+                return { done: false };
+              }
+
+              async function flushFinalDelta(parser, decoder) {
+                const finalDelta = parser.flush();
+                if (!finalDelta) return;
                 fullText += finalDelta;
                 stepTextOutput = true;
                 appendMessageBlock({ type: 'text', content: finalDelta });
-                await lifecycle.persistAssistantContent({ fullText, fullReasoning, messageBlocks });
+                await lifecycle.persistAssistantContent({
+                  fullText,
+                  fullReasoning,
+                  messageBlocks,
+                });
                 const persisted = await emitSse({ response: finalDelta }, { persist: true });
                 await publishRealtimeNow(
                   env,
@@ -273,26 +297,19 @@ export function createAssistantRunner(deps) {
                 );
               }
 
-              parser.finalize();
-              reader.releaseLock();
-
-              if (await lifecycle.isCancelled()) {
-                await lifecycle.sendCancelAndClose({ controller, encoder });
-                return { action: 'final', terminate: true, nextMessagesForModel: messagesForModel };
+              async function checkCancelledAndClose() {
+                if (await lifecycle.isCancelled()) {
+                  await lifecycle.sendCancelAndClose({ controller, encoder });
+                  return {
+                    action: 'final',
+                    terminate: true,
+                    nextMessagesForModel: messagesForModel,
+                  };
+                }
+                return null;
               }
 
-              const hasToolCalls = stepToolCalls.some((call) => call && call.name);
-              const turnContinuation = resolveTurnContinuation({
-                providerFamily,
-                hasToolCalls,
-                finishReason,
-                stepTextOutput,
-                stepReasoningOutput,
-                followUps,
-                maxFollowUps: MAX_FOLLOW_UPS,
-              });
-
-              if (turnContinuation.action === 'tool_loop') {
+              async function buildToolLoopResult() {
                 const { validCalls, unknownCalls } = normalizeToolCalls(stepToolCalls, toolMap);
                 const result = await executeToolCalls({
                   validCalls,
@@ -337,7 +354,7 @@ export function createAssistantRunner(deps) {
                 return { action: 'tool_loop', nextMessagesForModel };
               }
 
-              if (turnContinuation.action === 'follow_up') {
+              function buildFollowUpResult() {
                 return {
                   action: 'follow_up',
                   nextMessagesForModel: [
@@ -347,7 +364,52 @@ export function createAssistantRunner(deps) {
                 };
               }
 
-              return { action: 'final', nextMessagesForModel: messagesForModel };
+              function buildFinalResult() {
+                return { action: 'final', nextMessagesForModel: messagesForModel };
+              }
+
+              async function resolveStepOutcome() {
+                const turnContinuation = resolveTurnContinuation({
+                  providerFamily,
+                  hasToolCalls: stepToolCalls.some((call) => call && call.name),
+                  finishReason,
+                  stepTextOutput,
+                  stepReasoningOutput,
+                  followUps,
+                  maxFollowUps: MAX_FOLLOW_UPS,
+                });
+                if (turnContinuation.action === 'tool_loop') return buildToolLoopResult();
+                if (turnContinuation.action === 'follow_up') return buildFollowUpResult();
+                return buildFinalResult();
+              }
+
+              const streamResult = await startLlmStream();
+              if (!streamResult.ok) return streamResult.result;
+              const stream = streamResult.stream;
+
+              const { reader, decoder, parser } = buildStreamParser();
+              const streamDeadlineAt = Date.now() + STREAM_HARD_TIMEOUT_MS;
+
+              while (true) {
+                const iteration = await processStreamIteration(
+                  reader,
+                  parser,
+                  decoder,
+                  streamDeadlineAt
+                );
+                if (iteration.done) break;
+                if (iteration.cancelled) return iteration.result;
+              }
+
+              await flushFinalDelta(parser, decoder);
+
+              parser.finalize();
+              reader.releaseLock();
+
+              const cancelResult = await checkCancelledAndClose();
+              if (cancelResult) return cancelResult;
+
+              return resolveStepOutcome();
             },
           });
 

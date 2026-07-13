@@ -124,10 +124,14 @@ export function setupWireChatControllers(ctx, deps) {
       done: true,
     };
   };
+  const resolveMessageList = (chatId) => state.messagesByChat[chatId] || [];
+
+  const findMessageInList = (list, messageId) =>
+    list.find((msg) => String(msg.id) === String(messageId)) || null;
+
   const getMessageById = (chatId, messageId) => {
     if (!chatId || !messageId) return null;
-    const list = state.messagesByChat[chatId] || [];
-    return list.find((msg) => String(msg.id) === String(messageId)) || null;
+    return findMessageInList(resolveMessageList(chatId), messageId);
   };
   const hydrateAttachmentImages = (containerEl) => uiResources.hydrateAttachmentImages(containerEl);
   const renderController = createChatRenderController({

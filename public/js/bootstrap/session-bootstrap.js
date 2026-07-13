@@ -75,15 +75,21 @@ function applyPrefetchedModels(data) {
   });
 }
 
+function applyCachedModelsIfAvailable() {
+  const cached = readModelsCache('effective');
+  if (cached?.models?.length) {
+    applyPrefetchedModels(cached);
+    return cached;
+  }
+  return null;
+}
+
 function handlePrefetchError(err, { requestGeneration, allowCache }) {
   if (requestGeneration !== getModelsCacheGeneration()) return null;
   console.warn('Failed to prefetch models:', err);
   if (allowCache) {
-    const cached = readModelsCache('effective');
-    if (cached?.models?.length) {
-      applyPrefetchedModels(cached);
-      return cached;
-    }
+    const cached = applyCachedModelsIfAvailable();
+    if (cached) return cached;
   }
   setState({ modelsLoading: false });
   return null;

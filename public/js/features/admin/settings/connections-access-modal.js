@@ -64,6 +64,23 @@ export async function openConnectionAccessModal(connection, { connectionsState, 
     state.rulesByGroup = buildRulesByGroup(baseRules);
   };
 
+  function buildConnectionAccessSavePayload(rules) {
+    const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
+    return {
+      enabled: connectionsState.openai.enabled,
+      connections: connectionsState.openai.connections
+        .filter((c) => !c.readOnly)
+        .map((conn) => ({
+          ...conn,
+          manualModels: normalizeConnectionManualModels(conn.manualModels),
+        })),
+      model_updates: [],
+      access_updates: sameAsBase
+        ? []
+        : [{ connection_id: connection.id, rules: cloneAclRules(rules) }],
+    };
+  }
+
   saveBtn?.addEventListener(
     'click',
     wrapAclSaveHandler({
@@ -72,22 +89,10 @@ export async function openConnectionAccessModal(connection, { connectionsState, 
       saveErrorEl,
       saveErrorMsg: 'Failed to save connection access',
       onExecute: async ({ rules }) => {
-        const sameAsBase = getAclRulesSignature(rules) === getAclRulesSignature(baseRules);
+        const payload = buildConnectionAccessSavePayload(rules);
         const res = await apiFetch('/api/admin/openai/connections', {
           method: 'PUT',
-          body: JSON.stringify({
-            enabled: connectionsState.openai.enabled,
-            connections: connectionsState.openai.connections
-              .filter((c) => !c.readOnly)
-              .map((conn) => ({
-                ...conn,
-                manualModels: normalizeConnectionManualModels(conn.manualModels),
-              })),
-            model_updates: [],
-            access_updates: sameAsBase
-              ? []
-              : [{ connection_id: connection.id, rules: cloneAclRules(rules) }],
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));

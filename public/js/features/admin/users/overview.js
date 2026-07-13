@@ -183,11 +183,11 @@ export function renderUserOverview(container, data, actions) {
     await actions.reload({ preserveContent: true });
   });
 
+  const computeTotalPages = () =>
+    Math.max(1, Math.ceil((data.total || 0) / (data.pagination?.pageSize || 20)));
+
   nextButton?.addEventListener('click', async () => {
-    const totalPages = Math.max(
-      1,
-      Math.ceil((data.total || 0) / (data.pagination?.pageSize || 20))
-    );
+    const totalPages = computeTotalPages();
     if (data.pagination.page >= totalPages) return;
     data.pagination.page += 1;
     await actions.reload({ preserveContent: true });
@@ -241,21 +241,27 @@ export function renderUserOverview(container, data, actions) {
     const close = () => {
       modal?.remove();
     };
+    const applyAddUserTabClasses = (tabEl, active) => {
+      if (!tabEl) return;
+      tabEl.setAttribute('aria-pressed', String(active));
+      const classes = [
+        ['text-gray-900', active],
+        ['border-gray-900', active],
+        ['text-gray-600', !active],
+        ['border-transparent', !active],
+      ];
+      for (const [cls, condition] of classes) {
+        tabEl.classList.toggle(cls, condition);
+      }
+    };
+
     const setTab = (tab) => {
       const isForm = tab === 'form';
       modalState.activeTab = tab;
       form?.classList.toggle('hidden', !isForm);
       csvForm?.classList.toggle('hidden', isForm);
-      formTab?.setAttribute('aria-pressed', String(isForm));
-      csvTab?.setAttribute('aria-pressed', String(!isForm));
-      formTab?.classList.toggle('text-gray-900', isForm);
-      formTab?.classList.toggle('border-gray-900', isForm);
-      formTab?.classList.toggle('text-gray-600', !isForm);
-      formTab?.classList.toggle('border-transparent', !isForm);
-      csvTab?.classList.toggle('text-gray-900', !isForm);
-      csvTab?.classList.toggle('border-gray-900', !isForm);
-      csvTab?.classList.toggle('text-gray-600', isForm);
-      csvTab?.classList.toggle('border-transparent', isForm);
+      applyAddUserTabClasses(formTab, isForm);
+      applyAddUserTabClasses(csvTab, !isForm);
       syncDirty();
     };
     formTab?.addEventListener('click', () => setTab('form'));
