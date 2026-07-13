@@ -7,6 +7,7 @@ import { createEmailService } from '../services/email/email-service.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { createLogger } from '../utils/logger.js';
 import { handleValidationErrorCatch } from './auth/auth-helpers.js';
+import { bufferToHex } from '../utils/encoding.js';
 
 const PASSWORD_RESET_TTL_SECONDS = 3600;
 const PASSWORD_RESET_TTL_DISPLAY = '1 hour';
@@ -56,12 +57,10 @@ export async function handleForgotPassword(req, env, db, users, requestContext =
   }
 
   const resetToken = crypto.getRandomValues(new Uint8Array(32));
-  const resetTokenHex = [...resetToken].map((x) => x.toString(16).padStart(2, '0')).join('');
+  const resetTokenHex = bufferToHex(resetToken);
 
   const tokenHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(resetTokenHex));
-  const tokenHashHex = [...new Uint8Array(tokenHash)]
-    .map((x) => x.toString(16).padStart(2, '0'))
-    .join('');
+  const tokenHashHex = bufferToHex(tokenHash);
 
   const expiresAt = Math.floor(Date.now() / 1000) + PASSWORD_RESET_TTL_SECONDS;
 
@@ -128,9 +127,7 @@ export async function handleResetPassword(req, env, db) {
   }
 
   const tokenHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
-  const tokenHashHex = [...new Uint8Array(tokenHash)]
-    .map((x) => x.toString(16).padStart(2, '0'))
-    .join('');
+  const tokenHashHex = bufferToHex(tokenHash);
 
   const resetRecord = await db.first(
     `SELECT user_id FROM password_reset_tokens WHERE token_hash = ? AND expires_at > unixepoch()`,
