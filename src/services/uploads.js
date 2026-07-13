@@ -7,6 +7,7 @@
 import { error } from '../utils/response.js';
 import { inferContentType } from '../shared/mime-types.js';
 import { createRootLogger } from '../utils/logger.js';
+import { withTimeout } from '../utils/promise.js';
 const logger = createRootLogger({});
 
 /**
@@ -136,15 +137,6 @@ export async function uploadFileToR2({ env, userId, filename, contentType, buffe
   const r2Key = `/user/${userId}/files/${fileId}.${ext}`;
 
   try {
-    const withTimeout = (promise, ms) => {
-      if (!ms || ms <= 0) return promise;
-      let timer;
-      const timeout = new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('R2 upload timed out')), ms);
-      });
-      return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
-    };
-
     // Upload to R2
     const r2Object = await withTimeout(
       env.FILES.put(r2Key, buffer, {
@@ -158,7 +150,8 @@ export async function uploadFileToR2({ env, userId, filename, contentType, buffe
           userId,
         },
       }),
-      15000
+      15000,
+      'R2 upload timed out'
     );
 
     // Generate signed URL (valid for 7 days)

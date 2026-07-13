@@ -3,24 +3,16 @@
  */
 import { HTTP_STATUS } from '../shared/http-status.js';
 import { json, error } from '../utils/response.js';
+import { withTimeout } from '../utils/promise.js';
 
 export async function handleFilesHealth(req, env, _ctx, _user) {
   if (!env.FILES) {
     return error(req, 'FILES binding missing', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 
-  const withTimeout = (promise, ms) => {
-    if (!ms || ms <= 0) return promise;
-    let timer;
-    const timeout = new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error('R2 health check timed out')), ms);
-    });
-    return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
-  };
-
   try {
     const R2_CHECK_TIMEOUT = 3000;
-    await withTimeout(env.FILES.list({ limit: 1 }), R2_CHECK_TIMEOUT);
+    await withTimeout(env.FILES.list({ limit: 1 }), R2_CHECK_TIMEOUT, 'R2 health check timed out');
     return json(req, { ok: true, message: 'R2 reachable' });
   } catch (err) {
     const message = err?.message || 'R2 health check failed';
