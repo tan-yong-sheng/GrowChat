@@ -85,11 +85,19 @@ export function endResetSubmit() {
  * @param {string} confirmPassword
  * @returns {string|null} Error message or null if valid
  */
+function isResetPasswordMissing(password, confirmPassword) {
+  return !password || !confirmPassword;
+}
+
+function isResetPasswordTooShort(password) {
+  return password.length < MIN_PASSWORD_LENGTH;
+}
+
 export function validateResetPassword(password, confirmPassword) {
-  if (!password || !confirmPassword) {
+  if (isResetPasswordMissing(password, confirmPassword)) {
     return 'Please fill in all fields';
   }
-  if (password.length < MIN_PASSWORD_LENGTH) {
+  if (isResetPasswordTooShort(password)) {
     return 'Password must be at least ' + MIN_PASSWORD_LENGTH + ' characters';
   }
   if (password !== confirmPassword) {
