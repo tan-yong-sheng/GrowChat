@@ -219,29 +219,37 @@ export async function stepCreateResources() {
  * Takes a string (comma-separated origins) or null to leave unchanged.
  * Rejects placeholder values shipped in template/wrangler.jsonc.
  */
-function updateWranglerAllowedOrigins(value) {
-  if (value == null || value === '') return false;
-
-  const trimmed = String(value).trim();
-  if (!trimmed) return false;
-
+function isInvalidOrigin(origin) {
   const forbidden = ['https://YOUR_WORKERS_URL', 'https://REPLACE_WITH_YOUR_DOMAIN', '*'];
-  if (forbidden.includes(trimmed) || /REPLACE_WITH|YOUR_|PLACEHOLDER/i.test(trimmed)) {
-    return false;
-  }
+  return forbidden.includes(origin) || /REPLACE_WITH|YOUR_|PLACEHOLDER/i.test(origin);
+}
 
+function applyOriginToWrangler(origin) {
   const wranglerPath = resolve(ROOT, 'wrangler.jsonc');
   const content = readFileSync(wranglerPath, 'utf-8');
 
   const updated = content.replace(
     /("ALLOWED_ORIGINS"\s*:\s*")([^"]*)(")/g,
-    (_match, prefix, _old, suffix) => `${prefix}${trimmed}${suffix}`
+    (_match, prefix, _old, suffix) => `${prefix}${origin}${suffix}`
   );
 
   if (updated === content) return false;
 
   writeFileSync(wranglerPath, updated);
   return true;
+}
+
+function parseOriginInput(value) {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed || isInvalidOrigin(trimmed)) return null;
+  return trimmed;
+}
+
+function updateWranglerAllowedOrigins(value) {
+  const origin = parseOriginInput(value);
+  if (!origin) return false;
+  return applyOriginToWrangler(origin);
 }
 
 /** Step 2: Apply D1 migrations. */
