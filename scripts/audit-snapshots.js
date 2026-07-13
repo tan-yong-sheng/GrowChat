@@ -91,6 +91,16 @@ async function collectAllFiles(dir, files = []) {
   return files;
 }
 
+function isMissingDirectoryError(err) {
+  return err?.code === 'ENOENT';
+}
+
+function formatReadDirError(err, dir) {
+  return new Error(`Failed to read directory "${dir}": ${err?.message ?? String(err)}`, {
+    cause: err,
+  });
+}
+
 /**
  * Read directory entries, returning [] on ENOENT.
  * Shared helper to reduce try/catch duplication.
@@ -99,10 +109,8 @@ async function readDirEntries(dir) {
   try {
     return await readdir(dir, { withFileTypes: true });
   } catch (err) {
-    if (err?.code === 'ENOENT') return [];
-    throw new Error(`Failed to read directory "${dir}": ${err?.message ?? String(err)}`, {
-      cause: err,
-    });
+    if (isMissingDirectoryError(err)) return [];
+    throw formatReadDirError(err, dir);
   }
 }
 
