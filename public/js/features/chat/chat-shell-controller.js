@@ -80,6 +80,14 @@ export function createChatShellController({
     setState({ chatsPagination: { loading: false } });
   }
 
+  function handleIntersectionEntries(entries) {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        loadMoreChats();
+      }
+    });
+  }
+
   function refreshChatListObserver() {
     if (chatListLoadObserver) {
       chatListLoadObserver.disconnect();
@@ -90,20 +98,11 @@ export function createChatShellController({
     const sentinel = root?.querySelector('#chat-list-load-more');
     if (!sentinel) return;
 
-    chatListLoadObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            loadMoreChats();
-          }
-        });
-      },
-      {
-        root: chatListContainerEl,
-        rootMargin: '120px 0px',
-        threshold: 0.1,
-      }
-    );
+    chatListLoadObserver = new IntersectionObserver(handleIntersectionEntries, {
+      root: chatListContainerEl,
+      rootMargin: '120px 0px',
+      threshold: 0.1,
+    });
 
     chatListLoadObserver.observe(sentinel);
   }
@@ -111,9 +110,9 @@ export function createChatShellController({
   function startNewChat() {
     if (reuseEmptyTempChat()) return;
     startFreshTempChat();
-}
+  }
 
-function reuseEmptyTempChat() {
+  function reuseEmptyTempChat() {
     const activeTempId = activeEmptyTempChatId();
     if (!activeTempId) return false;
     setState({ activeChatId: activeTempId, newChatDraft: '' });
@@ -121,21 +120,21 @@ function reuseEmptyTempChat() {
     syncRoute(activeTempId);
     drawMessages([]);
     return true;
-}
+  }
 
-function activeEmptyTempChatId() {
+  function activeEmptyTempChatId() {
     if (!state.activeChatId || !isTempChatId(state.activeChatId)) return null;
     if ((state.messagesByChat[state.activeChatId] || []).length !== 0) return null;
     return state.activeChatId;
-}
+  }
 
-function transferDraftToolSelection(chatId) {
+  function transferDraftToolSelection(chatId) {
     if (state.newChatToolSelection === null) return;
     setDraftToolNames(chatId, state.newChatToolSelection);
     setDraftToolNames(null, null);
-}
+  }
 
-function startFreshTempChat() {
+  function startFreshTempChat() {
     const tempChat = buildTempChat();
     transferDraftToolSelection(tempChat.id);
     setState((prev) => ({
@@ -147,7 +146,7 @@ function startFreshTempChat() {
     }));
     syncRoute(tempChat.id);
     drawMessages([]);
-}
+  }
 
   const onToggleSidebar = () => toggleSidebar(state, setState);
 
