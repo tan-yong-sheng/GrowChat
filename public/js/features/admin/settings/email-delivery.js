@@ -258,24 +258,49 @@ export function renderEmailDeliverySettings(container) {
     }
   };
 
+  function updateSimpleEmailState(state, key, value) {
+    const prev = state[key];
+    state[key] = value;
+    return prev;
+  }
+
+  function revertSimpleEmailState(state, key, prev) {
+    state[key] = prev;
+  }
+
+  function buildSimplePayload(fieldName, value) {
+    return JSON.stringify({ [fieldName]: value });
+  }
+
+  function parseSimpleEmailErrorResponse(err, label) {
+    return err?.error || err?.message || `Failed to update ${label}`;
+  }
+
+  function formatSimpleEmailError(err, label) {
+    return err?.message || `Failed to update ${label}.`;
+  }
+
+  async function applySimpleEmailUpdate(fieldName, value, label) {
+    const res = await apiFetch('/api/admin/email-config', {
+      method: 'PUT',
+      body: buildSimplePayload(fieldName, value),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(parseSimpleEmailErrorResponse(err, label));
+    }
+  }
+
   const saveFromEmail = async (newFromEmail) => {
     if (saving) return;
     saving = true;
-    const prev = settingsState.fromEmail;
-    settingsState.fromEmail = newFromEmail;
+    const prev = updateSimpleEmailState(settingsState, 'fromEmail', newFromEmail);
     try {
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ email_from: newFromEmail }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update from email');
-      }
+      await applySimpleEmailUpdate('email_from', newFromEmail, 'from email');
       showFeedback(container, 'From email saved.');
     } catch (err) {
-      settingsState.fromEmail = prev;
-      showFeedback(container, err?.message || 'Failed to update from email.', true);
+      revertSimpleEmailState(settingsState, 'fromEmail', prev);
+      showFeedback(container, formatSimpleEmailError(err, 'from email'), true);
     } finally {
       saving = false;
     }
@@ -284,21 +309,13 @@ export function renderEmailDeliverySettings(container) {
   const saveMailgunDomain = async (newDomain) => {
     if (saving) return;
     saving = true;
-    const prev = settingsState.mailgunDomain;
-    settingsState.mailgunDomain = newDomain;
+    const prev = updateSimpleEmailState(settingsState, 'mailgunDomain', newDomain);
     try {
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ mailgun_domain: newDomain }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update Mailgun domain');
-      }
+      await applySimpleEmailUpdate('mailgun_domain', newDomain, 'Mailgun domain');
       showFeedback(container, 'Mailgun domain saved.');
     } catch (err) {
-      settingsState.mailgunDomain = prev;
-      showFeedback(container, err?.message || 'Failed to update Mailgun domain.', true);
+      revertSimpleEmailState(settingsState, 'mailgunDomain', prev);
+      showFeedback(container, formatSimpleEmailError(err, 'Mailgun domain'), true);
     } finally {
       saving = false;
     }
