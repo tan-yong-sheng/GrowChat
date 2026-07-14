@@ -160,16 +160,28 @@ function normalizeConnectionManualModelsForCache(manualModels) {
     .sort((a, b) => a.modelId.localeCompare(b.modelId));
 }
 
+function getConnectionString(conn, key) {
+  return String((conn && conn[key]) || '');
+}
+
+function getConnectionStringFallback(conn, keys) {
+  for (const key of keys) {
+    const value = conn && conn[key];
+    if (value) return String(value);
+  }
+  return '';
+}
+
 function normalizeConnectionForCache(conn) {
   return {
-    id: String(conn?.id || ''),
-    source: String(conn?.source || ''),
-    providerType: String(conn?.providerType || ''),
-    providerFamily: String(conn?.providerFamily || ''),
-    baseUrl: String(conn?.baseUrl || ''),
-    key: String(conn?.key || ''),
+    id: getConnectionString(conn, 'id'),
+    source: getConnectionString(conn, 'source'),
+    providerType: getConnectionString(conn, 'providerType'),
+    providerFamily: getConnectionString(conn, 'providerFamily'),
+    baseUrl: getConnectionString(conn, 'baseUrl'),
+    key: getConnectionString(conn, 'key'),
     headers: normalizeConnectionHeaders(conn?.headers),
-    manualModelsMode: String(conn?.manualModelsMode || conn?.manual_models_mode || ''),
+    manualModelsMode: getConnectionStringFallback(conn, ['manualModelsMode', 'manual_models_mode']),
     manualModels: normalizeConnectionManualModelsForCache(conn?.manualModels),
   };
 }
