@@ -18,14 +18,17 @@ function getStoredAuthUser() {
   return getAuthState()?.user ?? null;
 }
 
-async function showPreferencesModal(user) {
-  let sidebarSuspended = false;
-  suspendSidebarVisibility();
-  sidebarSuspended = true;
-  const modal = document.createElement('div');
-  modal.className =
-    'modal-overlay fixed inset-0 bg-primary/50 flex items-center justify-center z-[200] p-4';
-  modal.innerHTML = `
+function buildSelectOptions(values, selectedValue) {
+  return values
+    .map(
+      (value) =>
+        `<option value="${value}" ${selectedValue === value ? 'selected' : ''}>${value.charAt(0).toUpperCase() + value.slice(1)}</option>`
+    )
+    .join('');
+}
+
+function buildPreferencesModalHtml(user) {
+  return `
     <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
       <div class="modal-header flex items-center justify-between mb-6">
         <h3 class="text-xl font-bold text-gray-900 dark:text-white">Preferences</h3>
@@ -46,17 +49,13 @@ async function showPreferencesModal(user) {
         <div class="form-group">
           <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Status</label>
           <select class="pref-status w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-md dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all">
-            <option value="online" ${user.status === 'online' ? 'selected' : ''}>Online</option>
-            <option value="away" ${user.status === 'away' ? 'selected' : ''}>Away</option>
-            <option value="offline" ${user.status === 'offline' ? 'selected' : ''}>Offline</option>
+            ${buildSelectOptions(['online', 'away', 'offline'], user.status)}
           </select>
         </div>
         <div class="form-group">
           <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Theme</label>
           <select class="pref-theme w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-md dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all">
-            <option value="light" ${user.preferences?.theme === 'light' ? 'selected' : ''}>Light</option>
-            <option value="dark" ${user.preferences?.theme === 'dark' ? 'selected' : ''}>Dark</option>
-            <option value="system" ${user.preferences?.theme === 'system' ? 'selected' : ''}>System</option>
+            ${buildSelectOptions(['light', 'dark', 'system'], user.preferences?.theme)}
           </select>
         </div>
       </div>
@@ -66,6 +65,34 @@ async function showPreferencesModal(user) {
       </div>
     </div>
   `;
+}
+
+function collectPreferenceUpdates(modal) {
+  return {
+    avatar_emoji: modal.querySelector('.pref-avatar').value,
+    status: modal.querySelector('.pref-status').value,
+    preferences: {
+      theme: modal.querySelector('.pref-theme').value,
+    },
+  };
+}
+
+async function postPreferenceUpdates(updates) {
+  await apiFetch('/api/users/me', {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+  window.location.reload();
+}
+
+async function showPreferencesModal(user) {
+  let sidebarSuspended = false;
+  suspendSidebarVisibility();
+  sidebarSuspended = true;
+  const modal = document.createElement('div');
+  modal.className =
+    'modal-overlay fixed inset-0 bg-primary/50 flex items-center justify-center z-[200] p-4';
+  modal.innerHTML = buildPreferencesModalHtml(user);
 
   return new Promise((resolve) => {
     const close = () => {
@@ -79,20 +106,8 @@ async function showPreferencesModal(user) {
     };
 
     modal.querySelector('.save-preferences').addEventListener('click', async () => {
-      const updates = {
-        avatar_emoji: modal.querySelector('.pref-avatar').value,
-        status: modal.querySelector('.pref-status').value,
-        preferences: {
-          theme: modal.querySelector('.pref-theme').value,
-        },
-      };
-
       try {
-        await apiFetch('/api/users/me', {
-          method: 'PUT',
-          body: JSON.stringify(updates),
-        });
-        window.location.reload();
+        await postPreferenceUpdates(collectPreferenceUpdates(modal));
       } catch (err) {
         console.error('Failed to update preferences:', err);
       }

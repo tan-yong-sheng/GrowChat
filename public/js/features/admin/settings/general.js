@@ -167,29 +167,44 @@ export function renderGeneralSettings(container, data) {
     });
   };
 
-  const updateDefaultModel = async (newValue) => {
-    const prevValue = settingsState.currentValues.defaultModelId;
+  const applyDefaultModelOptimistic = (newValue) => {
     settingsState.currentValues.defaultModelId = newValue;
     updateModelAndRegistrationHighlight();
+  };
+
+  const revertDefaultModel = (prevValue) => {
+    settingsState.currentValues.defaultModelId = prevValue;
+    updateModelAndRegistrationHighlight();
+  };
+
+  const commitDefaultModel = (newValue) => {
+    settingsState.initialValues.defaultModelId = newValue;
+    setState({ globalDefaultModelId: newValue || null });
+    broadcastModelsInvalidation();
+    showFeedback('Default model saved.');
+  };
+
+  async function postDefaultModelUpdate(newValue) {
+    const res = await apiFetch('/api/admin/config', {
+      method: 'PUT',
+      body: JSON.stringify({ default_model_id: newValue || null }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error || err?.message || 'Failed to update default model');
+    }
+  }
+
+  const updateDefaultModel = async (newValue) => {
+    const prevValue = settingsState.currentValues.defaultModelId;
+    applyDefaultModelOptimistic(newValue);
 
     try {
-      const res = await apiFetch('/api/admin/config', {
-        method: 'PUT',
-        body: JSON.stringify({ default_model_id: newValue || null }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update default model');
-      }
-
-      settingsState.initialValues.defaultModelId = newValue;
-      setState({ globalDefaultModelId: newValue || null });
-      broadcastModelsInvalidation();
-      showFeedback('Default model saved.');
+      await postDefaultModelUpdate(newValue);
+      commitDefaultModel(newValue);
     } catch (err) {
-      settingsState.currentValues.defaultModelId = prevValue;
-      updateModelAndRegistrationHighlight();
+      revertDefaultModel(prevValue);
       showFeedback(err?.message || 'Failed to update default model.', true);
     }
   };
@@ -259,6 +274,35 @@ export function renderGeneralSettings(container, data) {
     }
   };
 
+  function parsePublicRegistration(payload) {
+    return Boolean(payload?.public_registration);
+  }
+
+  function parseRegistrationStatus(payload) {
+    const raw = String(payload?.public_registration_status || 'pending')
+      .trim()
+      .toLowerCase();
+    return raw === 'active' ? 'active' : 'pending';
+  }
+
+  function parseDefaultModelId(payload) {
+    return payload?.default_model_id || '';
+  }
+
+  const applyAdminConfig = (payload) => {
+    const publicRegistration = parsePublicRegistration(payload);
+    settingsState.currentValues.publicRegistration = publicRegistration;
+    settingsState.initialValues.publicRegistration = publicRegistration;
+
+    const registrationStatus = parseRegistrationStatus(payload);
+    settingsState.currentValues.registrationStatus = registrationStatus;
+    settingsState.initialValues.registrationStatus = registrationStatus;
+
+    const defaultModelId = parseDefaultModelId(payload);
+    settingsState.currentValues.defaultModelId = defaultModelId;
+    settingsState.initialValues.defaultModelId = defaultModelId;
+  };
+
   const loadAdminConfig = async () => {
     if (settingsState.adminConfigLoaded) return;
     settingsState.adminConfigLoaded = true;
@@ -266,21 +310,7 @@ export function renderGeneralSettings(container, data) {
       const res = await apiFetch('/api/admin/config');
       if (res.ok) {
         const payload = await res.json();
-        const next = Boolean(payload?.public_registration);
-        settingsState.currentValues.publicRegistration = next;
-        settingsState.initialValues.publicRegistration = next;
-
-        const registrationStatusRaw = String(payload?.public_registration_status || 'pending')
-          .trim()
-          .toLowerCase();
-        const registrationStatus = registrationStatusRaw === 'active' ? 'active' : 'pending';
-        settingsState.currentValues.registrationStatus = registrationStatus;
-        settingsState.initialValues.registrationStatus = registrationStatus;
-
-        const defaultId = payload?.default_model_id || '';
-        settingsState.currentValues.defaultModelId = defaultId;
-        settingsState.initialValues.defaultModelId = defaultId;
-
+        applyAdminConfig(payload);
         if (isActiveTab()) render();
       }
     } catch (err) {

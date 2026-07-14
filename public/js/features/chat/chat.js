@@ -228,8 +228,25 @@ function wireChat(root) {
   }
   ctx.drawChats = drawChats;
   window.addEventListener('growchat:realtime', onRealtimeEvent);
+  function preparePrompt(text) {
+    return String(text || '').trim();
+  }
+
+  function rollbackOptimisticSend(optimisticState) {
+    if (!optimisticState) return;
+    const tempChatId = optimisticState.optimistic?.tempChatId;
+    if (tempChatId) {
+      rollbackOptimisticConversation({ setState, tempChatId });
+    }
+  }
+
+  function finishSendError(err, hooks) {
+    console.error('sendMessage init failed:', err);
+    hooks.onFinished?.();
+  }
+
   async function sendMessage(text, hooks = {}, options = {}) {
-    const prompt = String(text || '').trim();
+    const prompt = preparePrompt(text);
     if (!prompt) {
       hooks.onFinished?.();
       return;
@@ -245,15 +262,8 @@ function wireChat(root) {
       await ensureMessageSequenceTracker();
       return chatMessageFlow?.sendWithOptimisticState?.(prompt, hooks, options, optimisticState);
     } catch (err) {
-      console.error('sendMessage init failed:', err);
-      // Roll back the optimistic temp chat if one was created
-      if (optimisticState) {
-        const tempChatId = optimisticState.optimistic?.tempChatId;
-        if (tempChatId) {
-          rollbackOptimisticConversation({ setState, tempChatId });
-        }
-      }
-      hooks.onFinished?.();
+      rollbackOptimisticSend(optimisticState);
+      finishSendError(err, hooks);
     }
   }
   messageInputContainer.addEventListener(

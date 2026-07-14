@@ -53,32 +53,58 @@ async function handleToolServersAccessList(req, db, logger) {
   }
 }
 
+function resolveToolServerId(update, req) {
+  const toolServerId = String(update?.tool_server_id || update?.toolServerId || '').trim();
+  if (!toolServerId) {
+    return { error: error(req, 'tool_server_id is required', HTTP_STATUS.BAD_REQUEST) };
+  }
+  return { toolServerId };
+}
+
+function requireEditableServer(toolServerId, servers, req) {
+  const { server: currentServer } = findEnabledServer(toolServerId, servers, req);
+  if (!currentServer || currentServer.enabled === false) {
+    return {
+      error: error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT),
+    };
+  }
+  return {};
+}
+
+function validateServerRules(update, toolServerId, validGroupIds, req) {
+  const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
+    rules: update?.rules,
+    resourceId: toolServerId,
+    resourceIdKey: 'tool_server_id',
+    normalizeRule: normalizeToolServerAclRule,
+    validGroupIds,
+    invalidTypeMessage: 'Invalid principal_type for MCP server access',
+    req,
+  });
+  if (errResp) return { error: errResp };
+  return { filteredRules };
+}
+
 function buildBulkServerAclStatements(db, updates, servers, validGroupIds, req) {
   const statements = [];
   const normalizedUpdates = [];
   let includeSchemaStatements = true;
 
   for (const update of updates) {
-    const toolServerId = String(update?.tool_server_id || update?.toolServerId || '').trim();
-    if (!toolServerId) {
-      return { error: error(req, 'tool_server_id is required', HTTP_STATUS.BAD_REQUEST) };
-    }
-    const { server: currentServer } = findEnabledServer(toolServerId, servers, req);
-    if (!currentServer || currentServer.enabled === false) {
-      return {
-        error: error(req, 'Disabled MCP servers cannot be edited', HTTP_STATUS.CONFLICT),
-      };
-    }
-    const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
-      rules: update?.rules,
-      resourceId: toolServerId,
-      resourceIdKey: 'tool_server_id',
-      normalizeRule: normalizeToolServerAclRule,
+    const { toolServerId, error: idError } = resolveToolServerId(update, req);
+    if (idError) return { error: idError };
+
+    const { error: serverError } = requireEditableServer(toolServerId, servers, req);
+    if (serverError) return { error: serverError };
+
+    const { filteredRules, error: rulesError } = validateServerRules(
+      update,
+      toolServerId,
       validGroupIds,
-      invalidTypeMessage: 'Invalid principal_type for MCP server access',
-      req,
-    });
-    if (errResp) return { error: errResp };
+      req
+    );
+    if (rulesError) return { error: rulesError };
+
     const { statements: aclStatements } = buildToolServerAclRuleSaveStatements(
       db,
       toolServerId,

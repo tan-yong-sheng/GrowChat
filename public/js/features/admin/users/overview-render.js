@@ -28,6 +28,20 @@ function resolveAccessFamilies(access) {
   ];
 }
 
+function buildStatusChip(status) {
+  return renderChip(status || 'active', status === 'pending' ? 'shared' : 'admin');
+}
+
+function buildPendingBanner(status) {
+  return status === 'pending'
+    ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>'
+    : '';
+}
+
+function buildDisabledToggleLabel(showDisabled, disabledRuleCount) {
+  return showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`;
+}
+
 function buildAccessInspectorHeader(user, disabledRuleCount, showDisabled) {
   const primaryRole = String(user.primary_role || 'member').trim();
   return `
@@ -37,13 +51,13 @@ function buildAccessInspectorHeader(user, disabledRuleCount, showDisabled) {
           <div class="flex flex-wrap items-center gap-2">
             <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
             ${renderChip(roleDisplayName(primaryRole), normalizeRole(primaryRole))}
-            ${renderChip(user.account_status || 'active', user.account_status === 'pending' ? 'shared' : 'admin')}
+            ${buildStatusChip(user.account_status)}
           </div>
           <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
-          ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
+          ${buildPendingBanner(user.account_status)}
         </div>
         ${renderButton({
-          label: showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`,
+          label: buildDisabledToggleLabel(showDisabled, disabledRuleCount),
           variant: 'secondary',
           className: `px-2.5 py-1 text-label-sm uppercase tracking-wider ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}`,
           dataAttrs: { 'toggle-disabled-rules': '' },

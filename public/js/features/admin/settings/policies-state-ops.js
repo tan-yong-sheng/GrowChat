@@ -49,16 +49,35 @@ export function createPoliciesStateOps(deps) {
     };
   };
 
-  const applyResourceRulesImmediate = async (familyKey, resourceIds, nextRules) => {
-    const ids = new Set(
+  const buildIdSet = (resourceIds) =>
+    new Set(
       (Array.isArray(resourceIds) ? resourceIds : [resourceIds])
         .map((id) => String(id || '').trim())
         .filter(Boolean)
     );
+
+  const resolveTargetResources = (familyKey, ids) =>
+    (state.resources[familyKey] || []).filter((r) => ids.has(String(r.id || '').trim()));
+
+  const resolveIdKey = (familyKey) =>
+    familyKey === 'models'
+      ? 'model_id'
+      : familyKey === 'connections'
+        ? 'connection_id'
+        : 'tool_server_id';
+
+  const buildUpdatePayload = (familyKey, targetResources, nextRules) => {
+    const key = resolveIdKey(familyKey);
+    return targetResources.map((r) => ({
+      [key]: r.id,
+      rules: cloneAclRules(nextRules, normalizeAclRule),
+    }));
+  };
+
+  const applyResourceRulesImmediate = async (familyKey, resourceIds, nextRules) => {
+    const ids = buildIdSet(resourceIds);
     if (!ids.size) return;
-    const targetResources = (state.resources[familyKey] || []).filter((r) =>
-      ids.has(String(r.id || '').trim())
-    );
+    const targetResources = resolveTargetResources(familyKey, ids);
     if (!targetResources.length) return;
 
     const previousState = targetResources.map((r) => ({
@@ -73,14 +92,7 @@ export function createPoliciesStateOps(deps) {
     render();
 
     try {
-      const updates = targetResources.map((r) => ({
-        [familyKey === 'models'
-          ? 'model_id'
-          : familyKey === 'connections'
-            ? 'connection_id'
-            : 'tool_server_id']: r.id,
-        rules: cloneAclRules(nextRules, normalizeAclRule),
-      }));
+      const updates = buildUpdatePayload(familyKey, targetResources, nextRules);
       await saveFamilyAccess({ familyKey, updates });
       broadcastModelsInvalidation();
       broadcastConnectionsInvalidation();

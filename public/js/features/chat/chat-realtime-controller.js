@@ -29,30 +29,30 @@ export function createChatRealtimeController({
     setState({ chats: nextChats });
   }
 
-function mergeChatEntry(nextChats, chat) {
-  const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
-  if (index < 0) {
-    nextChats.unshift(chat);
+  function mergeChatEntry(nextChats, chat) {
+    const index = nextChats.findIndex((item) => String(item?.id) === String(chat.id));
+    if (index < 0) {
+      nextChats.unshift(chat);
+      return nextChats;
+    }
+    const existing = nextChats[index];
+    const merged = { ...existing, ...chat };
+    if (existing?.title && existing.title !== 'New Chat' && chat.title === 'New Chat') {
+      merged.title = existing.title;
+    }
+    nextChats[index] = merged;
     return nextChats;
   }
-  const existing = nextChats[index];
-  const merged = { ...existing, ...chat };
-  if (existing?.title && existing.title !== 'New Chat' && chat.title === 'New Chat') {
-    merged.title = existing.title;
+
+  function sortChatsByRecency(a, b) {
+    const updatedDelta = timestampOf(b, 'updated_at') - timestampOf(a, 'updated_at');
+    if (updatedDelta !== 0) return updatedDelta;
+    return timestampOf(b, 'created_at') - timestampOf(a, 'created_at');
   }
-  nextChats[index] = merged;
-  return nextChats;
-}
 
-function sortChatsByRecency(a, b) {
-  const updatedDelta = timestampOf(b, 'updated_at') - timestampOf(a, 'updated_at');
-  if (updatedDelta !== 0) return updatedDelta;
-  return timestampOf(b, 'created_at') - timestampOf(a, 'created_at');
-}
-
-function timestampOf(chat, field) {
-  return Number(chat?.[field] || 0);
-}
+  function timestampOf(chat, field) {
+    return Number(chat?.[field] || 0);
+  }
 
   function updateChatTitleLocal(chatId, title) {
     setState((prev) => ({
@@ -104,9 +104,9 @@ function timestampOf(chat, field) {
     const fields = EVENT_KEY_FIELDS.map((field) => String((event && event[field]) || ''));
     fields.push(String((event && event.data && event.data.seq) || ''));
     return fields.join('|');
-}
+  }
 
-const EVENT_KEY_FIELDS = ['type', 'chat_id', 'message_id', 'user_id', 'ts'];
+  const EVENT_KEY_FIELDS = ['type', 'chat_id', 'message_id', 'user_id', 'ts'];
 
   function isDuplicateEvent(eventKey) {
     const now = Date.now();
@@ -206,16 +206,16 @@ const EVENT_KEY_FIELDS = ['type', 'chat_id', 'message_id', 'user_id', 'ts'];
     }
   }
 
-  async function handleMessageCancelled(event) {
-    const eventChat = event?.data?.chat || null;
-    const eventMessage = event?.data?.message || null;
-
+  async function refreshChatFromEvent(eventChat) {
     if (eventChat) {
       upsertChatFromEvent(eventChat);
     } else {
       await loadChats();
     }
+  }
 
+  async function refreshMessageFromEvent(event) {
+    const eventMessage = event?.data?.message || null;
     if (eventMessage) {
       upsertMessageFromEvent(event.chat_id, eventMessage, {
         draw: event.chat_id === state.activeChatId,
@@ -223,10 +223,18 @@ const EVENT_KEY_FIELDS = ['type', 'chat_id', 'message_id', 'user_id', 'ts'];
     } else if (event.chat_id && event.chat_id === state.activeChatId) {
       await loadMessages(event.chat_id);
     }
+  }
 
-    if (event.chat_id && event.chat_id === state.activeChatId) {
-      stopActiveStreamForChat(event.chat_id);
+  function stopStreamIfActive(chatId) {
+    if (chatId && chatId === state.activeChatId) {
+      stopActiveStreamForChat(chatId);
     }
+  }
+
+  async function handleMessageCancelled(event) {
+    await refreshChatFromEvent(event?.data?.chat || null);
+    await refreshMessageFromEvent(event);
+    stopStreamIfActive(event.chat_id);
   }
 
   function applyMessageDelta(chatId, messageId, delta, model) {

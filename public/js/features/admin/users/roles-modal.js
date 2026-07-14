@@ -261,30 +261,57 @@ export function openRoleModal(
     }
   };
 
-  const saveRole = async () => {
-    if (!modalState.dirty || modalState.saving) return;
+  const SAVE_BUTTON_CLASSES = {
+    enabledClass:
+      'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
+    disabledClass:
+      'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
+  };
+
+  function validateRoleName() {
     const trimmedName = String(modalState.draft.name || '').trim();
     if (!trimmedName) {
       modalState.error = 'Role name is required.';
       noteEl.textContent = modalState.error;
-      return;
+      return null;
     }
+    return trimmedName;
+  }
+
+  function buildRolePayload(trimmedName) {
+    return {
+      name: trimmedName,
+      permissions: Array.from(modalState.draft.permissions || []),
+    };
+  }
+
+  function setSaveButtonSaving() {
+    setModalSaveButtonState(saveBtn, {
+      enabled: false,
+      saving: true,
+      label: 'Save',
+      ...SAVE_BUTTON_CLASSES,
+    });
+  }
+
+  function setSaveButtonIdle(enabled) {
+    setModalSaveButtonState(saveBtn, {
+      enabled,
+      saving: false,
+      label: 'Save',
+      ...SAVE_BUTTON_CLASSES,
+    });
+  }
+
+  const saveRole = async () => {
+    if (!modalState.dirty || modalState.saving) return;
+    const trimmedName = validateRoleName();
+    if (!trimmedName) return;
 
     try {
       modalState.saving = true;
-      setModalSaveButtonState(saveBtn, {
-        enabled: false,
-        saving: true,
-        label: 'Save',
-        enabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
-        disabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
-      });
-      const payload = {
-        name: trimmedName,
-        permissions: Array.from(modalState.draft.permissions || []),
-      };
+      setSaveButtonSaving();
+      const payload = buildRolePayload(trimmedName);
       if (typeof onSaveRole === 'function') {
         await onSaveRole(modalState.isNew, modalState.draft.id, payload);
       }
@@ -294,15 +321,7 @@ export function openRoleModal(
       noteEl.textContent = modalState.error;
     } finally {
       modalState.saving = false;
-      setModalSaveButtonState(saveBtn, {
-        enabled: modalState.dirty,
-        saving: false,
-        label: 'Save',
-        enabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-primary text-white hover:bg-primary-hover',
-        disabledClass:
-          'rounded-full px-2.5 py-0.75 text-label-xs font-semibold transition bg-gray-200 text-gray-400 cursor-not-allowed',
-      });
+      setSaveButtonIdle(modalState.dirty);
     }
   };
 

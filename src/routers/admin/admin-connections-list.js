@@ -180,14 +180,30 @@ async function handleConnectionsTestPost(req, env, user, logger) {
   }
 }
 
-function parseConnectionTestBody(body) {
-  const providerType = String(body.providerType || 'openai').toLowerCase();
-  const providerFamily =
-    normalizeProviderFamily(body.providerType || body.providerFamily) || 'openai';
+function resolveProviderType(body) {
+  return String(body.providerType || 'openai').toLowerCase();
+}
+
+function resolveProviderFamily(body, fallback) {
+  return normalizeProviderFamily(body.providerType || body.providerFamily) || fallback;
+}
+
+function resolveConnectionId(body) {
+  return String(body.id || body.connectionId || '').trim();
+}
+
+function resolveBaseUrl(body, providerType, providerFamily) {
   const url = String(body.url || '').trim();
-  const connectionId = String(body.id || body.connectionId || '').trim();
   const requiresUrl = isConnectionUrlRequired(providerType);
   const baseUrl = url || getConnectionDefaultBaseUrl(providerType || providerFamily);
+  return { url, requiresUrl, baseUrl };
+}
+
+function parseConnectionTestBody(body) {
+  const providerType = resolveProviderType(body);
+  const providerFamily = resolveProviderFamily(body, providerType);
+  const { url, requiresUrl, baseUrl } = resolveBaseUrl(body, providerType, providerFamily);
+  const connectionId = resolveConnectionId(body);
   const key = String(body.key || '').trim();
   return { providerType, providerFamily, url, connectionId, requiresUrl, baseUrl, key };
 }

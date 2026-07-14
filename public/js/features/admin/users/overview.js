@@ -271,35 +271,46 @@ export function renderUserOverview(container, data, actions) {
         close();
       }
     });
+    async function submitCsvImport() {
+      if (!validateFormCheck(csvForm)) return;
+      await adminApiFetch('/api/admin/users/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          csv: String(csvForm.querySelector('[name="csv"]').value || '').trim(),
+        }),
+      });
+      actions.invalidateCache?.();
+      await actions.reload?.({ preserveContent: true });
+    }
+
+    async function submitUserForm() {
+      if (!validateFormCheck(form)) return;
+      const payload = buildUserPayloadFromForm(form);
+      const { json: responsePayload } = await adminApiFetch('/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      actions.prependUser(responsePayload.user);
+    }
+
+    function showSaveUserError(err) {
+      const errorEl = modal?.querySelector('#add-user-error');
+      if (!errorEl) return;
+      errorEl.textContent = err?.message || 'Failed to save user.';
+      errorEl.classList.remove('hidden');
+    }
+
     const saveCurrent = () => {
       void (async () => {
         try {
           if (modalState.activeTab === 'csv') {
-            if (!validateFormCheck(csvForm)) return;
-            const { json: responsePayload } = await adminApiFetch('/api/admin/users/import', {
-              method: 'POST',
-              body: JSON.stringify({
-                csv: String(csvForm.querySelector('[name="csv"]').value || '').trim(),
-              }),
-            });
-            actions.invalidateCache?.();
-            await actions.reload?.({ preserveContent: true });
+            await submitCsvImport();
           } else {
-            if (!validateFormCheck(form)) return;
-            const payload = buildUserPayloadFromForm(form);
-            const { json: responsePayload } = await adminApiFetch('/api/admin/users', {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            });
-            actions.prependUser(responsePayload.user);
+            await submitUserForm();
           }
           close();
         } catch (err) {
-          const errorEl = modal?.querySelector('#add-user-error');
-          if (errorEl) {
-            errorEl.textContent = err?.message || 'Failed to save user.';
-            errorEl.classList.remove('hidden');
-          }
+          showSaveUserError(err);
         }
       })();
     };

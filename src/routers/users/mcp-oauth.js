@@ -98,13 +98,16 @@ function resolveServerUrl(body, existingServer) {
   return url;
 }
 
-// eslint-disable-next-line complexity -- client credential resolution with fallback chains
+function resolveOAuthString(body, existingServer, key) {
+  return String(body?.[key] || existingServer?.[key] || '').trim();
+}
+
 function resolveClientCredentials(body, existingServer, metadata) {
-  let clientId = String(body?.oauth_client_id || existingServer?.oauth_client_id || '').trim();
-  let clientSecret = String(
-    body?.oauth_client_secret || existingServer?.oauth_client_secret || ''
-  ).trim();
-  return { clientId, clientSecret, registrationEndpoint: metadata?.registration_endpoint || '' };
+  return {
+    clientId: resolveOAuthString(body, existingServer, 'oauth_client_id'),
+    clientSecret: resolveOAuthString(body, existingServer, 'oauth_client_secret'),
+    registrationEndpoint: metadata?.registration_endpoint || '',
+  };
 }
 
 async function registerOAuthClient(registrationEndpoint, redirectUri, body) {

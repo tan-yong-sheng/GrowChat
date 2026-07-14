@@ -53,36 +53,62 @@ async function handleConnectionsAccessList(req, db, logger) {
   }
 }
 
+function normalizeConnectionUpdate(update, req) {
+  const connectionId = String(update?.connection_id || update?.connectionId || '').trim();
+  if (!connectionId) {
+    return { error: error(req, 'connection_id is required', HTTP_STATUS.BAD_REQUEST) };
+  }
+  return { connectionId };
+}
+
+function requireEditableConnection(connectionId, allConnections, req) {
+  const { connection: currentConnection } = findEnabledConnection(
+    connectionId,
+    allConnections,
+    req
+  );
+  if (!currentConnection || currentConnection.enabled === false) {
+    return {
+      error: error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT),
+    };
+  }
+  return {};
+}
+
+function validateConnectionRuleUpdate(update, connectionId, validGroupIds, req) {
+  const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
+    rules: update?.rules,
+    resourceId: connectionId,
+    resourceIdKey: 'connection_id',
+    normalizeRule: normalizeConnectionAclRule,
+    validGroupIds,
+    invalidTypeMessage: 'Invalid principal_type for connection access',
+    req,
+  });
+  if (errResp) return { error: errResp };
+  return { filteredRules };
+}
+
 function buildBulkAclStatements(db, updates, allConnections, validGroupIds, req) {
   const statements = [];
   const normalizedUpdates = [];
   let includeSchemaStatements = true;
 
   for (const update of updates) {
-    const connectionId = String(update?.connection_id || update?.connectionId || '').trim();
-    if (!connectionId) {
-      return { error: error(req, 'connection_id is required', HTTP_STATUS.BAD_REQUEST) };
-    }
-    const { connection: currentConnection } = findEnabledConnection(
+    const { connectionId, error: idError } = normalizeConnectionUpdate(update, req);
+    if (idError) return { error: idError };
+
+    const { error: editError } = requireEditableConnection(connectionId, allConnections, req);
+    if (editError) return { error: editError };
+
+    const { filteredRules, error: ruleError } = validateConnectionRuleUpdate(
+      update,
       connectionId,
-      allConnections,
+      validGroupIds,
       req
     );
-    if (!currentConnection || currentConnection.enabled === false) {
-      return {
-        error: error(req, 'Disabled connections cannot be edited', HTTP_STATUS.CONFLICT),
-      };
-    }
-    const { result: filteredRules, error: errResp } = validateAndFilterAclRules({
-      rules: update?.rules,
-      resourceId: connectionId,
-      resourceIdKey: 'connection_id',
-      normalizeRule: normalizeConnectionAclRule,
-      validGroupIds,
-      invalidTypeMessage: 'Invalid principal_type for connection access',
-      req,
-    });
-    if (errResp) return { error: errResp };
+    if (ruleError) return { error: ruleError };
+
     const { statements: aclStatements } = buildConnectionAclRuleSaveStatements(
       db,
       connectionId,

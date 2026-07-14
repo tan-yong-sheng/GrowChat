@@ -296,14 +296,26 @@ async function runMermaidRender(mermaid, text, previewEl, renderId) {
   setSafeHtml(previewEl, svg);
 }
 
+function resolveMermaidInstance() {
+  return globalThis?.window?.mermaid || globalThis?.mermaid;
+}
+
+function isMermaidRenderable(mermaid) {
+  return mermaid && (typeof mermaid.run === 'function' || typeof mermaid.render === 'function');
+}
+
+function buildMermaidRenderId(block) {
+  return `gc-mermaid-${block?.dataset?.markdownSpecialId || crypto.randomUUID()}`;
+}
+
 async function renderMermaidPreview(text, previewEl, block) {
   await ensureMermaidRuntime();
-  const mermaid = globalThis?.window?.mermaid || globalThis?.mermaid;
-  if (!mermaid || (typeof mermaid.run !== 'function' && typeof mermaid.render !== 'function')) {
+  const mermaid = resolveMermaidInstance();
+  if (!isMermaidRenderable(mermaid)) {
     throw new Error('Mermaid unavailable');
   }
   initMermaidIfNeeded(mermaid);
-  const renderId = `gc-mermaid-${block?.dataset?.markdownSpecialId || crypto.randomUUID()}`;
+  const renderId = buildMermaidRenderId(block);
   await runMermaidRender(mermaid, text, previewEl, renderId);
   if (block) setSpecialBlockError(block, '');
 }

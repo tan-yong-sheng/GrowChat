@@ -199,22 +199,26 @@ export function createModalUi(ctx) {
       ? resolveConnectionModelSelectionMode(modalState.models, modalState.selection)
       : existingMode;
   };
+  const resolveConnectionName = () => sanitizeString(nameInput?.value);
+  const resolveConnectionKey = () => sanitizeString(keyInput?.value);
+  const resolveConnectionHeaders = () => sanitizeString(headersInput?.value);
+  const resolveConnectionAuthType = () =>
+    sanitizeString(connection?.auth_type || connection?.authType || '').toLowerCase();
+  const resolveConnectionEnabled = () => connection?.enabled !== false;
+
   const buildPayload = () => {
     const providerType = resolveProviderType();
-    const baseUrl = resolveConnectionUrl(providerType);
-    const selectedModels = buildSelectedModels();
-    const manualModelsMode = resolveManualModelsMode();
     const payload = {
       id: isEdit ? sanitizeString(connection?.id) : undefined,
-      name: sanitizeString(nameInput?.value),
+      name: resolveConnectionName(),
       provider_type: providerType,
-      base_url: baseUrl,
-      key: sanitizeString(keyInput?.value),
-      headers: sanitizeString(headersInput?.value),
-      auth_type: sanitizeString(connection?.auth_type || connection?.authType || '').toLowerCase(),
-      enabled: connection?.enabled !== false,
-      manual_models: selectedModels,
-      manual_models_mode: manualModelsMode,
+      base_url: resolveConnectionUrl(providerType),
+      key: resolveConnectionKey(),
+      headers: resolveConnectionHeaders(),
+      auth_type: resolveConnectionAuthType(),
+      enabled: resolveConnectionEnabled(),
+      manual_models: buildSelectedModels(),
+      manual_models_mode: resolveManualModelsMode(),
     };
     return stripOptionalFields(payload);
   };
@@ -223,45 +227,66 @@ export function createModalUi(ctx) {
       throw new Error('Connection URL is required');
     }
   };
-  const testConnection = async () => {
+  const prepareTestConnection = () => {
     const payload = buildPayload();
     if (!payload.name) throw new Error('Name is required');
     validateConnectionUrl(payload);
     setTestMessage('Testing connection...', 'testing');
     modalState.loadingModels = true;
     renderModels();
+    return payload;
+  };
+
+  const normalizeDiscoveredModels = (result) => {
+    if (!Array.isArray(result?.models)) return [];
+    return result.models
+      .map((model) =>
+        normalizeModelRecord({
+          id: model.id,
+          name: model.name || model.id,
+          manual: false,
+        })
+      )
+      .filter(Boolean);
+  };
+
+  const applyTestSuccess = (result, discovered) => {
+    const preview = previewConnectionModalModels(
+      modalState.models,
+      modalState.selection,
+      discovered,
+      { ...connection, manualModelsMode: modalState.manualModelsMode }
+    );
+    modalState.models = preview.models;
+    modalState.selection = preview.selection;
+    modalState.modelsError = '';
+    setTestMessage(
+      result?.message || `Connection successful. ${discovered.length} models loaded.`,
+      'success'
+    );
+  };
+
+  const applyTestError = (err) => {
+    const message = err?.message || 'Failed to test connection';
+    modalState.modelsError = message;
+    setTestMessage(message, 'error');
+  };
+
+  const finishTestLoading = () => {
+    modalState.loadingModels = false;
+    renderModels();
+  };
+
+  const testConnection = async () => {
+    const payload = prepareTestConnection();
     try {
       const result = await testUserConnection(payload);
-      const discovered = Array.isArray(result?.models)
-        ? result.models
-            .map((model) =>
-              normalizeModelRecord({
-                id: model.id,
-                name: model.name || model.id,
-                manual: false,
-              })
-            )
-            .filter(Boolean)
-        : [];
-      const preview = previewConnectionModalModels(
-        modalState.models,
-        modalState.selection,
-        discovered,
-        { ...connection, manualModelsMode: modalState.manualModelsMode }
-      );
-      modalState.models = preview.models;
-      modalState.selection = preview.selection;
-      modalState.modelsError = '';
-      setTestMessage(
-        result?.message || `Connection successful. ${discovered.length} models loaded.`,
-        'success'
-      );
+      const discovered = normalizeDiscoveredModels(result);
+      applyTestSuccess(result, discovered);
     } catch (err) {
-      modalState.modelsError = err?.message || 'Failed to test connection';
-      setTestMessage(err?.message || 'Failed to test connection', 'error');
+      applyTestError(err);
     } finally {
-      modalState.loadingModels = false;
-      renderModels();
+      finishTestLoading();
     }
   };
   const saveConnection = async () => {

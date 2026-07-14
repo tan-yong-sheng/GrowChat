@@ -319,16 +319,7 @@ export function renderAccountIntegrationsSection(
     oauth_token_auth_method: '',
   };
 
-  const mergeSavedServer = (payload, savedServer, existingServer = null) => {
-    const merged = {
-      ...existingServer,
-      ...payload,
-      ...savedServer,
-      enabled: pickMergedEnabled(payload, savedServer, existingServer),
-      tools: pickMergedTools(payload, savedServer, existingServer),
-      toolsExpanded: Boolean(savedServer?.toolsExpanded ?? existingServer?.toolsExpanded),
-      toolsError: String(savedServer?.toolsError || existingServer?.toolsError || '').trim(),
-    };
+  function applyFieldSourceOrders(merged, payload, savedServer, existingServer) {
     for (const [field, sourceOrder] of Object.entries(FIELD_SOURCE_ORDERS)) {
       const value = pickFirstTruthyFromOrder(
         field,
@@ -339,6 +330,20 @@ export function renderAccountIntegrationsSection(
       );
       merged[field] = value || FIELD_FALLBACKS[field];
     }
+    return merged;
+  }
+
+  const mergeSavedServer = (payload, savedServer, existingServer = null) => {
+    const merged = {
+      ...existingServer,
+      ...payload,
+      ...savedServer,
+      enabled: pickMergedEnabled(payload, savedServer, existingServer),
+      tools: pickMergedTools(payload, savedServer, existingServer),
+      toolsExpanded: Boolean(savedServer?.toolsExpanded ?? existingServer?.toolsExpanded),
+      toolsError: String(savedServer?.toolsError || existingServer?.toolsError || '').trim(),
+    };
+    applyFieldSourceOrders(merged, payload, savedServer, existingServer);
     return normalizeServer(merged);
   };
 

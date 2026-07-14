@@ -132,29 +132,35 @@ async function resolveAuthenticatedUser(req, env, path, ctx, requestId) {
   };
 }
 
+function checkApiBindings(req, env, path, requestId) {
+  if (!env.DB) return error(req, 'DB binding missing', 500, { requestId });
+  if (!env.SESSIONS && path.startsWith('/api/')) {
+    return error(req, 'SESSIONS KV binding missing', 500, { requestId });
+  }
+  return validateRouteBindings(req, env, path);
+}
+
+async function dispatchApiRoutes(req, env, ctx, user, path, requestId, logger) {
+  for (const route of API_ROUTES) {
+    const response = await route(req, env, ctx, user, path, { requestId, logger });
+    if (response) return response;
+  }
+  return error(req, 'Not found', 404, { requestId });
+}
+
 async function handleApiRequest(req, env, ctx, path, requestId, logger) {
-  // CORS origin validation (defense in depth)
   const corsReject = validateOrigin(req, env);
   if (corsReject) return corsReject;
 
-  if (!env.DB) return error(req, 'DB binding missing', 500, { requestId });
-  if (!env.SESSIONS && path.startsWith('/api/'))
-    return error(req, 'SESSIONS KV binding missing', 500, { requestId });
-
-  const bindingError = validateRouteBindings(req, env, path);
+  const bindingError = checkApiBindings(req, env, path, requestId);
   if (bindingError) return bindingError;
 
   const authResult = await resolveAuthenticatedUser(req, env, path, ctx, requestId);
   if (authResult?.deactivated) {
     return error(req, 'Account deactivated', 403, { requestId });
   }
-  const user = authResult;
 
-  for (const route of API_ROUTES) {
-    const response = await route(req, env, ctx, user, path, { requestId, logger });
-    if (response) return response;
-  }
-  return error(req, 'Not found', 404, { requestId });
+  return dispatchApiRoutes(req, env, ctx, authResult, path, requestId, logger);
 }
 
 async function handleSpaFallback(req, env, path, logger) {

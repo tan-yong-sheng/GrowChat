@@ -105,22 +105,30 @@ export function createStreamHelpers({ db, assistantMsgId, encoder, sseData }) {
     return outgoing;
   };
 
-  const appendMessageBlock = ({ type, content = '', toolCallId = null } = {}) => {
-    if (!type) return;
+  const findToolBlock = (toolCallId) =>
+    messageBlocks.find((block) => block.type === 'tool' && block.tool_call_id === toolCallId);
+
+  const appendToolBlock = (toolCallId) => {
+    messageBlocks.push({ type: 'tool', tool_call_id: String(toolCallId || '') });
+  };
+
+  const mergeOrAppendContent = (type, content) => {
     const last = messageBlocks.length ? messageBlocks[messageBlocks.length - 1] : null;
-    if (type === 'tool') {
-      const existing = messageBlocks.find(
-        (block) => block.type === 'tool' && block.tool_call_id === toolCallId
-      );
-      if (existing) return;
-      messageBlocks.push({ type: 'tool', tool_call_id: String(toolCallId || '') });
-      return;
-    }
     if (last && last.type === type && !last.tool_call_id) {
       last.content = `${last.content || ''}${content}`;
       return;
     }
     messageBlocks.push({ type, content: String(content || '') });
+  };
+
+  const appendMessageBlock = ({ type, content = '', toolCallId = null } = {}) => {
+    if (!type) return;
+    if (type === 'tool') {
+      if (findToolBlock(toolCallId)) return;
+      appendToolBlock(toolCallId);
+      return;
+    }
+    mergeOrAppendContent(type, content);
   };
 
   return { persistDelta, emitSse, appendMessageBlock, messageBlocks, state };

@@ -177,69 +177,82 @@ export function createIntegrationsEventHandlers(deps) {
       server.toolsExpanded = false;
     }
 
-    container.querySelector('#save-modal')?.addEventListener('click', async () => {
+    function readServerFormFields() {
       const name = container.querySelector('#server-name').value || 'Untitled Server';
       const { url, headers, authType, bearerToken, basicUser, basicPass, serverId } =
         buildRunVerifyArgs();
       const { oauthClientName, oauthScope, oauthClientId, oauthClientSecret, oauthTokenMethod } =
         readOAuthFormFields(container);
+      return {
+        name,
+        url,
+        headers,
+        authType,
+        bearerToken,
+        basicUser,
+        basicPass,
+        serverId,
+        oauthClientName,
+        oauthScope,
+        oauthClientId,
+        oauthClientSecret,
+        oauthTokenMethod,
+      };
+    }
 
-      if (integrationsState.selectedServer) {
-        const index = integrationsState.toolServers.findIndex(
-          (s) => s.id === integrationsState.selectedServer.id
-        );
-        if (index !== -1) {
-          integrationsState.toolServers[index] = {
-            ...integrationsState.toolServers[index],
-            name,
-            url,
-            headers,
-            auth_type: authType,
-            auth_bearer_token: bearerToken,
-            auth_basic_username: basicUser,
-            auth_basic_password: basicPass,
-            oauth_client_name: oauthClientName,
-            oauth_scope: oauthScope,
-            oauth_client_id: oauthClientId,
-            oauth_client_secret: oauthClientSecret,
-            oauth_token_auth_method: oauthTokenMethod,
-          };
-        } else {
-          integrationsState.toolServers.push({
-            id: serverId,
-            name,
-            url,
-            headers,
-            enabled: true,
-            auth_type: authType,
-            auth_bearer_token: bearerToken,
-            auth_basic_username: basicUser,
-            auth_basic_password: basicPass,
-            oauth_client_name: oauthClientName,
-            oauth_scope: oauthScope,
-            oauth_client_id: oauthClientId,
-            oauth_client_secret: oauthClientSecret,
-            oauth_token_auth_method: oauthTokenMethod,
-          });
-        }
-      } else {
-        integrationsState.toolServers.push({
-          id: Math.random().toString(36).substring(2, 11),
-          name,
-          url,
-          headers,
-          enabled: true,
-          auth_type: authType,
-          auth_bearer_token: bearerToken,
-          auth_basic_username: basicUser,
-          auth_basic_password: basicPass,
-          oauth_client_name: oauthClientName,
-          oauth_scope: oauthScope,
-          oauth_client_id: oauthClientId,
-          oauth_client_secret: oauthClientSecret,
-          oauth_token_auth_method: oauthTokenMethod,
-        });
+    function buildServerPayload(fields, selectedServer) {
+      const base = {
+        name: fields.name,
+        url: fields.url,
+        headers: fields.headers,
+        auth_type: fields.authType,
+        auth_bearer_token: fields.bearerToken,
+        auth_basic_username: fields.basicUser,
+        auth_basic_password: fields.basicPass,
+        oauth_client_name: fields.oauthClientName,
+        oauth_scope: fields.oauthScope,
+        oauth_client_id: fields.oauthClientId,
+        oauth_client_secret: fields.oauthClientSecret,
+        oauth_token_auth_method: fields.oauthTokenMethod,
+      };
+      if (selectedServer) {
+        return { ...selectedServer, ...base };
       }
+      return {
+        id: fields.serverId || Math.random().toString(36).substring(2, 11),
+        enabled: true,
+        ...base,
+      };
+    }
+
+    function upsertServer(payload, selectedServer) {
+      if (selectedServer) {
+        const index = integrationsState.toolServers.findIndex((s) => s.id === selectedServer.id);
+        if (index !== -1) {
+          integrationsState.toolServers[index] = payload;
+          return;
+        }
+      }
+      integrationsState.toolServers.push(payload);
+    }
+
+    async function verifyServerAfterSave(serverId, url) {
+      if (!url.trim()) return;
+      const verifyResult = await runVerify(buildRunVerifyArgs());
+      const server = findServerById(serverId);
+      if (server) {
+        server.tools = verifyResult.tools;
+        server.toolsError = '';
+        server.toolsExpanded = false;
+      }
+      renderToolServersList();
+    }
+
+    container.querySelector('#save-modal')?.addEventListener('click', async () => {
+      const fields = readServerFormFields();
+      const payload = buildServerPayload(fields, integrationsState.selectedServer);
+
+      upsertServer(payload, integrationsState.selectedServer);
 
       try {
         await persistServersImmediate();
@@ -252,19 +265,10 @@ export function createIntegrationsEventHandlers(deps) {
       closeModal();
       renderToolServersList();
 
-      if (!url.trim()) return;
-
       try {
-        const verifyResult = await runVerify(buildRunVerifyArgs());
-        const server = findServerById(serverId);
-        if (server) {
-          server.tools = verifyResult.tools;
-          server.toolsError = '';
-          server.toolsExpanded = false;
-        }
-        renderToolServersList();
+        await verifyServerAfterSave(payload.id, fields.url);
       } catch (err) {
-        handleServerVerifyError(serverId, err.message || 'Connection failed');
+        handleServerVerifyError(payload.id, err.message || 'Connection failed');
       }
     });
 

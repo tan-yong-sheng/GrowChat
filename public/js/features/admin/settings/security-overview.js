@@ -13,6 +13,58 @@ function renderRows(rows) {
   return rows.map((row) => renderSettingRow(row.label, row.value)).join('');
 }
 
+function buildRateLimitRows(limits) {
+  return [
+    { label: 'Chat messages per minute', value: limits.chat_messages_per_minute ?? '—' },
+    { label: 'Login attempts per 10 min', value: limits.login_attempts_per_10min ?? '—' },
+    { label: 'Registrations per 10 min', value: limits.registrations_per_10min ?? '—' },
+    { label: 'File uploads per hour', value: limits.file_uploads_per_hour ?? '—' },
+  ];
+}
+
+function buildTtlRows(ttls) {
+  return [
+    { label: 'Access Token TTL', value: ttls.access_token_display || '—' },
+    { label: 'Refresh Token TTL', value: ttls.refresh_token_display || '—' },
+  ];
+}
+
+function buildSecuritySection(title, rows, noticeText) {
+  return `
+    <section class="space-y-1">
+      <hr class="border-gray-100/30 my-2" />
+      <div class="text-base font-medium text-gray-900 py-2">${escapeHtml(title)}</div>
+      ${renderRows(rows)}
+      <div class="flex items-start gap-2 py-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-600 mt-0.5 shrink-0">
+          <path fill-rule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v3.5c0 .199.079.39.22.53l2 2a.75.75 0 1 0 1.06-1.06L8.75 7.94V4.75Z" clip-rule="evenodd" />
+        </svg>
+        <span class="text-label-sm text-gray-600">${noticeText}</span>
+      </div>
+    </section>
+  `;
+}
+
+function buildFutureSection(items) {
+  return `
+    <section class="space-y-1">
+      <hr class="border-gray-100/30 my-2" />
+      <div class="text-base font-medium text-gray-900 py-2">Future</div>
+      ${items
+        .map(
+          (item) => `
+        <div class="flex items-center justify-between py-2 border-b border-gray-50">
+          <span class="text-sm text-gray-600">${escapeHtml(item)}</span>
+          <span class="text-sm text-gray-300">🔒</span>
+        </div>
+      `
+        )
+        .join('')}
+      <div class="text-label-sm text-gray-600 py-2">These settings will be configurable in a future update.</div>
+    </section>
+  `;
+}
+
 export function renderSecurityOverview(container) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'security';
 
@@ -28,32 +80,6 @@ export function renderSecurityOverview(container) {
     const limits = securityState.rateLimits || {};
     const ttls = securityState.tokenTtls || {};
 
-    const limitRows = [
-      {
-        label: 'Chat messages per minute',
-        value: limits.chat_messages_per_minute ?? '—',
-      },
-      {
-        label: 'Login attempts per 10 min',
-        value: limits.login_attempts_per_10min ?? '—',
-      },
-      {
-        label: 'Registrations per 10 min',
-        value: limits.registrations_per_10min ?? '—',
-      },
-      {
-        label: 'File uploads per hour',
-        value: limits.file_uploads_per_hour ?? '—',
-      },
-    ];
-
-    const ttlRows = [
-      { label: 'Access Token TTL', value: ttls.access_token_display || '—' },
-      { label: 'Refresh Token TTL', value: ttls.refresh_token_display || '—' },
-    ];
-
-    const futureItems = ['Allowed CORS Origins', 'Force HTTPS', 'Password Policy'];
-
     container.innerHTML = `
       <div class="flex flex-col flex-1 min-h-0 animate-in fade-in duration-300 w-full">
         <div class="pt-0.5 pb-6 bg-white">
@@ -65,47 +91,9 @@ export function renderSecurityOverview(container) {
         </div>
         <div class="flex-1 min-h-0">
           <div class="max-w-2xl mx-auto w-full space-y-3 pb-6">
-
-            <section class="space-y-1">
-              <hr class="border-gray-100/30 my-2" />
-              <div class="text-base font-medium text-gray-900 py-2">Rate Limits</div>
-              ${renderRows(limitRows)}
-              <div class="flex items-start gap-2 py-2">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-600 mt-0.5 shrink-0">
-                  <path fill-rule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v3.5c0 .199.079.39.22.53l2 2a.75.75 0 1 0 1.06-1.06L8.75 7.94V4.75Z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-label-sm text-gray-600">Rate limits are configured in deployment config and cannot be changed here.</span>
-              </div>
-            </section>
-
-            <section class="space-y-1">
-              <hr class="border-gray-100/30 my-2" />
-              <div class="text-base font-medium text-gray-900 py-2">Authentication</div>
-              ${renderRows(ttlRows)}
-              <div class="flex items-start gap-2 py-2">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4 text-gray-600 mt-0.5 shrink-0">
-                  <path fill-rule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v3.5c0 .199.079.39.22.53l2 2a.75.75 0 1 0 1.06-1.06L8.75 7.94V4.75Z" clip-rule="evenodd" />
-                </svg>
-                <span class="text-label-sm text-gray-600">Token TTLs are configured in deployment config and cannot be changed here.</span>
-              </div>
-            </section>
-
-            <section class="space-y-1">
-              <hr class="border-gray-100/30 my-2" />
-              <div class="text-base font-medium text-gray-900 py-2">Future</div>
-              ${futureItems
-                .map(
-                  (item) => `
-                <div class="flex items-center justify-between py-2 border-b border-gray-50">
-                  <span class="text-sm text-gray-600">${escapeHtml(item)}</span>
-                  <span class="text-sm text-gray-300">🔒</span>
-                </div>
-              `
-                )
-                .join('')}
-              <div class="text-label-sm text-gray-600 py-2">These settings will be configurable in a future update.</div>
-            </section>
-
+            ${buildSecuritySection('Rate Limits', buildRateLimitRows(limits), 'Rate limits are configured in deployment config and cannot be changed here.')}
+            ${buildSecuritySection('Authentication', buildTtlRows(ttls), 'Token TTLs are configured in deployment config and cannot be changed here.')}
+            ${buildFutureSection(['Allowed CORS Origins', 'Force HTTPS', 'Password Policy'])}
           </div>
         </div>
       </div>

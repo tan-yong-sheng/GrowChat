@@ -235,44 +235,52 @@ export function renderAccountModelsSection(container, state = {}, { onRefresh, r
     }
   }
 
-  const loadModels = async (force = false) => {
-    if (!force && sectionState.models.length > 0) return;
+  function startLoadingModels() {
     const shouldShowLoading = sectionState.models.length === 0;
     sectionState.loading = shouldShowLoading;
     sectionState.error = '';
     if (shouldShowLoading) {
       render();
     }
+  }
+
+  async function fetchAndApplyModels() {
+    const payload = await fetchModels({
+      cache: 'no-store',
+      limit: sectionState.limit,
+      offset: sectionState.offset,
+      provider: sectionState.provider !== 'all' ? sectionState.provider : undefined,
+      q: normalizeModelSearchQuery(sectionState.query) || undefined,
+      scope: 'effective',
+    });
+    const partitioned = partitionModelsByVisibility(payload);
+    const disabledSet = parseDisabledModelIds(payload);
+    const filtered = filterModelsByDisabled(partitioned, disabledSet);
+    const savedSettings = normalizePersonalModelSettings(
+      state.settings?.preferences?.model_settings
+    );
+    const mergedCaps = buildMergedAttachmentCaps(
+      filtered.visibleModels,
+      filtered.hiddenModels,
+      savedSettings,
+      sectionState.attachmentCaps
+    );
+    const mergedDisabledSet = mergeSavedAttachmentCaps(savedSettings, mergedCaps, sectionState);
+    applyLoadedModelsToState(
+      payload,
+      filtered.visibleModels,
+      filtered.hiddenModels,
+      mergedCaps,
+      mergedDisabledSet,
+      sectionState
+    );
+  }
+
+  const loadModels = async (force = false) => {
+    if (!force && sectionState.models.length > 0) return;
+    startLoadingModels();
     try {
-      const payload = await fetchModels({
-        cache: 'no-store',
-        limit: sectionState.limit,
-        offset: sectionState.offset,
-        provider: sectionState.provider !== 'all' ? sectionState.provider : undefined,
-        q: normalizeModelSearchQuery(sectionState.query) || undefined,
-        scope: 'effective',
-      });
-      const partitioned = partitionModelsByVisibility(payload);
-      const disabledSet = parseDisabledModelIds(payload);
-      const filtered = filterModelsByDisabled(partitioned, disabledSet);
-      const savedSettings = normalizePersonalModelSettings(
-        state.settings?.preferences?.model_settings
-      );
-      const mergedCaps = buildMergedAttachmentCaps(
-        filtered.visibleModels,
-        filtered.hiddenModels,
-        savedSettings,
-        sectionState.attachmentCaps
-      );
-      const mergedDisabledSet = mergeSavedAttachmentCaps(savedSettings, mergedCaps, sectionState);
-      applyLoadedModelsToState(
-        payload,
-        filtered.visibleModels,
-        filtered.hiddenModels,
-        mergedCaps,
-        mergedDisabledSet,
-        sectionState
-      );
+      await fetchAndApplyModels();
     } catch (err) {
       sectionState.error = err?.message || 'Failed to load models';
     } finally {
@@ -302,9 +310,7 @@ function partitionModelsByVisibility(payload) {
   const fallbackHiddenModels = responseVisibleModels.filter(
     (model) => model.hidden_for_user === true
   );
-  const visibleModels = responseVisibleModels.filter(
-    (model) => model.hidden_for_user !== true
-  );
+  const visibleModels = responseVisibleModels.filter((model) => model.hidden_for_user !== true);
   const hiddenModels = [...responseHiddenModels, ...fallbackHiddenModels];
   return { visibleModels, hiddenModels };
 }
@@ -345,9 +351,7 @@ function applyLoadedModelsToState(
 ) {
   const combinedModels = buildCombinedModelsArray(visibleModels, hiddenModels, mergedCaps);
   sectionState.models = sortModelsByActiveThenName(combinedModels);
-  sectionState.total = Number.isFinite(payload?.total)
-    ? payload.total
-    : sectionState.models.length;
+  sectionState.total = Number.isFinite(payload?.total) ? payload.total : sectionState.models.length;
   sectionState.activeTotal = Number.isFinite(payload?.active_total)
     ? payload.active_total
     : countEnabledModels(sectionState.models);
