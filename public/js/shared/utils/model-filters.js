@@ -1,19 +1,25 @@
 // fallow-ignore-file code-duplication
 import { filterModelsBySearch, normalizeModelSearchQuery } from './model-search.js';
 
+const PROVIDER_NAME_FIELDS = [
+  'connection_name',
+  'connectionName',
+  'provider_id',
+  'providerId',
+  'provider_family',
+  'providerFamily',
+  'provider_type',
+  'providerType',
+  'provider',
+];
+
 function getRawProviderName(model = {}) {
-  return (
-    model?.connection_name ||
-    model?.connectionName ||
-    model?.provider_id ||
-    model?.providerId ||
-    model?.provider_family ||
-    model?.providerFamily ||
-    model?.provider_type ||
-    model?.providerType ||
-    model?.provider ||
-    ''
-  );
+  const target = model || {};
+  for (const key of PROVIDER_NAME_FIELDS) {
+    const value = target[key];
+    if (value) return value;
+  }
+  return '';
 }
 
 export function getModelProviderKey(model = {}) {

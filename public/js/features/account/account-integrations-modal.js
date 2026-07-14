@@ -153,6 +153,25 @@ export function createIntegrationsModal(ctx) {
       oauth_token_auth_method: readFormFieldValue(container, '#server-auth-oauth-token-method'),
     });
 
+    const OPTIONAL_PAYLOAD_FIELDS = [
+      'headers',
+      'auth_bearer_token',
+      'auth_basic_username',
+      'auth_basic_password',
+      'oauth_client_name',
+      'oauth_scope',
+      'oauth_client_id',
+      'oauth_client_secret',
+      'oauth_token_auth_method',
+    ];
+
+    function compactOptionalFields(payload) {
+      for (const key of OPTIONAL_PAYLOAD_FIELDS) {
+        if (!payload[key]) delete payload[key];
+      }
+      return payload;
+    }
+
     const buildPayload = () => {
       const f = readFormFields();
       const payload = {
@@ -172,16 +191,7 @@ export function createIntegrationsModal(ctx) {
         oauth_client_secret: f.oauth_client_secret,
         oauth_token_auth_method: String(f.oauth_token_auth_method).trim(),
       };
-      if (!payload.headers) delete payload.headers;
-      if (!payload.auth_bearer_token) delete payload.auth_bearer_token;
-      if (!payload.auth_basic_username) delete payload.auth_basic_username;
-      if (!payload.auth_basic_password) delete payload.auth_basic_password;
-      if (!payload.oauth_client_name) delete payload.oauth_client_name;
-      if (!payload.oauth_scope) delete payload.oauth_scope;
-      if (!payload.oauth_client_id) delete payload.oauth_client_id;
-      if (!payload.oauth_client_secret) delete payload.oauth_client_secret;
-      if (!payload.oauth_token_auth_method) delete payload.oauth_token_auth_method;
-      return payload;
+      return compactOptionalFields(payload);
     };
 
     const saveServer = async () => {
