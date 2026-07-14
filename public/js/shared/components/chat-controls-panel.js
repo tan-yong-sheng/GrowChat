@@ -50,9 +50,13 @@ function buildControlsHtml(preferences) {
   `;
 }
 
+function parseSettingValue(target) {
+  return target.type === 'range' ? parseFloat(target.value) : target.value;
+}
+
 async function handleSettingChange(e, updateUI) {
   const setting = e.target.dataset.setting;
-  const value = e.target.type === 'range' ? parseFloat(e.target.value) : e.target.value;
+  const value = parseSettingValue(e.target);
 
   const updates = {
     preferences: {

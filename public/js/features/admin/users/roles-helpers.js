@@ -118,19 +118,28 @@ export function createInitialRoles() {
   });
 }
 
+function resolveRoleDescription(role, preset) {
+  return role.description || preset?.description || (role.system ? 'System role' : 'Custom role');
+}
+
+function resolveRolePermissionSets(role, permissions) {
+  return {
+    defaultPermissions: clonePermissions(role.defaultPermissions || permissions),
+    initialPermissions: clonePermissions(role.initialPermissions || permissions),
+  };
+}
+
 export function normalizeLoadedRole(role) {
   const preset = ROLE_PRESETS.find((item) => item.id === role?.id);
   const permissions = clonePermissions(role?.permissions || []);
   return {
     id: role.id,
     name: role.name,
-    description:
-      role.description || preset?.description || (role.system ? 'System role' : 'Custom role'),
+    description: resolveRoleDescription(role, preset),
     system: Boolean(role.system),
     sourceRoleId: role.sourceRoleId || null,
     permissions,
-    defaultPermissions: clonePermissions(role.defaultPermissions || permissions),
-    initialPermissions: clonePermissions(role.initialPermissions || permissions),
+    ...resolveRolePermissionSets(role, permissions),
   };
 }
 
