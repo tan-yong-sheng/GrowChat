@@ -105,6 +105,16 @@ function closeChatMenus() {
 /**
  * Set up keyboard handlers for chat menu buttons
  */
+function handleMenuButtonEscape(event) {
+  if (event.key !== 'Escape') return;
+  event.preventDefault();
+  const menuBtn = event.currentTarget;
+  const dropdown = menuBtn.closest('.chat-row')?.querySelector('.chat-menu-dropdown');
+  if (dropdown) {
+    dropdown.classList.add('hidden');
+  }
+}
+
 export function initializeChatMenuKeyboardNavigation(menuBtn) {
   if (!menuBtn) return;
 
@@ -113,20 +123,29 @@ export function initializeChatMenuKeyboardNavigation(menuBtn) {
     menuBtn.setAttribute('aria-label', 'Chat options menu');
   }
 
-  menuBtn.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      const dropdown = menuBtn.closest('.chat-row').querySelector('.chat-menu-dropdown');
-      if (dropdown) {
-        dropdown.classList.add('hidden');
-      }
-    }
-  });
+  menuBtn.addEventListener('keydown', handleMenuButtonEscape);
 }
 
 /**
  * Set up keyboard handlers for message input
  */
+function isSubmitShortcut(event) {
+  return event.key === 'Enter' && (event.ctrlKey || event.metaKey);
+}
+
+function clickSubmitButton(input) {
+  const submitBtn = input.closest('form')?.querySelector('[type="submit"]');
+  if (submitBtn) {
+    submitBtn.click();
+  }
+}
+
+function handleMessageInputSubmit(event) {
+  if (!isSubmitShortcut(event)) return;
+  event.preventDefault();
+  clickSubmitButton(event.currentTarget);
+}
+
 export function initializeMessageInputKeyboardNavigation(messageInput) {
   if (!messageInput) return;
 
@@ -137,16 +156,7 @@ export function initializeMessageInputKeyboardNavigation(messageInput) {
   }
 
   // Handle Ctrl+Enter or Cmd+Enter to submit
-  messageInput.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      // Find submit button and trigger click
-      const submitBtn = messageInput.closest('form')?.querySelector('[type="submit"]');
-      if (submitBtn) {
-        submitBtn.click();
-      }
-    }
-  });
+  messageInput.addEventListener('keydown', handleMessageInputSubmit);
 }
 
 /**
