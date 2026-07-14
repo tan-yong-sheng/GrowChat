@@ -64,39 +64,73 @@ export function createChatRealtimeController({
     }));
   }
 
+  function findExistingMessageIndex(workingMessages, realId) {
+    return workingMessages.findIndex((item) => String(item?.id) === realId);
+  }
+
+  function resolveMessageMatchFields(message) {
+    return {
+      msgRole: String(message.role || ''),
+      msgContent: String(message.content || ''),
+      msgParent: message.parent_id ? String(message.parent_id) : null,
+    };
+  }
+
+  function matchesTempMessage(item, { msgRole, msgContent, msgParent }) {
+    if (!String(item?.id || '').startsWith('temp-')) return false;
+    if (String(item.role || '') !== msgRole) return false;
+    if (String(item.parent_id || '') !== String(msgParent || '')) return false;
+    if (msgRole !== 'assistant' && String(item.content || '') !== msgContent) return false;
+    return true;
+  }
+
+  function findTempMessageReplacementIndex(chatId, workingMessages, matchFields, realId) {
+    const tempIdx = workingMessages.findIndex((item) => matchesTempMessage(item, matchFields));
+    if (tempIdx < 0) return { workingMessages, index: -1 };
+    replaceTempMessageId(chatId, workingMessages[tempIdx].id, realId);
+    const refreshedMessages = [...(state.messagesByChat[chatId] || [])];
+    return {
+      workingMessages: refreshedMessages,
+      index: findExistingMessageIndex(refreshedMessages, realId),
+    };
+  }
+
+  function mergeEventMessage(workingMessages, message, index) {
+    const normalized = { ...message, done: true };
+    if (index >= 0) {
+      workingMessages[index] = { ...workingMessages[index], ...normalized };
+      return workingMessages;
+    }
+    workingMessages.push(normalized);
+    workingMessages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
+    return workingMessages;
+  }
+
+  function commitMessagesForChat(chatId, workingMessages, realId) {
+    currentLeafByChatId.set(chatId, realId);
+    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: workingMessages } });
+  }
+
   function upsertMessageFromEvent(chatId, message, { draw = true } = {}) {
     if (!chatId || !message?.id) return;
     let workingMessages = [...(state.messagesByChat[chatId] || [])];
     const realId = String(message.id);
-    let index = workingMessages.findIndex((item) => String(item?.id) === realId);
+    let index = findExistingMessageIndex(workingMessages, realId);
 
     if (index < 0) {
-      const msgRole = String(message.role || '');
-      const msgContent = String(message.content || '');
-      const msgParent = message.parent_id ? String(message.parent_id) : null;
-      const tempIdx = workingMessages.findIndex((item) => {
-        if (!String(item?.id || '').startsWith('temp-')) return false;
-        if (String(item.role || '') !== msgRole) return false;
-        if (String(item.parent_id || '') !== String(msgParent || '')) return false;
-        if (msgRole !== 'assistant' && String(item.content || '') !== msgContent) return false;
-        return true;
-      });
-      if (tempIdx >= 0) {
-        replaceTempMessageId(chatId, workingMessages[tempIdx].id, realId);
-        workingMessages = [...(state.messagesByChat[chatId] || [])];
-        index = workingMessages.findIndex((item) => String(item?.id) === realId);
-      }
+      const matchFields = resolveMessageMatchFields(message);
+      const replacement = findTempMessageReplacementIndex(
+        chatId,
+        workingMessages,
+        matchFields,
+        realId
+      );
+      workingMessages = replacement.workingMessages;
+      index = replacement.index;
     }
 
-    const normalized = { ...message, done: true };
-    if (index >= 0) {
-      workingMessages[index] = { ...workingMessages[index], ...normalized };
-    } else {
-      workingMessages.push(normalized);
-      workingMessages.sort((a, b) => Number(a?.created_at || 0) - Number(b?.created_at || 0));
-    }
-    currentLeafByChatId.set(chatId, realId);
-    setState({ messagesByChat: { ...state.messagesByChat, [chatId]: workingMessages } });
+    workingMessages = mergeEventMessage(workingMessages, message, index);
+    commitMessagesForChat(chatId, workingMessages, realId);
     if (draw && state.activeChatId === chatId) drawMessages(workingMessages);
   }
 
