@@ -132,13 +132,51 @@ export async function handleBranchMessage({
   return response;
 }
 
-async function parseBranchBody(req, sourceMsg) {
-  let body;
+async function parseRequestJson(req) {
   try {
-    body = await req.json();
+    return { body: await req.json() };
   } catch {
     return { error: error(req, 'Invalid JSON body', 400) };
   }
+}
+
+function normalizeBranchRole(body) {
+  return String(body.role || 'user')
+    .trim()
+    .toLowerCase();
+}
+
+function validateBranchRole(role, noReply, sourceMsg, req) {
+  if (role !== 'user' && role !== 'assistant') {
+    return { error: error(req, "role must be 'user' or 'assistant'", 400) };
+  }
+  if (role === 'user' && noReply) {
+    return { error: error(req, 'User message branching does not support no_reply=true', 400) };
+  }
+  if (role === 'assistant' && !noReply) {
+    return { error: error(req, 'Assistant message branching requires no_reply=true', 400) };
+  }
+  if (sourceMsg.role !== role) {
+    return { error: error(req, `Cannot branch a ${sourceMsg.role} message as ${role}`, 400) };
+  }
+  return null;
+}
+
+function buildBranchResult(body, content, role, noReply, selectedToolNames) {
+  return {
+    body,
+    content,
+    role,
+    noReply,
+    selectedToolNames,
+    attachmentIds: normalizeAttachmentIds(Array.isArray(body.attachments) ? body.attachments : []),
+  };
+}
+
+async function parseBranchBody(req, sourceMsg) {
+  const parsed = await parseRequestJson(req);
+  if (parsed.error) return parsed;
+  const { body } = parsed;
 
   const content = String(body.content || '').trim();
   if (!content) {
@@ -149,33 +187,12 @@ async function parseBranchBody(req, sourceMsg) {
     body.selected_tool_names || body.tool_names || body.tools
   );
 
-  const role = String(body.role || 'user')
-    .trim()
-    .toLowerCase();
-  if (role !== 'user' && role !== 'assistant') {
-    return { error: error(req, "role must be 'user' or 'assistant'", 400) };
-  }
-
+  const role = normalizeBranchRole(body);
   const noReply = body.no_reply === true;
+  const roleError = validateBranchRole(role, noReply, sourceMsg, req);
+  if (roleError) return roleError;
 
-  if (role === 'user' && noReply) {
-    return { error: error(req, 'User message branching does not support no_reply=true', 400) };
-  }
-  if (role === 'assistant' && !noReply) {
-    return { error: error(req, 'Assistant message branching requires no_reply=true', 400) };
-  }
-  if (sourceMsg.role !== role) {
-    return { error: error(req, `Cannot branch a ${sourceMsg.role} message as ${role}`, 400) };
-  }
-
-  return {
-    body,
-    content,
-    role,
-    noReply,
-    selectedToolNames,
-    attachmentIds: normalizeAttachmentIds(Array.isArray(body.attachments) ? body.attachments : []),
-  };
+  return buildBranchResult(body, content, role, noReply, selectedToolNames);
 }
 
 async function resolveBranchModel(req, env, db, user, chat, body) {
