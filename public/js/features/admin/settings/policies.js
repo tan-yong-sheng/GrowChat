@@ -150,25 +150,33 @@ export function renderPoliciesSettings(container, _data = {}) {
     invalidateFamilyState(['mcp-servers'], { renderActive: true, reloadActive: true });
   };
 
-  const getConnectionRulesByIdForWarnings = () => {
-    const currentConnections = Array.isArray(state.resources.connections)
-      ? state.resources.connections
-      : [];
-    if (currentConnections.length) {
-      const map = new Map();
-      for (const resource of currentConnections) {
-        const cid = String(resource?.id || '').trim();
-        if (!cid) continue;
-        map.set(
-          cid,
-          cloneAclRules(Array.isArray(resource?.rules) ? resource.rules : [], normalizeAclRule)
-        );
-      }
-      return map;
+  function resolveCurrentConnections(resources) {
+    return Array.isArray(resources) ? resources : [];
+  }
+
+  function buildConnectionRulesMap(currentConnections, normalizeRule) {
+    const map = new Map();
+    for (const resource of currentConnections) {
+      const cid = String(resource?.id || '').trim();
+      if (!cid) continue;
+      map.set(
+        cid,
+        cloneAclRules(Array.isArray(resource?.rules) ? resource.rules : [], normalizeRule)
+      );
     }
-    return state.modelConnectionRulesById instanceof Map
-      ? state.modelConnectionRulesById
-      : new Map();
+    return map;
+  }
+
+  function fallbackConnectionRulesMap(modelRules) {
+    return modelRules instanceof Map ? modelRules : new Map();
+  }
+
+  const getConnectionRulesByIdForWarnings = () => {
+    const currentConnections = resolveCurrentConnections(state.resources.connections);
+    if (currentConnections.length) {
+      return buildConnectionRulesMap(currentConnections, normalizeAclRule);
+    }
+    return fallbackConnectionRulesMap(state.modelConnectionRulesById);
   };
 
   const handleVisibilityOutsideClick = (event) => {

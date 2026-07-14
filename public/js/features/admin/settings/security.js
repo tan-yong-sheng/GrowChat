@@ -5,6 +5,27 @@ import {
   sendTestEmail as sharedSendTestEmail,
 } from './security-shared.js';
 
+function parseEmailConfigPayload(payload) {
+  return { resendApiKeyConfigured: payload?.resend_api_key_configured || false };
+}
+
+function applyEmailConfig(settingsState, parsed) {
+  settingsState.resendApiKeyConfigured = parsed.resendApiKeyConfigured;
+}
+
+async function fetchAndApplyEmailConfig(settingsState) {
+  const res = await apiFetch('/api/admin/email-config');
+  if (!res.ok) return false;
+  const payload = await res.json();
+  const parsed = parseEmailConfigPayload(payload);
+  applyEmailConfig(settingsState, parsed);
+  return true;
+}
+
+function renderIfActive(render, isActiveTab, updated) {
+  if (updated && isActiveTab()) render();
+}
+
 export function renderSecuritySettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'security';
   const settingsState =
@@ -175,14 +196,8 @@ export function renderSecuritySettings(container, data) {
     if (settingsState.adminConfigLoaded) return;
     settingsState.adminConfigLoaded = true;
     try {
-      const res = await apiFetch('/api/admin/email-config');
-      if (res.ok) {
-        const payload = await res.json();
-        // Check if API key is configured, but never store the actual key in state
-        settingsState.resendApiKeyConfigured = payload?.resend_api_key_configured || false;
-
-        if (isActiveTab()) render();
-      }
+      const updated = await fetchAndApplyEmailConfig(settingsState);
+      renderIfActive(render, isActiveTab, updated);
     } catch (err) {
       console.warn('Failed to load email config', err);
     }

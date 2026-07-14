@@ -7,6 +7,25 @@ import {
   updateAdminConfig,
 } from '../../../shared/utils/admin-settings-helpers.js';
 
+function parseRegistrationPayload(payload) {
+  const publicRegistration = Boolean(payload?.public_registration);
+  const registrationStatusRaw = String(payload?.public_registration_status || 'pending')
+    .trim()
+    .toLowerCase();
+  const registrationStatus = registrationStatusRaw === 'active' ? 'active' : 'pending';
+  const requireEmailVerification = Boolean(payload?.require_email_verification);
+  return { publicRegistration, registrationStatus, requireEmailVerification };
+}
+
+function applyRegistrationSettings(settingsState, parsed) {
+  settingsState.publicRegistration = parsed.publicRegistration;
+  settingsState._initialPublicRegistration = parsed.publicRegistration;
+  settingsState.registrationStatus = parsed.registrationStatus;
+  settingsState._initialRegistrationStatus = parsed.registrationStatus;
+  settingsState.requireEmailVerification = parsed.requireEmailVerification;
+  settingsState._initialRequireEmailVerification = parsed.requireEmailVerification;
+}
+
 export function renderRegistrationSettings(container, data) {
   const isActiveTab = () => container?.dataset?.settingsTab === 'registration';
 
@@ -205,23 +224,11 @@ export function renderRegistrationSettings(container, data) {
     settingsState.adminConfigLoaded = true;
     try {
       const res = await apiFetch('/api/admin/config');
-      if (res.ok) {
-        const payload = await res.json();
-        settingsState.publicRegistration = Boolean(payload?.public_registration);
-        settingsState._initialPublicRegistration = settingsState.publicRegistration;
-
-        const registrationStatusRaw = String(payload?.public_registration_status || 'pending')
-          .trim()
-          .toLowerCase();
-        settingsState.registrationStatus =
-          registrationStatusRaw === 'active' ? 'active' : 'pending';
-        settingsState._initialRegistrationStatus = settingsState.registrationStatus;
-
-        settingsState.requireEmailVerification = Boolean(payload?.require_email_verification);
-        settingsState._initialRequireEmailVerification = settingsState.requireEmailVerification;
-
-        if (isActiveTab()) render();
-      }
+      if (!res.ok) return;
+      const payload = await res.json();
+      const parsed = parseRegistrationPayload(payload);
+      applyRegistrationSettings(settingsState, parsed);
+      if (isActiveTab()) render();
     } catch (err) {
       console.warn('Failed to load registration config', err);
     }

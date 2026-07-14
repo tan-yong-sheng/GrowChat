@@ -55,9 +55,7 @@ export function renderEmailDeliverySettings(container) {
   }
 
   function maskedApiKeyValue() {
-    return settingsState.apiKeyConfigured
-      ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'
-      : '';
+    return settingsState.apiKeyConfigured ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : '';
   }
 
   function findCurrentProvider() {
@@ -178,26 +176,51 @@ export function renderEmailDeliverySettings(container) {
     bindEvents();
   };
 
+  function buildProviderPayload(newProvider) {
+    return JSON.stringify({ email_provider: newProvider });
+  }
+
+  function parseProviderErrorResponse(err) {
+    return err?.error || err?.message || 'Failed to update provider';
+  }
+
+  function updateProviderState(state, newProvider) {
+    const prev = state.provider;
+    state.provider = newProvider;
+    state.apiKeyConfigured = false;
+    return prev;
+  }
+
+  function revertProviderState(state, prev) {
+    state.provider = prev;
+  }
+
+  function formatProviderError(err) {
+    return err?.message || 'Failed to update provider.';
+  }
+
+  async function applyEmailProviderUpdate(newProvider) {
+    const res = await apiFetch('/api/admin/email-config', {
+      method: 'PUT',
+      body: buildProviderPayload(newProvider),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(parseProviderErrorResponse(err));
+    }
+  }
+
   const saveProvider = async (newProvider) => {
     if (saving) return;
     saving = true;
-    const prev = settingsState.provider;
-    settingsState.provider = newProvider;
-    settingsState.apiKeyConfigured = false;
+    const prev = updateProviderState(settingsState, newProvider);
     try {
-      const res = await apiFetch('/api/admin/email-config', {
-        method: 'PUT',
-        body: JSON.stringify({ email_provider: newProvider }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || err?.message || 'Failed to update provider');
-      }
+      await applyEmailProviderUpdate(newProvider);
       render();
     } catch (err) {
-      settingsState.provider = prev;
+      revertProviderState(settingsState, prev);
       render();
-      showFeedback(container, err?.message || 'Failed to update provider.', true);
+      showFeedback(container, formatProviderError(err), true);
     } finally {
       saving = false;
     }

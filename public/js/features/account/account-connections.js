@@ -113,6 +113,36 @@ function resolveConnectionManualModels(sources) {
   return existing?.manual_models || [];
 }
 
+function buildConnectionsFromPayload(payload) {
+  return {
+    my_connections: Array.isArray(payload?.my_connections) ? payload.my_connections : [],
+    connections: Array.isArray(payload?.connections) ? payload.connections : [],
+  };
+}
+
+function applyConnectionsPayload(state, viewState, getConnections, payload) {
+  state.settings = { ...state.settings, connections: buildConnectionsFromPayload(payload) };
+  const next = getConnections();
+  viewState.personal = next.personal;
+  viewState.accessible = next.accessible;
+  viewState.error = '';
+}
+
+async function handleRefreshFallback(err, state, viewState, getConnections, onRefresh) {
+  if (typeof onRefresh === 'function') {
+    const nextState = await onRefresh();
+    viewState.error = '';
+    if (nextState) {
+      state.settings = nextState.settings;
+      const nextConnections = getConnections();
+      viewState.personal = nextConnections.personal;
+      viewState.accessible = nextConnections.accessible;
+    }
+  } else {
+    viewState.error = err?.message || 'Failed to load connections';
+  }
+}
+
 export function renderAccountConnectionsSection(
   container,
   state = {},
@@ -158,30 +188,9 @@ export function renderAccountConnectionsSection(
   const refreshConnections = async () => {
     try {
       const payload = await fetchUserConnections({ cache: 'no-store' });
-      state.settings = {
-        ...state.settings,
-        connections: {
-          my_connections: Array.isArray(payload?.my_connections) ? payload.my_connections : [],
-          connections: Array.isArray(payload?.connections) ? payload.connections : [],
-        },
-      };
-      const nextConnections = getConnections();
-      viewState.personal = nextConnections.personal;
-      viewState.accessible = nextConnections.accessible;
-      viewState.error = '';
+      applyConnectionsPayload(state, viewState, getConnections, payload);
     } catch (err) {
-      if (typeof onRefresh === 'function') {
-        const nextState = await onRefresh();
-        viewState.error = '';
-        if (nextState) {
-          state.settings = nextState.settings;
-          const nextConnections = getConnections();
-          viewState.personal = nextConnections.personal;
-          viewState.accessible = nextConnections.accessible;
-        }
-      } else {
-        viewState.error = err?.message || 'Failed to load connections';
-      }
+      await handleRefreshFallback(err, state, viewState, getConnections, onRefresh);
     }
     render();
   };
