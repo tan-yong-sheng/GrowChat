@@ -4,17 +4,21 @@ export function emitToolCalls(parser, toolCalls = []) {
   parser._emit({ type: 'tool_call_delta', tool_calls: toolCalls });
 }
 
+function classifyFinishReason(value) {
+  if (value.includes('tool')) return 'tool_calls';
+  if (value === 'stop_sequence' || value === 'end_turn') return 'stop';
+  if (value === 'max_tokens' || value === 'length') return 'length';
+  if (value === 'stop') return 'stop';
+  return value;
+}
+
 export function normalizeFinishReason(parser, raw) {
   const value = String(raw || '')
     .trim()
     .toLowerCase();
   if (!value) return null;
   if (parser._hasToolCalls) return 'tool_calls';
-  if (value.includes('tool')) return 'tool_calls';
-  if (value === 'stop_sequence' || value === 'end_turn') return 'stop';
-  if (value === 'max_tokens' || value === 'length') return 'length';
-  if (value === 'stop') return 'stop';
-  return value;
+  return classifyFinishReason(value);
 }
 
 // ResolveContentField has 20 paths due to multiple ??/|| chains for field resolution

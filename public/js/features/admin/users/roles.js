@@ -137,25 +137,21 @@ export function renderRolesPage(container, data = {}) {
   };
 
   const openRole = (roleId, isNew = false) => {
+    async function saveAdminRole(creating, currentRoleId, payload) {
+      const result = creating
+        ? await createAdminRbacRole(payload)
+        : await updateAdminRbacRole(currentRoleId, payload);
+      const role = result?.role || result;
+      if (role?.id) {
+        await reloadRolesFromServer();
+      }
+    }
+
     closeModal();
     state.modalCleanup = openRoleModal(container, state, data, {
       roleId,
       isNew,
-      onSaveRole: async (creating, currentRoleId, payload) => {
-        if (creating) {
-          const result = await createAdminRbacRole(payload);
-          const role = result?.role || result;
-          if (role?.id) {
-            await reloadRolesFromServer();
-          }
-          return;
-        }
-        const result = await updateAdminRbacRole(currentRoleId, payload);
-        const role = result?.role || result;
-        if (role?.id) {
-          await reloadRolesFromServer();
-        }
-      },
+      onSaveRole: saveAdminRole,
       onDeleteRole: deleteRole,
     });
   };
