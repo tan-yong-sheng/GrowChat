@@ -106,9 +106,7 @@ function normalizeUserGroupIds(input) {
     );
   }
   if (Array.isArray(input)) {
-    return new Set(
-      input.map((value) => String(value || '').trim()).filter(Boolean)
-    );
+    return new Set(input.map((value) => String(value || '').trim()).filter(Boolean));
   }
   return null;
 }
@@ -153,6 +151,37 @@ function maybeUpgradeDiscoveryBaseUrl(url) {
   }
 }
 
+function addGoogleDiscoveryUrls(candidateBaseUrl, add) {
+  if (candidateBaseUrl.endsWith('/v1beta') || candidateBaseUrl.endsWith('/v1')) {
+    add(candidateBaseUrl, '/models');
+    return;
+  }
+  add(candidateBaseUrl, '/v1beta/models');
+  add(candidateBaseUrl, '/models');
+  add(candidateBaseUrl, '/v1/models');
+}
+
+function addAnthropicDiscoveryUrls(candidateBaseUrl, add) {
+  if (candidateBaseUrl.endsWith('/v1')) {
+    add(candidateBaseUrl, '/models');
+    return;
+  }
+  add(candidateBaseUrl, '/v1/models');
+  add(candidateBaseUrl, '/models');
+}
+
+function addDefaultDiscoveryUrls(candidateBaseUrl, add) {
+  add(candidateBaseUrl, '/models');
+  if (!candidateBaseUrl.endsWith('/v1') && !candidateBaseUrl.endsWith('/v1beta')) {
+    add(candidateBaseUrl, '/v1/models');
+  }
+}
+
+const DISCOVERY_URL_BUILDERS = {
+  google: addGoogleDiscoveryUrls,
+  anthropic: addAnthropicDiscoveryUrls,
+};
+
 export function getConnectionModelDiscoveryUrls(connection = {}) {
   const baseUrl = normalizeBaseUrl(connection.baseUrl || connection.url || '');
   if (!baseUrl) return [];
@@ -166,33 +195,8 @@ export function getConnectionModelDiscoveryUrls(connection = {}) {
     appendDiscoveryCandidate(urls, `${candidateBaseUrl}${path}`);
 
   for (const candidateBaseUrl of baseCandidates) {
-    switch (family) {
-      case 'google':
-        if (candidateBaseUrl.endsWith('/v1beta')) {
-          add(candidateBaseUrl, '/models');
-        } else if (candidateBaseUrl.endsWith('/v1')) {
-          add(candidateBaseUrl, '/models');
-        } else {
-          add(candidateBaseUrl, '/v1beta/models');
-          add(candidateBaseUrl, '/models');
-          add(candidateBaseUrl, '/v1/models');
-        }
-        break;
-      case 'anthropic':
-        if (candidateBaseUrl.endsWith('/v1')) {
-          add(candidateBaseUrl, '/models');
-        } else {
-          add(candidateBaseUrl, '/v1/models');
-          add(candidateBaseUrl, '/models');
-        }
-        break;
-      default:
-        add(candidateBaseUrl, '/models');
-        if (!candidateBaseUrl.endsWith('/v1') && !candidateBaseUrl.endsWith('/v1beta')) {
-          add(candidateBaseUrl, '/v1/models');
-        }
-        break;
-    }
+    const builder = DISCOVERY_URL_BUILDERS[family] || addDefaultDiscoveryUrls;
+    builder(candidateBaseUrl, add);
   }
   return urls;
 }
