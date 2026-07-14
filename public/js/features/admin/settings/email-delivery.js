@@ -363,22 +363,44 @@ export function renderEmailDeliverySettings(container) {
     });
   };
 
+  function resolveEmailProvider(payload) {
+    return payload?.email_provider || 'resend';
+  }
+
+  function resolveApiKeyConfigured(payload) {
+    return payload?.email_api_key_configured || payload?.resend_api_key_configured || false;
+  }
+
+  function resolveFromEmail(payload) {
+    return payload?.email_from || payload?.resend_from_email || '';
+  }
+
+  function resolveMailgunDomain(payload) {
+    return payload?.mailgun_domain || '';
+  }
+
+  function applyEmailConfig(payload) {
+    settingsState.provider = resolveEmailProvider(payload);
+    settingsState.apiKeyConfigured = resolveApiKeyConfigured(payload);
+    settingsState.fromEmail = resolveFromEmail(payload);
+    settingsState.mailgunDomain = resolveMailgunDomain(payload);
+  }
+
+  function handleLoadConfigError(err) {
+    console.warn('Failed to load email config', err);
+  }
+
   const loadConfig = async () => {
     if (settingsState.configLoaded) return;
     settingsState.configLoaded = true;
     try {
       const res = await apiFetch('/api/admin/email-config');
-      if (res.ok) {
-        const payload = await res.json();
-        settingsState.provider = payload?.email_provider || 'resend';
-        settingsState.apiKeyConfigured =
-          payload?.email_api_key_configured || payload?.resend_api_key_configured || false;
-        settingsState.fromEmail = payload?.email_from || payload?.resend_from_email || '';
-        settingsState.mailgunDomain = payload?.mailgun_domain || '';
-        if (isActiveTab()) render();
-      }
+      if (!res.ok) return;
+      const payload = await res.json();
+      applyEmailConfig(payload);
+      if (isActiveTab()) render();
     } catch (err) {
-      console.warn('Failed to load email config', err);
+      handleLoadConfigError(err);
     }
   };
 
