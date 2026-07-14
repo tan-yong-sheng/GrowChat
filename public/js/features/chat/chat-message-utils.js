@@ -85,6 +85,26 @@ export function formatApiErrorMessage(payload, fallback) {
   return message;
 }
 
+function findTagOpen(text, openToken) {
+  const lower = text.toLowerCase();
+  const openIdx = lower.indexOf(openToken);
+  if (openIdx === -1) return null;
+  const openEnd = text.indexOf('>', openIdx);
+  if (openEnd === -1) return null;
+  return { openIdx, openEnd };
+}
+
+function extractTagContents(text, openIdx, openEnd, closeToken) {
+  const lower = text.toLowerCase();
+  const closeIdx = lower.indexOf(closeToken, openEnd + 1);
+  const content = closeIdx === -1 ? text.slice(openEnd + 1) : text.slice(openEnd + 1, closeIdx);
+  const nextText =
+    closeIdx === -1
+      ? text.slice(0, openIdx)
+      : text.slice(0, openIdx) + text.slice(closeIdx + closeToken.length);
+  return { content, text: nextText };
+}
+
 export function extractThinkingBlocks(raw) {
   const source = String(raw || '');
   let text = source;
@@ -95,21 +115,16 @@ export function extractThinkingBlocks(raw) {
     const openToken = `<${tag}`;
     const closeToken = `</${tag}>`;
     while (true) {
-      const lower = text.toLowerCase();
-      const openIdx = lower.indexOf(openToken);
-      if (openIdx === -1) break;
-      const openEnd = text.indexOf('>', openIdx);
-      if (openEnd === -1) break;
-      const closeIdx = lower.indexOf(closeToken, openEnd + 1);
-      if (closeIdx === -1) {
-        const remainder = text.slice(openEnd + 1);
-        if (remainder.trim()) collected.push(remainder);
-        text = text.slice(0, openIdx);
-        break;
-      }
-      const inner = text.slice(openEnd + 1, closeIdx);
-      if (inner.trim()) collected.push(inner);
-      text = text.slice(0, openIdx) + text.slice(closeIdx + closeToken.length);
+      const match = findTagOpen(text, openToken);
+      if (!match) break;
+      const { content, text: nextText } = extractTagContents(
+        text,
+        match.openIdx,
+        match.openEnd,
+        closeToken
+      );
+      if (content.trim()) collected.push(content);
+      text = nextText;
     }
   }
 
