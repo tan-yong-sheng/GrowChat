@@ -342,21 +342,27 @@ export function createMessageInputController({
     e.target.value = '';
   });
 
+  function shouldCloseMenu(menu, trigger, target) {
+    return (
+      menu &&
+      !menu.classList.contains('hidden') &&
+      !menu.contains(target) &&
+      !trigger?.contains(target)
+    );
+  }
+
+  function closeAttachMenuIfOutside(e) {
+    if (shouldCloseMenu(attachMenu, openFilesBtn, e.target)) closeAttachMenu();
+  }
+
+  function closeToolsMenuIfOutside(e) {
+    if (shouldCloseMenu(toolsMenu, openToolsBtn, e.target)) toolCtrl.closeToolsMenu();
+  }
+
   document.addEventListener('click', (e) => {
     if (!attachMenu || !openFilesBtn) return;
-    if (
-      !attachMenu.classList.contains('hidden') &&
-      !attachMenu.contains(e.target) &&
-      !openFilesBtn.contains(e.target)
-    )
-      closeAttachMenu();
-    if (
-      toolsMenu &&
-      !toolsMenu.classList.contains('hidden') &&
-      !toolsMenu.contains(e.target) &&
-      !openToolsBtn?.contains(e.target)
-    )
-      toolCtrl.closeToolsMenu();
+    closeAttachMenuIfOutside(e);
+    closeToolsMenuIfOutside(e);
   });
   const unsubscribe = subscribe((s) => {
     const name = activeModelName(s);

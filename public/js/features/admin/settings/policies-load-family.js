@@ -178,38 +178,54 @@ function handleFamilyLoadFinally(familyKey, deps, controller, seq) {
  * @param {object} deps – closure dependencies from the parent module
  * @returns {function} loadFamilyResources
  */
+function shouldSkipFamilyLoad(state, familyKey, force) {
+  if (!force && state.familyStatus[familyKey] === 'loaded') return true;
+  if (state.familyStatus[familyKey] === 'loading' && !force) return true;
+  return false;
+}
+
+async function loadFamilyConnectionAccessRules(familyKey, resources, deps, signal) {
+  if (familyKey !== 'models') return [];
+  return loadModelsConnectionAccess(resources, deps, signal);
+}
+
+async function loadFamilyResourcesCore(familyKey, deps, controller, seq) {
+  const payload = await fetchFamilyPayload(
+    familyKey,
+    controller.signal,
+    deps.fetchAdminModels,
+    deps.apiFetch
+  );
+  if (isStaleLoad(controller, deps.familyLoadSeq, familyKey, seq)) return;
+
+  const rawResources = extractFamilyResources(familyKey, payload);
+  const resources = Array.isArray(rawResources) ? rawResources : [];
+  const ids = resources.map((r) => r.id).filter(Boolean);
+
+  const accessRules = await loadFamilyAccessRules(familyKey, ids, deps, controller.signal);
+  const connectionAccessRules = await loadFamilyConnectionAccessRules(
+    familyKey,
+    resources,
+    deps,
+    controller.signal
+  );
+  if (isStaleLoad(controller, deps.familyLoadSeq, familyKey, seq)) return;
+
+  Object.assign(deps, {
+    _accessRules: accessRules,
+    _connectionAccessRules: connectionAccessRules,
+    _resources: resources,
+  });
+  finalizeFamilyLoad(familyKey, deps, controller, seq);
+}
+
 export function createLoadFamilyResources(deps) {
   return async (familyKey, { force = false } = {}) => {
-    if (!force && deps.state.familyStatus[familyKey] === 'loaded') return;
-    if (deps.state.familyStatus[familyKey] === 'loading' && !force) return;
+    if (shouldSkipFamilyLoad(deps.state, familyKey, force)) return;
     const { controller, seq } = startFamilyLoad(familyKey, deps);
 
     try {
-      const payload = await fetchFamilyPayload(
-        familyKey,
-        controller.signal,
-        deps.fetchAdminModels,
-        deps.apiFetch
-      );
-      if (isStaleLoad(controller, deps.familyLoadSeq, familyKey, seq)) return;
-
-      const rawResources = extractFamilyResources(familyKey, payload);
-      const resources = Array.isArray(rawResources) ? rawResources : [];
-      const ids = resources.map((r) => r.id).filter(Boolean);
-
-      const accessRules = await loadFamilyAccessRules(familyKey, ids, deps, controller.signal);
-      const connectionAccessRules =
-        familyKey === 'models'
-          ? await loadModelsConnectionAccess(resources, deps, controller.signal)
-          : [];
-      if (isStaleLoad(controller, deps.familyLoadSeq, familyKey, seq)) return;
-
-      Object.assign(deps, {
-        _accessRules: accessRules,
-        _connectionAccessRules: connectionAccessRules,
-        _resources: resources,
-      });
-      finalizeFamilyLoad(familyKey, deps, controller, seq);
+      await loadFamilyResourcesCore(familyKey, deps, controller, seq);
     } catch (err) {
       handleFamilyLoadError(familyKey, err, deps, controller, seq);
     } finally {

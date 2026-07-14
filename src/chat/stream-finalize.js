@@ -1,56 +1,64 @@
 import { buildPersistedAssistantContent } from './stream-utils.js';
 
-async function updateOrInsertAssistantMessage(
-  db,
-  { assistantMsgId, chatId, userMsgId, persistedText, model, citations, toolCallsJson, blocksJson }
-) {
+function serializeCitations(citations) {
+  return Array.isArray(citations) ? JSON.stringify(citations) : citations || null;
+}
+
+async function updateAssistantMessage(db, params) {
+  const { assistantMsgId, persistedText, model, citations, userMsgId, toolCallsJson, blocksJson } =
+    params;
+  return db.run(
+    `UPDATE messages
+     SET content = ?, model = ?, citations = ?, parent_id = ?, status = NULL,
+         error_code = NULL, error_message = NULL, tool_calls = ?, message_blocks = ?
+     WHERE id = ?`,
+    [
+      persistedText,
+      model,
+      serializeCitations(citations),
+      userMsgId,
+      toolCallsJson,
+      blocksJson,
+      assistantMsgId,
+    ]
+  );
+}
+
+async function insertAssistantMessage(db, params) {
+  const {
+    assistantMsgId,
+    chatId,
+    persistedText,
+    model,
+    citations,
+    userMsgId,
+    toolCallsJson,
+    blocksJson,
+  } = params;
+  await db.run(
+    'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, tool_calls, message_blocks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
+    [
+      assistantMsgId,
+      chatId,
+      'assistant',
+      persistedText,
+      model,
+      serializeCitations(citations),
+      userMsgId,
+      toolCallsJson,
+      blocksJson,
+    ]
+  );
+}
+
+async function updateOrInsertAssistantMessage(db, params) {
   try {
-    const update = await db.run(
-      `UPDATE messages
-       SET content = ?, model = ?, citations = ?, parent_id = ?, status = NULL,
-           error_code = NULL, error_message = NULL, tool_calls = ?, message_blocks = ?
-       WHERE id = ?`,
-      [
-        persistedText,
-        model,
-        Array.isArray(citations) ? JSON.stringify(citations) : citations || null,
-        userMsgId,
-        toolCallsJson,
-        blocksJson,
-        assistantMsgId,
-      ]
-    );
+    const update = await updateAssistantMessage(db, params);
     if (!update?.meta?.changes) {
-      await db.run(
-        'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, tool_calls, message_blocks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
-        [
-          assistantMsgId,
-          chatId,
-          'assistant',
-          persistedText,
-          model,
-          Array.isArray(citations) ? JSON.stringify(citations) : citations || null,
-          userMsgId,
-          toolCallsJson,
-          blocksJson,
-        ]
-      );
+      await insertAssistantMessage(db, params);
     }
   } catch {
-    await db.run(
-      'INSERT INTO messages (id, chat_id, role, content, model, citations, parent_id, tool_calls, message_blocks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())',
-      [
-        assistantMsgId,
-        chatId,
-        'assistant',
-        persistedText,
-        model,
-        Array.isArray(citations) ? JSON.stringify(citations) : citations || null,
-        userMsgId,
-        toolCallsJson,
-        blocksJson,
-      ]
-    );
+    await insertAssistantMessage(db, params);
   }
 }
 

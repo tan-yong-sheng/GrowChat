@@ -173,16 +173,23 @@ async function discoverOauthMetadata(serverUrl) {
   }
 }
 
-async function validateOauthStartRequest(req, env, user) {
+async function parseAndValidateBody(req) {
   const body = await parseJsonBody(req);
   if (body === null) return { error: error(req, 'Invalid JSON body', HTTP_STATUS.BAD_REQUEST) };
+  return { body };
+}
 
+function validateServerId(req, body) {
   const serverId = resolveServerId(body);
-  if (!serverId)
+  if (!serverId) {
     return {
       error: error(req, 'Server must be saved before OAuth connect', HTTP_STATUS.BAD_REQUEST),
     };
+  }
+  return { serverId };
+}
 
+async function loadAndValidateServer(req, env, user, serverId) {
   const db = createDB(env.DB);
   const existingServer = await loadExistingServer(db, user.sub, serverId);
   if (!existingServer) {
@@ -190,14 +197,20 @@ async function validateOauthStartRequest(req, env, user) {
       error: error(req, 'Server must be saved before OAuth connect', HTTP_STATUS.BAD_REQUEST),
     };
   }
+  return { db, existingServer };
+}
 
+function validateServerUrl(req, body, existingServer) {
   const serverUrl = resolveServerUrl(body, existingServer);
   if (!serverUrl) {
     return {
       error: error(req, 'Server URL must start with http:// or https://', HTTP_STATUS.BAD_REQUEST),
     };
   }
+  return { serverUrl };
+}
 
+async function discoverAndValidateRegistration(req, serverUrl, existingServer) {
   const metadata = await discoverOauthMetadata(serverUrl);
   const registrationEndpoint =
     metadata?.registration_endpoint || existingServer.oauth_registration_endpoint || '';
@@ -205,8 +218,26 @@ async function validateOauthStartRequest(req, env, user) {
     const regSafety = isSafeOutboundUrl(registrationEndpoint);
     if (!regSafety.safe) return { error: error(req, regSafety.reason, HTTP_STATUS.BAD_REQUEST) };
   }
+  return { metadata, registrationEndpoint };
+}
 
-  return { db, body, serverId, existingServer, serverUrl, metadata, registrationEndpoint };
+async function validateOauthStartRequest(req, env, user) {
+  const steps = [
+    () => parseAndValidateBody(req),
+    (ctx) => validateServerId(req, ctx.body),
+    (ctx) => loadAndValidateServer(req, env, user, ctx.serverId),
+    (ctx) => validateServerUrl(req, ctx.body, ctx.existingServer),
+    (ctx) => discoverAndValidateRegistration(req, ctx.serverUrl, ctx.existingServer),
+  ];
+
+  let ctx = {};
+  for (const step of steps) {
+    const result = await step(ctx);
+    if (result.error) return result;
+    ctx = { ...ctx, ...result };
+  }
+
+  return ctx;
 }
 
 const PKCE_VERIFIER_LENGTH = 64;
