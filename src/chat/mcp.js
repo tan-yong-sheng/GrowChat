@@ -62,20 +62,28 @@ export function buildMcpTools(servers = [], { selectedToolNames = null } = {}) {
   return { tools, toolMap, serversById };
 }
 
+function applyBearerAuth(headers, server) {
+  const token = String(server?.auth_bearer_token || '').trim();
+  if (token) headers.Authorization = headers.Authorization || `Bearer ${token}`;
+}
+
+function applyBasicAuth(headers, server) {
+  const user = String(server?.auth_basic_username || '').trim();
+  const pass = String(server?.auth_basic_password || '');
+  if (user) headers.Authorization = headers.Authorization || `Basic ${btoa(`${user}:${pass}`)}`;
+}
+
+function applyOAuthAuth(headers, server) {
+  const token = String(server?.oauth_tokens?.access_token || '').trim();
+  if (token) headers.Authorization = headers.Authorization || `Bearer ${token}`;
+}
+
 export function buildMcpAuthHeaders(server) {
   const headers = { ...normalizeHeadersInput(server?.headers) };
   const authType = String(server?.auth_type || 'none').toLowerCase();
-  if (authType === 'bearer') {
-    const token = String(server?.auth_bearer_token || '').trim();
-    if (token) headers.Authorization = headers.Authorization || `Bearer ${token}`;
-  } else if (authType === 'basic') {
-    const user = String(server?.auth_basic_username || '').trim();
-    const pass = String(server?.auth_basic_password || '');
-    if (user) headers.Authorization = headers.Authorization || `Basic ${btoa(`${user}:${pass}`)}`;
-  } else if (authType === 'oauth') {
-    const token = String(server?.oauth_tokens?.access_token || '').trim();
-    if (token) headers.Authorization = headers.Authorization || `Bearer ${token}`;
-  }
+  if (authType === 'bearer') applyBearerAuth(headers, server);
+  else if (authType === 'basic') applyBasicAuth(headers, server);
+  else if (authType === 'oauth') applyOAuthAuth(headers, server);
   return headers;
 }
 

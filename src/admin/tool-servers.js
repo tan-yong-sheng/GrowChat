@@ -48,80 +48,120 @@ export {
   deleteUserToolServer,
 } from './tool-servers-user.js';
 
+async function loadConfigServers(db) {
+  const raw = await getConfigValue(db, 'tool_servers', '[]');
+  const parsed = JSON.parse(raw);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function normalizeUserRole(role) {
+  return (
+    String(role || 'member')
+      .trim()
+      .toLowerCase() || 'member'
+  );
+}
+
+async function resolveUserContext(db, userId, userRole) {
+  const userOverrides = await loadUserResourceOverrides(db, userId);
+  let userGroupIds;
+  try {
+    userGroupIds = await loadUserGroupIdsFromDb(db, userId);
+  } catch {
+    userGroupIds = new Set();
+  }
+  let aclIndex = new Map();
+  try {
+    const aclRules = await loadToolServerAclRules(db);
+    aclIndex = buildToolServerAclIndex(aclRules);
+  } catch (err) {
+    logger.warn('Failed to load tool server ACL rules', { error: err?.message || err });
+  }
+  const primaryRole = (await loadPrimaryRole(db, userId)) || normalizeUserRole(userRole);
+  return { userOverrides, userGroupIds, aclIndex, primaryRole };
+}
+
+function enrichServer(
+  server,
+  { user, userGroupIds, aclIndex, hiddenServerIds, hiddenToolIdsByServer }
+) {
+  const access = evaluateToolServerAclAccess(server, {
+    user,
+    userGroupIds,
+    rules: aclIndex.get(server.id) || [],
+  });
+  const serverId = String(server.id || '').trim();
+  const hiddenForUser = server.source !== 'user' && hiddenServerIds.has(serverId);
+  const hiddenTools = new Set(hiddenToolIdsByServer?.[serverId]?.hidden_ids || []);
+  return applyToolVisibility(
+    {
+      ...server,
+      access_label: access.access_label,
+      access_variant: access.access_variant,
+      allowed: access.allowed,
+      visible_for_user: !hiddenForUser,
+      hidden_for_user: hiddenForUser,
+    },
+    hiddenTools
+  );
+}
+
+function isServerVisible(server, includeHiddenForUser) {
+  return includeHiddenForUser || server.source === 'user' || server.allowed;
+}
+
+function isServerNotHidden(server, includeHiddenForUser) {
+  return includeHiddenForUser || server.source === 'user' || server.visible_for_user;
+}
+
+function filterVisibleServers(servers, context) {
+  const { includeHiddenForUser } = context;
+  return servers
+    .map((server) => enrichServer(server, context))
+    .filter((server) => isServerVisible(server, includeHiddenForUser))
+    .filter((server) => isServerNotHidden(server, includeHiddenForUser));
+}
+
+async function loadUserToolServersSafely(db, userId) {
+  try {
+    return await loadUserToolServers(db, userId);
+  } catch {
+    return [];
+  }
+}
+
 export async function loadToolServers(db, options = {}) {
   const includeHiddenForUser = options.includeHiddenForUser === true;
   try {
-    const raw = await getConfigValue(db, 'tool_servers', '[]');
-    const parsed = JSON.parse(raw);
-    const configServers = Array.isArray(parsed) ? parsed : [];
+    const configServers = await loadConfigServers(db);
     const userId = String(options.userId || '').trim();
     if (!userId) return configServers;
     const userServers = await loadUserToolServers(db, userId);
-    if (!db) return [...configServers, ...userServers];
-    if (typeof db.first !== 'function' || typeof db.all !== 'function') {
+    if (!db || typeof db.first !== 'function' || typeof db.all !== 'function') {
       return [...configServers, ...userServers];
     }
-    const userOverrides = await loadUserResourceOverrides(db, userId);
+    const { userOverrides, userGroupIds, aclIndex, primaryRole } = await resolveUserContext(
+      db,
+      userId,
+      options.userRole
+    );
     const hiddenServerIds = new Set(userOverrides.tool_servers?.hidden_ids || []);
     const hiddenToolIdsByServer = userOverrides.tool_servers?.tools || {};
-    let userGroupIds;
-    try {
-      userGroupIds = await loadUserGroupIdsFromDb(db, userId);
-    } catch {
-      userGroupIds = new Set();
-    }
-    let aclIndex = new Map();
-    try {
-      const aclRules = await loadToolServerAclRules(db);
-      aclIndex = buildToolServerAclIndex(aclRules);
-    } catch (err) {
-      logger.warn('Failed to load tool server ACL rules', { error: err?.message || err });
-    }
-
-    const userRole =
-      String(options.userRole || 'member')
-        .trim()
-        .toLowerCase() || 'member';
-    const primaryRole = (await loadPrimaryRole(db, userId)) || userRole;
+    const user = { sub: userId, primary_role: primaryRole };
     const combined = [...configServers, ...userServers];
-    const filtered = combined
-      .map((server) => {
-        const access = evaluateToolServerAclAccess(server, {
-          user: { sub: userId, primary_role: primaryRole },
-          userGroupIds,
-          rules: aclIndex.get(server.id) || [],
-        });
-        const hiddenForUser =
-          server.source !== 'user' && hiddenServerIds.has(String(server.id || '').trim());
-        const hiddenTools = new Set(
-          hiddenToolIdsByServer?.[String(server.id || '').trim()]?.hidden_ids || []
-        );
-        return applyToolVisibility(
-          {
-            ...server,
-            access_label: access.access_label,
-            access_variant: access.access_variant,
-            allowed: access.allowed,
-            visible_for_user: !hiddenForUser,
-            hidden_for_user: hiddenForUser,
-          },
-          hiddenTools
-        );
-      })
-      .filter((server) => includeHiddenForUser || server.source === 'user' || server.allowed)
-      .filter(
-        (server) => includeHiddenForUser || server.source === 'user' || server.visible_for_user
-      );
+    const filtered = filterVisibleServers(combined, {
+      user,
+      userGroupIds,
+      aclIndex,
+      hiddenServerIds,
+      hiddenToolIdsByServer,
+      includeHiddenForUser,
+    });
     return filtered.map(({ allowed: _allowed, ...server }) => server);
   } catch (err) {
     logger.warn('Failed to load tool servers', { error: err?.message || err });
     const userId = String(options.userId || '').trim();
-    if (!userId) return [];
-    try {
-      return await loadUserToolServers(db, userId);
-    } catch {
-      return [];
-    }
+    return userId ? loadUserToolServersSafely(db, userId) : [];
   }
 }
 

@@ -131,6 +131,25 @@ export function ensureSpecialBlockErrorElement(block) {
   return errorEl;
 }
 
+function updateErrorElementVisibility(errorEl, hasError) {
+  if (errorEl && !hasError) errorEl.remove();
+  if (errorEl && hasError) errorEl.classList.remove('hidden');
+}
+
+function disablePreviewButton(block, hasError) {
+  const previewBtn = block.querySelector('[data-markdown-special-mode-btn="preview"]');
+  if (previewBtn) previewBtn.disabled = hasError || block.dataset.markdownSpecialStreaming === '1';
+  return previewBtn;
+}
+
+function applyCodeModeToBlock(block) {
+  block.dataset.markdownSpecialMode = 'code';
+  const codeBtn = block.querySelector('[data-markdown-special-mode-btn="code"]');
+  if (codeBtn) codeBtn.setAttribute('aria-pressed', 'true');
+  const previewBtn = block.querySelector('[data-markdown-special-mode-btn="preview"]');
+  if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false');
+}
+
 export function setSpecialBlockError(block, message) {
   if (!block) return;
   const hasError = Boolean(message);
@@ -141,16 +160,9 @@ export function setSpecialBlockError(block, message) {
   block.dataset.markdownSpecialHasError = hasError ? '1' : '0';
   block.dataset.markdownSpecialErrorMessage = hasError ? String(message) : '';
   if (errorBody) errorBody.textContent = hasError ? String(message) : '';
-  if (errorEl && !hasError) errorEl.remove();
-  if (errorEl && hasError) errorEl.classList.remove('hidden');
-  const previewBtn = block.querySelector('[data-markdown-special-mode-btn="preview"]');
-  if (previewBtn) previewBtn.disabled = hasError || block.dataset.markdownSpecialStreaming === '1';
-  if (hasError) {
-    block.dataset.markdownSpecialMode = 'code';
-    const codeBtn = block.querySelector('[data-markdown-special-mode-btn="code"]');
-    if (codeBtn) codeBtn.setAttribute('aria-pressed', 'true');
-    if (previewBtn) previewBtn.setAttribute('aria-pressed', 'false');
-  }
+  updateErrorElementVisibility(errorEl, hasError);
+  disablePreviewButton(block, hasError);
+  if (hasError) applyCodeModeToBlock(block);
   updateSpecialBlockVisibility(block);
 }
 

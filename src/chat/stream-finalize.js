@@ -1,38 +1,9 @@
 import { buildPersistedAssistantContent } from './stream-utils.js';
 
-export async function finalizeAssistantStream({
+async function updateOrInsertAssistantMessage(
   db,
-  env,
-  user,
-  req,
-  chatId,
-  model,
-  assistantMsgId,
-  userMsgId,
-  citations,
-  fullText,
-  fullReasoning,
-  toolCallRecords = [],
-  messageBlocks = [],
-  getMessageSnapshot,
-  getOwnedChat,
-  publishRealtimeNow,
-  createRealtimeEvent,
-  getOriginSessionId,
-  controller,
-  encoder,
-}) {
-  let persistedText = buildPersistedAssistantContent(fullText, fullReasoning);
-  if (!String(persistedText || '').trim()) {
-    persistedText = 'I could not produce a final response for this request.';
-  }
-  const toolCallsJson =
-    Array.isArray(toolCallRecords) && toolCallRecords.length
-      ? JSON.stringify(toolCallRecords)
-      : null;
-  const blocksJson =
-    Array.isArray(messageBlocks) && messageBlocks.length ? JSON.stringify(messageBlocks) : null;
-
+  { assistantMsgId, chatId, userMsgId, persistedText, model, citations, toolCallsJson, blocksJson }
+) {
   try {
     const update = await db.run(
       `UPDATE messages
@@ -81,7 +52,25 @@ export async function finalizeAssistantStream({
       ]
     );
   }
+}
 
+async function publishMessageCompletedEvent(
+  env,
+  {
+    db,
+    user,
+    req,
+    chatId,
+    model,
+    assistantMsgId,
+    citations,
+    getMessageSnapshot,
+    getOwnedChat,
+    publishRealtimeNow,
+    createRealtimeEvent,
+    getOriginSessionId,
+  }
+) {
   await db.run(
     'UPDATE chats SET current_message_id = ?, model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
     [assistantMsgId, model, chatId, user.sub]
@@ -111,8 +100,76 @@ export async function finalizeAssistantStream({
     'UPDATE chats SET model = ?, updated_at = unixepoch() WHERE id = ? AND user_id = ?',
     [model, chatId, user.sub]
   );
+
+  return { completedAssistantMessage, updatedChatAfterAssistantMessage };
+}
+
+function finalizeStream(controller, encoder) {
   controller.enqueue(encoder.encode('data: [DONE]\n\n'));
   controller.close();
+}
+
+export async function finalizeAssistantStream({
+  db,
+  env,
+  user,
+  req,
+  chatId,
+  model,
+  assistantMsgId,
+  userMsgId,
+  citations,
+  fullText,
+  fullReasoning,
+  toolCallRecords = [],
+  messageBlocks = [],
+  getMessageSnapshot,
+  getOwnedChat,
+  publishRealtimeNow,
+  createRealtimeEvent,
+  getOriginSessionId,
+  controller,
+  encoder,
+}) {
+  let persistedText = buildPersistedAssistantContent(fullText, fullReasoning);
+  if (!String(persistedText || '').trim()) {
+    persistedText = 'I could not produce a final response for this request.';
+  }
+  const toolCallsJson =
+    Array.isArray(toolCallRecords) && toolCallRecords.length
+      ? JSON.stringify(toolCallRecords)
+      : null;
+  const blocksJson =
+    Array.isArray(messageBlocks) && messageBlocks.length ? JSON.stringify(messageBlocks) : null;
+
+  await updateOrInsertAssistantMessage(db, {
+    assistantMsgId,
+    chatId,
+    userMsgId,
+    persistedText,
+    model,
+    citations,
+    toolCallsJson,
+    blocksJson,
+  });
+
+  const { completedAssistantMessage, updatedChatAfterAssistantMessage } =
+    await publishMessageCompletedEvent(env, {
+      db,
+      user,
+      req,
+      chatId,
+      model,
+      assistantMsgId,
+      citations,
+      getMessageSnapshot,
+      getOwnedChat,
+      publishRealtimeNow,
+      createRealtimeEvent,
+      getOriginSessionId,
+    });
+
+  finalizeStream(controller, encoder);
 
   return { persistedText, completedAssistantMessage, updatedChatAfterAssistantMessage };
 }

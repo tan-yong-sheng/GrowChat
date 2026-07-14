@@ -1,3 +1,5 @@
+export { countEnabledModels } from '../../public/js/shared/utils/model-state.js';
+
 function isModelEnabled(model = {}) {
   return model?.enabled !== false;
 }
@@ -5,13 +7,6 @@ function isModelEnabled(model = {}) {
 function normalizeModelLabel(model = {}) {
   const raw = model?.name || model?.id || model?.connection_name || model?.connection_id || '';
   return String(raw).trim().toLowerCase();
-}
-
-export function countEnabledModels(models = []) {
-  return (Array.isArray(models) ? models : []).reduce(
-    (count, model) => count + (isModelEnabled(model) ? 1 : 0),
-    0
-  );
 }
 
 function compareEnabled(a, b) {

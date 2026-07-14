@@ -3,6 +3,17 @@ import { findStreamingMessageId } from './message-input-helpers.js';
 import { createToolSelectionController } from './message-input-tool-selection.js';
 import { createMessageInputUi } from './message-input-ui.js';
 
+function shouldSkipDraftSync(s, chatChanged, input, isSubmitting) {
+  if (isSubmitting) return true;
+  if (!chatChanged && input === document.activeElement) return true;
+  if (!chatChanged && input.value) return true;
+  return false;
+}
+
+function resolveDraftValue(s) {
+  return s.activeChatId ? s.drafts[s.activeChatId] || '' : s.newChatDraft || '';
+}
+
 export function createMessageInputController({
   container,
   setState,
@@ -104,12 +115,7 @@ export function createMessageInputController({
     }
   };
 
-  function findRunningMessageId(currentState = state) {
-    const chatId = currentState.activeChatId;
-    if (!chatId) return null;
-    const messages = currentState.messagesByChat?.[chatId] || [];
-    const first = findStreamingMessageId(messages);
-    if (first) return first;
+  function findRunningAssistantMessage(messages) {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const msg = messages[i];
       if (msg?.role === 'assistant' && msg?.done === false) {
@@ -117,6 +123,13 @@ export function createMessageInputController({
       }
     }
     return null;
+  }
+
+  function findRunningMessageId(currentState = state) {
+    const chatId = currentState.activeChatId;
+    if (!chatId) return null;
+    const messages = currentState.messagesByChat?.[chatId] || [];
+    return findStreamingMessageId(messages) || findRunningAssistantMessage(messages);
   }
 
   function toggleSendMicBtn() {
@@ -425,10 +438,8 @@ export function createMessageInputController({
   }
 
   function syncDraftFromState(s, chatChanged) {
-    if (isSubmitting) return;
-    if (!chatChanged && input === document.activeElement) return;
-    if (!chatChanged && input.value) return;
-    const draft = s.activeChatId ? s.drafts[s.activeChatId] || '' : s.newChatDraft || '';
+    if (shouldSkipDraftSync(s, chatChanged, input, isSubmitting)) return;
+    const draft = resolveDraftValue(s);
     if (input.value === draft) return;
     input.value = draft;
     input.dispatchEvent(new Event('input'));

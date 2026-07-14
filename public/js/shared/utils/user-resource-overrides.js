@@ -7,6 +7,10 @@ function clonePlainObject(value) {
   }
 }
 
+function cloneSubObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? { ...value } : {};
+}
+
 function normalizeIdList(value) {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean)));
@@ -98,6 +102,26 @@ export function isToolHidden(preferences = {}, serverId = '', toolName = '') {
   return hiddenIds.has(tool);
 }
 
+function applyHiddenIdsToOverrides(nextOverrides, kind, nextHiddenIds) {
+  const ids = Array.from(nextHiddenIds);
+  if (kind === 'tool_servers') {
+    nextOverrides.tool_servers.hidden_ids = ids;
+  } else {
+    nextOverrides.connections.hidden_ids = ids;
+  }
+}
+
+function applyModelVisibility(prefs, nextOverrides, nextHiddenIds) {
+  const ids = Array.from(nextHiddenIds);
+  nextOverrides.models.hidden_ids = ids;
+  const currentModelSettings = cloneSubObject(prefs.model_settings);
+  prefs.model_settings = {
+    ...currentModelSettings,
+    disabled_model_ids: ids,
+    attachment_caps: currentModelSettings.attachment_caps || {},
+  };
+}
+
 export function setResourceVisibility(
   preferences = {},
   kind = 'connections',
@@ -117,45 +141,14 @@ export function setResourceVisibility(
   }
 
   const nextOverrides = clonePlainObject(prefs.resource_overrides);
-  nextOverrides.connections =
-    nextOverrides.connections &&
-    typeof nextOverrides.connections === 'object' &&
-    !Array.isArray(nextOverrides.connections)
-      ? { ...nextOverrides.connections }
-      : {};
-  nextOverrides.tool_servers =
-    nextOverrides.tool_servers &&
-    typeof nextOverrides.tool_servers === 'object' &&
-    !Array.isArray(nextOverrides.tool_servers)
-      ? { ...nextOverrides.tool_servers }
-      : {};
-  nextOverrides.models =
-    nextOverrides.models &&
-    typeof nextOverrides.models === 'object' &&
-    !Array.isArray(nextOverrides.models)
-      ? { ...nextOverrides.models }
-      : {};
+  nextOverrides.connections = cloneSubObject(nextOverrides.connections);
+  nextOverrides.tool_servers = cloneSubObject(nextOverrides.tool_servers);
+  nextOverrides.models = cloneSubObject(nextOverrides.models);
 
   if (kind === 'models') {
-    nextOverrides.models.hidden_ids = Array.from(nextHiddenIds);
-    prefs.model_settings = {
-      ...(prefs.model_settings &&
-      typeof prefs.model_settings === 'object' &&
-      !Array.isArray(prefs.model_settings)
-        ? prefs.model_settings
-        : {}),
-      disabled_model_ids: Array.from(nextHiddenIds),
-      attachment_caps:
-        prefs.model_settings &&
-        typeof prefs.model_settings === 'object' &&
-        !Array.isArray(prefs.model_settings)
-          ? prefs.model_settings.attachment_caps || {}
-          : {},
-    };
-  } else if (kind === 'tool_servers') {
-    nextOverrides.tool_servers.hidden_ids = Array.from(nextHiddenIds);
+    applyModelVisibility(prefs, nextOverrides, nextHiddenIds);
   } else {
-    nextOverrides.connections.hidden_ids = Array.from(nextHiddenIds);
+    applyHiddenIdsToOverrides(nextOverrides, kind, nextHiddenIds);
   }
 
   prefs.resource_overrides = nextOverrides;

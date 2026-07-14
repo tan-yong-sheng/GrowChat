@@ -157,6 +157,41 @@ function buildOwnedToolServersPayload(ownedServers, accessibleToolServers) {
   };
 }
 
+function buildWorkspaceSettings(
+  row,
+  permissions,
+  roles,
+  capabilities,
+  ownedConnections,
+  accessibleConnections,
+  ownedServers,
+  accessibleToolServers,
+  defaultModelId
+) {
+  return {
+    general: {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      avatar: row.avatar || null,
+      avatar_emoji: row.avatar_emoji || null,
+      status: row.status || 'offline',
+      account_status: row.account_status === 'pending' ? 'pending' : 'active',
+      settings: parseJsonObject(row.settings),
+    },
+    preferences: parseJsonObject(row.preferences),
+    connections: {
+      my_connections: ownedConnections.map(toPersonalConnectionSummary),
+      connections: accessibleConnections,
+    },
+    integrations: buildOwnedToolServersPayload(ownedServers, accessibleToolServers),
+    tool_servers: buildOwnedToolServersPayload(ownedServers, accessibleToolServers),
+    models: {
+      default_model_id: defaultModelId,
+    },
+  };
+}
+
 export function buildWorkspaceSettingsPayload({
   row,
   defaultModelId = null,
@@ -194,28 +229,17 @@ export function buildWorkspaceSettingsPayload({
   payload.permissions = permissions;
   payload.roles = roles;
   payload.capabilities = capabilities;
-  payload.settings = {
-    general: {
-      id: row.id,
-      name: row.name,
-      email: row.email,
-      avatar: row.avatar || null,
-      avatar_emoji: row.avatar_emoji || null,
-      status: row.status || 'offline',
-      account_status: row.account_status === 'pending' ? 'pending' : 'active',
-      settings: parseJsonObject(row.settings),
-    },
-    preferences: parseJsonObject(row.preferences),
-    connections: {
-      my_connections: ownedConnections.map(toPersonalConnectionSummary),
-      connections: accessibleConnections,
-    },
-    integrations: buildOwnedToolServersPayload(ownedServers, accessibleToolServers),
-    tool_servers: buildOwnedToolServersPayload(ownedServers, accessibleToolServers),
-    models: {
-      default_model_id: defaultModelId,
-    },
-  };
+  payload.settings = buildWorkspaceSettings(
+    row,
+    permissions,
+    roles,
+    capabilities,
+    ownedConnections,
+    accessibleConnections,
+    ownedServers,
+    accessibleToolServers,
+    defaultModelId
+  );
 
   return payload;
 }

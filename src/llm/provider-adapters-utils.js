@@ -9,26 +9,68 @@ export function normalizeToolParameters(input) {
   return convertJsonSchemaToOpenApiSchema(input);
 }
 
-export function convertJsonSchemaToOpenApiSchema(jsonSchema, isRoot = true) {
-  if (jsonSchema == null) {
-    return undefined;
-  }
-  if (isEmptyObjectSchema(jsonSchema)) {
-    if (isRoot) {
-      return undefined;
-    }
-    if (typeof jsonSchema === 'object' && jsonSchema.description) {
-      return { type: 'object', description: jsonSchema.description };
-    }
-    return { type: 'object' };
-  }
-  if (typeof jsonSchema === 'boolean') {
-    return { type: 'boolean', properties: {} };
-  }
-  if (Array.isArray(jsonSchema) || typeof jsonSchema !== 'object') {
-    return jsonSchema;
-  }
+export function isEmptyObjectSchema(jsonSchema) {
+  return (
+    jsonSchema != null &&
+    typeof jsonSchema === 'object' &&
+    jsonSchema.type === 'object' &&
+    (jsonSchema.properties == null || Object.keys(jsonSchema.properties).length === 0) &&
+    !jsonSchema.additionalProperties
+  );
+}
 
+export function normalizeToolChoice(toolChoice) {
+  if (!toolChoice) return undefined;
+  if (typeof toolChoice === 'string') return normalizeStringToolType(toolChoice);
+  return normalizeObjectToolChoice(toolChoice);
+}
+
+function normalizeStringToolType(type) {
+  const normalized = type.toLowerCase();
+  if (['auto', 'none', 'required'].includes(normalized)) return { type: normalized };
+  return undefined;
+}
+
+function normalizeObjectToolChoice(toolChoice) {
+  const type = String(toolChoice.type || '').toLowerCase();
+  if (!type) return undefined;
+  if (['auto', 'none', 'required'].includes(type)) return { type };
+  if (type === 'tool' && (toolChoice.toolName || toolChoice.name || toolChoice.function?.name)) {
+    return { type: 'tool', toolName: resolveToolName(toolChoice) };
+  }
+  if (type === 'function' && (toolChoice.function?.name || toolChoice.name)) {
+    return { type: 'tool', toolName: resolveFunctionName(toolChoice) };
+  }
+  return undefined;
+}
+
+function resolveToolName(toolChoice) {
+  return String(toolChoice.toolName || toolChoice.name || toolChoice.function?.name);
+}
+
+function resolveFunctionName(toolChoice) {
+  return String(toolChoice.function?.name || toolChoice.name);
+}
+
+export function convertJsonSchemaToOpenApiSchema(jsonSchema, isRoot = true) {
+  if (jsonSchema == null) return undefined;
+  if (typeof jsonSchema === 'boolean') return { type: 'boolean', properties: {} };
+  if (Array.isArray(jsonSchema) || typeof jsonSchema !== 'object') return jsonSchema;
+  if (isEmptyObjectSchema(jsonSchema)) {
+    return isRoot ? undefined : convertEmptySchema(jsonSchema);
+  }
+  return convertSchemaObject(jsonSchema);
+}
+
+function convertEmptySchema(jsonSchema) {
+  if (typeof jsonSchema === 'object' && jsonSchema.description) {
+    return { type: 'object', description: jsonSchema.description };
+  }
+  return { type: 'object' };
+}
+
+function convertSchemaObject(jsonSchema) {
+  const result = {};
   const {
     type,
     description,
@@ -43,112 +85,82 @@ export function convertJsonSchemaToOpenApiSchema(jsonSchema, isRoot = true) {
     minLength,
     enum: enumValues,
   } = jsonSchema;
-  const result = {};
-
   if (description) result.description = description;
   if (required) result.required = required;
   if (format) result.format = format;
-  if (constValue !== undefined) {
-    result.enum = [constValue];
-  }
+  if (constValue !== undefined) result.enum = [constValue];
   if (type) {
-    if (Array.isArray(type)) {
-      const hasNull = type.includes('null');
-      const nonNullTypes = type.filter((t) => t !== 'null');
-      if (nonNullTypes.length === 0) {
-        result.type = 'null';
-      } else {
-        result.anyOf = nonNullTypes.map((t) => ({ type: t }));
-        if (hasNull) {
-          result.nullable = true;
-        }
-      }
-    } else {
-      result.type = type;
-    }
+    if (Array.isArray(type)) handleTypeArray(type, result);
+    else result.type = type;
   }
-  if (enumValues !== undefined) {
-    result.enum = enumValues;
-  }
-  if (properties != null) {
-    result.properties = Object.entries(properties).reduce((acc, [key, value]) => {
-      acc[key] = convertJsonSchemaToOpenApiSchema(value, false);
-      return acc;
-    }, {});
-  }
-  if (items) {
-    result.items = Array.isArray(items)
-      ? items.map((item) => convertJsonSchemaToOpenApiSchema(item, false))
-      : convertJsonSchemaToOpenApiSchema(items, false);
-  }
-  if (allOf) {
-    result.allOf = allOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
-  }
-  if (anyOf) {
-    if (anyOf.some((schema) => typeof schema === 'object' && schema?.type === 'null')) {
-      const nonNullSchemas = anyOf.filter(
-        (schema) => !(typeof schema === 'object' && schema?.type === 'null')
-      );
-      if (nonNullSchemas.length === 1) {
-        const converted = convertJsonSchemaToOpenApiSchema(nonNullSchemas[0], false);
-        if (typeof converted === 'object' && converted) {
-          result.nullable = true;
-          Object.assign(result, converted);
-        }
-      } else {
-        result.anyOf = nonNullSchemas.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
-        result.nullable = true;
-      }
-    } else {
-      result.anyOf = anyOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
-    }
-  }
-  if (oneOf) {
-    result.oneOf = oneOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
-  }
-  if (minLength !== undefined) {
-    result.minLength = minLength;
-  }
+  if (enumValues !== undefined) handleEnumValues(enumValues, result);
+  if (properties) handleProperties(properties, result);
+  if (items) handleItems(items, result);
+  if (allOf) handleAllOf(allOf, result);
+  if (anyOf) handleAnyOfSchemas(anyOf, result);
+  if (oneOf) handleOneOf(oneOf, result);
+  if (minLength !== undefined) handleMinLength(minLength, result);
   return result;
 }
 
-export function isEmptyObjectSchema(jsonSchema) {
-  return (
-    jsonSchema != null &&
-    typeof jsonSchema === 'object' &&
-    jsonSchema.type === 'object' &&
-    (jsonSchema.properties == null || Object.keys(jsonSchema.properties).length === 0) &&
-    !jsonSchema.additionalProperties
+function handleTypeArray(typeArray, result) {
+  const hasNull = typeArray.includes('null');
+  const nonNullTypes = typeArray.filter((t) => t !== 'null');
+  if (nonNullTypes.length === 0) {
+    result.type = 'null';
+    if (hasNull) result.nullable = true;
+  } else {
+    result.anyOf = nonNullTypes.map((t) => ({ type: t }));
+    if (hasNull) result.nullable = true;
+  }
+}
+
+function handleAnyOfSchemas(anyOf, result) {
+  const hasNullType = anyOf.some((s) => typeof s === 'object' && s?.type === 'null');
+  if (hasNullType) {
+    const nonNull = anyOf.filter((s) => !(typeof s === 'object' && s?.type === 'null'));
+    if (nonNull.length === 1) {
+      const converted = convertJsonSchemaToOpenApiSchema(nonNull[0], false);
+      if (typeof converted === 'object' && converted) {
+        result.nullable = true;
+        Object.assign(result, converted);
+      }
+    } else {
+      result.anyOf = nonNull.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
+      result.nullable = true;
+    }
+  } else {
+    result.anyOf = anyOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
+  }
+}
+
+function handleEnumValues(enumValues, result) {
+  result.enum = enumValues;
+}
+
+function handleProperties(properties, result) {
+  result.properties = Object.entries(properties).reduce(
+    (acc, [key, value]) => ((acc[key] = convertJsonSchemaToOpenApiSchema(value, false)), acc),
+    {}
   );
 }
 
-export function normalizeToolChoice(toolChoice) {
-  if (!toolChoice) return undefined;
-  if (typeof toolChoice === 'string') {
-    const type = toolChoice.toLowerCase();
-    if (type === 'auto' || type === 'none' || type === 'required') {
-      return { type };
-    }
-    return undefined;
-  }
-  const type = String(toolChoice.type || '').toLowerCase();
-  if (!type) return undefined;
-  if (type === 'auto' || type === 'none' || type === 'required') {
-    return { type };
-  }
-  if (type === 'tool' && (toolChoice.toolName || toolChoice.name || toolChoice.function?.name)) {
-    return {
-      type: 'tool',
-      toolName: String(toolChoice.toolName || toolChoice.name || toolChoice.function?.name),
-    };
-  }
-  if (type === 'function' && (toolChoice.function?.name || toolChoice.name)) {
-    return {
-      type: 'tool',
-      toolName: String(toolChoice.function?.name || toolChoice.name),
-    };
-  }
-  return undefined;
+function handleItems(items, result) {
+  result.items = Array.isArray(items)
+    ? items.map((item) => convertJsonSchemaToOpenApiSchema(item, false))
+    : convertJsonSchemaToOpenApiSchema(items, false);
+}
+
+function handleAllOf(allOf, result) {
+  result.allOf = allOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
+}
+
+function handleOneOf(oneOf, result) {
+  result.oneOf = oneOf.map((item) => convertJsonSchemaToOpenApiSchema(item, false));
+}
+
+function handleMinLength(minLength, result) {
+  if (minLength !== undefined) result.minLength = minLength;
 }
 
 export function buildToolCallNameMap(messages = []) {

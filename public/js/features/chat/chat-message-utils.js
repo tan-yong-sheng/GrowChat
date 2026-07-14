@@ -168,20 +168,52 @@ export function normalizeMessageBlockRecord(raw, index = 0) {
   };
 }
 
+function resolveToolCallId(raw) {
+  return raw.id || raw.tool_call_id || raw.toolCallId;
+}
+
+function pickToolCallName(raw) {
+  return raw.name || raw.tool_name || raw.toolName || null;
+}
+
+function normalizeToolName(name) {
+  return String(name || 'Tool').trim() || 'Tool';
+}
+
+function resolveToolCallInput(raw) {
+  if (raw.input != null) return raw.input;
+  if (raw.arguments != null) return raw.arguments;
+  return raw.args ?? '';
+}
+
+function resolveToolCallOutput(raw) {
+  return raw.output ?? raw.result ?? '';
+}
+
+function resolveToolCallStatus(raw, error, output) {
+  if (raw.status || raw.state) return raw.status || raw.state;
+  if (error) return 'error';
+  return output ? 'completed' : 'running';
+}
+
+function normalizeToolCallValue(value) {
+  return value == null ? '' : String(value);
+}
+
 export function normalizeToolCallRecord(raw) {
   if (!raw) return null;
-  const id = raw.id || raw.tool_call_id || raw.toolCallId;
+  const id = resolveToolCallId(raw);
   if (!id) return null;
-  const name = String(raw.name || raw.tool_name || raw.toolName || 'Tool').trim() || 'Tool';
-  const input = raw.input ?? raw.arguments ?? raw.args ?? '';
-  const output = raw.output ?? raw.result ?? '';
+  const name = normalizeToolName(pickToolCallName(raw));
+  const input = resolveToolCallInput(raw);
+  const output = resolveToolCallOutput(raw);
   const error = raw.error ?? null;
-  const status = raw.status || raw.state || (error ? 'error' : output ? 'completed' : 'running');
+  const status = resolveToolCallStatus(raw, error, output);
   return {
     id: String(id),
     name,
-    input: input == null ? '' : String(input),
-    output: output == null ? '' : String(output),
+    input: normalizeToolCallValue(input),
+    output: normalizeToolCallValue(output),
     error: error == null ? null : String(error),
     status: String(status),
   };

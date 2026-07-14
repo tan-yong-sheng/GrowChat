@@ -5,6 +5,74 @@ function normalizeChatTitleSnippet(text) {
     .slice(0, 60);
 }
 
+function handleNewChatCreation(state, setState, buildTempChat, pruneTempChats, syncChatUrl) {
+  const tempChat = buildTempChat();
+  const tempChatId = tempChat.id;
+  if (state.newChatToolSelection !== null) {
+    setState((prev) => {
+      const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
+      nextToolSelectionsByChat[tempChatId] = prev.newChatToolSelection;
+      return {
+        toolSelectionsByChat: nextToolSelectionsByChat,
+        newChatToolSelection: null,
+      };
+    });
+  }
+  setState((prev) => ({
+    chats: [tempChat, ...pruneTempChats(prev.chats)],
+    activeChatId: tempChatId,
+    activeModelId:
+      prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
+  }));
+  syncChatUrl(tempChatId);
+  return tempChatId;
+}
+
+function handleExistingTempChat(
+  chatId,
+  state,
+  setState,
+  buildTempChat,
+  pruneTempChats,
+  syncChatUrl
+) {
+  const exists = state.chats.some((chat) => String(chat.id) === String(chatId));
+  if (!exists) {
+    const tempChat = buildTempChat(chatId);
+    setState((prev) => ({
+      chats: [tempChat, ...pruneTempChats(prev.chats)],
+      activeChatId: chatId,
+      activeModelId:
+        prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
+    }));
+  }
+  syncChatUrl(chatId);
+}
+
+function handleNewChatAttachments(state, setState, chatId) {
+  if (!state.attachmentsByChat?.[chatId] && (state.newChatAttachments || []).length > 0) {
+    setState({
+      attachmentsByChat: {
+        ...(state.attachmentsByChat || {}),
+        [chatId]: state.newChatAttachments,
+      },
+      newChatAttachments: [],
+    });
+  }
+}
+
+function handleAutoTitle(tempChatId, chatId, text, state, hadMessagesBefore, updateChatTitleLocal) {
+  if (tempChatId) {
+    const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
+    if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
+      const snippet = normalizeChatTitleSnippet(text);
+      if (snippet) {
+        updateChatTitleLocal(chatId, snippet);
+      }
+    }
+  }
+}
+
 export function prepareOptimisticConversation({
   state,
   setState,
@@ -22,73 +90,25 @@ export function prepareOptimisticConversation({
   const hadMessagesBefore = chatId ? (state.messagesByChat[chatId] || []).length > 0 : false;
 
   if (!chatId) {
-    const tempChat = buildTempChat();
-    tempChatId = tempChat.id;
-    if (state.newChatToolSelection !== null) {
-      setState((prev) => {
-        const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
-        nextToolSelectionsByChat[tempChatId] = prev.newChatToolSelection;
-        return {
-          toolSelectionsByChat: nextToolSelectionsByChat,
-          newChatToolSelection: null,
-        };
-      });
-    }
-
-    setState((prev) => ({
-      chats: [tempChat, ...pruneTempChats(prev.chats)],
-      activeChatId: tempChatId,
-      activeModelId:
-        prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
-    }));
-
+    tempChatId = handleNewChatCreation(state, setState, buildTempChat, pruneTempChats, syncChatUrl);
     chatId = tempChatId;
-    syncChatUrl(tempChatId);
   } else if (isTempChat) {
-    tempChatId = chatId;
-    const exists = state.chats.some((chat) => String(chat.id) === String(chatId));
-    if (!exists) {
-      const tempChat = buildTempChat(chatId);
-      setState((prev) => ({
-        chats: [tempChat, ...pruneTempChats(prev.chats)],
-        activeChatId: chatId,
-        activeModelId:
-          prev.activeModelId || prev.defaultModelId || prev.globalDefaultModelId || tempChat.model,
-      }));
-    }
-    syncChatUrl(chatId);
+    handleExistingTempChat(chatId, state, setState, buildTempChat, pruneTempChats, syncChatUrl);
   }
 
-  if (!state.attachmentsByChat?.[chatId] && (state.newChatAttachments || []).length > 0) {
-    setState({
-      attachmentsByChat: {
-        ...(state.attachmentsByChat || {}),
-        [chatId]: state.newChatAttachments,
-      },
-      newChatAttachments: [],
-    });
-  }
+  handleNewChatAttachments(state, setState, chatId);
 
-  if (tempChatId) {
-    const existingChat = state.chats.find((chat) => String(chat.id) === String(chatId));
-    if (!hadMessagesBefore && (!existingChat?.title || existingChat.title === 'New Chat')) {
-      const snippet = normalizeChatTitleSnippet(text);
-      if (snippet) {
-        autoTitle = snippet;
-        updateChatTitleLocal(chatId, snippet);
-      }
-    }
-  }
+  handleAutoTitle(tempChatId, chatId, text, state, hadMessagesBefore, updateChatTitleLocal);
 
-  return {
-    chatId,
-    tempChatId,
-    hadMessagesBefore,
-    autoTitle,
-  };
+  return { chatId, tempChatId, hadMessagesBefore, autoTitle };
 }
 
-export function rollbackOptimisticConversation({ setState, tempChatId } = {}) {
+export function rollbackOptimisticConversation({
+  state,
+  setState,
+  tempChatId,
+  isTempChatId = () => false,
+} = {}) {
   if (!tempChatId) return;
   setState((prev) => {
     const nextChats = prev.chats.filter((c) => String(c.id) !== String(tempChatId));
@@ -111,6 +131,7 @@ export function rollbackOptimisticConversation({ setState, tempChatId } = {}) {
 }
 
 export function promoteOptimisticConversation({
+  state,
   setState,
   tempChatId,
   realChat,
@@ -157,8 +178,9 @@ export function promoteOptimisticConversation({
       delete nextAttachmentsByChat[tempChatId];
     }
     const nextToolSelectionsByChat = { ...(prev.toolSelectionsByChat || {}) };
-    if (nextToolSelectionsByChat[tempChatId] !== undefined) {
-      nextToolSelectionsByChat[realChatId] = nextToolSelectionsByChat[tempChatId];
+    const toolSelectionValue = nextToolSelectionsByChat[tempChatId];
+    if (toolSelectionValue != null) {
+      nextToolSelectionsByChat[realChatId] = toolSelectionValue;
       delete nextToolSelectionsByChat[tempChatId];
     }
     return {

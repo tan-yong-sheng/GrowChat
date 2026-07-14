@@ -70,17 +70,35 @@ function parseUserConnectionManualModels(raw) {
   }
 }
 
+function resolveProviderType(row) {
+  return (
+    String(row.provider_type || row.providerType || 'openai-compatible')
+      .trim()
+      .toLowerCase() || 'openai-compatible'
+  );
+}
+
+function resolveProviderFamily(row, providerType) {
+  return (
+    normalizeProviderFamily(row.provider_family || row.providerFamily || providerType) || 'openai'
+  );
+}
+
+function resolveEnabled(row) {
+  return row.enabled !== 0 && row.enabled !== false;
+}
+
+function resolveOwnerUserId(row) {
+  return row.user_id || row.userId || null;
+}
+
 function normalizeUserConnectionRow({ row, index = 0 } = {}) {
   if (!row) return null;
   const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
   if (!baseUrl) return null;
 
-  const providerType =
-    String(row.provider_type || row.providerType || 'openai-compatible')
-      .trim()
-      .toLowerCase() || 'openai-compatible';
-  const providerFamily =
-    normalizeProviderFamily(row.provider_family || row.providerFamily || providerType) || 'openai';
+  const providerType = resolveProviderType(row);
+  const providerFamily = resolveProviderFamily(row, providerType);
   const id = ensureConnectionId(
     {
       id: row.id,
@@ -101,7 +119,7 @@ function normalizeUserConnectionRow({ row, index = 0 } = {}) {
     key: String(row.key || '').trim(),
     headers: parseUserConnectionHeaders(row.headers),
     source: 'user',
-    enabled: row.enabled !== 0 && row.enabled !== false,
+    enabled: resolveEnabled(row),
     providerType,
     providerFamily,
     providerId: buildProviderId({ id, providerType, providerFamily }),
@@ -111,54 +129,100 @@ function normalizeUserConnectionRow({ row, index = 0 } = {}) {
     manualModelsMode:
       normalizeConnectionModelSelectionMode(row.manual_models_mode || row.manualModelsMode) ||
       'all',
-    ownerUserId: row.user_id || row.userId || null,
+    ownerUserId: resolveOwnerUserId(row),
     personal: true,
   };
 }
 
-function normalizeUserConnectionInput(opts = {}) {
-  const input = opts.input ?? {};
-  const existing = opts.existing ?? null;
-  const name = String(input.name || existing?.name || '').trim();
-  const providerType =
+function resolveConnectionName(input, existing) {
+  return String(input.name || existing?.name || '').trim();
+}
+
+function resolveConnectionProviderType(input, existing) {
+  return (
     String(
       input.provider_type || input.providerType || existing?.providerType || 'openai-compatible'
     )
       .trim()
-      .toLowerCase() || 'openai-compatible';
-  const providerFamily =
+      .toLowerCase() || 'openai-compatible'
+  );
+}
+
+function resolveConnectionProviderFamily(input, existing, providerType) {
+  return (
     normalizeProviderFamily(
       input.provider_family || input.providerFamily || existing?.providerFamily || providerType
-    ) || 'openai';
+    ) || 'openai'
+  );
+}
+
+function resolveConnectionBaseUrl(input, existing, providerType) {
   const baseUrlRaw = input.base_url !== undefined ? input.base_url : input.baseUrl;
-  const resolvedBaseUrl = normalizeBaseUrl(
+  return normalizeBaseUrl(
     baseUrlRaw || existing?.baseUrl || getConnectionDefaultBaseUrl(providerType)
   );
-  const keyRaw = input.key;
+}
+
+function resolveConnectionKey(input, existing) {
+  return input.key !== undefined
+    ? String(input.key || '').trim()
+    : String(existing?.key || '').trim();
+}
+
+function resolveConnectionHeaders(input, existing) {
   const headersRaw = input.headers !== undefined ? input.headers : existing?.headers;
-  const authType = normalizeAuthType(input.auth_type || input.authType || existing?.authType || '');
-  const enabled =
-    input.enabled !== undefined ? input.enabled !== false : existing?.enabled !== false;
-  const manualModels = normalizeConnectionManualModels(
+  return headersRaw !== undefined
+    ? safeParseHeaders(headersRaw)
+    : safeParseHeaders(existing?.headers);
+}
+
+function resolveConnectionAuthType(input, existing) {
+  return normalizeAuthType(input.auth_type || input.authType || existing?.authType || '');
+}
+
+function resolveConnectionEnabled(input, existing) {
+  return input.enabled !== undefined ? input.enabled !== false : existing?.enabled !== false;
+}
+
+function resolveConnectionManualModels(input, existing) {
+  return normalizeConnectionManualModels(
     Array.isArray(input.manual_models)
       ? input.manual_models
       : Array.isArray(input.manualModels)
         ? input.manualModels
         : existing?.manualModels || []
   );
-  const manualModelsMode =
+}
+
+function resolveConnectionManualModelsMode(input, existing) {
+  return (
     normalizeConnectionModelSelectionMode(
       input.manual_models_mode || input.manualModelsMode || existing?.manualModelsMode
-    ) || 'all';
+    ) || 'all'
+  );
+}
+
+function normalizeUserConnectionInput(opts = {}) {
+  const input = opts.input ?? {};
+  const existing = opts.existing ?? null;
+  const name = resolveConnectionName(input, existing);
+  const providerType = resolveConnectionProviderType(input, existing);
+  const providerFamily = resolveConnectionProviderFamily(input, existing, providerType);
+  const baseUrl = resolveConnectionBaseUrl(input, existing, providerType);
+  const key = resolveConnectionKey(input, existing);
+  const headers = resolveConnectionHeaders(input, existing);
+  const authType = resolveConnectionAuthType(input, existing);
+  const enabled = resolveConnectionEnabled(input, existing);
+  const manualModels = resolveConnectionManualModels(input, existing);
+  const manualModelsMode = resolveConnectionManualModelsMode(input, existing);
 
   return {
     name,
     providerType,
     providerFamily,
-    baseUrl: resolvedBaseUrl,
-    key: keyRaw !== undefined ? String(keyRaw || '').trim() : String(existing?.key || '').trim(),
-    headers:
-      headersRaw !== undefined ? safeParseHeaders(headersRaw) : safeParseHeaders(existing?.headers),
+    baseUrl,
+    key,
+    headers,
     authType,
     enabled,
     manualModels,
@@ -272,13 +336,17 @@ export async function createUserOpenAIConnection(opts) {
   return getUserOpenAIConnectionConfig({ db, userId, connectionId: id });
 }
 
+async function ensureUserConnectionContext({ db, userId, connectionId }) {
+  if (!db || !userId || !connectionId) throw new Error('Connection id is required');
+  await ensureUserConnectionsTable(db);
+}
+
 export async function updateUserOpenAIConnection(opts) {
   // Normalize null/undefined to {} so destructuring remains null-safe;
   // the existing fail-soft validation below produces the canonical error.
   const { db, userId, connectionId } = opts ?? {};
   const input = opts?.input ?? {};
-  if (!db || !userId || !connectionId) throw new Error('Connection id is required');
-  await ensureUserConnectionsTable(db);
+  await ensureUserConnectionContext({ db, userId, connectionId });
 
   const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return null;
@@ -315,8 +383,7 @@ export async function deleteUserOpenAIConnection(options) {
   // Normalize null/undefined to {} so destructuring remains null-safe;
   // the existing fail-soft validation below produces the canonical error.
   const { db, userId, connectionId } = options ?? {};
-  if (!db || !userId || !connectionId) throw new Error('Connection id is required');
-  await ensureUserConnectionsTable(db);
+  await ensureUserConnectionContext({ db, userId, connectionId });
 
   const existing = await getUserOpenAIConnectionConfig({ db, userId, connectionId });
   if (!existing) return false;

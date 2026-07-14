@@ -16,6 +16,44 @@ export {
   STREAM_KEEPALIVE_PAYLOAD,
 };
 
+function cancelReaderSilently(reader) {
+  if (typeof reader?.cancel === 'function') {
+    void reader.cancel().catch(() => {});
+  }
+}
+
+function resolveEffectiveTimeoutMs(reader, deadlineAt, hardTimeoutMs) {
+  if (!deadlineAt || typeof deadlineAt !== 'number' || deadlineAt <= 0) return hardTimeoutMs;
+  const remainingMs = deadlineAt - Date.now();
+  if (remainingMs > 0) return remainingMs;
+  cancelReaderSilently(reader);
+  throw new Error('LLM stream timed out (deadline exceeded)');
+}
+
+function startHeartbeat(controller, encoder, heartbeatPayload, keepAliveIntervalMs) {
+  if (!controller || typeof controller.enqueue !== 'function' || keepAliveIntervalMs <= 0)
+    return null;
+  return setInterval(() => {
+    try {
+      controller.enqueue(encoder.encode(heartbeatPayload));
+    } catch {
+      // ignore heartbeat enqueue failure
+    }
+  }, keepAliveIntervalMs);
+}
+
+function createTimeoutRace(reader, timeoutMs) {
+  if (timeoutMs <= 0) return null;
+  let timeoutId = null;
+  const promise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      cancelReaderSilently(reader);
+      reject(new Error('LLM stream timed out'));
+    }, timeoutMs);
+  });
+  return { promise, timeoutId };
+}
+
 export async function readStreamChunkWithHeartbeat(
   reader,
   {
@@ -27,58 +65,18 @@ export async function readStreamChunkWithHeartbeat(
     deadlineAt = null,
   } = {}
 ) {
-  let heartbeatTimer = null;
-  let timeoutId = null;
-  let timedOut = false;
-
-  // Compute effective timeout from absolute deadline (if provided) or fallback to per-chunk timeout
-  let effectiveTimeoutMs;
-  if (deadlineAt && typeof deadlineAt === 'number' && deadlineAt > 0) {
-    const remainingMs = deadlineAt - Date.now();
-    if (remainingMs <= 0) {
-      if (typeof reader.cancel === 'function') {
-        void reader.cancel().catch(() => {});
-      }
-      throw new Error('LLM stream timed out (deadline exceeded)');
-    }
-    effectiveTimeoutMs = remainingMs;
-  } else {
-    effectiveTimeoutMs = hardTimeoutMs;
-  }
-
-  if (controller && typeof controller.enqueue === 'function' && keepAliveIntervalMs > 0) {
-    heartbeatTimer = setInterval(() => {
-      try {
-        controller.enqueue(encoder.encode(heartbeatPayload));
-      } catch {
-        // ignore heartbeat enqueue failure
-      }
-    }, keepAliveIntervalMs);
-  }
+  const effectiveTimeoutMs = resolveEffectiveTimeoutMs(reader, deadlineAt, hardTimeoutMs);
+  const heartbeatTimer = startHeartbeat(controller, encoder, heartbeatPayload, keepAliveIntervalMs);
+  const timeoutRace = createTimeoutRace(reader, effectiveTimeoutMs);
 
   const pendingReads = [reader.read()];
-
-  if (effectiveTimeoutMs > 0) {
-    pendingReads.push(
-      new Promise((_, reject) => {
-        timeoutId = setTimeout(() => {
-          timedOut = true;
-          reject(new Error('LLM stream timed out'));
-        }, effectiveTimeoutMs);
-      })
-    );
-  }
+  if (timeoutRace) pendingReads.push(timeoutRace.promise);
 
   try {
     return await Promise.race(pendingReads);
-  } catch (err) {
-    if (timedOut && typeof reader.cancel === 'function') {
-      void reader.cancel().catch(() => {});
-    }
-    throw err;
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
-    if (timeoutId) clearTimeout(timeoutId);
+    if (timeoutRace) clearTimeout(timeoutRace.timeoutId);
   }
 }
 export function createStreamHelpers({ db, assistantMsgId, encoder, sseData }) {

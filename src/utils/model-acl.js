@@ -121,6 +121,58 @@ export async function ensureModelAclRulesTable(db) {
   }
 }
 
+function normalizeModelAclRules(canonicalModelId, rules) {
+  return (Array.isArray(rules) ? rules : [])
+    .map((rule) => normalizeModelAclRule({ ...rule, model_id: canonicalModelId }))
+    .filter(Boolean);
+}
+
+function buildModelAclSchemaStatements(db) {
+  return [
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS model_acl_rules (
+        id TEXT PRIMARY KEY,
+        model_id TEXT NOT NULL,
+        principal_type TEXT NOT NULL CHECK (principal_type IN ('user', 'group')),
+        principal_id TEXT NOT NULL,
+        effect TEXT NOT NULL CHECK (effect IN ('allow', 'deny')),
+        action TEXT NOT NULL DEFAULT 'use',
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        UNIQUE(model_id, principal_type, principal_id, effect, action)
+      )`
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_model_id ON model_acl_rules(model_id)'
+    ),
+    db.prepare(
+      'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_principal ON model_acl_rules(principal_type, principal_id)'
+    ),
+  ];
+}
+
+function buildModelAclDeleteStatement(db, deleteIds) {
+  return db.prepare(
+    `DELETE FROM model_acl_rules WHERE model_id IN (${deleteIds.map(() => '?').join(', ')})`,
+    deleteIds
+  );
+}
+
+function buildModelAclInsertStatement(db, canonicalModelId, rule) {
+  return db.prepare(
+    `INSERT INTO model_acl_rules (id, model_id, principal_type, principal_id, effect, action, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
+    [
+      crypto.randomUUID(),
+      canonicalModelId,
+      rule.principal_type,
+      rule.principal_id,
+      rule.effect,
+      rule.action,
+    ]
+  );
+}
+
 export function buildModelAclRuleSaveStatements(
   db,
   modelId,
@@ -129,57 +181,14 @@ export function buildModelAclRuleSaveStatements(
 ) {
   if (!db || !modelId) throw new Error('Model id is required');
   const canonicalModelId = safeDecodeResourceId(modelId);
-  const normalized = (Array.isArray(rules) ? rules : [])
-    .map((rule) => normalizeModelAclRule({ ...rule, model_id: canonicalModelId }))
-    .filter(Boolean);
+  const normalized = normalizeModelAclRules(canonicalModelId, rules);
   const deleteIds = expandModelAclResourceIds([canonicalModelId]);
-  const statements = [];
-  if (includeSchemaStatements) {
-    statements.push(
-      db.prepare(
-        `CREATE TABLE IF NOT EXISTS model_acl_rules (
-          id TEXT PRIMARY KEY,
-          model_id TEXT NOT NULL,
-          principal_type TEXT NOT NULL CHECK (principal_type IN ('user', 'group')),
-          principal_id TEXT NOT NULL,
-          effect TEXT NOT NULL CHECK (effect IN ('allow', 'deny')),
-          action TEXT NOT NULL DEFAULT 'use',
-          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-          UNIQUE(model_id, principal_type, principal_id, effect, action)
-        )`
-      ),
-      db.prepare(
-        'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_model_id ON model_acl_rules(model_id)'
-      ),
-      db.prepare(
-        'CREATE INDEX IF NOT EXISTS idx_model_acl_rules_principal ON model_acl_rules(principal_type, principal_id)'
-      )
-    );
-  }
+  const statements = includeSchemaStatements ? buildModelAclSchemaStatements(db) : [];
   if (deleteIds.length) {
-    statements.push(
-      db.prepare(
-        `DELETE FROM model_acl_rules WHERE model_id IN (${deleteIds.map(() => '?').join(', ')})`,
-        deleteIds
-      )
-    );
+    statements.push(buildModelAclDeleteStatement(db, deleteIds));
   }
   for (const rule of normalized) {
-    statements.push(
-      db.prepare(
-        `INSERT INTO model_acl_rules (id, model_id, principal_type, principal_id, effect, action, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())`,
-        [
-          crypto.randomUUID(),
-          canonicalModelId,
-          rule.principal_type,
-          rule.principal_id,
-          rule.effect,
-          rule.action,
-        ]
-      )
-    );
+    statements.push(buildModelAclInsertStatement(db, canonicalModelId, rule));
   }
   return { canonicalModelId, normalized, statements };
 }

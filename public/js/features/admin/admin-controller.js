@@ -32,87 +32,114 @@ import {
 } from './admin-controller-subcontent.js';
 
 export function createAdminController(ctx) {
+  const resolveTabsContainer = () => {
+    return (
+      ctx.container.querySelector('#users-tabs-container') ||
+      ctx.container.querySelector('#settings-tabs-container') ||
+      ctx.container.querySelector('#system-tabs-container')
+    );
+  };
+
+  const renderTabsOrFallback = (mainContentEl, tabsContainer) => {
+    if (!tabsContainer) {
+      renderFallbackContent(mainContentEl);
+    } else {
+      renderTabContent(mainContentEl, tabsContainer);
+    }
+    bindSubnav();
+  };
+
+  const renderFallbackContent = (mainContentEl) => {
+    switch (ctx.mainTab) {
+      case 'users':
+        mainContentEl.innerHTML = renderUsersLayout(ctx.subTab);
+        break;
+      case 'system':
+        mainContentEl.innerHTML = renderSystemLayout(ctx.subTab);
+        break;
+      default:
+        mainContentEl.innerHTML = renderSettingsLayout(ctx.subTab);
+        break;
+    }
+  };
+
+  const renderTabContent = (mainContentEl, tabsContainer) => {
+    switch (ctx.mainTab) {
+      case 'users':
+        tabsContainer.id = 'users-tabs-container';
+        tabsContainer.innerHTML = renderUsersSubnavLinks(ctx.subTab);
+        break;
+      case 'system':
+        mainContentEl.innerHTML = renderSystemLayout(ctx.subTab);
+        bindSubnav();
+        break;
+      default:
+        tabsContainer.id = 'settings-tabs-container';
+        tabsContainer.innerHTML = renderSettingsSubnavLinks(ctx.subTab);
+        break;
+    }
+  };
+
+  const adminModuleNeedsLoad = () => {
+    return (
+      (ctx.mainTab === 'users' && !ctx.usersModules.renderUserOverview) ||
+      (ctx.mainTab === 'system' && !ctx.systemModules.renderRegistrationSettings) ||
+      (ctx.mainTab === 'settings' && !ctx.settingsModules.renderConnectionsSettings)
+    );
+  };
+
+  const loadAdminModules = async (subContentEl) => {
+    subContentEl.innerHTML =
+      ctx.mainTab === 'users' ? renderLoadingState() : renderSettingsSkeleton();
+    ctx.renderMainActionFooter();
+    ctx.updateMainActionFooter();
+    try {
+      await ctx.ensureMainTabModules(ctx.mainTab);
+    } catch (err) {
+      subContentEl.innerHTML = renderErrorState(err?.message || 'Failed to load admin section.');
+      ctx.renderMainActionFooter();
+      ctx.updateMainActionFooter();
+      return;
+    }
+  };
+
   const renderSubContent = async () => {
     const mainContentEl = ctx.container.querySelector('#admin-main-content');
     if (!mainContentEl) return;
 
-    const tabsContainer =
-      ctx.container.querySelector('#users-tabs-container') ||
-      ctx.container.querySelector('#settings-tabs-container') ||
-      ctx.container.querySelector('#system-tabs-container');
-
-    if (!tabsContainer) {
-      if (ctx.mainTab === 'users') {
-        mainContentEl.innerHTML = renderUsersLayout(ctx.subTab);
-      } else if (ctx.mainTab === 'system') {
-        mainContentEl.innerHTML = renderSystemLayout(ctx.subTab);
-      } else {
-        mainContentEl.innerHTML = renderSettingsLayout(ctx.subTab);
-      }
-      bindSubnav();
-    } else {
-      if (ctx.mainTab === 'users') {
-        tabsContainer.id = 'users-tabs-container';
-        tabsContainer.innerHTML = renderUsersSubnavLinks(ctx.subTab);
-      } else if (ctx.mainTab === 'system') {
-        mainContentEl.innerHTML = renderSystemLayout(ctx.subTab);
-        bindSubnav();
-      } else {
-        tabsContainer.id = 'settings-tabs-container';
-        tabsContainer.innerHTML = renderSettingsSubnavLinks(ctx.subTab);
-      }
-      bindSubnav();
-    }
+    const tabsContainer = resolveTabsContainer();
+    renderTabsOrFallback(mainContentEl, tabsContainer);
 
     const subContentEl =
       ctx.container.querySelector('#admin-sub-body') ||
       ctx.container.querySelector('#admin-sub-content');
     if (!subContentEl) return;
 
-    const needsModuleLoad =
-      (ctx.mainTab === 'users' && !ctx.usersModules.renderUserOverview) ||
-      (ctx.mainTab === 'system' && !ctx.systemModules.renderRegistrationSettings) ||
-      (ctx.mainTab === 'settings' && !ctx.settingsModules.renderConnectionsSettings);
-
-    if (needsModuleLoad) {
-      subContentEl.innerHTML =
-        ctx.mainTab === 'users' ? renderLoadingState() : renderSettingsSkeleton();
-      ctx.renderMainActionFooter();
-      ctx.updateMainActionFooter();
-      try {
-        await ctx.ensureMainTabModules(ctx.mainTab);
-      } catch (err) {
-        subContentEl.innerHTML = renderErrorState(err?.message || 'Failed to load admin section.');
-        ctx.renderMainActionFooter();
-        ctx.updateMainActionFooter();
-        return;
-      }
+    if (adminModuleNeedsLoad()) {
+      await loadAdminModules(subContentEl);
     }
 
     subContentEl.dataset.settingsTab = ctx.subTab;
     ctx.data.sharedActionFooter = false;
     ctx.renderMainActionFooter();
 
-    if (ctx.mainTab === 'settings') {
-      renderSettingsSubContent(ctx, subContentEl);
-      ctx.renderMainActionFooter();
-      ctx.updateMainActionFooter();
-      return;
-    }
+    dispatchAdminContent(subContentEl);
+  };
 
-    if (ctx.mainTab === 'system') {
-      renderSystemSubContent(ctx, subContentEl);
-      ctx.renderMainActionFooter();
-      ctx.updateMainActionFooter();
-      return;
+  const dispatchAdminContent = (subContentEl) => {
+    switch (ctx.mainTab) {
+      case 'settings':
+        renderSettingsSubContent(ctx, subContentEl);
+        break;
+      case 'system':
+        renderSystemSubContent(ctx, subContentEl);
+        break;
+      case 'users':
+        renderUsersSubContent(ctx, subContentEl, { renderSubContent, loadUsers, loadGroups });
+        break;
     }
-
-    if (ctx.mainTab === 'users') {
-      renderUsersSubContent(ctx, subContentEl, { renderSubContent, loadUsers, loadGroups });
-      ctx.renderMainActionFooter();
-      ctx.updateMainActionFooter();
-      return;
-    }
+    ctx.renderMainActionFooter();
+    ctx.updateMainActionFooter();
   };
   async function loadUsers({ preserveContent = true } = {}) {
     const cacheKey = `${ctx.data.pagination.page}:${ctx.data.pagination.pageSize}`;
@@ -135,21 +162,21 @@ export function createAdminController(ctx) {
     }
   }
 
-function applyUsersFromCache(cached) {
+  function applyUsersFromCache(cached) {
     ctx.data.users = cached.users;
     ctx.data.total = cached.total;
     ctx.data.error = null;
     ctx.data.loading = false;
     ctx.data.loadingMode = 'idle';
-}
+  }
 
-function setUsersLoading(preserveContent) {
+  function setUsersLoading(preserveContent) {
     ctx.data.loading = true;
     ctx.data.loadingMode = preserveContent ? 'table' : 'initial';
     ctx.data.error = null;
-}
+  }
 
-async function fetchUsersPage(cacheKey) {
+  async function fetchUsersPage(cacheKey) {
     const offset = (ctx.data.pagination.page - 1) * ctx.data.pagination.pageSize;
     const res = await apiFetch(
       `/api/admin/users?limit=${ctx.data.pagination.pageSize}&offset=${offset}`
@@ -166,7 +193,7 @@ async function fetchUsersPage(cacheKey) {
       users: ctx.data.users,
       total: ctx.data.total,
     };
-}
+  }
   async function loadGroups({ preserveContent = true } = {}) {
     ctx.data.groupsLoading = true;
     ctx.data.groupsError = null;

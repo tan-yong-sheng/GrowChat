@@ -12,6 +12,12 @@ process.stdout.write(String(d.health_score?.score ?? 0));
 ")
 echo "METRIC fallow_health_score=$SCORE"
 
+FUNCTIONS_ABOVE=$(echo "$HEALTH_JSON" | node -e "
+const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
+process.stdout.write(String(d.summary?.functions_above_threshold ?? 0));
+")
+echo "METRIC functions_above_threshold=$FUNCTIONS_ABOVE"
+
 PENALTIES=$(echo "$HEALTH_JSON" | node -e "
 const d = JSON.parse(require('fs').readFileSync('/dev/stdin'));
 process.stdout.write(JSON.stringify(d.health_score?.penalties ?? {}));

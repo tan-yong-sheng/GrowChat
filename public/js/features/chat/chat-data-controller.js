@@ -8,14 +8,18 @@ import { resolveConversationLeafId } from '../../shared/utils/conversation.js';
  * @param {number} staleMs - stream stale timeout in ms
  * @returns {boolean}
  */
-function isMessageLive(message, now, staleMs) {
+function isRunningStatus(message) {
   const status = String(message?.status || '');
-  const isRunning =
-    message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
-  if (!isRunning) return false;
+  return message?.role === 'assistant' && (status === 'streaming' || status === 'tool_running');
+}
+
+function isWithinStaleWindow(message, now, staleMs) {
   const createdAtMs = Number(message?.created_at || 0) * 1000;
-  if (!createdAtMs) return false;
-  return now - createdAtMs <= staleMs;
+  return createdAtMs > 0 && now - createdAtMs <= staleMs;
+}
+
+function isMessageLive(message, now, staleMs) {
+  return isRunningStatus(message) && isWithinStaleWindow(message, now, staleMs);
 }
 
 /**

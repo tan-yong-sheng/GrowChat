@@ -16,6 +16,84 @@ import {
   renderRuleList,
 } from './overview-helpers.js';
 
+function countDisabledRules(allRules) {
+  return allRules.filter((rule) => rule?.resource_enabled === false).length;
+}
+
+function resolveAccessFamilies(access) {
+  return [
+    ['Models', access.models || []],
+    ['Connections', access.connections || []],
+    ['MCP Servers', access.mcp_servers || []],
+  ];
+}
+
+function buildAccessInspectorHeader(user, disabledRuleCount, showDisabled) {
+  const primaryRole = String(user.primary_role || 'member').trim();
+  return `
+    <div class="rounded-lg border border-gray-100 bg-gray-50/70 px-4 py-3">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="space-y-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
+            ${renderChip(roleDisplayName(primaryRole), normalizeRole(primaryRole))}
+            ${renderChip(user.account_status || 'active', user.account_status === 'pending' ? 'shared' : 'admin')}
+          </div>
+          <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
+          ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
+        </div>
+        ${renderButton({
+          label: showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`,
+          variant: 'secondary',
+          className: `px-2.5 py-1 text-label-sm uppercase tracking-wider ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}`,
+          dataAttrs: { 'toggle-disabled-rules': '' },
+        })}
+      </div>
+    </div>
+  `;
+}
+
+function buildGroupsSection(groups) {
+  return `
+    <section class="space-y-2">
+      <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">Groups</div>
+      <div class="flex flex-wrap gap-2">
+        ${groups.length ? groups.map((group) => renderChip(group.name || group.id, 'neutral')).join('') : '<span class="text-xs text-gray-600">No group memberships</span>'}
+      </div>
+    </section>
+  `;
+}
+
+function buildRolePermissionsSection(rolePermissions) {
+  return `
+    <section class="space-y-2">
+      <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">Role Permissions</div>
+      <div class="flex flex-wrap gap-2">
+        ${rolePermissions.length ? rolePermissions.map((permission) => renderChip(permission, 'admin')).join('') : '<span class="text-xs text-gray-600">No resolved permissions</span>'}
+      </div>
+    </section>
+  `;
+}
+
+function buildResourceFamilySections(families, showDisabled) {
+  return families
+    .map(([label, rules]) => {
+      const visibleCount = rules.filter(
+        (rule) => showDisabled || rule?.resource_enabled !== false
+      ).length;
+      return `
+        <section class="space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">${escapeHtml(label)}</div>
+            <div class="text-label-sm text-gray-500">${visibleCount} rule${visibleCount === 1 ? '' : 's'}</div>
+          </div>
+          ${renderRuleList(rules, { showDisabled })}
+        </section>
+      `;
+    })
+    .join('');
+}
+
 export function renderAccessInspectorContent(payload, showDisabled = false) {
   const user = payload?.user || {};
   const groups = Array.isArray(payload?.groups) ? payload.groups : [];
@@ -26,63 +104,15 @@ export function renderAccessInspectorContent(payload, showDisabled = false) {
     ...(access.connections || []),
     ...(access.mcp_servers || []),
   ];
-  const disabledRuleCount = allRules.filter((rule) => rule?.resource_enabled === false).length;
-  const primaryRole = String(user.primary_role || 'member').trim();
-  const families = [
-    ['Models', access.models || []],
-    ['Connections', access.connections || []],
-    ['MCP Servers', access.mcp_servers || []],
-  ];
+  const disabledRuleCount = countDisabledRules(allRules);
+  const families = resolveAccessFamilies(access);
 
   return `
     <div class="space-y-4">
-      <div class="rounded-lg border border-gray-100 bg-gray-50/70 px-4 py-3">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="space-y-1">
-            <div class="flex flex-wrap items-center gap-2">
-              <div class="text-sm font-semibold text-gray-900">${escapeHtml(user.name || user.email || 'User')}</div>
-              ${renderChip(roleDisplayName(primaryRole), normalizeRole(primaryRole))}
-              ${renderChip(user.account_status || 'active', user.account_status === 'pending' ? 'shared' : 'admin')}
-            </div>
-            <div class="text-xs text-gray-500">${escapeHtml(user.email || '')}</div>
-            ${user.account_status === 'pending' ? '<div class="mt-2 text-xs text-amber-700">Pending account. App access is blocked until approved.</div>' : ''}
-          </div>
-          ${renderButton({
-            label: showDisabled ? 'Hide disabled' : `Show disabled (${disabledRuleCount})`,
-            variant: 'secondary',
-            className: `px-2.5 py-1 text-label-sm uppercase tracking-wider ${disabledRuleCount ? '' : 'opacity-40 pointer-events-none'}`,
-            dataAttrs: { 'toggle-disabled-rules': '' },
-          })}
-        </div>
-      </div>
-
-      <section class="space-y-2">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">Groups</div>
-        <div class="flex flex-wrap gap-2">
-          ${groups.length ? groups.map((group) => renderChip(group.name || group.id, 'neutral')).join('') : '<span class="text-xs text-gray-600">No group memberships</span>'}
-        </div>
-      </section>
-
-      <section class="space-y-2">
-        <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">Role Permissions</div>
-        <div class="flex flex-wrap gap-2">
-          ${rolePermissions.length ? rolePermissions.map((permission) => renderChip(permission, 'admin')).join('') : '<span class="text-xs text-gray-600">No resolved permissions</span>'}
-        </div>
-      </section>
-
-      ${families
-        .map(
-          ([label, rules]) => `
-        <section class="space-y-2">
-          <div class="flex items-center justify-between gap-3">
-            <div class="text-xs font-semibold uppercase tracking-wider text-gray-600">${escapeHtml(label)}</div>
-            <div class="text-label-sm text-gray-500">${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length} rule${rules.filter((rule) => showDisabled || rule?.resource_enabled !== false).length === 1 ? '' : 's'}</div>
-          </div>
-          ${renderRuleList(rules, { showDisabled })}
-        </section>
-      `
-        )
-        .join('')}
+      ${buildAccessInspectorHeader(user, disabledRuleCount, showDisabled)}
+      ${buildGroupsSection(groups)}
+      ${buildRolePermissionsSection(rolePermissions)}
+      ${buildResourceFamilySections(families, showDisabled)}
     </div>
   `;
 }

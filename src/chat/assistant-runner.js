@@ -16,34 +16,6 @@ import { createStreamEventHandler } from './assistant-runner-stream-event.js';
 export { readStreamChunkWithHeartbeat } from './assistant-stream-utils.js';
 
 export function createAssistantRunner(deps) {
-  const {
-    sseData,
-    sseHeaders,
-    SseLineParser,
-    streamLLM,
-    runAsyncSessionProcessor,
-    resolveTurnContinuation,
-    normalizeProviderFamily,
-    buildMcpTools,
-    loadToolServers,
-    executeMcpToolCall,
-    parseToolArguments,
-    stringifyToolPayload,
-    applyToolCallDelta,
-    buildUnknownToolPrompt,
-    normalizeToolCalls,
-    createAssistantStreamLifecycle,
-    finalizeAssistantStream,
-    recordAttachmentCapabilityFailure,
-    createRealtimeEvent,
-    getOriginSessionId,
-    publishRealtimeNow,
-    getMessageSnapshot,
-    getOwnedChat,
-    normalizeErrorMessage,
-    sleep,
-  } = deps;
-
   return async function streamAssistantWithTools({
     req,
     env,
@@ -60,17 +32,17 @@ export function createAssistantRunner(deps) {
     selectedToolNames = null,
   }) {
     const assistantMsgId = crypto.randomUUID();
-    const servers = await loadToolServers(db, { userId: user?.sub || '' });
+    const servers = await deps.loadToolServers(db, { userId: user?.sub || '' });
     const selectedToolNameList = Array.isArray(selectedToolNames)
       ? selectedToolNames.map((name) => String(name || '').trim()).filter(Boolean)
       : null;
     const toolChoice =
       Array.isArray(selectedToolNames) && selectedToolNames.length === 0 ? 'none' : undefined;
-    const { tools, toolMap, serversById } = buildMcpTools(servers, {
+    const { tools, toolMap, serversById } = deps.buildMcpTools(servers, {
       selectedToolNames: selectedToolNameList,
     });
     const providerSupportsTools = ['openai', 'google', 'anthropic'].includes(
-      normalizeProviderFamily(providerFamily) || ''
+      deps.normalizeProviderFamily(providerFamily) || ''
     );
     const toolsEnabled = tools.length > 0 && providerSupportsTools;
     const requestLogger = createLogger(env, { requestId: req?.headers?.get('x-request-id') || '' });
@@ -86,10 +58,10 @@ export function createAssistantRunner(deps) {
       appendMessageBlock,
       messageBlocks,
       state: streamState,
-    } = createStreamHelpers({ db, assistantMsgId, encoder, sseData });
+    } = createStreamHelpers({ db, assistantMsgId, encoder, sseData: deps.sseData });
 
     const citationsJson = Array.isArray(citations) ? JSON.stringify(citations) : citations || null;
-    const lifecycle = createAssistantStreamLifecycle({
+    const lifecycle = deps.createAssistantStreamLifecycle({
       db,
       env,
       req,
@@ -98,12 +70,12 @@ export function createAssistantRunner(deps) {
       model,
       userMsgId,
       citationsJson,
-      getMessageSnapshot,
-      getOwnedChat,
-      publishRealtimeNow,
-      createRealtimeEvent,
-      getOriginSessionId,
-      normalizeErrorMessage,
+      getMessageSnapshot: deps.getMessageSnapshot,
+      getOwnedChat: deps.getOwnedChat,
+      publishRealtimeNow: deps.publishRealtimeNow,
+      createRealtimeEvent: deps.createRealtimeEvent,
+      getOriginSessionId: deps.getOriginSessionId,
+      normalizeErrorMessage: deps.normalizeErrorMessage,
       emitSse,
     });
 
@@ -115,7 +87,7 @@ export function createAssistantRunner(deps) {
         if (ctx?.waitUntil) {
           ctx.waitUntil(
             (async () => {
-              await sleep(STREAM_STATUS_STALE_MS);
+              await deps.sleep(STREAM_STATUS_STALE_MS);
               await lifecycle.clearStreamingStatus();
             })()
           );
@@ -129,7 +101,7 @@ export function createAssistantRunner(deps) {
         });
 
         try {
-          const sessionOutcome = await runAsyncSessionProcessor({
+          const sessionOutcome = await deps.runAsyncSessionProcessor({
             initialMessages: history,
             maxToolSteps: MAX_TOOL_STEPS,
             maxFollowUps: MAX_FOLLOW_UPS,
@@ -145,7 +117,7 @@ export function createAssistantRunner(deps) {
                   const s = await withMemoryCheck(
                     'streamLLM',
                     () =>
-                      streamLLM(env, model, messagesForModel, {
+                      deps.streamLLM(env, model, messagesForModel, {
                         tools: toolsEnabled ? tools : undefined,
                         toolChoice,
                         userId: user?.sub || '',
@@ -158,7 +130,7 @@ export function createAssistantRunner(deps) {
                   );
                   return { ok: true, stream: s };
                 } catch (err) {
-                  await recordAttachmentCapabilityFailure({
+                  await deps.recordAttachmentCapabilityFailure({
                     db,
                     modelId: model,
                     attachmentKinds,
@@ -186,7 +158,7 @@ export function createAssistantRunner(deps) {
               function buildStreamParser() {
                 const reader = stream.getReader();
                 const decoder = new TextDecoder();
-                const parser = new SseLineParser({
+                const parser = new deps.SseLineParser({
                   onEvent: createStreamEventHandler({
                     reasoningStartedAt,
                     stepReasoningOutput: {
@@ -210,7 +182,7 @@ export function createAssistantRunner(deps) {
                     messageBlocks,
                     lifecycle,
                     emitSse,
-                    applyToolCallDelta,
+                    applyToolCallDelta: deps.applyToolCallDelta,
                     stepToolCalls,
                     finishReason: {
                       get value() {
@@ -236,14 +208,14 @@ export function createAssistantRunner(deps) {
                   messageBlocks,
                 });
                 const persisted = await emitSse({ response: delta }, { persist: true });
-                await publishRealtimeNow(
+                await deps.publishRealtimeNow(
                   env,
-                  createRealtimeEvent({
+                  deps.createRealtimeEvent({
                     type: 'message.delta',
                     userId: user.sub,
                     chatId,
                     messageId: assistantMsgId,
-                    originSessionId: getOriginSessionId(req),
+                    originSessionId: deps.getOriginSessionId(req),
                     data: { delta, model, seq: persisted?.seq },
                   })
                 );
@@ -284,14 +256,14 @@ export function createAssistantRunner(deps) {
                   messageBlocks,
                 });
                 const persisted = await emitSse({ response: finalDelta }, { persist: true });
-                await publishRealtimeNow(
+                await deps.publishRealtimeNow(
                   env,
-                  createRealtimeEvent({
+                  deps.createRealtimeEvent({
                     type: 'message.delta',
                     userId: user.sub,
                     chatId,
                     messageId: assistantMsgId,
-                    originSessionId: getOriginSessionId(req),
+                    originSessionId: deps.getOriginSessionId(req),
                     data: { delta: finalDelta, model, seq: persisted?.seq },
                   })
                 );
@@ -310,14 +282,17 @@ export function createAssistantRunner(deps) {
               }
 
               async function buildToolLoopResult() {
-                const { validCalls, unknownCalls } = normalizeToolCalls(stepToolCalls, toolMap);
+                const { validCalls, unknownCalls } = deps.normalizeToolCalls(
+                  stepToolCalls,
+                  toolMap
+                );
                 const result = await executeToolCalls({
                   validCalls,
                   unknownCalls,
                   serversById,
-                  parseToolArguments,
-                  executeMcpToolCall,
-                  stringifyToolPayload,
+                  parseToolArguments: deps.parseToolArguments,
+                  executeMcpToolCall: deps.executeMcpToolCall,
+                  stringifyToolPayload: deps.stringifyToolPayload,
                   lifecycle,
                   assistantMsgId,
                   toolCallRecords,
@@ -328,7 +303,7 @@ export function createAssistantRunner(deps) {
                   emitSse,
                   controller,
                   encoder,
-                  normalizeErrorMessage,
+                  normalizeErrorMessage: deps.normalizeErrorMessage,
                 });
                 if (result.cancelled) {
                   return {
@@ -348,7 +323,7 @@ export function createAssistantRunner(deps) {
                 if (unknownCalls.length) {
                   nextMessagesForModel = [
                     ...nextMessagesForModel,
-                    { role: 'system', content: buildUnknownToolPrompt(unknownCalls, toolMap) },
+                    { role: 'system', content: deps.buildUnknownToolPrompt(unknownCalls, toolMap) },
                   ];
                 }
                 return { action: 'tool_loop', nextMessagesForModel };
@@ -369,7 +344,7 @@ export function createAssistantRunner(deps) {
               }
 
               async function resolveStepOutcome() {
-                const turnContinuation = resolveTurnContinuation({
+                const turnContinuation = deps.resolveTurnContinuation({
                   providerFamily,
                   hasToolCalls: stepToolCalls.some((call) => call && call.name),
                   finishReason,
@@ -417,7 +392,7 @@ export function createAssistantRunner(deps) {
             return;
           }
 
-          await finalizeAssistantStream({
+          await deps.finalizeAssistantStream({
             db,
             env,
             user,
@@ -431,11 +406,11 @@ export function createAssistantRunner(deps) {
             fullReasoning,
             toolCallRecords,
             messageBlocks,
-            getMessageSnapshot,
-            getOwnedChat,
-            publishRealtimeNow,
-            createRealtimeEvent,
-            getOriginSessionId,
+            getMessageSnapshot: deps.getMessageSnapshot,
+            getOwnedChat: deps.getOwnedChat,
+            publishRealtimeNow: deps.publishRealtimeNow,
+            createRealtimeEvent: deps.createRealtimeEvent,
+            getOriginSessionId: deps.getOriginSessionId,
             controller,
             encoder,
           });
@@ -458,7 +433,7 @@ export function createAssistantRunner(deps) {
     });
 
     return {
-      response: new Response(readable, { headers: sseHeaders(req) }),
+      response: new Response(readable, { headers: deps.sseHeaders(req) }),
       assistantMsgId,
     };
   };

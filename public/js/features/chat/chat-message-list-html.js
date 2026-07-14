@@ -214,6 +214,114 @@ function renderAssistantMessage(
     `;
 }
 
+function prepareMessageRenderContext(m, i, context) {
+  const {
+    state,
+    projectedMessages,
+    roundsByMessageId,
+    streamingOverride,
+    firstUserMsg,
+    chatId,
+    pendingDeleteMessageKeys,
+    messageBlocksById,
+    toolCallsByMessageId,
+    renderDeps,
+    syncMessageBlocksForMessage,
+    syncToolCallsForMessage,
+  } = context;
+  const msgId = m.id || `idx-${i}`;
+  const rounds = roundsByMessageId.get(String(msgId));
+  const ctx = computeMessageContext(m, i, projectedMessages, streamingOverride, state, rounds);
+  syncMessageBlocksForMessage?.(messageBlocksById, msgId, m.message_blocks, {
+    isStreaming: ctx.isStreaming,
+  });
+  syncToolCallsForMessage?.(toolCallsByMessageId, msgId, m.tool_calls, {
+    isStreaming: ctx.isStreaming,
+  });
+  return {
+    msgId,
+    i,
+    rounds,
+    displayContent: ctx.displayContent,
+    isStreaming: ctx.isStreaming,
+    isEditing: ctx.isEditing,
+    editingContent: ctx.editingContent,
+    modelName: ctx.modelName,
+    roundsHtml: renderRoundNavHtml(msgId, rounds),
+    showDelete: shouldShowUserDelete(m, msgId, firstUserMsg, rounds),
+    showDeleteAssistant: shouldShowAssistantDelete(rounds),
+    deletePending: Boolean(pendingDeleteMessageKeys[`${chatId}:${String(msgId)}`]),
+    chatId,
+    renderDeps,
+    renderAssistantMessageBody: context.renderAssistantMessageBody,
+  };
+}
+
+function renderEditingMessage(m, ctx) {
+  const { msgId, i, editingContent, modelName } = ctx;
+  if (m.role === 'user') return renderEditUserForm(msgId, i, editingContent);
+  return renderEditAssistantForm(msgId, i, editingContent, modelName);
+}
+
+function renderUserMessageItem(m, ctx, context) {
+  const { msgId, i, displayContent, roundsHtml, deletePending, showDelete } = ctx;
+  const attachmentHtml = context.renderAttachmentPills?.(m.attachments, 'end') || '';
+  return renderUserMessage(
+    msgId,
+    i,
+    displayContent,
+    attachmentHtml,
+    roundsHtml,
+    deletePending,
+    showDelete
+  );
+}
+
+function renderAssistantMessageItem(m, ctx) {
+  const {
+    msgId,
+    i,
+    displayContent,
+    isStreaming,
+    modelName,
+    rounds,
+    roundsHtml,
+    chatId,
+    deletePending,
+    showDeleteAssistant,
+    renderDeps,
+    renderAssistantMessageBody,
+  } = ctx;
+  const citations = normalizeCitations(m.citations);
+  const isError = m.status === 'error' || Boolean(m.error_message);
+  const citationHtml = renderCitationsHtml(citations);
+  const showRoundNav = (rounds?.total || 0) > 1;
+  return renderAssistantMessage(
+    msgId,
+    i,
+    modelName,
+    displayContent,
+    isStreaming,
+    isError,
+    chatId,
+    rounds,
+    roundsHtml,
+    citationHtml,
+    deletePending,
+    showDeleteAssistant,
+    showRoundNav,
+    renderDeps,
+    renderAssistantMessageBody
+  );
+}
+
+function renderMessageItem(m, i, context) {
+  const ctx = prepareMessageRenderContext(m, i, context);
+  if (ctx.isEditing) return renderEditingMessage(m, ctx);
+  if (m.role === 'user') return renderUserMessageItem(m, ctx, context);
+  return renderAssistantMessageItem(m, ctx);
+}
+
 export function buildChatMessageListHtml({
   projectedMessages = [],
   roundsByMessageId = new Map(),
@@ -235,8 +343,6 @@ export function buildChatMessageListHtml({
   const firstUserMsg = projectedMessages.find((m) => m.role === 'user');
   const streamingOverride = chatId ? streamingOverrideByChat?.get(chatId) : null;
   const pendingDeleteMessageKeys = state?.ui?.pendingDeleteMessageKeys || {};
-  const isDeletePending = (messageId) =>
-    Boolean(pendingDeleteMessageKeys[`${chatId}:${String(messageId)}`]);
 
   const renderDeps = {
     errorExpandedByMessageId,
@@ -248,58 +354,22 @@ export function buildChatMessageListHtml({
     messageBlocksById,
   };
 
-  return projectedMessages
-    .map((m, i) => {
-      const msgId = m.id || `idx-${i}`;
-      const rounds = roundsByMessageId.get(String(msgId));
-      const ctx = computeMessageContext(m, i, projectedMessages, streamingOverride, state, rounds);
-      const { displayContent, isStreaming, isEditing, editingContent, modelName } = ctx;
-      syncMessageBlocksForMessage?.(messageBlocksById, msgId, m.message_blocks, { isStreaming });
-      syncToolCallsForMessage?.(toolCallsByMessageId, msgId, m.tool_calls, { isStreaming });
-      const roundsHtml = renderRoundNavHtml(msgId, rounds);
-      const showDelete = shouldShowUserDelete(m, msgId, firstUserMsg, rounds);
-      const showDeleteAssistant = shouldShowAssistantDelete(rounds);
-      const deletePending = isDeletePending(msgId);
+  const context = {
+    state,
+    projectedMessages,
+    roundsByMessageId,
+    streamingOverride,
+    firstUserMsg,
+    chatId,
+    pendingDeleteMessageKeys,
+    messageBlocksById,
+    toolCallsByMessageId,
+    renderDeps,
+    renderAttachmentPills,
+    renderAssistantMessageBody,
+    syncMessageBlocksForMessage,
+    syncToolCallsForMessage,
+  };
 
-      if (isEditing) {
-        if (m.role === 'user') return renderEditUserForm(msgId, i, editingContent);
-        return renderEditAssistantForm(msgId, i, editingContent, modelName);
-      }
-
-      if (m.role === 'user') {
-        const attachmentHtml = renderAttachmentPills?.(m.attachments, 'end') || '';
-        return renderUserMessage(
-          msgId,
-          i,
-          displayContent,
-          attachmentHtml,
-          roundsHtml,
-          deletePending,
-          showDelete
-        );
-      }
-
-      const citations = normalizeCitations(m.citations);
-      const isError = m.status === 'error' || Boolean(m.error_message);
-      const citationHtml = renderCitationsHtml(citations);
-      const showRoundNav = (rounds?.total || 0) > 1;
-      return renderAssistantMessage(
-        msgId,
-        i,
-        modelName,
-        displayContent,
-        isStreaming,
-        isError,
-        chatId,
-        rounds,
-        roundsHtml,
-        citationHtml,
-        deletePending,
-        showDeleteAssistant,
-        showRoundNav,
-        renderDeps,
-        renderAssistantMessageBody
-      );
-    })
-    .join('');
+  return projectedMessages.map((m, i) => renderMessageItem(m, i, context)).join('');
 }
