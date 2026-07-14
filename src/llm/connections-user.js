@@ -92,14 +92,8 @@ function resolveOwnerUserId(row) {
   return row.user_id || row.userId || null;
 }
 
-function normalizeUserConnectionRow({ row, index = 0 } = {}) {
-  if (!row) return null;
-  const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
-  if (!baseUrl) return null;
-
-  const providerType = resolveProviderType(row);
-  const providerFamily = resolveProviderFamily(row, providerType);
-  const id = ensureConnectionId(
+function buildUserConnectionIdentity(row, providerType, providerFamily, baseUrl, index) {
+  return ensureConnectionId(
     {
       id: row.id,
       providerType,
@@ -110,10 +104,22 @@ function normalizeUserConnectionRow({ row, index = 0 } = {}) {
     },
     index
   );
+}
 
+function resolveUserConnectionName(row, providerFamily) {
+  return String(row.name || `${labelFromFamily(providerFamily)} Personal`).slice(0, 120);
+}
+
+function resolveUserConnectionManualModelsMode(row) {
+  return (
+    normalizeConnectionModelSelectionMode(row.manual_models_mode || row.manualModelsMode) || 'all'
+  );
+}
+
+function buildUserConnectionRecord(row, baseUrl, providerType, providerFamily, id) {
   return {
     id,
-    name: String(row.name || `${labelFromFamily(providerFamily)} Personal`).slice(0, 120),
+    name: resolveUserConnectionName(row, providerFamily),
     baseUrl,
     url: baseUrl,
     key: String(row.key || '').trim(),
@@ -126,12 +132,22 @@ function normalizeUserConnectionRow({ row, index = 0 } = {}) {
     authType: normalizeAuthType(row.auth_type || row.authType),
     apiType: getConnectionApiType(providerType),
     manualModels: parseUserConnectionManualModels(row.manual_models || row.manualModels),
-    manualModelsMode:
-      normalizeConnectionModelSelectionMode(row.manual_models_mode || row.manualModelsMode) ||
-      'all',
+    manualModelsMode: resolveUserConnectionManualModelsMode(row),
     ownerUserId: resolveOwnerUserId(row),
     personal: true,
   };
+}
+
+function normalizeUserConnectionRow({ row, index = 0 } = {}) {
+  if (!row) return null;
+  const baseUrl = normalizeBaseUrl(row.base_url || row.baseUrl || '');
+  if (!baseUrl) return null;
+
+  const providerType = resolveProviderType(row);
+  const providerFamily = resolveProviderFamily(row, providerType);
+  const id = buildUserConnectionIdentity(row, providerType, providerFamily, baseUrl, index);
+
+  return buildUserConnectionRecord(row, baseUrl, providerType, providerFamily, id);
 }
 
 function resolveConnectionName(input, existing) {
