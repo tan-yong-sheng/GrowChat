@@ -151,43 +151,65 @@ function wireChat(root) {
     });
   }
   drawPlaceholder();
+  function buildChatButton(chat, activeId, handlers) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `w-full text-left px-3 py-2 rounded-lg text-sm transition ${String(chat?.id) === String(activeId) ? 'bg-white text-gray-900 font-medium' : 'text-gray-600 hover:bg-white'}`;
+    button.textContent = chat?.title || 'Untitled Chat';
+    button.addEventListener('click', () => {
+      handlers.onClick?.(chat?.id);
+    });
+    return button;
+  }
+  function appendLoadingRow(fragment) {
+    const loadingRow = document.createElement('div');
+    loadingRow.className = 'px-3 py-3 text-xs text-gray-600';
+    loadingRow.textContent = 'Loading more chats...';
+    const loadingItem = document.createElement('li');
+    loadingItem.appendChild(loadingRow);
+    fragment.appendChild(loadingItem);
+  }
+  function appendMoreSentinel(fragment) {
+    const sentinel = document.createElement('div');
+    sentinel.id = 'chat-list-load-more';
+    sentinel.className = 'h-6';
+    const sentinelItem = document.createElement('li');
+    sentinelItem.appendChild(sentinel);
+    fragment.appendChild(sentinelItem);
+  }
+  function buildFallbackChatListFragment(chats, activeId) {
+    const fallbackFragment = document.createDocumentFragment();
+    const chatItems = Array.isArray(chats) ? chats : [];
+    if (chatItems.length === 0 && !state?.chatsPagination?.loading) {
+      appendEmptyChatStateItem(fallbackFragment);
+    } else {
+      chatItems.slice(0, 24).forEach((chat) => {
+        const handlers = getChatHandlers(chat);
+        const item = document.createElement('li');
+        item.appendChild(buildChatButton(chat, activeId, handlers));
+        fallbackFragment.appendChild(item);
+      });
+    }
+    if (state?.chatsPagination?.loading) {
+      appendLoadingRow(fallbackFragment);
+    } else if (state?.chatsPagination?.hasMore) {
+      appendMoreSentinel(fallbackFragment);
+    }
+    return fallbackFragment;
+  }
+  function buildPinnedToggle() {
+    pinnedSectionCollapsed = !pinnedSectionCollapsed;
+    try {
+      localStorage.setItem(PINNED_COLLAPSED_KEY, pinnedSectionCollapsed ? '1' : '0');
+    } catch {
+      /* ignored */
+    }
+    drawChats(state.chats, state.activeChatId);
+  }
   function drawChats(chats, activeId) {
     if (!ctx.buildChatSidebarListFragmentImpl) {
       scheduleSidebarHydrationWarmup();
-      const fallbackFragment = document.createDocumentFragment();
-      const chatItems = Array.isArray(chats) ? chats : [];
-      if (chatItems.length === 0 && !state?.chatsPagination?.loading) {
-        appendEmptyChatStateItem(fallbackFragment);
-      } else {
-        chatItems.slice(0, 24).forEach((chat) => {
-          const handlers = getChatHandlers(chat);
-          const item = document.createElement('li');
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = `w-full text-left px-3 py-2 rounded-lg text-sm transition ${String(chat?.id) === String(activeId) ? 'bg-white text-gray-900 font-medium' : 'text-gray-600 hover:bg-white'}`;
-          button.textContent = chat?.title || 'Untitled Chat';
-          button.addEventListener('click', () => {
-            handlers.onClick?.(chat?.id);
-          });
-          item.appendChild(button);
-          fallbackFragment.appendChild(item);
-        });
-      }
-      if (state?.chatsPagination?.loading) {
-        const loadingRow = document.createElement('div');
-        loadingRow.className = 'px-3 py-3 text-xs text-gray-600';
-        loadingRow.textContent = 'Loading more chats...';
-        const loadingItem = document.createElement('li');
-        loadingItem.appendChild(loadingRow);
-        fallbackFragment.appendChild(loadingItem);
-      } else if (state?.chatsPagination?.hasMore) {
-        const sentinel = document.createElement('div');
-        sentinel.id = 'chat-list-load-more';
-        sentinel.className = 'h-6';
-        const sentinelItem = document.createElement('li');
-        sentinelItem.appendChild(sentinel);
-        fallbackFragment.appendChild(sentinelItem);
-      }
+      const fallbackFragment = buildFallbackChatListFragment(chats, activeId);
       chatList.innerHTML = '';
       chatList.appendChild(fallbackFragment);
       return;
@@ -198,15 +220,7 @@ function wireChat(root) {
       models: state.models,
       state,
       isPinnedSectionCollapsed: pinnedSectionCollapsed,
-      onPinnedToggle: () => {
-        pinnedSectionCollapsed = !pinnedSectionCollapsed;
-        try {
-          localStorage.setItem(PINNED_COLLAPSED_KEY, pinnedSectionCollapsed ? '1' : '0');
-        } catch {
-          /* ignored */
-        }
-        drawChats(state.chats, state.activeChatId);
-      },
+      onPinnedToggle: buildPinnedToggle,
       getChatHandlers,
     });
     chatList.innerHTML = '';
